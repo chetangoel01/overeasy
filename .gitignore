@@ -1,5 +1,6 @@
 .DS_Store
 .worktrees/
+.artifacts/
 .build/
 DerivedData/
 *.xcuserstate
