@@ -1,3 +1,4 @@
+import LadleCore
 import SwiftData
 import SwiftUI
 
@@ -13,7 +14,10 @@ struct LadleRuntimeConfiguration {
 
 @main
 struct LadleApp: App {
+    @Environment(\.scenePhase) private var scenePhase
+
     private let appEnvironment: AppEnvironment
+    private let sharedQueueReconciler: SharedQueueReconciler?
     @State private var accountSession: AccountSession
     @State private var libraryViewModel: LibraryViewModel
     @State private var importCoordinator: ImportCoordinator
@@ -40,11 +44,34 @@ struct LadleApp: App {
             LibraryViewModel.resetDisplayPreference()
         }
 
+        let sharedQueueReconciler: SharedQueueReconciler?
+        if !runtimeConfiguration.usesInMemoryStore,
+           let containerURL = FileManager.default.containerURL(
+               forSecurityApplicationGroupIdentifier:
+                   SharedImportQueue.appGroupIdentifier
+           ) {
+            let queue = SharedImportQueue(
+                directoryURL: containerURL.appendingPathComponent(
+                    SharedImportQueue.appGroupDirectoryName,
+                    isDirectory: true
+                )
+            )
+            let reconciler = SharedQueueReconciler(
+                queue: queue,
+                repository: environment.recipeRepository
+            )
+            try? reconciler.reconcile()
+            sharedQueueReconciler = reconciler
+        } else {
+            sharedQueueReconciler = nil
+        }
+
         let accountSession = AccountSession(
             launchArguments: launchArguments
         )
 
         appEnvironment = environment
+        self.sharedQueueReconciler = sharedQueueReconciler
         _accountSession = State(
             initialValue: accountSession
         )
@@ -71,6 +98,22 @@ struct LadleApp: App {
             )
                 .tint(LadleTheme.paprika)
                 .modelContainer(appEnvironment.modelContainer)
+                .onChange(of: scenePhase) { _, phase in
+                    guard phase == .active,
+                          let sharedQueueReconciler else {
+                        return
+                    }
+                    do {
+                        let importedCount =
+                            try sharedQueueReconciler.reconcile()
+                        if importedCount > 0 {
+                            libraryViewModel.load()
+                        }
+                    } catch {
+                        // The durable envelope remains queued for the next activation.
+                        libraryViewModel.load()
+                    }
+                }
         }
     }
 }

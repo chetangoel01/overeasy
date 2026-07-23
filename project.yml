@@ -57,6 +57,8 @@ targets:
     platform: iOS
     sources:
       - path: LadleTests
+      - path: LadleShare/ShareURLExtractor.swift
+      - path: LadleShare/ShareConfirmationView.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.ladle.ios.tests

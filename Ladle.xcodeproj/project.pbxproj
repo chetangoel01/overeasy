@@ -10,12 +10,17 @@
 		0088C19DE085223382B93D22 /* FailedImportSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E773EEC85D6B10B47798F46E /* FailedImportSheet.swift */; };
 		02B81E38806DC747131FD239 /* RecipeEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE210DBCF0B5E6E0CEF88ED8 /* RecipeEditorView.swift */; };
 		04F10BBF44F7962FD24A6ADD /* CookingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 659DEB801C4C5EC75C6F09EC /* CookingViewModel.swift */; };
+		0C9B0253845FDF91196C8DC3 /* ShareConfirmationViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2DDA4DA24D19A4B049A9968 /* ShareConfirmationViewTests.swift */; };
 		0DC711210058792227742BE8 /* SwiftDataRecipeRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8D8492C25EEFD85B7E7240C /* SwiftDataRecipeRepository.swift */; };
+		0F02DA28CAC8E4E68CC83B07 /* ShareConfirmationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B36C84213DD9529722DAE189 /* ShareConfirmationView.swift */; };
 		1028AD29B58A5FD4AE029900 /* GuestLimitView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 480030F07BD940462128F4AE /* GuestLimitView.swift */; };
 		111AB9F91CF8DA219B560D2A /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA427F9A68EAFE92CBFCB53E /* LibraryView.swift */; };
+		13A8E77CA71DE564C79A291E /* ShareURLExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A93A16FCFB7610C2A4F09D4 /* ShareURLExtractor.swift */; };
 		15B305735D008537A73E9BE2 /* LadleLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13D8FE97FD1AE805C5448B98 /* LadleLaunchTests.swift */; };
 		19817C767CFBCAA88DFC31C5 /* HealthExportSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 673D9EEE813C58368B614A0F /* HealthExportSheet.swift */; };
 		1D7AE199157D84F1562E6C95 /* ReimportSafetyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2461B3FDEC6CF3119C4548A /* ReimportSafetyTests.swift */; };
+		202BABB63D7F671836CD4F1A /* ShareURLExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A93A16FCFB7610C2A4F09D4 /* ShareURLExtractor.swift */; };
+		248BCFB9AB72089B7292B552 /* ShareConfirmationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B36C84213DD9529722DAE189 /* ShareConfirmationView.swift */; };
 		292CA6391C0A45751E5542C2 /* StoredRecipe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27E622AAB3FB89F99BAD6CAE /* StoredRecipe.swift */; };
 		38670B3279A15C8147795E43 /* LadleShare.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D975A502CE6CABFF17DE770D /* LadleShare.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		3904F50A59BF742CAE9D1014 /* RecipeDetailTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 798B832B950A7B595EE49A1E /* RecipeDetailTests.swift */; };
@@ -23,6 +28,7 @@
 		3B24B8FC354FB569DA827D92 /* PendingImportCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02E89F28EBF53680812A3D38 /* PendingImportCard.swift */; };
 		3BABF27DB63F60124D14F426 /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 860D5C02610981E7F4B9FC0C /* WelcomeView.swift */; };
 		3EAD52B961E44399FA89F41E /* RecipeEditorViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EA2657D0BA391951AC9AB8A /* RecipeEditorViewModel.swift */; };
+		48D0EBCF569C98CD7A92CD0E /* ShareURLExtractorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E19326D8562639EDF5FA97E /* ShareURLExtractorTests.swift */; };
 		4CE3214444DC464505688E43 /* ScreenAwakeController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 614CB64D3827AB1339095FC2 /* ScreenAwakeController.swift */; };
 		51C94E20F9D10C5C3A6EC671 /* DemoImportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5811E544D3F145804508A12 /* DemoImportService.swift */; };
 		576B0A57DEFAF69091D82D8C /* HealthKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49EB0A8621F79A4E7F769532 /* HealthKitService.swift */; };
@@ -34,6 +40,7 @@
 		686D83B6FD0217AC67627063 /* FullRecipeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2460B2541E823AB098F4BAFA /* FullRecipeView.swift */; };
 		69743766694999A4F7022D3F /* AccountSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB9237724B9663AD4AFC1232 /* AccountSession.swift */; };
 		6FBBAE9357F2B186E26ADD35 /* LadleCore in Frameworks */ = {isa = PBXBuildFile; productRef = ACB5208FC83F92BD0A208E0F /* LadleCore */; };
+		75E34BC4C3ECC1FF8580FBDB /* SharedQueueReconciler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46580B3879F912E78BF1629C /* SharedQueueReconciler.swift */; };
 		7735E4254A1CC43579B1C7AD /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CAD674446D07BDCDBFD2F66 /* RootView.swift */; };
 		7903D591A395E0DD678CC58F /* RecipeTimer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AE99C267EF3E47EF936C777 /* RecipeTimer.swift */; };
 		7EA3D0A7DC5399B4FC05FF29 /* ImportFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BF1BB60CCA8DA2A2540A32F /* ImportFlowTests.swift */; };
@@ -64,6 +71,7 @@
 		D099721222903333754D2511 /* LadleCore in Frameworks */ = {isa = PBXBuildFile; productRef = 5B405345B796769819500445 /* LadleCore */; };
 		D7103457BFF15D8530BDA4B2 /* DesignTokenTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F3C25E4F342D1FEEB15A965 /* DesignTokenTests.swift */; };
 		D78BB07879939E3FC2D9E071 /* ProjectSmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9209E28951C4CAA3BC8E7629 /* ProjectSmokeTests.swift */; };
+		DA89A97C3E062E6E81CA8E40 /* SharedQueueReconcilerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57ED21827A8B76FEB98FDB19 /* SharedQueueReconcilerTests.swift */; };
 		E5ADC1288191201E540C48A7 /* LadleComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 348D89D4BA7119269FD4F3BC /* LadleComponents.swift */; };
 		E5D62027E211EFC50B38F37C /* LibraryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6638D8D4EFDAA359DD3B8348 /* LibraryViewModel.swift */; };
 		E86042D71EA8C713F03F2B53 /* RecipeMetadataBand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B5D35390C608C2FB9D0C0C9 /* RecipeMetadataBand.swift */; };
@@ -120,6 +128,7 @@
 		07E8E61AD25B02CFF497294C /* LadleTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LadleTheme.swift; sourceTree = "<group>"; };
 		09B260DA499835E89F84D468 /* HealthExportViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthExportViewModelTests.swift; sourceTree = "<group>"; };
 		0BB5A8ECFC358FE7640A816A /* HealthExportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthExportTests.swift; sourceTree = "<group>"; };
+		0E19326D8562639EDF5FA97E /* ShareURLExtractorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareURLExtractorTests.swift; sourceTree = "<group>"; };
 		13D8FE97FD1AE805C5448B98 /* LadleLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LadleLaunchTests.swift; sourceTree = "<group>"; };
 		1AE99C267EF3E47EF936C777 /* RecipeTimer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeTimer.swift; sourceTree = "<group>"; };
 		2460B2541E823AB098F4BAFA /* FullRecipeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullRecipeView.swift; sourceTree = "<group>"; };
@@ -133,9 +142,11 @@
 		3BF1BB60CCA8DA2A2540A32F /* ImportFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportFlowTests.swift; sourceTree = "<group>"; };
 		40BE6EC550DEE7EF23081606 /* EditAndReimportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditAndReimportTests.swift; sourceTree = "<group>"; };
 		41B1A4DD4FEB2DE4274795C2 /* RecipeDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeDetailView.swift; sourceTree = "<group>"; };
+		46580B3879F912E78BF1629C /* SharedQueueReconciler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedQueueReconciler.swift; sourceTree = "<group>"; };
 		480030F07BD940462128F4AE /* GuestLimitView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuestLimitView.swift; sourceTree = "<group>"; };
 		49EB0A8621F79A4E7F769532 /* HealthKitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitService.swift; sourceTree = "<group>"; };
 		5054FD0987A041FE9A5619DB /* FilterSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterSheet.swift; sourceTree = "<group>"; };
+		57ED21827A8B76FEB98FDB19 /* SharedQueueReconcilerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedQueueReconcilerTests.swift; sourceTree = "<group>"; };
 		5BB8A28AE010B51E06742584 /* IngredientList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngredientList.swift; sourceTree = "<group>"; };
 		5BDEAB572C83A392AED5C622 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		614CB64D3827AB1339095FC2 /* ScreenAwakeController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenAwakeController.swift; sourceTree = "<group>"; };
@@ -154,6 +165,7 @@
 		8177765BDFA262D5329D99BF /* HealthExportViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthExportViewModel.swift; sourceTree = "<group>"; };
 		860D5C02610981E7F4B9FC0C /* WelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeView.swift; sourceTree = "<group>"; };
 		8685543E83A66097689438A5 /* Ladle.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Ladle.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		8A93A16FCFB7610C2A4F09D4 /* ShareURLExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareURLExtractor.swift; sourceTree = "<group>"; };
 		9209E28951C4CAA3BC8E7629 /* ProjectSmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectSmokeTests.swift; sourceTree = "<group>"; };
 		92186EA22A7478D595EF7866 /* LadleUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = LadleUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		96B58AC391122DA6ADD686C9 /* CookingViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CookingViewModelTests.swift; sourceTree = "<group>"; };
@@ -166,6 +178,7 @@
 		AB7758A009F552E1ADAB5A3B /* LadleTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = LadleTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		ADCDE2C252635C3E9076C6DD /* DemoImportServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoImportServiceTests.swift; sourceTree = "<group>"; };
 		B199870C26E21427676774F8 /* LadleCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = LadleCore; path = Packages/LadleCore; sourceTree = SOURCE_ROOT; };
+		B36C84213DD9529722DAE189 /* ShareConfirmationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareConfirmationView.swift; sourceTree = "<group>"; };
 		B38BC487172BD4E150410E78 /* AccountSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSessionTests.swift; sourceTree = "<group>"; };
 		BC911C7C9A9D3FDBABF02BB9 /* ImportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportService.swift; sourceTree = "<group>"; };
 		BE210DBCF0B5E6E0CEF88ED8 /* RecipeEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeEditorView.swift; sourceTree = "<group>"; };
@@ -182,6 +195,7 @@
 		E2461B3FDEC6CF3119C4548A /* ReimportSafetyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReimportSafetyTests.swift; sourceTree = "<group>"; };
 		E773EEC85D6B10B47798F46E /* FailedImportSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FailedImportSheet.swift; sourceTree = "<group>"; };
 		E8D8492C25EEFD85B7E7240C /* SwiftDataRecipeRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftDataRecipeRepository.swift; sourceTree = "<group>"; };
+		F2DDA4DA24D19A4B049A9968 /* ShareConfirmationViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareConfirmationViewTests.swift; sourceTree = "<group>"; };
 		F7CCBA4794A638FF56EBDD1A /* ReimportSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReimportSheet.swift; sourceTree = "<group>"; };
 		FCE40C1144201ECA9A36E8BC /* ImportCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportCoordinator.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -335,6 +349,9 @@
 				9209E28951C4CAA3BC8E7629 /* ProjectSmokeTests.swift */,
 				703E2046735779150499C97A /* RecipeEditorViewModelTests.swift */,
 				E2461B3FDEC6CF3119C4548A /* ReimportSafetyTests.swift */,
+				F2DDA4DA24D19A4B049A9968 /* ShareConfirmationViewTests.swift */,
+				57ED21827A8B76FEB98FDB19 /* SharedQueueReconcilerTests.swift */,
+				0E19326D8562639EDF5FA97E /* ShareURLExtractorTests.swift */,
 				C39A167F8EA2C188D03B1BE6 /* SwiftDataRecipeRepositoryTests.swift */,
 			);
 			path = LadleTests;
@@ -367,6 +384,8 @@
 		C4FA77D8C431C224299760C5 /* LadleShare */ = {
 			isa = PBXGroup;
 			children = (
+				B36C84213DD9529722DAE189 /* ShareConfirmationView.swift */,
+				8A93A16FCFB7610C2A4F09D4 /* ShareURLExtractor.swift */,
 				72AE00384EB09CFD40366417 /* ShareViewController.swift */,
 			);
 			path = LadleShare;
@@ -400,6 +419,7 @@
 				E773EEC85D6B10B47798F46E /* FailedImportSheet.swift */,
 				FCE40C1144201ECA9A36E8BC /* ImportCoordinator.swift */,
 				BC911C7C9A9D3FDBABF02BB9 /* ImportService.swift */,
+				46580B3879F912E78BF1629C /* SharedQueueReconciler.swift */,
 			);
 			path = Import;
 			sourceTree = "<group>";
@@ -614,6 +634,7 @@
 				8CE56A2E89D1E151C1AA6B84 /* ReimportSheet.swift in Sources */,
 				7735E4254A1CC43579B1C7AD /* RootView.swift in Sources */,
 				4CE3214444DC464505688E43 /* ScreenAwakeController.swift in Sources */,
+				75E34BC4C3ECC1FF8580FBDB /* SharedQueueReconciler.swift in Sources */,
 				87248E2F1716A999204DEB21 /* StoredImportJob.swift in Sources */,
 				292CA6391C0A45751E5542C2 /* StoredRecipe.swift in Sources */,
 				0DC711210058792227742BE8 /* SwiftDataRecipeRepository.swift in Sources */,
@@ -625,6 +646,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				248BCFB9AB72089B7292B552 /* ShareConfirmationView.swift in Sources */,
+				202BABB63D7F671836CD4F1A /* ShareURLExtractor.swift in Sources */,
 				AE4B668CBE0E318875AF01EA /* ShareViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -643,6 +666,11 @@
 				D78BB07879939E3FC2D9E071 /* ProjectSmokeTests.swift in Sources */,
 				FA4BA8A760D9DDCB30729AB7 /* RecipeEditorViewModelTests.swift in Sources */,
 				1D7AE199157D84F1562E6C95 /* ReimportSafetyTests.swift in Sources */,
+				0F02DA28CAC8E4E68CC83B07 /* ShareConfirmationView.swift in Sources */,
+				0C9B0253845FDF91196C8DC3 /* ShareConfirmationViewTests.swift in Sources */,
+				13A8E77CA71DE564C79A291E /* ShareURLExtractor.swift in Sources */,
+				48D0EBCF569C98CD7A92CD0E /* ShareURLExtractorTests.swift in Sources */,
+				DA89A97C3E062E6E81CA8E40 /* SharedQueueReconcilerTests.swift in Sources */,
 				C82C0B6359C8D10E2983CC1B /* SwiftDataRecipeRepositoryTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
