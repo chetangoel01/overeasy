@@ -16,6 +16,7 @@ struct LadleApp: App {
     private let appEnvironment: AppEnvironment
     @State private var accountSession: AccountSession
     @State private var libraryViewModel: LibraryViewModel
+    @State private var importCoordinator: ImportCoordinator
 
     init() {
         let processInfo = ProcessInfo.processInfo
@@ -39,13 +40,24 @@ struct LadleApp: App {
             LibraryViewModel.resetDisplayPreference()
         }
 
+        let accountSession = AccountSession(
+            launchArguments: launchArguments
+        )
+
         appEnvironment = environment
         _accountSession = State(
-            initialValue: AccountSession(launchArguments: launchArguments)
+            initialValue: accountSession
         )
         _libraryViewModel = State(
             initialValue: LibraryViewModel(
                 repository: environment.recipeRepository
+            )
+        )
+        _importCoordinator = State(
+            initialValue: ImportCoordinator(
+                repository: environment.recipeRepository,
+                service: DemoImportService(),
+                accountSession: accountSession
             )
         )
     }
@@ -54,7 +66,8 @@ struct LadleApp: App {
         WindowGroup {
             RootView(
                 accountSession: accountSession,
-                libraryViewModel: libraryViewModel
+                libraryViewModel: libraryViewModel,
+                importCoordinator: importCoordinator
             )
                 .tint(LadleTheme.paprika)
                 .modelContainer(appEnvironment.modelContainer)

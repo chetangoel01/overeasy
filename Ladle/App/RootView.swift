@@ -3,18 +3,25 @@ import SwiftUI
 struct RootView: View {
     let accountSession: AccountSession
     let libraryViewModel: LibraryViewModel
+    let importCoordinator: ImportCoordinator
 
     init(
         accountSession: AccountSession,
-        libraryViewModel: LibraryViewModel
+        libraryViewModel: LibraryViewModel,
+        importCoordinator: ImportCoordinator
     ) {
         self.accountSession = accountSession
         self.libraryViewModel = libraryViewModel
+        self.importCoordinator = importCoordinator
     }
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            LibraryView(viewModel: libraryViewModel)
+            LibraryView(
+                viewModel: libraryViewModel,
+                importCoordinator: importCoordinator,
+                accountSession: accountSession
+            )
                 .blur(
                     radius: accountSession.shouldPresentWelcome ? 2.5 : 0
                 )

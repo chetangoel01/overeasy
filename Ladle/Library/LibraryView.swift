@@ -3,8 +3,14 @@ import SwiftUI
 
 struct LibraryView: View {
     @Bindable var viewModel: LibraryViewModel
+    @Bindable var importCoordinator: ImportCoordinator
+    let accountSession: AccountSession
 
     @State private var isFilterSheetPresented = false
+    @State private var isAddSheetPresented = false
+    @State private var failedImportJob: ImportJob?
+    @State private var selectedDestination: LibraryRecipeDestination?
+    @State private var pendingDestination: LibraryRecipeDestination?
     @FocusState private var isSearchFocused: Bool
 
     private let columns = [
@@ -38,6 +44,43 @@ struct LibraryView: View {
             .sheet(isPresented: $isFilterSheetPresented) {
                 FilterSheet(viewModel: viewModel)
             }
+            .sheet(
+                isPresented: $isAddSheetPresented,
+                onDismiss: finishPendingNavigation
+            ) {
+                AddRecipeSheet(
+                    coordinator: importCoordinator,
+                    accountSession: accountSession,
+                    viewRecipe: queueNavigation
+                )
+            }
+            .sheet(
+                item: $failedImportJob,
+                onDismiss: finishPendingNavigation
+            ) { job in
+                FailedImportSheet(
+                    job: job,
+                    coordinator: importCoordinator,
+                    viewRecipe: queueNavigation
+                )
+            }
+            .navigationDestination(
+                item: $selectedDestination
+            ) { destination in
+                ImportedRecipeSummaryView(
+                    recipe: destination.recipe,
+                    statusText: destination.statusText
+                )
+            }
+            .onChange(of: importCoordinator.state) { _, state in
+                switch state {
+                case .importing, .completed, .needsReview, .failed:
+                    viewModel.load()
+                case .idle, .validationFailed, .duplicate, .guestLimit,
+                     .persistenceFailed:
+                    break
+                }
+            }
             .alert(
                 "Couldn’t update favorite",
                 isPresented: operationErrorIsPresented
@@ -68,7 +111,9 @@ struct LibraryView: View {
 
             Spacer()
 
-            Button(action: {}) {
+            Button {
+                isAddSheetPresented = true
+            } label: {
                 Image(systemName: "plus")
                     .font(.system(size: 17, weight: .bold))
                     .foregroundStyle(Color.white)
@@ -259,7 +304,16 @@ struct LibraryView: View {
             ScrollView(.horizontal) {
                 HStack(spacing: 12) {
                     ForEach(viewModel.actionableImportJobs) { job in
-                        PendingImportCard(job: job)
+                        if case .failed = job.status {
+                            Button {
+                                failedImportJob = job
+                            } label: {
+                                PendingImportCard(job: job)
+                            }
+                            .buttonStyle(.plain)
+                        } else {
+                            PendingImportCard(job: job)
+                        }
                     }
                 }
             }
@@ -387,6 +441,32 @@ struct LibraryView: View {
             }
         )
     }
+
+    private func queueNavigation(
+        to recipe: Recipe,
+        statusText: String
+    ) {
+        pendingDestination = LibraryRecipeDestination(
+            recipe: recipe,
+            statusText: statusText
+        )
+    }
+
+    private func finishPendingNavigation() {
+        guard let destination = pendingDestination else {
+            return
+        }
+        pendingDestination = nil
+        Task { @MainActor in
+            await Task.yield()
+            selectedDestination = destination
+        }
+    }
+}
+
+private struct LibraryRecipeDestination: Hashable {
+    let recipe: Recipe
+    let statusText: String
 }
 
 extension RecipeSort {

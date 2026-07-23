@@ -7,29 +7,37 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0088C19DE085223382B93D22 /* FailedImportSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E773EEC85D6B10B47798F46E /* FailedImportSheet.swift */; };
 		0DC711210058792227742BE8 /* SwiftDataRecipeRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8D8492C25EEFD85B7E7240C /* SwiftDataRecipeRepository.swift */; };
 		1028AD29B58A5FD4AE029900 /* GuestLimitView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 480030F07BD940462128F4AE /* GuestLimitView.swift */; };
 		111AB9F91CF8DA219B560D2A /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA427F9A68EAFE92CBFCB53E /* LibraryView.swift */; };
 		15B305735D008537A73E9BE2 /* LadleLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13D8FE97FD1AE805C5448B98 /* LadleLaunchTests.swift */; };
 		292CA6391C0A45751E5542C2 /* StoredRecipe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27E622AAB3FB89F99BAD6CAE /* StoredRecipe.swift */; };
 		38670B3279A15C8147795E43 /* LadleShare.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D975A502CE6CABFF17DE770D /* LadleShare.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		39BB9D3C3EC14FFDCE622491 /* DemoImportServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADCDE2C252635C3E9076C6DD /* DemoImportServiceTests.swift */; };
 		3B24B8FC354FB569DA827D92 /* PendingImportCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02E89F28EBF53680812A3D38 /* PendingImportCard.swift */; };
 		3BABF27DB63F60124D14F426 /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 860D5C02610981E7F4B9FC0C /* WelcomeView.swift */; };
+		51C94E20F9D10C5C3A6EC671 /* DemoImportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5811E544D3F145804508A12 /* DemoImportService.swift */; };
 		5AB882C9AB6EB4BF73B1F7DC /* PreviewFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = A987BC7D76A464A74050A64B /* PreviewFixtures.swift */; };
 		5C05C3DF388966D02FA7F11F /* LadleTypography.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D060807D3AFDD5F858FA2FD /* LadleTypography.swift */; };
 		69743766694999A4F7022D3F /* AccountSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB9237724B9663AD4AFC1232 /* AccountSession.swift */; };
 		6FBBAE9357F2B186E26ADD35 /* LadleCore in Frameworks */ = {isa = PBXBuildFile; productRef = ACB5208FC83F92BD0A208E0F /* LadleCore */; };
 		7735E4254A1CC43579B1C7AD /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CAD674446D07BDCDBFD2F66 /* RootView.swift */; };
+		7EA3D0A7DC5399B4FC05FF29 /* ImportFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BF1BB60CCA8DA2A2540A32F /* ImportFlowTests.swift */; };
 		80742EE04B24D056BCA03971 /* LibraryFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0056F263B0A8D49526CD0A12 /* LibraryFlowTests.swift */; };
 		84D797D5B8CB86A7C4C53756 /* LadleTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07E8E61AD25B02CFF497294C /* LadleTheme.swift */; };
 		87248E2F1716A999204DEB21 /* StoredImportJob.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30865D07CBC2C21DCB5B7BDA /* StoredImportJob.swift */; };
+		8779DD58D535D2F86D02A7CB /* CorrectionNotesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7B73A4D628A16E2ED7ADBB5 /* CorrectionNotesView.swift */; };
 		8D177239F1A086FA834C85C6 /* RecipeGridCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC8EEB0F6CE2D7F25FAF7308 /* RecipeGridCard.swift */; };
 		93A83D9AD673751E50FE0D16 /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = C620D1903E80465BDA8FE60F /* AppEnvironment.swift */; };
 		93CF9021D2F49A9F1263B0FC /* LadleApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 398FE0A6194867671568AF86 /* LadleApp.swift */; };
 		94CBE2FD5CDC33A263424029 /* LibraryViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E75C97A3440E521A8A01510 /* LibraryViewModelTests.swift */; };
+		9AE69ACA22E7BEE2CE2D625C /* ImportCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3801D743E5C7CE52681E7C04 /* ImportCoordinatorTests.swift */; };
 		9C16EF897125A7B0B4CBF604 /* AccountSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B38BC487172BD4E150410E78 /* AccountSessionTests.swift */; };
 		AE4B668CBE0E318875AF01EA /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72AE00384EB09CFD40366417 /* ShareViewController.swift */; };
+		AE645C3991B22C20AF387561 /* ImportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC911C7C9A9D3FDBABF02BB9 /* ImportService.swift */; };
 		B6F2C50D9C1E3327A6A59F33 /* RecipeRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70F3A8AF60529A54861B53EB /* RecipeRepository.swift */; };
+		B8C07A83B04420D104948A91 /* ImportCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCE40C1144201ECA9A36E8BC /* ImportCoordinator.swift */; };
 		C6A344C082E1B3B06F007BDC /* RecipeListRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79C69755A0FE0CB8CFD2F500 /* RecipeListRow.swift */; };
 		C82C0B6359C8D10E2983CC1B /* SwiftDataRecipeRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C39A167F8EA2C188D03B1BE6 /* SwiftDataRecipeRepositoryTests.swift */; };
 		D099721222903333754D2511 /* LadleCore in Frameworks */ = {isa = PBXBuildFile; productRef = 5B405345B796769819500445 /* LadleCore */; };
@@ -39,6 +47,7 @@
 		E5D62027E211EFC50B38F37C /* LibraryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6638D8D4EFDAA359DD3B8348 /* LibraryViewModel.swift */; };
 		EA39C0028F88E65EE07DDC79 /* FilterSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5054FD0987A041FE9A5619DB /* FilterSheet.swift */; };
 		FBE657A54D9B4A76364BC5C3 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5BDEAB572C83A392AED5C622 /* Assets.xcassets */; };
+		FED8F6252BF9482B0F17209C /* AddRecipeSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE36346682BDD2B5E7976D13 /* AddRecipeSheet.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -88,7 +97,9 @@
 		2D060807D3AFDD5F858FA2FD /* LadleTypography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LadleTypography.swift; sourceTree = "<group>"; };
 		30865D07CBC2C21DCB5B7BDA /* StoredImportJob.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoredImportJob.swift; sourceTree = "<group>"; };
 		348D89D4BA7119269FD4F3BC /* LadleComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LadleComponents.swift; sourceTree = "<group>"; };
+		3801D743E5C7CE52681E7C04 /* ImportCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportCoordinatorTests.swift; sourceTree = "<group>"; };
 		398FE0A6194867671568AF86 /* LadleApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LadleApp.swift; sourceTree = "<group>"; };
+		3BF1BB60CCA8DA2A2540A32F /* ImportFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportFlowTests.swift; sourceTree = "<group>"; };
 		480030F07BD940462128F4AE /* GuestLimitView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuestLimitView.swift; sourceTree = "<group>"; };
 		5054FD0987A041FE9A5619DB /* FilterSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterSheet.swift; sourceTree = "<group>"; };
 		5BDEAB572C83A392AED5C622 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -106,14 +117,21 @@
 		A987BC7D76A464A74050A64B /* PreviewFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewFixtures.swift; sourceTree = "<group>"; };
 		AA427F9A68EAFE92CBFCB53E /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
 		AB7758A009F552E1ADAB5A3B /* LadleTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = LadleTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		ADCDE2C252635C3E9076C6DD /* DemoImportServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoImportServiceTests.swift; sourceTree = "<group>"; };
 		B199870C26E21427676774F8 /* LadleCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = LadleCore; path = Packages/LadleCore; sourceTree = SOURCE_ROOT; };
 		B38BC487172BD4E150410E78 /* AccountSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSessionTests.swift; sourceTree = "<group>"; };
+		BC911C7C9A9D3FDBABF02BB9 /* ImportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportService.swift; sourceTree = "<group>"; };
+		BE36346682BDD2B5E7976D13 /* AddRecipeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddRecipeSheet.swift; sourceTree = "<group>"; };
 		C39A167F8EA2C188D03B1BE6 /* SwiftDataRecipeRepositoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftDataRecipeRepositoryTests.swift; sourceTree = "<group>"; };
 		C620D1903E80465BDA8FE60F /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
+		D5811E544D3F145804508A12 /* DemoImportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoImportService.swift; sourceTree = "<group>"; };
+		D7B73A4D628A16E2ED7ADBB5 /* CorrectionNotesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CorrectionNotesView.swift; sourceTree = "<group>"; };
 		D975A502CE6CABFF17DE770D /* LadleShare.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = LadleShare.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		DB9237724B9663AD4AFC1232 /* AccountSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSession.swift; sourceTree = "<group>"; };
 		DC8EEB0F6CE2D7F25FAF7308 /* RecipeGridCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeGridCard.swift; sourceTree = "<group>"; };
+		E773EEC85D6B10B47798F46E /* FailedImportSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FailedImportSheet.swift; sourceTree = "<group>"; };
 		E8D8492C25EEFD85B7E7240C /* SwiftDataRecipeRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftDataRecipeRepository.swift; sourceTree = "<group>"; };
+		FCE40C1144201ECA9A36E8BC /* ImportCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportCoordinator.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -214,7 +232,9 @@
 			isa = PBXGroup;
 			children = (
 				B38BC487172BD4E150410E78 /* AccountSessionTests.swift */,
+				ADCDE2C252635C3E9076C6DD /* DemoImportServiceTests.swift */,
 				9F3C25E4F342D1FEEB15A965 /* DesignTokenTests.swift */,
+				3801D743E5C7CE52681E7C04 /* ImportCoordinatorTests.swift */,
 				6E75C97A3440E521A8A01510 /* LibraryViewModelTests.swift */,
 				9209E28951C4CAA3BC8E7629 /* ProjectSmokeTests.swift */,
 				C39A167F8EA2C188D03B1BE6 /* SwiftDataRecipeRepositoryTests.swift */,
@@ -225,6 +245,7 @@
 		B83462334B3609B1DD29A356 /* LadleUITests */ = {
 			isa = PBXGroup;
 			children = (
+				3BF1BB60CCA8DA2A2540A32F /* ImportFlowTests.swift */,
 				13D8FE97FD1AE805C5448B98 /* LadleLaunchTests.swift */,
 				0056F263B0A8D49526CD0A12 /* LibraryFlowTests.swift */,
 			);
@@ -256,10 +277,24 @@
 				C211D04B23F90F493F5777D1 /* App */,
 				25404B5350B279BF6BDA063D /* Data */,
 				EB2FE3CD69344F022F0C8E92 /* Design */,
+				CDD484CA58ED09D75461BAD2 /* Import */,
 				4D9F49900E72E3A446772D85 /* Library */,
 				1CE38A2688439F4AC371D098 /* Resources */,
 			);
 			path = Ladle;
+			sourceTree = "<group>";
+		};
+		CDD484CA58ED09D75461BAD2 /* Import */ = {
+			isa = PBXGroup;
+			children = (
+				BE36346682BDD2B5E7976D13 /* AddRecipeSheet.swift */,
+				D7B73A4D628A16E2ED7ADBB5 /* CorrectionNotesView.swift */,
+				D5811E544D3F145804508A12 /* DemoImportService.swift */,
+				E773EEC85D6B10B47798F46E /* FailedImportSheet.swift */,
+				FCE40C1144201ECA9A36E8BC /* ImportCoordinator.swift */,
+				BC911C7C9A9D3FDBABF02BB9 /* ImportService.swift */,
+			);
+			path = Import;
 			sourceTree = "<group>";
 		};
 		EB2FE3CD69344F022F0C8E92 /* Design */ = {
@@ -407,6 +442,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				7EA3D0A7DC5399B4FC05FF29 /* ImportFlowTests.swift in Sources */,
 				15B305735D008537A73E9BE2 /* LadleLaunchTests.swift in Sources */,
 				80742EE04B24D056BCA03971 /* LibraryFlowTests.swift in Sources */,
 			);
@@ -417,9 +453,15 @@
 			buildActionMask = 2147483647;
 			files = (
 				69743766694999A4F7022D3F /* AccountSession.swift in Sources */,
+				FED8F6252BF9482B0F17209C /* AddRecipeSheet.swift in Sources */,
 				93A83D9AD673751E50FE0D16 /* AppEnvironment.swift in Sources */,
+				8779DD58D535D2F86D02A7CB /* CorrectionNotesView.swift in Sources */,
+				51C94E20F9D10C5C3A6EC671 /* DemoImportService.swift in Sources */,
+				0088C19DE085223382B93D22 /* FailedImportSheet.swift in Sources */,
 				EA39C0028F88E65EE07DDC79 /* FilterSheet.swift in Sources */,
 				1028AD29B58A5FD4AE029900 /* GuestLimitView.swift in Sources */,
+				B8C07A83B04420D104948A91 /* ImportCoordinator.swift in Sources */,
+				AE645C3991B22C20AF387561 /* ImportService.swift in Sources */,
 				93CF9021D2F49A9F1263B0FC /* LadleApp.swift in Sources */,
 				E5ADC1288191201E540C48A7 /* LadleComponents.swift in Sources */,
 				84D797D5B8CB86A7C4C53756 /* LadleTheme.swift in Sources */,
@@ -452,7 +494,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				9C16EF897125A7B0B4CBF604 /* AccountSessionTests.swift in Sources */,
+				39BB9D3C3EC14FFDCE622491 /* DemoImportServiceTests.swift in Sources */,
 				D7103457BFF15D8530BDA4B2 /* DesignTokenTests.swift in Sources */,
+				9AE69ACA22E7BEE2CE2D625C /* ImportCoordinatorTests.swift in Sources */,
 				94CBE2FD5CDC33A263424029 /* LibraryViewModelTests.swift in Sources */,
 				D78BB07879939E3FC2D9E071 /* ProjectSmokeTests.swift in Sources */,
 				C82C0B6359C8D10E2983CC1B /* SwiftDataRecipeRepositoryTests.swift in Sources */,

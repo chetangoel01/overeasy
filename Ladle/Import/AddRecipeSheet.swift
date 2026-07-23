@@ -1,0 +1,535 @@
+import LadleCore
+import SwiftUI
+
+struct AddRecipeSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    @Bindable var coordinator: ImportCoordinator
+    let accountSession: AccountSession
+    let viewRecipe: (Recipe, String) -> Void
+
+    @State private var linkText = ""
+    @State private var isManualEntry = false
+    @State private var manualTitle = ""
+    @State private var manualDetails = ""
+    @State private var selectedDetent: PresentationDetent = .medium
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                switch coordinator.state {
+                case .importing:
+                    importingContent
+                case .completed:
+                    successContent(needsReview: false)
+                case .needsReview:
+                    successContent(needsReview: true)
+                case .duplicate:
+                    duplicateContent
+                case let .guestLimit(decision):
+                    guestLimitContent(decision: decision)
+                case let .failed(_, reason):
+                    failedContent(reason: reason)
+                case .idle, .validationFailed, .persistenceFailed:
+                    if isManualEntry {
+                        manualContent
+                    } else {
+                        linkContent
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(LadleTheme.paper)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .presentationDetents(
+            [.medium, .large],
+            selection: $selectedDetent
+        )
+        .presentationDragIndicator(.visible)
+        .presentationBackground(LadleTheme.paper)
+        .onAppear {
+            if !coordinator.isImporting {
+                coordinator.reset()
+            }
+        }
+        .onChange(of: accountSession.state) { _, state in
+            guard state == .freeAccount || state == .signedInWithApple,
+                  case .guestLimit = coordinator.state else {
+                return
+            }
+            Task {
+                await coordinator.continueAfterGuestPrompt()
+            }
+        }
+    }
+
+    private var linkContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 22) {
+                sheetIntro(
+                    icon: "link",
+                    title: "Add a recipe",
+                    message: "Paste a recipe video link and Ladle will turn it into something you can actually cook."
+                )
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Recipe link")
+                        .font(LadleTypography.bodyStrong)
+                        .foregroundStyle(LadleTheme.ink)
+
+                    TextField(
+                        "TikTok, Instagram, or YouTube link",
+                        text: $linkText
+                    )
+                    .textInputAutocapitalization(.never)
+                    .keyboardType(.URL)
+                    .autocorrectionDisabled()
+                    .font(LadleTypography.body)
+                    .foregroundStyle(LadleTheme.ink)
+                    .padding(.horizontal, 14)
+                    .frame(minHeight: 52)
+                    .background(
+                        LadleTheme.field,
+                        in: RoundedRectangle(
+                            cornerRadius: LadleTheme.Corner.control,
+                            style: .continuous
+                        )
+                    )
+                    .accessibilityLabel("Recipe link")
+                }
+
+                validationMessage
+
+                Button("Import from link") {
+                    Task {
+                        await coordinator.submit(urlText: linkText)
+                    }
+                }
+                .buttonStyle(LadlePrimaryButtonStyle())
+                .disabled(
+                    linkText.trimmingCharacters(
+                        in: .whitespacesAndNewlines
+                    ).isEmpty
+                )
+
+                Button {
+                    coordinator.reset()
+                    isManualEntry = true
+                    selectedDetent = .large
+                } label: {
+                    Label("Create manually", systemImage: "square.and.pencil")
+                        .frame(maxWidth: .infinity, minHeight: 48)
+                }
+                .font(LadleTypography.bodyStrong)
+                .foregroundStyle(LadleTheme.ink)
+
+                HStack(spacing: 10) {
+                    Image(systemName: "square.and.arrow.up")
+                        .foregroundStyle(LadleTheme.paprika)
+                    Text("Tip: sharing a video to Ladle is even faster.")
+                        .font(LadleTypography.metadata)
+                        .foregroundStyle(LadleTheme.ink.opacity(0.62))
+                }
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    LadleTheme.review,
+                    in: RoundedRectangle(cornerRadius: 14)
+                )
+            }
+            .padding(LadleTheme.Spacing.generous)
+        }
+        .scrollIndicators(.hidden)
+    }
+
+    private var manualContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                sheetIntro(
+                    icon: "square.and.pencil",
+                    title: "Create manually",
+                    message: "Start with a title and any details you already have. You can tidy everything up later."
+                )
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Recipe title")
+                        .font(LadleTypography.bodyStrong)
+                    TextField("Recipe title", text: $manualTitle)
+                        .font(LadleTypography.body)
+                        .padding(.horizontal, 14)
+                        .frame(minHeight: 50)
+                        .background(
+                            LadleTheme.field,
+                            in: RoundedRectangle(
+                                cornerRadius: LadleTheme.Corner.control,
+                                style: .continuous
+                            )
+                        )
+                        .accessibilityLabel("Recipe title")
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Recipe details")
+                        .font(LadleTypography.bodyStrong)
+                    TextEditor(text: $manualDetails)
+                        .font(LadleTypography.body)
+                        .scrollContentBackground(.hidden)
+                        .padding(10)
+                        .frame(minHeight: 130)
+                        .background(
+                            LadleTheme.field,
+                            in: RoundedRectangle(
+                                cornerRadius: LadleTheme.Corner.control,
+                                style: .continuous
+                            )
+                        )
+                        .accessibilityLabel("Recipe details")
+                }
+
+                Button("Save manual recipe") {
+                    Task {
+                        await coordinator.createManualRecipe(
+                            title: manualTitle,
+                            details: manualDetails
+                        )
+                    }
+                }
+                .buttonStyle(LadlePrimaryButtonStyle())
+                .disabled(
+                    manualTitle.trimmingCharacters(
+                        in: .whitespacesAndNewlines
+                    ).isEmpty
+                )
+
+                Button("Use a link instead") {
+                    coordinator.reset()
+                    isManualEntry = false
+                    selectedDetent = .medium
+                }
+                .font(LadleTypography.bodyStrong)
+                .foregroundStyle(LadleTheme.ink)
+                .frame(maxWidth: .infinity, minHeight: 44)
+            }
+            .foregroundStyle(LadleTheme.ink)
+            .padding(LadleTheme.Spacing.generous)
+        }
+        .scrollIndicators(.hidden)
+    }
+
+    private var importingContent: some View {
+        VStack(spacing: 22) {
+            ProgressView()
+                .controlSize(.large)
+                .tint(LadleTheme.paprika)
+                .frame(width: 64, height: 64)
+                .background(LadleTheme.review, in: Circle())
+
+            VStack(spacing: 8) {
+                Text("Rescuing your recipe")
+                    .font(LadleTypography.title)
+                    .foregroundStyle(LadleTheme.ink)
+                Text("Ladle is pulling out the useful parts. You can keep browsing while it works.")
+                    .font(LadleTypography.body)
+                    .foregroundStyle(LadleTheme.ink.opacity(0.64))
+                    .multilineTextAlignment(.center)
+            }
+
+            Button("Keep browsing") {
+                dismiss()
+            }
+            .buttonStyle(LadlePrimaryButtonStyle(isProminent: false))
+        }
+        .padding(LadleTheme.Spacing.generous)
+    }
+
+    private func successContent(needsReview: Bool) -> some View {
+        VStack(spacing: 22) {
+            Image(
+                systemName: needsReview
+                    ? "pencil.and.list.clipboard"
+                    : "checkmark"
+            )
+            .font(.system(size: 25, weight: .bold))
+            .foregroundStyle(needsReview ? LadleTheme.ink : Color.white)
+            .frame(width: 62, height: 62)
+            .background(
+                needsReview ? LadleTheme.review : LadleTheme.success,
+                in: Circle()
+            )
+
+            VStack(spacing: 8) {
+                Text(needsReview ? "Ready for a quick review" : "Recipe ready")
+                    .font(LadleTypography.title)
+                    .foregroundStyle(LadleTheme.ink)
+                    .multilineTextAlignment(.center)
+                Text(
+                    coordinator.completedRecipe?.title
+                        ?? "Your recipe is ready."
+                )
+                .font(LadleTypography.body)
+                .foregroundStyle(LadleTheme.ink.opacity(0.64))
+                .multilineTextAlignment(.center)
+            }
+
+            Button("View Recipe") {
+                guard let recipe = coordinator.completedRecipe else {
+                    return
+                }
+                viewRecipe(
+                    recipe,
+                    needsReview ? "Needs review" : "Imported recipe"
+                )
+                dismiss()
+            }
+            .buttonStyle(LadlePrimaryButtonStyle())
+
+            Button("Back to recipes") {
+                dismiss()
+            }
+            .font(LadleTypography.bodyStrong)
+            .foregroundStyle(LadleTheme.ink)
+            .frame(minHeight: 44)
+        }
+        .padding(LadleTheme.Spacing.generous)
+    }
+
+    private var duplicateContent: some View {
+        VStack(spacing: 22) {
+            Image(systemName: "rectangle.on.rectangle")
+                .font(.system(size: 24, weight: .semibold))
+                .foregroundStyle(LadleTheme.paprika)
+                .frame(width: 60, height: 60)
+                .background(LadleTheme.review, in: Circle())
+
+            VStack(spacing: 8) {
+                Text("Already in your recipes")
+                    .font(LadleTypography.title)
+                    .foregroundStyle(LadleTheme.ink)
+                    .multilineTextAlignment(.center)
+                Text(
+                    coordinator.existingDuplicate?.title
+                        ?? "This link has already been rescued."
+                )
+                .font(LadleTypography.body)
+                .foregroundStyle(LadleTheme.ink.opacity(0.64))
+                .multilineTextAlignment(.center)
+            }
+
+            Button("Open existing recipe") {
+                guard let recipe = coordinator.existingDuplicate else {
+                    return
+                }
+                viewRecipe(recipe, "Saved recipe")
+                dismiss()
+            }
+            .buttonStyle(LadlePrimaryButtonStyle())
+
+            Button("Import another copy") {
+                Task {
+                    await coordinator.importDuplicateCopy()
+                }
+            }
+            .buttonStyle(LadlePrimaryButtonStyle(isProminent: false))
+        }
+        .padding(LadleTheme.Spacing.generous)
+    }
+
+    private func guestLimitContent(
+        decision: GuestSaveDecision
+    ) -> some View {
+        GuestLimitView(
+            decision: decision,
+            accountSession: accountSession
+        ) {
+            Task {
+                await coordinator.continueAfterGuestPrompt()
+            }
+        }
+    }
+
+    private func failedContent(reason: ImportFailure) -> some View {
+        VStack(spacing: 22) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 24))
+                .foregroundStyle(LadleTheme.paprika)
+                .frame(width: 60, height: 60)
+                .background(LadleTheme.review, in: Circle())
+            Text("That link needs a hand")
+                .font(LadleTypography.title)
+                .foregroundStyle(LadleTheme.ink)
+            Text(reason.addRecipeMessage)
+                .font(LadleTypography.body)
+                .foregroundStyle(LadleTheme.ink.opacity(0.64))
+                .multilineTextAlignment(.center)
+            Button("Back to recipes") {
+                dismiss()
+            }
+            .buttonStyle(LadlePrimaryButtonStyle())
+        }
+        .padding(LadleTheme.Spacing.generous)
+    }
+
+    @ViewBuilder
+    private var validationMessage: some View {
+        switch coordinator.state {
+        case let .validationFailed(error):
+            Label(error.addRecipeMessage, systemImage: "exclamationmark.circle")
+                .font(LadleTypography.metadata)
+                .foregroundStyle(LadleTheme.paprika)
+        case .persistenceFailed:
+            Label(
+                "Ladle couldn’t save that import. Please try again.",
+                systemImage: "exclamationmark.circle"
+            )
+            .font(LadleTypography.metadata)
+            .foregroundStyle(LadleTheme.paprika)
+        default:
+            EmptyView()
+        }
+    }
+
+    private func sheetIntro(
+        icon: String,
+        title: String,
+        message: String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(LadleTheme.paprika)
+                .frame(width: 48, height: 48)
+                .background(LadleTheme.review, in: Circle())
+            Text(title)
+                .font(LadleTypography.title)
+                .foregroundStyle(LadleTheme.ink)
+            Text(message)
+                .font(LadleTypography.body)
+                .foregroundStyle(LadleTheme.ink.opacity(0.64))
+        }
+    }
+}
+
+struct ImportedRecipeSummaryView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let recipe: Recipe
+    let statusText: String
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                recipeImage
+
+                Text(statusText)
+                    .font(LadleTypography.eyebrow)
+                    .tracking(1.4)
+                    .foregroundStyle(LadleTheme.paprika)
+
+                Text(recipe.title)
+                    .font(LadleTypography.title)
+                    .foregroundStyle(LadleTheme.ink)
+
+                if let creatorName = recipe.creatorName {
+                    Text("From \(creatorName)")
+                        .font(LadleTypography.body)
+                        .foregroundStyle(LadleTheme.ink.opacity(0.62))
+                }
+
+                HStack(spacing: 10) {
+                    if let totalMinutes = recipe.totalMinutes {
+                        LadlePill(
+                            text: "\(totalMinutes) min",
+                            systemImage: "clock"
+                        )
+                    }
+                    if let calories = recipe.nutrition?.calories {
+                        LadlePill(
+                            text: "≈ \(NSDecimalNumber(decimal: calories).stringValue) cal",
+                            systemImage: "leaf"
+                        )
+                    }
+                }
+
+                Text(recipe.description)
+                    .font(LadleTypography.body)
+                    .foregroundStyle(LadleTheme.ink.opacity(0.72))
+
+                Button("Back to recipes") {
+                    dismiss()
+                }
+                .buttonStyle(LadlePrimaryButtonStyle())
+            }
+            .padding(LadleTheme.Spacing.regular)
+        }
+        .scrollIndicators(.hidden)
+        .background(LadleTheme.paper)
+        .toolbar(.hidden, for: .navigationBar)
+    }
+
+    @ViewBuilder
+    private var recipeImage: some View {
+        if let imageName = recipe.images.first?.localName {
+            Image(imageName)
+                .resizable()
+                .scaledToFill()
+                .frame(height: 270)
+                .frame(maxWidth: .infinity)
+                .clipShape(
+                    RoundedRectangle(
+                        cornerRadius: LadleTheme.Corner.card,
+                        style: .continuous
+                    )
+                )
+                .clipped()
+                .accessibilityHidden(true)
+        } else {
+            RoundedRectangle(
+                cornerRadius: LadleTheme.Corner.card,
+                style: .continuous
+            )
+            .fill(LadleTheme.field)
+            .frame(height: 220)
+            .overlay {
+                Image(systemName: "fork.knife")
+                    .font(.system(size: 28))
+                    .foregroundStyle(LadleTheme.paprika)
+            }
+            .accessibilityHidden(true)
+        }
+    }
+}
+
+private extension ImportValidationError {
+    var addRecipeMessage: String {
+        switch self {
+        case .invalidURL:
+            "Paste a complete link that starts with http or https."
+        case .unsupportedSource:
+            "Use a TikTok, Instagram, or YouTube link."
+        }
+    }
+}
+
+private extension ImportFailure {
+    var addRecipeMessage: String {
+        switch self {
+        case .privateOrDeleted:
+            "The post may be private or deleted. Your link is still saved."
+        case .unsupportedSource:
+            "That source isn’t supported yet."
+        case .invalidURL:
+            "That link doesn’t look complete."
+        case .networkUnavailable:
+            "The network dropped out. The import is safe to retry."
+        case .parserUnavailable:
+            "Ladle couldn’t read the video, but the link is still saved."
+        }
+    }
+}

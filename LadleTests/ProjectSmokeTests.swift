@@ -25,10 +25,16 @@ final class ProjectSmokeTests: XCTestCase {
 
     func testRootViewCanBeCreated() throws {
         let environment = try AppEnvironment(isStoredInMemoryOnly: true)
+        let accountSession = AccountSession()
         _ = RootView(
-            accountSession: AccountSession(),
+            accountSession: accountSession,
             libraryViewModel: LibraryViewModel(
                 repository: environment.recipeRepository
+            ),
+            importCoordinator: ImportCoordinator(
+                repository: environment.recipeRepository,
+                service: DemoImportService(),
+                accountSession: accountSession
             )
         )
     }
