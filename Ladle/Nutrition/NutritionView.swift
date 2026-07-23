@@ -6,6 +6,20 @@ struct NutritionView: View {
     @Environment(\.dismiss) private var dismiss
 
     let nutrition: Nutrition
+    let recipeTitle: String
+    let healthService: any HealthService
+
+    @State private var isHealthExportPresented = false
+
+    init(
+        nutrition: Nutrition,
+        recipeTitle: String,
+        healthService: any HealthService = HealthKitService()
+    ) {
+        self.nutrition = nutrition
+        self.recipeTitle = recipeTitle
+        self.healthService = healthService
+    }
 
     var body: some View {
         NavigationStack {
@@ -15,6 +29,7 @@ struct NutritionView: View {
                     macroGrid
                     nutrientList
                     servingNote
+                    healthExportButton
                 }
                 .padding(LadleTheme.Spacing.generous)
             }
@@ -33,6 +48,13 @@ struct NutritionView: View {
         }
         .presentationDetents([.large])
         .presentationBackground(LadleTheme.paper)
+        .sheet(isPresented: $isHealthExportPresented) {
+            HealthExportSheet(
+                recipeTitle: recipeTitle,
+                nutrition: nutrition,
+                service: healthService
+            )
+        }
     }
 
     private var calorieHero: some View {
@@ -122,6 +144,18 @@ struct NutritionView: View {
                 style: .continuous
             )
         )
+    }
+
+    private var healthExportButton: some View {
+        Button {
+            isHealthExportPresented = true
+        } label: {
+            Label(
+                "Export to Apple Health",
+                systemImage: "heart.text.clipboard"
+            )
+        }
+        .buttonStyle(LadlePrimaryButtonStyle(isProminent: false))
     }
 
     private func macro(

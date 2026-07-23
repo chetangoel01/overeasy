@@ -76,7 +76,10 @@ struct RecipeDetailView: View {
         }
         .sheet(isPresented: $isNutritionPresented) {
             if let nutrition = recipe.nutrition {
-                NutritionView(nutrition: nutrition)
+                NutritionView(
+                    nutrition: nutrition,
+                    recipeTitle: recipe.title
+                )
             }
         }
     }

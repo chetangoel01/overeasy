@@ -1,0 +1,283 @@
+import Foundation
+import LadleCore
+import SwiftUI
+
+struct HealthExportSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var viewModel: HealthExportViewModel
+
+    init(
+        recipeTitle: String,
+        nutrition: Nutrition,
+        service: any HealthService
+    ) {
+        _viewModel = State(
+            initialValue: HealthExportViewModel(
+                recipeTitle: recipeTitle,
+                nutrition: nutrition,
+                service: service
+            )
+        )
+    }
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                switch viewModel.state {
+                case let .succeeded(receipt):
+                    successContent(receipt)
+                case .denied:
+                    deniedContent
+                case .failed:
+                    failedContent
+                case .idle, .exporting:
+                    confirmationContent
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(LadleTheme.paper)
+            .accessibilityIdentifier("health.export")
+            .navigationTitle("Apple Health")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .presentationDetents([.large])
+        .presentationBackground(LadleTheme.paper)
+    }
+
+    private var confirmationContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 22) {
+                header
+                servingPicker
+                exportPreview
+                permissionNote
+
+                Button {
+                    Task {
+                        await viewModel.confirmExport()
+                    }
+                } label: {
+                    if viewModel.state == .exporting {
+                        ProgressView()
+                            .tint(.white)
+                            .frame(maxWidth: .infinity)
+                    } else {
+                        Text("Confirm & Export")
+                    }
+                }
+                .buttonStyle(LadlePrimaryButtonStyle())
+                .disabled(viewModel.state == .exporting)
+            }
+            .padding(LadleTheme.Spacing.generous)
+        }
+        .scrollIndicators(.hidden)
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Image(systemName: "heart.text.clipboard")
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundStyle(LadleTheme.paprika)
+                .frame(width: 52, height: 52)
+                .background(LadleTheme.review, in: Circle())
+
+            Text("Add nutrition to Apple Health")
+                .font(LadleTypography.title)
+                .foregroundStyle(LadleTheme.ink)
+
+            Text(
+                "Choose how much you ate, review the values, then confirm the export."
+            )
+            .font(LadleTypography.body)
+            .foregroundStyle(LadleTheme.ink.opacity(0.64))
+        }
+    }
+
+    private var servingPicker: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Servings eaten")
+                    .font(LadleTypography.metadata)
+                    .foregroundStyle(LadleTheme.ink.opacity(0.58))
+                Text(servingText)
+                    .font(LadleTypography.recipeTitle)
+                    .foregroundStyle(LadleTheme.ink)
+            }
+
+            Spacer()
+
+            Stepper(
+                "",
+                value: $viewModel.selectedServings,
+                in: 0.5...8,
+                step: 0.5
+            )
+            .labelsHidden()
+            .fixedSize()
+            .accessibilityLabel("Servings to export")
+            .accessibilityValue(servingText)
+        }
+        .padding(16)
+        .background(
+            LadleTheme.field,
+            in: RoundedRectangle(
+                cornerRadius: LadleTheme.Corner.card,
+                style: .continuous
+            )
+        )
+    }
+
+    private var exportPreview: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            LadleSectionHeader(
+                title: "What will be written",
+                detail: "\(viewModel.payload.metrics.count) values"
+            )
+
+            VStack(spacing: 0) {
+                ForEach(
+                    Array(viewModel.payload.metrics.enumerated()),
+                    id: \.element.id
+                ) { index, metric in
+                    HStack {
+                        Text(metric.kind.displayName)
+                            .font(LadleTypography.body)
+                            .foregroundStyle(LadleTheme.ink)
+                        Spacer()
+                        Text(metricText(metric))
+                            .font(LadleTypography.bodyStrong)
+                            .foregroundStyle(LadleTheme.ink)
+                    }
+                    .padding(.vertical, 12)
+
+                    if index < viewModel.payload.metrics.count - 1 {
+                        Divider()
+                            .overlay(LadleTheme.ink.opacity(0.08))
+                    }
+                }
+            }
+            .padding(.horizontal, 14)
+            .ladleCard()
+        }
+    }
+
+    private var permissionNote: some View {
+        Label(
+            "Apple will ask for permission only after you confirm. Ladle never exports nutrition automatically.",
+            systemImage: "lock.shield"
+        )
+        .font(LadleTypography.metadata)
+        .foregroundStyle(LadleTheme.ink.opacity(0.64))
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            LadleTheme.review,
+            in: RoundedRectangle(
+                cornerRadius: LadleTheme.Corner.card,
+                style: .continuous
+            )
+        )
+    }
+
+    private func successContent(
+        _ receipt: HealthExportReceipt
+    ) -> some View {
+        resultContent(
+            icon: "checkmark",
+            title: "Added to Apple Health",
+            message:
+                "\(receipt.exportedMetrics.count) nutrition values were added for \(servingText(for: receipt.payload.servings)).",
+            primaryTitle: "Done",
+            primaryAction: {
+                dismiss()
+            }
+        )
+    }
+
+    private var deniedContent: some View {
+        resultContent(
+            icon: "heart.slash",
+            title: "Nothing was exported",
+            message:
+                "Apple Health permission wasn’t granted. Your recipe is unchanged and you can try again anytime.",
+            primaryTitle: "Try Again",
+            primaryAction: viewModel.resetResult
+        )
+    }
+
+    private var failedContent: some View {
+        resultContent(
+            icon: "exclamationmark.triangle",
+            title: "Export didn’t finish",
+            message:
+                "Nothing was written to Apple Health. Check your settings and try again.",
+            primaryTitle: "Try Again",
+            primaryAction: viewModel.resetResult
+        )
+    }
+
+    private func resultContent(
+        icon: String,
+        title: String,
+        message: String,
+        primaryTitle: String,
+        primaryAction: @escaping () -> Void
+    ) -> some View {
+        VStack(spacing: 20) {
+            Image(systemName: icon)
+                .font(.system(size: 24, weight: .bold))
+                .foregroundStyle(Color.white)
+                .frame(width: 62, height: 62)
+                .background(LadleTheme.paprika, in: Circle())
+
+            Text(title)
+                .font(LadleTypography.title)
+                .foregroundStyle(LadleTheme.ink)
+                .multilineTextAlignment(.center)
+
+            Text(message)
+                .font(LadleTypography.body)
+                .foregroundStyle(LadleTheme.ink.opacity(0.64))
+                .multilineTextAlignment(.center)
+
+            Button(primaryTitle, action: primaryAction)
+                .buttonStyle(LadlePrimaryButtonStyle())
+
+            Button("Close") {
+                dismiss()
+            }
+            .font(LadleTypography.bodyStrong)
+            .foregroundStyle(LadleTheme.ink)
+            .frame(minHeight: 44)
+        }
+        .padding(LadleTheme.Spacing.generous)
+    }
+
+    private var servingText: String {
+        servingText(for: viewModel.payload.servings)
+    }
+
+    private func servingText(for servings: Decimal) -> String {
+        let value = decimalText(servings)
+        return servings == 1 ? "1 serving" : "\(value) servings"
+    }
+
+    private func metricText(_ metric: HealthExportMetric) -> String {
+        let prefix = (
+            metric.kind == .calories && viewModel.payload.isEstimated
+        ) ? "≈ " : ""
+        return "\(prefix)\(decimalText(metric.amount)) \(metric.kind.unitSymbol)"
+    }
+
+    private func decimalText(_ value: Decimal) -> String {
+        NSDecimalNumber(decimal: value).stringValue
+    }
+}

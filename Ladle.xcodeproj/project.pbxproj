@@ -12,6 +12,7 @@
 		1028AD29B58A5FD4AE029900 /* GuestLimitView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 480030F07BD940462128F4AE /* GuestLimitView.swift */; };
 		111AB9F91CF8DA219B560D2A /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA427F9A68EAFE92CBFCB53E /* LibraryView.swift */; };
 		15B305735D008537A73E9BE2 /* LadleLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13D8FE97FD1AE805C5448B98 /* LadleLaunchTests.swift */; };
+		19817C767CFBCAA88DFC31C5 /* HealthExportSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 673D9EEE813C58368B614A0F /* HealthExportSheet.swift */; };
 		292CA6391C0A45751E5542C2 /* StoredRecipe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27E622AAB3FB89F99BAD6CAE /* StoredRecipe.swift */; };
 		38670B3279A15C8147795E43 /* LadleShare.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D975A502CE6CABFF17DE770D /* LadleShare.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		3904F50A59BF742CAE9D1014 /* RecipeDetailTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 798B832B950A7B595EE49A1E /* RecipeDetailTests.swift */; };
@@ -19,8 +20,11 @@
 		3B24B8FC354FB569DA827D92 /* PendingImportCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02E89F28EBF53680812A3D38 /* PendingImportCard.swift */; };
 		3BABF27DB63F60124D14F426 /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 860D5C02610981E7F4B9FC0C /* WelcomeView.swift */; };
 		51C94E20F9D10C5C3A6EC671 /* DemoImportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5811E544D3F145804508A12 /* DemoImportService.swift */; };
+		576B0A57DEFAF69091D82D8C /* HealthKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49EB0A8621F79A4E7F769532 /* HealthKitService.swift */; };
 		5AB882C9AB6EB4BF73B1F7DC /* PreviewFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = A987BC7D76A464A74050A64B /* PreviewFixtures.swift */; };
+		5B6DEFBDF7B2FA4D8B98B626 /* HealthExportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BB5A8ECFC358FE7640A816A /* HealthExportTests.swift */; };
 		5C05C3DF388966D02FA7F11F /* LadleTypography.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D060807D3AFDD5F858FA2FD /* LadleTypography.swift */; };
+		6004155F8B4E42FACDDED7E5 /* HealthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 739B606520A158CF7F843006 /* HealthService.swift */; };
 		69743766694999A4F7022D3F /* AccountSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB9237724B9663AD4AFC1232 /* AccountSession.swift */; };
 		6FBBAE9357F2B186E26ADD35 /* LadleCore in Frameworks */ = {isa = PBXBuildFile; productRef = ACB5208FC83F92BD0A208E0F /* LadleCore */; };
 		7735E4254A1CC43579B1C7AD /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CAD674446D07BDCDBFD2F66 /* RootView.swift */; };
@@ -36,11 +40,13 @@
 		94CBE2FD5CDC33A263424029 /* LibraryViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E75C97A3440E521A8A01510 /* LibraryViewModelTests.swift */; };
 		9AE69ACA22E7BEE2CE2D625C /* ImportCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3801D743E5C7CE52681E7C04 /* ImportCoordinatorTests.swift */; };
 		9C16EF897125A7B0B4CBF604 /* AccountSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B38BC487172BD4E150410E78 /* AccountSessionTests.swift */; };
+		A4AB27B7287BE0F0CFD3B690 /* HealthExportViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09B260DA499835E89F84D468 /* HealthExportViewModelTests.swift */; };
 		ADFA32D4AFDD16210863F59F /* NutritionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA9412596DCD6FFCA28EC55D /* NutritionView.swift */; };
 		AE4B668CBE0E318875AF01EA /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72AE00384EB09CFD40366417 /* ShareViewController.swift */; };
 		AE645C3991B22C20AF387561 /* ImportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC911C7C9A9D3FDBABF02BB9 /* ImportService.swift */; };
 		B6F2C50D9C1E3327A6A59F33 /* RecipeRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70F3A8AF60529A54861B53EB /* RecipeRepository.swift */; };
 		B8C07A83B04420D104948A91 /* ImportCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCE40C1144201ECA9A36E8BC /* ImportCoordinator.swift */; };
+		C32F195CAF0A21AC0E5F82CD /* HealthExportViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8177765BDFA262D5329D99BF /* HealthExportViewModel.swift */; };
 		C6A344C082E1B3B06F007BDC /* RecipeListRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79C69755A0FE0CB8CFD2F500 /* RecipeListRow.swift */; };
 		C82C0B6359C8D10E2983CC1B /* SwiftDataRecipeRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C39A167F8EA2C188D03B1BE6 /* SwiftDataRecipeRepositoryTests.swift */; };
 		CCDAC2330A4A8A54849C8D02 /* RecipeDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41B1A4DD4FEB2DE4274795C2 /* RecipeDetailView.swift */; };
@@ -98,6 +104,8 @@
 		0056F263B0A8D49526CD0A12 /* LibraryFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryFlowTests.swift; sourceTree = "<group>"; };
 		02E89F28EBF53680812A3D38 /* PendingImportCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingImportCard.swift; sourceTree = "<group>"; };
 		07E8E61AD25B02CFF497294C /* LadleTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LadleTheme.swift; sourceTree = "<group>"; };
+		09B260DA499835E89F84D468 /* HealthExportViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthExportViewModelTests.swift; sourceTree = "<group>"; };
+		0BB5A8ECFC358FE7640A816A /* HealthExportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthExportTests.swift; sourceTree = "<group>"; };
 		13D8FE97FD1AE805C5448B98 /* LadleLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LadleLaunchTests.swift; sourceTree = "<group>"; };
 		27E622AAB3FB89F99BAD6CAE /* StoredRecipe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoredRecipe.swift; sourceTree = "<group>"; };
 		2D060807D3AFDD5F858FA2FD /* LadleTypography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LadleTypography.swift; sourceTree = "<group>"; };
@@ -108,16 +116,20 @@
 		3BF1BB60CCA8DA2A2540A32F /* ImportFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportFlowTests.swift; sourceTree = "<group>"; };
 		41B1A4DD4FEB2DE4274795C2 /* RecipeDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeDetailView.swift; sourceTree = "<group>"; };
 		480030F07BD940462128F4AE /* GuestLimitView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuestLimitView.swift; sourceTree = "<group>"; };
+		49EB0A8621F79A4E7F769532 /* HealthKitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitService.swift; sourceTree = "<group>"; };
 		5054FD0987A041FE9A5619DB /* FilterSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterSheet.swift; sourceTree = "<group>"; };
 		5BB8A28AE010B51E06742584 /* IngredientList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngredientList.swift; sourceTree = "<group>"; };
 		5BDEAB572C83A392AED5C622 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		6638D8D4EFDAA359DD3B8348 /* LibraryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryViewModel.swift; sourceTree = "<group>"; };
+		673D9EEE813C58368B614A0F /* HealthExportSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthExportSheet.swift; sourceTree = "<group>"; };
 		6E75C97A3440E521A8A01510 /* LibraryViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryViewModelTests.swift; sourceTree = "<group>"; };
 		70F3A8AF60529A54861B53EB /* RecipeRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeRepository.swift; sourceTree = "<group>"; };
 		72AE00384EB09CFD40366417 /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
+		739B606520A158CF7F843006 /* HealthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthService.swift; sourceTree = "<group>"; };
 		798B832B950A7B595EE49A1E /* RecipeDetailTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeDetailTests.swift; sourceTree = "<group>"; };
 		79C69755A0FE0CB8CFD2F500 /* RecipeListRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeListRow.swift; sourceTree = "<group>"; };
 		7CAD674446D07BDCDBFD2F66 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		8177765BDFA262D5329D99BF /* HealthExportViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthExportViewModel.swift; sourceTree = "<group>"; };
 		860D5C02610981E7F4B9FC0C /* WelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeView.swift; sourceTree = "<group>"; };
 		8685543E83A66097689438A5 /* Ladle.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Ladle.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9209E28951C4CAA3BC8E7629 /* ProjectSmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectSmokeTests.swift; sourceTree = "<group>"; };
@@ -198,6 +210,17 @@
 			);
 			sourceTree = "<group>";
 		};
+		3D23DFC81B7B518C8D65D8EC /* Health */ = {
+			isa = PBXGroup;
+			children = (
+				673D9EEE813C58368B614A0F /* HealthExportSheet.swift */,
+				8177765BDFA262D5329D99BF /* HealthExportViewModel.swift */,
+				49EB0A8621F79A4E7F769532 /* HealthKitService.swift */,
+				739B606520A158CF7F843006 /* HealthService.swift */,
+			);
+			path = Health;
+			sourceTree = "<group>";
+		};
 		42BCDF39316A0AD46ACABDE8 /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -265,6 +288,7 @@
 				B38BC487172BD4E150410E78 /* AccountSessionTests.swift */,
 				ADCDE2C252635C3E9076C6DD /* DemoImportServiceTests.swift */,
 				9F3C25E4F342D1FEEB15A965 /* DesignTokenTests.swift */,
+				09B260DA499835E89F84D468 /* HealthExportViewModelTests.swift */,
 				3801D743E5C7CE52681E7C04 /* ImportCoordinatorTests.swift */,
 				6E75C97A3440E521A8A01510 /* LibraryViewModelTests.swift */,
 				9209E28951C4CAA3BC8E7629 /* ProjectSmokeTests.swift */,
@@ -276,6 +300,7 @@
 		B83462334B3609B1DD29A356 /* LadleUITests */ = {
 			isa = PBXGroup;
 			children = (
+				0BB5A8ECFC358FE7640A816A /* HealthExportTests.swift */,
 				3BF1BB60CCA8DA2A2540A32F /* ImportFlowTests.swift */,
 				13D8FE97FD1AE805C5448B98 /* LadleLaunchTests.swift */,
 				0056F263B0A8D49526CD0A12 /* LibraryFlowTests.swift */,
@@ -309,6 +334,7 @@
 				C211D04B23F90F493F5777D1 /* App */,
 				25404B5350B279BF6BDA063D /* Data */,
 				EB2FE3CD69344F022F0C8E92 /* Design */,
+				3D23DFC81B7B518C8D65D8EC /* Health */,
 				CDD484CA58ED09D75461BAD2 /* Import */,
 				4D9F49900E72E3A446772D85 /* Library */,
 				5B2B06AAF3633268B84B87A2 /* Nutrition */,
@@ -476,6 +502,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5B6DEFBDF7B2FA4D8B98B626 /* HealthExportTests.swift in Sources */,
 				7EA3D0A7DC5399B4FC05FF29 /* ImportFlowTests.swift in Sources */,
 				15B305735D008537A73E9BE2 /* LadleLaunchTests.swift in Sources */,
 				80742EE04B24D056BCA03971 /* LibraryFlowTests.swift in Sources */,
@@ -495,6 +522,10 @@
 				0088C19DE085223382B93D22 /* FailedImportSheet.swift in Sources */,
 				EA39C0028F88E65EE07DDC79 /* FilterSheet.swift in Sources */,
 				1028AD29B58A5FD4AE029900 /* GuestLimitView.swift in Sources */,
+				19817C767CFBCAA88DFC31C5 /* HealthExportSheet.swift in Sources */,
+				C32F195CAF0A21AC0E5F82CD /* HealthExportViewModel.swift in Sources */,
+				576B0A57DEFAF69091D82D8C /* HealthKitService.swift in Sources */,
+				6004155F8B4E42FACDDED7E5 /* HealthService.swift in Sources */,
 				B8C07A83B04420D104948A91 /* ImportCoordinator.swift in Sources */,
 				AE645C3991B22C20AF387561 /* ImportService.swift in Sources */,
 				EF0148FC094665EF210ACCB5 /* IngredientList.swift in Sources */,
@@ -536,6 +567,7 @@
 				9C16EF897125A7B0B4CBF604 /* AccountSessionTests.swift in Sources */,
 				39BB9D3C3EC14FFDCE622491 /* DemoImportServiceTests.swift in Sources */,
 				D7103457BFF15D8530BDA4B2 /* DesignTokenTests.swift in Sources */,
+				A4AB27B7287BE0F0CFD3B690 /* HealthExportViewModelTests.swift in Sources */,
 				9AE69ACA22E7BEE2CE2D625C /* ImportCoordinatorTests.swift in Sources */,
 				94CBE2FD5CDC33A263424029 /* LibraryViewModelTests.swift in Sources */,
 				D78BB07879939E3FC2D9E071 /* ProjectSmokeTests.swift in Sources */,
