@@ -5,21 +5,33 @@ struct RecipeDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
 
-    let recipe: Recipe
     let statusText: String
-    let toggleFavorite: () -> Void
+    @Bindable var importCoordinator: ImportCoordinator
+    let makeEditorViewModel: (Recipe) -> RecipeEditorViewModel
+    let recipeDidChange: (Recipe) -> Void
+    let toggleFavorite: (UUID) -> Void
 
+    @State private var displayedRecipe: Recipe
     @State private var isFavorite: Bool
     @State private var isNutritionPresented = false
+    @State private var isEditorPresented = false
+    @State private var isReimportPresented = false
+    @State private var editorViewModel: RecipeEditorViewModel?
 
     init(
         recipe: Recipe,
         statusText: String = "Saved recipe",
-        toggleFavorite: @escaping () -> Void
+        importCoordinator: ImportCoordinator,
+        makeEditorViewModel: @escaping (Recipe) -> RecipeEditorViewModel,
+        recipeDidChange: @escaping (Recipe) -> Void,
+        toggleFavorite: @escaping (UUID) -> Void
     ) {
-        self.recipe = recipe
         self.statusText = statusText
+        self.importCoordinator = importCoordinator
+        self.makeEditorViewModel = makeEditorViewModel
+        self.recipeDidChange = recipeDidChange
         self.toggleFavorite = toggleFavorite
+        _displayedRecipe = State(initialValue: recipe)
         _isFavorite = State(initialValue: recipe.isFavorite)
     }
 
@@ -28,15 +40,17 @@ struct RecipeDetailView: View {
             VStack(alignment: .leading, spacing: 26) {
                 heroImage
                 recipeHeader
-                RecipeMetadataBand(recipe: recipe)
+                RecipeMetadataBand(recipe: displayedRecipe)
 
                 Button("Start Cooking") {}
                     .buttonStyle(LadlePrimaryButtonStyle())
 
-                IngredientList(ingredients: recipe.orderedIngredients)
-                MethodList(steps: recipe.orderedSteps)
+                IngredientList(
+                    ingredients: displayedRecipe.orderedIngredients
+                )
+                MethodList(steps: displayedRecipe.orderedSteps)
 
-                if recipe.nutrition?.isEstimated == true {
+                if displayedRecipe.nutrition?.isEstimated == true {
                     estimateNote
                 }
 
@@ -75,18 +89,33 @@ struct RecipeDetailView: View {
             }
         }
         .sheet(isPresented: $isNutritionPresented) {
-            if let nutrition = recipe.nutrition {
+            if let nutrition = displayedRecipe.nutrition {
                 NutritionView(
                     nutrition: nutrition,
-                    recipeTitle: recipe.title
+                    recipeTitle: displayedRecipe.title
                 )
+            }
+        }
+        .sheet(isPresented: $isEditorPresented) {
+            if let editorViewModel {
+                RecipeEditorView(viewModel: editorViewModel) { recipe in
+                    applyChangedRecipe(recipe)
+                }
+            }
+        }
+        .sheet(isPresented: $isReimportPresented) {
+            ReimportSheet(
+                currentRecipe: displayedRecipe,
+                coordinator: importCoordinator
+            ) { recipe in
+                applyChangedRecipe(recipe)
             }
         }
     }
 
     @ViewBuilder
     private var heroImage: some View {
-        if let imageName = recipe.images.first?.localName {
+        if let imageName = displayedRecipe.images.first?.localName {
             Image(imageName)
                 .resizable()
                 .scaledToFill()
@@ -124,26 +153,26 @@ struct RecipeDetailView: View {
                 .tracking(1.4)
                 .foregroundStyle(LadleTheme.paprika)
 
-            Text(recipe.title)
+            Text(displayedRecipe.title)
                 .font(LadleTypography.title)
                 .foregroundStyle(LadleTheme.ink)
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: 7) {
-                if let creatorName = recipe.creatorName {
+                if let creatorName = displayedRecipe.creatorName {
                     Text(creatorName)
                 }
-                if recipe.creatorName != nil {
+                if displayedRecipe.creatorName != nil {
                     Text("·")
                         .accessibilityHidden(true)
                 }
-                Text(recipe.source.libraryTitle)
+                Text(displayedRecipe.source.libraryTitle)
             }
             .font(LadleTypography.metadata)
             .foregroundStyle(LadleTheme.ink.opacity(0.58))
 
-            if !recipe.description.isEmpty {
-                Text(recipe.description)
+            if !displayedRecipe.description.isEmpty {
+                Text(displayedRecipe.description)
                     .font(LadleTypography.body)
                     .foregroundStyle(LadleTheme.ink.opacity(0.7))
                     .fixedSize(horizontal: false, vertical: true)
@@ -188,13 +217,18 @@ struct RecipeDetailView: View {
             secondaryAction(
                 title: "Edit recipe",
                 systemImage: "square.and.pencil"
-            ) {}
+            ) {
+                editorViewModel = makeEditorViewModel(displayedRecipe)
+                isEditorPresented = true
+            }
             secondaryAction(
                 title: "Re-import from source",
                 systemImage: "arrow.triangle.2.circlepath"
-            ) {}
+            ) {
+                isReimportPresented = true
+            }
 
-            if recipe.nutrition != nil {
+            if displayedRecipe.nutrition != nil {
                 secondaryAction(
                     title: "View nutrition",
                     systemImage: "chart.bar"
@@ -207,7 +241,7 @@ struct RecipeDetailView: View {
                 title: "Watch original video",
                 systemImage: "play.rectangle"
             ) {
-                openURL(recipe.originalURL)
+                openURL(displayedRecipe.originalURL)
             }
         }
     }
@@ -248,7 +282,7 @@ struct RecipeDetailView: View {
     private var favoriteButton: some View {
         Button {
             isFavorite.toggle()
-            toggleFavorite()
+            toggleFavorite(displayedRecipe.id)
         } label: {
             Image(systemName: isFavorite ? "heart.fill" : "heart")
                 .foregroundStyle(
@@ -258,8 +292,14 @@ struct RecipeDetailView: View {
         }
         .accessibilityLabel(
             isFavorite
-                ? "Remove \(recipe.title) from favorites"
-                : "Add \(recipe.title) to favorites"
+                ? "Remove \(displayedRecipe.title) from favorites"
+                : "Add \(displayedRecipe.title) to favorites"
         )
+    }
+
+    private func applyChangedRecipe(_ recipe: Recipe) {
+        displayedRecipe = recipe
+        isFavorite = recipe.isFavorite
+        recipeDidChange(recipe)
     }
 }

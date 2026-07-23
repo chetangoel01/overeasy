@@ -131,6 +131,15 @@ final class LibraryViewModel {
         }
     }
 
+    func makeEditorViewModel(
+        for recipe: Recipe
+    ) -> RecipeEditorViewModel {
+        RecipeEditorViewModel(
+            recipe: recipe,
+            repository: repository
+        )
+    }
+
     func removeMaximumTimeFilter() {
         maximumTotalMinutes = nil
     }

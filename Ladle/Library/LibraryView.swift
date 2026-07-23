@@ -69,12 +69,22 @@ struct LibraryView: View {
             ) { destination in
                 RecipeDetailView(
                     recipe: destination.recipe,
-                    statusText: destination.statusText
-                ) {
-                    viewModel.toggleFavorite(
-                        recipeID: destination.recipe.id
-                    )
-                }
+                    statusText: destination.statusText,
+                    importCoordinator: importCoordinator,
+                    makeEditorViewModel: { recipe in
+                        viewModel.makeEditorViewModel(for: recipe)
+                    },
+                    recipeDidChange: { recipe in
+                        selectedDestination = LibraryRecipeDestination(
+                            recipe: recipe,
+                            statusText: destination.statusText
+                        )
+                        viewModel.load()
+                    },
+                    toggleFavorite: { recipeID in
+                        viewModel.toggleFavorite(recipeID: recipeID)
+                    }
+                )
             }
             .onChange(of: importCoordinator.state) { _, state in
                 switch state {

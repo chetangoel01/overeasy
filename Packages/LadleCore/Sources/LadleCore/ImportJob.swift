@@ -100,6 +100,21 @@ public struct ImportJob: Codable, Hashable, Identifiable, Sendable {
         return copy
     }
 
+    public func retryingReimport(
+        candidateRecipeID: UUID,
+        at date: Date = .now
+    ) throws -> Self {
+        guard currentRecipeID != nil else {
+            throw ImportTransitionError.invalid(
+                from: status,
+                to: .parsing
+            )
+        }
+        var copy = try transitioning(to: .parsing, at: date)
+        copy.candidateRecipeID = candidateRecipeID
+        return copy
+    }
+
     private static func allowsTransition(
         from current: ImportStatus,
         to next: ImportStatus

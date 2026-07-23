@@ -40,7 +40,15 @@ struct DemoImportService: ImportService {
         if let correctionNotes = job.correctionNotes?
             .trimmingCharacters(in: .whitespacesAndNewlines),
            !correctionNotes.isEmpty {
-            return .ready(makeRecipe(kind: .greenCurry, job: job))
+            if correctionNotes.localizedCaseInsensitiveContains(
+                "simulate failure"
+            ) {
+                return .failed(.parserUnavailable)
+            }
+            let kind: DemoRecipeKind = slug.contains("orzo")
+                ? .orzo
+                : .greenCurry
+            return .ready(makeRecipe(kind: kind, job: job))
         }
 
         if slug.contains("private") || slug.contains("deleted") {
@@ -88,7 +96,7 @@ struct DemoImportService: ImportService {
             : nil
 
         return Recipe(
-            id: job.id,
+            id: job.candidateRecipeID ?? job.id,
             title: details.title,
             description: details.description,
             creatorName: details.creator,

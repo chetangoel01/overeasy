@@ -176,6 +176,8 @@ final class ImportCoordinator {
         correctionNotes: String? = nil,
         pastedRecipeText: String? = nil
     ) async {
+        completedRecipe = nil
+
         do {
             guard var job = try repository.fetchImportJobs().first(
                 where: { $0.id == jobID }
@@ -195,9 +197,21 @@ final class ImportCoordinator {
                 state = .persistenceFailed
                 return
             }
-            job = try job.transitioning(to: .parsing)
+
+            let isReimport = job.currentRecipeID != nil
+            if isReimport {
+                job = try job.retryingReimport(
+                    candidateRecipeID: UUID()
+                )
+            } else {
+                job = try job.transitioning(to: .parsing)
+            }
             try repository.save(job)
-            await process(job)
+            if isReimport {
+                await processReimport(job)
+            } else {
+                await process(job)
+            }
         } catch {
             state = .persistenceFailed
         }
@@ -256,6 +270,31 @@ final class ImportCoordinator {
         }
     }
 
+    func reimport(
+        recipe: Recipe,
+        correctionNotes: String? = nil
+    ) async {
+        existingDuplicate = nil
+        completedRecipe = nil
+        pendingSubmission = nil
+        pendingManualSubmission = nil
+
+        var job = ImportJob.reimporting(
+            sourceURL: recipe.originalURL,
+            source: recipe.source,
+            currentRecipeID: recipe.id,
+            candidateRecipeID: UUID()
+        )
+        job.correctionNotes = normalized(correctionNotes)
+
+        do {
+            try repository.save(job)
+            await processReimport(job)
+        } catch {
+            state = .persistenceFailed
+        }
+    }
+
     func reset() {
         state = .idle
         existingDuplicate = nil
@@ -299,6 +338,63 @@ final class ImportCoordinator {
                     to: .failed(.networkUnavailable)
                 )
                 try repository.save(job)
+                state = .failed(
+                    jobID: job.id,
+                    reason: .networkUnavailable
+                )
+            } catch {
+                state = .persistenceFailed
+            }
+        }
+    }
+
+    private func processReimport(_ initialJob: ImportJob) async {
+        var job = initialJob
+        state = .importing(jobID: job.id)
+
+        do {
+            try await clock.sleep(for: parsingDelay)
+            let outcome = try await service.importRecipe(for: job)
+            try Task.checkCancellation()
+
+            switch outcome {
+            case let .ready(candidate):
+                guard let candidateID = job.candidateRecipeID,
+                      let currentRecipeID = job.currentRecipeID,
+                      candidate.id == candidateID else {
+                    state = .persistenceFailed
+                    return
+                }
+                try repository.save(candidate)
+                job = try job.transitioning(to: .ready)
+                try repository.save(job)
+                try repository.deleteRecipe(id: currentRecipeID)
+                completedRecipe = candidate
+                state = .completed(recipeID: candidate.id)
+            case let .needsReview(candidate):
+                guard candidate.id == job.candidateRecipeID else {
+                    state = .persistenceFailed
+                    return
+                }
+                job = try job.transitioning(to: .needsReview)
+                try repository.save(job)
+                completedRecipe = candidate
+                state = .needsReview(recipeID: candidate.id)
+            case let .failed(reason):
+                job = try job.transitioning(to: .failed(reason))
+                try repository.save(job)
+                completedRecipe = nil
+                state = .failed(jobID: job.id, reason: reason)
+            }
+        } catch is CancellationError {
+            state = .idle
+        } catch {
+            do {
+                job = try job.transitioning(
+                    to: .failed(.networkUnavailable)
+                )
+                try repository.save(job)
+                completedRecipe = nil
                 state = .failed(
                     jobID: job.id,
                     reason: .networkUnavailable
