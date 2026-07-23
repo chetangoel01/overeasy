@@ -23,7 +23,7 @@ struct IngredientList: View {
                             .accessibilityHidden(true)
 
                         Text(ingredient.detailText)
-                            .font(LadleTypography.body)
+                            .ladleFont(.body)
                             .foregroundStyle(LadleTheme.ink)
 
                         Spacer(minLength: 0)
@@ -34,7 +34,7 @@ struct IngredientList: View {
                             uncertainty.reason,
                             systemImage: "exclamationmark.circle"
                         )
-                        .font(LadleTypography.metadata)
+                        .ladleFont(.metadata)
                         .foregroundStyle(LadleTheme.paprika)
                         .padding(.leading, 16)
                         .accessibilityLabel(

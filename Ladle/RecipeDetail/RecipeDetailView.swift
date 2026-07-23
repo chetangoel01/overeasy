@@ -86,7 +86,7 @@ struct RecipeDetailView: View {
             }
             ToolbarItem(placement: .principal) {
                 Text("Recipe")
-                    .font(LadleTypography.metadata)
+                    .ladleFont(.metadata)
                     .foregroundStyle(LadleTheme.ink.opacity(0.62))
             }
             ToolbarItem(placement: .primaryAction) {
@@ -162,12 +162,12 @@ struct RecipeDetailView: View {
         VStack(alignment: .leading, spacing: 11) {
             Text(statusText)
                 .textCase(.uppercase)
-                .font(LadleTypography.eyebrow)
+                .ladleFont(.eyebrow)
                 .tracking(1.4)
                 .foregroundStyle(LadleTheme.paprika)
 
             Text(displayedRecipe.title)
-                .font(LadleTypography.title)
+                .ladleFont(.title)
                 .foregroundStyle(LadleTheme.ink)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -181,12 +181,12 @@ struct RecipeDetailView: View {
                 }
                 Text(displayedRecipe.source.libraryTitle)
             }
-            .font(LadleTypography.metadata)
+            .ladleFont(.metadata)
             .foregroundStyle(LadleTheme.ink.opacity(0.58))
 
             if !displayedRecipe.description.isEmpty {
                 Text(displayedRecipe.description)
-                    .font(LadleTypography.body)
+                    .ladleFont(.body)
                     .foregroundStyle(LadleTheme.ink.opacity(0.7))
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -200,12 +200,12 @@ struct RecipeDetailView: View {
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 4) {
                 Text("Estimated nutrition")
-                    .font(LadleTypography.bodyStrong)
+                    .ladleFont(.bodyStrong)
                     .foregroundStyle(LadleTheme.ink)
                 Text(
                     "Values are estimated from the imported recipe and may vary by ingredients or serving size."
                 )
-                .font(LadleTypography.metadata)
+                .ladleFont(.metadata)
                 .foregroundStyle(LadleTheme.ink.opacity(0.62))
             }
         }
@@ -272,7 +272,7 @@ struct RecipeDetailView: View {
                     .frame(width: 34, height: 34)
                     .background(LadleTheme.review, in: Circle())
                 Text(title)
-                    .font(LadleTypography.bodyStrong)
+                    .ladleFont(.bodyStrong)
                     .foregroundStyle(LadleTheme.ink)
                 Spacer()
                 Image(systemName: "chevron.right")

@@ -54,6 +54,9 @@ final class ImportCoordinator {
     @ObservationIgnored
     private let clock: any ImportClock
 
+    @ObservationIgnored
+    private let notificationService: NotificationService
+
     private let parsingDelay: Duration
     private var pendingSubmission: Submission?
     private var pendingManualSubmission: ManualSubmission?
@@ -67,13 +70,16 @@ final class ImportCoordinator {
         service: any ImportService,
         accountSession: AccountSession,
         clock: any ImportClock = ContinuousImportClock(),
-        parsingDelay: Duration = .milliseconds(450)
+        parsingDelay: Duration = .milliseconds(450),
+        notificationService: NotificationService =
+            DisabledNotificationService()
     ) {
         self.repository = repository
         self.service = service
         self.accountSession = accountSession
         self.clock = clock
         self.parsingDelay = parsingDelay
+        self.notificationService = notificationService
     }
 
     var isImporting: Bool {
@@ -319,6 +325,9 @@ final class ImportCoordinator {
                 try repository.save(job)
                 completedRecipe = recipe
                 state = .completed(recipeID: recipe.id)
+                _ = await notificationService.notifyImportReady(
+                    recipe: recipe
+                )
             case let .needsReview(recipe):
                 try repository.save(recipe)
                 job = try job.transitioning(to: .needsReview)
@@ -371,6 +380,9 @@ final class ImportCoordinator {
                 try repository.deleteRecipe(id: currentRecipeID)
                 completedRecipe = candidate
                 state = .completed(recipeID: candidate.id)
+                _ = await notificationService.notifyImportReady(
+                    recipe: candidate
+                )
             case let .needsReview(candidate):
                 guard candidate.id == job.candidateRecipeID else {
                     state = .persistenceFailed

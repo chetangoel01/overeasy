@@ -13,12 +13,12 @@ struct RecipeListRow: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(recipe.source.libraryTitle.uppercased())
-                    .font(LadleTypography.eyebrow)
+                    .ladleFont(.eyebrow)
                     .tracking(1.1)
                     .foregroundStyle(LadleTheme.paprika)
 
                 Text(recipe.title)
-                    .font(LadleTypography.recipeTitle)
+                    .ladleFont(.recipeTitle)
                     .foregroundStyle(LadleTheme.ink)
                     .lineLimit(2)
 
@@ -36,7 +36,7 @@ struct RecipeListRow: View {
                         )
                     }
                 }
-                .font(LadleTypography.metadata)
+                .ladleFont(.metadata)
                 .foregroundStyle(LadleTheme.ink.opacity(0.58))
             }
 
@@ -67,6 +67,7 @@ struct RecipeListRow: View {
         .contentShape(Rectangle())
         .onTapGesture(perform: openRecipe)
         .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isButton)
         .accessibilityAction(named: "Open recipe", openRecipe)
         .accessibilityIdentifier("recipe.list.\(recipe.librarySlug)")
     }

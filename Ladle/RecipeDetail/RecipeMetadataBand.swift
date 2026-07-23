@@ -3,31 +3,29 @@ import LadleCore
 import SwiftUI
 
 struct RecipeMetadataBand: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     let recipe: Recipe
 
     var body: some View {
-        HStack(spacing: 0) {
-            metadataItem(
-                value: recipe.totalMinutes.map { "\($0) min" } ?? "—",
-                label: "Total time",
-                systemImage: "clock"
-            )
-
-            divider
-
-            metadataItem(
-                value: "\(decimalText(recipe.servings)) servings",
-                label: "Yield",
-                systemImage: "person.2"
-            )
-
-            divider
-
-            metadataItem(
-                value: calorieText,
-                label: "Per serving",
-                systemImage: "flame"
-            )
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(spacing: 0) {
+                    totalTimeItem
+                    horizontalDivider
+                    yieldItem
+                    horizontalDivider
+                    calorieItem
+                }
+            } else {
+                HStack(spacing: 0) {
+                    totalTimeItem
+                    verticalDivider
+                    yieldItem
+                    verticalDivider
+                    calorieItem
+                }
+            }
         }
         .padding(.vertical, 16)
         .background(
@@ -36,6 +34,30 @@ struct RecipeMetadataBand: View {
                 cornerRadius: LadleTheme.Corner.card,
                 style: .continuous
             )
+        )
+    }
+
+    private var totalTimeItem: some View {
+        metadataItem(
+            value: recipe.totalMinutes.map { "\($0) min" } ?? "—",
+            label: "Total time",
+            systemImage: "clock"
+        )
+    }
+
+    private var yieldItem: some View {
+        metadataItem(
+            value: "\(decimalText(recipe.servings)) servings",
+            label: "Yield",
+            systemImage: "person.2"
+        )
+    }
+
+    private var calorieItem: some View {
+        metadataItem(
+            value: calorieText,
+            label: "Per serving",
+            systemImage: "flame"
         )
     }
 
@@ -50,22 +72,31 @@ struct RecipeMetadataBand: View {
                 .foregroundStyle(LadleTheme.paprika)
                 .accessibilityHidden(true)
             Text(value)
-                .font(LadleTypography.bodyStrong)
+                .ladleFont(.bodyStrong)
                 .foregroundStyle(LadleTheme.ink)
                 .lineLimit(1)
                 .minimumScaleFactor(0.78)
             Text(label)
-                .font(LadleTypography.metadata)
+                .ladleFont(.metadata)
                 .foregroundStyle(LadleTheme.ink.opacity(0.56))
         }
         .frame(maxWidth: .infinity)
+        .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? 10 : 0)
         .accessibilityElement(children: .combine)
     }
 
-    private var divider: some View {
+    private var verticalDivider: some View {
         Rectangle()
             .fill(LadleTheme.ink.opacity(0.1))
             .frame(width: 1, height: 48)
+            .accessibilityHidden(true)
+    }
+
+    private var horizontalDivider: some View {
+        Rectangle()
+            .fill(LadleTheme.ink.opacity(0.1))
+            .frame(height: 1)
+            .padding(.horizontal, 18)
             .accessibilityHidden(true)
     }
 

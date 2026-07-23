@@ -60,10 +60,10 @@ struct ReimportSheet: View {
 
                 VStack(alignment: .leading, spacing: 7) {
                     Text("Original source")
-                        .font(LadleTypography.metadata)
+                        .ladleFont(.metadata)
                         .foregroundStyle(LadleTheme.ink.opacity(0.56))
                     Text(currentRecipe.originalURL.absoluteString)
-                        .font(LadleTypography.body)
+                        .ladleFont(.body)
                         .foregroundStyle(LadleTheme.ink)
                         .textSelection(.enabled)
                 }
@@ -79,10 +79,10 @@ struct ReimportSheet: View {
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Correction notes")
-                        .font(LadleTypography.bodyStrong)
+                        .ladleFont(.bodyStrong)
                         .foregroundStyle(LadleTheme.ink)
                     TextEditor(text: $correctionNotes)
-                        .font(LadleTypography.body)
+                        .ladleFont(.body)
                         .scrollContentBackground(.hidden)
                         .padding(10)
                         .frame(minHeight: 150)
@@ -97,7 +97,7 @@ struct ReimportSheet: View {
                     Text(
                         "Optional: mention anything the first import missed or misunderstood."
                     )
-                    .font(LadleTypography.metadata)
+                    .ladleFont(.metadata)
                     .foregroundStyle(LadleTheme.ink.opacity(0.56))
                 }
 
@@ -126,12 +126,12 @@ struct ReimportSheet: View {
                 .controlSize(.large)
                 .tint(LadleTheme.paprika)
             Text("Building a replacement")
-                .font(LadleTypography.title)
+                .ladleFont(.title)
                 .foregroundStyle(LadleTheme.ink)
             Text(
                 "\(currentRecipe.title) is still saved and ready to use while Ladle checks the source."
             )
-            .font(LadleTypography.body)
+            .ladleFont(.body)
             .foregroundStyle(LadleTheme.ink.opacity(0.64))
             .multilineTextAlignment(.center)
         }
@@ -216,11 +216,11 @@ struct ReimportSheet: View {
                 .frame(width: 62, height: 62)
                 .background(LadleTheme.paprika, in: Circle())
             Text(title)
-                .font(LadleTypography.title)
+                .ladleFont(.title)
                 .foregroundStyle(LadleTheme.ink)
                 .multilineTextAlignment(.center)
             Text(message)
-                .font(LadleTypography.body)
+                .ladleFont(.body)
                 .foregroundStyle(LadleTheme.ink.opacity(0.64))
                 .multilineTextAlignment(.center)
             Button(buttonTitle, action: action)
@@ -241,10 +241,10 @@ struct ReimportSheet: View {
                 .frame(width: 50, height: 50)
                 .background(LadleTheme.review, in: Circle())
             Text(title)
-                .font(LadleTypography.title)
+                .ladleFont(.title)
                 .foregroundStyle(LadleTheme.ink)
             Text(message)
-                .font(LadleTypography.body)
+                .ladleFont(.body)
                 .foregroundStyle(LadleTheme.ink.opacity(0.64))
         }
     }

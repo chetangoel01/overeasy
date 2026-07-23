@@ -182,14 +182,13 @@ struct RecipeTimerButton: View {
                             .font(.system(size: 15, weight: .semibold))
                         VStack(alignment: .leading, spacing: 2) {
                             Text(actionTitle)
-                                .font(LadleTypography.metadata)
+                                .ladleFont(.metadata)
                             Text(clockText)
-                                .font(
-                                    .system(
-                                        size: 19,
-                                        weight: .semibold,
-                                        design: .monospaced
-                                    )
+                                .ladleScaledFont(
+                                    size: 19,
+                                    relativeTo: .body,
+                                    weight: .semibold,
+                                    design: .monospaced
                                 )
                         }
                         Spacer(minLength: 0)

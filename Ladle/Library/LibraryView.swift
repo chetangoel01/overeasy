@@ -2,6 +2,9 @@ import LadleCore
 import SwiftUI
 
 struct LibraryView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     @Bindable var viewModel: LibraryViewModel
     @Bindable var importCoordinator: ImportCoordinator
     let accountSession: AccountSession
@@ -13,10 +16,15 @@ struct LibraryView: View {
     @State private var pendingDestination: LibraryRecipeDestination?
     @FocusState private var isSearchFocused: Bool
 
-    private let columns = [
-        GridItem(.flexible(), spacing: LadleTheme.Spacing.regular),
-        GridItem(.flexible(), spacing: LadleTheme.Spacing.regular),
-    ]
+    private var columns: [GridItem] {
+        if dynamicTypeSize.isAccessibilitySize {
+            return [GridItem(.flexible())]
+        }
+        return [
+            GridItem(.flexible(), spacing: LadleTheme.Spacing.regular),
+            GridItem(.flexible(), spacing: LadleTheme.Spacing.regular),
+        ]
+    }
 
     var body: some View {
         NavigationStack {
@@ -115,11 +123,11 @@ struct LibraryView: View {
         HStack(alignment: .bottom) {
             VStack(alignment: .leading, spacing: 3) {
                 Text("LADLE")
-                    .font(LadleTypography.eyebrow)
+                    .ladleFont(.eyebrow)
                     .tracking(1.8)
                     .foregroundStyle(LadleTheme.paprika)
                 Text("My Recipes")
-                    .font(LadleTypography.title)
+                    .ladleFont(.title)
                     .foregroundStyle(LadleTheme.ink)
             }
 
@@ -149,10 +157,13 @@ struct LibraryView: View {
                 "Search your recipes",
                 text: $viewModel.searchText
             )
-            .font(LadleTypography.body)
+            .ladleFont(.body)
             .foregroundStyle(LadleTheme.ink)
             .focused($isSearchFocused)
             .submitLabel(.search)
+            .frame(minHeight: 44)
+            .padding(.vertical, 4)
+            .contentShape(Rectangle())
             .accessibilityLabel("Search your recipes")
 
             if !viewModel.searchText.isEmpty {
@@ -161,7 +172,7 @@ struct LibraryView: View {
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(LadleTheme.ink.opacity(0.38))
-                        .frame(width: 30, height: 30)
+                        .frame(width: 44, height: 44)
                 }
                 .accessibilityLabel("Clear recipe search")
             }
@@ -213,10 +224,14 @@ struct LibraryView: View {
                 Spacer()
 
                 Button {
-                    withAnimation(.snappy(duration: 0.25)) {
-                        viewModel.displayMode = (
-                            viewModel.displayMode == .grid ? .list : .grid
-                        )
+                    let newMode: LibraryDisplayMode =
+                        viewModel.displayMode == .grid ? .list : .grid
+                    if reduceMotion {
+                        viewModel.displayMode = newMode
+                    } else {
+                        withAnimation(.snappy(duration: 0.25)) {
+                            viewModel.displayMode = newMode
+                        }
                     }
                 } label: {
                     Image(
@@ -288,7 +303,7 @@ struct LibraryView: View {
                     .font(.system(size: 32))
                     .foregroundStyle(LadleTheme.paprika)
                 Text(message)
-                    .font(LadleTypography.bodyStrong)
+                    .ladleFont(.bodyStrong)
                     .foregroundStyle(LadleTheme.ink)
                 Button("Try Again") {
                     viewModel.load()
@@ -386,10 +401,10 @@ struct LibraryView: View {
                 .font(.system(size: 28))
                 .foregroundStyle(LadleTheme.paprika)
             Text("No recipes found")
-                .font(LadleTypography.section)
+                .ladleFont(.section)
                 .foregroundStyle(LadleTheme.ink)
             Text("Try a different search or remove a filter.")
-                .font(LadleTypography.metadata)
+                .ladleFont(.metadata)
                 .foregroundStyle(LadleTheme.ink.opacity(0.58))
         }
         .frame(maxWidth: .infinity)
@@ -408,7 +423,7 @@ struct LibraryView: View {
         systemImage: String
     ) -> some View {
         Label(title, systemImage: systemImage)
-            .font(LadleTypography.metadata)
+            .ladleFont(.metadata)
             .foregroundStyle(LadleTheme.ink)
             .padding(.horizontal, 12)
             .frame(minHeight: 44)

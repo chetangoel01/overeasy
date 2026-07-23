@@ -32,7 +32,7 @@ struct RecipeGridCard: View {
             }
 
             Text(recipe.title)
-                .font(LadleTypography.recipeTitle)
+                .ladleFont(.recipeTitle)
                 .foregroundStyle(LadleTheme.ink)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
@@ -49,12 +49,13 @@ struct RecipeGridCard: View {
                     Text("≈ \(calorieText(calories)) cal")
                 }
             }
-            .font(LadleTypography.metadata)
+            .ladleFont(.metadata)
             .foregroundStyle(LadleTheme.ink.opacity(0.58))
         }
         .contentShape(Rectangle())
         .onTapGesture(perform: openRecipe)
         .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isButton)
         .accessibilityAction(named: "Open recipe", openRecipe)
         .accessibilityIdentifier("recipe.grid.\(recipe.librarySlug)")
     }

@@ -50,7 +50,7 @@ struct FullRecipeView: View {
                 }
                 ToolbarItem(placement: .principal) {
                     Text("Cooking")
-                        .font(LadleTypography.metadata)
+                        .ladleFont(.metadata)
                         .foregroundStyle(LadleTheme.ink.opacity(0.62))
                 }
             }
@@ -61,43 +61,38 @@ struct FullRecipeView: View {
         VStack(alignment: .leading, spacing: 9) {
             Text("Full recipe")
                 .textCase(.uppercase)
-                .font(LadleTypography.eyebrow)
+                .ladleFont(.eyebrow)
                 .tracking(1.5)
                 .foregroundStyle(LadleTheme.paprika)
                 .padding(.top, 12)
                 .accessibilityLabel("Full recipe")
 
             Text(viewModel.recipe.title)
-                .font(LadleTypography.title)
+                .ladleFont(.title)
                 .foregroundStyle(LadleTheme.ink)
                 .fixedSize(horizontal: false, vertical: true)
 
             Text(
                 "\(viewModel.recipe.orderedIngredients.count) ingredients · \(viewModel.recipe.orderedSteps.count) steps"
             )
-            .font(LadleTypography.metadata)
+            .ladleFont(.metadata)
             .foregroundStyle(LadleTheme.ink.opacity(0.58))
         }
     }
 
     private var cookingControls: some View {
         VStack(spacing: 12) {
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(viewModel.progressText)
-                        .font(LadleTypography.bodyStrong)
-                        .foregroundStyle(LadleTheme.ink)
-                    ProgressView(value: viewModel.progress)
-                        .tint(LadleTheme.paprika)
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 12) {
+                    progressControl
+                    focusModeButton
+                        .frame(maxWidth: 174)
                 }
 
-                Button {
-                    viewModel.enterFocusMode()
-                } label: {
-                    Label("Focus mode", systemImage: "rectangle.expand.vertical")
+                VStack(spacing: 12) {
+                    progressControl
+                    focusModeButton
                 }
-                .buttonStyle(LadlePrimaryButtonStyle())
-                .frame(maxWidth: 174)
             }
 
             Toggle(
@@ -109,7 +104,7 @@ struct FullRecipeView: View {
                     }
                 )
             )
-            .font(LadleTypography.bodyStrong)
+            .ladleFont(.bodyStrong)
             .foregroundStyle(LadleTheme.ink)
             .tint(LadleTheme.paprika)
             .padding(.horizontal, 16)
@@ -122,6 +117,28 @@ struct FullRecipeView: View {
                 )
             )
         }
+    }
+
+    private var progressControl: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(viewModel.progressText)
+                .ladleFont(.bodyStrong)
+                .foregroundStyle(LadleTheme.ink)
+            ProgressView(value: viewModel.progress)
+                .tint(LadleTheme.paprika)
+                .accessibilityLabel(
+                    "\(viewModel.progressText) cooking progress"
+                )
+        }
+    }
+
+    private var focusModeButton: some View {
+        Button {
+            viewModel.enterFocusMode()
+        } label: {
+            Label("Focus mode", systemImage: "rectangle.expand.vertical")
+        }
+        .buttonStyle(LadlePrimaryButtonStyle())
     }
 
     private var ingredientsSection: some View {
@@ -184,7 +201,7 @@ struct FullRecipeView: View {
             HStack(spacing: 13) {
                 completionIcon(isCompleted: isCompleted)
                 Text(ingredient.cookingDetailText)
-                    .font(LadleTypography.body)
+                    .ladleFont(.body)
                     .foregroundStyle(
                         LadleTheme.ink.opacity(isCompleted ? 0.48 : 1)
                     )
@@ -219,7 +236,7 @@ struct FullRecipeView: View {
                         number: index + 1
                     )
                     Text(step.instruction)
-                        .font(LadleTypography.recipeTitle)
+                        .ladleFont(.recipeTitle)
                         .foregroundStyle(
                             LadleTheme.ink.opacity(
                                 isCompleted ? 0.48 : 1
@@ -280,7 +297,7 @@ struct FullRecipeView: View {
                     .foregroundStyle(Color.white)
             } else if let number {
                 Text("\(number)")
-                    .font(LadleTypography.metadata)
+                    .ladleFont(.metadata)
                     .foregroundStyle(LadleTheme.ink.opacity(0.58))
             }
         }

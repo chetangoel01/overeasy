@@ -17,7 +17,7 @@ struct MethodList: View {
                 step in
                 HStack(alignment: .top, spacing: 14) {
                     Text("\(index + 1)")
-                        .font(LadleTypography.metadata)
+                        .ladleFont(.metadata)
                         .foregroundStyle(Color.white)
                         .frame(width: 30, height: 30)
                         .background(LadleTheme.paprika, in: Circle())
@@ -25,21 +25,18 @@ struct MethodList: View {
 
                     VStack(alignment: .leading, spacing: 10) {
                         Text(step.instruction)
-                            .font(LadleTypography.body)
+                            .ladleFont(.body)
                             .foregroundStyle(LadleTheme.ink)
                             .fixedSize(horizontal: false, vertical: true)
 
                         if !step.timers.isEmpty {
-                            HStack(spacing: 8) {
-                                ForEach(step.timers) { timer in
-                                    LadlePill(
-                                        text: timer.detailText,
-                                        systemImage: "timer",
-                                        tint: LadleTheme.review
-                                    )
-                                    .accessibilityLabel(
-                                        "\(timer.label), \(timer.detailText)"
-                                    )
+                            ViewThatFits(in: .horizontal) {
+                                HStack(spacing: 8) {
+                                    timerPills(for: step)
+                                }
+
+                                VStack(alignment: .leading, spacing: 8) {
+                                    timerPills(for: step)
                                 }
                             }
                         }
@@ -49,7 +46,7 @@ struct MethodList: View {
                                 uncertainty.reason,
                                 systemImage: "exclamationmark.circle"
                             )
-                            .font(LadleTypography.metadata)
+                            .ladleFont(.metadata)
                             .foregroundStyle(LadleTheme.paprika)
                             .accessibilityLabel(
                                 "Uncertain step: \(uncertainty.reason)"
@@ -59,6 +56,20 @@ struct MethodList: View {
                     .padding(.bottom, 24)
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func timerPills(for step: RecipeStep) -> some View {
+        ForEach(step.timers) { timer in
+            LadlePill(
+                text: timer.detailText,
+                systemImage: "timer",
+                tint: LadleTheme.review
+            )
+            .accessibilityLabel(
+                "\(timer.label), \(timer.detailText)"
+            )
         }
     }
 }

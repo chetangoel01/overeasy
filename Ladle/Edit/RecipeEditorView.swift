@@ -14,6 +14,7 @@ private enum RecipeEditorSection: String, CaseIterable, Identifiable {
 
 struct RecipeEditorView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @Bindable var viewModel: RecipeEditorViewModel
     let didSave: (Recipe) -> Void
@@ -68,14 +69,14 @@ struct RecipeEditorView: View {
                         selectedSection = section
                     } label: {
                         Text(section.rawValue)
-                            .font(LadleTypography.metadata)
+                            .ladleFont(.metadata)
                             .foregroundStyle(
                                 selectedSection == section
                                     ? Color.white
                                     : LadleTheme.ink
                             )
                             .padding(.horizontal, 13)
-                            .frame(minHeight: 38)
+                            .frame(minHeight: 44)
                             .background(
                                 selectedSection == section
                                     ? LadleTheme.paprika
@@ -136,9 +137,9 @@ struct RecipeEditorView: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("Description")
-                    .font(LadleTypography.bodyStrong)
+                    .ladleFont(.bodyStrong)
                 TextEditor(text: $viewModel.draft.description)
-                    .font(LadleTypography.body)
+                    .ladleFont(.body)
                     .scrollContentBackground(.hidden)
                     .padding(10)
                     .frame(minHeight: 130)
@@ -171,14 +172,14 @@ struct RecipeEditorView: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 Text("Original source")
-                    .font(LadleTypography.metadata)
+                    .ladleFont(.metadata)
                     .foregroundStyle(LadleTheme.ink.opacity(0.56))
                 Text(viewModel.draft.originalURL.absoluteString)
-                    .font(LadleTypography.body)
+                    .ladleFont(.body)
                     .foregroundStyle(LadleTheme.ink)
                     .textSelection(.enabled)
                 Text(viewModel.draft.source.libraryTitle)
-                    .font(LadleTypography.metadata)
+                    .ladleFont(.metadata)
                     .foregroundStyle(LadleTheme.paprika)
             }
             .padding(16)
@@ -272,7 +273,7 @@ struct RecipeEditorView: View {
                 "Include nutrition",
                 isOn: $viewModel.draft.nutrition.isIncluded
             )
-            .font(LadleTypography.bodyStrong)
+            .ladleFont(.bodyStrong)
             .tint(LadleTheme.paprika)
 
             if viewModel.draft.nutrition.isIncluded {
@@ -317,7 +318,7 @@ struct RecipeEditorView: View {
                     "Values are estimated",
                     isOn: $viewModel.draft.nutrition.isEstimated
                 )
-                .font(LadleTypography.bodyStrong)
+                .ladleFont(.bodyStrong)
                 .tint(LadleTheme.paprika)
 
                 let nutritionIssues = viewModel.validationIssues.filter {
@@ -355,15 +356,16 @@ struct RecipeEditorView: View {
                 }
             )
 
-            HStack(spacing: 10) {
-                compactField(
-                    "Quantity",
-                    text: $viewModel.draft.ingredients[index].quantityText
-                )
-                compactField(
-                    "Unit",
-                    text: $viewModel.draft.ingredients[index].unit
-                )
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 10) {
+                    ingredientQuantityField(at: index)
+                    ingredientUnitField(at: index)
+                }
+
+                VStack(spacing: 10) {
+                    ingredientQuantityField(at: index)
+                    ingredientUnitField(at: index)
+                }
             }
             editorField(
                 title: "Ingredient name",
@@ -406,7 +408,7 @@ struct RecipeEditorView: View {
             TextEditor(
                 text: $viewModel.draft.steps[index].instruction
             )
-            .font(LadleTypography.body)
+            .ladleFont(.body)
             .scrollContentBackground(.hidden)
             .padding(10)
             .frame(minHeight: 120)
@@ -435,10 +437,10 @@ struct RecipeEditorView: View {
         VStack(alignment: .leading, spacing: 18) {
             VStack(alignment: .leading, spacing: 6) {
                 Text(title)
-                    .font(LadleTypography.title)
+                    .ladleFont(.title)
                     .foregroundStyle(LadleTheme.ink)
                 Text(message)
-                    .font(LadleTypography.body)
+                    .ladleFont(.body)
                     .foregroundStyle(LadleTheme.ink.opacity(0.62))
             }
 
@@ -460,13 +462,14 @@ struct RecipeEditorView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
-                .font(LadleTypography.bodyStrong)
+                .ladleFont(.bodyStrong)
                 .foregroundStyle(LadleTheme.ink)
             HStack(spacing: 8) {
                 TextField(title, text: text)
-                    .font(LadleTypography.body)
+                    .ladleFont(.body)
                     .keyboardType(keyboardType)
                     .accessibilityLabel(title)
+                    .frame(minHeight: 44)
 
                 if showsClearButton, !text.wrappedValue.isEmpty {
                     Button {
@@ -476,6 +479,7 @@ struct RecipeEditorView: View {
                             .foregroundStyle(
                                 LadleTheme.ink.opacity(0.42)
                             )
+                            .frame(width: 44, height: 44)
                     }
                     .accessibilityLabel("Clear \(title)")
                 }
@@ -492,10 +496,10 @@ struct RecipeEditorView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
-                .font(LadleTypography.metadata)
+                .ladleFont(.metadata)
                 .foregroundStyle(LadleTheme.ink.opacity(0.58))
             TextField(title, text: text)
-                .font(LadleTypography.body)
+                .ladleFont(.body)
                 .padding(.horizontal, 12)
                 .frame(minHeight: 46)
                 .background(
@@ -529,37 +533,95 @@ struct RecipeEditorView: View {
         moveDown: @escaping () -> Void,
         delete: @escaping () -> Void
     ) -> some View {
-        HStack {
-            Text(title)
-                .font(LadleTypography.section)
-                .foregroundStyle(LadleTheme.ink)
-            Spacer()
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 4) {
+                    itemTitle(title)
+                    HStack(spacing: 0) {
+                        Spacer()
+                        itemActions(
+                            title: title,
+                            index: index,
+                            count: count,
+                            moveUp: moveUp,
+                            moveDown: moveDown,
+                            delete: delete
+                        )
+                    }
+                }
+            } else {
+                HStack {
+                    itemTitle(title)
+                    Spacer()
+                    itemActions(
+                        title: title,
+                        index: index,
+                        count: count,
+                        moveUp: moveUp,
+                        moveDown: moveDown,
+                        delete: delete
+                    )
+                }
+            }
+        }
+        .foregroundStyle(LadleTheme.paprika)
+    }
+
+    private func itemTitle(_ title: String) -> some View {
+        Text(title)
+            .ladleFont(.section)
+            .foregroundStyle(LadleTheme.ink)
+    }
+
+    @ViewBuilder
+    private func itemActions(
+        title: String,
+        index: Int,
+        count: Int,
+        moveUp: @escaping () -> Void,
+        moveDown: @escaping () -> Void,
+        delete: @escaping () -> Void
+    ) -> some View {
+        Group {
             Button(action: moveUp) {
                 Image(systemName: "arrow.up")
-                    .frame(width: 34, height: 34)
+                    .frame(width: 44, height: 44)
             }
             .disabled(index == 0)
             .accessibilityLabel("Move \(title) up")
 
             Button(action: moveDown) {
                 Image(systemName: "arrow.down")
-                    .frame(width: 34, height: 34)
+                    .frame(width: 44, height: 44)
             }
             .disabled(index == count - 1)
             .accessibilityLabel("Move \(title) down")
 
             Button(role: .destructive, action: delete) {
                 Image(systemName: "trash")
-                    .frame(width: 34, height: 34)
+                    .frame(width: 44, height: 44)
             }
             .accessibilityLabel("Delete \(title)")
         }
-        .foregroundStyle(LadleTheme.paprika)
+    }
+
+    private func ingredientQuantityField(at index: Int) -> some View {
+        compactField(
+            "Quantity",
+            text: $viewModel.draft.ingredients[index].quantityText
+        )
+    }
+
+    private func ingredientUnitField(at index: Int) -> some View {
+        compactField(
+            "Unit",
+            text: $viewModel.draft.ingredients[index].unit
+        )
     }
 
     private func validationText(_ message: String) -> some View {
         Label(message, systemImage: "exclamationmark.circle")
-            .font(LadleTypography.metadata)
+            .ladleFont(.metadata)
             .foregroundStyle(LadleTheme.paprika)
     }
 }

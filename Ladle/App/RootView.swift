@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct RootView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     let accountSession: AccountSession
     let libraryViewModel: LibraryViewModel
     let importCoordinator: ImportCoordinator
@@ -35,14 +37,16 @@ struct RootView: View {
 
                 WelcomeView(accountSession: accountSession)
                     .transition(
-                        .move(edge: .bottom)
-                            .combined(with: .opacity)
+                        reduceMotion
+                            ? .opacity
+                            : .move(edge: .bottom)
+                                .combined(with: .opacity)
                     )
             }
         }
         .background(LadleTheme.paper)
         .animation(
-            .snappy(duration: 0.34),
+            reduceMotion ? nil : .snappy(duration: 0.34),
             value: accountSession.shouldPresentWelcome
         )
     }

@@ -56,11 +56,11 @@ struct FailedImportSheet: View {
                 .background(LadleTheme.review, in: Circle())
 
             Text("This recipe needs a hand")
-                .font(LadleTypography.title)
+                .ladleFont(.title)
                 .foregroundStyle(LadleTheme.ink)
 
             Text(failureMessage)
-                .font(LadleTypography.body)
+                .ladleFont(.body)
                 .foregroundStyle(LadleTheme.ink.opacity(0.64))
         }
     }
@@ -68,10 +68,10 @@ struct FailedImportSheet: View {
     private var savedLink: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Saved link")
-                .font(LadleTypography.metadata)
+                .ladleFont(.metadata)
                 .foregroundStyle(LadleTheme.ink.opacity(0.56))
             Text(job.sourceURL.absoluteString)
-                .font(LadleTypography.metadata)
+                .ladleFont(.metadata)
                 .foregroundStyle(LadleTheme.ink)
                 .textSelection(.enabled)
         }
@@ -123,7 +123,7 @@ struct FailedImportSheet: View {
             recoveryInputMode = mode
         } label: {
             Label(title, systemImage: systemImage)
-                .font(LadleTypography.bodyStrong)
+                .ladleFont(.bodyStrong)
                 .foregroundStyle(LadleTheme.ink)
                 .frame(maxWidth: .infinity, minHeight: 48)
                 .background(

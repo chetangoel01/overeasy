@@ -23,16 +23,16 @@ struct CorrectionNotesView: View {
                 VStack(alignment: .leading, spacing: 20) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(mode.title)
-                            .font(LadleTypography.title)
+                            .ladleFont(.title)
                             .foregroundStyle(LadleTheme.ink)
                         Text(mode.message)
-                            .font(LadleTypography.body)
+                            .ladleFont(.body)
                             .foregroundStyle(LadleTheme.ink.opacity(0.64))
                     }
 
                     if mode == .manual {
                         TextField("Recipe title", text: $title)
-                            .font(LadleTypography.body)
+                            .ladleFont(.body)
                             .padding(.horizontal, 14)
                             .frame(minHeight: 50)
                             .background(
@@ -46,7 +46,7 @@ struct CorrectionNotesView: View {
                     }
 
                     TextEditor(text: $text)
-                        .font(LadleTypography.body)
+                        .ladleFont(.body)
                         .scrollContentBackground(.hidden)
                         .padding(10)
                         .frame(minHeight: 180)

@@ -2,6 +2,8 @@ import LadleCore
 import SwiftUI
 
 struct FocusModeView: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     @Bindable var viewModel: CookingViewModel
 
     var body: some View {
@@ -52,7 +54,7 @@ struct FocusModeView: View {
             Spacer()
 
             Text("Focus mode")
-                .font(LadleTypography.metadata)
+                .ladleFont(.metadata)
                 .foregroundStyle(LadleTheme.ink.opacity(0.62))
 
             Spacer()
@@ -74,11 +76,11 @@ struct FocusModeView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text(viewModel.progressText)
-                    .font(LadleTypography.bodyStrong)
+                    .ladleFont(.bodyStrong)
                     .foregroundStyle(LadleTheme.paprika)
                 Spacer()
                 Text(viewModel.recipe.title)
-                    .font(LadleTypography.metadata)
+                    .ladleFont(.metadata)
                     .foregroundStyle(LadleTheme.ink.opacity(0.5))
                     .lineLimit(1)
             }
@@ -97,20 +99,21 @@ struct FocusModeView: View {
         if let step = viewModel.currentStep {
             VStack(alignment: .leading, spacing: 16) {
                 Text("DO THIS NOW")
-                    .font(LadleTypography.eyebrow)
+                    .ladleFont(.eyebrow)
                     .tracking(1.6)
                     .foregroundStyle(LadleTheme.paprika)
 
                 Text(step.instruction)
-                    .font(
-                        .system(
-                            size: 38,
-                            weight: .medium,
-                            design: .serif
-                        )
+                    .ladleScaledFont(
+                        size: 38,
+                        relativeTo: .largeTitle,
+                        weight: .medium,
+                        design: .serif
                     )
                     .foregroundStyle(LadleTheme.ink)
-                    .minimumScaleFactor(0.72)
+                    .minimumScaleFactor(
+                        dynamicTypeSize.isAccessibilitySize ? 1 : 0.72
+                    )
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("focus.step.large")
 
@@ -167,7 +170,7 @@ struct FocusModeView: View {
                                         : LadleTheme.paprika
                                 )
                                 Text(ingredient.cookingDetailText)
-                                    .font(LadleTypography.bodyStrong)
+                                    .ladleFont(.bodyStrong)
                                     .foregroundStyle(LadleTheme.ink)
                                 Spacer(minLength: 0)
                             }

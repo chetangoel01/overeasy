@@ -1,28 +1,134 @@
 import SwiftUI
 
-enum LadleTypography {
-    static let display = Font.system(
-        size: 44,
-        weight: .medium,
-        design: .serif
-    )
-    static let title = Font.system(
-        size: 32,
-        weight: .medium,
-        design: .serif
-    )
-    static let recipeTitle = Font.system(
-        size: 21,
-        weight: .semibold,
-        design: .serif
-    )
-    static let section = Font.system(
-        size: 19,
-        weight: .semibold,
-        design: .serif
-    )
-    static let body = Font.system(size: 17, weight: .regular)
-    static let bodyStrong = Font.system(size: 17, weight: .semibold)
-    static let metadata = Font.system(size: 13, weight: .medium)
-    static let eyebrow = Font.system(size: 12, weight: .bold)
+enum LadleTextStyle {
+    case display
+    case title
+    case recipeTitle
+    case section
+    case body
+    case bodyStrong
+    case metadata
+    case eyebrow
+
+    var baseSize: CGFloat {
+        switch self {
+        case .display:
+            44
+        case .title:
+            32
+        case .recipeTitle:
+            21
+        case .section:
+            19
+        case .body, .bodyStrong:
+            17
+        case .metadata:
+            13
+        case .eyebrow:
+            12
+        }
+    }
+
+    var relativeTextStyle: Font.TextStyle {
+        switch self {
+        case .display:
+            .largeTitle
+        case .title:
+            .title
+        case .recipeTitle:
+            .title3
+        case .section:
+            .headline
+        case .body, .bodyStrong:
+            .body
+        case .metadata:
+            .footnote
+        case .eyebrow:
+            .caption
+        }
+    }
+
+    var weight: Font.Weight {
+        switch self {
+        case .display, .title:
+            .medium
+        case .recipeTitle, .section, .bodyStrong:
+            .semibold
+        case .body:
+            .regular
+        case .metadata:
+            .medium
+        case .eyebrow:
+            .bold
+        }
+    }
+
+    var design: Font.Design {
+        switch self {
+        case .display, .title, .recipeTitle, .section:
+            .serif
+        case .body, .bodyStrong, .metadata, .eyebrow:
+            .default
+        }
+    }
+}
+
+private struct LadleFontModifier: ViewModifier {
+    @ScaledMetric private var scaledSize: CGFloat
+
+    private let weight: Font.Weight
+    private let design: Font.Design
+
+    init(
+        size: CGFloat,
+        relativeTo textStyle: Font.TextStyle,
+        weight: Font.Weight,
+        design: Font.Design
+    ) {
+        _scaledSize = ScaledMetric(
+            wrappedValue: size,
+            relativeTo: textStyle
+        )
+        self.weight = weight
+        self.design = design
+    }
+
+    func body(content: Content) -> some View {
+        content.font(
+            .system(
+                size: scaledSize,
+                weight: weight,
+                design: design
+            )
+        )
+    }
+}
+
+extension View {
+    func ladleFont(_ style: LadleTextStyle) -> some View {
+        modifier(
+            LadleFontModifier(
+                size: style.baseSize,
+                relativeTo: style.relativeTextStyle,
+                weight: style.weight,
+                design: style.design
+            )
+        )
+    }
+
+    func ladleScaledFont(
+        size: CGFloat,
+        relativeTo textStyle: Font.TextStyle,
+        weight: Font.Weight = .regular,
+        design: Font.Design = .default
+    ) -> some View {
+        modifier(
+            LadleFontModifier(
+                size: size,
+                relativeTo: textStyle,
+                weight: weight,
+                design: design
+            )
+        )
+    }
 }

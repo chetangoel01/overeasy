@@ -90,13 +90,13 @@ struct HealthExportSheet: View {
                 .background(LadleTheme.review, in: Circle())
 
             Text("Add nutrition to Apple Health")
-                .font(LadleTypography.title)
+                .ladleFont(.title)
                 .foregroundStyle(LadleTheme.ink)
 
             Text(
                 "Choose how much you ate, review the values, then confirm the export."
             )
-            .font(LadleTypography.body)
+            .ladleFont(.body)
             .foregroundStyle(LadleTheme.ink.opacity(0.64))
         }
     }
@@ -105,10 +105,10 @@ struct HealthExportSheet: View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Servings eaten")
-                    .font(LadleTypography.metadata)
+                    .ladleFont(.metadata)
                     .foregroundStyle(LadleTheme.ink.opacity(0.58))
                 Text(servingText)
-                    .font(LadleTypography.recipeTitle)
+                    .ladleFont(.recipeTitle)
                     .foregroundStyle(LadleTheme.ink)
             }
 
@@ -149,11 +149,11 @@ struct HealthExportSheet: View {
                 ) { index, metric in
                     HStack {
                         Text(metric.kind.displayName)
-                            .font(LadleTypography.body)
+                            .ladleFont(.body)
                             .foregroundStyle(LadleTheme.ink)
                         Spacer()
                         Text(metricText(metric))
-                            .font(LadleTypography.bodyStrong)
+                            .ladleFont(.bodyStrong)
                             .foregroundStyle(LadleTheme.ink)
                     }
                     .padding(.vertical, 12)
@@ -174,7 +174,7 @@ struct HealthExportSheet: View {
             "Apple will ask for permission only after you confirm. Ladle never exports nutrition automatically.",
             systemImage: "lock.shield"
         )
-        .font(LadleTypography.metadata)
+        .ladleFont(.metadata)
         .foregroundStyle(LadleTheme.ink.opacity(0.64))
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -239,12 +239,12 @@ struct HealthExportSheet: View {
                 .background(LadleTheme.paprika, in: Circle())
 
             Text(title)
-                .font(LadleTypography.title)
+                .ladleFont(.title)
                 .foregroundStyle(LadleTheme.ink)
                 .multilineTextAlignment(.center)
 
             Text(message)
-                .font(LadleTypography.body)
+                .ladleFont(.body)
                 .foregroundStyle(LadleTheme.ink.opacity(0.64))
                 .multilineTextAlignment(.center)
 
@@ -254,7 +254,7 @@ struct HealthExportSheet: View {
             Button("Close") {
                 dismiss()
             }
-            .font(LadleTypography.bodyStrong)
+            .ladleFont(.bodyStrong)
             .foregroundStyle(LadleTheme.ink)
             .frame(minHeight: 44)
         }

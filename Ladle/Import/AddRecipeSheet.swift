@@ -81,7 +81,7 @@ struct AddRecipeSheet: View {
 
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Recipe link")
-                        .font(LadleTypography.bodyStrong)
+                        .ladleFont(.bodyStrong)
                         .foregroundStyle(LadleTheme.ink)
 
                     TextField(
@@ -91,7 +91,7 @@ struct AddRecipeSheet: View {
                     .textInputAutocapitalization(.never)
                     .keyboardType(.URL)
                     .autocorrectionDisabled()
-                    .font(LadleTypography.body)
+                    .ladleFont(.body)
                     .foregroundStyle(LadleTheme.ink)
                     .padding(.horizontal, 14)
                     .frame(minHeight: 52)
@@ -127,14 +127,14 @@ struct AddRecipeSheet: View {
                     Label("Create manually", systemImage: "square.and.pencil")
                         .frame(maxWidth: .infinity, minHeight: 48)
                 }
-                .font(LadleTypography.bodyStrong)
+                .ladleFont(.bodyStrong)
                 .foregroundStyle(LadleTheme.ink)
 
                 HStack(spacing: 10) {
                     Image(systemName: "square.and.arrow.up")
                         .foregroundStyle(LadleTheme.paprika)
                     Text("Tip: sharing a video to Ladle is even faster.")
-                        .font(LadleTypography.metadata)
+                        .ladleFont(.metadata)
                         .foregroundStyle(LadleTheme.ink.opacity(0.62))
                 }
                 .padding(14)
@@ -160,9 +160,9 @@ struct AddRecipeSheet: View {
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Recipe title")
-                        .font(LadleTypography.bodyStrong)
+                        .ladleFont(.bodyStrong)
                     TextField("Recipe title", text: $manualTitle)
-                        .font(LadleTypography.body)
+                        .ladleFont(.body)
                         .padding(.horizontal, 14)
                         .frame(minHeight: 50)
                         .background(
@@ -177,9 +177,9 @@ struct AddRecipeSheet: View {
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Recipe details")
-                        .font(LadleTypography.bodyStrong)
+                        .ladleFont(.bodyStrong)
                     TextEditor(text: $manualDetails)
-                        .font(LadleTypography.body)
+                        .ladleFont(.body)
                         .scrollContentBackground(.hidden)
                         .padding(10)
                         .frame(minHeight: 130)
@@ -213,7 +213,7 @@ struct AddRecipeSheet: View {
                     isManualEntry = false
                     selectedDetent = .medium
                 }
-                .font(LadleTypography.bodyStrong)
+                .ladleFont(.bodyStrong)
                 .foregroundStyle(LadleTheme.ink)
                 .frame(maxWidth: .infinity, minHeight: 44)
             }
@@ -233,10 +233,10 @@ struct AddRecipeSheet: View {
 
             VStack(spacing: 8) {
                 Text("Rescuing your recipe")
-                    .font(LadleTypography.title)
+                    .ladleFont(.title)
                     .foregroundStyle(LadleTheme.ink)
                 Text("Ladle is pulling out the useful parts. You can keep browsing while it works.")
-                    .font(LadleTypography.body)
+                    .ladleFont(.body)
                     .foregroundStyle(LadleTheme.ink.opacity(0.64))
                     .multilineTextAlignment(.center)
             }
@@ -266,14 +266,14 @@ struct AddRecipeSheet: View {
 
             VStack(spacing: 8) {
                 Text(needsReview ? "Ready for a quick review" : "Recipe ready")
-                    .font(LadleTypography.title)
+                    .ladleFont(.title)
                     .foregroundStyle(LadleTheme.ink)
                     .multilineTextAlignment(.center)
                 Text(
                     coordinator.completedRecipe?.title
                         ?? "Your recipe is ready."
                 )
-                .font(LadleTypography.body)
+                .ladleFont(.body)
                 .foregroundStyle(LadleTheme.ink.opacity(0.64))
                 .multilineTextAlignment(.center)
             }
@@ -293,7 +293,7 @@ struct AddRecipeSheet: View {
             Button("Back to recipes") {
                 dismiss()
             }
-            .font(LadleTypography.bodyStrong)
+            .ladleFont(.bodyStrong)
             .foregroundStyle(LadleTheme.ink)
             .frame(minHeight: 44)
         }
@@ -310,14 +310,14 @@ struct AddRecipeSheet: View {
 
             VStack(spacing: 8) {
                 Text("Already in your recipes")
-                    .font(LadleTypography.title)
+                    .ladleFont(.title)
                     .foregroundStyle(LadleTheme.ink)
                     .multilineTextAlignment(.center)
                 Text(
                     coordinator.existingDuplicate?.title
                         ?? "This link has already been rescued."
                 )
-                .font(LadleTypography.body)
+                .ladleFont(.body)
                 .foregroundStyle(LadleTheme.ink.opacity(0.64))
                 .multilineTextAlignment(.center)
             }
@@ -362,10 +362,10 @@ struct AddRecipeSheet: View {
                 .frame(width: 60, height: 60)
                 .background(LadleTheme.review, in: Circle())
             Text("That link needs a hand")
-                .font(LadleTypography.title)
+                .ladleFont(.title)
                 .foregroundStyle(LadleTheme.ink)
             Text(reason.addRecipeMessage)
-                .font(LadleTypography.body)
+                .ladleFont(.body)
                 .foregroundStyle(LadleTheme.ink.opacity(0.64))
                 .multilineTextAlignment(.center)
             Button("Back to recipes") {
@@ -381,14 +381,14 @@ struct AddRecipeSheet: View {
         switch coordinator.state {
         case let .validationFailed(error):
             Label(error.addRecipeMessage, systemImage: "exclamationmark.circle")
-                .font(LadleTypography.metadata)
+                .ladleFont(.metadata)
                 .foregroundStyle(LadleTheme.paprika)
         case .persistenceFailed:
             Label(
                 "Ladle couldn’t save that import. Please try again.",
                 systemImage: "exclamationmark.circle"
             )
-            .font(LadleTypography.metadata)
+            .ladleFont(.metadata)
             .foregroundStyle(LadleTheme.paprika)
         default:
             EmptyView()
@@ -407,10 +407,10 @@ struct AddRecipeSheet: View {
                 .frame(width: 48, height: 48)
                 .background(LadleTheme.review, in: Circle())
             Text(title)
-                .font(LadleTypography.title)
+                .ladleFont(.title)
                 .foregroundStyle(LadleTheme.ink)
             Text(message)
-                .font(LadleTypography.body)
+                .ladleFont(.body)
                 .foregroundStyle(LadleTheme.ink.opacity(0.64))
         }
     }

@@ -17,12 +17,12 @@ struct WelcomeView: View {
 
                 VStack(spacing: 10) {
                     Text("WELCOME TO LADLE")
-                        .font(LadleTypography.eyebrow)
+                        .ladleFont(.eyebrow)
                         .tracking(1.7)
                         .foregroundStyle(LadleTheme.paprika)
 
                     Text("Recipes, rescued\nfrom the scroll.")
-                        .font(LadleTypography.title)
+                        .ladleFont(.title)
                         .multilineTextAlignment(.center)
                         .foregroundStyle(LadleTheme.ink)
                         .accessibilityLabel(
@@ -32,7 +32,7 @@ struct WelcomeView: View {
                     Text(
                         "Share a recipe video once. Ladle turns it into a clean recipe you can actually cook."
                     )
-                    .font(LadleTypography.body)
+                    .ladleFont(.body)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(LadleTheme.ink.opacity(0.67))
                     .fixedSize(horizontal: false, vertical: true)
@@ -68,13 +68,13 @@ struct WelcomeView: View {
 
                     Button(action: accountSession.continueAsGuest) {
                         Text("Continue as a guest")
-                            .font(LadleTypography.bodyStrong)
+                            .ladleFont(.bodyStrong)
                             .foregroundStyle(LadleTheme.ink)
                             .frame(minHeight: 38)
                     }
 
                     Text("Guests can save up to 10 recipes.")
-                        .font(LadleTypography.metadata)
+                        .ladleFont(.metadata)
                         .foregroundStyle(LadleTheme.ink.opacity(0.55))
                 }
             }
@@ -108,7 +108,7 @@ private struct WelcomeFeature: View {
                 .frame(width: 34, height: 34)
                 .background(LadleTheme.review, in: Circle())
             Text(text)
-                .font(LadleTypography.body)
+                .ladleFont(.body)
                 .foregroundStyle(LadleTheme.ink)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }

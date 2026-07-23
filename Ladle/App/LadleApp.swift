@@ -60,7 +60,7 @@ struct LadleApp: App {
                 queue: queue,
                 repository: environment.recipeRepository
             )
-            try? reconciler.reconcile()
+            _ = try? reconciler.reconcile()
             sharedQueueReconciler = reconciler
         } else {
             sharedQueueReconciler = nil
@@ -69,6 +69,10 @@ struct LadleApp: App {
         let accountSession = AccountSession(
             launchArguments: launchArguments
         )
+        let notificationService: any NotificationService =
+            runtimeConfiguration.usesInMemoryStore
+                ? DisabledNotificationService()
+                : UserNotificationService()
 
         appEnvironment = environment
         self.sharedQueueReconciler = sharedQueueReconciler
@@ -84,7 +88,8 @@ struct LadleApp: App {
             initialValue: ImportCoordinator(
                 repository: environment.recipeRepository,
                 service: DemoImportService(),
-                accountSession: accountSession
+                accountSession: accountSession,
+                notificationService: notificationService
             )
         )
     }

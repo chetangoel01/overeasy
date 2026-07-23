@@ -1,11 +1,13 @@
 import SwiftUI
 
 struct LadlePrimaryButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var isProminent = true
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(LadleTypography.bodyStrong)
+            .ladleFont(.bodyStrong)
             .foregroundStyle(isProminent ? Color.white : LadleTheme.ink)
             .frame(maxWidth: .infinity, minHeight: 54)
             .background(
@@ -25,9 +27,13 @@ struct LadlePrimaryButtonStyle: ButtonStyle {
                 }
             }
             .opacity(configuration.isPressed ? 0.72 : 1)
-            .scaleEffect(configuration.isPressed ? 0.985 : 1)
+            .scaleEffect(
+                reduceMotion
+                    ? 1
+                    : (configuration.isPressed ? 0.985 : 1)
+            )
             .animation(
-                .easeOut(duration: 0.12),
+                reduceMotion ? nil : .easeOut(duration: 0.12),
                 value: configuration.isPressed
             )
     }
@@ -46,7 +52,7 @@ struct LadlePill: View {
             }
             Text(text)
         }
-        .font(LadleTypography.metadata)
+        .ladleFont(.metadata)
         .foregroundStyle(foreground)
         .fixedSize(horizontal: true, vertical: false)
         .padding(.horizontal, 11)
@@ -56,29 +62,49 @@ struct LadlePill: View {
 }
 
 struct LadleSectionHeader: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     let title: String
     var detail: String?
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(title)
-                .font(LadleTypography.section)
-            Spacer()
-            if let detail {
-                Text(detail)
-                    .font(LadleTypography.metadata)
-                    .foregroundStyle(LadleTheme.ink.opacity(0.58))
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 3) {
+                    titleLabel
+                    detailLabel
+                }
+            } else {
+                HStack(alignment: .firstTextBaseline) {
+                    titleLabel
+                    Spacer()
+                    detailLabel
+                }
             }
         }
         .foregroundStyle(LadleTheme.ink)
         .accessibilityElement(children: .combine)
+    }
+
+    private var titleLabel: some View {
+        Text(title)
+            .ladleFont(.section)
+    }
+
+    @ViewBuilder
+    private var detailLabel: some View {
+        if let detail {
+            Text(detail)
+                .ladleFont(.metadata)
+                .foregroundStyle(LadleTheme.ink.opacity(0.58))
+        }
     }
 }
 
 struct EstimateLabel: View {
     var body: some View {
         Label("Estimated", systemImage: "info.circle")
-            .font(LadleTypography.metadata)
+            .ladleFont(.metadata)
             .foregroundStyle(LadleTheme.ink.opacity(0.62))
             .accessibilityHint(
                 "Nutrition and uncertain imported values may be estimates."

@@ -73,7 +73,7 @@ struct FilterSheet: View {
                             : "heart"
                     )
                     Text("Favorites only")
-                        .font(LadleTypography.bodyStrong)
+                        .ladleFont(.bodyStrong)
                     Spacer()
                     if favoritesOnly {
                         Image(systemName: "checkmark")
@@ -107,7 +107,12 @@ struct FilterSheet: View {
                 detail: maximumTotalMinutes.map { "Up to \($0) min" }
             )
 
-            HStack(spacing: 8) {
+            LazyVGrid(
+                columns: [
+                    GridItem(.adaptive(minimum: 72), spacing: 8),
+                ],
+                spacing: 8
+            ) {
                 ForEach([15, 30, 45, 60], id: \.self) { minutes in
                     FilterChoiceButton(
                         title: "\(minutes) min",
@@ -132,7 +137,12 @@ struct FilterSheet: View {
                 }
             )
 
-            HStack(spacing: 8) {
+            LazyVGrid(
+                columns: [
+                    GridItem(.adaptive(minimum: 84), spacing: 8),
+                ],
+                spacing: 8
+            ) {
                 ForEach([400, 600, 800], id: \.self) { calories in
                     FilterChoiceButton(
                         title: "≤ \(calories)",
@@ -172,7 +182,7 @@ private struct FilterChoiceButton: View {
     var body: some View {
         Button(action: action) {
             Text(title)
-                .font(LadleTypography.metadata)
+                .ladleFont(.metadata)
                 .foregroundStyle(
                     isSelected ? Color.white : LadleTheme.ink
                 )

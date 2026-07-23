@@ -60,10 +60,10 @@ struct NutritionView: View {
     private var calorieHero: some View {
         VStack(spacing: 5) {
             Text(calorieText)
-                .font(LadleTypography.display)
+                .ladleFont(.display)
                 .foregroundStyle(LadleTheme.ink)
             Text("Calories")
-                .font(LadleTypography.bodyStrong)
+                .ladleFont(.bodyStrong)
                 .foregroundStyle(LadleTheme.ink.opacity(0.58))
         }
         .frame(maxWidth: .infinity)
@@ -123,7 +123,7 @@ struct NutritionView: View {
                 "Per \(decimalText(nutrition.servingBasis)) serving",
                 systemImage: "person.crop.circle"
             )
-            .font(LadleTypography.bodyStrong)
+            .ladleFont(.bodyStrong)
             .foregroundStyle(LadleTheme.ink)
 
             if nutrition.isEstimated {
@@ -131,7 +131,7 @@ struct NutritionView: View {
                     "Nutrition is estimated from the imported recipe.",
                     systemImage: "info.circle"
                 )
-                .font(LadleTypography.metadata)
+                .ladleFont(.metadata)
                 .foregroundStyle(LadleTheme.ink.opacity(0.64))
             }
         }
@@ -169,10 +169,10 @@ struct NutritionView: View {
                 .frame(width: 8, height: 8)
                 .accessibilityHidden(true)
             Text(value.map { "\(decimalText($0)) g" } ?? "—")
-                .font(LadleTypography.bodyStrong)
+                .ladleFont(.bodyStrong)
                 .foregroundStyle(LadleTheme.ink)
             Text(name)
-                .font(LadleTypography.metadata)
+                .ladleFont(.metadata)
                 .foregroundStyle(LadleTheme.ink.opacity(0.58))
                 .lineLimit(1)
                 .minimumScaleFactor(0.72)
@@ -185,10 +185,10 @@ struct NutritionView: View {
     private func nutrientRow(_ nutrient: NutritionDisplayRow) -> some View {
         HStack {
             Text(nutrient.name)
-                .font(LadleTypography.body)
+                .ladleFont(.body)
             Spacer()
             Text("\(decimalText(nutrient.amount)) \(nutrient.unit)")
-                .font(LadleTypography.bodyStrong)
+                .ladleFont(.bodyStrong)
         }
         .foregroundStyle(LadleTheme.ink)
         .padding(.vertical, 14)

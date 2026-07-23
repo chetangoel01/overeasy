@@ -2,43 +2,64 @@ import LadleCore
 import SwiftUI
 
 struct PendingImportCard: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     let job: ImportJob
 
     var body: some View {
-        HStack(spacing: 12) {
-            statusIcon
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(LadleTypography.bodyStrong)
-                    .foregroundStyle(LadleTheme.ink)
-                    .lineLimit(1)
-
-                Text("From \(job.source.libraryTitle) · \(detailText)")
-                    .font(LadleTypography.metadata)
-                    .foregroundStyle(LadleTheme.ink.opacity(0.56))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.82)
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(alignment: .top, spacing: 12) {
+                        statusIcon
+                        importDescription
+                    }
+                    statusPill
+                }
+            } else {
+                HStack(spacing: 12) {
+                    statusIcon
+                    importDescription
+                    Spacer(minLength: 6)
+                    statusPill
+                }
             }
-            .layoutPriority(1)
-
-            Spacer(minLength: 6)
-
-            LadlePill(
-                text: statusText,
-                systemImage: statusSystemImage,
-                tint: statusTint,
-                foreground: statusForeground
-            )
         }
         .padding(14)
-        .frame(width: 326)
+        .frame(width: dynamicTypeSize.isAccessibilitySize ? 350 : 326)
         .ladleCard()
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
             "\(statusText): \(title), from \(job.source.libraryTitle)"
         )
         .accessibilityIdentifier("import.\(job.id.uuidString)")
+    }
+
+    private var importDescription: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .ladleFont(.bodyStrong)
+                .foregroundStyle(LadleTheme.ink)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+
+            Text("From \(job.source.libraryTitle) · \(detailText)")
+                .ladleFont(.metadata)
+                .foregroundStyle(LadleTheme.ink.opacity(0.56))
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+                .minimumScaleFactor(
+                    dynamicTypeSize.isAccessibilitySize ? 1 : 0.82
+                )
+        }
+        .layoutPriority(1)
+    }
+
+    private var statusPill: some View {
+        LadlePill(
+            text: statusText,
+            systemImage: statusSystemImage,
+            tint: statusTint,
+            foreground: statusForeground
+        )
     }
 
     @ViewBuilder
