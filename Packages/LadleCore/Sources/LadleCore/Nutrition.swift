@@ -57,4 +57,28 @@ public struct Nutrition: Codable, Hashable, Sendable {
         self.servingBasis = servingBasis
         self.isEstimated = isEstimated
     }
+
+    public func scaled(toServings servings: Decimal) -> Self {
+        let multiplier = servings / servingBasis
+        return Self(
+            calories: calories.map { $0 * multiplier },
+            proteinGrams: proteinGrams.map { $0 * multiplier },
+            carbohydrateGrams: carbohydrateGrams.map { $0 * multiplier },
+            fatGrams: fatGrams.map { $0 * multiplier },
+            saturatedFatGrams: saturatedFatGrams.map { $0 * multiplier },
+            fiberGrams: fiberGrams.map { $0 * multiplier },
+            sugarGrams: sugarGrams.map { $0 * multiplier },
+            sodiumMilligrams: sodiumMilligrams.map { $0 * multiplier },
+            otherNutrients: otherNutrients.map {
+                Nutrient(
+                    id: $0.id,
+                    name: $0.name,
+                    amount: $0.amount * multiplier,
+                    unit: $0.unit
+                )
+            },
+            servingBasis: servings,
+            isEstimated: isEstimated
+        )
+    }
 }
