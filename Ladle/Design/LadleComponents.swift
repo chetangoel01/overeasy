@@ -48,6 +48,7 @@ struct LadlePill: View {
         }
         .font(LadleTypography.metadata)
         .foregroundStyle(foreground)
+        .fixedSize(horizontal: true, vertical: false)
         .padding(.horizontal, 11)
         .padding(.vertical, 7)
         .background(tint, in: Capsule())
