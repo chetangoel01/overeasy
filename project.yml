@@ -1,0 +1,88 @@
+name: Ladle
+
+options:
+  minimumXcodeGenVersion: 2.46.0
+  deploymentTarget:
+    iOS: "26.5"
+  groupSortPosition: top
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    ENABLE_USER_SCRIPT_SANDBOXING: true
+
+targets:
+  Ladle:
+    type: application
+    platform: iOS
+    sources:
+      - path: Ladle
+    resources:
+      - path: Ladle/Resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ladle.ios
+        INFOPLIST_FILE: Config/Ladle-Info.plist
+        CODE_SIGN_ENTITLEMENTS: Config/Ladle.entitlements
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        PRODUCT_NAME: Ladle
+        TARGETED_DEVICE_FAMILY: "1"
+    dependencies:
+      - target: LadleShare
+        embed: true
+
+  LadleShare:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: LadleShare
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ladle.ios.share
+        INFOPLIST_FILE: Config/LadleShare-Info.plist
+        CODE_SIGN_ENTITLEMENTS: Config/LadleShare.entitlements
+        PRODUCT_NAME: LadleShare
+        TARGETED_DEVICE_FAMILY: "1"
+
+  LadleTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: LadleTests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ladle.ios.tests
+        GENERATE_INFOPLIST_FILE: true
+    dependencies:
+      - target: Ladle
+
+  LadleUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: LadleUITests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ladle.ios.uitests
+        GENERATE_INFOPLIST_FILE: true
+        TEST_TARGET_NAME: Ladle
+    dependencies:
+      - target: Ladle
+
+schemes:
+  Ladle:
+    build:
+      targets:
+        Ladle: all
+        LadleShare: all
+        LadleTests: [test]
+        LadleUITests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      gatherCoverageData: true
+      targets:
+        - LadleTests
+        - LadleUITests
