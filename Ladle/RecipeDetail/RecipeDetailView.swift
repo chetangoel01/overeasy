@@ -17,6 +17,7 @@ struct RecipeDetailView: View {
     @State private var isEditorPresented = false
     @State private var isReimportPresented = false
     @State private var editorViewModel: RecipeEditorViewModel?
+    @State private var cookingViewModel: CookingViewModel?
 
     init(
         recipe: Recipe,
@@ -42,8 +43,12 @@ struct RecipeDetailView: View {
                 recipeHeader
                 RecipeMetadataBand(recipe: displayedRecipe)
 
-                Button("Start Cooking") {}
-                    .buttonStyle(LadlePrimaryButtonStyle())
+                Button("Start Cooking") {
+                    cookingViewModel = CookingViewModel(
+                        recipe: displayedRecipe
+                    )
+                }
+                .buttonStyle(LadlePrimaryButtonStyle())
 
                 IngredientList(
                     ingredients: displayedRecipe.orderedIngredients
@@ -110,6 +115,14 @@ struct RecipeDetailView: View {
             ) { recipe in
                 applyChangedRecipe(recipe)
             }
+        }
+        .fullScreenCover(
+            item: $cookingViewModel,
+            onDismiss: {
+                cookingViewModel = nil
+            }
+        ) { viewModel in
+            FullRecipeView(viewModel: viewModel)
         }
     }
 
