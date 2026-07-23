@@ -1,0 +1,61 @@
+import Foundation
+import Testing
+@testable import LadleCore
+
+@Suite("Import job transitions")
+struct ImportJobTests {
+    private let sourceURL = URL(string: "https://www.tiktok.com/@cook/video/123")!
+
+    @Test
+    func parsingCanBecomeReady() throws {
+        let job = ImportJob.queued(sourceURL: sourceURL)
+
+        let updated = try job.transitioning(to: .ready)
+
+        #expect(updated.status == .ready)
+    }
+
+    @Test
+    func parsingCanBecomeNeedsReview() throws {
+        let job = ImportJob.queued(sourceURL: sourceURL)
+
+        let updated = try job.transitioning(to: .needsReview)
+
+        #expect(updated.status == .needsReview)
+    }
+
+    @Test
+    func parsingCanFail() throws {
+        let job = ImportJob.queued(sourceURL: sourceURL)
+
+        let updated = try job.transitioning(to: .failed(.parserUnavailable))
+
+        #expect(updated.status == .failed(.parserUnavailable))
+    }
+
+    @Test
+    func readyCannotReturnToParsing() throws {
+        let ready = try ImportJob.queued(sourceURL: sourceURL)
+            .transitioning(to: .ready)
+
+        #expect(throws: ImportTransitionError.self) {
+            try ready.transitioning(to: .parsing)
+        }
+    }
+
+    @Test
+    func failedReimportRetainsCurrentRecipe() throws {
+        let usableRecipeID = UUID()
+        let candidateRecipeID = UUID()
+        let job = ImportJob.reimporting(
+            sourceURL: sourceURL,
+            currentRecipeID: usableRecipeID,
+            candidateRecipeID: candidateRecipeID
+        )
+
+        let updated = try job.transitioning(to: .failed(.parserUnavailable))
+
+        #expect(updated.currentRecipeID == usableRecipeID)
+        #expect(updated.candidateRecipeID == nil)
+    }
+}

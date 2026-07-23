@@ -12,6 +12,10 @@ settings:
     SWIFT_STRICT_CONCURRENCY: complete
     ENABLE_USER_SCRIPT_SANDBOXING: true
 
+packages:
+  LadleCore:
+    path: Packages/LadleCore
+
 targets:
   Ladle:
     type: application
@@ -31,6 +35,7 @@ targets:
     dependencies:
       - target: LadleShare
         embed: true
+      - package: LadleCore
 
   LadleShare:
     type: app-extension
@@ -44,6 +49,8 @@ targets:
         CODE_SIGN_ENTITLEMENTS: Config/LadleShare.entitlements
         PRODUCT_NAME: LadleShare
         TARGETED_DEVICE_FAMILY: "1"
+    dependencies:
+      - package: LadleCore
 
   LadleTests:
     type: bundle.unit-test

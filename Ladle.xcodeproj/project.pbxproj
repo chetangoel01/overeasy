@@ -9,9 +9,11 @@
 /* Begin PBXBuildFile section */
 		15B305735D008537A73E9BE2 /* LadleLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13D8FE97FD1AE805C5448B98 /* LadleLaunchTests.swift */; };
 		38670B3279A15C8147795E43 /* LadleShare.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D975A502CE6CABFF17DE770D /* LadleShare.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		6FBBAE9357F2B186E26ADD35 /* LadleCore in Frameworks */ = {isa = PBXBuildFile; productRef = ACB5208FC83F92BD0A208E0F /* LadleCore */; };
 		7735E4254A1CC43579B1C7AD /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CAD674446D07BDCDBFD2F66 /* RootView.swift */; };
 		93CF9021D2F49A9F1263B0FC /* LadleApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 398FE0A6194867671568AF86 /* LadleApp.swift */; };
 		AE4B668CBE0E318875AF01EA /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72AE00384EB09CFD40366417 /* ShareViewController.swift */; };
+		D099721222903333754D2511 /* LadleCore in Frameworks */ = {isa = PBXBuildFile; productRef = 5B405345B796769819500445 /* LadleCore */; };
 		D78BB07879939E3FC2D9E071 /* ProjectSmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9209E28951C4CAA3BC8E7629 /* ProjectSmokeTests.swift */; };
 		FBE657A54D9B4A76364BC5C3 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5BDEAB572C83A392AED5C622 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
@@ -64,8 +66,28 @@
 		9209E28951C4CAA3BC8E7629 /* ProjectSmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectSmokeTests.swift; sourceTree = "<group>"; };
 		92186EA22A7478D595EF7866 /* LadleUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = LadleUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		AB7758A009F552E1ADAB5A3B /* LadleTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = LadleTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B199870C26E21427676774F8 /* LadleCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = LadleCore; path = Packages/LadleCore; sourceTree = SOURCE_ROOT; };
 		D975A502CE6CABFF17DE770D /* LadleShare.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = LadleShare.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		71FAA17B71B746FDF569A03D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D099721222903333754D2511 /* LadleCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9CCD385D0B48C21565701A0F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6FBBAE9357F2B186E26ADD35 /* LadleCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		1CE38A2688439F4AC371D098 /* Resources */ = {
@@ -83,6 +105,7 @@
 				C4FA77D8C431C224299760C5 /* LadleShare */,
 				AC62D73EFA5767328A97BEBB /* LadleTests */,
 				B83462334B3609B1DD29A356 /* LadleUITests */,
+				814C8622786A5D7B00F966DE /* Packages */,
 				42BCDF39316A0AD46ACABDE8 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -96,6 +119,14 @@
 				92186EA22A7478D595EF7866 /* LadleUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		814C8622786A5D7B00F966DE /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				B199870C26E21427676774F8 /* LadleCore */,
+			);
+			path = Packages;
 			sourceTree = "<group>";
 		};
 		AC62D73EFA5767328A97BEBB /* LadleTests */ = {
@@ -166,6 +197,7 @@
 			buildConfigurationList = 9A2D3C5145C5C71368728BD3 /* Build configuration list for PBXNativeTarget "LadleShare" */;
 			buildPhases = (
 				52A8B58305158239F7DE9DAD /* Sources */,
+				71FAA17B71B746FDF569A03D /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -173,6 +205,7 @@
 			);
 			name = LadleShare;
 			packageProductDependencies = (
+				5B405345B796769819500445 /* LadleCore */,
 			);
 			productName = LadleShare;
 			productReference = D975A502CE6CABFF17DE770D /* LadleShare.appex */;
@@ -202,6 +235,7 @@
 			buildPhases = (
 				0BDBCB9343FDC25FEC0E2E67 /* Sources */,
 				117ED315C3B5FBDFF644F584 /* Resources */,
+				9CCD385D0B48C21565701A0F /* Frameworks */,
 				1998F7DF7BDA6E61A99CF18B /* Embed Foundation Extensions */,
 			);
 			buildRules = (
@@ -211,6 +245,7 @@
 			);
 			name = Ladle;
 			packageProductDependencies = (
+				ACB5208FC83F92BD0A208E0F /* LadleCore */,
 			);
 			productName = Ladle;
 			productReference = 8685543E83A66097689438A5 /* Ladle.app */;
@@ -239,6 +274,9 @@
 			);
 			mainGroup = 2F09FCC29A55E22EC56467F2;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				AD211C2C5E40DE641D72694A /* XCLocalSwiftPackageReference "Packages/LadleCore" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 42BCDF39316A0AD46ACABDE8 /* Products */;
 			projectDirPath = "";
@@ -630,6 +668,24 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		AD211C2C5E40DE641D72694A /* XCLocalSwiftPackageReference "Packages/LadleCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/LadleCore;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		5B405345B796769819500445 /* LadleCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = LadleCore;
+		};
+		ACB5208FC83F92BD0A208E0F /* LadleCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = LadleCore;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 7EEAF269B9CE72409582E1B0 /* Project object */;
 }
