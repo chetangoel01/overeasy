@@ -4,6 +4,7 @@ import SwiftUI
 
 struct RecipeListRow: View {
     let recipe: Recipe
+    let openRecipe: () -> Void
     let toggleFavorite: () -> Void
 
     var body: some View {
@@ -63,7 +64,10 @@ struct RecipeListRow: View {
         }
         .padding(10)
         .ladleCard()
+        .contentShape(Rectangle())
+        .onTapGesture(perform: openRecipe)
         .accessibilityElement(children: .contain)
+        .accessibilityAction(named: "Open recipe", openRecipe)
         .accessibilityIdentifier("recipe.list.\(recipe.librarySlug)")
     }
 

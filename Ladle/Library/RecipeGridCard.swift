@@ -4,6 +4,7 @@ import SwiftUI
 
 struct RecipeGridCard: View {
     let recipe: Recipe
+    let openRecipe: () -> Void
     let toggleFavorite: () -> Void
 
     var body: some View {
@@ -51,7 +52,10 @@ struct RecipeGridCard: View {
             .font(LadleTypography.metadata)
             .foregroundStyle(LadleTheme.ink.opacity(0.58))
         }
+        .contentShape(Rectangle())
+        .onTapGesture(perform: openRecipe)
         .accessibilityElement(children: .contain)
+        .accessibilityAction(named: "Open recipe", openRecipe)
         .accessibilityIdentifier("recipe.grid.\(recipe.librarySlug)")
     }
 

@@ -67,10 +67,14 @@ struct LibraryView: View {
             .navigationDestination(
                 item: $selectedDestination
             ) { destination in
-                ImportedRecipeSummaryView(
+                RecipeDetailView(
                     recipe: destination.recipe,
                     statusText: destination.statusText
-                )
+                ) {
+                    viewModel.toggleFavorite(
+                        recipeID: destination.recipe.id
+                    )
+                }
             }
             .onChange(of: importCoordinator.state) { _, state in
                 switch state {
@@ -337,17 +341,29 @@ struct LibraryView: View {
                     spacing: LadleTheme.Spacing.generous
                 ) {
                     ForEach(viewModel.visibleRecipes) { recipe in
-                        RecipeGridCard(recipe: recipe) {
-                            viewModel.toggleFavorite(recipeID: recipe.id)
-                        }
+                        RecipeGridCard(
+                            recipe: recipe,
+                            openRecipe: {
+                                openRecipe(recipe)
+                            },
+                            toggleFavorite: {
+                                viewModel.toggleFavorite(recipeID: recipe.id)
+                            }
+                        )
                     }
                 }
             } else {
                 LazyVStack(spacing: 12) {
                     ForEach(viewModel.visibleRecipes) { recipe in
-                        RecipeListRow(recipe: recipe) {
-                            viewModel.toggleFavorite(recipeID: recipe.id)
-                        }
+                        RecipeListRow(
+                            recipe: recipe,
+                            openRecipe: {
+                                openRecipe(recipe)
+                            },
+                            toggleFavorite: {
+                                viewModel.toggleFavorite(recipeID: recipe.id)
+                            }
+                        )
                     }
                 }
             }
@@ -449,6 +465,13 @@ struct LibraryView: View {
         pendingDestination = LibraryRecipeDestination(
             recipe: recipe,
             statusText: statusText
+        )
+    }
+
+    private func openRecipe(_ recipe: Recipe) {
+        selectedDestination = LibraryRecipeDestination(
+            recipe: recipe,
+            statusText: "Saved recipe"
         )
     }
 

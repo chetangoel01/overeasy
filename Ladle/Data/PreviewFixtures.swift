@@ -105,11 +105,11 @@ enum PreviewFixtures {
         favorite: Bool = false
     ) -> Recipe {
         let recipeID = UUID(uuidString: id)!
-        let ingredientID = UUID()
+        let content = recipeContent(for: slug)
         return Recipe(
             id: recipeID,
             title: title,
-            description: "A clean, dependable recipe rescued from the scroll.",
+            description: content.description,
             creatorName: creator,
             source: source,
             originalURL: URL(string: "https://example.com/\(slug)")!,
@@ -118,22 +118,8 @@ enum PreviewFixtures {
             cookingMinutes: max(minutes - 10, 0),
             totalMinutes: minutes,
             servings: 4,
-            ingredients: [
-                Ingredient(
-                    id: ingredientID,
-                    quantityText: "1",
-                    unit: "cup",
-                    name: "featured ingredient",
-                    orderIndex: 0
-                ),
-            ],
-            steps: [
-                RecipeStep(
-                    orderIndex: 0,
-                    instruction: "Prepare the ingredients and cook until ready.",
-                    ingredientIDs: [ingredientID]
-                ),
-            ],
+            ingredients: content.ingredients,
+            steps: content.steps,
             nutrition: Nutrition(
                 calories: calories,
                 proteinGrams: 22,
@@ -151,6 +137,111 @@ enum PreviewFixtures {
                 TimeInterval(recipesOrderOffset(for: recipeID))
             ),
             updatedAt: baseDate
+        )
+    }
+
+    private static func recipeContent(
+        for slug: String
+    ) -> (
+        description: String,
+        ingredients: [Ingredient],
+        steps: [RecipeStep]
+    ) {
+        guard slug == "lemon-orzo" else {
+            let ingredient = Ingredient(
+                quantityText: "1",
+                unit: "cup",
+                name: "featured ingredient",
+                orderIndex: 0
+            )
+            return (
+                "A clean, dependable recipe rescued from the scroll.",
+                [ingredient],
+                [
+                    RecipeStep(
+                        orderIndex: 0,
+                        instruction:
+                            "Prepare the ingredients and cook until ready.",
+                        ingredientIDs: [ingredient.id]
+                    ),
+                ]
+            )
+        }
+
+        let ingredients = [
+            Ingredient(
+                quantityText: "1",
+                unit: "cup",
+                name: "orzo",
+                orderIndex: 0
+            ),
+            Ingredient(
+                quantityText: "2",
+                unit: "cloves",
+                name: "garlic",
+                preparation: "finely chopped",
+                orderIndex: 1
+            ),
+            Ingredient(
+                quantityText: "2",
+                unit: "cups",
+                name: "vegetable stock",
+                orderIndex: 2
+            ),
+            Ingredient(
+                quantityText: "1",
+                name: "lemon",
+                preparation: "zested and juiced",
+                orderIndex: 3
+            ),
+            Ingredient(
+                quantityText: "½",
+                unit: "cup",
+                name: "crumbled feta",
+                orderIndex: 4
+            ),
+            Ingredient(
+                quantityText: "2",
+                unit: "tbsp",
+                name: "extra-virgin olive oil",
+                orderIndex: 5
+            ),
+        ]
+        return (
+            "Creamy lemon orzo with salty feta and a bright, silky finish.",
+            ingredients,
+            [
+                RecipeStep(
+                    orderIndex: 0,
+                    instruction:
+                        "Toast the orzo with garlic until the edges turn golden.",
+                    ingredientIDs: ingredients[0...1].map(\.id)
+                ),
+                RecipeStep(
+                    orderIndex: 1,
+                    instruction:
+                        "Pour in the stock and simmer, stirring often, until creamy.",
+                    ingredientIDs: [ingredients[2].id],
+                    timers: [
+                        DetectedTimer(
+                            label: "Simmer orzo",
+                            durationSeconds: 720
+                        ),
+                    ]
+                ),
+                RecipeStep(
+                    orderIndex: 2,
+                    instruction:
+                        "Fold in the lemon zest, juice, and half of the feta.",
+                    ingredientIDs: ingredients[3...4].map(\.id)
+                ),
+                RecipeStep(
+                    orderIndex: 3,
+                    instruction:
+                        "Finish with olive oil and the remaining feta, then serve.",
+                    ingredientIDs: ingredients[4...5].map(\.id)
+                ),
+            ]
         )
     }
 
