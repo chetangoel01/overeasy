@@ -8,6 +8,12 @@
 - Do not rewrite or discard known-good history unless the user explicitly requests it.
 - Leave the branch clean at checkpoints so any good version can be recovered by commit.
 
+## Image sourcing preference
+
+- Search online first when the product needs ordinary photographic or illustrative imagery.
+- Use a suitable source with clear licensing and retain source attribution details when required.
+- Do not generate replacement imagery unless the user explicitly requests image generation.
+
 ## Required Claude Fable consultation
 
 Consult Claude Fable twice for every coherent tracked-file change-set:
