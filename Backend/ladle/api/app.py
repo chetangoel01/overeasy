@@ -12,6 +12,7 @@ from ladle.auth.sessions import SessionService
 from ladle.auth.tokens import AccessTokenCodec, RefreshTokenCodec
 from ladle.clock import Clock, SystemClock
 from ladle.config import Settings
+from ladle.crypto.private_text import LocalPrivateTextCipher
 from ladle.db.session import build_engine, build_session_factory
 from ladle.imports.admission import AdmissionService
 from ladle.imports.dispatcher import (
@@ -21,6 +22,7 @@ from ladle.imports.dispatcher import (
 )
 from ladle.imports.reservations import ReservationService
 from ladle.imports.source_identity import SourceIdentityParser
+from ladle.imports.transitions import ImportRetryService
 from ladle.infrastructure.dns import PinnedRedirectResolver, SystemDNSResolver
 from ladle.recipes.service import RecipeService
 from ladle.sync.service import RecipeSyncService
@@ -82,13 +84,19 @@ def create_app(
                 client=redirect_client,
             )
         )
+    reservations = ReservationService(
+        clock=runtime_clock,
+        lifetime=timedelta(minutes=configured.import_reservation_minutes),
+    )
     application.state.admission_service = AdmissionService(
         parser=source_parser,
-        reservations=ReservationService(
-            clock=runtime_clock,
-            lifetime=timedelta(minutes=configured.import_reservation_minutes),
-        ),
+        reservations=reservations,
         clock=runtime_clock,
+    )
+    application.state.import_retry_service = ImportRetryService(
+        clock=runtime_clock,
+        reservations=reservations,
+        private_text=LocalPrivateTextCipher(configured.data_encryption_key),
     )
     if import_dispatcher is not None:
         application.state.import_dispatcher = import_dispatcher

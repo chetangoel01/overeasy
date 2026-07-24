@@ -24,10 +24,11 @@ Foundation URLSession, Security/Keychain, SwiftData, XCTest.
 
 - Work only in the `codex/ladle-backend` worktree.
 - Follow red-green-refactor for every production behavior.
-- Treat each numbered task as one coherent tracked-file change-set for the
-  required pre/post Claude Fable consultation in `AGENTS.md`.
-- Keep commits task-sized. If a task becomes too large, split it at a green
-  checkpoint and repeat the Fable consultation for the new change-set.
+- Treat numbered tasks as verification groupings, not product phases. Build
+  the cross-cutting backend and client architecture as one cohesive system so
+  temporary phase boundaries do not become permanent seams.
+- Keep commits coherent and green while implementing all listed product
+  behavior on the same feature branch.
 - Run `git diff --check` immediately before every commit.
 - Never call a live paid provider from the default test suite.
 - Never commit `.env`, provider keys, Apple credentials, tokens, transcripts,
@@ -1202,7 +1203,7 @@ Document:
 - only failures actually observed during this branch and any successful
   focused reruns; do not copy baseline simulator boilerplate into the record.
 
-**Step 5: Final Fable review, verify corrections, and commit**
+**Step 5: Final review, verify corrections, and commit**
 
 ```bash
 git add Backend Ladle LadleTests Packages Config project.yml \

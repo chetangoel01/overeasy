@@ -11,6 +11,21 @@ from ladle.acquisition.models import (
 @dataclass
 class FakeAcquirer:
     calls: list[SourceVideoDescriptor] = field(default_factory=list)
+    public_checks: list[UUID] = field(default_factory=list)
+    failure: Exception | None = None
+    is_public: bool = True
+
+    def check_public(
+        self,
+        source: SourceVideoDescriptor,
+        *,
+        job_id: UUID,
+    ) -> bool:
+        del job_id
+        self.public_checks.append(source.source_video_id)
+        if self.failure is not None:
+            raise self.failure
+        return self.is_public
 
     def acquire(
         self,
@@ -20,6 +35,8 @@ class FakeAcquirer:
     ) -> AcquiredVideoContext:
         del job_id
         self.calls.append(source)
+        if self.failure is not None:
+            raise self.failure
         return AcquiredVideoContext(
             source=source,
             is_public=True,

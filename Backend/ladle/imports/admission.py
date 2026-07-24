@@ -180,11 +180,12 @@ class AdmissionService:
             if job.failure_reason is not None
             else None
         )
-        recipe_id = (
-            job.current_recipe_id
-            if status in {ImportStatus.READY, ImportStatus.NEEDS_REVIEW}
-            else None
-        )
+        if status == ImportStatus.NEEDS_REVIEW:
+            recipe_id = job.candidate_recipe_id or job.current_recipe_id
+        elif status == ImportStatus.READY:
+            recipe_id = job.current_recipe_id
+        else:
+            recipe_id = None
         return ImportJobResponse(
             job_id=job.id,
             status=status,

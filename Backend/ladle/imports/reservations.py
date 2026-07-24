@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from ladle.clock import Clock
 from ladle.db.models import RecipeSlotReservation
+from ladle.recipes.limits import ensure_recipe_capacity
 
 
 class ReservationNotFound(Exception):
@@ -41,6 +42,32 @@ class ReservationService:
 
     def release(self, database: Session, import_job_id: UUID) -> None:
         self._transition(database, import_job_id, destination="released")
+
+    def release_if_reserved(self, database: Session, import_job_id: UUID) -> None:
+        reservation = database.execute(
+            select(RecipeSlotReservation)
+            .where(RecipeSlotReservation.import_job_id == import_job_id)
+            .with_for_update()
+        ).scalar_one_or_none()
+        if reservation is not None and reservation.state == "reserved":
+            reservation.state = "released"
+
+    def reactivate(self, database: Session, import_job_id: UUID) -> None:
+        reservation = database.execute(
+            select(RecipeSlotReservation)
+            .where(RecipeSlotReservation.import_job_id == import_job_id)
+            .with_for_update()
+        ).scalar_one_or_none()
+        if reservation is None:
+            raise ReservationNotFound
+        if reservation.state == "reserved":
+            return
+        if reservation.state != "released":
+            raise ValueError(f"cannot reactivate reservation from {reservation.state}")
+        ensure_recipe_capacity(database, reservation.user_id)
+        reservation.state = "reserved"
+        reservation.created_at = self._clock.now()
+        reservation.expires_at = self._clock.now() + self._lifetime
 
     def _transition(
         self,

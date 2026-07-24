@@ -320,3 +320,133 @@ class RecipeTemplateCloner:
         job.updated_at = now
         database.flush()
         return recipe_id
+
+    def complete_private_for_job(
+        self,
+        database: Session,
+        *,
+        job: ImportJob,
+        template: RecipeTemplate,
+    ) -> bool:
+        """Complete a cache-bypassing job; return true when current was promoted."""
+
+        now = self._clock.now()
+        if job.current_recipe_id is None:
+            recipe_id = uuid4()
+            recipe = template.instantiate(recipe_id=recipe_id, now=now)
+            stored = self._repository.insert(
+                database,
+                user_id=job.user_id,
+                recipe=recipe,
+                created_at=now,
+            )
+            stored.source_video_id = job.source_video_id
+            stored.source_cache_id = None
+            self._record_change(
+                database,
+                user_id=job.user_id,
+                recipe_id=recipe_id,
+                revision=1,
+                changed_at=now,
+            )
+            self._reservations.consume(database, job.id)
+            job.current_recipe_id = recipe_id
+            job.candidate_recipe_id = None
+            job.status = template.review_status.value
+            job.stage = "completed"
+            job.completed_at = now
+            job.updated_at = now
+            self._clear_private_input(job)
+            database.flush()
+            return True
+
+        current = self._repository.find(
+            database,
+            user_id=job.user_id,
+            recipe_id=job.current_recipe_id,
+            include_deleted=True,
+        )
+        if current is None or current.deleted_at is not None:
+            raise ValueError("current recipe is unavailable")
+
+        can_promote = (
+            template.review_status == RecipeReviewStatus.READY
+            and job.base_recipe_revision is not None
+            and current.revision == job.base_recipe_revision
+        )
+        if can_promote:
+            recipe = template.instantiate(recipe_id=current.id, now=now).model_copy(
+                update={"is_favorite": current.favorite}
+            )
+            updated = self._repository.update(
+                database,
+                stored=current,
+                recipe=recipe,
+                updated_at=now,
+            )
+            updated.source_video_id = job.source_video_id
+            updated.source_cache_id = None
+            self._record_change(
+                database,
+                user_id=job.user_id,
+                recipe_id=updated.id,
+                revision=updated.revision,
+                changed_at=now,
+            )
+            job.candidate_recipe_id = None
+            job.status = "ready"
+            job.stage = "completed"
+            job.completed_at = now
+            job.updated_at = now
+            self._clear_private_input(job)
+            database.flush()
+            return True
+
+        candidate_template = template.model_copy(
+            update={"review_status": RecipeReviewStatus.NEEDS_REVIEW}
+        )
+        candidate_id = uuid4()
+        candidate = candidate_template.instantiate(
+            recipe_id=candidate_id,
+            now=now,
+        )
+        stored_candidate = self._repository.insert(
+            database,
+            user_id=job.user_id,
+            recipe=candidate,
+            created_at=now,
+        )
+        stored_candidate.source_video_id = job.source_video_id
+        stored_candidate.source_cache_id = None
+        job.candidate_recipe_id = candidate_id
+        job.status = "needsReview"
+        job.stage = "completed"
+        job.completed_at = now
+        job.updated_at = now
+        self._clear_private_input(job)
+        database.flush()
+        return False
+
+    def _clear_private_input(self, job: ImportJob) -> None:
+        job.correction_notes_encrypted = None
+        job.pasted_text_encrypted = None
+
+    def _record_change(
+        self,
+        database: Session,
+        *,
+        user_id: UUID,
+        recipe_id: UUID,
+        revision: int,
+        changed_at: datetime,
+    ) -> None:
+        database.add(
+            RecipeChange(
+                user_id=user_id,
+                sequence=allocate_sequence(database, user_id),
+                recipe_id=recipe_id,
+                kind="upsert",
+                recipe_revision=revision,
+                changed_at=changed_at,
+            )
+        )

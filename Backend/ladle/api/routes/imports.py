@@ -3,7 +3,7 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Header, HTTPException, Request, status
 from fastapi.responses import JSONResponse
-from pydantic import AnyHttpUrl
+from pydantic import AnyHttpUrl, Field
 from sqlalchemy.orm import Session
 
 from ladle.api.routes.auth import access_claims
@@ -22,6 +22,7 @@ from ladle.imports.admission import (
 )
 from ladle.imports.dispatcher import ImportDispatcher
 from ladle.imports.source_identity import InvalidSourceURL, UnsupportedSource
+from ladle.imports.transitions import ImportRetryService, ImportRetryUnavailable
 from ladle.recipes.limits import GuestRecipeLimitReached
 
 router = APIRouter(prefix="/v1/imports", tags=["imports"])
@@ -34,6 +35,11 @@ class ImportSubmissionRequest(WireModel):
     idempotency_key: str | None = None
 
 
+class RetryImportRequest(WireModel):
+    correction_notes: str | None = Field(default=None, max_length=10_000)
+    pasted_text: str | None = Field(default=None, max_length=200_000)
+
+
 def _database(request: Request) -> Session:
     return cast(Session, request.app.state.session_factory())
 
@@ -44,6 +50,10 @@ def _admission(request: Request) -> AdmissionService:
 
 def _dispatcher(request: Request) -> ImportDispatcher:
     return cast(ImportDispatcher, request.app.state.import_dispatcher)
+
+
+def _retry_service(request: Request) -> ImportRetryService:
+    return cast(ImportRetryService, request.app.state.import_retry_service)
 
 
 def _error(
@@ -141,3 +151,31 @@ def get_import(
             return _admission(request).response(job)
     except ImportJobNotFound as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND) from error
+
+
+@router.post(
+    "/{job_id}/retry",
+    response_model=ImportJobResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def retry_import(
+    job_id: UUID,
+    body: RetryImportRequest,
+    request: Request,
+    authorization: Annotated[str | None, Header()] = None,
+) -> ImportJobResponse:
+    claims = access_claims(request, authorization)
+    try:
+        with _database(request) as database, database.begin():
+            job = _retry_service(request).retry(
+                database,
+                user_id=claims.user_id,
+                job_id=job_id,
+                correction_notes=body.correction_notes,
+                pasted_text=body.pasted_text,
+            )
+            response = _admission(request).response(job)
+    except ImportRetryUnavailable as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT) from error
+    _dispatcher(request).enqueue(job_id)
+    return response

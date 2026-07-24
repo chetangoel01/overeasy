@@ -327,6 +327,20 @@ def test_stale_public_cache_rechecks_and_private_observation_invalidates(
         assert stored_source is not None
         assert stored_source.public_access_confirmed_at is None
 
+    with Session(engine) as database, database.begin():
+        negative_job = seed_job(database, source_id=source_id, index=2)
+    with Session(engine) as database, database.begin():
+        negative = cache.route(database, job_id=negative_job)
+    assert negative.disposition == CacheDisposition.NEGATIVE
+
+    clock.value += timedelta(minutes=16)
+    with Session(engine) as database, database.begin():
+        assert maintenance.purge_expired_negative_entries(database) == 1
+        post_expiry_job = seed_job(database, source_id=source_id, index=3)
+    with Session(engine) as database, database.begin():
+        post_expiry = cache.route(database, job_id=post_expiry_job)
+    assert post_expiry.disposition == CacheDisposition.LEADER
+
     cleaner = RecordingCleaner(deleted=[])
     with Session(engine) as database, database.begin():
         assert (

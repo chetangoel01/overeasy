@@ -67,6 +67,21 @@ class ProviderChain:
         self._circuits = circuits
         self._server_fallback = server_fallback
 
+    def check_public(
+        self,
+        source: SourceVideoDescriptor,
+        *,
+        job_id: UUID,
+    ) -> bool:
+        try:
+            self._provider_call(
+                "supadata",
+                lambda: self._primary.metadata(source, job_id=job_id),
+            )
+        except PrivateOrDeleted:
+            return False
+        return True
+
     def acquire(
         self,
         source: SourceVideoDescriptor,

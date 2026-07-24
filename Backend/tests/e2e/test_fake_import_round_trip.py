@@ -120,10 +120,16 @@ def test_worker_round_trip_then_shared_hit_and_duplicate_delivery(
         second_job = seed_import(database, source_id=source_id, suffix="second")
     assert orchestrator.process(second_job) == ProcessOutcome.CACHE_HIT
 
+    clock.value += timedelta(days=8)
+    with Session(engine) as database, database.begin():
+        third_job = seed_import(database, source_id=source_id, suffix="stale")
+    assert orchestrator.process(third_job) == ProcessOutcome.CACHE_HIT
+
     assert len(acquirer.calls) == 1
+    assert acquirer.public_checks == [source_id]
     assert len(extractor.calls) == 1
     with Session(engine) as database:
-        assert database.scalar(select(func.count()).select_from(Recipe)) == 2
+        assert database.scalar(select(func.count()).select_from(Recipe)) == 3
         assert database.scalar(select(func.count()).select_from(ExtractionCache)) == 1
         assert (
             database.scalar(
@@ -131,7 +137,7 @@ def test_worker_round_trip_then_shared_hit_and_duplicate_delivery(
                 .select_from(RecipeSlotReservation)
                 .where(RecipeSlotReservation.state == "consumed")
             )
-            == 2
+            == 3
         )
         jobs = list(database.scalars(select(ImportJob).order_by(ImportJob.created_at)))
         assert all(job.status == "ready" for job in jobs)

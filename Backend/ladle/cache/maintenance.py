@@ -1,11 +1,19 @@
+from datetime import timedelta
 from typing import Protocol
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import exists, select, update
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from ladle.clock import Clock
-from ladle.db.models import ExtractionCache, Recipe, RecipeImage, SourceVideo
+from ladle.db.models import (
+    ExtractionCache,
+    NegativeExtractionCache,
+    Recipe,
+    RecipeImage,
+    SourceVideo,
+)
 
 
 class ObjectCleaner(Protocol):
@@ -13,8 +21,14 @@ class ObjectCleaner(Protocol):
 
 
 class CacheMaintenanceService:
-    def __init__(self, *, clock: Clock) -> None:
+    def __init__(
+        self,
+        *,
+        clock: Clock,
+        negative_ttl: timedelta = timedelta(minutes=15),
+    ) -> None:
         self._clock = clock
+        self._negative_ttl = negative_ttl
 
     def confirm_public(self, database: Session, *, source_video_id: UUID) -> None:
         source = database.execute(
@@ -48,6 +62,36 @@ class CacheMaintenanceService:
             )
             .values(invalidated_at=now)
         )
+        database.execute(
+            insert(NegativeExtractionCache)
+            .values(
+                id=uuid4(),
+                source_video_id=source_video_id,
+                reason="privateOrDeleted",
+                created_at=now,
+                expires_at=now + self._negative_ttl,
+            )
+            .on_conflict_do_update(
+                index_elements=[NegativeExtractionCache.source_video_id],
+                set_={
+                    "reason": "privateOrDeleted",
+                    "created_at": now,
+                    "expires_at": now + self._negative_ttl,
+                },
+            )
+        )
+
+    def purge_expired_negative_entries(self, database: Session) -> int:
+        entries = list(
+            database.scalars(
+                select(NegativeExtractionCache).where(
+                    NegativeExtractionCache.expires_at <= self._clock.now()
+                )
+            )
+        )
+        for entry in entries:
+            database.delete(entry)
+        return len(entries)
 
     def delete_unreferenced_thumbnails(
         self,

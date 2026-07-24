@@ -181,6 +181,31 @@ class ExtractionCache(Base):
     )
 
 
+class NegativeExtractionCache(Base):
+    __tablename__ = "negative_extraction_cache"
+    __table_args__ = (
+        CheckConstraint(
+            "reason IN ('privateOrDeleted', 'parserUnavailable')",
+            name="ck_negative_extraction_cache_reason",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    source_video_id: Mapped[UUID] = mapped_column(
+        Uuid,
+        ForeignKey("source_videos.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
+    reason: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+
 class Recipe(Base):
     __tablename__ = "recipes"
     __table_args__ = (

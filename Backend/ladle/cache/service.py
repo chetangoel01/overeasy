@@ -8,11 +8,17 @@ from sqlalchemy.orm import Session
 
 from ladle.cache.claims import (
     ClaimLease,
+    ClaimLost,
     ClaimRole,
     ExtractionClaimService,
 )
 from ladle.clock import Clock
-from ladle.db.models import ExtractionCache, ImportJob, SourceVideo
+from ladle.db.models import (
+    ExtractionCache,
+    ImportJob,
+    NegativeExtractionCache,
+    SourceVideo,
+)
 from ladle.recipes.template_clone import RecipeTemplate, RecipeTemplateCloner
 
 
@@ -22,6 +28,7 @@ class CacheDisposition(StrEnum):
     FOLLOWER = "follower"
     BYPASS = "bypass"
     RECHECK = "recheck"
+    NEGATIVE = "negative"
 
 
 class ImportJobUnavailable(Exception):
@@ -113,6 +120,15 @@ class ExtractionCacheService:
                 recipe_id=recipe_id,
             )
 
+        negative = database.scalar(
+            select(NegativeExtractionCache).where(
+                NegativeExtractionCache.source_video_id == source.id,
+                NegativeExtractionCache.expires_at > self._clock.now(),
+            )
+        )
+        if negative is not None:
+            return CacheDecision(CacheDisposition.NEGATIVE, job.id)
+
         claim = self._claims.acquire(
             database,
             source_video_id=source.id,
@@ -194,3 +210,9 @@ class ExtractionCacheService:
         )
         self._claims.release(database, claim)
         return CacheCompletion(cache_entry_id=entry.id, job_ids=completed_job_ids)
+
+    def abandon_claim(self, database: Session, claim: ClaimLease) -> None:
+        try:
+            self._claims.release(database, claim)
+        except ClaimLost:
+            return

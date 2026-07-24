@@ -140,6 +140,21 @@ def test_sufficient_native_material_skips_paid_fallbacks() -> None:
     assert fallback.calls == 0
 
 
+def test_public_recheck_uses_metadata_without_transcript_or_visual_spend() -> None:
+    primary = Primary(
+        native=TranscriptUnavailable(),
+        generated=TranscriptUnavailable(),
+        visual_result=empty_visual(),
+    )
+    chain = ProviderChain(
+        primary=primary,
+        fallback=Fallback(transcript("unused")),
+    )
+
+    assert chain.check_public(source(), job_id=uuid4())
+    assert primary.calls == ["metadata"]
+
+
 def test_quota_or_missing_native_uses_transcript_and_visual_backups() -> None:
     from ladle.acquisition.models import VisualEvidence
 

@@ -18,7 +18,7 @@ from ladle.db.session import build_engine
 from ladle.imports.admission import AdmissionService
 from ladle.imports.reservations import ReservationService
 from ladle.imports.source_identity import SourceIdentityParser
-from ladle.recipes.limits import GuestRecipeLimitReached
+from ladle.recipes.limits import GuestRecipeLimitReached, lock_recipe_capacity
 from tests.integration.recipes.test_recipe_service import seed_user
 from tests.integration.test_migrations import alembic_config
 
@@ -218,4 +218,61 @@ def test_reservation_success_consumes_and_terminal_failure_releases(
             failure.job_id: "released",
         }
 
+    engine.dispose()
+
+
+@pytest.mark.integration
+def test_hidden_reparse_candidate_does_not_consume_a_guest_library_slot(
+    clean_postgres_url: str,
+) -> None:
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    engine = build_engine(clean_postgres_url)
+
+    with Session(engine) as database, database.begin():
+        user_id = seed_user(database)
+        for index in range(9):
+            seed_saved_recipe(database, user_id=user_id, index=index)
+        candidate_id = uuid4()
+        now = datetime(2026, 7, 23, 21, 0, tzinfo=UTC)
+        database.add(
+            Recipe(
+                id=candidate_id,
+                user_id=user_id,
+                title="Hidden reparse candidate",
+                description="",
+                source="other",
+                original_url=f"https://manual.ladle.local/{candidate_id}",
+                servings=1,
+                favorite=False,
+                review_status="needsReview",
+                revision=1,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        database.flush()
+        database.add(
+            ImportJob(
+                id=uuid4(),
+                user_id=user_id,
+                source_url="https://youtu.be/candidate",
+                canonical_url="https://www.youtube.com/watch?v=candidate",
+                source="youtube",
+                status="needsReview",
+                stage="completed",
+                retry_count=1,
+                bypass_cache=True,
+                candidate_recipe_id=candidate_id,
+                idempotency_key="candidate-capacity",
+                created_at=now,
+                updated_at=now,
+                completed_at=now,
+            )
+        )
+        database.flush()
+
+        capacity = lock_recipe_capacity(database, user_id)
+
+    assert capacity.saved_recipes == 9
+    assert capacity.occupied_slots == 9
     engine.dispose()

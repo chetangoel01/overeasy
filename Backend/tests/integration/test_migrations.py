@@ -21,6 +21,7 @@ EXPECTED_TABLES = {
     "field_uncertainties",
     "import_jobs",
     "ingredients",
+    "negative_extraction_cache",
     "nutrition",
     "other_nutrients",
     "provider_attempts",

@@ -1,10 +1,10 @@
 from dataclasses import dataclass
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import exists, func, select
 from sqlalchemy.orm import Session
 
-from ladle.db.models import Recipe, RecipeSlotReservation, User
+from ladle.db.models import ImportJob, Recipe, RecipeSlotReservation, User
 
 GUEST_RECIPE_LIMIT = 10
 
@@ -31,7 +31,13 @@ def lock_recipe_capacity(database: Session, user_id: UUID) -> RecipeCapacity:
     saved = database.scalar(
         select(func.count())
         .select_from(Recipe)
-        .where(Recipe.user_id == user_id, Recipe.deleted_at.is_(None))
+        .where(
+            Recipe.user_id == user_id,
+            Recipe.deleted_at.is_(None),
+            ~exists(
+                select(ImportJob.id).where(ImportJob.candidate_recipe_id == Recipe.id)
+            ),
+        )
     )
     reserved = database.scalar(
         select(func.count())

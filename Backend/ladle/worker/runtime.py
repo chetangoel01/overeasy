@@ -20,6 +20,7 @@ from ladle.cache.service import ExtractionCacheService
 from ladle.clock import SystemClock
 from ladle.config import Settings
 from ladle.contracts.recipes import RecipeReviewStatus, RecipeSource
+from ladle.crypto.private_text import LocalPrivateTextCipher
 from ladle.db.session import build_engine, build_session_factory
 from ladle.extraction.claude import (
     AnthropicStructuredClient,
@@ -28,6 +29,7 @@ from ladle.extraction.claude import (
 from ladle.extraction.protocol import RecipeExtractor
 from ladle.imports.orchestrator import ImportOrchestrator
 from ladle.imports.reservations import ReservationService
+from ladle.imports.transitions import ImportTransitionService
 from ladle.recipes.template_clone import (
     RecipeTemplate,
     RecipeTemplateCloner,
@@ -41,6 +43,15 @@ from ladle.usage.limits import UsageLimitService
 
 
 class FakeRuntimeAcquirer:
+    def check_public(
+        self,
+        source: SourceVideoDescriptor,
+        *,
+        job_id: UUID,
+    ) -> bool:
+        del source, job_id
+        return True
+
     def acquire(
         self,
         source: SourceVideoDescriptor,
@@ -136,10 +147,11 @@ def runtime_orchestrator() -> ImportOrchestrator:
         clock=clock,
         lease_duration=timedelta(minutes=settings.extraction_claim_minutes),
     )
+    cloner = RecipeTemplateCloner(clock=clock, reservations=reservations)
     cache = ExtractionCacheService(
         clock=clock,
         claims=claims,
-        cloner=RecipeTemplateCloner(clock=clock, reservations=reservations),
+        cloner=cloner,
         public_recheck_after=timedelta(days=settings.public_cache_recheck_days),
     )
     acquirer: VideoAcquirer
@@ -194,6 +206,12 @@ def runtime_orchestrator() -> ImportOrchestrator:
         acquirer=acquirer,
         extractor=extractor,
         clock=clock,
+        private_text=LocalPrivateTextCipher(settings.data_encryption_key),
+        private_completion=cloner,
+        transitions=ImportTransitionService(
+            clock=clock,
+            reservations=reservations,
+        ),
         usage_limits=UsageLimitService(
             clock=clock,
             window=timedelta(days=1),
