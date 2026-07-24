@@ -14,7 +14,12 @@ struct FullRecipeView: View {
                 fullRecipeContent
             }
         }
-        .background(LadleTheme.paper)
+        .background(
+            (viewModel.mode == .focus
+                ? LadleTheme.plum
+                : LadleTheme.paper)
+                .ignoresSafeArea()
+        )
         .onAppear {
             viewModel.beginCooking()
         }
@@ -32,7 +37,7 @@ struct FullRecipeView: View {
                     ingredientsSection
                     methodSection
                 }
-                .padding(.horizontal, LadleTheme.Spacing.regular)
+                .padding(.horizontal, LadleTheme.Spacing.generous)
                 .padding(.bottom, 48)
             }
             .scrollIndicators(.hidden)
@@ -43,8 +48,14 @@ struct FullRecipeView: View {
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") {
+                    Button {
                         dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundStyle(LadleTheme.ink)
+                            .frame(width: 44, height: 44)
+                            .background(LadleTheme.ube, in: Circle())
                     }
                     .accessibilityLabel("Close cooking")
                 }
@@ -79,10 +90,10 @@ struct FullRecipeView: View {
                 HStack(spacing: 12) {
                     progressControl
                     focusModeButton
-                        .frame(maxWidth: 174)
+                    Spacer(minLength: 0)
                 }
 
-                VStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 12) {
                     progressControl
                     focusModeButton
                 }
@@ -113,16 +124,23 @@ struct FullRecipeView: View {
     }
 
     private var progressControl: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(viewModel.progressText)
-                .ladleFont(.bodyStrong)
-                .foregroundStyle(LadleTheme.ink)
-            ProgressView(value: viewModel.progress)
-                .tint(LadleTheme.paprika)
-                .accessibilityLabel(
-                    "\(viewModel.progressText) cooking progress"
-                )
+        Menu {
+            ForEach(
+                Array(viewModel.recipe.orderedSteps.indices),
+                id: \.self
+            ) { index in
+                Button("Step \(index + 1)") {
+                    viewModel.selectStep(at: index)
+                }
+            }
+        } label: {
+            LadlePill(
+                text: viewModel.progressText,
+                systemImage: "chevron.down"
+            )
+            .frame(minHeight: 44)
         }
+        .accessibilityLabel("\(viewModel.progressText) cooking progress")
     }
 
     private var focusModeButton: some View {
@@ -130,8 +148,13 @@ struct FullRecipeView: View {
             viewModel.enterFocusMode()
         } label: {
             Label("Focus mode", systemImage: "rectangle.expand.vertical")
+                .ladleFont(.metadata)
+                .foregroundStyle(LadleTheme.paper)
+                .padding(.horizontal, 12)
+                .frame(minHeight: 44)
+                .background(LadleTheme.brick, in: Capsule())
         }
-        .buttonStyle(LadlePrimaryButtonStyle())
+        .buttonStyle(.plain)
     }
 
     private var ingredientsSection: some View {

@@ -31,6 +31,7 @@ final class LocalTimerNotificationScheduler:
     TimerNotificationScheduling
 {
     private let center: UNUserNotificationCenter
+    private var requestIDs: [UUID: String] = [:]
 
     init(
         center: UNUserNotificationCenter = .current()
@@ -46,12 +47,27 @@ final class LocalTimerNotificationScheduler:
         guard durationSeconds > 0 else {
             return
         }
+        let requestID = Self.identifier(for: timerID)
+        if let previousID = requestIDs.updateValue(
+            requestID,
+            forKey: timerID
+        ) {
+            center.removePendingNotificationRequests(
+                withIdentifiers: [previousID]
+            )
+        }
 
         do {
             let isAuthorized = try await center.requestAuthorization(
                 options: [.alert, .sound]
             )
             guard isAuthorized else {
+                if requestIDs[timerID] == requestID {
+                    requestIDs[timerID] = nil
+                }
+                return
+            }
+            guard requestIDs[timerID] == requestID else {
                 return
             }
 
@@ -61,7 +77,7 @@ final class LocalTimerNotificationScheduler:
             content.sound = .default
 
             let request = UNNotificationRequest(
-                identifier: Self.identifier(for: timerID),
+                identifier: requestID,
                 content: content,
                 trigger: UNTimeIntervalNotificationTrigger(
                     timeInterval: TimeInterval(durationSeconds),
@@ -69,19 +85,32 @@ final class LocalTimerNotificationScheduler:
                 )
             )
             try await center.add(request)
+            if requestIDs[timerID] != requestID {
+                center.removePendingNotificationRequests(
+                    withIdentifiers: [requestID]
+                )
+            }
         } catch {
+            if requestIDs[timerID] == requestID {
+                requestIDs[timerID] = nil
+            }
             // The in-app timer remains usable when notifications are denied.
         }
     }
 
     func cancel(timerID: UUID) {
+        guard let requestID = requestIDs.removeValue(
+            forKey: timerID
+        ) else {
+            return
+        }
         center.removePendingNotificationRequests(
-            withIdentifiers: [Self.identifier(for: timerID)]
+            withIdentifiers: [requestID]
         )
     }
 
     private static func identifier(for timerID: UUID) -> String {
-        "ladle.cooking-timer.\(timerID.uuidString)"
+        "ladle.cooking-timer.\(timerID.uuidString).\(UUID().uuidString)"
     }
 }
 
@@ -170,6 +199,7 @@ struct RecipeTimer: Equatable, Identifiable {
 struct RecipeTimerButton: View {
     @Bindable var viewModel: CookingViewModel
     let detectedTimer: DetectedTimer
+    var onDark = false
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { _ in
@@ -195,9 +225,9 @@ struct RecipeTimerButton: View {
                     }
                     .foregroundStyle(LadleTheme.ink)
                     .padding(.horizontal, 14)
-                    .frame(minHeight: 58)
+                    .frame(minHeight: onDark ? 68 : 58)
                     .background(
-                        LadleTheme.review,
+                        cardBackground,
                         in: RoundedRectangle(
                             cornerRadius: LadleTheme.Corner.control,
                             style: .continuous
@@ -212,9 +242,18 @@ struct RecipeTimerButton: View {
                     } label: {
                         Image(systemName: "arrow.counterclockwise")
                             .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(LadleTheme.paprika)
+                            .foregroundStyle(
+                                onDark
+                                    ? LadleTheme.paper
+                                    : LadleTheme.paprika
+                            )
                             .frame(width: 48, height: 48)
-                            .background(LadleTheme.field, in: Circle())
+                            .background(
+                                onDark
+                                    ? LadleTheme.paper.opacity(0.12)
+                                    : LadleTheme.field,
+                                in: Circle()
+                            )
                     }
                     .accessibilityLabel(
                         "Reset \(detectedTimer.label) timer"
@@ -231,6 +270,14 @@ struct RecipeTimerButton: View {
     private var remainingSeconds: Int {
         viewModel.remainingSeconds(for: detectedTimer.id)
             ?? detectedTimer.durationSeconds
+    }
+
+    private var cardBackground: Color {
+        if phase == .finished {
+            LadleTheme.celery
+        } else {
+            onDark ? LadleTheme.paper : LadleTheme.review
+        }
     }
 
     private var clockText: String {

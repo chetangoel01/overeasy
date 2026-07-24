@@ -177,3 +177,58 @@ Verification:
 - `git diff --check` passes.
 - The outgoing UI automation suite remains deferred until the remaining
   cooking surfaces stabilize, as requested.
+
+### Checkpoint 6: Full Recipe, Focus Mode, and timers
+
+Purpose:
+
+- Keep the complete cooking workspace useful for preparation while giving one
+  active step and its timer enough contrast for hands-busy cooking.
+
+User-visible behavior:
+
+- Full Recipe keeps the ingredient checklist, method completion, timer
+  controls, explicit screen-awake toggle, and shared cooking progress on the
+  paper surface.
+- The current step is selectable from the compact progress control, and Focus
+  Mode remains one tap away without crowding the recipe.
+- Focus Mode now owns the plum surface, with large distance-readable
+  instructions, a celery progress treatment, relevant ingredient names, and
+  explicit previous/next controls in addition to swipe navigation.
+- Idle, running, paused, and finished timers retain the same countdown,
+  notification, pause, reset, and accessibility behavior. A finished timer
+  changes the step state to an unmistakable completion message and Continue
+  cooking action.
+
+Important decisions:
+
+- Starting a timer remains the only action that may request notification
+  permission; entering cooking or Focus Mode never prompts.
+- Pausing or resetting while authorization is pending invalidates that
+  notification generation so a stale alert cannot be installed afterward.
+- Focus Mode keeps all timers attached to a step rather than assuming the
+  single timer shown in the atlas is a domain limit.
+- The screen-awake setting remains opt-in and restores the previous system
+  setting when cooking ends.
+- Step and ingredient completion, current position, and timers remain shared
+  across Full Recipe and Focus Mode.
+- Accessibility keeps a visible previous-step control even though the atlas
+  relies primarily on swiping.
+
+Affected components:
+
+- `FullRecipeView`, `FocusModeView`, and `RecipeTimerButton`
+- `CookingViewModel` and `CookingViewModelTests`
+
+Verification:
+
+- Focused cooking tests cover shared mode state, clamped navigation, relevant
+  ingredients, all timer phases, explicit notification scheduling, finished
+  timer presentation, and screen-awake restoration.
+- 31 LadleCore tests and 86 app unit tests pass with zero failures.
+- The Ladle app and Share Extension build for the iPhone 17 simulator.
+- The approved cooking atlas states were reviewed at full fidelity against the
+  native hierarchy, state labels, controls, contrast, and scaling behavior.
+- `git diff --check` passes.
+- The outgoing UI automation suite remains deferred for its final atlas-aware
+  rewrite, as requested.

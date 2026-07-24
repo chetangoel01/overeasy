@@ -128,6 +128,35 @@ final class CookingViewModelTests: XCTestCase {
         )
     }
 
+    func testPausingWhileNotificationSchedulesCancelsStaleRequest() async throws {
+        let recipe = PreviewFixtures.recipes[1]
+        let detectedTimer = try XCTUnwrap(
+            recipe.orderedSteps[1].timers.first
+        )
+        let notifications = GateTimerNotificationScheduler()
+        let viewModel = makeViewModel(
+            recipe: recipe,
+            notifications: notifications
+        )
+
+        let start = Task {
+            await viewModel.startTimer(id: detectedTimer.id)
+        }
+        await notifications.waitUntilScheduling()
+        viewModel.pauseTimer(id: detectedTimer.id)
+        notifications.release()
+        await start.value
+
+        XCTAssertEqual(
+            viewModel.timer(id: detectedTimer.id)?.phase,
+            .paused
+        )
+        XCTAssertEqual(
+            notifications.cancelled,
+            [detectedTimer.id, detectedTimer.id]
+        )
+    }
+
     func testRunningTimerReportsFinishedWhenCountdownReachesZero() async throws {
         let recipe = PreviewFixtures.recipes[1]
         let detectedTimer = try XCTUnwrap(
@@ -139,6 +168,7 @@ final class CookingViewModelTests: XCTestCase {
             clock: clock
         )
 
+        viewModel.moveNext()
         await viewModel.startTimer(id: detectedTimer.id)
         clock.advance(
             by: TimeInterval(detectedTimer.durationSeconds)
@@ -152,6 +182,13 @@ final class CookingViewModelTests: XCTestCase {
             viewModel.remainingSeconds(for: detectedTimer.id),
             0
         )
+        XCTAssertEqual(
+            viewModel.finishedTimerForCurrentStep?.id,
+            detectedTimer.id
+        )
+
+        viewModel.resetTimer(id: detectedTimer.id)
+        XCTAssertNil(viewModel.finishedTimerForCurrentStep)
     }
 
     func testKeepAwakeIsExplicitAndRestoresPreviousSettingOnExit() {
@@ -236,6 +273,47 @@ private final class TestTimerNotificationScheduler:
 
     func cancel(timerID: UUID) {
         cancelled.append(timerID)
+    }
+}
+
+@MainActor
+private final class GateTimerNotificationScheduler:
+    TimerNotificationScheduling
+{
+    private var isScheduling = false
+    private var schedulingContinuation: CheckedContinuation<Void, Never>?
+    private var releaseContinuation: CheckedContinuation<Void, Never>?
+    private(set) var cancelled: [UUID] = []
+
+    func schedule(
+        timerID: UUID,
+        label: String,
+        durationSeconds: Int
+    ) async {
+        isScheduling = true
+        schedulingContinuation?.resume()
+        schedulingContinuation = nil
+        await withCheckedContinuation { continuation in
+            releaseContinuation = continuation
+        }
+    }
+
+    func cancel(timerID: UUID) {
+        cancelled.append(timerID)
+    }
+
+    func waitUntilScheduling() async {
+        guard !isScheduling else {
+            return
+        }
+        await withCheckedContinuation { continuation in
+            schedulingContinuation = continuation
+        }
+    }
+
+    func release() {
+        releaseContinuation?.resume()
+        releaseContinuation = nil
     }
 }
 

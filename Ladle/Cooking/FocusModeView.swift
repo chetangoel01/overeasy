@@ -7,32 +7,33 @@ struct FocusModeView: View {
     @Bindable var viewModel: CookingViewModel
 
     var body: some View {
-        VStack(spacing: 0) {
-            focusHeader
+        TimelineView(.periodic(from: .now, by: 1)) { _ in
+            VStack(spacing: 0) {
+                focusHeader
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 26) {
-                    progressSection
-                    currentStepSection
-                    relevantIngredientsSection
-                    timerSection
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 26) {
+                        currentStepSection
+                        timerSection
+                        relevantIngredientsSection
+                    }
+                    .padding(.horizontal, LadleTheme.Spacing.generous)
+                    .padding(.top, 24)
+                    .padding(.bottom, 30)
                 }
-                .padding(.horizontal, LadleTheme.Spacing.generous)
-                .padding(.top, 18)
-                .padding(.bottom, 30)
-            }
-            .scrollIndicators(.hidden)
+                .scrollIndicators(.hidden)
 
-            navigationControls
+                navigationControls
+            }
         }
-        .background(LadleTheme.paper)
+        .background(LadleTheme.plum)
         .contentShape(Rectangle())
         .accessibilityIdentifier("cooking.focus-mode")
         .simultaneousGesture(
             DragGesture(minimumDistance: 44)
                 .onEnded { value in
                     if value.translation.width < -44 {
-                        viewModel.moveNext()
+                        advance()
                     } else if value.translation.width > 44 {
                         viewModel.movePrevious()
                     }
@@ -41,70 +42,63 @@ struct FocusModeView: View {
     }
 
     private var focusHeader: some View {
-        HStack {
-            Button {
-                viewModel.exitFocusMode()
-            } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 17, weight: .semibold))
-                    .frame(width: 44, height: 44)
-            }
-            .accessibilityLabel("Back to full recipe")
-
-            Spacer()
-
-            Text("Focus mode")
-                .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.ink.opacity(0.62))
-
-            Spacer()
-
-            Image(systemName: "flame.fill")
-                .foregroundStyle(LadleTheme.paprika)
-                .frame(width: 44, height: 44)
-                .accessibilityHidden(true)
-        }
-        .padding(.horizontal, 8)
-        .background(LadleTheme.paper)
-        .overlay(alignment: .bottom) {
-            Divider()
-                .overlay(LadleTheme.ink.opacity(0.08))
-        }
-    }
-
-    private var progressSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(spacing: 12) {
             HStack {
-                Text(viewModel.progressText)
-                    .ladleFont(.bodyStrong)
-                    .foregroundStyle(LadleTheme.paprika)
+                Button {
+                    viewModel.exitFocusMode()
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(LadleTheme.paper)
+                        .frame(width: 44, height: 44)
+                        .background(
+                            LadleTheme.paper.opacity(0.1),
+                            in: Circle()
+                        )
+                }
+                .accessibilityLabel("Back to full recipe")
+
                 Spacer()
-                Text(viewModel.recipe.title)
+
+                Text(viewModel.progressText)
                     .ladleFont(.metadata)
-                    .foregroundStyle(LadleTheme.ink.opacity(0.5))
-                    .lineLimit(1)
+                    .foregroundStyle(LadleTheme.paper.opacity(0.82))
             }
 
             ProgressView(value: viewModel.progress)
-                .tint(LadleTheme.paprika)
-                .scaleEffect(x: 1, y: 1.8, anchor: .center)
+                .tint(LadleTheme.celery)
                 .accessibilityLabel(
                     "\(viewModel.progressText) cooking progress"
                 )
         }
+        .padding(.horizontal, LadleTheme.Spacing.generous)
+        .padding(.top, 8)
     }
 
     @ViewBuilder
     private var currentStepSection: some View {
         if let step = viewModel.currentStep {
             VStack(alignment: .leading, spacing: 16) {
-                Text(step.instruction)
+                Text(
+                    viewModel.finishedTimerForCurrentStep == nil
+                        ? "STEP \(viewModel.currentStepIndex + 1)"
+                        : "TIMER FINISHED"
+                )
+                .ladleFont(.eyebrow)
+                .tracking(1.5)
+                .foregroundStyle(LadleTheme.celery)
+
+                Text(
+                    viewModel.finishedTimerForCurrentStep.map {
+                        "\($0.label) is ready."
+                    } ?? step.instruction
+                )
                     .ladleScaledFont(
                         size: 36,
                         relativeTo: .largeTitle,
                         weight: .semibold
                     )
-                    .foregroundStyle(LadleTheme.ink)
+                    .foregroundStyle(LadleTheme.paper)
                     .minimumScaleFactor(
                         dynamicTypeSize.isAccessibilitySize ? 1 : 0.72
                     )
@@ -124,9 +118,15 @@ struct FocusModeView: View {
                                 : "circle"
                     )
                 }
-                .buttonStyle(
-                    LadlePrimaryButtonStyle(isProminent: false)
+                .ladleFont(.metadata)
+                .foregroundStyle(LadleTheme.paper)
+                .padding(.horizontal, 12)
+                .frame(minHeight: 44)
+                .background(
+                    LadleTheme.paper.opacity(0.1),
+                    in: Capsule()
                 )
+                .buttonStyle(.plain)
             }
         }
     }
@@ -134,61 +134,15 @@ struct FocusModeView: View {
     @ViewBuilder
     private var relevantIngredientsSection: some View {
         if !viewModel.relevantIngredients.isEmpty {
-            VStack(alignment: .leading, spacing: 12) {
-                LadleSectionHeader(
-                    title: "For this step",
-                    detail: viewModel.relevantIngredients.count == 1
-                        ? "1 ingredient"
-                        : "\(viewModel.relevantIngredients.count) ingredients"
-                )
-
-                VStack(spacing: 10) {
-                    ForEach(viewModel.relevantIngredients) { ingredient in
-                        let isCompleted = viewModel
-                            .isIngredientCompleted(ingredient.id)
-
-                        Button {
-                            viewModel.toggleCompletedIngredient(
-                                ingredient.id
-                            )
-                        } label: {
-                            HStack(spacing: 12) {
-                                Image(
-                                    systemName:
-                                        isCompleted
-                                            ? "checkmark.circle.fill"
-                                            : "circle"
-                                )
-                                .foregroundStyle(
-                                    isCompleted
-                                        ? LadleTheme.success
-                                        : LadleTheme.paprika
-                                )
-                                Text(ingredient.cookingDetailText)
-                                    .ladleFont(.bodyStrong)
-                                    .foregroundStyle(LadleTheme.ink)
-                                Spacer(minLength: 0)
-                            }
-                            .padding(.horizontal, 14)
-                            .frame(minHeight: 52)
-                            .background(
-                                LadleTheme.field,
-                                in: RoundedRectangle(
-                                    cornerRadius:
-                                        LadleTheme.Corner.control,
-                                    style: .continuous
-                                )
-                            )
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(
-                            isCompleted
-                                ? "Mark \(ingredient.name) incomplete"
-                                : "Mark \(ingredient.name) complete"
-                        )
-                    }
-                }
-            }
+            Text(
+                "For this step · "
+                    + viewModel.relevantIngredients
+                    .map(\.name)
+                    .joined(separator: " · ")
+            )
+            .ladleFont(.body)
+            .foregroundStyle(LadleTheme.paper.opacity(0.8))
+            .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -196,14 +150,12 @@ struct FocusModeView: View {
     private var timerSection: some View {
         if let step = viewModel.currentStep,
            !step.timers.isEmpty {
-            VStack(alignment: .leading, spacing: 12) {
-                LadleSectionHeader(title: "Timers")
-                ForEach(step.timers) { timer in
-                    RecipeTimerButton(
-                        viewModel: viewModel,
-                        detectedTimer: timer
-                    )
-                }
+            ForEach(step.timers) { timer in
+                RecipeTimerButton(
+                    viewModel: viewModel,
+                    detectedTimer: timer,
+                    onDark: true
+                )
             }
         }
     }
@@ -213,34 +165,57 @@ struct FocusModeView: View {
             Button {
                 viewModel.movePrevious()
             } label: {
-                Label("Previous", systemImage: "chevron.left")
-                    .frame(maxWidth: .infinity)
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundStyle(LadleTheme.paper)
+                    .frame(width: 52, height: 52)
+                    .background(
+                        LadleTheme.paper.opacity(0.1),
+                        in: Circle()
+                    )
             }
-            .buttonStyle(LadlePrimaryButtonStyle(isProminent: false))
+            .buttonStyle(.plain)
             .disabled(!viewModel.canMovePrevious)
+            .opacity(viewModel.canMovePrevious ? 1 : 0.35)
             .accessibilityLabel("Previous step")
 
-            Button {
-                viewModel.moveNext()
-            } label: {
-                Label(
-                    viewModel.canMoveNext ? "Next" : "Last step",
-                    systemImage: "chevron.right"
-                )
-                .labelStyle(.titleAndIcon)
-                .frame(maxWidth: .infinity)
+            Button(action: advance) {
+                Text(nextButtonTitle)
+                    .ladleFont(.bodyStrong)
+                    .foregroundStyle(LadleTheme.ink)
+                    .frame(maxWidth: .infinity, minHeight: 52)
+                    .background(
+                        LadleTheme.paper,
+                        in: RoundedRectangle(
+                            cornerRadius: LadleTheme.Corner.control,
+                            style: .continuous
+                        )
+                    )
             }
-            .buttonStyle(LadlePrimaryButtonStyle())
-            .disabled(!viewModel.canMoveNext)
-            .accessibilityLabel("Next step")
+            .buttonStyle(.plain)
+            .accessibilityLabel(nextButtonTitle)
         }
         .padding(.horizontal, LadleTheme.Spacing.regular)
         .padding(.top, 12)
         .padding(.bottom, 10)
-        .background(.ultraThinMaterial)
-        .overlay(alignment: .top) {
-            Divider()
-                .overlay(LadleTheme.ink.opacity(0.08))
+        .background(LadleTheme.plum)
+    }
+
+    private var nextButtonTitle: String {
+        if viewModel.finishedTimerForCurrentStep != nil {
+            "Continue cooking"
+        } else if viewModel.canMoveNext {
+            "Next step"
+        } else {
+            "Back to full recipe"
+        }
+    }
+
+    private func advance() {
+        if viewModel.canMoveNext {
+            viewModel.moveNext()
+        } else {
+            viewModel.exitFocusMode()
         }
     }
 }

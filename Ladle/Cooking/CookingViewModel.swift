@@ -67,6 +67,12 @@ final class CookingViewModel: Identifiable {
         }
     }
 
+    var finishedTimerForCurrentStep: DetectedTimer? {
+        currentStep?.timers.first {
+            timerPhase(for: $0.id) == .finished
+        }
+    }
+
     var progressText: String {
         guard !recipe.orderedSteps.isEmpty else {
             return "No steps"
@@ -176,6 +182,9 @@ final class CookingViewModel: Identifiable {
             label: timer.label,
             durationSeconds: timer.remainingSeconds(at: clock.now)
         )
+        if timers[timerID]?.phase(at: clock.now) != .running {
+            notificationScheduler.cancel(timerID: timerID)
+        }
     }
 
     func pauseTimer(id timerID: UUID) {
