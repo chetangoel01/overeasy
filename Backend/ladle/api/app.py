@@ -1,9 +1,11 @@
 from datetime import timedelta
 
+import httpx
 from fastapi import FastAPI
 from sqlalchemy.orm import Session, sessionmaker
 
 from ladle.api.routes.auth import router as auth_router
+from ladle.api.routes.imports import router as imports_router
 from ladle.api.routes.recipes import router as recipes_router
 from ladle.auth.attestation import AttestationService
 from ladle.auth.sessions import SessionService
@@ -11,6 +13,11 @@ from ladle.auth.tokens import AccessTokenCodec, RefreshTokenCodec
 from ladle.clock import Clock, SystemClock
 from ladle.config import Settings
 from ladle.db.session import build_engine, build_session_factory
+from ladle.imports.admission import AdmissionService
+from ladle.imports.dispatcher import ImportDispatcher, NoopImportDispatcher
+from ladle.imports.reservations import ReservationService
+from ladle.imports.source_identity import SourceIdentityParser
+from ladle.infrastructure.dns import PinnedRedirectResolver, SystemDNSResolver
 from ladle.recipes.service import RecipeService
 from ladle.sync.service import RecipeSyncService
 
@@ -22,6 +29,8 @@ def create_app(
     session_service: SessionService | None = None,
     access_tokens: AccessTokenCodec | None = None,
     attestation: AttestationService | None = None,
+    import_dispatcher: ImportDispatcher | None = None,
+    source_parser: SourceIdentityParser | None = None,
     settings: Settings | None = None,
 ) -> FastAPI:
     """Build the HTTP application without eagerly contacting infrastructure."""
@@ -58,8 +67,33 @@ def create_app(
     )
     application.state.recipe_service = RecipeService(clock=runtime_clock)
     application.state.sync_service = RecipeSyncService()
+    redirect_client: httpx.Client | None = None
+    if source_parser is None:
+        redirect_client = httpx.Client(
+            timeout=configured.source_redirect_timeout_seconds
+        )
+        source_parser = SourceIdentityParser(
+            redirect_resolver=PinnedRedirectResolver(
+                dns=SystemDNSResolver(),
+                client=redirect_client,
+            )
+        )
+    application.state.admission_service = AdmissionService(
+        parser=source_parser,
+        reservations=ReservationService(
+            clock=runtime_clock,
+            lifetime=timedelta(minutes=configured.import_reservation_minutes),
+        ),
+        clock=runtime_clock,
+    )
+    application.state.import_dispatcher = (
+        import_dispatcher or NoopImportDispatcher()
+    )
     application.include_router(auth_router)
     application.include_router(recipes_router)
+    application.include_router(imports_router)
+    if redirect_client is not None:
+        application.router.add_event_handler("shutdown", redirect_client.close)
     return application
 
 

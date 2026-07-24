@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     refresh_token_days: int = Field(default=30, gt=0)
     refresh_rotation_grace_seconds: int = Field(default=5, ge=0)
     attestation_enforced: bool = False
+    import_reservation_minutes: int = Field(default=60, gt=0)
+    source_redirect_timeout_seconds: float = Field(default=10, gt=0)
 
     supadata_base_url: AnyHttpUrl = AnyHttpUrl("https://api.supadata.ai/v1")
     supadata_timeout_seconds: float = Field(default=30, gt=0)
