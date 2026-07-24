@@ -6,27 +6,9 @@ import XCTest
 
 @MainActor
 final class SwiftDataRecipeRepositoryTests: XCTestCase {
-    private var container: ModelContainer!
-    private var repository: SwiftDataRecipeRepository!
-
-    override func setUpWithError() throws {
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
-        container = try ModelContainer(
-            for: StoredRecipe.self,
-            StoredImportJob.self,
-            configurations: configuration
-        )
-        repository = SwiftDataRecipeRepository(
-            modelContext: container.mainContext
-        )
-    }
-
-    override func tearDown() {
-        repository = nil
-        container = nil
-    }
-
     func testRecipeRoundTripPreservesOrderedIngredientsAndSteps() throws {
+        let fixture = try makeFixture()
+        let repository = fixture.repository
         let recipe = makeRecipe()
 
         try repository.save(recipe)
@@ -44,6 +26,8 @@ final class SwiftDataRecipeRepositoryTests: XCTestCase {
     }
 
     func testUpdatingRecipePreservesStableIdentifier() throws {
+        let fixture = try makeFixture()
+        let repository = fixture.repository
         var recipe = makeRecipe()
         try repository.save(recipe)
 
@@ -57,6 +41,8 @@ final class SwiftDataRecipeRepositoryTests: XCTestCase {
     }
 
     func testDeletingRecipeDoesNotDeleteUnrelatedImport() throws {
+        let fixture = try makeFixture()
+        let repository = fixture.repository
         let recipe = makeRecipe()
         let job = ImportJob.queued(
             sourceURL: URL(string: "https://www.tiktok.com/@cook/video/55")!
@@ -71,6 +57,8 @@ final class SwiftDataRecipeRepositoryTests: XCTestCase {
     }
 
     func testFailedReimportKeepsCurrentStoredRecipe() throws {
+        let fixture = try makeFixture()
+        let repository = fixture.repository
         let current = makeRecipe()
         try repository.save(current)
         let failed = try ImportJob.reimporting(
@@ -90,6 +78,8 @@ final class SwiftDataRecipeRepositoryTests: XCTestCase {
     }
 
     func testPreviewSeedingIsIdempotent() throws {
+        let fixture = try makeFixture()
+        let repository = fixture.repository
         try repository.seedIfNeeded(
             recipes: PreviewFixtures.recipes,
             importJobs: PreviewFixtures.importJobs
@@ -108,6 +98,21 @@ final class SwiftDataRecipeRepositoryTests: XCTestCase {
         XCTAssertEqual(
             try repository.fetchImportJobs().map(\.id),
             firstJobIDs
+        )
+    }
+
+    private func makeFixture() throws -> RepositoryFixture {
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(
+            for: StoredRecipe.self,
+            StoredImportJob.self,
+            configurations: configuration
+        )
+        return RepositoryFixture(
+            container: container,
+            repository: SwiftDataRecipeRepository(
+                modelContext: container.mainContext
+            )
         )
     }
 
@@ -168,4 +173,9 @@ final class SwiftDataRecipeRepositoryTests: XCTestCase {
             updatedAt: createdAt
         )
     }
+}
+
+private struct RepositoryFixture {
+    let container: ModelContainer
+    let repository: SwiftDataRecipeRepository
 }

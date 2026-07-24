@@ -53,6 +53,7 @@ final class EditAndReimportTests: XCTestCase {
         XCTAssertTrue(
             app.staticTexts["https://example.com/lemon-orzo"].exists
         )
+        capture("Safe re-import", in: app)
 
         let notes = app.textViews["Correction notes"]
         notes.tap()

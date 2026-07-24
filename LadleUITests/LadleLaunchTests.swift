@@ -26,6 +26,7 @@ final class LadleLaunchTests: XCTestCase {
         XCTAssertTrue(app.buttons["Sign in with Apple"].exists)
         XCTAssertTrue(app.buttons["Create a free account"].exists)
         XCTAssertTrue(app.staticTexts["Guests can save up to 10 recipes."].exists)
+        capture("Welcome", in: app)
 
         app.buttons["Continue as a guest"].tap()
 
@@ -45,5 +46,15 @@ final class LadleLaunchTests: XCTestCase {
         app.descendants(matching: .any)
             .matching(identifier: identifier)
             .firstMatch
+    }
+
+    private func capture(
+        _ name: String,
+        in app: XCUIApplication
+    ) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 }

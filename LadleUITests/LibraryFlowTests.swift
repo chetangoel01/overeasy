@@ -8,6 +8,7 @@ final class LibraryFlowTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Parsing"].exists)
         XCTAssertTrue(app.staticTexts["Needs review"].exists)
         XCTAssertTrue(app.staticTexts["Import failed"].exists)
+        capture("Library — pending imports", in: app)
 
         app.swipeUp()
 
@@ -22,6 +23,7 @@ final class LibraryFlowTests: XCTestCase {
                 "Add One-Pot Lemon Orzo with Feta to favorites"
             ].exists
         )
+        capture("Library — recipe grid", in: app)
     }
 
     func testSearchAndListModeCompose() {
@@ -57,6 +59,10 @@ final class LibraryFlowTests: XCTestCase {
             )
                 .exists
         )
+        if app.keyboards.buttons["Search"].exists {
+            app.keyboards.buttons["Search"].tap()
+        }
+        capture("Library — recipe list", in: app)
     }
 
     func testMaximumTimeFilterCanBeAppliedAndRemoved() {
@@ -66,6 +72,7 @@ final class LibraryFlowTests: XCTestCase {
 
         let thirtyMinutes = app.buttons["30 minutes or less"]
         XCTAssertTrue(thirtyMinutes.waitForExistence(timeout: 2))
+        capture("Library — filters", in: app)
         thirtyMinutes.tap()
         app.buttons["Apply Filters"].tap()
 
@@ -125,5 +132,15 @@ final class LibraryFlowTests: XCTestCase {
         app.descendants(matching: .any)
             .matching(identifier: identifier)
             .firstMatch
+    }
+
+    private func capture(
+        _ name: String,
+        in app: XCUIApplication
+    ) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 }

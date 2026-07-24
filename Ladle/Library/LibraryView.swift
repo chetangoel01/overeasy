@@ -14,6 +14,7 @@ struct LibraryView: View {
     @State private var failedImportJob: ImportJob?
     @State private var selectedDestination: LibraryRecipeDestination?
     @State private var pendingDestination: LibraryRecipeDestination?
+    @State private var topSafeAreaInset: CGFloat = 0
     @FocusState private var isSearchFocused: Bool
 
     private var columns: [GridItem] {
@@ -28,18 +29,20 @@ struct LibraryView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 22) {
-                    libraryHeader
-                    searchField
-                    controlBar
-                    loadContent
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 22) {
+                        libraryHeader
+                        searchField
+                        controlBar
+                        loadContent
+                    }
+                    .padding(.horizontal, LadleTheme.Spacing.regular)
+                    .padding(.bottom, 44)
                 }
-                .padding(.horizontal, LadleTheme.Spacing.regular)
-                .padding(.bottom, 44)
+                .scrollDismissesKeyboard(.interactively)
+                .scrollIndicators(.hidden)
             }
-            .scrollDismissesKeyboard(.interactively)
-            .scrollIndicators(.hidden)
             .background(LadleTheme.paper)
             .toolbar(.hidden, for: .navigationBar)
             .accessibilityElement(children: .contain)
@@ -116,6 +119,16 @@ struct LibraryView: View {
                         ?? "Please try again."
                 )
             }
+        }
+        .overlay(alignment: .top) {
+            LadleTheme.paper
+                .frame(height: topSafeAreaInset)
+                .offset(y: -topSafeAreaInset)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+        .onAppear {
+            topSafeAreaInset = currentWindowTopSafeAreaInset
         }
     }
 
@@ -481,6 +494,15 @@ struct LibraryView: View {
                 }
             }
         )
+    }
+
+    private var currentWindowTopSafeAreaInset: CGFloat {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap(\.windows)
+            .first(where: \.isKeyWindow)?
+            .safeAreaInsets.top
+            ?? 0
     }
 
     private func queueNavigation(
