@@ -393,13 +393,18 @@ class RecipeImage(Base):
         UniqueConstraint(
             "recipe_id", "order_index", name="uq_recipe_images_recipe_order"
         ),
+        CheckConstraint(
+            "(object_key IS NOT NULL) <> (remote_url IS NOT NULL)",
+            name="ck_recipe_images_exactly_one_location",
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     recipe_id: Mapped[UUID] = mapped_column(
         Uuid, ForeignKey("recipes.id", ondelete="CASCADE"), nullable=False
     )
-    object_key: Mapped[str] = mapped_column(Text, nullable=False)
+    object_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    remote_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     order_index: Mapped[int] = mapped_column(Integer, nullable=False)
 
 

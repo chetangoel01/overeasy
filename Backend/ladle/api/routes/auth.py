@@ -73,7 +73,7 @@ def _access_tokens(request: Request) -> AccessTokenCodec:
     return cast(AccessTokenCodec, request.app.state.access_tokens)
 
 
-def _access_claims(
+def access_claims(
     request: Request,
     authorization: Annotated[str | None, Header()] = None,
 ) -> AccessClaims:
@@ -144,7 +144,7 @@ def delete_session(
     request: Request,
     authorization: Annotated[str | None, Header()] = None,
 ) -> Response:
-    claims = _access_claims(request, authorization)
+    claims = access_claims(request, authorization)
     with _database(request) as database, database.begin():
         _sessions(request).revoke(database, session_id=claims.session_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

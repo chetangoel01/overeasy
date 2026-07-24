@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from ladle.auth.attestation import AttestationService
 from ladle.auth.sessions import SessionService, SessionTokens
 from ladle.clock import Clock
-from ladle.db.models import Device, User
+from ladle.db.models import Device, User, UserSyncState
 
 
 def register_guest(
@@ -32,6 +32,7 @@ def register_guest(
         user = User(id=uuid4(), kind="guest", created_at=now)
         database.add(user)
         database.flush()
+        database.add(UserSyncState(user_id=user.id, next_sequence=1))
         device = Device(
             id=uuid4(),
             user_id=user.id,

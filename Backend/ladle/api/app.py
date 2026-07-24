@@ -4,12 +4,15 @@ from fastapi import FastAPI
 from sqlalchemy.orm import Session, sessionmaker
 
 from ladle.api.routes.auth import router as auth_router
+from ladle.api.routes.recipes import router as recipes_router
 from ladle.auth.attestation import AttestationService
 from ladle.auth.sessions import SessionService
 from ladle.auth.tokens import AccessTokenCodec, RefreshTokenCodec
 from ladle.clock import Clock, SystemClock
 from ladle.config import Settings
 from ladle.db.session import build_engine, build_session_factory
+from ladle.recipes.service import RecipeService
+from ladle.sync.service import RecipeSyncService
 
 
 def create_app(
@@ -53,7 +56,10 @@ def create_app(
     application.state.attestation = attestation or AttestationService(
         enforced=configured.attestation_enforced
     )
+    application.state.recipe_service = RecipeService(clock=runtime_clock)
+    application.state.sync_service = RecipeSyncService()
     application.include_router(auth_router)
+    application.include_router(recipes_router)
     return application
 
 
