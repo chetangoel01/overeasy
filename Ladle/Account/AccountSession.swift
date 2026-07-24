@@ -72,6 +72,17 @@ final class AccountSession {
         completeWelcome(as: .signedInWithApple)
     }
 
+    func applyRemoteUserKind(_ userKind: String) {
+        switch userKind {
+        case "apple":
+            completeWelcome(as: .signedInWithApple)
+        case "guest":
+            completeWelcome(as: .guest)
+        default:
+            completeWelcome(as: .freeAccount)
+        }
+    }
+
     func saveDecision(savedRecipeCount: Int) -> GuestSaveDecision {
         switch state {
         case .guest, .undecided:
