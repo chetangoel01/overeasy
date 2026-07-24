@@ -2,13 +2,15 @@ import XCTest
 @testable import Ladle
 
 final class DesignTokenTests: XCTestCase {
-    func testEditorialPaletteUsesApprovedHexValues() {
-        XCTAssertEqual(LadleTheme.paperHex, "#FBFAF7")
-        XCTAssertEqual(LadleTheme.fieldHex, "#F1EEE8")
-        XCTAssertEqual(LadleTheme.inkHex, "#1F1D1A")
-        XCTAssertEqual(LadleTheme.paprikaHex, "#B44B24")
-        XCTAssertEqual(LadleTheme.reviewHex, "#F6ECD9")
-        XCTAssertEqual(LadleTheme.successHex, "#3D7A44")
+    func testMutedCornerStorePaletteUsesApprovedHexValues() {
+        XCTAssertEqual(LadleTheme.plumHex, "#493943")
+        XCTAssertEqual(LadleTheme.paperHex, "#FAF6EF")
+        XCTAssertEqual(LadleTheme.oatHex, "#F1ECE3")
+        XCTAssertEqual(LadleTheme.inkHex, "#30272D")
+        XCTAssertEqual(LadleTheme.brickHex, "#AD503D")
+        XCTAssertEqual(LadleTheme.celeryHex, "#BEC9AE")
+        XCTAssertEqual(LadleTheme.ubeHex, "#DDD5DF")
+        XCTAssertEqual(LadleTheme.mutedInkHex, "#72676D")
     }
 
     func testSpacingScaleIncreasesPredictably() {
@@ -19,8 +21,8 @@ final class DesignTokenTests: XCTestCase {
     }
 
     func testCornerScaleSupportsControlsCardsAndSheets() {
-        XCTAssertEqual(LadleTheme.Corner.control, 12)
-        XCTAssertEqual(LadleTheme.Corner.card, 16)
+        XCTAssertEqual(LadleTheme.Corner.control, 15)
+        XCTAssertEqual(LadleTheme.Corner.card, 20)
         XCTAssertEqual(LadleTheme.Corner.sheet, 34)
     }
 }

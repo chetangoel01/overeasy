@@ -50,9 +50,9 @@ enum LadleTextStyle {
 
     var weight: Font.Weight {
         switch self {
-        case .display, .title:
+        case .display, .title, .recipeTitle, .section:
             .bold
-        case .recipeTitle, .section, .bodyStrong:
+        case .bodyStrong:
             .semibold
         case .body:
             .regular
@@ -61,14 +61,16 @@ enum LadleTextStyle {
         }
     }
 
-    // Display sizes carry the identity through SF's expanded width axis;
-    // everything at reading size stays standard width for legibility.
     var width: Font.Width {
+        .standard
+    }
+
+    var design: Font.Design {
         switch self {
-        case .display, .title:
-            .expanded
-        case .recipeTitle, .section, .body, .bodyStrong, .metadata, .eyebrow:
-            .standard
+        case .display, .title, .recipeTitle, .section:
+            .rounded
+        case .body, .bodyStrong, .metadata, .eyebrow:
+            .default
         }
     }
 }
@@ -116,7 +118,8 @@ extension View {
                 size: style.baseSize,
                 relativeTo: style.relativeTextStyle,
                 weight: style.weight,
-                width: style.width
+                width: style.width,
+                design: style.design
             )
         )
     }

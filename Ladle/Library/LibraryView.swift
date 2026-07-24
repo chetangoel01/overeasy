@@ -537,24 +537,28 @@ extension RecipeSort {
     var libraryTitle: String {
         switch self {
         case .recentlyAdded:
-            "Recently added"
+            "Recently saved"
         case .cookingTime:
-            "Cooking time"
+            "Fastest first"
+        case .highestProtein:
+            "Highest protein"
         case .calories:
-            "Calories"
+            "Lowest calories"
         case .alphabetical:
-            "A–Z"
+            "Recipe name"
         }
     }
 
     var librarySectionTitle: String {
         switch self {
         case .recentlyAdded:
-            "Recently added"
+            "Recently saved"
         case .cookingTime:
-            "Quickest first"
+            "Fastest first"
+        case .highestProtein:
+            "Highest protein"
         case .calories:
-            "Lightest first"
+            "Lowest calories"
         case .alphabetical:
             "All recipes"
         }

@@ -49,3 +49,6 @@ notification, accessibility, and Share Extension behavior.
 - Domain checkpoint: 28 LadleCore tests pass. Coverage includes ingredient
   search, composable per-serving macro filters, highest-protein sorting, and
   optional cooking history.
+- Design-foundation checkpoint: the focused DesignTokenTests suite passes.
+  The app and Share Extension compile with the approved accessible palette,
+  rounded display typography, shared icon controls, and shared state layout.
