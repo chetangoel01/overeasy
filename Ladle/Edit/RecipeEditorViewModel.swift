@@ -20,7 +20,7 @@ enum RecipeEditorState: Equatable {
 
 @MainActor
 @Observable
-final class RecipeEditorViewModel {
+final class RecipeEditorViewModel: Identifiable {
     var draft: RecipeDraft
     private(set) var validationIssues:
         Set<RecipeDraftValidationIssue> = []

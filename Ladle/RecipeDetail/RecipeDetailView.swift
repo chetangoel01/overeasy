@@ -14,7 +14,6 @@ struct RecipeDetailView: View {
     @State private var displayedRecipe: Recipe
     @State private var isFavorite: Bool
     @State private var isNutritionPresented = false
-    @State private var isEditorPresented = false
     @State private var isReimportPresented = false
     @State private var editorViewModel: RecipeEditorViewModel?
     @State private var cookingViewModel: CookingViewModel?
@@ -101,11 +100,9 @@ struct RecipeDetailView: View {
                 )
             }
         }
-        .sheet(isPresented: $isEditorPresented) {
-            if let editorViewModel {
-                RecipeEditorView(viewModel: editorViewModel) { recipe in
-                    applyChangedRecipe(recipe)
-                }
+        .sheet(item: $editorViewModel) { editorViewModel in
+            RecipeEditorView(viewModel: editorViewModel) { recipe in
+                applyChangedRecipe(recipe)
             }
         }
         .sheet(isPresented: $isReimportPresented) {
@@ -230,7 +227,6 @@ struct RecipeDetailView: View {
                 systemImage: "square.and.pencil"
             ) {
                 editorViewModel = makeEditorViewModel(displayedRecipe)
-                isEditorPresented = true
             }
             secondaryAction(
                 title: "Re-import from source",
