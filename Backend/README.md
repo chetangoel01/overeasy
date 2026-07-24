@@ -27,8 +27,8 @@ fallback behavior, iOS connection setup, and PostgreSQL data dictionary.
 
 ```bash
 docker compose up -d --build
-curl --fail http://127.0.0.1:4111/health/live
-curl --fail http://127.0.0.1:4111/health/ready
+curl --fail http://127.0.0.1:4112/health/live
+curl --fail http://127.0.0.1:4112/health/ready
 ```
 
 Readiness checks PostgreSQL, Redis, and the private object-storage bucket.

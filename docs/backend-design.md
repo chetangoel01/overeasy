@@ -233,9 +233,10 @@ expect breakage and design for it rather than around it:
 ## 12. Local dev
 
 Per the global Caddy convention (`41XY`, X = project index, Y = role; digest
-holds X=9): allocate **X=1 → Ladle**, backend on **4111**.
+holds X=9): Ladle shares index 1; the API publishes on host port **4112**
+(container-internal 4111 — study-app-api already holds host 4111).
 
-- `Caddyfile`: `http://api.ladle.localhost { reverse_proxy 127.0.0.1:4111 }`
+- `Caddyfile`: `http://api.ladle.localhost { reverse_proxy 127.0.0.1:4112 }`
   then `caddy reload --config /opt/homebrew/etc/Caddyfile`.
 - Run: `uvicorn app.main:app --port 4111` (pinned; never auto-pick) +
   `arq app.worker.WorkerSettings`; `docker compose` for Postgres/Redis/MinIO.

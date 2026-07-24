@@ -45,10 +45,10 @@ The feature worktree used to build this branch is:
 
 | Service | Local address | Notes |
 | --- | --- | --- |
-| Ladle API | `http://127.0.0.1:4111` | Published by Docker Compose |
+| Ladle API | `http://127.0.0.1:4112` | Published by Docker Compose |
 | Optional Caddy hostname | `http://api.ladle.localhost` | Current iOS Debug URL |
-| OpenAPI JSON | `http://127.0.0.1:4111/openapi.json` | Swagger/ReDoc HTML is intentionally disabled |
-| Metrics | `http://127.0.0.1:4111/metrics` | Prometheus text format |
+| OpenAPI JSON | `http://127.0.0.1:4112/openapi.json` | Swagger/ReDoc HTML is intentionally disabled |
+| Metrics | `http://127.0.0.1:4112/metrics` | Prometheus text format |
 | MinIO S3 API | `http://127.0.0.1:9000` | Local object storage |
 | MinIO console | `http://127.0.0.1:9001` | Local-only development credentials |
 | PostgreSQL | Internal Compose hostname `postgres:5432` | Not published to the host |
@@ -66,8 +66,8 @@ From the repository root:
 cd Backend
 docker compose up -d --build
 docker compose ps
-curl --fail http://127.0.0.1:4111/health/live
-curl --fail http://127.0.0.1:4111/health/ready
+curl --fail http://127.0.0.1:4112/health/live
+curl --fail http://127.0.0.1:4112/health/ready
 ```
 
 The Compose stack runs:
@@ -238,7 +238,7 @@ This works against the fake-provider Compose stack and avoids printing the
 access token:
 
 ```bash
-LADLE_LOCAL_API=http://127.0.0.1:4111
+LADLE_LOCAL_API=http://127.0.0.1:4112
 LADLE_LOCAL_INSTALLATION_ID="local-$(uuidgen | tr '[:upper:]' '[:lower:]')"
 LADLE_LOCAL_AUTH="$(
   curl --fail --silent --show-error \
