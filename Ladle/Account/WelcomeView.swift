@@ -4,119 +4,63 @@ import Security
 import SwiftUI
 import UIKit
 
+private enum WelcomeStage: Int, CaseIterable {
+    case brand
+    case importing
+    case share
+    case start
+}
+
 struct WelcomeView: View {
     let accountSession: AccountSession
     let authClient: AuthClient?
     let installationID: String
     let onAuthenticated: @MainActor () async -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    @State private var stage: WelcomeStage = .brand
     @State private var rawNonce: String?
     @State private var appleAuthorizationDelegate:
         AppleAuthorizationDelegate?
     @State private var isAuthenticating = false
     @State private var authenticationError: String?
 
+    private static let shareTrialURL = URL(
+        string:
+            "https://www.tiktok.com/@mishkamakesfood/video/7628226554589482271"
+    )!
+
     var body: some View {
-        ScrollView {
-            VStack(spacing: 22) {
-                LadleSheetHandle()
+        VStack(spacing: 0) {
+            LadleSheetHandle()
+                .padding(.top, 10)
 
-                Image(systemName: "frying.pan")
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundStyle(LadleTheme.paprika)
-                    .frame(width: 50, height: 50)
-                    .background(LadleTheme.review, in: Circle())
-                    .accessibilityHidden(true)
-
-                VStack(spacing: 10) {
-                    Text("Recipes, rescued\nfrom the scroll.")
-                        .ladleFont(.title)
-                        .multilineTextAlignment(.center)
-                        .foregroundStyle(LadleTheme.ink)
-                        .accessibilityLabel(
-                            "Recipes, rescued from the scroll."
-                        )
-
-                    Text(
-                        "Share a recipe video once. Overeasy turns it into a clean recipe you can actually cook."
-                    )
-                    .ladleFont(.body)
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(LadleTheme.ink.opacity(0.67))
-                    .fixedSize(horizontal: false, vertical: true)
-                }
-
-                VStack(spacing: 14) {
-                    WelcomeFeature(
-                        icon: "square.and.arrow.up",
-                        text: "Share from TikTok, Instagram, or YouTube"
-                    )
-                    WelcomeFeature(
-                        icon: "text.badge.checkmark",
-                        text: "Get clear ingredients, steps, and nutrition"
-                    )
-                    WelcomeFeature(
-                        icon: "flame",
-                        text: "Cook hands-free with focused, readable steps"
-                    )
-                }
-
-                VStack(spacing: 11) {
-                    SignInWithAppleButton(.signIn) { request in
-                        let nonce = Self.randomNonce()
-                        rawNonce = nonce
-                        request.requestedScopes = [.email, .fullName]
-                        request.nonce = Self.sha256(nonce)
-                    } onCompletion: { result in
-                        handleAppleCompletion(result)
+            TabView(selection: $stage) {
+                ForEach(WelcomeStage.allCases, id: \.self) { candidate in
+                    ScrollView {
+                        pageContent(candidate)
+                            .padding(
+                                .horizontal,
+                                LadleTheme.Spacing.generous
+                            )
+                            .padding(.top, 18)
+                            .padding(.bottom, 12)
                     }
-                    .signInWithAppleButtonStyle(.black)
-                    .frame(height: 52)
-                    .clipShape(
-                        RoundedRectangle(
-                            cornerRadius: LadleTheme.Corner.control
-                        )
-                    )
-                    .disabled(isAuthenticating)
-
-                    Button {
-                        startAppleAuthorization()
-                    } label: {
-                        Text("Create a free account")
-                    }
-                    .buttonStyle(
-                        LadlePrimaryButtonStyle(isProminent: false)
-                    )
-                    .disabled(isAuthenticating)
-
-                    Button {
-                        authenticateAsGuest()
-                    } label: {
-                        Text("Continue as a guest")
-                            .ladleFont(.bodyStrong)
-                            .foregroundStyle(LadleTheme.ink)
-                            .frame(minHeight: 38)
-                    }
-                    .disabled(isAuthenticating)
-
-                    Text("Guests can save up to 10 recipes.")
-                        .ladleFont(.metadata)
-                        .foregroundStyle(LadleTheme.ink.opacity(0.55))
-
-                    if let authenticationError {
-                        Text(authenticationError)
-                            .ladleFont(.metadata)
-                            .foregroundStyle(LadleTheme.paprika)
-                            .multilineTextAlignment(.center)
-                    }
+                    .scrollIndicators(.hidden)
+                    .tag(candidate)
                 }
             }
-            .padding(.horizontal, LadleTheme.Spacing.generous)
-            .padding(.top, 10)
-            .padding(.bottom, 22)
+            .tabViewStyle(.page(indexDisplayMode: .never))
+
+            stageDots
+                .padding(.vertical, 10)
+
+            footer
+                .padding(.horizontal, LadleTheme.Spacing.generous)
+                .padding(.bottom, 22)
         }
-        .scrollIndicators(.hidden)
-        .frame(maxHeight: 700)
+        .frame(maxHeight: 580)
         .background(
             LadleTheme.paper,
             in: UnevenRoundedRectangle(
@@ -126,6 +70,173 @@ struct WelcomeView: View {
         )
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("welcome.sheet")
+    }
+
+    @ViewBuilder
+    private func pageContent(_ stage: WelcomeStage) -> some View {
+        switch stage {
+        case .brand:
+            WelcomePage(
+                icon: "frying.pan",
+                title: "Overeasy",
+                message:
+                    "Recipes, rescued from the scroll. Share a recipe video once and get something you can actually cook."
+            )
+        case .importing:
+            WelcomePage(
+                icon: "link.badge.plus",
+                title: "Paste any\nrecipe link",
+                message:
+                    "Drop in a TikTok, Instagram, or YouTube link and Overeasy cracks it into clear ingredients, steps, and estimated nutrition."
+            ) {
+                WelcomeFeature(
+                    icon: "text.badge.checkmark",
+                    text: "Structured ingredients and steps"
+                )
+                WelcomeFeature(
+                    icon: "timer",
+                    text: "Detected timers and hands-free cooking"
+                )
+                WelcomeFeature(
+                    icon: "chart.bar",
+                    text: "Estimated nutrition, clearly labeled"
+                )
+            }
+        case .share:
+            WelcomePage(
+                icon: "square.and.arrow.up",
+                title: "Save without\nleaving the scroll",
+                message:
+                    "Found a recipe mid-scroll? Tap Share and pick “Add to Overeasy”. The recipe is waiting the next time you open the app."
+            ) {
+                ShareLink(item: Self.shareTrialURL) {
+                    Text("Try it with a sample video")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(
+                    LadlePrimaryButtonStyle(isProminent: false)
+                )
+                .accessibilityIdentifier("welcome.share-trial")
+
+                Text(
+                    "Choose “Add to Overeasy” in the share sheet — it imports once you’re in."
+                )
+                .ladleFont(.metadata)
+                .foregroundStyle(LadleTheme.ink.opacity(0.55))
+                .multilineTextAlignment(.center)
+            }
+        case .start:
+            WelcomePage(
+                icon: "flame",
+                title: "Get cooking",
+                message:
+                    "Keep your saves in one calm place, synced to your account. Start however you like."
+            )
+        }
+    }
+
+    private var stageDots: some View {
+        HStack(spacing: 7) {
+            ForEach(WelcomeStage.allCases, id: \.self) { candidate in
+                Circle()
+                    .fill(
+                        candidate == stage
+                            ? LadleTheme.paprika
+                            : LadleTheme.ink.opacity(0.18)
+                    )
+                    .frame(width: 7, height: 7)
+            }
+        }
+        .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private var footer: some View {
+        if stage == .start {
+            accountActions
+        } else {
+            VStack(spacing: 11) {
+                Button {
+                    advance()
+                } label: {
+                    Text("Continue")
+                }
+                .buttonStyle(LadlePrimaryButtonStyle())
+                .accessibilityIdentifier("welcome.continue")
+
+                Button {
+                    withAnimation(reduceMotion ? nil : .default) {
+                        stage = .start
+                    }
+                } label: {
+                    Text("Skip the tour")
+                        .ladleFont(.metadata)
+                        .foregroundStyle(LadleTheme.ink.opacity(0.55))
+                        .frame(minHeight: 32)
+                }
+            }
+        }
+    }
+
+    private func advance() {
+        guard let next = WelcomeStage(rawValue: stage.rawValue + 1) else {
+            return
+        }
+        withAnimation(reduceMotion ? nil : .default) {
+            stage = next
+        }
+    }
+
+    private var accountActions: some View {
+        VStack(spacing: 11) {
+            SignInWithAppleButton(.signIn) { request in
+                let nonce = Self.randomNonce()
+                rawNonce = nonce
+                request.requestedScopes = [.email, .fullName]
+                request.nonce = Self.sha256(nonce)
+            } onCompletion: { result in
+                handleAppleCompletion(result)
+            }
+            .signInWithAppleButtonStyle(.black)
+            .frame(height: 52)
+            .clipShape(
+                RoundedRectangle(
+                    cornerRadius: LadleTheme.Corner.control
+                )
+            )
+            .disabled(isAuthenticating)
+
+            Button {
+                startAppleAuthorization()
+            } label: {
+                Text("Create a free account")
+            }
+            .buttonStyle(
+                LadlePrimaryButtonStyle(isProminent: false)
+            )
+            .disabled(isAuthenticating)
+
+            Button {
+                authenticateAsGuest()
+            } label: {
+                Text("Continue as a guest")
+                    .ladleFont(.bodyStrong)
+                    .foregroundStyle(LadleTheme.ink)
+                    .frame(minHeight: 38)
+            }
+            .disabled(isAuthenticating)
+
+            Text("Guests can save up to 10 recipes.")
+                .ladleFont(.metadata)
+                .foregroundStyle(LadleTheme.ink.opacity(0.55))
+
+            if let authenticationError {
+                Text(authenticationError)
+                    .ladleFont(.metadata)
+                    .foregroundStyle(LadleTheme.paprika)
+                    .multilineTextAlignment(.center)
+            }
+        }
     }
 
     private func authenticateAsGuest() {
@@ -148,7 +259,7 @@ struct WelcomeView: View {
                 await onAuthenticated()
             } catch {
                 authenticationError =
-                    "Couldn’t connect to Ladle. Please try again."
+                    "Couldn’t connect to Overeasy. Please try again."
             }
         }
     }
@@ -271,6 +382,53 @@ struct WelcomeView: View {
         SHA256.hash(data: Data(value.utf8))
             .map { String(format: "%02x", $0) }
             .joined()
+    }
+}
+
+private struct WelcomePage<Extra: View>: View {
+    let icon: String
+    let title: String
+    let message: String
+    @ViewBuilder let extra: Extra
+
+    init(
+        icon: String,
+        title: String,
+        message: String,
+        @ViewBuilder extra: () -> Extra = { EmptyView() }
+    ) {
+        self.icon = icon
+        self.title = title
+        self.message = message
+        self.extra = extra()
+    }
+
+    var body: some View {
+        VStack(spacing: 18) {
+            Image(systemName: icon)
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundStyle(LadleTheme.paprika)
+                .frame(width: 50, height: 50)
+                .background(LadleTheme.review, in: Circle())
+                .accessibilityHidden(true)
+
+            VStack(spacing: 10) {
+                Text(title)
+                    .ladleFont(.title)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(LadleTheme.ink)
+
+                Text(message)
+                    .ladleFont(.body)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(LadleTheme.ink.opacity(0.67))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            VStack(spacing: 12) {
+                extra
+            }
+        }
     }
 }
 

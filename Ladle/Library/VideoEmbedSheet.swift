@@ -72,12 +72,30 @@ enum VideoEmbed {
     }
 }
 
+/// Keeps playback inside the sheet: link taps on the embed page (creator
+/// profile, "Watch now" upsells) are swallowed instead of escaping to the
+/// full site or the browser.
+private struct EmbedNavigationDecider: WebPage.NavigationDeciding {
+    func decidePolicy(
+        for action: WebPage.NavigationAction,
+        preferences: inout WebPage.NavigationPreferences
+    ) async -> WKNavigationActionPolicy {
+        if action.target?.isMainFrame != false,
+           action.navigationType == .linkActivated {
+            return .cancel
+        }
+        return .allow
+    }
+}
+
 struct VideoEmbedSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     let recipe: Recipe
 
-    @State private var page = WebPage()
+    @State private var page = WebPage(
+        navigationDecider: EmbedNavigationDecider()
+    )
 
     var body: some View {
         NavigationStack {
