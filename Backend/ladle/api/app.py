@@ -14,7 +14,11 @@ from ladle.clock import Clock, SystemClock
 from ladle.config import Settings
 from ladle.db.session import build_engine, build_session_factory
 from ladle.imports.admission import AdmissionService
-from ladle.imports.dispatcher import ImportDispatcher, NoopImportDispatcher
+from ladle.imports.dispatcher import (
+    CeleryImportDispatcher,
+    ImportDispatcher,
+    NoopImportDispatcher,
+)
 from ladle.imports.reservations import ReservationService
 from ladle.imports.source_identity import SourceIdentityParser
 from ladle.infrastructure.dns import PinnedRedirectResolver, SystemDNSResolver
@@ -86,9 +90,14 @@ def create_app(
         ),
         clock=runtime_clock,
     )
-    application.state.import_dispatcher = (
-        import_dispatcher or NoopImportDispatcher()
-    )
+    if import_dispatcher is not None:
+        application.state.import_dispatcher = import_dispatcher
+    elif configured.celery_enabled:
+        application.state.import_dispatcher = CeleryImportDispatcher.from_broker(
+            configured.celery_broker_url
+        )
+    else:
+        application.state.import_dispatcher = NoopImportDispatcher()
     application.include_router(auth_router)
     application.include_router(recipes_router)
     application.include_router(imports_router)

@@ -35,6 +35,14 @@ class Settings(BaseSettings):
     attestation_enforced: bool = False
     import_reservation_minutes: int = Field(default=60, gt=0)
     source_redirect_timeout_seconds: float = Field(default=10, gt=0)
+    extraction_claim_minutes: int = Field(default=10, gt=0)
+    public_cache_recheck_days: int = Field(default=7, gt=0)
+
+    celery_enabled: bool = False
+    celery_broker_url: str = "redis://127.0.0.1:6379/0"
+    celery_result_backend: str = "redis://127.0.0.1:6379/1"
+    celery_visibility_timeout_seconds: int = Field(default=3600, gt=0)
+    worker_provider_mode: Literal["disabled", "fake", "live"] = "disabled"
 
     supadata_base_url: AnyHttpUrl = AnyHttpUrl("https://api.supadata.ai/v1")
     supadata_timeout_seconds: float = Field(default=30, gt=0)

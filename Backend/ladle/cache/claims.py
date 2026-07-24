@@ -77,7 +77,7 @@ class ExtractionClaimService:
             return self._lease(claim, role=ClaimRole.LEADER)
 
         if claim.owner_job_id == job_id:
-            return self._lease(claim, role=ClaimRole.LEADER)
+            return self._lease(claim, role=ClaimRole.FOLLOWER)
 
         return self._lease(claim, role=ClaimRole.FOLLOWER)
 

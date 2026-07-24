@@ -1,0 +1,89 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ladle
+      POSTGRES_USER: ladle
+      POSTGRES_PASSWORD: ladle
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ladle -d ladle"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    volumes:
+      - ladle-postgres:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    volumes:
+      - ladle-redis:/data
+
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ladle-local
+      MINIO_ROOT_PASSWORD: ladle-local-secret
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    volumes:
+      - ladle-minio:/data
+
+  migrate:
+    build: .
+    command: ["uv", "run", "alembic", "upgrade", "head"]
+    environment: &ladle-environment
+      LADLE_ENVIRONMENT: development
+      LADLE_JWT_SIGNING_SECRET: change-me-development-only
+      LADLE_DATA_ENCRYPTION_KEY: change-me-development-only
+      LADLE_DATABASE_URL: postgresql+psycopg://ladle:ladle@postgres:5432/ladle
+      LADLE_CELERY_ENABLED: "true"
+      LADLE_CELERY_BROKER_URL: redis://redis:6379/0
+      LADLE_CELERY_RESULT_BACKEND: redis://redis:6379/1
+      LADLE_WORKER_PROVIDER_MODE: fake
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build: .
+    environment: *ladle-environment
+    ports:
+      - "127.0.0.1:4111:4111"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  worker:
+    build: .
+    command:
+      [
+        "uv",
+        "run",
+        "celery",
+        "-A",
+        "ladle.worker.app:celery_app",
+        "worker",
+        "--loglevel=INFO",
+        "--concurrency=2",
+      ]
+    environment: *ladle-environment
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+volumes:
+  ladle-minio:
+  ladle-postgres:
+  ladle-redis:
