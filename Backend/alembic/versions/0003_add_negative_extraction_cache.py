@@ -37,9 +37,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(
             ["source_video_id"],
             ["source_videos.id"],
-            name=op.f(
-                "fk_negative_extraction_cache_source_video_id_source_videos"
-            ),
+            name=op.f("fk_negative_extraction_cache_source_video_id_source_videos"),
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint(

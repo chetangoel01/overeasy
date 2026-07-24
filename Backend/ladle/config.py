@@ -66,6 +66,17 @@ class Settings(BaseSettings):
     anthropic_model_id: str = "claude-sonnet-4-6"
     anthropic_max_tokens: int = Field(default=8192, gt=0)
 
+    apple_enabled: bool = False
+    apple_bundle_id: str = "com.ladle.app"
+    apple_team_id: str | None = None
+    apple_key_id: str | None = None
+    apple_private_key: SecretStr | None = None
+    apple_jwks_url: AnyHttpUrl = AnyHttpUrl("https://appleid.apple.com/auth/keys")
+    apple_token_url: AnyHttpUrl = AnyHttpUrl("https://appleid.apple.com/auth/token")
+    apple_timeout_seconds: float = Field(default=10, gt=0)
+    apple_identity_token_maximum_age_minutes: int = Field(default=10, gt=0)
+    apple_clock_skew_seconds: int = Field(default=30, ge=0)
+
     @model_validator(mode="after")
     def reject_unsafe_production_secrets(self) -> Self:
         if self.environment != "production":
@@ -90,4 +101,15 @@ class Settings(BaseSettings):
             )
         ):
             raise ValueError("live production workers require configured provider keys")
+        if self.apple_enabled and any(
+            getattr(self, field_name) is None
+            for field_name in (
+                "apple_team_id",
+                "apple_key_id",
+                "apple_private_key",
+            )
+        ):
+            raise ValueError(
+                "Apple sign-in requires team, key, and private-key configuration"
+            )
         return self

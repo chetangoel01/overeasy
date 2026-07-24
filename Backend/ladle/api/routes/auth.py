@@ -4,8 +4,14 @@ from fastapi import APIRouter, Header, HTTPException, Request, Response, status
 from pydantic import Field
 from sqlalchemy.orm import Session
 
+from ladle.auth.apple import (
+    AppleAuthorizationCodeInvalid,
+    AppleCredentials,
+    AppleIdentityTokenInvalid,
+)
 from ladle.auth.attestation import AttestationRejected, AttestationService
 from ladle.auth.guest import register_guest
+from ladle.auth.merge import AccountMergeInvalid, AccountMergeService
 from ladle.auth.sessions import (
     RefreshTokenInvalid,
     SessionService,
@@ -31,6 +37,13 @@ class GuestAuthRequest(WireModel):
 class RefreshRequest(WireModel):
     refresh_token: str
     device_id: WireUUID
+
+
+class AppleAuthRequest(WireModel):
+    identity_token: str = Field(min_length=1, max_length=16_384)
+    authorization_code: str = Field(min_length=1, max_length=8_192)
+    nonce: str = Field(min_length=1, max_length=512)
+    idempotency_key: str = Field(min_length=1, max_length=255)
 
 
 class AuthTokensResponse(WireModel):
@@ -71,6 +84,17 @@ def _attestation(request: Request) -> AttestationService:
 
 def _access_tokens(request: Request) -> AccessTokenCodec:
     return cast(AccessTokenCodec, request.app.state.access_tokens)
+
+
+def _apple_credentials(request: Request) -> AppleCredentials | None:
+    return cast(
+        AppleCredentials | None,
+        request.app.state.apple_credentials,
+    )
+
+
+def _account_merger(request: Request) -> AccountMergeService:
+    return cast(AccountMergeService, request.app.state.account_merge_service)
 
 
 def access_claims(
@@ -117,6 +141,43 @@ def create_guest(request: Request, body: GuestAuthRequest) -> AuthTokensResponse
             )
     except AttestationRejected as error:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN) from error
+    return AuthTokensResponse.from_tokens(tokens)
+
+
+@router.post("/apple", response_model=AuthTokensResponse)
+def sign_in_with_apple(
+    request: Request,
+    body: AppleAuthRequest,
+    authorization: Annotated[str | None, Header()] = None,
+) -> AuthTokensResponse:
+    claims = access_claims(request, authorization)
+    credentials = _apple_credentials(request)
+    if credentials is None:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
+    try:
+        credential = credentials.verify(
+            identity_token=body.identity_token,
+            authorization_code=body.authorization_code,
+            nonce=body.nonce,
+        )
+    except (AppleIdentityTokenInvalid, AppleAuthorizationCodeInvalid) as error:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED) from error
+
+    try:
+        with _database(request) as database, database.begin():
+            destination_id = _account_merger(request).merge(
+                database,
+                guest_user_id=claims.user_id,
+                apple_subject=credential.subject,
+                idempotency_key=body.idempotency_key,
+            )
+            tokens = _sessions(request).create(
+                database,
+                user_id=destination_id,
+                device_id=claims.device_id,
+            )
+    except AccountMergeInvalid as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT) from error
     return AuthTokensResponse.from_tokens(tokens)
 
 
