@@ -1,3 +1,4 @@
+from decimal import Decimal
 from uuid import UUID
 
 from pydantic import Field, model_validator
@@ -47,6 +48,29 @@ class VisualEvidence(WireModel):
     timestamp_seconds: float = Field(ge=0)
     provenance: str = Field(min_length=1)
     confidence: float | None = Field(default=None, ge=0, le=1)
+
+
+class MediaMetadata(WireModel):
+    title: str | None = None
+    description: str = Field(max_length=50_000)
+    creator_name: str | None = None
+    thumbnail_url: str | None = None
+    duration_seconds: float | None = Field(default=None, ge=0)
+    billed_units: Decimal = Field(default=Decimal(0), ge=0)
+
+
+class TranscriptResult(WireModel):
+    segments: list[TextEvidence]
+    language: str | None = None
+    available_languages: list[str] = Field(default_factory=list)
+    billed_units: Decimal = Field(default=Decimal(0), ge=0)
+    external_job_id: str | None = None
+
+
+class VisualResult(WireModel):
+    observations: list[VisualEvidence]
+    billed_units: Decimal = Field(default=Decimal(0), ge=0)
+    external_job_id: str
 
 
 class AcquiredVideoContext(WireModel):

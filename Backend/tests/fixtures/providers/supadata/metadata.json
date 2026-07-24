@@ -1,0 +1,28 @@
+{
+  "platform": "youtube",
+  "type": "video",
+  "id": "recipe-video",
+  "url": "https://www.youtube.com/watch?v=recipe-video",
+  "title": "One-Pot Lemon Orzo",
+  "description": "Creamy lemon orzo with spinach.",
+  "author": {
+    "displayName": "Ladle Kitchen",
+    "username": "ladlekitchen",
+    "avatarUrl": "https://images.example/avatar.jpg",
+    "verified": true
+  },
+  "stats": {
+    "likes": 10,
+    "comments": 2,
+    "shares": 1,
+    "views": 100
+  },
+  "media": {
+    "type": "video",
+    "duration": 45,
+    "thumbnailUrl": "https://images.example/recipe.jpg"
+  },
+  "tags": ["recipe", "orzo"],
+  "createdAt": "2026-07-01T12:00:00Z",
+  "additionalData": {}
+}

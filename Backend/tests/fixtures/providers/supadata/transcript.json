@@ -1,0 +1,18 @@
+{
+  "content": [
+    {
+      "text": "Add the orzo and stock.",
+      "offset": 1000,
+      "duration": 2500,
+      "lang": "en"
+    },
+    {
+      "text": "Simmer for ten minutes.",
+      "offset": 3500,
+      "duration": 2500,
+      "lang": "en"
+    }
+  ],
+  "lang": "en",
+  "availableLangs": ["en"]
+}

@@ -1,0 +1,17 @@
+{
+  "status": "completed",
+  "data": {
+    "observations": [
+      {
+        "timestampSeconds": 4.5,
+        "text": "2 cups orzo",
+        "confidence": 0.94
+      },
+      {
+        "timestampSeconds": 8.0,
+        "text": "4 cups vegetable stock",
+        "confidence": 0.91
+      }
+    ]
+  }
+}

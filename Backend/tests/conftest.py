@@ -9,7 +9,11 @@ from testcontainers.postgres import PostgresContainer
 @pytest.fixture(autouse=True)
 def isolate_ladle_environment(
     monkeypatch: pytest.MonkeyPatch,
+    request: pytest.FixtureRequest,
 ) -> Iterator[None]:
+    if request.node.get_closest_marker("live_provider") is not None:
+        yield
+        return
     for name in tuple(key for key in os.environ if key.startswith("LADLE_")):
         monkeypatch.delenv(name, raising=False)
     yield
