@@ -25,11 +25,13 @@ Copy is short, concrete, and never exclamatory. One signature metaphor
 
 ## Visual direction
 
-Native-first SwiftUI. SF Pro everywhere; display type gets its identity from
-the expanded width axis and bold weight, not from a serif or a display
-typeface. Warm paper background, near-black ink, paprika accent used for
-primary actions and live state only, never for decorative labels. No tracked
-uppercase eyebrow labels; hierarchy comes from size, weight, and width.
+Native-first SwiftUI using the approved Muted Corner Store system. SF Rounded
+carries screen titles, recipe names, and short section headings. SF Pro carries
+body copy, controls, ingredients, metadata, and cooking instructions. Warm
+paper and oat browsing surfaces use smoky plum, dusty brick, soft celery, and
+muted ube for deliberate action and state roles. Focus cooking uses a
+high-contrast plum ground. No tracked uppercase eyebrow labels; hierarchy comes
+from size, weight, color, and spacing.
 
 ## Anti-references
 

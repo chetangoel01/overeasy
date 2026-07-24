@@ -12,10 +12,13 @@ The first implementation is a complete native vertical slice. Every supplied v1 
 - Platform: native iPhone app in Swift and SwiftUI
 - SDK and minimum deployment target: iOS 26.5
 - Language mode: Swift 6 with strict concurrency
-- Visual source of truth: `Recipe app design v1 screens.zip`
-- Visual direction: warm paper, near-black ink, paprika accent, generous spacing, system controls, and system serif typography for editorial titles
-- Default library presentation: imagery-forward grid with an accessible grid/list switch
-- Recipe detail presentation: contained editorial treatment
+- Visual source of truth: `DESIGN.md` and the approved 49-view screen atlas
+- Visual direction: Muted Corner Store with paper and oat browsing surfaces,
+  rounded display titles, restrained state color, and a plum Focus Mode
+- Default library presentation: useful Home re-entry plus a separate dense
+  All Recipes archive with an accessible grid/list switch
+- Recipe detail presentation: compact imagery, Ingredients and Method tabs,
+  and secondary actions in a sheet
 - No paid subscription or post-v1 features
 
 ## Targets and code organization
@@ -139,16 +142,13 @@ The welcome sheet appears over a softened library background. Sign in with Apple
 
 ### Library
 
-The library is the root view. It contains:
+The library is the root view. Home provides an Import Inbox entry, Watch,
+recent saves, and useful generated groups. All Recipes is a separate dense
+archive with sort, macro filters, removable active limits, and an accessible
+grid/list switch. Search appears as a dedicated destination when requested.
 
-- title, counts, and Add button;
-- native searchable behavior styled to match the edited screens;
-- compact sort and filter controls;
-- pending import cards above saved recipes;
-- grid by default and an optional list presentation;
-- favorites and concise time and estimated-calorie metadata.
-
-Search and filters compose predictably. Active limits remain visible and can be removed individually.
+Search and filters compose predictably. Active limits remain visible and can
+be removed individually.
 
 ### Add and import recovery
 
@@ -158,7 +158,10 @@ Failed imports open the supplied recovery sheet: retry, correction notes, paste 
 
 ### Recipe detail
 
-The contained image leads into title, attribution, source, stats, and the primary Start Cooking action. Ingredients and method follow. Edit, re-import, detailed nutrition, original video, and favorite are secondary actions.
+A compact image leads into title, source, and stats. Ingredients and Method
+switch in place beneath a native tab control. Start Cooking remains primary.
+Edit, re-import, detailed nutrition, original video, and favorite are secondary
+actions in a quiet options sheet.
 
 Uncertain fields are visibly marked without making the entire page look broken. Nutrition consistently uses `≈` and an estimated explanation.
 
@@ -172,7 +175,10 @@ Re-import creates a candidate version and accepts correction notes. The existing
 
 Full Recipe mode provides ingredients, method, checkable items, large text, tappable timers, a keep-awake toggle, and entry to Focus Mode.
 
-Focus Mode shows one large step, progress, only the relevant ingredients, optional timers, and previous/next controls. Swipe and tap navigation share the same progress model. Moving between modes preserves the current step and completed items.
+Focus Mode uses a smoky-plum surface and shows one large step, progress, only
+the relevant ingredients, optional timers, and a clear next action. Swipe and
+tap navigation share the same progress model. Moving between modes preserves
+the current step and completed items.
 
 Keep-awake behavior is active only while explicitly enabled and a cooking view is onscreen.
 
