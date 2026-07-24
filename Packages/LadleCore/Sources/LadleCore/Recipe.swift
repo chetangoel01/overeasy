@@ -111,6 +111,7 @@ public struct Recipe: Codable, Hashable, Identifiable, Sendable {
     public var isFavorite: Bool
     public var reviewStatus: RecipeReviewStatus
     public var uncertainties: [FieldUncertainty]
+    public var lastCookedAt: Date?
     public let createdAt: Date
     public var updatedAt: Date
 
@@ -132,6 +133,7 @@ public struct Recipe: Codable, Hashable, Identifiable, Sendable {
         isFavorite: Bool = false,
         reviewStatus: RecipeReviewStatus = .ready,
         uncertainties: [FieldUncertainty] = [],
+        lastCookedAt: Date? = nil,
         createdAt: Date = .now,
         updatedAt: Date = .now
     ) {
@@ -152,6 +154,7 @@ public struct Recipe: Codable, Hashable, Identifiable, Sendable {
         self.isFavorite = isFavorite
         self.reviewStatus = reviewStatus
         self.uncertainties = uncertainties
+        self.lastCookedAt = lastCookedAt
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }

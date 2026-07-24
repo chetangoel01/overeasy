@@ -68,4 +68,21 @@ struct RecipeModelTests {
         #expect(uncertainty.field == "ingredients[1].quantity")
         #expect(uncertainty.confidence == 0.42)
     }
+
+    @Test
+    func cookingHistoryIsOptionalAndMutable() {
+        let cookedAt = Date(timeIntervalSince1970: 500)
+        var recipe = Recipe(
+            title: "Lemon Orzo",
+            source: .instagram,
+            originalURL: URL(string: "https://example.com/orzo")!,
+            servings: 4
+        )
+
+        #expect(recipe.lastCookedAt == nil)
+
+        recipe.lastCookedAt = cookedAt
+
+        #expect(recipe.lastCookedAt == cookedAt)
+    }
 }

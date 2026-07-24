@@ -46,6 +46,6 @@ notification, accessibility, and Share Extension behavior.
 
 ## Verification record
 
-Update this section after each checkpoint with the tests, build, and simulator
-captures used to verify the migrated behavior.
-
+- Domain checkpoint: 28 LadleCore tests pass. Coverage includes ingredient
+  search, composable per-serving macro filters, highest-protein sorting, and
+  optional cooking history.
