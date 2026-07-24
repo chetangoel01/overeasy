@@ -20,6 +20,9 @@ targets:
   Ladle:
     type: application
     platform: iOS
+    configFiles:
+      Debug: Config/Debug.xcconfig
+      Release: Config/Release.xcconfig
     sources:
       - path: Ladle
     resources:

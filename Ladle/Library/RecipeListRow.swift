@@ -61,28 +61,18 @@ struct RecipeListRow: View {
 
     @ViewBuilder
     private var recipeImage: some View {
-        if let imageName = recipe.images.first?.localName {
-            Image(imageName)
-                .resizable()
-                .scaledToFill()
-                .frame(width: 96, height: 96)
-                .clipShape(
-                    RoundedRectangle(
-                        cornerRadius: 12,
-                        style: .continuous
-                    )
-                )
-                .clipped()
-                .accessibilityHidden(true)
-        } else {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(LadleTheme.field)
-                .frame(width: 96, height: 96)
-                .overlay {
-                    Image(systemName: "fork.knife")
-                        .foregroundStyle(LadleTheme.paprika)
-                }
-                .accessibilityHidden(true)
-        }
+        RecipeArtworkView(
+            recipeID: recipe.id,
+            image: recipe.images.first
+        )
+        .frame(width: 96, height: 96)
+        .clipShape(
+            RoundedRectangle(
+                cornerRadius: 12,
+                style: .continuous
+            )
+        )
+        .clipped()
+        .accessibilityHidden(true)
     }
 }

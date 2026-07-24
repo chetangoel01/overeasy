@@ -1,0 +1,136 @@
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
+from uuid import UUID, uuid4
+
+import pytest
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from alembic import command
+from ladle.db.models import (
+    ImportJob,
+    RecipeSlotReservation,
+    SourceVideo,
+)
+from ladle.db.session import build_engine
+from ladle.imports.maintenance import ImportMaintenanceService
+from tests.integration.recipes.test_recipe_service import seed_user
+from tests.integration.test_migrations import alembic_config
+
+
+@dataclass
+class FrozenClock:
+    value: datetime
+
+    def now(self) -> datetime:
+        return self.value
+
+
+def seed_reserved_job(
+    database: Session,
+    *,
+    source_id: UUID,
+    status: str,
+    suffix: str,
+    updated_at: datetime,
+) -> UUID:
+    user_id = seed_user(database)
+    job_id = uuid4()
+    database.add(
+        ImportJob(
+            id=job_id,
+            user_id=user_id,
+            source_video_id=source_id,
+            source_url="https://youtu.be/maintenance",
+            canonical_url="https://www.youtube.com/watch?v=maintenance",
+            source="youtube",
+            status=status,
+            stage=status,
+            failure_reason="parserUnavailable" if status == "failed" else None,
+            retry_count=0,
+            bypass_cache=False,
+            idempotency_key=f"maintenance-{suffix}",
+            updated_at=updated_at,
+        )
+    )
+    database.add(
+        RecipeSlotReservation(
+            id=uuid4(),
+            user_id=user_id,
+            import_job_id=job_id,
+            state="reserved",
+            created_at=updated_at,
+            expires_at=updated_at + timedelta(minutes=30),
+        )
+    )
+    database.flush()
+    return job_id
+
+
+@pytest.mark.integration
+def test_expired_slots_release_only_for_terminal_or_irrecoverably_stale_jobs(
+    clean_postgres_url: str,
+) -> None:
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    engine = build_engine(clean_postgres_url)
+    clock = FrozenClock(datetime(2026, 7, 23, 21, 0, tzinfo=UTC))
+    with Session(engine) as database, database.begin():
+        source_id = uuid4()
+        database.add(
+            SourceVideo(
+                id=source_id,
+                platform="youtube",
+                platform_video_id="maintenance",
+                canonical_url="https://www.youtube.com/watch?v=maintenance",
+                source_revision="1",
+                source_metadata={},
+            )
+        )
+        database.flush()
+        terminal = seed_reserved_job(
+            database,
+            source_id=source_id,
+            status="failed",
+            suffix="terminal",
+            updated_at=clock.now() - timedelta(hours=2),
+        )
+        stale = seed_reserved_job(
+            database,
+            source_id=source_id,
+            status="parsing",
+            suffix="stale",
+            updated_at=clock.now() - timedelta(hours=2),
+        )
+        fresh = seed_reserved_job(
+            database,
+            source_id=source_id,
+            status="parsing",
+            suffix="fresh",
+            updated_at=clock.now() - timedelta(minutes=31),
+        )
+
+    with Session(engine) as database, database.begin():
+        released = ImportMaintenanceService(
+            clock=clock,
+            stale_after=timedelta(hours=1),
+        ).release_expired_reservations(database)
+    assert released == 2
+
+    with Session(engine) as database:
+        states = dict(
+            database.execute(
+                select(
+                    RecipeSlotReservation.import_job_id,
+                    RecipeSlotReservation.state,
+                )
+            ).all()
+        )
+        assert states[terminal] == "released"
+        assert states[stale] == "released"
+        assert states[fresh] == "reserved"
+        stale_job = database.get(ImportJob, stale)
+        assert stale_job is not None
+        assert stale_job.status == "failed"
+        assert stale_job.failure_reason == "networkUnavailable"
+
+    engine.dispose()

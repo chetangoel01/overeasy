@@ -171,6 +171,31 @@ public struct ImportJob: Codable, Hashable, Identifiable, Sendable {
         return copy
     }
 
+    public func completingRemoteReimport(
+        as nextStatus: ImportStatus,
+        recipeID: UUID,
+        at date: Date = .now
+    ) throws -> Self {
+        guard currentRecipeID != nil,
+              nextStatus == .ready || nextStatus == .needsReview else {
+            throw ImportTransitionError.invalid(
+                from: status,
+                to: nextStatus
+            )
+        }
+        var copy = try transitioning(to: nextStatus, at: date)
+        switch nextStatus {
+        case .ready:
+            copy.currentRecipeID = recipeID
+            copy.candidateRecipeID = nil
+        case .needsReview:
+            copy.candidateRecipeID = recipeID
+        case .parsing, .failed:
+            break
+        }
+        return copy
+    }
+
     private static func allowsTransition(
         from current: ImportStatus,
         to next: ImportStatus

@@ -1,0 +1,61 @@
+[project]
+name = "ladle-backend"
+version = "0.1.0"
+description = "Production API and worker runtime for Ladle."
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "alembic>=1.16,<2",
+    "anthropic>=0.117,<0.118",
+    "boto3>=1.40,<2",
+    "celery[redis]>=5.6.3,<5.7",
+    "fastapi>=0.116,<1",
+    "httpx>=0.28,<1",
+    "pydantic>=2.11,<3",
+    "pydantic-settings>=2.10,<3",
+    "psycopg[binary]>=3.2,<4",
+    "pyjwt[crypto]>=2.10,<3",
+    "redis>=6.4,<7",
+    "sqlalchemy>=2.0.41,<2.1",
+    "uvicorn[standard]>=0.35,<1",
+]
+
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "minio>=7.2,<8",
+    "mypy>=1.17,<2",
+    "pytest>=8.4,<9",
+    "pytest-cov>=6.2,<7",
+    "ruff>=0.12,<1",
+    "testcontainers[postgres]>=4.10,<5",
+]
+
+[tool.pytest.ini_options]
+addopts = "--strict-markers"
+testpaths = ["tests"]
+markers = [
+    "integration: exercises real infrastructure and may be slower",
+    "live_provider: calls an explicitly configured live external provider",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["ladle"]
+
+[[tool.mypy.overrides]]
+module = ["boto3.*", "botocore.*", "celery.*", "redis.*"]
+ignore_missing_imports = true

@@ -3,7 +3,15 @@ import LadleCore
 import SwiftData
 
 @MainActor
-final class SwiftDataRecipeRepository: RecipeRepository {
+final class SwiftDataRecipeRepository:
+    RecipeRepository,
+    RecipeSyncRepository
+{
+    private enum PendingMutation: String {
+        case upsert
+        case delete
+    }
+
     private let modelContext: ModelContext
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
@@ -20,6 +28,7 @@ final class SwiftDataRecipeRepository: RecipeRepository {
 
     func fetchRecipes() throws -> [Recipe] {
         let descriptor = FetchDescriptor<StoredRecipe>(
+            predicate: #Predicate { !$0.isDeleted },
             sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
         )
         return try modelContext.fetch(descriptor).map(decodeRecipe)
@@ -27,7 +36,7 @@ final class SwiftDataRecipeRepository: RecipeRepository {
 
     func fetchRecipe(id: UUID) throws -> Recipe? {
         var descriptor = FetchDescriptor<StoredRecipe>(
-            predicate: #Predicate { $0.id == id }
+            predicate: #Predicate { $0.id == id && !$0.isDeleted }
         )
         descriptor.fetchLimit = 1
         return try modelContext.fetch(descriptor).first.map(decodeRecipe)
@@ -37,15 +46,50 @@ final class SwiftDataRecipeRepository: RecipeRepository {
         let payload = try encoder.encode(recipe)
         if let stored = try storedRecipe(id: recipe.id) {
             apply(recipe, payload: payload, to: stored)
+            stored.isDeleted = false
+            stored.pendingMutationKey = PendingMutation.upsert.rawValue
         } else {
-            modelContext.insert(makeStoredRecipe(recipe, payload: payload))
+            modelContext.insert(
+                makeStoredRecipe(
+                    recipe,
+                    payload: payload,
+                    pendingMutation: .upsert
+                )
+            )
+        }
+        try modelContext.save()
+    }
+
+    func saveRemote(_ recipe: Recipe, revision: Int) throws {
+        let payload = try encoder.encode(recipe)
+        if let stored = try storedRecipe(id: recipe.id) {
+            apply(recipe, payload: payload, to: stored)
+            stored.serverRevision = revision
+            stored.pendingMutationKey = nil
+            stored.isDeleted = false
+            stored.conflictRemotePayload = nil
+            stored.conflictRemoteRevision = nil
+        } else {
+            modelContext.insert(
+                makeStoredRecipe(
+                    recipe,
+                    payload: payload,
+                    serverRevision: revision
+                )
+            )
         }
         try modelContext.save()
     }
 
     func deleteRecipe(id: UUID) throws {
         if let stored = try storedRecipe(id: id) {
-            modelContext.delete(stored)
+            if stored.serverRevision == 0 {
+                modelContext.delete(stored)
+            } else {
+                stored.isDeleted = true
+                stored.pendingMutationKey = PendingMutation.delete.rawValue
+                stored.updatedAt = .now
+            }
             try modelContext.save()
         }
     }
@@ -67,6 +111,13 @@ final class SwiftDataRecipeRepository: RecipeRepository {
             )
         }
         try modelContext.save()
+    }
+
+    func deleteImportJob(id: UUID) throws {
+        if let stored = try storedImportJob(id: id) {
+            modelContext.delete(stored)
+            try modelContext.save()
+        }
     }
 
     func replaceRecipe(
@@ -125,7 +176,9 @@ final class SwiftDataRecipeRepository: RecipeRepository {
         }
 
         for (recipe, payload) in encodedRecipes {
-            modelContext.insert(makeStoredRecipe(recipe, payload: payload))
+            modelContext.insert(
+                makeStoredRecipe(recipe, payload: payload)
+            )
         }
         for (job, payload) in encodedJobs {
             modelContext.insert(makeStoredImportJob(job, payload: payload))
@@ -151,7 +204,9 @@ final class SwiftDataRecipeRepository: RecipeRepository {
 
     private func makeStoredRecipe(
         _ recipe: Recipe,
-        payload: Data
+        payload: Data,
+        serverRevision: Int = 0,
+        pendingMutation: PendingMutation? = nil
     ) -> StoredRecipe {
         StoredRecipe(
             id: recipe.id,
@@ -164,7 +219,9 @@ final class SwiftDataRecipeRepository: RecipeRepository {
             isFavorite: recipe.isFavorite,
             createdAt: recipe.createdAt,
             updatedAt: recipe.updatedAt,
-            payload: payload
+            payload: payload,
+            serverRevision: serverRevision,
+            pendingMutationKey: pendingMutation?.rawValue
         )
     }
 
@@ -183,6 +240,122 @@ final class SwiftDataRecipeRepository: RecipeRepository {
         stored.createdAt = recipe.createdAt
         stored.updatedAt = recipe.updatedAt
         stored.payload = payload
+    }
+
+    func pendingRecipeMutations() throws -> [PendingRecipeMutation] {
+        let descriptor = FetchDescriptor<StoredRecipe>(
+            sortBy: [SortDescriptor(\.updatedAt)]
+        )
+        return try modelContext.fetch(descriptor).compactMap { stored in
+            switch stored.pendingMutationKey.flatMap(
+                PendingMutation.init(rawValue:)
+            ) {
+            case .upsert:
+                return .upsert(
+                    recipe: try decodeRecipe(stored),
+                    baseRevision: stored.serverRevision
+                )
+            case .delete:
+                return .delete(
+                    recipeID: stored.id,
+                    baseRevision: stored.serverRevision
+                )
+            case nil:
+                return nil
+            }
+        }
+    }
+
+    func markUpsertSynced(_ remoteRecipe: RemoteRecipeDTO) throws {
+        try saveRemote(
+            remoteRecipe.recipe(),
+            revision: remoteRecipe.revision
+        )
+    }
+
+    func markDeleteSynced(recipeID: UUID) throws {
+        if let stored = try storedRecipe(id: recipeID) {
+            modelContext.delete(stored)
+            try modelContext.save()
+        }
+    }
+
+    func preserveConflict(
+        localRecipe: Recipe,
+        remoteRecipe: RemoteRecipeDTO,
+        remoteRevision: Int
+    ) throws {
+        guard let stored = try storedRecipe(id: localRecipe.id) else {
+            return
+        }
+        stored.conflictRemotePayload = try encoder.encode(
+            remoteRecipe.recipe()
+        )
+        stored.conflictRemoteRevision = remoteRevision
+        try modelContext.save()
+    }
+
+    func syncConflict(
+        recipeID: UUID
+    ) throws -> (recipe: Recipe, revision: Int)? {
+        guard
+            let stored = try storedRecipe(id: recipeID),
+            let payload = stored.conflictRemotePayload,
+            let revision = stored.conflictRemoteRevision
+        else {
+            return nil
+        }
+        return (
+            recipe: try decoder.decode(Recipe.self, from: payload),
+            revision: revision
+        )
+    }
+
+    func applySyncPage(_ page: RemoteSyncPageDTO) throws {
+        for change in page.changes {
+            let stored = try storedRecipe(id: change.recipeID)
+            if let stored, stored.pendingMutationKey != nil {
+                if let remote = change.recipe {
+                    stored.conflictRemotePayload = try encoder.encode(
+                        remote.recipe()
+                    )
+                }
+                stored.conflictRemoteRevision = change.recipeRevision
+                continue
+            }
+            if let stored,
+               change.recipeRevision <= stored.serverRevision {
+                continue
+            }
+            switch change.kind {
+            case .upsert:
+                guard let remote = change.recipe else {
+                    throw RemoteContractError.invalidImportStatus
+                }
+                let recipe = try remote.recipe()
+                let payload = try encoder.encode(recipe)
+                if let stored {
+                    apply(recipe, payload: payload, to: stored)
+                    stored.serverRevision = remote.revision
+                    stored.isDeleted = false
+                    stored.conflictRemotePayload = nil
+                    stored.conflictRemoteRevision = nil
+                } else {
+                    modelContext.insert(
+                        makeStoredRecipe(
+                            recipe,
+                            payload: payload,
+                            serverRevision: remote.revision
+                        )
+                    )
+                }
+            case .delete:
+                if let stored {
+                    modelContext.delete(stored)
+                }
+            }
+        }
+        try modelContext.save()
     }
 
     private func decodeRecipe(_ stored: StoredRecipe) throws -> Recipe {

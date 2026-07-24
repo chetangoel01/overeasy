@@ -17,6 +17,7 @@ struct RecipeDetailView: View {
     let makeEditorViewModel: (Recipe) -> RecipeEditorViewModel
     let recipeDidChange: (Recipe) -> Void
     let toggleFavorite: (UUID) -> Void
+    let deleteRecipe: (UUID) -> Bool
 
     @State private var displayedRecipe: Recipe
     @State private var isFavorite: Bool
@@ -27,6 +28,7 @@ struct RecipeDetailView: View {
     @State private var cookingViewModel: CookingViewModel?
     @State private var section: RecipeDetailSection = .ingredients
     @State private var pendingOption: RecipeOption?
+    @State private var isDeleteConfirmationPresented = false
 
     init(
         recipe: Recipe,
@@ -34,13 +36,15 @@ struct RecipeDetailView: View {
         importCoordinator: ImportCoordinator,
         makeEditorViewModel: @escaping (Recipe) -> RecipeEditorViewModel,
         recipeDidChange: @escaping (Recipe) -> Void,
-        toggleFavorite: @escaping (UUID) -> Void
+        toggleFavorite: @escaping (UUID) -> Void,
+        deleteRecipe: @escaping (UUID) -> Bool = { _ in false }
     ) {
         self.statusText = statusText
         self.importCoordinator = importCoordinator
         self.makeEditorViewModel = makeEditorViewModel
         self.recipeDidChange = recipeDidChange
         self.toggleFavorite = toggleFavorite
+        self.deleteRecipe = deleteRecipe
         _displayedRecipe = State(initialValue: recipe)
         _isFavorite = State(initialValue: recipe.isFavorite)
     }
@@ -143,38 +147,38 @@ struct RecipeDetailView: View {
         ) { viewModel in
             FullRecipeView(viewModel: viewModel)
         }
+        .confirmationDialog(
+            "Delete this recipe?",
+            isPresented: $isDeleteConfirmationPresented,
+            titleVisibility: .visible
+        ) {
+            Button("Delete Recipe", role: .destructive) {
+                if deleteRecipe(displayedRecipe.id) {
+                    dismiss()
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("It will be removed from your synced Ladle library.")
+        }
     }
 
     @ViewBuilder
     private var heroImage: some View {
-        if let imageName = displayedRecipe.images.first?.localName {
-            Image(imageName)
-                .resizable()
-                .scaledToFill()
-                .frame(height: 322)
-                .frame(maxWidth: .infinity)
-                .clipShape(
-                    RoundedRectangle(
-                        cornerRadius: LadleTheme.Corner.card,
-                        style: .continuous
-                    )
-                )
-                .clipped()
-                .accessibilityLabel("Recipe photo")
-        } else {
+        RecipeArtworkView(
+            recipeID: displayedRecipe.id,
+            image: displayedRecipe.images.first
+        )
+        .frame(height: 322)
+        .frame(maxWidth: .infinity)
+        .clipShape(
             RoundedRectangle(
                 cornerRadius: LadleTheme.Corner.card,
                 style: .continuous
             )
-            .fill(LadleTheme.field)
-            .frame(height: 260)
-            .overlay {
-                Image(systemName: "fork.knife")
-                    .font(.system(size: 30))
-                    .foregroundStyle(LadleTheme.paprika)
-            }
-            .accessibilityLabel("Recipe photo unavailable")
-        }
+        )
+        .clipped()
+        .accessibilityLabel("Recipe photo")
     }
 
     private var recipeHeader: some View {
@@ -297,6 +301,7 @@ struct RecipeDetailView: View {
             options.append(.nutrition)
         }
         options.append(.source)
+        options.append(.delete)
         return options
     }
 
@@ -314,6 +319,8 @@ struct RecipeDetailView: View {
             isNutritionPresented = true
         case .source:
             openURL(displayedRecipe.originalURL)
+        case .delete:
+            isDeleteConfirmationPresented = true
         }
     }
 }

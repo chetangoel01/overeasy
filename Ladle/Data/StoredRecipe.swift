@@ -12,6 +12,11 @@ final class StoredRecipe {
     var createdAt: Date
     var updatedAt: Date
     var payload: Data
+    var serverRevision: Int = 0
+    var pendingMutationKey: String?
+    var isDeleted: Bool = false
+    var conflictRemotePayload: Data?
+    var conflictRemoteRevision: Int?
 
     init(
         id: UUID,
@@ -22,7 +27,12 @@ final class StoredRecipe {
         isFavorite: Bool,
         createdAt: Date,
         updatedAt: Date,
-        payload: Data
+        payload: Data,
+        serverRevision: Int = 0,
+        pendingMutationKey: String? = nil,
+        isDeleted: Bool = false,
+        conflictRemotePayload: Data? = nil,
+        conflictRemoteRevision: Int? = nil
     ) {
         self.id = id
         self.title = title
@@ -33,5 +43,10 @@ final class StoredRecipe {
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.payload = payload
+        self.serverRevision = serverRevision
+        self.pendingMutationKey = pendingMutationKey
+        self.isDeleted = isDeleted
+        self.conflictRemotePayload = conflictRemotePayload
+        self.conflictRemoteRevision = conflictRemoteRevision
     }
 }

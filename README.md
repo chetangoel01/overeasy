@@ -26,13 +26,16 @@ a separate `LadleCore` domain package.
 
 ## Current product boundary
 
-This repository is a polished native v1 prototype. `DemoImportService`
-provides deterministic import outcomes and recipe fixtures; it does not fetch
-or parse live social-video content. Account actions model local product states
-and are not connected to a production authentication backend.
+The native app is connected to the FastAPI backend through real guest
+authentication, Sign in with Apple, remote import polling, and offline-first
+recipe synchronization. The production worker includes Supadata and
+SoScripted acquisition plus Claude structured extraction. Live providers and
+Apple remain disabled until deployment credentials are supplied.
 
-The Share Extension queue, SwiftData persistence, notification scheduling,
-and HealthKit export paths use native platform APIs.
+`DemoImportService` remains available only through explicit demo/test
+injection. Local Docker Compose uses fake server-side providers while still
+exercising the API, worker queue, PostgreSQL, shared extraction cache, and
+object storage.
 
 ## Project layout
 
@@ -54,6 +57,14 @@ Packages/LadleCore/     Domain models, querying, cooking, and shared queue
 LadleTests/             App and persistence tests
 LadleUITests/           End-to-end and visual verification flows
 Config/                 Plists and entitlements
+Backend/                FastAPI API, Celery worker, PostgreSQL schema
+  ladle/api/            HTTP composition, routes, errors, health
+  ladle/contracts/      Strict JSON wire DTOs
+  ladle/db/             SQLAlchemy models and sessions
+  ladle/acquisition/    Supadata and SoScripted adapters
+  ladle/extraction/     Claude structured recipe extraction
+  alembic/              Versioned PostgreSQL migrations
+  docs/                 Backend integration and schema reference
 docs/plans/             Product design and implementation plans
 docs/verification/      Verification records
 project.yml             XcodeGen project definition
@@ -91,6 +102,24 @@ Production-device HealthKit, notification, and App Group behavior requires
 the corresponding signing capabilities configured for your team. The app and
 extension currently share `group.com.ladle.ios`.
 
+## Run the backend
+
+```bash
+cd Backend
+docker compose up -d --build
+curl --fail http://127.0.0.1:4111/health/ready
+```
+
+The iOS Debug configuration expects `http://api.ladle.localhost`; route that
+hostname to port 4111 with Caddy or point `Config/Debug.xcconfig` directly at
+the local port.
+
+See the
+[backend integration reference](Backend/docs/integration-reference.md) for
+the complete path map, HTTP API and payload examples, provider configuration,
+iOS connection steps, PostgreSQL relationships, table definitions, migration
+commands, and troubleshooting.
+
 ## Test
 
 Run the domain package:
@@ -121,10 +150,11 @@ The UI suite uses these deterministic launch arguments:
 - `-reset-onboarding` presents the welcome experience.
 - `-reset-library-preferences` restores grid display.
 
-## Deterministic demo imports
+## Deterministic demo and test imports
 
-The importer accepts HTTP(S) links from TikTok, Instagram, YouTube, and
-`youtu.be`. Its deterministic path tokens make recovery states reproducible:
+The explicitly injected `DemoImportService` accepts HTTP(S) links from TikTok,
+Instagram, YouTube, and `youtu.be`. Its deterministic path tokens make
+recovery states reproducible:
 
 - Ordinary supported links return a ready recipe.
 - `slow` introduces the parsing delay used by the background-card flow.
@@ -136,9 +166,9 @@ The importer accepts HTTP(S) links from TikTok, Instagram, YouTube, and
 - Correction notes containing `simulate failure` exercise safe re-import
   failure; other correction notes produce a ready candidate.
 
-No production extraction or authentication endpoints are configured. Live
-social parsing, media retrieval, and account services remain deferred backend
-integrations.
+These tokens apply only to the demo service. The normal app composition uses
+the remote backend; local Compose selects deterministic fake providers through
+server configuration.
 
 ## Product and verification notes
 
@@ -154,3 +184,7 @@ integrations.
 
 See [the Ladle v1 verification record](docs/verification/2026-07-23-ladle-v1.md)
 for the command results and screen-by-screen visual review.
+
+See the
+[production backend verification record](docs/verification/2026-07-23-ladle-backend.md)
+for API, infrastructure, cache, sync, and acceptance-test evidence.

@@ -1,7 +1,11 @@
 import Foundation
 import LadleCore
 
-struct DemoImportService: ImportService {
+actor DemoImportService: ImportService {
+    private enum DemoError: Error {
+        case unknownJob
+    }
+
     private enum DemoRecipeKind {
         case greenCurry
         case ragu
@@ -10,14 +14,59 @@ struct DemoImportService: ImportService {
     }
 
     let slowDelay: Duration
+    private var jobs: [String: ImportJob] = [:]
+    private var updates: [String: ImportServiceUpdate] = [:]
 
     init(slowDelay: Duration = .seconds(3)) {
         self.slowDelay = slowDelay
     }
 
-    func importRecipe(
+    func submit(
+        _ job: ImportJob,
+        allowingDuplicate: Bool
+    ) async throws -> ImportServiceUpdate {
+        let remoteJobID = job.id.uuidString.lowercased()
+        jobs[remoteJobID] = job
+        let update = ImportServiceUpdate(
+            remoteJobID: remoteJobID,
+            progress: try await progress(for: job)
+        )
+        updates[remoteJobID] = update
+        return update
+    }
+
+    func status(
+        remoteJobID: String
+    ) async throws -> ImportServiceUpdate {
+        guard let update = updates[remoteJobID.lowercased()] else {
+            throw DemoError.unknownJob
+        }
+        return update
+    }
+
+    func retry(
+        remoteJobID: String,
+        correctionNotes: String?,
+        pastedRecipeText: String?
+    ) async throws -> ImportServiceUpdate {
+        let key = remoteJobID.lowercased()
+        guard var job = jobs[key] else {
+            throw DemoError.unknownJob
+        }
+        job.correctionNotes = correctionNotes
+        job.pastedRecipeText = pastedRecipeText
+        jobs[key] = job
+        let update = ImportServiceUpdate(
+            remoteJobID: key,
+            progress: try await progress(for: job)
+        )
+        updates[key] = update
+        return update
+    }
+
+    private func progress(
         for job: ImportJob
-    ) async throws -> ImportServiceOutcome {
+    ) async throws -> ImportServiceProgress {
         let slug = job.sourceURL.absoluteString.lowercased()
 
         if slug.contains("slow") {

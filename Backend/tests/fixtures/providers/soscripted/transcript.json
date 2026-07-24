@@ -1,0 +1,18 @@
+{
+  "ok": true,
+  "caption": {
+    "text": "Add two cups of orzo. Simmer for ten minutes.",
+    "segments": [
+      {
+        "start": 0.0,
+        "end": 2.5,
+        "text": "Add two cups of orzo."
+      },
+      {
+        "start": 2.5,
+        "end": 5.0,
+        "text": "Simmer for ten minutes."
+      }
+    ]
+  }
+}

@@ -1,0 +1,47 @@
+[
+  {
+    "createdAt": "2026-07-23T20:20:00.000Z",
+    "failureReason": "parserUnavailable",
+    "jobID": "10000000-0000-4000-8000-000000000010",
+    "recipeID": null,
+    "retryCount": 1,
+    "status": "failed",
+    "updatedAt": "2026-07-23T20:21:00.000Z"
+  },
+  {
+    "createdAt": "2026-07-23T20:20:00.000Z",
+    "failureReason": "privateOrDeleted",
+    "jobID": "10000000-0000-4000-8000-000000000011",
+    "recipeID": null,
+    "retryCount": 0,
+    "status": "failed",
+    "updatedAt": "2026-07-23T20:21:00.000Z"
+  },
+  {
+    "createdAt": "2026-07-23T20:20:00.000Z",
+    "failureReason": "unsupportedSource",
+    "jobID": "10000000-0000-4000-8000-000000000012",
+    "recipeID": null,
+    "retryCount": 0,
+    "status": "failed",
+    "updatedAt": "2026-07-23T20:21:00.000Z"
+  },
+  {
+    "createdAt": "2026-07-23T20:20:00.000Z",
+    "failureReason": "invalidURL",
+    "jobID": "10000000-0000-4000-8000-000000000013",
+    "recipeID": null,
+    "retryCount": 0,
+    "status": "failed",
+    "updatedAt": "2026-07-23T20:21:00.000Z"
+  },
+  {
+    "createdAt": "2026-07-23T20:20:00.000Z",
+    "failureReason": "networkUnavailable",
+    "jobID": "10000000-0000-4000-8000-000000000014",
+    "recipeID": null,
+    "retryCount": 2,
+    "status": "failed",
+    "updatedAt": "2026-07-23T20:21:00.000Z"
+  }
+]

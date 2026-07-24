@@ -36,6 +36,9 @@ final class LibraryViewModel {
     @ObservationIgnored
     private let now: () -> Date
 
+    private let didMutate:
+        @MainActor @Sendable () async -> Void
+
     private(set) var recipes: [Recipe] = []
     private(set) var importJobs: [ImportJob] = []
     private(set) var loadState: LoadState = .idle
@@ -63,11 +66,14 @@ final class LibraryViewModel {
     init(
         repository: RecipeRepository,
         preferenceStore: PreferenceStoring = UserDefaults.standard,
-        now: @escaping () -> Date = Date.init
+        now: @escaping () -> Date = Date.init,
+        didMutate:
+            @escaping @MainActor @Sendable () async -> Void = {}
     ) {
         self.repository = repository
         self.preferenceStore = preferenceStore
         self.now = now
+        self.didMutate = didMutate
         displayMode = preferenceStore
             .string(forKey: PreferenceKey.displayMode)
             .flatMap(LibraryDisplayMode.init(rawValue:))
@@ -200,8 +206,26 @@ final class LibraryViewModel {
                 recipes[index] = recipe
             }
             operationErrorMessage = nil
+            Task {
+                await didMutate()
+            }
         } catch {
             operationErrorMessage = "That favorite couldn’t be updated."
+        }
+    }
+
+    func deleteRecipe(recipeID: UUID) -> Bool {
+        do {
+            try repository.deleteRecipe(id: recipeID)
+            recipes.removeAll { $0.id == recipeID }
+            operationErrorMessage = nil
+            Task {
+                await didMutate()
+            }
+            return true
+        } catch {
+            operationErrorMessage = "That recipe couldn’t be deleted."
+            return false
         }
     }
 
@@ -210,7 +234,8 @@ final class LibraryViewModel {
     ) -> RecipeEditorViewModel {
         RecipeEditorViewModel(
             recipe: recipe,
-            repository: repository
+            repository: repository,
+            didSave: didMutate
         )
     }
 

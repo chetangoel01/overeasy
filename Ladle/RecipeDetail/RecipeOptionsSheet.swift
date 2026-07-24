@@ -5,6 +5,7 @@ enum RecipeOption: Identifiable {
     case reimport
     case nutrition
     case source
+    case delete
 
     var id: Self { self }
 
@@ -14,6 +15,7 @@ enum RecipeOption: Identifiable {
         case .reimport: "Re-import from source"
         case .nutrition: "View nutrition"
         case .source: "Watch original video"
+        case .delete: "Delete recipe"
         }
     }
 
@@ -23,6 +25,7 @@ enum RecipeOption: Identifiable {
         case .reimport: "arrow.triangle.2.circlepath"
         case .nutrition: "chart.bar"
         case .source: "play.rectangle"
+        case .delete: "trash"
         }
     }
 }

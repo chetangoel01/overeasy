@@ -43,7 +43,10 @@ struct LibraryView: View {
             }
             .sheet(
                 isPresented: $isAddSheetPresented,
-                onDismiss: finishPendingNavigation
+                onDismiss: {
+                    viewModel.load()
+                    finishPendingNavigation()
+                }
             ) {
                 AddRecipeSheet(
                     coordinator: importCoordinator,
@@ -149,7 +152,8 @@ struct LibraryView: View {
                 )
                 viewModel.load()
             },
-            toggleFavorite: viewModel.toggleFavorite
+            toggleFavorite: viewModel.toggleFavorite,
+            deleteRecipe: viewModel.deleteRecipe
         )
     }
 

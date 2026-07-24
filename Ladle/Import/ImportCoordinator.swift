@@ -48,6 +48,12 @@ struct ContinuousImportClock: ImportClock {
 @MainActor
 @Observable
 final class ImportCoordinator {
+    private enum RemoteOperation {
+        case submit(allowingDuplicate: Bool)
+        case resume
+        case retry
+    }
+
     private struct Submission {
         let url: URL
         let source: RecipeSource
@@ -73,6 +79,10 @@ final class ImportCoordinator {
     @ObservationIgnored
     private let notificationService: NotificationService
 
+    @ObservationIgnored
+    private let didCompleteRemoteImport:
+        @MainActor @Sendable () async -> Void
+
     private let parsingDelay: Duration
     private var pendingSubmission: Submission?
     private var pendingManualSubmission: ManualSubmission?
@@ -90,7 +100,9 @@ final class ImportCoordinator {
         clock: any ImportClock = ContinuousImportClock(),
         parsingDelay: Duration = .milliseconds(450),
         notificationService: NotificationService =
-            DisabledNotificationService()
+            DisabledNotificationService(),
+        didCompleteRemoteImport:
+            @escaping @MainActor @Sendable () async -> Void = {}
     ) {
         self.repository = repository
         self.service = service
@@ -98,6 +110,7 @@ final class ImportCoordinator {
         self.clock = clock
         self.parsingDelay = parsingDelay
         self.notificationService = notificationService
+        self.didCompleteRemoteImport = didCompleteRemoteImport
     }
 
     var isImporting: Bool {
@@ -176,7 +189,12 @@ final class ImportCoordinator {
             )
             try repository.save(job)
             operation = .importJob(job.id)
-            await process(job)
+            await process(
+                job,
+                operation: .submit(
+                    allowingDuplicate: allowingDuplicate
+                )
+            )
         } catch {
             state = .persistenceFailed
         }
@@ -255,11 +273,7 @@ final class ImportCoordinator {
                 job = try job.transitioning(to: .parsing)
             }
             try repository.save(job)
-            if currentRecipeID != nil {
-                await processReimport(job)
-            } else {
-                await process(job)
-            }
+            await process(job, operation: .retry)
         } catch {
             state = .persistenceFailed
         }
@@ -307,16 +321,25 @@ final class ImportCoordinator {
                 return
             }
 
-            var job = ImportJob.queued(
-                sourceURL: URL(
-                    string: "https://manual.ladle.local/\(UUID().uuidString)"
+            let recipeID = UUID()
+            let now = Date.now
+            let recipe = Recipe(
+                id: recipeID,
+                title: normalizedTitle,
+                description: normalizedDetails,
+                source: .other,
+                originalURL: URL(
+                    string:
+                        "https://manual.ladle.local/\(recipeID.uuidString.lowercased())"
                 )!,
-                source: .other
+                servings: 1,
+                createdAt: now,
+                updatedAt: now
             )
-            job.pastedRecipeText = "\(normalizedTitle)\n\(normalizedDetails)"
-            try repository.save(job)
-            operation = .importJob(job.id)
-            await process(job)
+            try repository.save(recipe)
+            completedRecipe = recipe
+            state = .completed(recipeID: recipe.id)
+            await didCompleteRemoteImport()
         } catch {
             state = .persistenceFailed
         }
@@ -349,7 +372,26 @@ final class ImportCoordinator {
         )
         do {
             try repository.save(job)
-            await processReimport(job)
+            await process(
+                job,
+                operation: .submit(allowingDuplicate: true)
+            )
+        } catch {
+            state = .persistenceFailed
+        }
+    }
+
+    func resumePendingImports() async {
+        do {
+            let pendingJobs = try repository.fetchImportJobs().filter {
+                $0.status == .parsing
+            }
+            for job in pendingJobs {
+                try Task.checkCancellation()
+                await process(job, operation: .resume)
+            }
+        } catch is CancellationError {
+            state = .idle
         } catch {
             state = .persistenceFailed
         }
@@ -423,6 +465,7 @@ final class ImportCoordinator {
                 recipe: candidate
             )
             operation = nil
+            await didCompleteRemoteImport()
             return candidate
         } catch {
             state = .persistenceFailed
@@ -454,106 +497,197 @@ final class ImportCoordinator {
         }
     }
 
-    private func process(_ initialJob: ImportJob) async {
+    private func process(
+        _ initialJob: ImportJob,
+        operation: RemoteOperation
+    ) async {
         var job = initialJob
         state = .importing(jobID: job.id)
 
         do {
-            try await clock.sleep(for: parsingDelay)
-            let outcome = try await service.importRecipe(for: job)
-            try Task.checkCancellation()
+            var update = try await firstUpdate(
+                for: job,
+                operation: operation
+            )
+            job.remoteJobID = update.remoteJobID
+            try repository.save(job)
 
-            switch outcome {
-            case let .ready(recipe):
-                try repository.save(recipe)
-                job = try job.transitioning(to: .ready)
-                try repository.save(job)
-                completedRecipe = recipe
-                state = .completed(recipeID: recipe.id)
-                _ = await notificationService.notifyImportReady(
-                    recipe: recipe
+            var delay = parsingDelay
+            while update.progress == .parsing {
+                try await clock.sleep(for: delay)
+                try Task.checkCancellation()
+                update = try await service.status(
+                    remoteJobID: update.remoteJobID
                 )
-            case let .needsReview(recipe):
-                try repository.save(recipe)
-                job = try job.awaitingReview(recipeID: recipe.id)
+                job.remoteJobID = update.remoteJobID
                 try repository.save(job)
-                completedRecipe = recipe
-                state = .needsReview(recipeID: recipe.id)
-            case let .failed(reason):
-                job = try job.transitioning(to: .failed(reason))
-                try repository.save(job)
-                state = .failed(jobID: job.id, reason: reason)
+                delay = min(delay * 2, .seconds(8))
             }
+
+            try Task.checkCancellation()
+            try await apply(update, to: &job)
         } catch is CancellationError {
             state = .idle
+        } catch let APIError.remote(error) {
+            handleRemoteError(error, job: &job)
         } catch {
-            do {
-                job = try job.transitioning(
-                    to: .failed(.networkUnavailable)
-                )
-                try repository.save(job)
-                state = .failed(
-                    jobID: job.id,
-                    reason: .networkUnavailable
-                )
-            } catch {
-                state = .persistenceFailed
-            }
+            state = .failed(
+                jobID: job.id,
+                reason: .networkUnavailable
+            )
         }
     }
 
-    private func processReimport(_ initialJob: ImportJob) async {
-        var job = initialJob
-        state = .importing(jobID: job.id)
-
-        do {
-            try await clock.sleep(for: parsingDelay)
-            let outcome = try await service.importRecipe(for: job)
-            try Task.checkCancellation()
-
-            switch outcome {
-            case let .ready(candidate):
-                guard let candidateID = job.candidateRecipeID,
-                      job.currentRecipeID != nil,
-                      candidate.id == candidateID else {
-                    state = .persistenceFailed
-                    return
-                }
-                job = try job.awaitingReview(candidate: candidate)
-                try repository.save(job)
-                completedRecipe = candidate
-                state = .completed(recipeID: candidate.id)
-            case let .needsReview(candidate):
-                guard candidate.id == job.candidateRecipeID else {
-                    state = .persistenceFailed
-                    return
-                }
-                job = try job.awaitingReview(candidate: candidate)
-                try repository.save(job)
-                completedRecipe = candidate
-                state = .needsReview(recipeID: candidate.id)
-            case let .failed(reason):
-                job = try job.transitioning(to: .failed(reason))
-                try repository.save(job)
-                completedRecipe = nil
-                state = .failed(jobID: job.id, reason: reason)
+    private func firstUpdate(
+        for job: ImportJob,
+        operation: RemoteOperation
+    ) async throws -> ImportServiceUpdate {
+        switch operation {
+        case let .submit(allowingDuplicate):
+            return try await service.submit(
+                job,
+                allowingDuplicate: allowingDuplicate
+            )
+        case .resume:
+            if let remoteJobID = job.remoteJobID {
+                return try await service.status(
+                    remoteJobID: remoteJobID
+                )
             }
-        } catch is CancellationError {
-            state = .idle
-        } catch {
-            do {
-                job = try job.transitioning(
-                    to: .failed(.networkUnavailable)
+            return try await service.submit(
+                job,
+                allowingDuplicate: false
+            )
+        case .retry:
+            if let remoteJobID = job.remoteJobID {
+                return try await service.retry(
+                    remoteJobID: remoteJobID,
+                    correctionNotes: job.correctionNotes,
+                    pastedRecipeText: job.pastedRecipeText
                 )
+            }
+            return try await service.submit(
+                job,
+                allowingDuplicate: job.currentRecipeID != nil
+            )
+        }
+    }
+
+    private func apply(
+        _ update: ImportServiceUpdate,
+        to job: inout ImportJob
+    ) async throws {
+        switch update.progress {
+        case .parsing:
+            return
+        case let .ready(recipe):
+            if job.currentRecipeID != nil {
+                guard recipe.id == job.candidateRecipeID else {
+                    state = .persistenceFailed
+                    return
+                }
+                job = try job.awaitingReview(candidate: recipe)
                 try repository.save(job)
-                completedRecipe = nil
-                state = .failed(
-                    jobID: job.id,
-                    reason: .networkUnavailable
+                completedRecipe = recipe
+                state = .completed(recipeID: recipe.id)
+                return
+            }
+            job = try job.transitioning(to: .ready)
+            if let serverRevision = update.serverRevision {
+                try repository.saveRemote(
+                    recipe,
+                    revision: serverRevision
                 )
+            } else {
+                try repository.save(recipe)
+            }
+            try repository.save(job)
+            completedRecipe = recipe
+            state = .completed(recipeID: recipe.id)
+            _ = await notificationService.notifyImportReady(
+                recipe: recipe
+            )
+            await didCompleteRemoteImport()
+        case let .needsReview(recipe):
+            if job.currentRecipeID != nil {
+                guard recipe.id == job.candidateRecipeID else {
+                    state = .persistenceFailed
+                    return
+                }
+                job = try job.awaitingReview(candidate: recipe)
+                try repository.save(job)
+                completedRecipe = recipe
+                state = .needsReview(recipeID: recipe.id)
+                return
+            }
+            if let serverRevision = update.serverRevision {
+                try repository.saveRemote(
+                    recipe,
+                    revision: serverRevision
+                )
+            } else {
+                try repository.save(recipe)
+            }
+            job = try job.transitioning(to: .needsReview)
+            try repository.save(job)
+            completedRecipe = recipe
+            state = .needsReview(recipeID: recipe.id)
+            await didCompleteRemoteImport()
+        case let .failed(reason):
+            job = try job.transitioning(to: .failed(reason))
+            try repository.save(job)
+            completedRecipe = nil
+            state = .failed(jobID: job.id, reason: reason)
+        }
+    }
+
+    private func handleRemoteError(
+        _ error: RemoteErrorDTO,
+        job: inout ImportJob
+    ) {
+        switch (error.code, error.details) {
+        case let (
+            .duplicateRecipe,
+            .duplicate(existingRecipeID)
+        ):
+            do {
+                existingDuplicate = try repository.fetchRecipe(
+                    id: existingRecipeID
+                )
+                try repository.deleteImportJob(id: job.id)
+                state = .duplicate(existingRecipeID: existingRecipeID)
             } catch {
                 state = .persistenceFailed
             }
+        case (.guestRecipeLimitReached, _):
+            do {
+                try repository.deleteImportJob(id: job.id)
+                state = .guestLimit(.limitReached)
+            } catch {
+                state = .persistenceFailed
+            }
+        case (.invalidURL, _):
+            finishRemoteFailure(.invalidURL, job: &job)
+        case (.unsupportedSource, _):
+            finishRemoteFailure(.unsupportedSource, job: &job)
+        default:
+            state = .failed(
+                jobID: job.id,
+                reason: .networkUnavailable
+            )
+        }
+    }
+
+    private func finishRemoteFailure(
+        _ reason: ImportFailure,
+        job: inout ImportJob
+    ) {
+        do {
+            job = try job.transitioning(to: .failed(reason))
+            try repository.save(job)
+            state = .failed(jobID: job.id, reason: reason)
+        } catch {
+            state = .persistenceFailed
         }
     }
 
