@@ -11,7 +11,7 @@ struct LibraryTopBar: View {
 
     var body: some View {
         HStack {
-            Text("Ladle")
+            Text("Overeasy")
                 .ladleFont(.title)
                 .foregroundStyle(LadleTheme.ink)
             Spacer()

@@ -26,4 +26,15 @@ final class AppEnvironment {
             importJobs: PreviewFixtures.importJobs
         )
     }
+
+    /// Installs that predate the remote backend carried seeded demo
+    /// content in their local store; clear it out once.
+    func purgeDemoFixtures() throws {
+        for recipe in PreviewFixtures.recipes {
+            try recipeRepository.deleteRecipe(id: recipe.id)
+        }
+        for job in PreviewFixtures.importJobs {
+            try recipeRepository.deleteImportJob(id: job.id)
+        }
+    }
 }

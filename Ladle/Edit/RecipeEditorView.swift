@@ -449,7 +449,7 @@ struct RecipeEditorView: View {
 
             if viewModel.state == .persistenceFailed {
                 validationText(
-                    "Ladle couldn’t save these edits. Your draft is still here."
+                    "Overeasy couldn’t save these edits. Your draft is still here."
                 )
             }
         }

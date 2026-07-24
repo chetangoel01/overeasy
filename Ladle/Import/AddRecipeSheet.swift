@@ -97,7 +97,7 @@ struct AddRecipeSheet: View {
                 sheetIntro(
                     icon: "link",
                     title: "Add a recipe",
-                    message: "Paste a recipe video link and Ladle will turn it into something you can actually cook."
+                    message: "Paste a recipe video link and Overeasy will turn it into something you can actually cook."
                 )
 
                 VStack(alignment: .leading, spacing: 10) {
@@ -256,7 +256,7 @@ struct AddRecipeSheet: View {
                 Text("Rescuing your recipe")
                     .ladleFont(.title)
                     .foregroundStyle(LadleTheme.ink)
-                Text("Ladle is pulling out the useful parts. You can keep browsing while it works.")
+                Text("Overeasy is pulling out the useful parts. You can keep browsing while it works.")
                     .ladleFont(.body)
                     .foregroundStyle(LadleTheme.ink.opacity(0.64))
                     .multilineTextAlignment(.center)
@@ -440,7 +440,7 @@ struct AddRecipeSheet: View {
                 .foregroundStyle(LadleTheme.paprika)
         case .persistenceFailed:
             Label(
-                "Ladle couldn’t save that import. Please try again.",
+                "Overeasy couldn’t save that import. Please try again.",
                 systemImage: "exclamationmark.circle"
             )
             .ladleFont(.metadata)
@@ -514,7 +514,7 @@ private extension ImportFailure {
         case .networkUnavailable:
             "The network dropped out. The import is safe to retry."
         case .parserUnavailable:
-            "Ladle couldn’t read the video, but the link is still saved."
+            "Overeasy couldn’t read the video, but the link is still saved."
         }
     }
 }

@@ -191,7 +191,7 @@ struct FailedImportSheet: View {
     private var failureMessage: String {
         if (hasAttemptedRetry || coordinator.owns(jobID: job.id)),
            coordinator.state == .persistenceFailed {
-            return "Ladle couldn’t save the retry. The original link and current recipe are unchanged."
+            return "Overeasy couldn’t save the retry. The original link and current recipe are unchanged."
         }
         let reason: ImportFailure
         if coordinator.owns(jobID: job.id),
@@ -212,7 +212,7 @@ struct FailedImportSheet: View {
         case .invalidURL:
             return "The saved link is incomplete. Paste the recipe details or create it manually."
         case .parserUnavailable:
-            return "Ladle couldn’t read this video. Retry, add a note, paste the details, or create it manually."
+            return "Overeasy couldn’t read this video. Retry, add a note, paste the details, or create it manually."
         }
     }
 }

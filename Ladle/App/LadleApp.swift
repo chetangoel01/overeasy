@@ -44,6 +44,8 @@ struct LadleApp: App {
             )
             if runtimeConfiguration.usesInMemoryStore {
                 try environment.seedPreviewDataIfNeeded()
+            } else {
+                try environment.purgeDemoFixtures()
             }
         } catch {
             fatalError("Ladle could not initialize its recipe store: \(error)")

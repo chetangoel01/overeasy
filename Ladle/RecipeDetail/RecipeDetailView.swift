@@ -162,7 +162,7 @@ struct RecipeDetailView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("It will be removed from your synced Ladle library.")
+            Text("It will be removed from your synced Overeasy library.")
         }
     }
 

@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Ladle</string>
+	<string>Overeasy</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -40,9 +40,9 @@
 		</dict>
 	</dict>
 	<key>NSHealthShareUsageDescription</key>
-	<string>Ladle reads nutrition types only to prepare the serving you choose to export.</string>
+	<string>Overeasy reads nutrition types only to prepare the serving you choose to export.</string>
 	<key>NSHealthUpdateUsageDescription</key>
-	<string>Ladle writes nutrition for a serving only after you explicitly confirm it.</string>
+	<string>Overeasy writes nutrition for a serving only after you explicitly confirm it.</string>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>

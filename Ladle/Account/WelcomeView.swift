@@ -38,7 +38,7 @@ struct WelcomeView: View {
                         )
 
                     Text(
-                        "Share a recipe video once. Ladle turns it into a clean recipe you can actually cook."
+                        "Share a recipe video once. Overeasy turns it into a clean recipe you can actually cook."
                     )
                     .ladleFont(.body)
                     .multilineTextAlignment(.center)

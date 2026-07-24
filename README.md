@@ -1,6 +1,6 @@
-# Ladle
+# Ladle (ships as **Overeasy**)
 
-Ladle is a native iPhone recipe workspace for turning scattered social-video
+Ladle — shipping under the product name **Overeasy** — is a native iPhone recipe workspace for turning scattered social-video
 links into structured recipes that are easier to save, review, and cook.
 
 The app follows a warm editorial visual system built around cream paper,

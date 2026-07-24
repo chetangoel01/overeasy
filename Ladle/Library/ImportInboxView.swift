@@ -81,7 +81,7 @@ struct ImportInboxView: View {
             .padding(.bottom, 6)
             explanation(
                 "Parsing",
-                detail: "Ladle reads the source and structures the recipe.",
+                detail: "Overeasy reads the source and structures the recipe.",
                 icon: "sparkles"
             )
             explanation(
