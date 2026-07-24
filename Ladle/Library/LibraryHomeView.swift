@@ -268,7 +268,7 @@ private struct HomeRecipeThumbnail: View {
             .fill(LadleTheme.field)
             .aspectRatio(1, contentMode: .fit)
             .overlay {
-                Image(systemName: "fork.knife")
+                Image(systemName: "frying.pan")
                     .foregroundStyle(LadleTheme.paprika)
             }
             .accessibilityHidden(true)

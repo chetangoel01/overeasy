@@ -35,7 +35,7 @@ struct RecipeArtworkView: View {
                 Rectangle()
                     .fill(LadleTheme.field)
                     .overlay {
-                        Image(systemName: "fork.knife")
+                        Image(systemName: "frying.pan")
                             .foregroundStyle(LadleTheme.paprika)
                     }
             }

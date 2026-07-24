@@ -253,7 +253,7 @@ struct AddRecipeSheet: View {
                 .background(LadleTheme.review, in: Circle())
 
             VStack(spacing: 8) {
-                Text("Rescuing your recipe")
+                Text("Cracking this one open")
                     .ladleFont(.title)
                     .foregroundStyle(LadleTheme.ink)
                 Text("Overeasy is pulling out the useful parts. You can keep browsing while it works.")
@@ -286,7 +286,7 @@ struct AddRecipeSheet: View {
             )
 
             VStack(spacing: 8) {
-                Text(needsReview ? "Ready for a quick review" : "Recipe ready")
+                Text(needsReview ? "Ready for a quick review" : "Ready, over easy")
                     .ladleFont(.title)
                     .foregroundStyle(LadleTheme.ink)
                     .multilineTextAlignment(.center)

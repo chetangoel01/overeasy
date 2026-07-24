@@ -21,7 +21,7 @@ struct WelcomeView: View {
             VStack(spacing: 22) {
                 LadleSheetHandle()
 
-                Image(systemName: "fork.knife")
+                Image(systemName: "frying.pan")
                     .font(.system(size: 22, weight: .semibold))
                     .foregroundStyle(LadleTheme.paprika)
                     .frame(width: 50, height: 50)

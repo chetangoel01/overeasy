@@ -38,7 +38,7 @@ final class ImportFlowTests: XCTestCase {
         app.buttons["Import from link"].tap()
 
         XCTAssertTrue(
-            app.staticTexts["Rescuing your recipe"]
+            app.staticTexts["Cracking this one open"]
                 .waitForExistence(timeout: 2)
         )
         app.buttons["Keep browsing"].tap()
@@ -85,7 +85,7 @@ final class ImportFlowTests: XCTestCase {
         app.buttons["Import from link"].tap()
 
         XCTAssertTrue(
-            app.staticTexts["Recipe ready"].waitForExistence(timeout: 4)
+            app.staticTexts["Ready, over easy"].waitForExistence(timeout: 4)
         )
         app.buttons["View Recipe"].tap()
 
