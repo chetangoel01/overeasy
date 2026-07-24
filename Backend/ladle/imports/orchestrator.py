@@ -11,6 +11,7 @@ from ladle.cache.service import CacheDisposition, ExtractionCacheService
 from ladle.clock import Clock
 from ladle.db.models import ImportJob, SourceVideo
 from ladle.extraction.protocol import RecipeExtractor
+from ladle.usage.limits import UsageLimitService
 
 
 class ProcessOutcome(StrEnum):
@@ -31,12 +32,14 @@ class ImportOrchestrator:
         acquirer: VideoAcquirer,
         extractor: RecipeExtractor,
         clock: Clock,
+        usage_limits: UsageLimitService | None = None,
     ) -> None:
         self._sessions = session_factory
         self._cache = cache
         self._acquirer = acquirer
         self._extractor = extractor
         self._maintenance = CacheMaintenanceService(clock=clock)
+        self._usage_limits = usage_limits
 
     def process(self, job_id: UUID) -> ProcessOutcome:
         with self._sessions.begin() as database:
@@ -63,10 +66,12 @@ class ImportOrchestrator:
             source = database.get(SourceVideo, decision.claim.source_video_id)
             if source is None:
                 raise RuntimeError("source video disappeared during import")
+            if self._usage_limits is not None:
+                self._usage_limits.ensure_available(database)
             descriptor = SourceVideoDescriptor.from_stored(source)
             claim = decision.claim
 
-        context = self._acquirer.acquire(descriptor)
+        context = self._acquirer.acquire(descriptor, job_id=job_id)
         if not context.is_public:
             with self._sessions.begin() as database:
                 self._maintenance.mark_private_or_deleted(
@@ -74,7 +79,7 @@ class ImportOrchestrator:
                     source_video_id=descriptor.source_video_id,
                 )
             raise ValueError("source is private or deleted")
-        template = self._extractor.extract(context)
+        template = self._extractor.extract(context, job_id=job_id)
 
         with self._sessions.begin() as database:
             self._maintenance.confirm_public(

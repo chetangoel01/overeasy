@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from uuid import UUID
 
 from ladle.acquisition.models import AcquiredVideoContext
 from ladle.recipes.template_clone import RecipeTemplate
@@ -21,6 +22,12 @@ class FakeExtractor:
     def model_id(self) -> str:
         return "fake-extractor"
 
-    def extract(self, context: AcquiredVideoContext) -> RecipeTemplate:
+    def extract(
+        self,
+        context: AcquiredVideoContext,
+        *,
+        job_id: UUID,
+    ) -> RecipeTemplate:
+        del job_id
         self.calls.append(context)
         return self.template

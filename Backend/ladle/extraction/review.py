@@ -1,0 +1,172 @@
+from decimal import Decimal
+
+from ladle.acquisition.models import AcquiredVideoContext
+from ladle.contracts.recipes import (
+    FieldUncertaintyDTO,
+    RecipeReviewStatus,
+    RecipeSource,
+)
+from ladle.extraction.models import RecipeExtraction
+from ladle.recipes.template_clone import (
+    RecipeTemplate,
+    TemplateIngredient,
+    TemplateNutrient,
+    TemplateNutrition,
+    TemplateStep,
+    TemplateTimer,
+)
+
+_CONFIDENCE_THRESHOLD = 0.7
+_MISSING_QUANTITY_THRESHOLD = 0.3
+
+
+def build_reviewed_template(
+    extraction: RecipeExtraction,
+    *,
+    context: AcquiredVideoContext,
+) -> RecipeTemplate:
+    uncertainties = list(extraction.uncertainties)
+    servings = extraction.servings
+    if servings is None:
+        servings = Decimal(1)
+        uncertainties.append(
+            FieldUncertaintyDTO(
+                field="servings",
+                reason="Serving count was absent; defaulted to one.",
+            )
+        )
+
+    missing_quantities = sum(
+        value.quantity_text is None and value.normalized_quantity is None
+        for value in extraction.ingredients
+    )
+    if missing_quantities / len(extraction.ingredients) > _MISSING_QUANTITY_THRESHOLD:
+        uncertainties.append(
+            FieldUncertaintyDTO(
+                field="ingredientQuantities",
+                reason="More than 30 percent of ingredients lack quantities.",
+            )
+        )
+
+    if "visualAnalysisUnavailable" in context.diagnostics:
+        uncertainties.append(
+            FieldUncertaintyDTO(
+                field="visualEvidence",
+                reason="Visual analysis was unavailable.",
+            )
+        )
+
+    ingredients: list[TemplateIngredient] = []
+    for index, ingredient_value in enumerate(extraction.ingredients):
+        uncertainty = None
+        if (
+            ingredient_value.confidence < _CONFIDENCE_THRESHOLD
+            or ingredient_value.uncertainty_reason
+        ):
+            uncertainty = FieldUncertaintyDTO(
+                field=f"ingredients[{index}]",
+                reason=ingredient_value.uncertainty_reason
+                or "Model confidence is below 0.7.",
+                confidence=ingredient_value.confidence,
+            )
+        ingredients.append(
+            TemplateIngredient(
+                quantity_text=ingredient_value.quantity_text,
+                normalized_quantity=ingredient_value.normalized_quantity,
+                unit=ingredient_value.unit,
+                name=ingredient_value.name,
+                preparation=ingredient_value.preparation,
+                order_index=index,
+                uncertainty=uncertainty,
+            )
+        )
+
+    steps: list[TemplateStep] = []
+    for index, step_value in enumerate(extraction.steps):
+        valid_references = [
+            ingredient_index
+            for ingredient_index in step_value.ingredient_indices
+            if 0 <= ingredient_index < len(ingredients)
+        ]
+        reasons: list[str] = []
+        if len(valid_references) != len(step_value.ingredient_indices):
+            reasons.append("Unknown ingredient references were removed.")
+        if step_value.confidence < _CONFIDENCE_THRESHOLD:
+            reasons.append("Model confidence is below 0.7.")
+        if step_value.uncertainty_reason:
+            reasons.append(step_value.uncertainty_reason)
+        uncertainty = (
+            FieldUncertaintyDTO(
+                field=f"steps[{index}]",
+                reason=" ".join(reasons),
+                confidence=step_value.confidence,
+            )
+            if reasons
+            else None
+        )
+        steps.append(
+            TemplateStep(
+                order_index=index,
+                instruction=step_value.instruction,
+                ingredient_indexes=list(dict.fromkeys(valid_references)),
+                timers=[
+                    TemplateTimer(
+                        label=timer.label,
+                        duration_seconds=timer.duration_seconds,
+                    )
+                    for timer in step_value.timers
+                ],
+                uncertainty=uncertainty,
+            )
+        )
+
+    nutrition = extraction.nutrition
+    template_nutrition = (
+        TemplateNutrition(
+            calories=nutrition.calories,
+            protein_grams=nutrition.protein_grams,
+            carbohydrate_grams=nutrition.carbohydrate_grams,
+            fat_grams=nutrition.fat_grams,
+            saturated_fat_grams=nutrition.saturated_fat_grams,
+            fiber_grams=nutrition.fiber_grams,
+            sugar_grams=nutrition.sugar_grams,
+            sodium_milligrams=nutrition.sodium_milligrams,
+            other_nutrients=[
+                TemplateNutrient(
+                    name=value.name,
+                    amount=value.amount,
+                    unit=value.unit,
+                )
+                for value in nutrition.other_nutrients
+            ],
+            serving_basis=nutrition.serving_basis or servings,
+            is_estimated=True,
+        )
+        if nutrition is not None
+        else None
+    )
+
+    has_nested_uncertainty = any(
+        value.uncertainty is not None for value in ingredients
+    ) or any(value.uncertainty is not None for value in steps)
+    review_status = (
+        RecipeReviewStatus.NEEDS_REVIEW
+        if uncertainties or has_nested_uncertainty
+        else RecipeReviewStatus.READY
+    )
+    return RecipeTemplate(
+        title=extraction.title,
+        description=extraction.description,
+        creator_name=extraction.creator_name or context.creator_name,
+        source=RecipeSource(context.source.platform),
+        original_url=context.source.canonical_url,
+        preparation_minutes=extraction.preparation_minutes,
+        cooking_minutes=extraction.cooking_minutes,
+        total_minutes=extraction.total_minutes,
+        servings=servings,
+        ingredients=ingredients,
+        steps=steps,
+        nutrition=template_nutrition,
+        review_status=review_status,
+        uncertainties=uncertainties,
+    )

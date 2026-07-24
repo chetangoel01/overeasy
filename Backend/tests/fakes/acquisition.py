@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from uuid import UUID
 
 from ladle.acquisition.models import (
     AcquiredVideoContext,
@@ -11,7 +12,13 @@ from ladle.acquisition.models import (
 class FakeAcquirer:
     calls: list[SourceVideoDescriptor] = field(default_factory=list)
 
-    def acquire(self, source: SourceVideoDescriptor) -> AcquiredVideoContext:
+    def acquire(
+        self,
+        source: SourceVideoDescriptor,
+        *,
+        job_id: UUID,
+    ) -> AcquiredVideoContext:
+        del job_id
         self.calls.append(source)
         return AcquiredVideoContext(
             source=source,

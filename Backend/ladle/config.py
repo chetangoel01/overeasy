@@ -1,3 +1,4 @@
+from decimal import Decimal
 from typing import Literal, Self
 
 from pydantic import AnyHttpUrl, Field, SecretStr, model_validator
@@ -43,18 +44,27 @@ class Settings(BaseSettings):
     celery_result_backend: str = "redis://127.0.0.1:6379/1"
     celery_visibility_timeout_seconds: int = Field(default=3600, gt=0)
     worker_provider_mode: Literal["disabled", "fake", "live"] = "disabled"
+    provider_daily_billed_unit_limit: Decimal = Field(
+        default=Decimal("1000"),
+        gt=0,
+    )
+    provider_circuit_failure_threshold: int = Field(default=3, gt=0)
+    provider_circuit_cooldown_seconds: int = Field(default=300, gt=0)
+    server_media_fallback_enabled: bool = False
 
     supadata_base_url: AnyHttpUrl = AnyHttpUrl("https://api.supadata.ai/v1")
     supadata_timeout_seconds: float = Field(default=30, gt=0)
     supadata_api_key: SecretStr | None = None
 
-    soscripted_base_url: AnyHttpUrl = AnyHttpUrl("https://api.soscripted.com")
+    soscripted_base_url: AnyHttpUrl = AnyHttpUrl("https://soscripted.com/api/public")
     soscripted_timeout_seconds: float = Field(default=30, gt=0)
     soscripted_api_key: SecretStr | None = None
 
     anthropic_base_url: AnyHttpUrl = AnyHttpUrl("https://api.anthropic.com")
     anthropic_timeout_seconds: float = Field(default=60, gt=0)
     anthropic_api_key: SecretStr | None = None
+    anthropic_model_id: str = "claude-sonnet-4-6"
+    anthropic_max_tokens: int = Field(default=8192, gt=0)
 
     @model_validator(mode="after")
     def reject_unsafe_production_secrets(self) -> Self:
@@ -71,4 +81,13 @@ class Settings(BaseSettings):
                     f"{field_name} must be a non-placeholder secret of at least "
                     f"{_MINIMUM_PRODUCTION_SECRET_LENGTH} characters in production"
                 )
+        if self.worker_provider_mode == "live" and any(
+            getattr(self, field_name) is None
+            for field_name in (
+                "supadata_api_key",
+                "soscripted_api_key",
+                "anthropic_api_key",
+            )
+        ):
+            raise ValueError("live production workers require configured provider keys")
         return self
