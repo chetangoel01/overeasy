@@ -1,0 +1,66 @@
+[
+  {
+    "error": {
+      "code": "duplicateRecipe",
+      "details": {
+        "existingRecipeID": "20000000-0000-4000-8000-000000000001"
+      },
+      "message": "This recipe is already in your library.",
+      "requestID": "30000000-0000-4000-8000-000000000001",
+      "retryable": false
+    }
+  },
+  {
+    "error": {
+      "code": "syncConflict",
+      "details": {
+        "currentRecipe": {
+          "cookingMinutes": null,
+          "createdAt": "2026-07-23T20:16:00.000Z",
+          "creatorName": null,
+          "description": "Quantities were visible but not spoken.",
+          "id": "20000000-0000-4000-8000-000000000002",
+          "images": [],
+          "ingredients": [],
+          "isFavorite": false,
+          "nutrition": null,
+          "originalURL": "https://www.instagram.com/reel/ladle-review/",
+          "preparationMinutes": null,
+          "reviewStatus": "needsReview",
+          "revision": 2,
+          "servings": "1",
+          "source": "instagram",
+          "steps": [],
+          "title": "Tomato Toast",
+          "totalMinutes": null,
+          "uncertainties": [],
+          "updatedAt": "2026-07-23T20:19:00.000Z"
+        },
+        "currentRevision": 2
+      },
+      "message": "The recipe changed on another device.",
+      "requestID": "30000000-0000-4000-8000-000000000002",
+      "retryable": false
+    }
+  },
+  {
+    "error": {
+      "code": "rateLimited",
+      "details": {
+        "retryAt": "2026-07-23T20:30:00.000Z"
+      },
+      "message": "Too many requests.",
+      "requestID": "30000000-0000-4000-8000-000000000003",
+      "retryable": true
+    }
+  },
+  {
+    "error": {
+      "code": "providerUnavailable",
+      "details": null,
+      "message": "Recipe extraction is temporarily unavailable.",
+      "requestID": "30000000-0000-4000-8000-000000000004",
+      "retryable": true
+    }
+  }
+]

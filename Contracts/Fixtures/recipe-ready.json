@@ -1,0 +1,94 @@
+{
+  "cookingMinutes": 20,
+  "createdAt": "2026-07-23T20:15:00.000Z",
+  "creatorName": "Mia",
+  "description": "A bright weeknight pasta.",
+  "id": "20000000-0000-4000-8000-000000000001",
+  "images": [
+    {
+      "id": "21000000-0000-4000-8000-000000000001",
+      "remoteURL": "https://images.ladle.example/recipes/lemon-orzo.jpg?signature=test"
+    }
+  ],
+  "ingredients": [
+    {
+      "id": "22000000-0000-4000-8000-000000000001",
+      "name": "orzo",
+      "normalizedQuantity": "2",
+      "orderIndex": 0,
+      "preparation": null,
+      "quantityText": "2 cups",
+      "uncertainty": null,
+      "unit": "cup"
+    },
+    {
+      "id": "22000000-0000-4000-8000-000000000002",
+      "name": "lemon",
+      "normalizedQuantity": "0.5",
+      "orderIndex": 1,
+      "preparation": "juiced",
+      "quantityText": "1/2 lemon",
+      "uncertainty": null,
+      "unit": null
+    }
+  ],
+  "isFavorite": false,
+  "nutrition": {
+    "calories": "540",
+    "carbohydrateGrams": "82.5",
+    "fatGrams": "14",
+    "fiberGrams": "5",
+    "isEstimated": true,
+    "otherNutrients": [
+      {
+        "amount": "4.2",
+        "id": "25000000-0000-4000-8000-000000000001",
+        "name": "Iron",
+        "unit": "mg"
+      }
+    ],
+    "proteinGrams": "18",
+    "saturatedFatGrams": null,
+    "servingBasis": "1",
+    "sodiumMilligrams": "620",
+    "sugarGrams": null
+  },
+  "originalURL": "https://www.youtube.com/watch?v=ladle-ready",
+  "preparationMinutes": 10,
+  "reviewStatus": "ready",
+  "revision": 1,
+  "servings": "4",
+  "source": "youtube",
+  "steps": [
+    {
+      "id": "24000000-0000-4000-8000-000000000001",
+      "ingredientIDs": [
+        "22000000-0000-4000-8000-000000000001"
+      ],
+      "instruction": "Simmer the orzo until tender.",
+      "orderIndex": 0,
+      "timers": [
+        {
+          "durationSeconds": 600,
+          "id": "23000000-0000-4000-8000-000000000001",
+          "label": "Simmer"
+        }
+      ],
+      "uncertainty": null
+    },
+    {
+      "id": "24000000-0000-4000-8000-000000000002",
+      "ingredientIDs": [
+        "22000000-0000-4000-8000-000000000002"
+      ],
+      "instruction": "Stir in the lemon juice and serve.",
+      "orderIndex": 1,
+      "timers": [],
+      "uncertainty": null
+    }
+  ],
+  "title": "Lemon Orzo",
+  "totalMinutes": 30,
+  "uncertainties": [],
+  "updatedAt": "2026-07-23T20:15:00.000Z"
+}

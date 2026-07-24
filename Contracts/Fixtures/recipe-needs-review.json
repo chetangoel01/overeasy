@@ -1,0 +1,54 @@
+{
+  "cookingMinutes": null,
+  "createdAt": "2026-07-23T20:16:00.000Z",
+  "creatorName": null,
+  "description": "Quantities were visible but not spoken.",
+  "id": "20000000-0000-4000-8000-000000000002",
+  "images": [],
+  "ingredients": [
+    {
+      "id": "22000000-0000-4000-8000-000000000010",
+      "name": "tomatoes",
+      "normalizedQuantity": null,
+      "orderIndex": 0,
+      "preparation": "chopped",
+      "quantityText": null,
+      "uncertainty": {
+        "confidence": 0.2,
+        "field": "ingredients[0].quantity",
+        "reason": "Quantity was not recoverable from captions or visual analysis."
+      },
+      "unit": null
+    }
+  ],
+  "isFavorite": false,
+  "nutrition": null,
+  "originalURL": "https://www.instagram.com/reel/ladle-review/",
+  "preparationMinutes": null,
+  "reviewStatus": "needsReview",
+  "revision": 1,
+  "servings": "1",
+  "source": "instagram",
+  "steps": [
+    {
+      "id": "24000000-0000-4000-8000-000000000010",
+      "ingredientIDs": [
+        "22000000-0000-4000-8000-000000000010"
+      ],
+      "instruction": "Add the chopped tomatoes.",
+      "orderIndex": 0,
+      "timers": [],
+      "uncertainty": null
+    }
+  ],
+  "title": "Tomato Toast",
+  "totalMinutes": null,
+  "uncertainties": [
+    {
+      "confidence": 0.2,
+      "field": "ingredients[0].quantity",
+      "reason": "Quantity was not recoverable from captions or visual analysis."
+    }
+  ],
+  "updatedAt": "2026-07-23T20:17:00.000Z"
+}
