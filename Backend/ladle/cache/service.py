@@ -19,6 +19,7 @@ from ladle.db.models import (
     NegativeExtractionCache,
     SourceVideo,
 )
+from ladle.observability.metrics import MetricsRegistry
 from ladle.recipes.template_clone import RecipeTemplate, RecipeTemplateCloner
 
 
@@ -58,11 +59,13 @@ class ExtractionCacheService:
         claims: ExtractionClaimService,
         cloner: RecipeTemplateCloner,
         public_recheck_after: timedelta,
+        metrics: MetricsRegistry | None = None,
     ) -> None:
         self._clock = clock
         self._claims = claims
         self._cloner = cloner
         self._public_recheck_after = public_recheck_after
+        self._metrics = metrics
 
     def route(self, database: Session, *, job_id: UUID) -> CacheDecision:
         job = database.execute(
@@ -71,9 +74,9 @@ class ExtractionCacheService:
         if job is None or job.source_video_id is None:
             raise ImportJobUnavailable
         if job.bypass_cache:
-            return CacheDecision(CacheDisposition.BYPASS, job.id)
+            return self._decision(CacheDisposition.BYPASS, job.id)
         if job.status in {"ready", "needsReview"}:
-            return CacheDecision(
+            return self._decision(
                 CacheDisposition.HIT,
                 job.id,
                 cache_entry_id=job.cache_entry_id,
@@ -101,7 +104,7 @@ class ExtractionCacheService:
             ):
                 job.stage = "publicRecheck"
                 job.updated_at = self._clock.now()
-                return CacheDecision(
+                return self._decision(
                     CacheDisposition.RECHECK,
                     job.id,
                     cache_entry_id=entry.id,
@@ -113,7 +116,7 @@ class ExtractionCacheService:
                 cache_entry=entry,
                 template=template,
             )
-            return CacheDecision(
+            return self._decision(
                 CacheDisposition.HIT,
                 job.id,
                 cache_entry_id=entry.id,
@@ -127,7 +130,7 @@ class ExtractionCacheService:
             )
         )
         if negative is not None:
-            return CacheDecision(CacheDisposition.NEGATIVE, job.id)
+            return self._decision(CacheDisposition.NEGATIVE, job.id)
 
         claim = self._claims.acquire(
             database,
@@ -143,7 +146,26 @@ class ExtractionCacheService:
             "extracting" if disposition == CacheDisposition.LEADER else "waiting"
         )
         job.updated_at = self._clock.now()
-        return CacheDecision(disposition, job.id, claim=claim)
+        return self._decision(disposition, job.id, claim=claim)
+
+    def _decision(
+        self,
+        disposition: CacheDisposition,
+        job_id: UUID,
+        *,
+        claim: ClaimLease | None = None,
+        cache_entry_id: UUID | None = None,
+        recipe_id: UUID | None = None,
+    ) -> CacheDecision:
+        if self._metrics is not None:
+            self._metrics.record_cache(disposition.value)
+        return CacheDecision(
+            disposition=disposition,
+            job_id=job_id,
+            claim=claim,
+            cache_entry_id=cache_entry_id,
+            recipe_id=recipe_id,
+        )
 
     def complete_shared(
         self,

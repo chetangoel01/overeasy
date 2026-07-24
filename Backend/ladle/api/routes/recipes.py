@@ -1,18 +1,17 @@
 from typing import Annotated, cast
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request, Response, status
 from fastapi.responses import JSONResponse
 from pydantic import Field, PositiveInt
-from sqlalchemy.orm import Session
 
+from ladle.api.dependencies import database
+from ladle.api.errors import error_response
 from ladle.api.routes.auth import access_claims
 from ladle.clock import Clock
 from ladle.contracts.common import WireModel
 from ladle.contracts.errors import (
     ErrorCode,
-    ErrorDTO,
-    ErrorEnvelope,
     SyncConflictDetails,
 )
 from ladle.contracts.recipes import RecipeDTO, SyncPageDTO
@@ -33,10 +32,6 @@ class RecipeMutationRequest(WireModel):
     recipe: RecipeDTO
 
 
-def _database(request: Request) -> Session:
-    return cast(Session, request.app.state.session_factory())
-
-
 def _recipes(request: Request) -> RecipeService:
     return cast(RecipeService, request.app.state.recipe_service)
 
@@ -49,23 +44,18 @@ def _clock(request: Request) -> Clock:
     return cast(Clock, request.app.state.clock)
 
 
-def _conflict_response(conflict: SyncConflict) -> JSONResponse:
+def _conflict_response(request: Request, conflict: SyncConflict) -> JSONResponse:
     current = conflict.current_recipe
-    envelope = ErrorEnvelope(
-        error=ErrorDTO(
-            code=ErrorCode.SYNC_CONFLICT,
-            message="The recipe changed on another device.",
-            retryable=False,
-            request_id=uuid4(),
-            details=SyncConflictDetails(
-                current_recipe=current,
-                current_revision=current.revision,
-            ),
-        )
-    )
-    return JSONResponse(
-        status_code=status.HTTP_409_CONFLICT,
-        content=envelope.model_dump(mode="json", by_alias=True),
+    return error_response(
+        request,
+        code=ErrorCode.SYNC_CONFLICT,
+        message="The recipe changed on another device.",
+        retryable=False,
+        details=SyncConflictDetails(
+            current_recipe=current,
+            current_revision=current.revision,
+        ),
+        http_status=status.HTTP_409_CONFLICT,
     )
 
 
@@ -77,9 +67,9 @@ def sync_recipes(
     authorization: Annotated[str | None, Header()] = None,
 ) -> SyncPageDTO:
     claims = access_claims(request, authorization)
-    with _database(request) as database:
+    with database(request) as current_database:
         return _sync(request).page(
-            database,
+            current_database,
             user_id=claims.user_id,
             cursor=cursor,
             limit=limit,
@@ -94,9 +84,9 @@ def get_recipe(
 ) -> RecipeDTO:
     claims = access_claims(request, authorization)
     try:
-        with _database(request) as database:
+        with database(request) as current_database:
             return _recipes(request).get(
-                database,
+                current_database,
                 user_id=claims.user_id,
                 recipe_id=recipe_id,
             )
@@ -118,28 +108,22 @@ def put_recipe(
             detail="path and recipe IDs differ",
         )
     try:
-        with _database(request) as database, database.begin():
+        with database(request) as current_database, current_database.begin():
             return _recipes(request).upsert(
-                database,
+                current_database,
                 user_id=claims.user_id,
                 recipe=body.recipe,
                 base_revision=body.base_revision,
             )
     except SyncConflict as conflict:
-        return _conflict_response(conflict)
+        return _conflict_response(request, conflict)
     except GuestRecipeLimitReached:
-        envelope = ErrorEnvelope(
-            error=ErrorDTO(
-                code=ErrorCode.GUEST_RECIPE_LIMIT_REACHED,
-                message="Create a free account to save more recipes.",
-                retryable=False,
-                request_id=uuid4(),
-                details=None,
-            )
-        )
-        return JSONResponse(
-            status_code=status.HTTP_409_CONFLICT,
-            content=envelope.model_dump(mode="json", by_alias=True),
+        return error_response(
+            request,
+            code=ErrorCode.GUEST_RECIPE_LIMIT_REACHED,
+            message="Create a free account to save more recipes.",
+            retryable=False,
+            http_status=status.HTTP_409_CONFLICT,
         )
     except InvalidManualRecipe as error:
         raise HTTPException(
@@ -162,15 +146,15 @@ def delete_recipe(
 ) -> Response:
     claims = access_claims(request, authorization)
     try:
-        with _database(request) as database, database.begin():
+        with database(request) as current_database, current_database.begin():
             _recipes(request).delete(
-                database,
+                current_database,
                 user_id=claims.user_id,
                 recipe_id=recipe_id,
                 base_revision=base_revision,
             )
     except SyncConflict as conflict:
-        return _conflict_response(conflict)
+        return _conflict_response(request, conflict)
     except RecipeNotFound as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND) from error
     return Response(status_code=status.HTTP_204_NO_CONTENT)

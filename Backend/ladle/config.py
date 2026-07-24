@@ -51,6 +51,12 @@ class Settings(BaseSettings):
     provider_circuit_failure_threshold: int = Field(default=3, gt=0)
     provider_circuit_cooldown_seconds: int = Field(default=300, gt=0)
     server_media_fallback_enabled: bool = False
+    object_storage_enabled: bool = False
+    object_storage_endpoint_url: AnyHttpUrl = AnyHttpUrl("http://127.0.0.1:9000")
+    object_storage_region: str = "us-east-1"
+    object_storage_bucket: str = "ladle-private"
+    object_storage_access_key: str = "ladle-local"
+    object_storage_secret_key: SecretStr = SecretStr("ladle-local-secret")
 
     supadata_base_url: AnyHttpUrl = AnyHttpUrl("https://api.supadata.ai/v1")
     supadata_timeout_seconds: float = Field(default=30, gt=0)
@@ -91,6 +97,16 @@ class Settings(BaseSettings):
                 raise ValueError(
                     f"{field_name} must be a non-placeholder secret of at least "
                     f"{_MINIMUM_PRODUCTION_SECRET_LENGTH} characters in production"
+                )
+        if self.object_storage_enabled:
+            storage_secret = self.object_storage_secret_key.get_secret_value().strip()
+            if (
+                len(storage_secret) < _MINIMUM_PRODUCTION_SECRET_LENGTH
+                or storage_secret.casefold().startswith(_PLACEHOLDER_PREFIXES)
+            ):
+                raise ValueError(
+                    "object_storage_secret_key must be a non-placeholder secret "
+                    "of at least 32 characters in production"
                 )
         if self.worker_provider_mode == "live" and any(
             getattr(self, field_name) is None

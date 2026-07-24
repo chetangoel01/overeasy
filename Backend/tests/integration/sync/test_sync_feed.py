@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from alembic import command
 from ladle.db.session import build_engine
+from ladle.observability.metrics import MetricsRegistry
 from ladle.recipes.service import RecipeService
 from ladle.sync.service import RecipeSyncService
 from tests.integration.recipes.test_recipe_service import (
@@ -31,7 +32,8 @@ def test_cursor_pagination_has_no_gaps_or_duplicates(
     command.upgrade(alembic_config(clean_postgres_url), "head")
     engine = build_engine(clean_postgres_url)
     recipes = RecipeService(clock=FrozenClock(datetime(2026, 7, 23, 21, 0, tzinfo=UTC)))
-    sync = RecipeSyncService()
+    metrics = MetricsRegistry()
+    sync = RecipeSyncService(metrics=metrics)
 
     with Session(engine) as database, database.begin():
         user_id = seed_user(database)
@@ -61,5 +63,6 @@ def test_cursor_pagination_has_no_gaps_or_duplicates(
     assert {change.recipe_id for change in first.changes}.isdisjoint(
         {change.recipe_id for change in second.changes}
     )
+    assert 'ladle_sync_total{outcome="success"} 3' in metrics.render()
 
     engine.dispose()

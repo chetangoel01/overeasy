@@ -10,12 +10,19 @@ from ladle.contracts.recipes import (
     SyncPageDTO,
 )
 from ladle.db.models import RecipeChange
+from ladle.observability.metrics import MetricsRegistry
 from ladle.recipes.repository import RecipeRepository
 
 
 class RecipeSyncService:
-    def __init__(self, repository: RecipeRepository | None = None) -> None:
+    def __init__(
+        self,
+        repository: RecipeRepository | None = None,
+        *,
+        metrics: MetricsRegistry | None = None,
+    ) -> None:
         self._repository = repository or RecipeRepository()
+        self._metrics = metrics
 
     def page(
         self,
@@ -71,8 +78,11 @@ class RecipeSyncService:
                 )
             )
 
-        return SyncPageDTO(
+        page = SyncPageDTO(
             changes=changes,
             next_cursor=visible[-1].sequence if visible else cursor,
             has_more=has_more,
         )
+        if self._metrics is not None:
+            self._metrics.record_sync("success")
+        return page

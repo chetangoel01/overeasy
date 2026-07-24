@@ -5,6 +5,9 @@ from uuid import UUID
 from ladle.acquisition.coverage import assess_coverage
 from ladle.acquisition.errors import (
     PrivateOrDeleted,
+    ProviderAuthenticationError,
+    ProviderQuotaError,
+    ProviderTransientError,
     ProviderUnavailable,
     TranscriptUnavailable,
 )
@@ -15,6 +18,7 @@ from ladle.acquisition.models import (
     TranscriptResult,
     VisualResult,
 )
+from ladle.observability.metrics import MetricsRegistry
 from ladle.usage.circuit import CircuitBreaker, CircuitOpen
 
 _T = TypeVar("_T")
@@ -61,11 +65,13 @@ class ProviderChain:
         fallback: TranscriptFallback,
         circuits: CircuitBreaker | None = None,
         server_fallback: ContextFallback | None = None,
+        metrics: MetricsRegistry | None = None,
     ) -> None:
         self._primary = primary
         self._fallback = fallback
         self._circuits = circuits
         self._server_fallback = server_fallback
+        self._metrics = metrics
 
     def check_public(
         self,
@@ -208,16 +214,34 @@ class ProviderChain:
         operation: Callable[[], _T],
     ) -> _T:
         if self._circuits is not None:
-            self._circuits.before_call(provider)
+            try:
+                self._circuits.before_call(provider)
+            except CircuitOpen:
+                self._record_provider(provider, "circuitOpen")
+                raise
         try:
             result = operation()
         except ProviderUnavailable as error:
             if self._circuits is not None:
                 self._circuits.record_failure(provider, error)
+            if isinstance(error, ProviderQuotaError):
+                outcome = "quota"
+            elif isinstance(error, ProviderAuthenticationError):
+                outcome = "auth"
+            elif isinstance(error, ProviderTransientError):
+                outcome = "timeout"
+            else:
+                outcome = "failure"
+            self._record_provider(provider, outcome)
             raise
         if self._circuits is not None:
             self._circuits.record_success(provider)
+        self._record_provider(provider, "success")
         return result
+
+    def _record_provider(self, provider: str, outcome: str) -> None:
+        if self._metrics is not None:
+            self._metrics.record_provider(provider, outcome)
 
     def _context(
         self,

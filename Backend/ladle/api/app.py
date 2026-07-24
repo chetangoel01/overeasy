@@ -2,9 +2,19 @@ from datetime import timedelta
 
 import httpx
 from fastapi import FastAPI
+from redis import Redis
 from sqlalchemy.orm import Session, sessionmaker
 
+from ladle.api.errors import install_error_handlers
 from ladle.api.routes.auth import router as auth_router
+from ladle.api.routes.health import (
+    DatabaseReadinessProbe,
+    ReadinessProbe,
+    ReadinessService,
+    RedisReadinessProbe,
+    StorageReadinessProbe,
+)
+from ladle.api.routes.health import router as health_router
 from ladle.api.routes.imports import router as imports_router
 from ladle.api.routes.recipes import router as recipes_router
 from ladle.auth.apple import (
@@ -32,6 +42,9 @@ from ladle.imports.reservations import ReservationService
 from ladle.imports.source_identity import SourceIdentityParser
 from ladle.imports.transitions import ImportRetryService
 from ladle.infrastructure.dns import PinnedRedirectResolver, SystemDNSResolver
+from ladle.infrastructure.object_storage import S3ObjectStorage
+from ladle.observability.metrics import MetricsRegistry
+from ladle.observability.middleware import install_request_middleware
 from ladle.recipes.service import RecipeService
 from ladle.sync.service import RecipeSyncService
 
@@ -46,6 +59,8 @@ def create_app(
     import_dispatcher: ImportDispatcher | None = None,
     source_parser: SourceIdentityParser | None = None,
     apple_credentials: AppleCredentials | None = None,
+    readiness_probes: dict[str, ReadinessProbe] | None = None,
+    metrics: MetricsRegistry | None = None,
     settings: Settings | None = None,
 ) -> FastAPI:
     """Build the HTTP application without eagerly contacting infrastructure."""
@@ -80,8 +95,31 @@ def create_app(
     application.state.attestation = attestation or AttestationService(
         enforced=configured.attestation_enforced
     )
+    runtime_metrics = metrics or MetricsRegistry()
     application.state.recipe_service = RecipeService(clock=runtime_clock)
-    application.state.sync_service = RecipeSyncService()
+    application.state.sync_service = RecipeSyncService(metrics=runtime_metrics)
+    application.state.metrics = runtime_metrics
+    default_probes: dict[str, ReadinessProbe] = {
+        "database": DatabaseReadinessProbe(database_sessions)
+    }
+    if configured.celery_enabled:
+        default_probes["redis"] = RedisReadinessProbe(
+            Redis.from_url(configured.celery_broker_url)
+        )
+    object_storage: S3ObjectStorage | None = None
+    if configured.object_storage_enabled:
+        object_storage = S3ObjectStorage(
+            endpoint_url=str(configured.object_storage_endpoint_url),
+            region=configured.object_storage_region,
+            bucket=configured.object_storage_bucket,
+            access_key=configured.object_storage_access_key,
+            secret_key=configured.object_storage_secret_key.get_secret_value(),
+        )
+        default_probes["storage"] = StorageReadinessProbe(object_storage)
+    application.state.object_storage = object_storage
+    application.state.readiness = ReadinessService(
+        readiness_probes if readiness_probes is not None else default_probes
+    )
     apple_client: httpx.Client | None = None
     if apple_credentials is None and configured.apple_enabled:
         if (
@@ -152,6 +190,12 @@ def create_app(
     application.include_router(auth_router)
     application.include_router(recipes_router)
     application.include_router(imports_router)
+    application.include_router(health_router)
+    install_error_handlers(application)
+    install_request_middleware(
+        application,
+        metrics=application.state.metrics,
+    )
     if redirect_client is not None:
         application.router.add_event_handler("shutdown", redirect_client.close)
     if apple_client is not None:

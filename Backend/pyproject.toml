@@ -14,7 +14,9 @@ dependencies = [
     "pydantic-settings>=2.10,<3",
     "psycopg[binary]>=3.2,<4",
     "pyjwt[crypto]>=2.10,<3",
+    "redis>=6.4,<7",
     "sqlalchemy>=2.0.41,<2.1",
+    "uvicorn[standard]>=0.35,<1",
 ]
 
 [build-system]
@@ -55,5 +57,5 @@ plugins = ["pydantic.mypy"]
 packages = ["ladle"]
 
 [[tool.mypy.overrides]]
-module = ["boto3.*", "botocore.*", "celery.*"]
+module = ["boto3.*", "botocore.*", "celery.*", "redis.*"]
 ignore_missing_imports = true

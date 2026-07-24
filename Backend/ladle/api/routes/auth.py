@@ -2,8 +2,9 @@ from typing import Annotated, cast
 
 from fastapi import APIRouter, Header, HTTPException, Request, Response, status
 from pydantic import Field
-from sqlalchemy.orm import Session
 
+from ladle.api.dependencies import clock as request_clock
+from ladle.api.dependencies import database
 from ladle.auth.apple import (
     AppleAuthorizationCodeInvalid,
     AppleCredentials,
@@ -22,7 +23,6 @@ from ladle.auth.tokens import (
     AccessTokenCodec,
     AccessTokenInvalid,
 )
-from ladle.clock import Clock
 from ladle.contracts.common import WireDateTime, WireModel, WireUUID
 from ladle.db.models import AuthSession
 
@@ -66,14 +66,6 @@ class AuthTokensResponse(WireModel):
         )
 
 
-def _database(request: Request) -> Session:
-    return cast(Session, request.app.state.session_factory())
-
-
-def _clock(request: Request) -> Clock:
-    return cast(Clock, request.app.state.clock)
-
-
 def _sessions(request: Request) -> SessionService:
     return cast(SessionService, request.app.state.session_service)
 
@@ -106,13 +98,13 @@ def access_claims(
     try:
         claims = _access_tokens(request).decode(
             authorization.removeprefix("Bearer "),
-            now=_clock(request).now(),
+            now=request_clock(request).now(),
         )
     except AccessTokenInvalid as error:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED) from error
 
-    with _database(request) as database:
-        stored = database.get(AuthSession, claims.session_id)
+    with database(request) as current_database:
+        stored = current_database.get(AuthSession, claims.session_id)
         if (
             stored is None
             or stored.revoked_at is not None
@@ -130,14 +122,14 @@ def access_claims(
 )
 def create_guest(request: Request, body: GuestAuthRequest) -> AuthTokensResponse:
     try:
-        with _database(request) as database, database.begin():
+        with database(request) as current_database, current_database.begin():
             tokens = register_guest(
-                database,
+                current_database,
                 installation_id=body.installation_id,
                 assertion=body.attestation,
                 attestation=_attestation(request),
                 sessions=_sessions(request),
-                clock=_clock(request),
+                clock=request_clock(request),
             )
     except AttestationRejected as error:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN) from error
@@ -164,15 +156,15 @@ def sign_in_with_apple(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED) from error
 
     try:
-        with _database(request) as database, database.begin():
+        with database(request) as current_database, current_database.begin():
             destination_id = _account_merger(request).merge(
-                database,
+                current_database,
                 guest_user_id=claims.user_id,
                 apple_subject=credential.subject,
                 idempotency_key=body.idempotency_key,
             )
             tokens = _sessions(request).create(
-                database,
+                current_database,
                 user_id=destination_id,
                 device_id=claims.device_id,
             )
@@ -185,10 +177,10 @@ def sign_in_with_apple(
 def refresh_session(request: Request, body: RefreshRequest) -> AuthTokensResponse:
     authentication_error: RefreshTokenInvalid | None = None
     tokens: SessionTokens | None = None
-    with _database(request) as database, database.begin():
+    with database(request) as current_database, current_database.begin():
         try:
             tokens = _sessions(request).refresh(
-                database,
+                current_database,
                 refresh_token=body.refresh_token,
                 device_id=body.device_id,
             )
@@ -206,6 +198,9 @@ def delete_session(
     authorization: Annotated[str | None, Header()] = None,
 ) -> Response:
     claims = access_claims(request, authorization)
-    with _database(request) as database, database.begin():
-        _sessions(request).revoke(database, session_id=claims.session_id)
+    with database(request) as current_database, current_database.begin():
+        _sessions(request).revoke(
+            current_database,
+            session_id=claims.session_id,
+        )
     return Response(status_code=status.HTTP_204_NO_CONTENT)

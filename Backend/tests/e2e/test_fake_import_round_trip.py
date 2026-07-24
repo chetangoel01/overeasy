@@ -20,6 +20,7 @@ from ladle.db.models import (
 from ladle.db.session import build_engine
 from ladle.imports.orchestrator import ImportOrchestrator, ProcessOutcome
 from ladle.imports.reservations import ReservationService
+from ladle.observability.metrics import MetricsRegistry
 from ladle.recipes.template_clone import RecipeTemplate, RecipeTemplateCloner
 from tests.fakes.acquisition import FakeAcquirer
 from tests.fakes.extraction import FakeExtractor
@@ -77,11 +78,13 @@ def test_worker_round_trip_then_shared_hit_and_duplicate_delivery(
     clock = FrozenClock(datetime(2026, 7, 23, 21, 0, tzinfo=UTC))
     reservations = ReservationService(clock=clock, lifetime=timedelta(hours=1))
     claims = ExtractionClaimService(clock=clock, lease_duration=timedelta(minutes=5))
+    metrics = MetricsRegistry()
     cache = ExtractionCacheService(
         clock=clock,
         claims=claims,
         cloner=RecipeTemplateCloner(clock=clock, reservations=reservations),
         public_recheck_after=timedelta(days=7),
+        metrics=metrics,
     )
     recipe = manual_recipe(uuid4()).model_copy(
         update={
@@ -97,6 +100,7 @@ def test_worker_round_trip_then_shared_hit_and_duplicate_delivery(
         acquirer=acquirer,
         extractor=extractor,
         clock=clock,
+        metrics=metrics,
     )
 
     with Session(engine) as database, database.begin():
@@ -141,5 +145,12 @@ def test_worker_round_trip_then_shared_hit_and_duplicate_delivery(
         )
         jobs = list(database.scalars(select(ImportJob).order_by(ImportJob.created_at)))
         assert all(job.status == "ready" for job in jobs)
+    rendered_metrics = metrics.render()
+    assert 'ladle_cache_total{disposition="leader"} 1' in rendered_metrics
+    assert 'ladle_cache_total{disposition="hit"} 2' in rendered_metrics
+    assert 'ladle_cache_total{disposition="recheck"} 1' in rendered_metrics
+    assert (
+        'ladle_import_jobs_total{source="youtube",status="ready"} 4' in rendered_metrics
+    )
 
     engine.dispose()

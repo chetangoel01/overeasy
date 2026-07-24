@@ -7,6 +7,7 @@ from ladle.contracts.recipes import RecipeDTO
 
 
 class ErrorCode(StrEnum):
+    INVALID_REQUEST = "invalidRequest"
     INVALID_URL = "invalidURL"
     UNSUPPORTED_SOURCE = "unsupportedSource"
     DUPLICATE_RECIPE = "duplicateRecipe"
@@ -16,6 +17,9 @@ class ErrorCode(StrEnum):
     PROVIDER_UNAVAILABLE = "providerUnavailable"
     QUOTA_EXCEEDED = "quotaExceeded"
     RATE_LIMITED = "rateLimited"
+    NOT_FOUND = "notFound"
+    CONFLICT = "conflict"
+    INTERNAL_ERROR = "internalError"
 
 
 class DuplicateRecipeDetails(WireModel):

@@ -23,6 +23,7 @@ from ladle.db.models import ImportJob, SourceVideo
 from ladle.extraction.claude import ExtractionUnavailable
 from ladle.extraction.protocol import RecipeExtractor
 from ladle.imports.transitions import ImportTransitionService
+from ladle.observability.metrics import MetricsRegistry
 from ladle.recipes.template_clone import RecipeTemplateCloner
 from ladle.usage.limits import UsageLimitService
 
@@ -52,6 +53,7 @@ class ImportOrchestrator:
         private_text: PrivateTextCipher | None = None,
         private_completion: RecipeTemplateCloner | None = None,
         transitions: ImportTransitionService | None = None,
+        metrics: MetricsRegistry | None = None,
     ) -> None:
         self._sessions = session_factory
         self._cache = cache
@@ -62,6 +64,7 @@ class ImportOrchestrator:
         self._private_text = private_text
         self._private_completion = private_completion
         self._transitions = transitions
+        self._metrics = metrics
 
     def process(self, job_id: UUID) -> ProcessOutcome:
         requires_recheck = False
@@ -72,18 +75,34 @@ class ImportOrchestrator:
             if job is None:
                 raise ValueError("import job does not exist")
             if job.status in {"ready", "needsReview"}:
-                return ProcessOutcome.ALREADY_COMPLETED
+                return self._outcome(
+                    ProcessOutcome.ALREADY_COMPLETED,
+                    status=job.status,
+                    source=job.source,
+                )
 
             decision = self._cache.route(database, job_id=job_id)
             if decision.disposition == CacheDisposition.HIT:
-                return ProcessOutcome.CACHE_HIT
+                return self._outcome(
+                    ProcessOutcome.CACHE_HIT,
+                    status=job.status,
+                    source=job.source,
+                )
             if decision.disposition == CacheDisposition.FOLLOWER:
-                return ProcessOutcome.FOLLOWER
+                return self._outcome(
+                    ProcessOutcome.FOLLOWER,
+                    status="parsing",
+                    source=job.source,
+                )
             if decision.disposition == CacheDisposition.RECHECK:
                 requires_recheck = True
             if decision.disposition == CacheDisposition.NEGATIVE:
                 if self._transitions is None or job.source_video_id is None:
-                    return ProcessOutcome.FAILED
+                    return self._outcome(
+                        ProcessOutcome.FAILED,
+                        status="failed",
+                        source=job.source,
+                    )
                 self._transitions.fail(
                     database,
                     job_id=job.id,
@@ -92,12 +111,20 @@ class ImportOrchestrator:
                     diagnostic_code="negativeCacheHit",
                     include_shared_followers=False,
                 )
-                return ProcessOutcome.FAILED
+                return self._outcome(
+                    ProcessOutcome.FAILED,
+                    status="failed",
+                    source=job.source,
+                )
             bypass_cache = decision.disposition == CacheDisposition.BYPASS
             if bypass_cache and (
                 self._private_text is None or self._private_completion is None
             ):
-                return ProcessOutcome.BYPASS_REQUIRED
+                return self._outcome(
+                    ProcessOutcome.BYPASS_REQUIRED,
+                    status="parsing",
+                    source=job.source,
+                )
             if not requires_recheck and not bypass_cache and decision.claim is None:
                 raise RuntimeError("leader decision did not include a claim")
 
@@ -124,7 +151,11 @@ class ImportOrchestrator:
                     bypass_cache=False,
                     error=error,
                 )
-                return ProcessOutcome.FAILED
+                return self._outcome(
+                    ProcessOutcome.FAILED,
+                    status="failed",
+                    source=descriptor.platform,
+                )
             if not is_public:
                 if self._transitions is None:
                     raise PrivateOrDeleted
@@ -135,7 +166,11 @@ class ImportOrchestrator:
                     bypass_cache=False,
                     error=PrivateOrDeleted(),
                 )
-                return ProcessOutcome.FAILED
+                return self._outcome(
+                    ProcessOutcome.FAILED,
+                    status="failed",
+                    source=descriptor.platform,
+                )
             with self._sessions.begin() as database:
                 self._maintenance.confirm_public(
                     database,
@@ -189,7 +224,11 @@ class ImportOrchestrator:
                 bypass_cache=bypass_cache,
                 error=error,
             )
-            return ProcessOutcome.FAILED
+            return self._outcome(
+                ProcessOutcome.FAILED,
+                status="failed",
+                source=descriptor.platform,
+            )
 
         with self._sessions.begin() as database:
             if bypass_cache:
@@ -202,10 +241,14 @@ class ImportOrchestrator:
                     job=job,
                     template=template,
                 )
-                return (
-                    ProcessOutcome.PRIVATE_COMPLETED
-                    if promoted
-                    else ProcessOutcome.PRIVATE_NEEDS_REVIEW
+                return self._outcome(
+                    (
+                        ProcessOutcome.PRIVATE_COMPLETED
+                        if promoted
+                        else ProcessOutcome.PRIVATE_NEEDS_REVIEW
+                    ),
+                    status=job.status,
+                    source=job.source,
                 )
             self._maintenance.confirm_public(
                 database,
@@ -220,7 +263,22 @@ class ImportOrchestrator:
                 prompt_version=self._extractor.prompt_version,
                 model_id=self._extractor.model_id,
             )
-        return ProcessOutcome.COMPLETED
+        return self._outcome(
+            ProcessOutcome.COMPLETED,
+            status=template.review_status.value,
+            source=descriptor.platform,
+        )
+
+    def _outcome(
+        self,
+        outcome: ProcessOutcome,
+        *,
+        status: str,
+        source: str,
+    ) -> ProcessOutcome:
+        if self._metrics is not None:
+            self._metrics.record_job(status, source)
+        return outcome
 
     def _fail_terminal(
         self,

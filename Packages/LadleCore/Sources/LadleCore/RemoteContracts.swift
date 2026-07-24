@@ -304,6 +304,7 @@ public struct RemoteSyncPageDTO: Codable, Hashable, Sendable {
 }
 
 public enum RemoteErrorCode: String, Codable, Hashable, Sendable {
+    case invalidRequest
     case invalidURL
     case unsupportedSource
     case duplicateRecipe
@@ -313,6 +314,9 @@ public enum RemoteErrorCode: String, Codable, Hashable, Sendable {
     case providerUnavailable
     case quotaExceeded
     case rateLimited
+    case notFound
+    case conflict
+    case internalError
 }
 
 public enum RemoteErrorDetails: Hashable, Sendable {

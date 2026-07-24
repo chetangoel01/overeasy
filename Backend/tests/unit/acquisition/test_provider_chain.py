@@ -16,6 +16,7 @@ from ladle.acquisition.models import (
     VisualResult,
 )
 from ladle.acquisition.provider_chain import ProviderChain
+from ladle.observability.metrics import MetricsRegistry
 from ladle.usage.circuit import CircuitBreaker, CircuitOpen
 
 
@@ -131,13 +132,22 @@ def test_sufficient_native_material_skips_paid_fallbacks() -> None:
         visual_result=empty_visual(),
     )
     fallback = Fallback(transcript("unused"))
-    chain = ProviderChain(primary=primary, fallback=fallback)
+    metrics = MetricsRegistry()
+    chain = ProviderChain(
+        primary=primary,
+        fallback=fallback,
+        metrics=metrics,
+    )
 
     context = chain.acquire(source(), job_id=uuid4())
 
     assert context.transcript[0].provenance == "supadata-native"
     assert primary.calls == ["metadata", "transcript:native"]
     assert fallback.calls == 0
+    assert (
+        'ladle_provider_total{outcome="success",provider="supadata"} 2'
+        in metrics.render()
+    )
 
 
 def test_public_recheck_uses_metadata_without_transcript_or_visual_spend() -> None:

@@ -1,19 +1,15 @@
 from typing import Annotated, cast
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from fastapi import APIRouter, Header, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from pydantic import AnyHttpUrl, Field
-from sqlalchemy.orm import Session
 
+from ladle.api.dependencies import database
+from ladle.api.errors import error_response
 from ladle.api.routes.auth import access_claims
 from ladle.contracts.common import WireModel, WireUUID
-from ladle.contracts.errors import (
-    DuplicateRecipeDetails,
-    ErrorCode,
-    ErrorDTO,
-    ErrorEnvelope,
-)
+from ladle.contracts.errors import DuplicateRecipeDetails, ErrorCode
 from ladle.contracts.imports import ImportJobResponse
 from ladle.imports.admission import (
     AdmissionService,
@@ -40,10 +36,6 @@ class RetryImportRequest(WireModel):
     pasted_text: str | None = Field(default=None, max_length=200_000)
 
 
-def _database(request: Request) -> Session:
-    return cast(Session, request.app.state.session_factory())
-
-
 def _admission(request: Request) -> AdmissionService:
     return cast(AdmissionService, request.app.state.admission_service)
 
@@ -57,6 +49,7 @@ def _retry_service(request: Request) -> ImportRetryService:
 
 
 def _error(
+    request: Request,
     *,
     code: ErrorCode,
     message: str,
@@ -64,18 +57,13 @@ def _error(
     details: DuplicateRecipeDetails | None = None,
     http_status: int,
 ) -> JSONResponse:
-    envelope = ErrorEnvelope(
-        error=ErrorDTO(
-            code=code,
-            message=message,
-            retryable=retryable,
-            request_id=uuid4(),
-            details=details,
-        )
-    )
-    return JSONResponse(
-        status_code=http_status,
-        content=envelope.model_dump(mode="json", by_alias=True),
+    return error_response(
+        request,
+        code=code,
+        message=message,
+        retryable=retryable,
+        details=details,
+        http_status=http_status,
     )
 
 
@@ -91,9 +79,9 @@ def submit_import(
 ) -> ImportJobResponse | JSONResponse:
     claims = access_claims(request, authorization)
     try:
-        with _database(request) as database, database.begin():
+        with database(request) as current_database, current_database.begin():
             admitted = _admission(request).admit(
-                database,
+                current_database,
                 job_id=body.job_id,
                 user_id=claims.user_id,
                 source_url=str(body.source_url),
@@ -103,12 +91,14 @@ def submit_import(
             response = admitted.response
     except GuestRecipeLimitReached:
         return _error(
+            request,
             code=ErrorCode.GUEST_RECIPE_LIMIT_REACHED,
             message="Create a free account to save more recipes.",
             http_status=status.HTTP_409_CONFLICT,
         )
     except DuplicateRecipe as duplicate:
         return _error(
+            request,
             code=ErrorCode.DUPLICATE_RECIPE,
             message="This recipe is already in your library.",
             details=DuplicateRecipeDetails(
@@ -118,12 +108,14 @@ def submit_import(
         )
     except InvalidSourceURL:
         return _error(
+            request,
             code=ErrorCode.INVALID_URL,
             message="The video URL is invalid.",
             http_status=status.HTTP_422_UNPROCESSABLE_CONTENT,
         )
     except UnsupportedSource:
         return _error(
+            request,
             code=ErrorCode.UNSUPPORTED_SOURCE,
             message="That video source is not supported.",
             http_status=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -142,9 +134,9 @@ def get_import(
 ) -> ImportJobResponse:
     claims = access_claims(request, authorization)
     try:
-        with _database(request) as database:
+        with database(request) as current_database:
             job = _admission(request).get(
-                database,
+                current_database,
                 user_id=claims.user_id,
                 job_id=job_id,
             )
@@ -166,9 +158,9 @@ def retry_import(
 ) -> ImportJobResponse:
     claims = access_claims(request, authorization)
     try:
-        with _database(request) as database, database.begin():
+        with database(request) as current_database, current_database.begin():
             job = _retry_service(request).retry(
-                database,
+                current_database,
                 user_id=claims.user_id,
                 job_id=job_id,
                 correction_notes=body.correction_notes,

@@ -30,6 +30,7 @@ from ladle.extraction.protocol import RecipeExtractor
 from ladle.imports.orchestrator import ImportOrchestrator
 from ladle.imports.reservations import ReservationService
 from ladle.imports.transitions import ImportTransitionService
+from ladle.observability.metrics import MetricsRegistry
 from ladle.recipes.template_clone import (
     RecipeTemplate,
     RecipeTemplateCloner,
@@ -148,11 +149,13 @@ def runtime_orchestrator() -> ImportOrchestrator:
         lease_duration=timedelta(minutes=settings.extraction_claim_minutes),
     )
     cloner = RecipeTemplateCloner(clock=clock, reservations=reservations)
+    metrics = MetricsRegistry()
     cache = ExtractionCacheService(
         clock=clock,
         claims=claims,
         cloner=cloner,
         public_recheck_after=timedelta(days=settings.public_cache_recheck_days),
+        metrics=metrics,
     )
     acquirer: VideoAcquirer
     extractor: RecipeExtractor
@@ -187,6 +190,7 @@ def runtime_orchestrator() -> ImportOrchestrator:
                 failure_threshold=settings.provider_circuit_failure_threshold,
                 cooldown=timedelta(seconds=settings.provider_circuit_cooldown_seconds),
             ),
+            metrics=metrics,
         )
         extractor = ClaudeRecipeExtractor(
             client=AnthropicStructuredClient(
@@ -217,4 +221,5 @@ def runtime_orchestrator() -> ImportOrchestrator:
             window=timedelta(days=1),
             max_billed_units=settings.provider_daily_billed_unit_limit,
         ),
+        metrics=metrics,
     )
