@@ -14,26 +14,19 @@
 - Use a suitable source with clear licensing and retain source attribution details when required.
 - Do not generate replacement imagery unless the user explicitly requests image generation.
 
-## Required Claude Fable consultation
+## Keep implementations concise
 
-Consult Claude Fable twice for every coherent tracked-file change-set:
+- Prefer the fewest lines that preserve clarity, correctness, and maintainability.
+- Remove duplication, unnecessary abstraction, boilerplate, and dead code.
+- Keep control flow direct and responsibilities easy to follow.
+- Do not reduce line count at the expense of readability, safety, accessibility, tests, or required behavior.
 
-1. Before editing, ask Fable to review the intended change, affected files, product constraints, and proposed verification.
-2. After implementation and verification, ask Fable to review the actual diff before committing.
+## Document every coherent change
 
-Use Claude in read-only mode. A suitable invocation is:
-
-```bash
-claude -p \
-  --model fable \
-  --permission-mode plan \
-  --allowedTools "Read,Grep,Glob,Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*)" \
-  "<review prompt>"
-```
-
-Fable must never edit repository files. Address feedback concerning correctness, safety, data integrity, concurrency, API contracts, or approved product behavior before committing. If feedback is intentionally not adopted, record the reason in the task notes or commit context.
-
-A coherent change-set may contain multiple mechanical edits that implement one already-reviewed behavior. A new behavior, materially revised approach, or unrelated fix requires a new pre-change consultation.
+- Add or update a concise human-readable companion document for every screen, feature, or coherent behavior change.
+- Record its purpose, user-visible behavior, important decisions, affected components, and verification.
+- Write enough for a human or replacement agent to resume the work without reconstructing intent from code.
+- Keep the document near related plans or verification records and update an existing relevant document instead of creating duplicates.
 
 ## Verification before commits
 
@@ -42,5 +35,5 @@ A coherent change-set may contain multiple mechanical edits that implement one a
 - Run `swift test --package-path Packages/LadleCore` for shared domain changes.
 - Run the relevant `xcodebuild test` target for app or UI behavior.
 - Run a full Ladle app and Share Extension build at milestone checkpoints.
-- Run `git diff --check` before every commit. This checks whitespace errors and conflict markers; it does not replace tests, compilation, or Fable review.
-- Commit only after the relevant tests pass and the post-change Fable review has been resolved.
+- Run `git diff --check` before every commit. This checks whitespace errors and conflict markers; it does not replace tests or compilation.
+- Commit only after the relevant tests pass.
