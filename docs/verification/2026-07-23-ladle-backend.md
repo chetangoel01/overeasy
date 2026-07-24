@@ -14,8 +14,8 @@ Verified product areas:
   reservations, and typed failures
 - shared canonical-video extraction caching across users
 - concurrent cache-claim coalescing so one video incurs one extraction
-- caption and transcript acquisition through Supadata, then SoScripted, with
-  an optional disabled-by-default server media/ASR fallback
+- caption and transcript acquisition through Supadata, then SoScripted, plus
+  a disabled server media/ASR adapter seam awaiting a concrete processor
 - Claude structured recipe extraction, estimated nutrition, per-field
   uncertainty, and review gating
 - private/corrected re-parses that bypass and cannot poison the public cache
@@ -81,9 +81,9 @@ lease takeover, and pasted-text recovery.
   revision is still current; otherwise it creates a hidden review candidate.
 - Failed and needs-review replacements never destroy the current usable
   recipe.
-- Supadata acquisition failures fall through to SoScripted. The optional
-  `yt-dlp`/`ffmpeg`/`faster-whisper` server adapter remains off unless
-  explicitly enabled.
+- Supadata acquisition failures fall through to SoScripted. The server
+  fallback adapter exists, but `yt-dlp`/`ffmpeg`/`faster-whisper` processing
+  is not yet implemented or wired into the runtime.
 - Missing visual evidence lowers confidence and routes ambiguous quantities to
   review rather than inventing values.
 - Import reservations remain correct under duplicate, concurrent, failed, and
@@ -146,6 +146,8 @@ and cache-recheck settings are documented in `Backend/.env.example`.
   validation.
 - The release API hostname, TLS, production database/Redis/object storage, and
   secret injection must be provisioned in the deployment environment.
+- The server media/ASR backup needs a concrete processor and runtime wiring;
+  its feature flag does not enable a backup by itself.
 
 No live provider, production Apple service, or paid API was silently simulated
 as verified.

@@ -15,8 +15,13 @@ uv run mypy ladle
 
 Copy `.env.example` to an ignored `.env` for local development. Replace the
 development-only signing and encryption placeholders before setting
-`LADLE_ENVIRONMENT=production`. External provider credentials are optional;
-unconfigured providers are skipped by the acquisition chain.
+`LADLE_ENVIRONMENT=production`. Local Compose uses deterministic fake
+providers. Live workers require configured Supadata, SoScripted, and Anthropic
+credentials.
+
+See [`docs/integration-reference.md`](docs/integration-reference.md) for the
+repository/runtime path map, complete API reference and examples, provider
+fallback behavior, iOS connection setup, and PostgreSQL data dictionary.
 
 ## Local stack
 
