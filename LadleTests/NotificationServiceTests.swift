@@ -81,7 +81,7 @@ final class NotificationServiceTests: XCTestCase {
 
     private func makeCoordinator(
         repository: NotificationTestRepository,
-        outcome: ImportServiceOutcome,
+        outcome: ImportServiceProgress,
         notifications: TestNotificationService
     ) -> ImportCoordinator {
         ImportCoordinator(
@@ -129,12 +129,28 @@ private final class TestNotificationService: NotificationService {
 }
 
 private struct NotificationTestImportService: ImportService {
-    let outcome: ImportServiceOutcome
+    let outcome: ImportServiceProgress
 
-    func importRecipe(
-        for job: ImportJob
-    ) async throws -> ImportServiceOutcome {
-        outcome
+    func submit(
+        _ job: ImportJob,
+        allowingDuplicate: Bool
+    ) async throws -> ImportServiceUpdate {
+        ImportServiceUpdate(
+            remoteJobID: job.id.uuidString,
+            progress: outcome
+        )
+    }
+
+    func status(remoteJobID: String) async throws -> ImportServiceUpdate {
+        ImportServiceUpdate(remoteJobID: remoteJobID, progress: outcome)
+    }
+
+    func retry(
+        remoteJobID: String,
+        correctionNotes: String?,
+        pastedRecipeText: String?
+    ) async throws -> ImportServiceUpdate {
+        ImportServiceUpdate(remoteJobID: remoteJobID, progress: outcome)
     }
 }
 

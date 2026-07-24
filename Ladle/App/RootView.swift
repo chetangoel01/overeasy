@@ -6,15 +6,24 @@ struct RootView: View {
     let accountSession: AccountSession
     let libraryViewModel: LibraryViewModel
     let importCoordinator: ImportCoordinator
+    let authClient: AuthClient?
+    let installationID: String
+    let onAuthenticated: @MainActor () async -> Void
 
     init(
         accountSession: AccountSession,
         libraryViewModel: LibraryViewModel,
-        importCoordinator: ImportCoordinator
+        importCoordinator: ImportCoordinator,
+        authClient: AuthClient? = nil,
+        installationID: String = "preview-installation",
+        onAuthenticated: @escaping @MainActor () async -> Void = {}
     ) {
         self.accountSession = accountSession
         self.libraryViewModel = libraryViewModel
         self.importCoordinator = importCoordinator
+        self.authClient = authClient
+        self.installationID = installationID
+        self.onAuthenticated = onAuthenticated
     }
 
     var body: some View {
@@ -35,7 +44,12 @@ struct RootView: View {
                     .ignoresSafeArea()
                     .accessibilityHidden(true)
 
-                WelcomeView(accountSession: accountSession)
+                WelcomeView(
+                    accountSession: accountSession,
+                    authClient: authClient,
+                    installationID: installationID,
+                    onAuthenticated: onAuthenticated
+                )
                     .transition(
                         reduceMotion
                             ? .opacity

@@ -27,6 +27,7 @@ from ladle.db.models import (
 )
 from ladle.db.session import build_engine
 from ladle.imports.reservations import ReservationService
+from ladle.recipes.repository import RecipeRepository
 from ladle.recipes.template_clone import RecipeTemplate, RecipeTemplateCloner
 from tests.integration.recipes.test_recipe_service import manual_recipe, seed_user
 from tests.integration.test_migrations import alembic_config
@@ -194,6 +195,95 @@ def test_shared_completion_fans_out_and_later_hit_clones_fresh_graphs(
     with Session(engine) as database:
         assert database.scalar(select(func.count()).select_from(Recipe)) == 3
         assert database.scalar(select(func.count()).select_from(ExtractionCache)) == 1
+
+    engine.dispose()
+
+
+@pytest.mark.integration
+def test_cached_reimport_updates_current_recipe_without_cloning(
+    clean_postgres_url: str,
+) -> None:
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    engine = build_engine(clean_postgres_url)
+    clock = FrozenClock(datetime(2026, 7, 23, 21, 0, tzinfo=UTC))
+    _, cache = build_services(clock)
+    extracted = extracted_recipe().model_copy(update={"title": "Cached Replacement"})
+
+    with Session(engine) as database, database.begin():
+        user_id = seed_user(database)
+        source_id = uuid4()
+        current_id = uuid4()
+        job_id = uuid4()
+        database.add(
+            SourceVideo(
+                id=source_id,
+                platform="youtube",
+                platform_video_id="cached-reimport",
+                canonical_url="https://www.youtube.com/watch?v=cached-reimport",
+                public_access_confirmed_at=clock.now(),
+                source_revision="1",
+                source_metadata={},
+            )
+        )
+        current = RecipeRepository().insert(
+            database,
+            user_id=user_id,
+            recipe=manual_recipe(current_id).model_copy(update={"is_favorite": True}),
+            created_at=clock.now(),
+        )
+        database.add(
+            ExtractionCache(
+                id=uuid4(),
+                source_video_id=source_id,
+                source_revision="1",
+                contract_version="v1",
+                prompt_version="recipe-v1",
+                model_id="claude-sonnet",
+                template_json=RecipeTemplate.from_recipe(extracted).model_dump(
+                    mode="json",
+                    by_alias=True,
+                ),
+                review_status="ready",
+                thumbnail_object_key=None,
+                created_at=clock.now(),
+            )
+        )
+        database.add(
+            ImportJob(
+                id=job_id,
+                user_id=user_id,
+                source_video_id=source_id,
+                source_url="https://youtu.be/cached-reimport",
+                canonical_url=("https://www.youtube.com/watch?v=cached-reimport"),
+                source="youtube",
+                status="parsing",
+                stage="admitted",
+                retry_count=0,
+                bypass_cache=False,
+                current_recipe_id=current.id,
+                base_recipe_revision=current.revision,
+                idempotency_key=f"cached-reimport-{job_id}",
+            )
+        )
+
+    with Session(engine) as database, database.begin():
+        decision = cache.route(database, job_id=job_id)
+
+    assert decision.disposition == CacheDisposition.HIT
+    assert decision.recipe_id == current_id
+    with Session(engine) as database:
+        recipes = list(database.scalars(select(Recipe)))
+        job = database.get(ImportJob, job_id)
+        assert len(recipes) == 1
+        assert recipes[0].id == current_id
+        assert recipes[0].title == "Cached Replacement"
+        assert recipes[0].favorite is True
+        assert recipes[0].revision == 2
+        assert job is not None
+        assert job.current_recipe_id == current_id
+        assert job.candidate_recipe_id is None
+        assert job.status == "ready"
+        assert database.scalar(select(func.count()).select_from(RecipeChange)) == 1
 
     engine.dispose()
 

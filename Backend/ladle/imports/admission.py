@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from ladle.clock import Clock
 from ladle.contracts.imports import ImportFailure, ImportJobResponse, ImportStatus
+from ladle.crypto.private_text import PrivateTextCipher
 from ladle.db.models import ImportJob, Recipe, SourceVideo
 from ladle.imports.reservations import ReservationService
 from ladle.imports.source_identity import SourceIdentityParser
@@ -20,6 +21,10 @@ class DuplicateRecipe(Exception):
 
 
 class ImportJobNotFound(Exception):
+    pass
+
+
+class CurrentRecipeUnavailable(Exception):
     pass
 
 
@@ -37,10 +42,12 @@ class AdmissionService:
         parser: SourceIdentityParser,
         reservations: ReservationService,
         clock: Clock,
+        private_text: PrivateTextCipher | None = None,
     ) -> None:
         self._parser = parser
         self._reservations = reservations
         self._clock = clock
+        self._private_text = private_text
 
     def admit(
         self,
@@ -52,6 +59,8 @@ class AdmissionService:
         allow_duplicate: bool,
         idempotency_key: str,
         current_recipe_id: UUID | None = None,
+        correction_notes: str | None = None,
+        pasted_text: str | None = None,
     ) -> AdmittedImport:
         existing = self._idempotent_job(
             database,
@@ -67,10 +76,22 @@ class AdmissionService:
             )
 
         identity = self._parser.parse(source_url)
+        current_recipe: Recipe | None = None
         if current_recipe_id is None:
             ensure_recipe_capacity(database, user_id)
         else:
             lock_recipe_capacity(database, user_id)
+            current_recipe = database.scalar(
+                select(Recipe)
+                .where(
+                    Recipe.id == current_recipe_id,
+                    Recipe.user_id == user_id,
+                    Recipe.deleted_at.is_(None),
+                )
+                .with_for_update()
+            )
+            if current_recipe is None:
+                raise CurrentRecipeUnavailable
 
         existing = self._idempotent_job(
             database,
@@ -135,8 +156,13 @@ class AdmissionService:
             status="parsing",
             stage="admitted",
             retry_count=0,
-            bypass_cache=False,
+            bypass_cache=bool(correction_notes or pasted_text),
+            correction_notes_encrypted=self._encrypt(correction_notes),
+            pasted_text_encrypted=self._encrypt(pasted_text),
             current_recipe_id=current_recipe_id,
+            base_recipe_revision=(
+                current_recipe.revision if current_recipe is not None else None
+            ),
             idempotency_key=idempotency_key,
             created_at=now,
             updated_at=now,
@@ -155,6 +181,13 @@ class AdmissionService:
             response=self.response(job),
             should_dispatch=True,
         )
+
+    def _encrypt(self, value: str | None) -> bytes | None:
+        if value is None:
+            return None
+        if self._private_text is None:
+            raise RuntimeError("private text cipher is unavailable")
+        return self._private_text.encrypt(value)
 
     def get(
         self,

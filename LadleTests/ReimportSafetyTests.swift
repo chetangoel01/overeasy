@@ -187,9 +187,37 @@ private struct CandidateImportService: ImportService {
 
     let result: Result
 
-    func importRecipe(
+    func submit(
+        _ job: ImportJob,
+        allowingDuplicate: Bool
+    ) async throws -> ImportServiceUpdate {
+        ImportServiceUpdate(
+            remoteJobID: job.id.uuidString,
+            progress: progress(for: job)
+        )
+    }
+
+    func status(remoteJobID: String) async throws -> ImportServiceUpdate {
+        ImportServiceUpdate(
+            remoteJobID: remoteJobID,
+            progress: .failed(.networkUnavailable)
+        )
+    }
+
+    func retry(
+        remoteJobID: String,
+        correctionNotes: String?,
+        pastedRecipeText: String?
+    ) async throws -> ImportServiceUpdate {
+        ImportServiceUpdate(
+            remoteJobID: remoteJobID,
+            progress: .failed(.networkUnavailable)
+        )
+    }
+
+    private func progress(
         for job: ImportJob
-    ) async throws -> ImportServiceOutcome {
+    ) -> ImportServiceProgress {
         switch result {
         case .ready:
             return .ready(candidate(for: job, needsReview: false))

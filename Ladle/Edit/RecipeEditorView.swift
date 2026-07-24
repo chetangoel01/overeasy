@@ -154,20 +154,21 @@ struct RecipeEditorView: View {
             title: "Source & media",
             message: "The original source stays attached so you can always check the video."
         ) {
-            if let imageName = viewModel.draft.images.first?.localName {
-                Image(imageName)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(height: 210)
-                    .frame(maxWidth: .infinity)
-                    .clipShape(
-                        RoundedRectangle(
-                            cornerRadius: LadleTheme.Corner.card,
-                            style: .continuous
-                        )
+            if let image = viewModel.draft.images.first {
+                RecipeArtworkView(
+                    recipeID: viewModel.draft.id,
+                    image: image
+                )
+                .frame(height: 210)
+                .frame(maxWidth: .infinity)
+                .clipShape(
+                    RoundedRectangle(
+                        cornerRadius: LadleTheme.Corner.card,
+                        style: .continuous
                     )
-                    .clipped()
-                    .accessibilityLabel("Current recipe photo")
+                )
+                .clipped()
+                .accessibilityLabel("Current recipe photo")
             }
 
             VStack(alignment: .leading, spacing: 6) {

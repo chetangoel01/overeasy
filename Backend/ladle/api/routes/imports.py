@@ -13,6 +13,7 @@ from ladle.contracts.errors import DuplicateRecipeDetails, ErrorCode
 from ladle.contracts.imports import ImportJobResponse
 from ladle.imports.admission import (
     AdmissionService,
+    CurrentRecipeUnavailable,
     DuplicateRecipe,
     ImportJobNotFound,
 )
@@ -29,6 +30,9 @@ class ImportSubmissionRequest(WireModel):
     source_url: AnyHttpUrl
     allow_duplicate: bool = False
     idempotency_key: str | None = None
+    current_recipe_id: WireUUID | None = None
+    correction_notes: str | None = Field(default=None, max_length=10_000)
+    pasted_text: str | None = Field(default=None, max_length=200_000)
 
 
 class RetryImportRequest(WireModel):
@@ -87,6 +91,9 @@ def submit_import(
                 source_url=str(body.source_url),
                 allow_duplicate=body.allow_duplicate,
                 idempotency_key=body.idempotency_key or str(body.job_id),
+                current_recipe_id=body.current_recipe_id,
+                correction_notes=body.correction_notes,
+                pasted_text=body.pasted_text,
             )
             response = admitted.response
     except GuestRecipeLimitReached:
@@ -120,6 +127,8 @@ def submit_import(
             message="That video source is not supported.",
             http_status=status.HTTP_422_UNPROCESSABLE_CONTENT,
         )
+    except CurrentRecipeUnavailable as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND) from error
 
     if admitted.should_dispatch:
         _dispatcher(request).enqueue(admitted.job_id)

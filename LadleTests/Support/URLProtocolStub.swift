@@ -24,6 +24,30 @@ final class URLProtocolStub: URLProtocol {
         return URLSession(configuration: configuration)
     }
 
+    static func bodyData(for request: URLRequest) throws -> Data {
+        if let body = request.httpBody {
+            return body
+        }
+        guard let stream = request.httpBodyStream else {
+            return Data()
+        }
+        stream.open()
+        defer { stream.close() }
+        var data = Data()
+        var buffer = [UInt8](repeating: 0, count: 4_096)
+        while stream.hasBytesAvailable {
+            let count = stream.read(&buffer, maxLength: buffer.count)
+            if count < 0 {
+                throw stream.streamError ?? URLError(.cannotDecodeContentData)
+            }
+            if count == 0 {
+                break
+            }
+            data.append(buffer, count: count)
+        }
+        return data
+    }
+
     override class func canInit(with request: URLRequest) -> Bool {
         true
     }

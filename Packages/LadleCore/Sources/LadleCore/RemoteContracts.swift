@@ -29,6 +29,46 @@ public enum RemoteContractJSON {
         }
         return decoder
     }
+
+    public static func encoder() -> JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .custom { date, encoder in
+            var container = encoder.singleValueContainer()
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [
+                .withInternetDateTime,
+                .withFractionalSeconds,
+            ]
+            formatter.timeZone = TimeZone(secondsFromGMT: 0)
+            try container.encode(formatter.string(from: date))
+        }
+        return encoder
+    }
+
+    public static func encode<Value: Encodable>(
+        _ value: Value
+    ) throws -> Data {
+        let encoded = try encoder().encode(value)
+        let object = try JSONSerialization.jsonObject(with: encoded)
+        return try JSONSerialization.data(
+            withJSONObject: canonicalizeUUIDs(in: object)
+        )
+    }
+
+    private static func canonicalizeUUIDs(in value: Any) -> Any {
+        if let dictionary = value as? [String: Any] {
+            return dictionary.mapValues(canonicalizeUUIDs(in:))
+        }
+        if let array = value as? [Any] {
+            return array.map(canonicalizeUUIDs(in:))
+        }
+        if let string = value as? String,
+           let uuid = UUID(uuidString: string),
+           string.caseInsensitiveCompare(uuid.uuidString) == .orderedSame {
+            return uuid.uuidString.lowercased()
+        }
+        return value
+    }
 }
 
 public enum RemoteImportStatus: String, Codable, Hashable, Sendable {
@@ -107,6 +147,12 @@ public struct RemoteFieldUncertaintyDTO: Codable, Hashable, Sendable {
     public let reason: String
     public let confidence: Double?
 
+    public init(_ value: FieldUncertainty) {
+        field = value.field
+        reason = value.reason
+        confidence = value.confidence
+    }
+
     fileprivate func uncertainty() -> FieldUncertainty {
         FieldUncertainty(field: field, reason: reason, confidence: confidence)
     }
@@ -115,6 +161,11 @@ public struct RemoteFieldUncertaintyDTO: Codable, Hashable, Sendable {
 public struct RemoteRecipeImageDTO: Codable, Hashable, Sendable {
     public let id: UUID
     public let remoteURL: URL
+
+    public init(id: UUID, remoteURL: URL) {
+        self.id = id
+        self.remoteURL = remoteURL
+    }
 
     fileprivate func image() -> RecipeImage {
         RecipeImage(id: id, remoteURL: remoteURL)
@@ -130,6 +181,17 @@ public struct RemoteIngredientDTO: Codable, Hashable, Sendable {
     public let preparation: String?
     public let orderIndex: Int
     public let uncertainty: RemoteFieldUncertaintyDTO?
+
+    public init(_ value: Ingredient) {
+        id = value.id
+        quantityText = value.quantityText
+        normalizedQuantity = value.normalizedQuantity.map(remoteDecimalString)
+        unit = value.unit
+        name = value.name
+        preparation = value.preparation
+        orderIndex = value.orderIndex
+        uncertainty = value.uncertainty.map(RemoteFieldUncertaintyDTO.init)
+    }
 
     fileprivate func ingredient() throws -> Ingredient {
         Ingredient(
@@ -152,6 +214,12 @@ public struct RemoteDetectedTimerDTO: Codable, Hashable, Sendable {
     public let label: String
     public let durationSeconds: Int
 
+    public init(_ value: DetectedTimer) {
+        id = value.id
+        label = value.label
+        durationSeconds = value.durationSeconds
+    }
+
     fileprivate func timer() -> DetectedTimer {
         DetectedTimer(id: id, label: label, durationSeconds: durationSeconds)
     }
@@ -164,6 +232,15 @@ public struct RemoteRecipeStepDTO: Codable, Hashable, Sendable {
     public let ingredientIDs: [UUID]
     public let timers: [RemoteDetectedTimerDTO]
     public let uncertainty: RemoteFieldUncertaintyDTO?
+
+    public init(_ value: RecipeStep) {
+        id = value.id
+        orderIndex = value.orderIndex
+        instruction = value.instruction
+        ingredientIDs = value.ingredientIDs
+        timers = value.timers.map(RemoteDetectedTimerDTO.init)
+        uncertainty = value.uncertainty.map(RemoteFieldUncertaintyDTO.init)
+    }
 
     fileprivate func step() -> RecipeStep {
         RecipeStep(
@@ -182,6 +259,13 @@ public struct RemoteNutrientDTO: Codable, Hashable, Sendable {
     public let name: String
     public let amount: String
     public let unit: String
+
+    public init(_ value: Nutrient) {
+        id = value.id
+        name = value.name
+        amount = remoteDecimalString(value.amount)
+        unit = value.unit
+    }
 
     fileprivate func nutrient() throws -> Nutrient {
         Nutrient(
@@ -205,6 +289,20 @@ public struct RemoteNutritionDTO: Codable, Hashable, Sendable {
     public let otherNutrients: [RemoteNutrientDTO]
     public let servingBasis: String
     public let isEstimated: Bool
+
+    public init(_ value: Nutrition) {
+        calories = value.calories.map(remoteDecimalString)
+        proteinGrams = value.proteinGrams.map(remoteDecimalString)
+        carbohydrateGrams = value.carbohydrateGrams.map(remoteDecimalString)
+        fatGrams = value.fatGrams.map(remoteDecimalString)
+        saturatedFatGrams = value.saturatedFatGrams.map(remoteDecimalString)
+        fiberGrams = value.fiberGrams.map(remoteDecimalString)
+        sugarGrams = value.sugarGrams.map(remoteDecimalString)
+        sodiumMilligrams = value.sodiumMilligrams.map(remoteDecimalString)
+        otherNutrients = value.otherNutrients.map(RemoteNutrientDTO.init)
+        servingBasis = remoteDecimalString(value.servingBasis)
+        isEstimated = value.isEstimated
+    }
 
     fileprivate func nutrition() throws -> Nutrition {
         Nutrition(
@@ -257,6 +355,40 @@ public struct RemoteRecipeDTO: Codable, Hashable, Sendable {
     public let revision: Int
     public let createdAt: Date
     public let updatedAt: Date
+
+    public init(recipe: Recipe, revision: Int) {
+        id = recipe.id
+        title = recipe.title
+        description = recipe.description
+        creatorName = recipe.creatorName
+        source = switch recipe.source {
+        case .tiktok: .tiktok
+        case .instagram: .instagram
+        case .youtube: .youtube
+        case .other: .other
+        }
+        originalURL = recipe.originalURL
+        images = recipe.images.compactMap { image in
+            image.remoteURL.map {
+                RemoteRecipeImageDTO(id: image.id, remoteURL: $0)
+            }
+        }
+        preparationMinutes = recipe.preparationMinutes
+        cookingMinutes = recipe.cookingMinutes
+        totalMinutes = recipe.totalMinutes
+        servings = remoteDecimalString(recipe.servings)
+        ingredients = recipe.ingredients.map(RemoteIngredientDTO.init)
+        steps = recipe.steps.map(RemoteRecipeStepDTO.init)
+        nutrition = recipe.nutrition.map(RemoteNutritionDTO.init)
+        isFavorite = recipe.isFavorite
+        reviewStatus = recipe.reviewStatus
+        uncertainties = recipe.uncertainties.map(
+            RemoteFieldUncertaintyDTO.init
+        )
+        self.revision = revision
+        createdAt = recipe.createdAt
+        updatedAt = recipe.updatedAt
+    }
 
     public func recipe() throws -> Recipe {
         Recipe(
@@ -409,4 +541,8 @@ private func remoteDecimal(_ value: String, field: String) throws -> Decimal {
         throw RemoteContractError.invalidDecimal(field: field, value: value)
     }
     return decimal
+}
+
+private func remoteDecimalString(_ value: Decimal) -> String {
+    NSDecimalNumber(decimal: value).stringValue
 }

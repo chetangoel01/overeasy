@@ -32,17 +32,24 @@ final class RecipeEditorViewModel {
     @ObservationIgnored
     private let now: () -> Date
 
+    @ObservationIgnored
+    private let didSave:
+        @MainActor @Sendable () async -> Void
+
     private var originalRecipe: Recipe
 
     init(
         recipe: Recipe,
         repository: RecipeRepository,
-        now: @escaping () -> Date = Date.init
+        now: @escaping () -> Date = Date.init,
+        didSave:
+            @escaping @MainActor @Sendable () async -> Void = {}
     ) {
         originalRecipe = recipe
         draft = RecipeDraft(recipe: recipe)
         self.repository = repository
         self.now = now
+        self.didSave = didSave
     }
 
     var hasChanges: Bool {
@@ -90,6 +97,9 @@ final class RecipeEditorViewModel {
             originalRecipe = recipe
             draft = RecipeDraft(recipe: recipe)
             state = .saved(recipe)
+            Task {
+                await didSave()
+            }
             return recipe
         } catch {
             state = .persistenceFailed

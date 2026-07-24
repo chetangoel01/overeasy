@@ -92,6 +92,32 @@ struct RemoteContractTests {
         #expect(retryAt.timeIntervalSince1970 > 0)
         #expect(envelopes[3].error.details == nil)
     }
+
+    @Test
+    func requestEncodingCanonicalizesNestedUUIDs() throws {
+        struct Body: Encodable {
+            let jobID: UUID
+            let nested: [UUID]
+        }
+        let id = UUID(
+            uuidString: "10000000-0000-4000-8000-0000000000AA"
+        )!
+
+        let data = try RemoteContractJSON.encode(
+            Body(jobID: id, nested: [id])
+        )
+        let object = try JSONSerialization.jsonObject(with: data)
+            as? [String: Any]
+
+        #expect(
+            object?["jobID"] as? String
+                == "10000000-0000-4000-8000-0000000000aa"
+        )
+        #expect(
+            (object?["nested"] as? [String])?.first
+                == "10000000-0000-4000-8000-0000000000aa"
+        )
+    }
 }
 
 private func decodeFixture<Value: Decodable>(_ name: String) throws -> Value {

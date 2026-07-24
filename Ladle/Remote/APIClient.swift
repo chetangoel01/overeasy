@@ -35,7 +35,6 @@ actor APIClient {
     private let baseURL: URL
     private let session: URLSession
     private let tokenStore: any AuthTokenStoring
-    private let encoder = JSONEncoder()
     private var refreshTask: Task<AuthTokens, Error>?
 
     init(
@@ -73,6 +72,34 @@ actor APIClient {
         Body: Encodable & Sendable
     {
         try await request(
+            path: path,
+            method: method,
+            body: Optional(body),
+            authenticated: authenticated
+        )
+    }
+
+    func requestWithoutResponse(
+        path: String,
+        method: HTTPMethod,
+        authenticated: Bool = true
+    ) async throws {
+        try await requestWithoutResponse(
+            path: path,
+            method: method,
+            body: Optional<EmptyBody>.none,
+            authenticated: authenticated
+        )
+    }
+
+    func requestWithoutResponse<Body>(
+        path: String,
+        method: HTTPMethod,
+        body: Body,
+        authenticated: Bool = true
+    ) async throws
+    where Body: Encodable & Sendable {
+        try await requestWithoutResponse(
             path: path,
             method: method,
             body: Optional(body),
@@ -119,6 +146,44 @@ actor APIClient {
             )
         }
         return try decode(Response.self, data: data, response: response)
+    }
+
+    private func requestWithoutResponse<Body>(
+        path: String,
+        method: HTTPMethod,
+        body: Body?,
+        authenticated: Bool
+    ) async throws
+    where Body: Encodable & Sendable {
+        let tokens = authenticated ? try tokenStore.load() : nil
+        if authenticated, tokens == nil {
+            throw APIError.missingAuthentication
+        }
+        let request = try makeRequest(
+            path: path,
+            method: method,
+            body: body,
+            accessToken: tokens?.accessToken
+        )
+        let (data, response) = try await perform(request)
+        if response.statusCode == 401, authenticated {
+            let refreshed = try await refreshTokens(
+                failedAccessToken: tokens?.accessToken
+            )
+            let replay = try makeRequest(
+                path: path,
+                method: method,
+                body: body,
+                accessToken: refreshed.accessToken
+            )
+            let (replayData, replayResponse) = try await perform(replay)
+            try validateEmptyResponse(
+                data: replayData,
+                response: replayResponse
+            )
+            return
+        }
+        try validateEmptyResponse(data: data, response: response)
     }
 
     private func refreshTokens(
@@ -194,7 +259,7 @@ actor APIClient {
         }
         if let body {
             do {
-                request.httpBody = try encoder.encode(body)
+                request.httpBody = try RemoteContractJSON.encode(body)
             } catch {
                 throw APIError.encoding
             }
@@ -248,6 +313,21 @@ actor APIClient {
             )
         } catch {
             throw APIError.decoding
+        }
+    }
+
+    private func validateEmptyResponse(
+        data: Data,
+        response: HTTPURLResponse
+    ) throws {
+        guard (200 ..< 300).contains(response.statusCode) else {
+            if let envelope = try? RemoteContractJSON.decoder().decode(
+                RemoteErrorEnvelope.self,
+                from: data
+            ) {
+                throw APIError.remote(envelope.error)
+            }
+            throw APIError.invalidResponse
         }
     }
 

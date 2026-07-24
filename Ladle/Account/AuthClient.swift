@@ -30,7 +30,8 @@ final class AuthClient {
 
     func bootstrapGuest(
         installationID: String,
-        attestation: String?
+        attestation: String?,
+        applyAccountState: Bool = true
     ) async throws -> AuthTokens {
         let tokens: AuthTokens = try await api.request(
             path: "/v1/auth/guest",
@@ -42,7 +43,17 @@ final class AuthClient {
             authenticated: false
         )
         try tokenStore.save(tokens)
-        accountSession.applyRemoteUserKind(tokens.userKind)
+        if applyAccountState {
+            accountSession.applyRemoteUserKind(tokens.userKind)
+        }
+        return tokens
+    }
+
+    func restoreSession() throws -> AuthTokens? {
+        let tokens = try tokenStore.load()
+        if let tokens {
+            accountSession.applyRemoteUserKind(tokens.userKind)
+        }
         return tokens
     }
 

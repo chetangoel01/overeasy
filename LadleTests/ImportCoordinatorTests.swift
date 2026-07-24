@@ -69,6 +69,65 @@ final class ImportCoordinatorTests: XCTestCase {
         XCTAssertNotEqual(repository.recipes.last?.id, existing.id)
     }
 
+    func testRemoteDuplicateRemovesLocalAdmissionJob() async throws {
+        let existing = importRecipe(
+            title: "Existing Green Curry",
+            originalURL: URL(
+                string: "https://www.tiktok.com/@ladle/video/existing"
+            )!
+        )
+        let repository = ImportTestRepository(recipes: [existing])
+        let service = ThrowingImportService(
+            error: try remoteAPIError(
+                code: "duplicateRecipe",
+                details: [
+                    "existingRecipeID": existing.id.uuidString.lowercased(),
+                ]
+            )
+        )
+        let coordinator = ImportCoordinator(
+            repository: repository,
+            service: service,
+            accountSession: AccountSession(
+                store: ImportTestPreferenceStore()
+            ),
+            clock: ImmediateImportClock()
+        )
+
+        await coordinator.submit(
+            urlText: "https://www.tiktok.com/@ladle/video/duplicate"
+        )
+
+        XCTAssertEqual(
+            coordinator.state,
+            .duplicate(existingRecipeID: existing.id)
+        )
+        XCTAssertTrue(repository.importJobs.isEmpty)
+    }
+
+    func testRemoteGuestLimitRemovesLocalAdmissionJob() async throws {
+        let repository = ImportTestRepository()
+        let coordinator = ImportCoordinator(
+            repository: repository,
+            service: ThrowingImportService(
+                error: try remoteAPIError(
+                    code: "guestRecipeLimitReached"
+                )
+            ),
+            accountSession: AccountSession(
+                store: ImportTestPreferenceStore()
+            ),
+            clock: ImmediateImportClock()
+        )
+
+        await coordinator.submit(
+            urlText: "https://www.tiktok.com/@ladle/video/limit"
+        )
+
+        XCTAssertEqual(coordinator.state, .guestLimit(.limitReached))
+        XCTAssertTrue(repository.importJobs.isEmpty)
+    }
+
     func testGuestLimitBlocksNewImportUntilAccountIsCreated() async {
         let repository = ImportTestRepository(
             recipes: (0..<10).map {
@@ -246,6 +305,75 @@ final class ImportCoordinatorTests: XCTestCase {
         )
     }
 
+    func testRelaunchResumesPersistedRemoteJobWithoutResubmitting() async throws {
+        var pending = ImportJob.queued(
+            sourceURL: URL(
+                string: "https://youtu.be/resume-this-import"
+            )!,
+            source: .youtube
+        )
+        pending.remoteJobID = pending.id.uuidString
+        let recipe = importRecipe(
+            id: pending.id,
+            title: "Resumed Recipe",
+            originalURL: pending.sourceURL
+        )
+        let service = ScriptedImportService(
+            statuses: [
+                ImportServiceUpdate(
+                    remoteJobID: pending.id.uuidString,
+                    progress: .ready(recipe)
+                ),
+            ]
+        )
+        let repository = ImportTestRepository(importJobs: [pending])
+        let coordinator = ImportCoordinator(
+            repository: repository,
+            service: service,
+            accountSession: AccountSession(
+                store: ImportTestPreferenceStore()
+            ),
+            clock: ImmediateImportClock()
+        )
+
+        await coordinator.resumePendingImports()
+
+        let submitCount = await service.submitCount
+        let statusCount = await service.statusCount
+        XCTAssertEqual(submitCount, 0)
+        XCTAssertEqual(statusCount, 1)
+        XCTAssertEqual(repository.recipes, [recipe])
+        XCTAssertEqual(repository.importJobs.first?.status, .ready)
+    }
+
+    func testCancellationStopsPollingAndLeavesDurableJobParsing() async throws {
+        let service = SlowPollingImportService()
+        let repository = ImportTestRepository()
+        let coordinator = ImportCoordinator(
+            repository: repository,
+            service: service,
+            accountSession: AccountSession(
+                store: ImportTestPreferenceStore()
+            ),
+            clock: ImmediateImportClock()
+        )
+        let task = Task {
+            await coordinator.submit(
+                urlText: "https://youtu.be/slow-remote-import"
+            )
+        }
+
+        while repository.importJobs.first?.remoteJobID == nil {
+            await Task.yield()
+        }
+        task.cancel()
+        await task.value
+
+        XCTAssertEqual(repository.importJobs.first?.status, .parsing)
+        XCTAssertNotNil(repository.importJobs.first?.remoteJobID)
+        XCTAssertEqual(coordinator.state, .idle)
+    }
+
     private func makeCoordinator(
         repository: ImportTestRepository,
         accountSession: AccountSession = AccountSession(
@@ -275,13 +403,125 @@ private struct ImmediateImportClock: ImportClock {
     func sleep(for duration: Duration) async throws {}
 }
 
-private struct FixedImportService: ImportService {
-    let outcome: ImportServiceOutcome
+private actor ScriptedImportService: ImportService {
+    private var statuses: [ImportServiceUpdate]
+    private(set) var submitCount = 0
+    private(set) var statusCount = 0
 
-    func importRecipe(
-        for job: ImportJob
-    ) async throws -> ImportServiceOutcome {
-        outcome
+    init(statuses: [ImportServiceUpdate]) {
+        self.statuses = statuses
+    }
+
+    func submit(
+        _ job: ImportJob,
+        allowingDuplicate: Bool
+    ) async throws -> ImportServiceUpdate {
+        submitCount += 1
+        return ImportServiceUpdate(
+            remoteJobID: job.id.uuidString,
+            progress: .parsing
+        )
+    }
+
+    func status(remoteJobID: String) async throws -> ImportServiceUpdate {
+        statusCount += 1
+        return statuses.removeFirst()
+    }
+
+    func retry(
+        remoteJobID: String,
+        correctionNotes: String?,
+        pastedRecipeText: String?
+    ) async throws -> ImportServiceUpdate {
+        statuses.removeFirst()
+    }
+}
+
+private actor SlowPollingImportService: ImportService {
+    func submit(
+        _ job: ImportJob,
+        allowingDuplicate: Bool
+    ) async throws -> ImportServiceUpdate {
+        ImportServiceUpdate(
+            remoteJobID: job.id.uuidString,
+            progress: .parsing
+        )
+    }
+
+    func status(remoteJobID: String) async throws -> ImportServiceUpdate {
+        try await Task.sleep(for: .seconds(30))
+        return ImportServiceUpdate(
+            remoteJobID: remoteJobID,
+            progress: .failed(.networkUnavailable)
+        )
+    }
+
+    func retry(
+        remoteJobID: String,
+        correctionNotes: String?,
+        pastedRecipeText: String?
+    ) async throws -> ImportServiceUpdate {
+        ImportServiceUpdate(
+            remoteJobID: remoteJobID,
+            progress: .parsing
+        )
+    }
+}
+
+private actor FixedImportService: ImportService {
+    let outcome: ImportServiceProgress
+
+    init(outcome: ImportServiceProgress) {
+        self.outcome = outcome
+    }
+
+    func submit(
+        _ job: ImportJob,
+        allowingDuplicate: Bool
+    ) async throws -> ImportServiceUpdate {
+        ImportServiceUpdate(
+            remoteJobID: job.id.uuidString,
+            progress: outcome
+        )
+    }
+
+    func status(remoteJobID: String) async throws -> ImportServiceUpdate {
+        ImportServiceUpdate(remoteJobID: remoteJobID, progress: outcome)
+    }
+
+    func retry(
+        remoteJobID: String,
+        correctionNotes: String?,
+        pastedRecipeText: String?
+    ) async throws -> ImportServiceUpdate {
+        ImportServiceUpdate(remoteJobID: remoteJobID, progress: outcome)
+    }
+}
+
+private actor ThrowingImportService: ImportService {
+    let error: APIError
+
+    init(error: APIError) {
+        self.error = error
+    }
+
+    func submit(
+        _ job: ImportJob,
+        allowingDuplicate: Bool
+    ) async throws -> ImportServiceUpdate {
+        throw error
+    }
+
+    func status(remoteJobID: String) async throws -> ImportServiceUpdate {
+        throw error
+    }
+
+    func retry(
+        remoteJobID: String,
+        correctionNotes: String?,
+        pastedRecipeText: String?
+    ) async throws -> ImportServiceUpdate {
+        throw error
     }
 }
 
@@ -332,10 +572,37 @@ private final class ImportTestRepository: RecipeRepository {
         }
     }
 
+    func deleteImportJob(id: UUID) throws {
+        importJobs.removeAll { $0.id == id }
+    }
+
     func seedIfNeeded(
         recipes: [Recipe],
         importJobs: [ImportJob]
     ) throws {}
+}
+
+private func remoteAPIError(
+    code: String,
+    details: [String: String]? = nil
+) throws -> APIError {
+    var error: [String: Any] = [
+        "code": code,
+        "message": "Remote admission rejected the import.",
+        "retryable": false,
+        "requestID": UUID().uuidString.lowercased(),
+    ]
+    if let details {
+        error["details"] = details
+    }
+    let data = try JSONSerialization.data(
+        withJSONObject: ["error": error]
+    )
+    let envelope = try RemoteContractJSON.decoder().decode(
+        RemoteErrorEnvelope.self,
+        from: data
+    )
+    return .remote(envelope.error)
 }
 
 private final class ImportTestPreferenceStore: PreferenceStoring {

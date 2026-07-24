@@ -13,8 +13,14 @@ final class DemoImportServiceTests: XCTestCase {
             source: .tiktok
         )
 
-        let first = try await service.importRecipe(for: job)
-        let second = try await service.importRecipe(for: job)
+        let first = try await service.submit(
+            job,
+            allowingDuplicate: false
+        ).progress
+        let second = try await service.submit(
+            job,
+            allowingDuplicate: false
+        ).progress
 
         guard case let .ready(firstRecipe) = first,
               case let .ready(secondRecipe) = second else {
@@ -35,7 +41,10 @@ final class DemoImportServiceTests: XCTestCase {
             source: .instagram
         )
 
-        let outcome = try await service.importRecipe(for: job)
+        let outcome = try await service.submit(
+            job,
+            allowingDuplicate: false
+        ).progress
 
         guard case let .needsReview(recipe) = outcome else {
             return XCTFail("Expected a needs-review recipe")
@@ -48,15 +57,18 @@ final class DemoImportServiceTests: XCTestCase {
     func testFailureSlugsReturnSpecificRecoverableFailures() async throws {
         let service = DemoImportService()
 
-        let privateOutcome = try await service.importRecipe(
-            for: job(slug: "private-carbonara")
-        )
-        let networkOutcome = try await service.importRecipe(
-            for: job(slug: "network-offline-noodles")
-        )
-        let parserOutcome = try await service.importRecipe(
-            for: job(slug: "parser-failed-soup")
-        )
+        let privateOutcome = try await service.submit(
+            job(slug: "private-carbonara"),
+            allowingDuplicate: false
+        ).progress
+        let networkOutcome = try await service.submit(
+            job(slug: "network-offline-noodles"),
+            allowingDuplicate: false
+        ).progress
+        let parserOutcome = try await service.submit(
+            job(slug: "parser-failed-soup"),
+            allowingDuplicate: false
+        ).progress
 
         XCTAssertEqual(privateOutcome, .failed(.privateOrDeleted))
         XCTAssertEqual(networkOutcome, .failed(.networkUnavailable))
@@ -67,7 +79,10 @@ final class DemoImportServiceTests: XCTestCase {
         let service = DemoImportService(slowDelay: .seconds(30))
         let slowJob = job(slug: "slow-green-curry")
         let task = Task {
-            try await service.importRecipe(for: slowJob)
+            try await service.submit(
+                slowJob,
+                allowingDuplicate: false
+            )
         }
 
         await Task.yield()

@@ -281,6 +281,17 @@ class RecipeTemplateCloner:
             return job.current_recipe_id
 
         now = self._clock.now()
+        if job.current_recipe_id is not None:
+            _, recipe_id = self._complete_reimport(
+                database,
+                job=job,
+                template=template,
+                cache_entry=cache_entry,
+                now=now,
+            )
+            database.flush()
+            return recipe_id
+
         recipe_id = uuid4()
         recipe = template.instantiate(recipe_id=recipe_id, now=now)
         stored = self._repository.insert(
@@ -291,25 +302,17 @@ class RecipeTemplateCloner:
         )
         stored.source_video_id = job.source_video_id
         stored.source_cache_id = cache_entry.id
-        if cache_entry.thumbnail_object_key is not None:
-            database.add(
-                RecipeImage(
-                    id=uuid4(),
-                    recipe_id=recipe_id,
-                    object_key=cache_entry.thumbnail_object_key,
-                    remote_url=None,
-                    order_index=0,
-                )
-            )
-        database.add(
-            RecipeChange(
-                user_id=job.user_id,
-                sequence=allocate_sequence(database, job.user_id),
-                recipe_id=recipe_id,
-                kind="upsert",
-                recipe_revision=1,
-                changed_at=now,
-            )
+        self._attach_thumbnail(
+            database,
+            recipe_id=recipe_id,
+            cache_entry=cache_entry,
+        )
+        self._record_change(
+            database,
+            user_id=job.user_id,
+            recipe_id=recipe_id,
+            revision=1,
+            changed_at=now,
         )
         self._reservations.consume(database, job.id)
         job.current_recipe_id = recipe_id
@@ -360,6 +363,27 @@ class RecipeTemplateCloner:
             database.flush()
             return True
 
+        promoted, _ = self._complete_reimport(
+            database,
+            job=job,
+            template=template,
+            cache_entry=None,
+            now=now,
+        )
+        database.flush()
+        return promoted
+
+    def _complete_reimport(
+        self,
+        database: Session,
+        *,
+        job: ImportJob,
+        template: RecipeTemplate,
+        cache_entry: ExtractionCache | None,
+        now: datetime,
+    ) -> tuple[bool, UUID]:
+        if job.current_recipe_id is None:
+            raise ValueError("re-import is missing its current recipe")
         current = self._repository.find(
             database,
             user_id=job.user_id,
@@ -385,7 +409,14 @@ class RecipeTemplateCloner:
                 updated_at=now,
             )
             updated.source_video_id = job.source_video_id
-            updated.source_cache_id = None
+            updated.source_cache_id = (
+                cache_entry.id if cache_entry is not None else None
+            )
+            self._attach_thumbnail(
+                database,
+                recipe_id=updated.id,
+                cache_entry=cache_entry,
+            )
             self._record_change(
                 database,
                 user_id=job.user_id,
@@ -394,13 +425,13 @@ class RecipeTemplateCloner:
                 changed_at=now,
             )
             job.candidate_recipe_id = None
+            job.cache_entry_id = cache_entry.id if cache_entry is not None else None
             job.status = "ready"
             job.stage = "completed"
             job.completed_at = now
             job.updated_at = now
             self._clear_private_input(job)
-            database.flush()
-            return True
+            return True, updated.id
 
         candidate_template = template.model_copy(
             update={"review_status": RecipeReviewStatus.NEEDS_REVIEW}
@@ -417,15 +448,41 @@ class RecipeTemplateCloner:
             created_at=now,
         )
         stored_candidate.source_video_id = job.source_video_id
-        stored_candidate.source_cache_id = None
+        stored_candidate.source_cache_id = (
+            cache_entry.id if cache_entry is not None else None
+        )
+        self._attach_thumbnail(
+            database,
+            recipe_id=candidate_id,
+            cache_entry=cache_entry,
+        )
         job.candidate_recipe_id = candidate_id
+        job.cache_entry_id = cache_entry.id if cache_entry is not None else None
         job.status = "needsReview"
         job.stage = "completed"
         job.completed_at = now
         job.updated_at = now
         self._clear_private_input(job)
-        database.flush()
-        return False
+        return False, candidate_id
+
+    def _attach_thumbnail(
+        self,
+        database: Session,
+        *,
+        recipe_id: UUID,
+        cache_entry: ExtractionCache | None,
+    ) -> None:
+        if cache_entry is None or cache_entry.thumbnail_object_key is None:
+            return
+        database.add(
+            RecipeImage(
+                id=uuid4(),
+                recipe_id=recipe_id,
+                object_key=cache_entry.thumbnail_object_key,
+                remote_url=None,
+                order_index=0,
+            )
+        )
 
     def _clear_private_input(self, job: ImportJob) -> None:
         job.correction_notes_encrypted = None

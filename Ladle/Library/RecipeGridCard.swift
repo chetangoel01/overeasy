@@ -62,33 +62,20 @@ struct RecipeGridCard: View {
 
     @ViewBuilder
     private var recipeImage: some View {
-        if let imageName = recipe.images.first?.localName {
-            Image(imageName)
-                .resizable()
-                .scaledToFill()
-                .frame(height: 146)
-                .frame(maxWidth: .infinity)
-                .clipShape(
-                    RoundedRectangle(
-                        cornerRadius: LadleTheme.Corner.card,
-                        style: .continuous
-                    )
-                )
-                .clipped()
-                .accessibilityHidden(true)
-        } else {
+        RecipeArtworkView(
+            recipeID: recipe.id,
+            image: recipe.images.first
+        )
+        .frame(height: 146)
+        .frame(maxWidth: .infinity)
+        .clipShape(
             RoundedRectangle(
                 cornerRadius: LadleTheme.Corner.card,
                 style: .continuous
             )
-            .fill(LadleTheme.field)
-            .frame(height: 146)
-            .overlay {
-                Image(systemName: "fork.knife")
-                    .foregroundStyle(LadleTheme.paprika)
-            }
-            .accessibilityHidden(true)
-        }
+        )
+        .clipped()
+        .accessibilityHidden(true)
     }
 
     private var favoriteAccessibilityLabel: String {

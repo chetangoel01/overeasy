@@ -56,6 +56,22 @@ final class SwiftDataRecipeRepositoryTests: XCTestCase {
         XCTAssertEqual(try repository.fetchImportJobs(), [job])
     }
 
+    func testDeletingImportJobDoesNotDeleteRecipe() throws {
+        let fixture = try makeFixture()
+        let repository = fixture.repository
+        let recipe = makeRecipe()
+        let job = ImportJob.queued(
+            sourceURL: URL(string: "https://www.tiktok.com/@cook/video/56")!
+        )
+        try repository.save(recipe)
+        try repository.save(job)
+
+        try repository.deleteImportJob(id: job.id)
+
+        XCTAssertTrue(try repository.fetchImportJobs().isEmpty)
+        XCTAssertEqual(try repository.fetchRecipe(id: recipe.id), recipe)
+    }
+
     func testFailedReimportKeepsCurrentStoredRecipe() throws {
         let fixture = try makeFixture()
         let repository = fixture.repository
@@ -98,6 +114,60 @@ final class SwiftDataRecipeRepositoryTests: XCTestCase {
         XCTAssertEqual(
             try repository.fetchImportJobs().map(\.id),
             firstJobIDs
+        )
+    }
+
+    func testLocalMutationTracksBaseRevisionAndRemoteAckClearsIt() throws {
+        let fixture = try makeFixture()
+        let repository = fixture.repository
+        let local = makeRecipe()
+
+        try repository.save(local)
+
+        XCTAssertEqual(
+            try repository.pendingRecipeMutations(),
+            [.upsert(recipe: local, baseRevision: 0)]
+        )
+
+        let remote = RemoteRecipeDTO(recipe: local, revision: 1)
+        try repository.markUpsertSynced(remote)
+        XCTAssertTrue(try repository.pendingRecipeMutations().isEmpty)
+
+        var edited = local
+        edited.title = "Edited Offline"
+        try repository.save(edited)
+        XCTAssertEqual(
+            try repository.pendingRecipeMutations(),
+            [.upsert(recipe: edited, baseRevision: 1)]
+        )
+    }
+
+    func testSyncConflictKeepsLocalDraftAndStoresServerVersion() throws {
+        let fixture = try makeFixture()
+        let repository = fixture.repository
+        var local = makeRecipe()
+        try repository.saveRemote(local, revision: 1)
+        local.title = "My Offline Title"
+        try repository.save(local)
+        var server = local
+        server.title = "Server Title"
+        let remote = RemoteRecipeDTO(recipe: server, revision: 2)
+
+        try repository.preserveConflict(
+            localRecipe: local,
+            remoteRecipe: remote,
+            remoteRevision: 2
+        )
+
+        XCTAssertEqual(try repository.fetchRecipe(id: local.id), local)
+        let conflict = try XCTUnwrap(
+            repository.syncConflict(recipeID: local.id)
+        )
+        XCTAssertEqual(conflict.recipe, server)
+        XCTAssertEqual(conflict.revision, 2)
+        XCTAssertEqual(
+            try repository.pendingRecipeMutations(),
+            [.upsert(recipe: local, baseRevision: 1)]
         )
     }
 

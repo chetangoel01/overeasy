@@ -83,6 +83,30 @@ final class AuthClientTests: XCTestCase {
         XCTAssertEqual(requests.snapshot.count, 2)
     }
 
+    func testRestoreAppliesPersistedServerAccountState() throws {
+        let tokenStore = InMemoryAuthTokenStore(
+            tokens: .fixture(
+                accessToken: "restored",
+                userKind: "apple"
+            )
+        )
+        let account = AccountSession(store: InMemoryAuthPreferenceStore())
+        let auth = AuthClient(
+            api: APIClient(
+                baseURL: URL(string: "https://api.ladle.test")!,
+                session: URLProtocolStub.session(),
+                tokenStore: tokenStore
+            ),
+            tokenStore: tokenStore,
+            accountSession: account
+        )
+
+        let restored = try auth.restoreSession()
+
+        XCTAssertEqual(restored?.accessToken, "restored")
+        XCTAssertEqual(account.state, .signedInWithApple)
+    }
+
     nonisolated private static func response(
         _ request: URLRequest,
         status: Int
