@@ -4,6 +4,7 @@ import SwiftUI
 
 struct NutritionView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     let nutrition: Nutrition
     let recipeTitle: String
@@ -29,7 +30,9 @@ struct NutritionView: View {
                     macroGrid
                     nutrientList
                     servingNote
-                    healthExportButton
+                    if hasValidServingBasis {
+                        healthExportButton
+                    }
                 }
                 .padding(LadleTheme.Spacing.generous)
             }
@@ -77,28 +80,43 @@ struct NutritionView: View {
         )
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
-            "\(nutrition.isEstimated ? "Estimated " : "")\(calorieText) calories"
+            hasValidServingBasis
+                ? "\(displayedNutrition.isEstimated ? "Estimated " : "")\(calorieText) calories"
+                : "Nutrition per serving unavailable"
         )
     }
 
     private var macroGrid: some View {
-        HStack(spacing: 10) {
-            macro(
-                name: "Protein",
-                value: nutrition.proteinGrams,
-                color: LadleTheme.success
-            )
-            macro(
-                name: "Carbohydrates",
-                value: nutrition.carbohydrateGrams,
-                color: LadleTheme.paprika
-            )
-            macro(
-                name: "Fat",
-                value: nutrition.fatGrams,
-                color: LadleTheme.ink
-            )
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(spacing: 10) {
+                    macros
+                }
+            } else {
+                HStack(spacing: 10) {
+                    macros
+                }
+            }
         }
+    }
+
+    @ViewBuilder
+    private var macros: some View {
+        macro(
+            name: "Protein",
+            value: displayedNutrition.proteinGrams,
+            color: LadleTheme.success
+        )
+        macro(
+            name: "Carbohydrates",
+            value: displayedNutrition.carbohydrateGrams,
+            color: LadleTheme.paprika
+        )
+        macro(
+            name: "Fat",
+            value: displayedNutrition.fatGrams,
+            color: LadleTheme.ink
+        )
     }
 
     private var nutrientList: some View {
@@ -120,13 +138,23 @@ struct NutritionView: View {
     private var servingNote: some View {
         VStack(alignment: .leading, spacing: 10) {
             Label(
-                "Per \(decimalText(nutrition.servingBasis)) serving",
-                systemImage: "person.crop.circle"
+                hasValidServingBasis
+                    ? "Per serving"
+                    : "Serving basis unavailable",
+                systemImage: hasValidServingBasis
+                    ? "person.crop.circle"
+                    : "exclamationmark.circle"
             )
             .ladleFont(.bodyStrong)
             .foregroundStyle(LadleTheme.ink)
 
-            if nutrition.isEstimated {
+            if !hasValidServingBasis {
+                Text(
+                    "Set a valid serving basis before using these values or exporting them."
+                )
+                .ladleFont(.metadata)
+                .foregroundStyle(LadleTheme.ink.opacity(0.64))
+            } else if displayedNutrition.isEstimated {
                 Label(
                     "Nutrition is estimated from the imported recipe.",
                     systemImage: "info.circle"
@@ -201,28 +229,28 @@ struct NutritionView: View {
 
     private var nutrientRows: [NutritionDisplayRow] {
         [
-            nutrition.saturatedFatGrams.map {
+            displayedNutrition.saturatedFatGrams.map {
                 NutritionDisplayRow(
                     name: "Saturated fat",
                     amount: $0,
                     unit: "g"
                 )
             },
-            nutrition.fiberGrams.map {
+            displayedNutrition.fiberGrams.map {
                 NutritionDisplayRow(
                     name: "Fiber",
                     amount: $0,
                     unit: "g"
                 )
             },
-            nutrition.sugarGrams.map {
+            displayedNutrition.sugarGrams.map {
                 NutritionDisplayRow(
                     name: "Sugar",
                     amount: $0,
                     unit: "g"
                 )
             },
-            nutrition.sodiumMilligrams.map {
+            displayedNutrition.sodiumMilligrams.map {
                 NutritionDisplayRow(
                     name: "Sodium",
                     amount: $0,
@@ -231,7 +259,7 @@ struct NutritionView: View {
             },
         ]
         .compactMap { $0 }
-        + nutrition.otherNutrients.map {
+        + displayedNutrition.otherNutrients.map {
             NutritionDisplayRow(
                 id: $0.id.uuidString,
                 name: $0.name,
@@ -242,11 +270,23 @@ struct NutritionView: View {
     }
 
     private var calorieText: String {
-        guard let calories = nutrition.calories else {
+        guard let calories = displayedNutrition.calories else {
             return "—"
         }
-        let prefix = nutrition.isEstimated ? "≈ " : ""
+        let prefix = displayedNutrition.isEstimated ? "≈ " : ""
         return "\(prefix)\(decimalText(calories))"
+    }
+
+    private var displayedNutrition: Nutrition {
+        nutrition.perServing
+            ?? Nutrition(
+                servingBasis: 1,
+                isEstimated: nutrition.isEstimated
+            )
+    }
+
+    private var hasValidServingBasis: Bool {
+        nutrition.perServing != nil
     }
 
     private func decimalText(_ value: Decimal) -> String {

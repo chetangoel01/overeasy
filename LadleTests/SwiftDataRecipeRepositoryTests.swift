@@ -77,6 +77,38 @@ final class SwiftDataRecipeRepositoryTests: XCTestCase {
         )
     }
 
+    func testReimportCandidateRoundTripsAndReplacesAtomically() throws {
+        let fixture = try makeFixture()
+        let repository = fixture.repository
+        let current = makeRecipe()
+        var candidate = makeRecipe()
+        candidate.title = "Reviewed Lemon Orzo"
+        var job = try ImportJob.reimporting(
+            sourceURL: current.originalURL,
+            currentRecipeID: current.id,
+            candidateRecipeID: candidate.id
+        )
+        .awaitingReview(candidate: candidate)
+        try repository.save(current)
+        try repository.save(job)
+
+        XCTAssertEqual(
+            try repository.fetchImportJobs().first?.reviewCandidate,
+            candidate
+        )
+
+        candidate.reviewStatus = .ready
+        job = try job.transitioning(to: .ready)
+        try repository.replaceRecipe(
+            id: current.id,
+            with: candidate,
+            completing: job
+        )
+
+        XCTAssertEqual(try repository.fetchRecipes(), [candidate])
+        XCTAssertEqual(try repository.fetchImportJobs().first?.status, .ready)
+    }
+
     func testPreviewSeedingIsIdempotent() throws {
         let fixture = try makeFixture()
         let repository = fixture.repository

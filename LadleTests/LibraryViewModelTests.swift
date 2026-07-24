@@ -241,6 +241,25 @@ final class LibraryViewModelTests: XCTestCase {
         XCTAssertEqual(recipe.libraryFacts, "30 g P · ≈ 300 cal")
     }
 
+    func testDenseArchiveFactsOmitNutritionWithInvalidServingBasis() {
+        let recipe = Recipe(
+            title: "Unknown Batch Soup",
+            source: .other,
+            originalURL: URL(string: "https://example.com/soup")!,
+            totalMinutes: 25,
+            servings: 4,
+            nutrition: Nutrition(
+                calories: 1_200,
+                proteinGrams: 120,
+                servingBasis: 0,
+                isEstimated: true
+            )
+        )
+
+        XCTAssertNil(recipe.libraryNutrition)
+        XCTAssertEqual(recipe.libraryFacts, "25 min")
+    }
+
     func testDisplayModePersistsAcrossViewModels() {
         let preferences = LibraryTestPreferenceStore()
         let first = LibraryViewModel(

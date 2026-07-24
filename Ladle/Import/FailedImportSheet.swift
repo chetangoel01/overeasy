@@ -5,35 +5,31 @@ struct FailedImportSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     let job: ImportJob
+    let currentRecipe: Recipe?
     @Bindable var coordinator: ImportCoordinator
     let viewRecipe: (Recipe, String) -> Void
 
     @State private var recoveryInputMode: RecoveryInputMode?
     @State private var isRetrying = false
+    @State private var hasAttemptedRetry = false
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 22) {
-                    header
-                    savedLink
-                    recoveryActions
-                }
-                .padding(LadleTheme.Spacing.generous)
-            }
-            .scrollIndicators(.hidden)
+            content
             .background(LadleTheme.paper)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") {
-                        dismiss()
-                    }
+                    Button("Close", action: close)
+                        .disabled(isRetrying || isOwnedImporting)
                 }
             }
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .presentationBackground(LadleTheme.paper)
+        .interactiveDismissDisabled(
+            isRetrying || isOwnedImporting || isDecisionPending
+        )
         .sheet(item: $recoveryInputMode) { mode in
             CorrectionNotesView(mode: mode) { notes, pastedText in
                 runRetry(
@@ -42,8 +38,37 @@ struct FailedImportSheet: View {
                 )
             }
         }
-        .onAppear {
-            coordinator.reset()
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if isDecisionPending,
+           let currentRecipe,
+           let candidate = coordinator.completedRecipe {
+            ReimportDecisionView(
+                currentRecipe: currentRecipe,
+                candidate: candidate,
+                requiresReview: candidate.reviewStatus == .needsReview,
+                accept: acceptCandidate,
+                keepCurrent: keepCurrent
+            )
+        } else if coordinator.operation != nil,
+                  !coordinator.owns(jobID: job.id) {
+            unavailableContent
+        } else {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    header
+                    savedLink
+                    ImportRecoveryActions(
+                        isRetrying: isRetrying,
+                        retry: { runRetry() },
+                        chooseInput: { recoveryInputMode = $0 }
+                    )
+                }
+                .padding(LadleTheme.Spacing.generous)
+            }
+            .scrollIndicators(.hidden)
         }
     }
 
@@ -80,66 +105,11 @@ struct FailedImportSheet: View {
         .background(LadleTheme.field, in: RoundedRectangle(cornerRadius: 14))
     }
 
-    private var recoveryActions: some View {
-        VStack(spacing: 10) {
-            Button {
-                runRetry()
-            } label: {
-                if isRetrying {
-                    ProgressView()
-                        .tint(.white)
-                        .frame(maxWidth: .infinity)
-                } else {
-                    Text("Retry Import")
-                }
-            }
-            .buttonStyle(LadlePrimaryButtonStyle())
-            .disabled(isRetrying)
-
-            recoveryButton(
-                title: "Add correction notes",
-                systemImage: "text.bubble",
-                mode: .correctionNotes
-            )
-            recoveryButton(
-                title: "Paste recipe details",
-                systemImage: "doc.on.clipboard",
-                mode: .pastedDetails
-            )
-            recoveryButton(
-                title: "Create manually",
-                systemImage: "square.and.pencil",
-                mode: .manual
-            )
-        }
-    }
-
-    private func recoveryButton(
-        title: String,
-        systemImage: String,
-        mode: RecoveryInputMode
-    ) -> some View {
-        Button {
-            recoveryInputMode = mode
-        } label: {
-            Label(title, systemImage: systemImage)
-                .ladleFont(.bodyStrong)
-                .foregroundStyle(LadleTheme.ink)
-                .frame(maxWidth: .infinity, minHeight: 48)
-                .background(
-                    LadleTheme.field,
-                    in: RoundedRectangle(
-                        cornerRadius: LadleTheme.Corner.control,
-                        style: .continuous
-                    )
-                )
-        }
-    }
-
     private func runRetry(
         correctionNotes: String? = nil,
         pastedRecipeText: String? = nil
     ) {
+        hasAttemptedRetry = true
         isRetrying = true
         Task {
             await coordinator.retry(
@@ -148,15 +118,88 @@ struct FailedImportSheet: View {
                 pastedRecipeText: pastedRecipeText
             )
             isRetrying = false
-            if let recipe = coordinator.completedRecipe {
+            guard job.currentRecipeID == nil,
+                  let recipe = coordinator.completedRecipe else {
+                return
+            }
+            switch coordinator.state {
+            case .completed:
                 viewRecipe(recipe, "Imported recipe")
+                coordinator.reset()
+                dismiss()
+            case .needsReview:
+                viewRecipe(recipe, "Needs review")
+                coordinator.reset()
+                dismiss()
+            default:
+                break
+            }
+        }
+    }
+
+    private var isOwnedImporting: Bool {
+        coordinator.owns(jobID: job.id) && coordinator.isImporting
+    }
+
+    private var isDecisionPending: Bool {
+        job.currentRecipeID != nil
+            && coordinator.owns(jobID: job.id)
+            && coordinator.state.isReplacementDecision
+    }
+
+    private var unavailableContent: some View {
+        ContentUnavailableView(
+            "Another import is active",
+            systemImage: "hourglass",
+            description: Text(
+                "Finish or review that import before retrying this one."
+            )
+        )
+        .foregroundStyle(LadleTheme.ink)
+        .padding(LadleTheme.Spacing.generous)
+    }
+
+    private func acceptCandidate() {
+        Task {
+            if let replacement =
+                await coordinator.acceptReplacementCandidate() {
+                viewRecipe(replacement, "Updated recipe")
+                coordinator.reset()
                 dismiss()
             }
         }
     }
 
+    private func keepCurrent() {
+        coordinator.keepCurrentRecipe()
+        if coordinator.state == .idle {
+            dismiss()
+        }
+    }
+
+    private func close() {
+        if isDecisionPending {
+            keepCurrent()
+        } else {
+            if coordinator.owns(jobID: job.id) {
+                coordinator.reset()
+            }
+            dismiss()
+        }
+    }
+
     private var failureMessage: String {
-        guard case let .failed(reason) = job.status else {
+        if (hasAttemptedRetry || coordinator.owns(jobID: job.id)),
+           coordinator.state == .persistenceFailed {
+            return "Ladle couldn’t save the retry. The original link and current recipe are unchanged."
+        }
+        let reason: ImportFailure
+        if coordinator.owns(jobID: job.id),
+           case let .failed(_, latestReason) = coordinator.state {
+            reason = latestReason
+        } else if case let .failed(originalReason) = job.status {
+            reason = originalReason
+        } else {
             return "The import stopped, but the original link is safe."
         }
         switch reason {

@@ -1,4 +1,3 @@
-import Foundation
 import LadleCore
 import SwiftUI
 
@@ -85,43 +84,5 @@ struct RecipeListRow: View {
                 }
                 .accessibilityHidden(true)
         }
-    }
-}
-
-extension RecipeSource {
-    var libraryTitle: String {
-        switch self {
-        case .tiktok:
-            "TikTok"
-        case .instagram:
-            "Instagram"
-        case .youtube:
-            "YouTube"
-        case .other:
-            "Saved recipe"
-        }
-    }
-}
-
-extension Recipe {
-    var libraryFacts: String {
-        [
-            libraryNutrition?.proteinGrams.map { "\(number($0)) g P" },
-            totalMinutes.map { "\($0) min" },
-            libraryNutrition?.calories.map { "≈ \(number($0)) cal" },
-        ]
-        .compactMap(\.self)
-        .joined(separator: " · ")
-    }
-
-    var libraryNutrition: Nutrition? {
-        guard let nutrition, nutrition.servingBasis > 0 else {
-            return nil
-        }
-        return nutrition.scaled(toServings: 1)
-    }
-
-    private func number(_ value: Decimal) -> String {
-        NSDecimalNumber(decimal: value).stringValue
     }
 }

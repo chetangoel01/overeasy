@@ -32,6 +32,7 @@ public struct ImportJob: Codable, Hashable, Identifiable, Sendable {
     public var remoteJobID: String?
     public private(set) var currentRecipeID: UUID?
     public private(set) var candidateRecipeID: UUID?
+    public private(set) var reviewCandidate: Recipe?
 
     public static func queued(
         sourceURL: URL,
@@ -89,8 +90,10 @@ public struct ImportJob: Codable, Hashable, Identifiable, Sendable {
                 copy.currentRecipeID = candidateRecipeID
                 copy.candidateRecipeID = nil
             }
+            copy.reviewCandidate = nil
         case .failed:
             copy.candidateRecipeID = nil
+            copy.reviewCandidate = nil
         case .parsing:
             copy.retryCount += 1
         case .needsReview:
@@ -117,11 +120,39 @@ public struct ImportJob: Codable, Hashable, Identifiable, Sendable {
         return copy
     }
 
+    public func awaitingReview(
+        candidate: Recipe,
+        at date: Date = .now
+    ) throws -> Self {
+        var copy = try awaitingReview(recipeID: candidate.id, at: date)
+        copy.reviewCandidate = candidate
+        return copy
+    }
+
     public var reviewRecipeID: UUID? {
         guard case .needsReview = status else {
             return nil
         }
-        return candidateRecipeID ?? currentRecipeID
+        return currentRecipeID ?? candidateRecipeID
+    }
+
+    public func keepingCurrentRecipe(
+        at date: Date = .now
+    ) throws -> Self {
+        guard case .needsReview = status,
+              currentRecipeID != nil,
+              candidateRecipeID != nil else {
+            throw ImportTransitionError.invalid(
+                from: status,
+                to: .ready
+            )
+        }
+        var copy = self
+        copy.status = .ready
+        copy.updatedAt = date
+        copy.candidateRecipeID = nil
+        copy.reviewCandidate = nil
+        return copy
     }
 
     public func retryingReimport(
@@ -136,6 +167,7 @@ public struct ImportJob: Codable, Hashable, Identifiable, Sendable {
         }
         var copy = try transitioning(to: .parsing, at: date)
         copy.candidateRecipeID = candidateRecipeID
+        copy.reviewCandidate = nil
         return copy
     }
 

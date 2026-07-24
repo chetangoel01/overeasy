@@ -19,6 +19,22 @@ enum ImportCoordinatorState: Equatable {
     case persistenceFailed
 }
 
+enum ImportOperation: Equatable {
+    case importJob(UUID)
+    case reimport(jobID: UUID, currentRecipeID: UUID)
+
+    var jobID: UUID {
+        switch self {
+        case let .importJob(jobID), let .reimport(jobID, _):
+            jobID
+        }
+    }
+
+    var isReimport: Bool {
+        if case .reimport = self { true } else { false }
+    }
+}
+
 protocol ImportClock: Sendable {
     func sleep(for duration: Duration) async throws
 }
@@ -60,8 +76,10 @@ final class ImportCoordinator {
     private let parsingDelay: Duration
     private var pendingSubmission: Submission?
     private var pendingManualSubmission: ManualSubmission?
+    private var isResolvingReplacement = false
 
     private(set) var state: ImportCoordinatorState = .idle
+    private(set) var operation: ImportOperation?
     private(set) var existingDuplicate: Recipe?
     private(set) var completedRecipe: Recipe?
 
@@ -90,11 +108,25 @@ final class ImportCoordinator {
         }
     }
 
+    func owns(jobID: UUID) -> Bool {
+        operation?.jobID == jobID
+    }
+
+    func ownsReimport(for recipeID: UUID) -> Bool {
+        guard case let .reimport(_, currentRecipeID) = operation else {
+            return false
+        }
+        return currentRecipeID == recipeID
+    }
+
     func submit(
         urlText: String,
         allowingDuplicate: Bool = false,
         bypassingGuestPrompt: Bool = false
     ) async {
+        guard operation?.isReimport != true, !isImporting else {
+            return
+        }
         existingDuplicate = nil
         completedRecipe = nil
         pendingManualSubmission = nil
@@ -143,6 +175,7 @@ final class ImportCoordinator {
                 source: submission.source
             )
             try repository.save(job)
+            operation = .importJob(job.id)
             await process(job)
         } catch {
             state = .persistenceFailed
@@ -182,6 +215,9 @@ final class ImportCoordinator {
         correctionNotes: String? = nil,
         pastedRecipeText: String? = nil
     ) async {
+        guard operation == nil || owns(jobID: jobID) else {
+            return
+        }
         completedRecipe = nil
 
         do {
@@ -204,8 +240,14 @@ final class ImportCoordinator {
                 return
             }
 
-            let isReimport = job.currentRecipeID != nil
-            if isReimport {
+            let currentRecipeID = job.currentRecipeID
+            operation = currentRecipeID.map {
+                .reimport(
+                    jobID: job.id,
+                    currentRecipeID: $0
+                )
+            } ?? .importJob(job.id)
+            if currentRecipeID != nil {
                 job = try job.retryingReimport(
                     candidateRecipeID: UUID()
                 )
@@ -213,7 +255,7 @@ final class ImportCoordinator {
                 job = try job.transitioning(to: .parsing)
             }
             try repository.save(job)
-            if isReimport {
+            if currentRecipeID != nil {
                 await processReimport(job)
             } else {
                 await process(job)
@@ -239,6 +281,9 @@ final class ImportCoordinator {
         details: String,
         bypassingGuestPrompt: Bool
     ) async {
+        guard operation?.isReimport != true, !isImporting else {
+            return
+        }
         let normalizedTitle = normalized(title) ?? "Manual Recipe"
         let normalizedDetails = normalized(details) ?? "Recipe details"
         pendingSubmission = nil
@@ -270,6 +315,7 @@ final class ImportCoordinator {
             )
             job.pastedRecipeText = "\(normalizedTitle)\n\(normalizedDetails)"
             try repository.save(job)
+            operation = .importJob(job.id)
             await process(job)
         } catch {
             state = .persistenceFailed
@@ -280,10 +326,14 @@ final class ImportCoordinator {
         recipe: Recipe,
         correctionNotes: String? = nil
     ) async {
+        guard operation == nil else {
+            return
+        }
         existingDuplicate = nil
         completedRecipe = nil
         pendingSubmission = nil
         pendingManualSubmission = nil
+        isResolvingReplacement = false
 
         var job = ImportJob.reimporting(
             sourceURL: recipe.originalURL,
@@ -293,6 +343,10 @@ final class ImportCoordinator {
         )
         job.correctionNotes = normalized(correctionNotes)
 
+        operation = .reimport(
+            jobID: job.id,
+            currentRecipeID: recipe.id
+        )
         do {
             try repository.save(job)
             await processReimport(job)
@@ -303,10 +357,101 @@ final class ImportCoordinator {
 
     func reset() {
         state = .idle
+        operation = nil
         existingDuplicate = nil
         completedRecipe = nil
         pendingSubmission = nil
         pendingManualSubmission = nil
+        isResolvingReplacement = false
+    }
+
+    func resumePendingReimport(for currentRecipeID: UUID) {
+        guard operation == nil else {
+            return
+        }
+        do {
+            guard let job = try repository.fetchImportJobs().last(
+                where: {
+                    $0.currentRecipeID == currentRecipeID
+                        && $0.reviewCandidate != nil
+                }
+            ), let candidate = job.reviewCandidate else {
+                return
+            }
+            operation = .reimport(
+                jobID: job.id,
+                currentRecipeID: currentRecipeID
+            )
+            completedRecipe = candidate
+            state = candidate.reviewStatus == .needsReview
+                ? .needsReview(recipeID: candidate.id)
+                : .completed(recipeID: candidate.id)
+        } catch {
+            state = .persistenceFailed
+        }
+    }
+
+    @discardableResult
+    func acceptReplacementCandidate() async -> Recipe? {
+        guard !isResolvingReplacement,
+              operation?.isReimport == true,
+              state.isReplacementDecision,
+              var candidate = completedRecipe else {
+            return nil
+        }
+        isResolvingReplacement = true
+        defer { isResolvingReplacement = false }
+
+        do {
+            guard var job = try repository.fetchImportJobs().first(
+                where: { $0.candidateRecipeID == candidate.id }
+            ), let currentRecipeID = job.currentRecipeID else {
+                state = .persistenceFailed
+                return nil
+            }
+            candidate.reviewStatus = .ready
+            candidate.updatedAt = .now
+            job = try job.transitioning(to: .ready)
+            try repository.replaceRecipe(
+                id: currentRecipeID,
+                with: candidate,
+                completing: job
+            )
+            completedRecipe = candidate
+            state = .completed(recipeID: candidate.id)
+            _ = await notificationService.notifyImportReady(
+                recipe: candidate
+            )
+            operation = nil
+            return candidate
+        } catch {
+            state = .persistenceFailed
+            return nil
+        }
+    }
+
+    func keepCurrentRecipe() {
+        guard !isResolvingReplacement,
+              operation?.isReimport == true,
+              state.isReplacementDecision,
+              let candidateID = completedRecipe?.id else {
+            return
+        }
+        do {
+            guard var job = try repository.fetchImportJobs().first(
+                where: { $0.candidateRecipeID == candidateID }
+            ) else {
+                state = .persistenceFailed
+                return
+            }
+            job = try job.keepingCurrentRecipe()
+            try repository.save(job)
+            completedRecipe = nil
+            state = .idle
+            operation = nil
+        } catch {
+            state = .persistenceFailed
+        }
     }
 
     private func process(_ initialJob: ImportJob) async {
@@ -369,26 +514,21 @@ final class ImportCoordinator {
             switch outcome {
             case let .ready(candidate):
                 guard let candidateID = job.candidateRecipeID,
-                      let currentRecipeID = job.currentRecipeID,
+                      job.currentRecipeID != nil,
                       candidate.id == candidateID else {
                     state = .persistenceFailed
                     return
                 }
-                try repository.save(candidate)
-                job = try job.transitioning(to: .ready)
+                job = try job.awaitingReview(candidate: candidate)
                 try repository.save(job)
-                try repository.deleteRecipe(id: currentRecipeID)
                 completedRecipe = candidate
                 state = .completed(recipeID: candidate.id)
-                _ = await notificationService.notifyImportReady(
-                    recipe: candidate
-                )
             case let .needsReview(candidate):
                 guard candidate.id == job.candidateRecipeID else {
                     state = .persistenceFailed
                     return
                 }
-                job = try job.awaitingReview(recipeID: candidate.id)
+                job = try job.awaitingReview(candidate: candidate)
                 try repository.save(job)
                 completedRecipe = candidate
                 state = .needsReview(recipeID: candidate.id)
@@ -471,5 +611,16 @@ final class ImportCoordinator {
             return nil
         }
         return value
+    }
+}
+
+extension ImportCoordinatorState {
+    var isReplacementDecision: Bool {
+        switch self {
+        case .completed, .needsReview:
+            true
+        default:
+            false
+        }
     }
 }

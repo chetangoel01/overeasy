@@ -13,28 +13,34 @@ struct AddRecipeSheet: View {
     @State private var manualTitle = ""
     @State private var manualDetails = ""
     @State private var selectedDetent: PresentationDetent = .medium
+    @State private var recoveryInputMode: RecoveryInputMode?
+    @State private var isRetrying = false
 
     var body: some View {
         NavigationStack {
             Group {
-                switch coordinator.state {
-                case .importing:
-                    importingContent
-                case .completed:
-                    successContent(needsReview: false)
-                case .needsReview:
-                    successContent(needsReview: true)
-                case .duplicate:
-                    duplicateContent
-                case let .guestLimit(decision):
-                    guestLimitContent(decision: decision)
-                case let .failed(_, reason):
-                    failedContent(reason: reason)
-                case .idle, .validationFailed, .persistenceFailed:
-                    if isManualEntry {
-                        manualContent
-                    } else {
-                        linkContent
+                if coordinator.operation?.isReimport == true {
+                    operationUnavailableContent
+                } else {
+                    switch coordinator.state {
+                    case .importing:
+                        importingContent
+                    case .completed:
+                        successContent(needsReview: false)
+                    case .needsReview:
+                        successContent(needsReview: true)
+                    case .duplicate:
+                        duplicateContent
+                    case let .guestLimit(decision):
+                        guestLimitContent(decision: decision)
+                    case let .failed(jobID, reason):
+                        failedContent(jobID: jobID, reason: reason)
+                    case .idle, .validationFailed, .persistenceFailed:
+                        if isManualEntry {
+                            manualContent
+                        } else {
+                            linkContent
+                        }
                     }
                 }
             }
@@ -42,9 +48,7 @@ struct AddRecipeSheet: View {
             .background(LadleTheme.paper)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") {
-                        dismiss()
-                    }
+                    Button("Close", action: close)
                 }
             }
         }
@@ -54,8 +58,20 @@ struct AddRecipeSheet: View {
         )
         .presentationDragIndicator(.visible)
         .presentationBackground(LadleTheme.paper)
+        .sheet(item: $recoveryInputMode) { mode in
+            CorrectionNotesView(mode: mode) { notes, pastedText in
+                guard case let .failed(jobID, _) = coordinator.state else {
+                    return
+                }
+                runRetry(
+                    jobID: jobID,
+                    correctionNotes: notes,
+                    pastedRecipeText: pastedText
+                )
+            }
+        }
         .onAppear {
-            if !coordinator.isImporting {
+            if coordinator.operation == nil {
                 coordinator.reset()
             }
         }
@@ -66,6 +82,11 @@ struct AddRecipeSheet: View {
             }
             Task {
                 await coordinator.continueAfterGuestPrompt()
+            }
+        }
+        .onChange(of: coordinator.state) { _, state in
+            if case .failed = state {
+                selectedDetent = .large
             }
         }
     }
@@ -286,11 +307,13 @@ struct AddRecipeSheet: View {
                     recipe,
                     needsReview ? "Needs review" : "Imported recipe"
                 )
+                coordinator.reset()
                 dismiss()
             }
             .buttonStyle(LadlePrimaryButtonStyle())
 
             Button("Back to recipes") {
+                coordinator.reset()
                 dismiss()
             }
             .ladleFont(.bodyStrong)
@@ -354,26 +377,58 @@ struct AddRecipeSheet: View {
         }
     }
 
-    private func failedContent(reason: ImportFailure) -> some View {
-        VStack(spacing: 22) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 24))
-                .foregroundStyle(LadleTheme.paprika)
-                .frame(width: 60, height: 60)
-                .background(LadleTheme.review, in: Circle())
-            Text("That link needs a hand")
-                .ladleFont(.title)
+    private func failedContent(
+        jobID: UUID,
+        reason: ImportFailure
+    ) -> some View {
+        ScrollView {
+            VStack(spacing: 22) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 24))
+                    .foregroundStyle(LadleTheme.paprika)
+                    .frame(width: 60, height: 60)
+                    .background(LadleTheme.review, in: Circle())
+                Text("We saved the link")
+                    .ladleFont(.title)
+                    .foregroundStyle(LadleTheme.ink)
+                Text(reason.addRecipeMessage)
+                    .ladleFont(.body)
+                    .foregroundStyle(LadleTheme.ink.opacity(0.64))
+                    .multilineTextAlignment(.center)
+
+                ImportRecoveryActions(
+                    isRetrying: isRetrying,
+                    retry: { runRetry(jobID: jobID) },
+                    chooseInput: { recoveryInputMode = $0 }
+                )
+
+                Button("Back to recipes") {
+                    coordinator.reset()
+                    dismiss()
+                }
+                .ladleFont(.bodyStrong)
                 .foregroundStyle(LadleTheme.ink)
-            Text(reason.addRecipeMessage)
-                .ladleFont(.body)
-                .foregroundStyle(LadleTheme.ink.opacity(0.64))
-                .multilineTextAlignment(.center)
-            Button("Back to recipes") {
-                dismiss()
+                .frame(minHeight: 44)
             }
-            .buttonStyle(LadlePrimaryButtonStyle())
+            .padding(LadleTheme.Spacing.generous)
         }
-        .padding(LadleTheme.Spacing.generous)
+        .scrollIndicators(.hidden)
+    }
+
+    private func runRetry(
+        jobID: UUID,
+        correctionNotes: String? = nil,
+        pastedRecipeText: String? = nil
+    ) {
+        isRetrying = true
+        Task {
+            await coordinator.retry(
+                jobID: jobID,
+                correctionNotes: correctionNotes,
+                pastedRecipeText: pastedRecipeText
+            )
+            isRetrying = false
+        }
     }
 
     @ViewBuilder
@@ -413,6 +468,26 @@ struct AddRecipeSheet: View {
                 .ladleFont(.body)
                 .foregroundStyle(LadleTheme.ink.opacity(0.64))
         }
+    }
+
+    private var operationUnavailableContent: some View {
+        ContentUnavailableView(
+            "Re-import in progress",
+            systemImage: "arrow.triangle.2.circlepath",
+            description: Text(
+                "Finish reviewing that replacement before adding another recipe."
+            )
+        )
+        .foregroundStyle(LadleTheme.ink)
+        .padding(LadleTheme.Spacing.generous)
+    }
+
+    private func close() {
+        if coordinator.operation?.isReimport != true,
+           !coordinator.isImporting {
+            coordinator.reset()
+        }
+        dismiss()
     }
 }
 

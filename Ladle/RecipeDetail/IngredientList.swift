@@ -22,7 +22,7 @@ struct IngredientList: View {
                             .frame(width: 6, height: 6)
                             .accessibilityHidden(true)
 
-                        Text(ingredient.detailText)
+                        Text(ingredient.cookingDetailText)
                             .ladleFont(.body)
                             .foregroundStyle(LadleTheme.ink)
 
@@ -51,18 +51,5 @@ struct IngredientList: View {
                 }
             }
         }
-    }
-}
-
-private extension Ingredient {
-    var detailText: String {
-        var parts = [quantityText, unit]
-            .compactMap { $0 }
-            .filter { !$0.isEmpty }
-        parts.append(name)
-        if let preparation, !preparation.isEmpty {
-            parts.append("— \(preparation)")
-        }
-        return parts.joined(separator: " ")
     }
 }

@@ -48,6 +48,7 @@
 		75E34BC4C3ECC1FF8580FBDB /* SharedQueueReconciler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46580B3879F912E78BF1629C /* SharedQueueReconciler.swift */; };
 		7735E4254A1CC43579B1C7AD /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CAD674446D07BDCDBFD2F66 /* RootView.swift */; };
 		7903D591A395E0DD678CC58F /* RecipeTimer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AE99C267EF3E47EF936C777 /* RecipeTimer.swift */; };
+		7B03E111FA24728DE96CDE04 /* RecipePresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B2EA3F560B531E7D745E2BC /* RecipePresentation.swift */; };
 		7EA3D0A7DC5399B4FC05FF29 /* ImportFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BF1BB60CCA8DA2A2540A32F /* ImportFlowTests.swift */; };
 		80742EE04B24D056BCA03971 /* LibraryFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0056F263B0A8D49526CD0A12 /* LibraryFlowTests.swift */; };
 		84D797D5B8CB86A7C4C53756 /* LadleTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07E8E61AD25B02CFF497294C /* LadleTheme.swift */; };
@@ -61,6 +62,7 @@
 		94CBE2FD5CDC33A263424029 /* LibraryViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E75C97A3440E521A8A01510 /* LibraryViewModelTests.swift */; };
 		9AE69ACA22E7BEE2CE2D625C /* ImportCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3801D743E5C7CE52681E7C04 /* ImportCoordinatorTests.swift */; };
 		9C16EF897125A7B0B4CBF604 /* AccountSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B38BC487172BD4E150410E78 /* AccountSessionTests.swift */; };
+		9EA61B78797A9FB6B166408C /* RecipeOptionsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D071E3D400501F481FB31EEE /* RecipeOptionsSheet.swift */; };
 		A3004E842356C83EA7DF2B55 /* AccessibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E461DC1D3D4AD75A83A2C05 /* AccessibilityTests.swift */; };
 		A4AB27B7287BE0F0CFD3B690 /* HealthExportViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09B260DA499835E89F84D468 /* HealthExportViewModelTests.swift */; };
 		A8723B3DB23725605D7D4B61 /* FocusModeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B9102B1B2F7CE3AAB88544A /* FocusModeView.swift */; };
@@ -81,6 +83,7 @@
 		D78BB07879939E3FC2D9E071 /* ProjectSmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9209E28951C4CAA3BC8E7629 /* ProjectSmokeTests.swift */; };
 		DA89A97C3E062E6E81CA8E40 /* SharedQueueReconcilerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57ED21827A8B76FEB98FDB19 /* SharedQueueReconcilerTests.swift */; };
 		DFC659D823A4B7AA5BFD3E4E /* AllRecipesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E9503FB43D131D1ADA3B5F4 /* AllRecipesView.swift */; };
+		E2BE83969345FF4BDBE3CA69 /* ImportRecoveryActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = F165E4B6E30D83BFDFE33A13 /* ImportRecoveryActions.swift */; };
 		E5ADC1288191201E540C48A7 /* LadleComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 348D89D4BA7119269FD4F3BC /* LadleComponents.swift */; };
 		E5D62027E211EFC50B38F37C /* LibraryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6638D8D4EFDAA359DD3B8348 /* LibraryViewModel.swift */; };
 		E86042D71EA8C713F03F2B53 /* RecipeMetadataBand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B5D35390C608C2FB9D0C0C9 /* RecipeMetadataBand.swift */; };
@@ -175,6 +178,7 @@
 		73F97C3F8A386730B6CB7BC2 /* UserNotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserNotificationService.swift; sourceTree = "<group>"; };
 		798B832B950A7B595EE49A1E /* RecipeDetailTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeDetailTests.swift; sourceTree = "<group>"; };
 		79C69755A0FE0CB8CFD2F500 /* RecipeListRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeListRow.swift; sourceTree = "<group>"; };
+		7B2EA3F560B531E7D745E2BC /* RecipePresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipePresentation.swift; sourceTree = "<group>"; };
 		7CAD674446D07BDCDBFD2F66 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		7E9503FB43D131D1ADA3B5F4 /* AllRecipesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AllRecipesView.swift; sourceTree = "<group>"; };
 		810506FC4F93017B923482AD /* RecipeDraft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeDraft.swift; sourceTree = "<group>"; };
@@ -207,6 +211,7 @@
 		C620D1903E80465BDA8FE60F /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
 		C657544261EA36028D1ADD38 /* WatchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchView.swift; sourceTree = "<group>"; };
 		CA9412596DCD6FFCA28EC55D /* NutritionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionView.swift; sourceTree = "<group>"; };
+		D071E3D400501F481FB31EEE /* RecipeOptionsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeOptionsSheet.swift; sourceTree = "<group>"; };
 		D5811E544D3F145804508A12 /* DemoImportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoImportService.swift; sourceTree = "<group>"; };
 		D7B73A4D628A16E2ED7ADBB5 /* CorrectionNotesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CorrectionNotesView.swift; sourceTree = "<group>"; };
 		D975A502CE6CABFF17DE770D /* LadleShare.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = LadleShare.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -215,6 +220,7 @@
 		E2461B3FDEC6CF3119C4548A /* ReimportSafetyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReimportSafetyTests.swift; sourceTree = "<group>"; };
 		E773EEC85D6B10B47798F46E /* FailedImportSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FailedImportSheet.swift; sourceTree = "<group>"; };
 		E8D8492C25EEFD85B7E7240C /* SwiftDataRecipeRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftDataRecipeRepository.swift; sourceTree = "<group>"; };
+		F165E4B6E30D83BFDFE33A13 /* ImportRecoveryActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportRecoveryActions.swift; sourceTree = "<group>"; };
 		F2DDA4DA24D19A4B049A9968 /* ShareConfirmationViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareConfirmationViewTests.swift; sourceTree = "<group>"; };
 		F7CCBA4794A638FF56EBDD1A /* ReimportSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReimportSheet.swift; sourceTree = "<group>"; };
 		FCE40C1144201ECA9A36E8BC /* ImportCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportCoordinator.swift; sourceTree = "<group>"; };
@@ -346,6 +352,7 @@
 				C3035470E3D4E011D3DDB328 /* MethodList.swift */,
 				41B1A4DD4FEB2DE4274795C2 /* RecipeDetailView.swift */,
 				9B5D35390C608C2FB9D0C0C9 /* RecipeMetadataBand.swift */,
+				D071E3D400501F481FB31EEE /* RecipeOptionsSheet.swift */,
 			);
 			path = RecipeDetail;
 			sourceTree = "<group>";
@@ -456,6 +463,7 @@
 				D5811E544D3F145804508A12 /* DemoImportService.swift */,
 				E773EEC85D6B10B47798F46E /* FailedImportSheet.swift */,
 				FCE40C1144201ECA9A36E8BC /* ImportCoordinator.swift */,
+				F165E4B6E30D83BFDFE33A13 /* ImportRecoveryActions.swift */,
 				BC911C7C9A9D3FDBABF02BB9 /* ImportService.swift */,
 				46580B3879F912E78BF1629C /* SharedQueueReconciler.swift */,
 			);
@@ -479,6 +487,7 @@
 				348D89D4BA7119269FD4F3BC /* LadleComponents.swift */,
 				07E8E61AD25B02CFF497294C /* LadleTheme.swift */,
 				2D060807D3AFDD5F858FA2FD /* LadleTypography.swift */,
+				7B2EA3F560B531E7D745E2BC /* RecipePresentation.swift */,
 			);
 			path = Design;
 			sourceTree = "<group>";
@@ -651,6 +660,7 @@
 				6004155F8B4E42FACDDED7E5 /* HealthService.swift in Sources */,
 				B8C07A83B04420D104948A91 /* ImportCoordinator.swift in Sources */,
 				63AD334E56D71D43FB7A1EC6 /* ImportInboxView.swift in Sources */,
+				E2BE83969345FF4BDBE3CA69 /* ImportRecoveryActions.swift in Sources */,
 				AE645C3991B22C20AF387561 /* ImportService.swift in Sources */,
 				EF0148FC094665EF210ACCB5 /* IngredientList.swift in Sources */,
 				93CF9021D2F49A9F1263B0FC /* LadleApp.swift in Sources */,
@@ -674,6 +684,8 @@
 				8D177239F1A086FA834C85C6 /* RecipeGridCard.swift in Sources */,
 				C6A344C082E1B3B06F007BDC /* RecipeListRow.swift in Sources */,
 				E86042D71EA8C713F03F2B53 /* RecipeMetadataBand.swift in Sources */,
+				9EA61B78797A9FB6B166408C /* RecipeOptionsSheet.swift in Sources */,
+				7B03E111FA24728DE96CDE04 /* RecipePresentation.swift in Sources */,
 				B6F2C50D9C1E3327A6A59F33 /* RecipeRepository.swift in Sources */,
 				7903D591A395E0DD678CC58F /* RecipeTimer.swift in Sources */,
 				8CE56A2E89D1E151C1AA6B84 /* ReimportSheet.swift in Sources */,

@@ -5,7 +5,7 @@ import XCTest
 
 @MainActor
 final class ReimportSafetyTests: XCTestCase {
-    func testCurrentRecipeRemainsUsableUntilReadyCandidateSucceeds() async throws {
+    func testReadyCandidateWaitsForExplicitAcceptance() async throws {
         let current = PreviewFixtures.recipes[1]
         let repository = ReimportTestRepository(recipes: [current])
         let clock = GateImportClock()
@@ -42,20 +42,33 @@ final class ReimportSafetyTests: XCTestCase {
         await clock.release()
         await task.value
 
-        XCTAssertNil(try repository.fetchRecipe(id: current.id))
-        let replacement = try XCTUnwrap(
-            repository.fetchRecipe(id: candidateID)
-        )
-        XCTAssertEqual(replacement.title, "Re-imported Lemon Orzo")
+        XCTAssertEqual(try repository.fetchRecipe(id: current.id), current)
+        XCTAssertNil(try repository.fetchRecipe(id: candidateID))
         XCTAssertEqual(
             coordinator.state,
             .completed(recipeID: candidateID)
         )
-        XCTAssertEqual(repository.importJobs.first?.status, .ready)
+        XCTAssertEqual(
+            coordinator.operation,
+            .reimport(
+                jobID: parsingJob.id,
+                currentRecipeID: current.id
+            )
+        )
+        XCTAssertEqual(repository.importJobs.first?.status, .needsReview)
         XCTAssertEqual(
             repository.importJobs.first?.currentRecipeID,
-            candidateID
+            current.id
         )
+
+        await coordinator.acceptReplacementCandidate()
+
+        XCTAssertNil(try repository.fetchRecipe(id: current.id))
+        XCTAssertEqual(
+            try repository.fetchRecipe(id: candidateID)?.title,
+            "Re-imported Lemon Orzo"
+        )
+        XCTAssertEqual(repository.importJobs.first?.status, .ready)
     }
 
     func testFailedCandidateKeepsCurrentRecipeAndDiscardsCandidateID() async throws {
@@ -117,7 +130,119 @@ final class ReimportSafetyTests: XCTestCase {
         XCTAssertNotNil(repository.importJobs.first?.candidateRecipeID)
     }
 
-    func testRetryingFailedReimportUsesFreshCandidateAndReplacesCurrent() async throws {
+    func testAcceptingReviewedCandidateReplacesCurrentRecipe() async throws {
+        let current = PreviewFixtures.recipes[1]
+        let repository = ReimportTestRepository(recipes: [current])
+        let coordinator = ImportCoordinator(
+            repository: repository,
+            service: CandidateImportService(result: .needsReview),
+            accountSession: AccountSession(
+                store: ReimportTestPreferenceStore()
+            ),
+            clock: ReimportImmediateClock()
+        )
+        await coordinator.reimport(recipe: current)
+        let candidateID = try XCTUnwrap(
+            repository.importJobs.first?.candidateRecipeID
+        )
+
+        await coordinator.acceptReplacementCandidate()
+
+        XCTAssertNil(try repository.fetchRecipe(id: current.id))
+        XCTAssertEqual(
+            try repository.fetchRecipe(id: candidateID)?.reviewStatus,
+            .ready
+        )
+        XCTAssertEqual(repository.importJobs.first?.status, .ready)
+        XCTAssertEqual(
+            coordinator.state,
+            .completed(recipeID: candidateID)
+        )
+
+        await coordinator.acceptReplacementCandidate()
+
+        XCTAssertEqual(
+            coordinator.state,
+            .completed(recipeID: candidateID)
+        )
+        XCTAssertEqual(repository.recipes.map(\.id), [candidateID])
+    }
+
+    func testConcurrentAcceptReturnsReplacementOnlyToWinningCaller() async throws {
+        let current = PreviewFixtures.recipes[1]
+        let repository = ReimportTestRepository(recipes: [current])
+        let notificationService = GateNotificationService()
+        let coordinator = ImportCoordinator(
+            repository: repository,
+            service: CandidateImportService(result: .ready),
+            accountSession: AccountSession(
+                store: ReimportTestPreferenceStore()
+            ),
+            clock: ReimportImmediateClock(),
+            notificationService: notificationService
+        )
+        await coordinator.reimport(recipe: current)
+        let candidateID = try XCTUnwrap(coordinator.completedRecipe?.id)
+
+        let firstAcceptance = Task {
+            await coordinator.acceptReplacementCandidate()
+        }
+        await waitUntilNotificationRequested(notificationService)
+
+        let secondReplacement =
+            await coordinator.acceptReplacementCandidate()
+        XCTAssertNil(secondReplacement)
+
+        notificationService.release()
+        let firstReplacement = await firstAcceptance.value
+        XCTAssertEqual(firstReplacement?.id, candidateID)
+        XCTAssertNil(coordinator.operation)
+        XCTAssertEqual(repository.recipes.map(\.id), [candidateID])
+    }
+
+    func testKeepingCurrentRecipeClearsPendingCandidate() async throws {
+        let current = PreviewFixtures.recipes[1]
+        let repository = ReimportTestRepository(recipes: [current])
+        let coordinator = ImportCoordinator(
+            repository: repository,
+            service: CandidateImportService(result: .needsReview),
+            accountSession: AccountSession(
+                store: ReimportTestPreferenceStore()
+            ),
+            clock: ReimportImmediateClock()
+        )
+        await coordinator.reimport(recipe: current)
+
+        coordinator.keepCurrentRecipe()
+
+        XCTAssertEqual(repository.recipes, [current])
+        XCTAssertEqual(repository.importJobs.first?.status, .ready)
+        XCTAssertNil(repository.importJobs.first?.candidateRecipeID)
+        XCTAssertEqual(coordinator.state, .idle)
+    }
+
+    func testKeepingCurrentRecipeAlsoDiscardsReadyCandidate() async throws {
+        let current = PreviewFixtures.recipes[1]
+        let repository = ReimportTestRepository(recipes: [current])
+        let coordinator = ImportCoordinator(
+            repository: repository,
+            service: CandidateImportService(result: .ready),
+            accountSession: AccountSession(
+                store: ReimportTestPreferenceStore()
+            ),
+            clock: ReimportImmediateClock()
+        )
+        await coordinator.reimport(recipe: current)
+
+        coordinator.keepCurrentRecipe()
+
+        XCTAssertEqual(repository.recipes, [current])
+        XCTAssertEqual(repository.importJobs.first?.status, .ready)
+        XCTAssertNil(repository.importJobs.first?.candidateRecipeID)
+        XCTAssertEqual(coordinator.state, .idle)
+    }
+
+    func testRetryingFailedReimportStagesFreshCandidate() async throws {
         let current = PreviewFixtures.recipes[1]
         let repository = ReimportTestRepository(recipes: [current])
         var failedJob = ImportJob.reimporting(
@@ -146,14 +271,11 @@ final class ReimportSafetyTests: XCTestCase {
         )
 
         let retriedJob = try XCTUnwrap(repository.importJobs.first)
-        let replacementID = try XCTUnwrap(retriedJob.currentRecipeID)
+        let replacementID = try XCTUnwrap(retriedJob.candidateRecipeID)
         XCTAssertNotEqual(replacementID, current.id)
-        XCTAssertNil(try repository.fetchRecipe(id: current.id))
-        XCTAssertEqual(
-            try repository.fetchRecipe(id: replacementID)?.title,
-            "Re-imported Lemon Orzo"
-        )
-        XCTAssertEqual(retriedJob.status, .ready)
+        XCTAssertEqual(try repository.fetchRecipe(id: current.id), current)
+        XCTAssertNil(try repository.fetchRecipe(id: replacementID))
+        XCTAssertEqual(retriedJob.status, .needsReview)
         XCTAssertEqual(retriedJob.retryCount, 1)
         XCTAssertEqual(
             retriedJob.correctionNotes,
@@ -163,6 +285,55 @@ final class ReimportSafetyTests: XCTestCase {
             coordinator.state,
             .completed(recipeID: replacementID)
         )
+    }
+
+    func testPendingCandidateCanResumeAfterCoordinatorReset() async throws {
+        let current = PreviewFixtures.recipes[1]
+        let repository = ReimportTestRepository(recipes: [current])
+        let coordinator = ImportCoordinator(
+            repository: repository,
+            service: CandidateImportService(result: .ready),
+            accountSession: AccountSession(
+                store: ReimportTestPreferenceStore()
+            ),
+            clock: ReimportImmediateClock()
+        )
+        await coordinator.reimport(recipe: current)
+        let candidateID = try XCTUnwrap(
+            coordinator.completedRecipe?.id
+        )
+        coordinator.reset()
+
+        coordinator.resumePendingReimport(for: current.id)
+
+        XCTAssertEqual(coordinator.completedRecipe?.id, candidateID)
+        XCTAssertEqual(
+            coordinator.state,
+            .completed(recipeID: candidateID)
+        )
+    }
+
+    func testPendingReimportCannotBeOverwrittenByNormalImport() async throws {
+        let current = PreviewFixtures.recipes[1]
+        let repository = ReimportTestRepository(recipes: [current])
+        let coordinator = ImportCoordinator(
+            repository: repository,
+            service: CandidateImportService(result: .ready),
+            accountSession: AccountSession(
+                store: ReimportTestPreferenceStore()
+            ),
+            clock: ReimportImmediateClock()
+        )
+        await coordinator.reimport(recipe: current)
+        let operation = try XCTUnwrap(coordinator.operation)
+
+        await coordinator.submit(
+            urlText: "https://www.tiktok.com/@ladle/video/other"
+        )
+
+        XCTAssertEqual(coordinator.operation, operation)
+        XCTAssertEqual(repository.importJobs.count, 1)
+        XCTAssertEqual(repository.recipes, [current])
     }
 
     private func waitUntilImporting(
@@ -175,6 +346,18 @@ final class ReimportSafetyTests: XCTestCase {
             await Task.yield()
         }
         XCTFail("Re-import did not enter the parsing state")
+    }
+
+    private func waitUntilNotificationRequested(
+        _ notificationService: GateNotificationService
+    ) async {
+        for _ in 0..<20 {
+            if notificationService.isRequested {
+                return
+            }
+            await Task.yield()
+        }
+        XCTFail("Replacement notification was not requested")
     }
 }
 
@@ -239,6 +422,27 @@ private actor GateImportClock: ImportClock {
 
 private struct ReimportImmediateClock: ImportClock {
     func sleep(for duration: Duration) async throws {}
+}
+
+@MainActor
+private final class GateNotificationService: NotificationService {
+    private var continuation:
+        CheckedContinuation<ImportNotificationResult, Never>?
+    private(set) var isRequested = false
+
+    func notifyImportReady(
+        recipe: Recipe
+    ) async -> ImportNotificationResult {
+        isRequested = true
+        return await withCheckedContinuation { continuation in
+            self.continuation = continuation
+        }
+    }
+
+    func release() {
+        continuation?.resume(returning: .scheduled)
+        continuation = nil
+    }
 }
 
 @MainActor

@@ -80,7 +80,7 @@ Important decisions:
   change the All Recipes archive.
 - Needs-review import jobs retain the recipe identifier required to reopen the
   saved recipe from Import Inbox after the original import sheet is gone.
-- A needs-review re-import keeps its candidate isolated until the comparison
+- A needs-review re-import keeps its candidate isolated until the review
   flow in checkpoint 5. Inbox opens the still-safe current recipe with an
   explicit pending-review status instead of presenting an inert candidate.
 - Watch includes recipes imported from TikTok, Instagram, and YouTube; manual
@@ -112,3 +112,68 @@ Verification:
   sweeping interface migration at the user's direction. It still contains
   assertions for replaced screens and will be rewritten after the remaining
   atlas surfaces stabilize.
+
+### Checkpoint 5: Recipe, recovery, nutrition, and Health
+
+Purpose:
+
+- Keep structured cooking content primary while making editing, recovery,
+  replacement, nutrition, and Health actions easy to reach without crowding
+  the recipe.
+
+User-visible behavior:
+
+- Recipe detail switches between Ingredients and Method in place, keeps the
+  active content above Start Cooking, and moves edit, re-import, nutrition,
+  and source actions into the ellipsis options sheet.
+- The existing six-part editor remains the approved Basics, Media, Timing,
+  Ingredients, Method, and Nutrition flow, including ordered item controls,
+  validation, and unsaved-draft protection.
+- A failed link import now exposes retry, correction notes, pasted details,
+  and manual creation immediately; the same recovery actions are reused from
+  Import Inbox.
+- Ready and needs-review re-imports show the still-safe current recipe, the
+  complete candidate ingredients and method, and explicit accept/keep actions.
+- Recipe facts, the Nutrition screen, archive rows, and Watch all use one
+  per-serving nutrition presentation. Apple Health continues to scale from
+  the stored serving basis to the amount the user confirms.
+
+Important decisions:
+
+- Recipe option actions wait for the options sheet to dismiss before
+  presenting another sheet or opening the source URL.
+- Re-import candidates remain isolated from the saved library until accepted
+  but are stored with the import job so review can resume after relaunch.
+  Closing a pending decision explicitly keeps the current recipe.
+- Acceptance marks the candidate ready and atomically swaps the recipe and
+  import-job records in one SwiftData save.
+- Import coordinator state is scoped to its job and re-import recipe so Add,
+  Retry, and Re-import cannot consume or overwrite one another’s work.
+- Invalid serving bases never relabel totals as per-serving values; nutrition
+  and Health export remain unavailable until the basis is valid.
+- Health authorization is still requested only after the user reviews the
+  scaled payload and confirms export.
+- Shared recipe/source/ingredient presentation helpers replace duplicate
+  formatting across library, detail, Watch, Nutrition, and cooking surfaces.
+
+Affected components:
+
+- `RecipeDetailView`, `RecipeMetadataBand`, `RecipeOptionsSheet`
+- `AddRecipeSheet`, `FailedImportSheet`, `ImportRecoveryActions`
+- `ReimportSheet`, `ImportCoordinator`, `ReimportSafetyTests`
+- `NutritionView`, `RecipePresentation`, and shared recipe row/cooking users
+
+Verification:
+
+- Red-green coverage proves that ready and reviewed candidates leave the
+  current recipe untouched until acceptance, survive coordinator reset, can be
+  discarded, and cannot be overwritten by another import.
+- SwiftData coverage verifies candidate round-tripping and the atomic recipe
+  replacement path; presentation coverage excludes invalid serving bases.
+- 31 LadleCore tests and 85 app unit tests pass with zero failures, including
+  focused editor, import, re-import, library-presentation, and Health export
+  coverage.
+- The Ladle app and Share Extension build for the iPhone 17 simulator.
+- `git diff --check` passes.
+- The outgoing UI automation suite remains deferred until the remaining
+  cooking surfaces stabilize, as requested.

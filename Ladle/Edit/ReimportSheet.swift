@@ -12,38 +12,58 @@ struct ReimportSheet: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                switch coordinator.state {
-                case .importing:
-                    importingContent
-                case .completed:
-                    successContent
-                case .needsReview:
-                    needsReviewContent
-                case .failed:
-                    failedContent
-                case .persistenceFailed:
-                    persistenceFailureContent
-                case .idle, .validationFailed, .duplicate, .guestLimit:
-                    formContent
-                }
-            }
+            content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(LadleTheme.paper)
             .accessibilityIdentifier("recipe.reimport")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") {
-                        dismiss()
-                    }
+                    Button("Close", action: close)
+                        .disabled(isOwnedImporting)
                 }
             }
         }
         .presentationDetents([.large])
         .presentationBackground(LadleTheme.paper)
+        .interactiveDismissDisabled(
+            isOwnedImporting || isDecisionPending
+        )
         .onAppear {
-            if !coordinator.isImporting {
+            if let operation = coordinator.operation,
+               !operation.isReimport,
+               !coordinator.isImporting {
                 coordinator.reset()
+            }
+            if coordinator.operation == nil {
+                coordinator.reset()
+                coordinator.resumePendingReimport(for: currentRecipe.id)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if coordinator.operation != nil,
+           !coordinator.ownsReimport(for: currentRecipe.id) {
+            unavailableContent
+        } else if coordinator.state == .persistenceFailed {
+            persistenceFailureContent
+        } else if coordinator.operation == nil {
+            formContent
+        } else {
+            switch coordinator.state {
+            case .importing:
+                importingContent
+            case .completed:
+                decisionContent(requiresReview: false)
+            case .needsReview:
+                decisionContent(requiresReview: true)
+            case .failed:
+                failedContent
+            case .persistenceFailed:
+                persistenceFailureContent
+            case .idle, .validationFailed, .duplicate, .guestLimit:
+                formContent
             }
         }
     }
@@ -107,10 +127,6 @@ struct ReimportSheet: View {
                             recipe: currentRecipe,
                             correctionNotes: correctionNotes
                         )
-                        if case .completed = coordinator.state,
-                           let replacement = coordinator.completedRecipe {
-                            didReplace(replacement)
-                        }
                     }
                 }
                 .buttonStyle(LadlePrimaryButtonStyle())
@@ -138,32 +154,13 @@ struct ReimportSheet: View {
         .padding(LadleTheme.Spacing.generous)
     }
 
-    private var successContent: some View {
-        resultContent(
-            icon: "checkmark",
-            title: "Updated recipe ready",
-            message:
-                coordinator.completedRecipe?.title ?? currentRecipe.title,
-            buttonTitle: "Use updated recipe",
-            action: {
-                if let replacement = coordinator.completedRecipe {
-                    didReplace(replacement)
-                }
-                dismiss()
-            }
-        )
-    }
-
-    private var needsReviewContent: some View {
-        resultContent(
-            icon: "pencil.and.list.clipboard",
-            title: "Candidate needs a review",
-            message:
-                "The current recipe is still safe. Review support will let you compare this candidate before replacing it.",
-            buttonTitle: "Keep current recipe",
-            action: {
-                dismiss()
-            }
+    private func decisionContent(requiresReview: Bool) -> some View {
+        ReimportDecisionView(
+            currentRecipe: currentRecipe,
+            candidate: coordinator.completedRecipe,
+            requiresReview: requiresReview,
+            accept: acceptCandidate,
+            keepCurrent: keepCurrent
         )
     }
 
@@ -183,7 +180,6 @@ struct ReimportSheet: View {
                         jobID: jobID,
                         correctionNotes: correctionNotes
                     )
-                    applyCompletedRecipeIfNeeded()
                 }
             }
         )
@@ -196,9 +192,7 @@ struct ReimportSheet: View {
             message:
                 "The current recipe is unchanged. Close this sheet and try again.",
             buttonTitle: "Close",
-            action: {
-                dismiss()
-            }
+            action: close
         )
     }
 
@@ -249,10 +243,153 @@ struct ReimportSheet: View {
         }
     }
 
-    private func applyCompletedRecipeIfNeeded() {
-        if case .completed = coordinator.state,
-           let replacement = coordinator.completedRecipe {
-            didReplace(replacement)
+    private var isDecisionPending: Bool {
+        coordinator.ownsReimport(for: currentRecipe.id)
+            && coordinator.state.isReplacementDecision
+    }
+
+    private var isOwnedImporting: Bool {
+        coordinator.ownsReimport(for: currentRecipe.id)
+            && coordinator.isImporting
+    }
+
+    private func acceptCandidate() {
+        Task {
+            if let replacement =
+                await coordinator.acceptReplacementCandidate() {
+                didReplace(replacement)
+                coordinator.reset()
+                dismiss()
+            }
         }
+    }
+
+    private func keepCurrent() {
+        coordinator.keepCurrentRecipe()
+        if coordinator.state == .idle {
+            dismiss()
+        }
+    }
+
+    private func close() {
+        if isDecisionPending {
+            keepCurrent()
+        } else {
+            if coordinator.ownsReimport(for: currentRecipe.id) {
+                coordinator.reset()
+            }
+            dismiss()
+        }
+    }
+
+    private var unavailableContent: some View {
+        resultContent(
+            icon: "hourglass",
+            title: "Another import is active",
+            message:
+                "Finish or review that import before replacing this recipe.",
+            buttonTitle: "Close",
+            action: dismiss.callAsFunction
+        )
+    }
+}
+
+struct ReimportDecisionView: View {
+    let currentRecipe: Recipe
+    let candidate: Recipe?
+    let requiresReview: Bool
+    let accept: () -> Void
+    let keepCurrent: () -> Void
+    @State private var isResolving = false
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 22) {
+                header
+                currentRecipeNotice
+
+                if let candidate {
+                    Text(candidate.title)
+                        .ladleFont(.title)
+                        .foregroundStyle(LadleTheme.ink)
+                    RecipeMetadataBand(recipe: candidate)
+                    IngredientList(
+                        ingredients: candidate.orderedIngredients
+                    )
+                    MethodList(steps: candidate.orderedSteps)
+
+                    Button(
+                        requiresReview
+                            ? "Use reviewed candidate"
+                            : "Use updated recipe"
+                    ) {
+                        isResolving = true
+                        accept()
+                    }
+                    .buttonStyle(LadlePrimaryButtonStyle())
+                }
+
+                Button("Keep current recipe") {
+                    isResolving = true
+                    keepCurrent()
+                }
+                    .ladleFont(.bodyStrong)
+                    .foregroundStyle(LadleTheme.ink)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+            }
+            .padding(LadleTheme.Spacing.generous)
+            .disabled(isResolving)
+        }
+        .scrollIndicators(.hidden)
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Image(
+                systemName: requiresReview
+                    ? "pencil.and.list.clipboard"
+                    : "checkmark"
+            )
+            .font(.system(size: 21, weight: .semibold))
+            .foregroundStyle(LadleTheme.paprika)
+            .frame(width: 50, height: 50)
+            .background(LadleTheme.review, in: Circle())
+            Text(
+                requiresReview
+                    ? "Review the replacement"
+                    : "Updated recipe ready"
+            )
+            .ladleFont(.title)
+            .foregroundStyle(LadleTheme.ink)
+            Text(
+                "Your current recipe stays available until you accept this candidate."
+            )
+            .ladleFont(.body)
+            .foregroundStyle(LadleTheme.ink.opacity(0.64))
+        }
+    }
+
+    private var currentRecipeNotice: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "shield.checkered")
+                .foregroundStyle(LadleTheme.paprika)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Current recipe is safe")
+                    .ladleFont(.bodyStrong)
+                    .foregroundStyle(LadleTheme.ink)
+                Text(currentRecipe.title)
+                    .ladleFont(.metadata)
+                    .foregroundStyle(LadleTheme.mutedInk)
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            LadleTheme.review,
+            in: RoundedRectangle(
+                cornerRadius: LadleTheme.Corner.control,
+                style: .continuous
+            )
+        )
     }
 }

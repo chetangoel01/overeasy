@@ -298,16 +298,3 @@ struct FullRecipeView: View {
         .accessibilityHidden(true)
     }
 }
-
-extension Ingredient {
-    var cookingDetailText: String {
-        var parts = [quantityText, unit]
-            .compactMap { $0 }
-            .filter { !$0.isEmpty }
-        parts.append(name)
-        if let preparation, !preparation.isEmpty {
-            parts.append("— \(preparation)")
-        }
-        return parts.joined(separator: " ")
-    }
-}

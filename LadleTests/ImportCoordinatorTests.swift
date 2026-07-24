@@ -21,6 +21,10 @@ final class ImportCoordinatorTests: XCTestCase {
         XCTAssertEqual(recipe.title, "Weeknight Green Curry")
         XCTAssertEqual(repository.importJobs.count, 1)
         XCTAssertEqual(repository.importJobs.first?.status, .ready)
+        XCTAssertEqual(
+            coordinator.operation,
+            .importJob(try XCTUnwrap(repository.importJobs.first?.id))
+        )
     }
 
     func testMalformedAndUnsupportedURLsDoNotCreateJobs() async {

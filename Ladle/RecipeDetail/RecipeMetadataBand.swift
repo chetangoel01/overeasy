@@ -13,17 +13,17 @@ struct RecipeMetadataBand: View {
                 VStack(spacing: 0) {
                     totalTimeItem
                     horizontalDivider
-                    yieldItem
-                    horizontalDivider
                     calorieItem
+                    horizontalDivider
+                    yieldItem
                 }
             } else {
                 HStack(spacing: 0) {
                     totalTimeItem
                     verticalDivider
-                    yieldItem
-                    verticalDivider
                     calorieItem
+                    verticalDivider
+                    yieldItem
                 }
             }
         }
@@ -101,7 +101,7 @@ struct RecipeMetadataBand: View {
     }
 
     private var calorieText: String {
-        guard let calories = recipe.nutrition?.calories else {
+        guard let calories = recipe.libraryNutrition?.calories else {
             return "—"
         }
         return "≈ \(decimalText(calories)) cal"

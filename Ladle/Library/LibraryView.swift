@@ -57,8 +57,15 @@ struct LibraryView: View {
             ) { job in
                 FailedImportSheet(
                     job: job,
+                    currentRecipe: viewModel.recipeForReview(job),
                     coordinator: importCoordinator,
-                    viewRecipe: queueNavigation
+                    viewRecipe: { recipe, statusText in
+                        viewModel.load()
+                        queueNavigation(
+                            to: recipe,
+                            statusText: statusText
+                        )
+                    }
                 )
             }
             .navigationDestination(isPresented: $isSearchPresented) {

@@ -69,4 +69,44 @@ struct ImportJobTests {
         #expect(updated.currentRecipeID == usableRecipeID)
         #expect(updated.candidateRecipeID == nil)
     }
+
+    @Test
+    func keepingCurrentRecipeClearsReviewedCandidate() throws {
+        let currentRecipeID = UUID()
+        let candidateRecipeID = UUID()
+        let job = try ImportJob.reimporting(
+            sourceURL: sourceURL,
+            currentRecipeID: currentRecipeID,
+            candidateRecipeID: candidateRecipeID
+        )
+        .awaitingReview(recipeID: candidateRecipeID)
+
+        let updated = try job.keepingCurrentRecipe()
+
+        #expect(updated.status == .ready)
+        #expect(updated.currentRecipeID == currentRecipeID)
+        #expect(updated.candidateRecipeID == nil)
+    }
+
+    @Test
+    func reimportReviewPersistsCandidateWithoutExposingItAsCurrent() throws {
+        let currentRecipeID = UUID()
+        let candidate = Recipe(
+            title: "Candidate",
+            source: .tiktok,
+            originalURL: sourceURL,
+            servings: 2
+        )
+        let job = try ImportJob.reimporting(
+            sourceURL: sourceURL,
+            currentRecipeID: currentRecipeID,
+            candidateRecipeID: candidate.id
+        )
+        .awaitingReview(candidate: candidate)
+
+        #expect(job.status == .needsReview)
+        #expect(job.currentRecipeID == currentRecipeID)
+        #expect(job.reviewRecipeID == currentRecipeID)
+        #expect(job.reviewCandidate == candidate)
+    }
 }

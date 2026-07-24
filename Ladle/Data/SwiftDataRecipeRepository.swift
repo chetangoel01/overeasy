@@ -69,6 +69,40 @@ final class SwiftDataRecipeRepository: RecipeRepository {
         try modelContext.save()
     }
 
+    func replaceRecipe(
+        id: UUID,
+        with recipe: Recipe,
+        completing importJob: ImportJob
+    ) throws {
+        let recipePayload = try encoder.encode(recipe)
+        let jobPayload = try encoder.encode(importJob)
+        guard let current = try storedRecipe(id: id) else {
+            throw CocoaError(.fileNoSuchFile)
+        }
+
+        do {
+            if let stored = try storedRecipe(id: recipe.id) {
+                apply(recipe, payload: recipePayload, to: stored)
+            } else {
+                modelContext.insert(
+                    makeStoredRecipe(recipe, payload: recipePayload)
+                )
+            }
+            if let stored = try storedImportJob(id: importJob.id) {
+                apply(importJob, payload: jobPayload, to: stored)
+            } else {
+                modelContext.insert(
+                    makeStoredImportJob(importJob, payload: jobPayload)
+                )
+            }
+            modelContext.delete(current)
+            try modelContext.save()
+        } catch {
+            modelContext.rollback()
+            throw error
+        }
+    }
+
     func seedIfNeeded(
         recipes: [Recipe],
         importJobs: [ImportJob]

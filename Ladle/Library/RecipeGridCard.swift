@@ -1,4 +1,3 @@
-import Foundation
 import LadleCore
 import SwiftUI
 
@@ -86,15 +85,5 @@ struct RecipeGridCard: View {
         recipe.isFavorite
             ? "Remove \(recipe.title) from favorites"
             : "Add \(recipe.title) to favorites"
-    }
-}
-
-extension Recipe {
-    var librarySlug: String {
-        title
-            .lowercased()
-            .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .filter { !$0.isEmpty }
-            .joined(separator: "-")
     }
 }
