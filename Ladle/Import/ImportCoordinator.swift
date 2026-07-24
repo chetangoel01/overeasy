@@ -330,7 +330,7 @@ final class ImportCoordinator {
                 )
             case let .needsReview(recipe):
                 try repository.save(recipe)
-                job = try job.transitioning(to: .needsReview)
+                job = try job.awaitingReview(recipeID: recipe.id)
                 try repository.save(job)
                 completedRecipe = recipe
                 state = .needsReview(recipeID: recipe.id)
@@ -388,7 +388,7 @@ final class ImportCoordinator {
                     state = .persistenceFailed
                     return
                 }
-                job = try job.transitioning(to: .needsReview)
+                job = try job.awaitingReview(recipeID: candidate.id)
                 try repository.save(job)
                 completedRecipe = candidate
                 state = .needsReview(recipeID: candidate.id)

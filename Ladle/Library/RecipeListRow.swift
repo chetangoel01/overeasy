@@ -21,22 +21,11 @@ struct RecipeListRow: View {
                     .foregroundStyle(LadleTheme.ink)
                     .lineLimit(2)
 
-                HStack(spacing: 6) {
-                    if let totalMinutes = recipe.totalMinutes {
-                        Text("\(totalMinutes) min")
-                    }
-                    if recipe.totalMinutes != nil, recipe.nutrition != nil {
-                        Text("·")
-                            .accessibilityHidden(true)
-                    }
-                    if let calories = recipe.nutrition?.calories {
-                        Text(
-                            "≈ \(NSDecimalNumber(decimal: calories).stringValue) cal"
-                        )
-                    }
+                if !recipe.libraryFacts.isEmpty {
+                    Text(recipe.libraryFacts)
+                        .ladleFont(.metadata)
+                        .foregroundStyle(LadleTheme.ink.opacity(0.58))
                 }
-                .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.ink.opacity(0.58))
             }
 
             Spacer(minLength: 4)
@@ -111,5 +100,28 @@ extension RecipeSource {
         case .other:
             "Saved recipe"
         }
+    }
+}
+
+extension Recipe {
+    var libraryFacts: String {
+        [
+            libraryNutrition?.proteinGrams.map { "\(number($0)) g P" },
+            totalMinutes.map { "\($0) min" },
+            libraryNutrition?.calories.map { "≈ \(number($0)) cal" },
+        ]
+        .compactMap(\.self)
+        .joined(separator: " · ")
+    }
+
+    var libraryNutrition: Nutrition? {
+        guard let nutrition, nutrition.servingBasis > 0 else {
+            return nil
+        }
+        return nutrition.scaled(toServings: 1)
+    }
+
+    private func number(_ value: Decimal) -> String {
+        NSDecimalNumber(decimal: value).stringValue
     }
 }

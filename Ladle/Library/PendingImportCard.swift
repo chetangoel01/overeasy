@@ -26,7 +26,7 @@ struct PendingImportCard: View {
             }
         }
         .padding(14)
-        .frame(width: dynamicTypeSize.isAccessibilitySize ? 350 : 326)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .ladleCard()
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
@@ -119,7 +119,9 @@ struct PendingImportCard: View {
         case .parsing:
             "Just added"
         case .needsReview:
-            "Check a few details"
+            job.candidateRecipeID == nil
+                ? "Check a few details"
+                : "Open the current recipe"
         case .failed:
             "Tap to recover"
         case .ready:

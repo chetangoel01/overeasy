@@ -100,6 +100,30 @@ public struct ImportJob: Codable, Hashable, Identifiable, Sendable {
         return copy
     }
 
+    public func awaitingReview(
+        recipeID: UUID,
+        at date: Date = .now
+    ) throws -> Self {
+        if let candidateRecipeID, candidateRecipeID != recipeID {
+            throw ImportTransitionError.invalid(
+                from: status,
+                to: .needsReview
+            )
+        }
+        var copy = try transitioning(to: .needsReview, at: date)
+        if copy.candidateRecipeID == nil {
+            copy.currentRecipeID = recipeID
+        }
+        return copy
+    }
+
+    public var reviewRecipeID: UUID? {
+        guard case .needsReview = status else {
+            return nil
+        }
+        return candidateRecipeID ?? currentRecipeID
+    }
+
     public func retryingReimport(
         candidateRecipeID: UUID,
         at date: Date = .now

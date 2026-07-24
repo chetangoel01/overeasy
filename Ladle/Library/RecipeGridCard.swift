@@ -37,20 +37,11 @@ struct RecipeGridCard: View {
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
 
-            HStack(spacing: 6) {
-                if let totalMinutes = recipe.totalMinutes {
-                    Label("\(totalMinutes) min", systemImage: "clock")
-                }
-                if recipe.totalMinutes != nil, recipe.nutrition != nil {
-                    Text("·")
-                        .accessibilityHidden(true)
-                }
-                if let calories = recipe.nutrition?.calories {
-                    Text("≈ \(calorieText(calories)) cal")
-                }
+            if !recipe.libraryFacts.isEmpty {
+                Text(recipe.libraryFacts)
+                    .ladleFont(.metadata)
+                    .foregroundStyle(LadleTheme.ink.opacity(0.58))
             }
-            .ladleFont(.metadata)
-            .foregroundStyle(LadleTheme.ink.opacity(0.58))
         }
         .contentShape(Rectangle())
         .onTapGesture(perform: openRecipe)
@@ -95,10 +86,6 @@ struct RecipeGridCard: View {
         recipe.isFavorite
             ? "Remove \(recipe.title) from favorites"
             : "Add \(recipe.title) to favorites"
-    }
-
-    private func calorieText(_ calories: Decimal) -> String {
-        NSDecimalNumber(decimal: calories).stringValue
     }
 }
 

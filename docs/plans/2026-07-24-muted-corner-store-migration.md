@@ -52,3 +52,63 @@ notification, accessibility, and Share Extension behavior.
 - Design-foundation checkpoint: the focused DesignTokenTests suite passes.
   The app and Share Extension compile with the approved accessible palette,
   rounded display typography, shared icon controls, and shared state layout.
+
+### Checkpoint 4: Library destinations
+
+Purpose:
+
+- Turn the former single archive into distinct places for rediscovery,
+  retrieval, import recovery, and source-video recall.
+
+User-visible behavior:
+
+- Home now leads with Import Inbox and Watch entry points, followed by recipes
+  saved this week and useful quick, favorite, and uncooked groups.
+- All Recipes owns sorting, list/grid choice, collection scopes, and removable
+  time, calorie, protein, carbohydrate, and fat filters.
+- Search is a dedicated destination and searches the complete saved library
+  without inheriting archive filters.
+- Import Inbox shows parsing, review, and failed jobs together; failed jobs
+  retain the existing retry, correction, paste, and manual recovery flow.
+- Watch uses the plum surface, image-first vertically snapping cards,
+  Overview/Ingredients/Method panels, source fallback, favorite/share actions,
+  recipe detail, and cooking entry points.
+
+Important decisions:
+
+- Search query state is local to Search so opening a result does not silently
+  change the All Recipes archive.
+- Needs-review import jobs retain the recipe identifier required to reopen the
+  saved recipe from Import Inbox after the original import sheet is gone.
+- A needs-review re-import keeps its candidate isolated until the comparison
+  flow in checkpoint 5. Inbox opens the still-safe current recipe with an
+  explicit pending-review status instead of presenting an inert candidate.
+- Watch includes recipes imported from TikTok, Instagram, and YouTube; manual
+  recipes remain in Home, All Recipes, and Search.
+- Archive and Watch nutrition facts use the same per-serving scaling as macro
+  filters, so visible values and filtering thresholds remain consistent.
+- Stored imagery is the Watch preview. The play action opens the durable
+  original URL because recipe records do not store a playable media stream.
+- Existing failed-import recovery remains a sheet so the original coordinator
+  and pending recipe navigation behavior stay intact.
+
+Affected components:
+
+- `LibraryView`, `LibraryViewModel`, `FilterSheet`, and `PendingImportCard`
+- `LibraryChrome`, `LibraryHomeView`, `AllRecipesView`, `LibrarySearchView`,
+  `ImportInboxView`, and `WatchView`
+- `LibraryViewModelTests`
+
+Verification:
+
+- Red-green coverage was added for Home groups, composable collection/macro
+  filters, independent filter removal, dedicated search isolation, import
+  attention counts, and Watch source selection.
+- 29 LadleCore tests and 77 app unit tests pass with zero failures.
+- The Ladle app and Share Extension build for the iPhone 17 simulator.
+- Seeded Home was visually inspected on iPhone 17 for hierarchy, spacing,
+  imagery, clipping, and device-safe layout.
+- The outgoing UI automation suite is intentionally deferred during this
+  sweeping interface migration at the user's direction. It still contains
+  assertions for replaced screens and will be rewritten after the remaining
+  atlas surfaces stabilize.

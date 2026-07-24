@@ -7,6 +7,13 @@ enum LibraryDisplayMode: String, CaseIterable {
     case list
 }
 
+enum LibraryRecipeCollection: Equatable {
+    case all
+    case quick
+    case favorites
+    case uncooked
+}
+
 @MainActor
 @Observable
 final class LibraryViewModel {
@@ -26,6 +33,9 @@ final class LibraryViewModel {
     @ObservationIgnored
     private let preferenceStore: PreferenceStoring
 
+    @ObservationIgnored
+    private let now: () -> Date
+
     private(set) var recipes: [Recipe] = []
     private(set) var importJobs: [ImportJob] = []
     private(set) var loadState: LoadState = .idle
@@ -36,6 +46,10 @@ final class LibraryViewModel {
     var favoritesOnly = false
     var maximumTotalMinutes: Int?
     var maximumCalories: Decimal?
+    var minimumProtein: Decimal?
+    var maximumCarbohydrates: Decimal?
+    var maximumFat: Decimal?
+    var selectedCollection: LibraryRecipeCollection = .all
 
     var displayMode: LibraryDisplayMode {
         didSet {
@@ -48,10 +62,12 @@ final class LibraryViewModel {
 
     init(
         repository: RecipeRepository,
-        preferenceStore: PreferenceStoring = UserDefaults.standard
+        preferenceStore: PreferenceStoring = UserDefaults.standard,
+        now: @escaping () -> Date = Date.init
     ) {
         self.repository = repository
         self.preferenceStore = preferenceStore
+        self.now = now
         displayMode = preferenceStore
             .string(forKey: PreferenceKey.displayMode)
             .flatMap(LibraryDisplayMode.init(rawValue:))
@@ -65,14 +81,60 @@ final class LibraryViewModel {
     }
 
     var visibleRecipes: [Recipe] {
-        RecipeQuery(
+        let matches = RecipeQuery(
             searchText: searchText,
             sort: sort,
             favoritesOnly: favoritesOnly,
             maximumTotalMinutes: maximumTotalMinutes,
-            maximumCalories: maximumCalories
+            maximumCalories: maximumCalories,
+            minimumProtein: minimumProtein,
+            maximumCarbohydrates: maximumCarbohydrates,
+            maximumFat: maximumFat
         )
         .apply(to: recipes)
+        return matches.filter(matchesSelectedCollection)
+    }
+
+    var savedThisWeek: [Recipe] {
+        guard let week = Calendar.autoupdatingCurrent.dateInterval(
+            of: .weekOfYear,
+            for: now()
+        ) else {
+            return []
+        }
+        return RecipeQuery().apply(
+            to: recipes.filter { week.contains($0.createdAt) }
+        )
+    }
+
+    var quickRecipes: [Recipe] {
+        RecipeQuery(maximumTotalMinutes: 30).apply(to: recipes)
+    }
+
+    var favoriteRecipes: [Recipe] {
+        RecipeQuery(favoritesOnly: true).apply(to: recipes)
+    }
+
+    var uncookedRecipes: [Recipe] {
+        RecipeQuery().apply(to: recipes.filter { $0.lastCookedAt == nil })
+    }
+
+    var watchRecipes: [Recipe] {
+        RecipeQuery().apply(to: recipes.filter { $0.source != .other })
+    }
+
+    func searchResults(matching text: String) -> [Recipe] {
+        RecipeQuery(searchText: text).apply(to: recipes)
+    }
+
+    func recipeForReview(_ job: ImportJob) -> Recipe? {
+        for recipeID in [job.reviewRecipeID, job.currentRecipeID]
+            .compactMap({ $0 }) {
+            if let recipe = recipes.first(where: { $0.id == recipeID }) {
+                return recipe
+            }
+        }
+        return nil
     }
 
     var actionableImportJobs: [ImportJob] {
@@ -96,6 +158,18 @@ final class LibraryViewModel {
                 }
                 return lhs.id.uuidString < rhs.id.uuidString
             }
+    }
+
+    var importAttentionCount: Int {
+        actionableImportJobs.filter {
+            switch $0.status {
+            case .needsReview, .failed:
+                true
+            case .parsing, .ready:
+                false
+            }
+        }
+        .count
     }
 
     func load() {
@@ -148,8 +222,32 @@ final class LibraryViewModel {
         maximumCalories = nil
     }
 
+    func removeMinimumProteinFilter() {
+        minimumProtein = nil
+    }
+
+    func removeMaximumCarbohydratesFilter() {
+        maximumCarbohydrates = nil
+    }
+
+    func removeMaximumFatFilter() {
+        maximumFat = nil
+    }
+
     func removeFavoritesFilter() {
         favoritesOnly = false
+    }
+
+    func showCollection(_ collection: LibraryRecipeCollection) {
+        selectedCollection = collection
+        searchText = ""
+        sort = .recentlyAdded
+        favoritesOnly = false
+        maximumTotalMinutes = nil
+        maximumCalories = nil
+        minimumProtein = nil
+        maximumCarbohydrates = nil
+        maximumFat = nil
     }
 
     func clearOperationError() {
@@ -166,6 +264,19 @@ final class LibraryViewModel {
             2
         case .ready:
             3
+        }
+    }
+
+    private func matchesSelectedCollection(_ recipe: Recipe) -> Bool {
+        switch selectedCollection {
+        case .all:
+            true
+        case .quick:
+            recipe.totalMinutes.map { $0 <= 30 } ?? false
+        case .favorites:
+            recipe.isFavorite
+        case .uncooked:
+            recipe.lastCookedAt == nil
         }
     }
 }

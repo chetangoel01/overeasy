@@ -25,6 +25,17 @@ struct ImportJobTests {
     }
 
     @Test
+    func needsReviewRecordsRecipeItCanResume() throws {
+        let recipeID = UUID()
+
+        let updated = try ImportJob.queued(sourceURL: sourceURL)
+            .awaitingReview(recipeID: recipeID)
+
+        #expect(updated.status == .needsReview)
+        #expect(updated.reviewRecipeID == recipeID)
+    }
+
+    @Test
     func parsingCanFail() throws {
         let job = ImportJob.queued(sourceURL: sourceURL)
 

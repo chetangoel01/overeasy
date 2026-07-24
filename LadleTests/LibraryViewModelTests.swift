@@ -51,6 +51,196 @@ final class LibraryViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.visibleRecipes.isEmpty)
     }
 
+    func testHomeGroupsExposeUsefulRecipeReentryPoints() {
+        let viewModel = makeViewModel()
+        viewModel.load()
+
+        XCTAssertEqual(viewModel.savedThisWeek.count, 6)
+        XCTAssertEqual(
+            viewModel.quickRecipes.map(\.title),
+            [
+                "Whipped Ricotta Toast, Hot Honey",
+                "15-Minute Garlic Butter Udon",
+                "Crispy Chili Oil Smash Burgers",
+            ]
+        )
+        XCTAssertEqual(viewModel.favoriteRecipes.count, 2)
+        XCTAssertEqual(viewModel.uncookedRecipes.count, 6)
+    }
+
+    func testCollectionAndMacroFiltersComposeInAllRecipes() {
+        var cookedBurger = PreviewFixtures.recipes[0]
+        cookedBurger.lastCookedAt = .now
+        let recipes = [cookedBurger] + PreviewFixtures.recipes.dropFirst()
+        let viewModel = LibraryViewModel(
+            repository: LibraryTestRepository(recipes: Array(recipes)),
+            preferenceStore: LibraryTestPreferenceStore()
+        )
+        viewModel.load()
+
+        viewModel.selectedCollection = .uncooked
+        viewModel.minimumProtein = 30
+        viewModel.maximumCalories = 600
+
+        XCTAssertEqual(
+            viewModel.visibleRecipes.map(\.title),
+            ["Sheet-Pan Gochujang Chicken"]
+        )
+    }
+
+    func testMacroFiltersCanBeRemovedIndependently() {
+        let viewModel = makeViewModel()
+        viewModel.load()
+        viewModel.minimumProtein = 30
+        viewModel.maximumCarbohydrates = 40
+
+        XCTAssertEqual(
+            viewModel.visibleRecipes.map(\.title),
+            ["Crispy Chili Oil Smash Burgers"]
+        )
+
+        viewModel.removeMaximumCarbohydratesFilter()
+        viewModel.maximumFat = 30
+
+        XCTAssertEqual(
+            viewModel.visibleRecipes.map(\.title),
+            ["Sheet-Pan Gochujang Chicken"]
+        )
+
+        viewModel.removeMinimumProteinFilter()
+        viewModel.removeMaximumFatFilter()
+
+        XCTAssertEqual(viewModel.visibleRecipes.count, 6)
+    }
+
+    func testOpeningHomeCollectionClearsArchiveQueryState() {
+        let viewModel = makeViewModel()
+        viewModel.searchText = "orzo"
+        viewModel.sort = .highestProtein
+        viewModel.favoritesOnly = true
+        viewModel.maximumTotalMinutes = 15
+        viewModel.maximumCalories = 400
+        viewModel.minimumProtein = 30
+        viewModel.maximumCarbohydrates = 40
+        viewModel.maximumFat = 20
+
+        viewModel.showCollection(.quick)
+
+        XCTAssertEqual(viewModel.selectedCollection, .quick)
+        XCTAssertEqual(viewModel.sort, .recentlyAdded)
+        XCTAssertEqual(viewModel.searchText, "")
+        XCTAssertFalse(viewModel.favoritesOnly)
+        XCTAssertNil(viewModel.maximumTotalMinutes)
+        XCTAssertNil(viewModel.maximumCalories)
+        XCTAssertNil(viewModel.minimumProtein)
+        XCTAssertNil(viewModel.maximumCarbohydrates)
+        XCTAssertNil(viewModel.maximumFat)
+    }
+
+    func testDedicatedSearchIgnoresArchiveScopeAndFilters() {
+        let viewModel = makeViewModel()
+        viewModel.load()
+        viewModel.showCollection(.quick)
+        viewModel.minimumProtein = 30
+
+        XCTAssertEqual(
+            viewModel.searchResults(matching: "orzo").map(\.title),
+            ["One-Pot Lemon Orzo with Feta"]
+        )
+    }
+
+    func testImportAttentionCountExcludesImportsStillParsing() {
+        let viewModel = makeViewModel()
+        viewModel.load()
+
+        XCTAssertEqual(viewModel.importAttentionCount, 2)
+    }
+
+    func testNeedsReviewImportResolvesRecipeForInbox() throws {
+        let viewModel = makeViewModel()
+        viewModel.load()
+        let job = try XCTUnwrap(
+            viewModel.actionableImportJobs.first {
+                $0.status == .needsReview
+            }
+        )
+
+        XCTAssertEqual(
+            viewModel.recipeForReview(job)?.id,
+            PreviewFixtures.recipes[1].id
+        )
+    }
+
+    func testReimportReviewFallsBackToCurrentRecipeInInbox() throws {
+        let current = PreviewFixtures.recipes[1]
+        let candidateID = UUID()
+        let job = try ImportJob.reimporting(
+            sourceURL: current.originalURL,
+            source: current.source,
+            currentRecipeID: current.id,
+            candidateRecipeID: candidateID
+        )
+        .awaitingReview(recipeID: candidateID)
+        let viewModel = LibraryViewModel(
+            repository: LibraryTestRepository(
+                recipes: [current],
+                importJobs: [job]
+            ),
+            preferenceStore: LibraryTestPreferenceStore()
+        )
+        viewModel.load()
+
+        XCTAssertEqual(
+            viewModel.recipeForReview(job)?.id,
+            current.id
+        )
+    }
+
+    func testWatchIncludesOnlyRecipesSavedFromVideoSources() {
+        let manual = Recipe(
+            title: "Family Lasagna",
+            source: .other,
+            originalURL: URL(string: "https://example.com/lasagna")!,
+            servings: 8
+        )
+        let viewModel = LibraryViewModel(
+            repository: LibraryTestRepository(
+                recipes: PreviewFixtures.recipes + [manual]
+            ),
+            preferenceStore: LibraryTestPreferenceStore()
+        )
+        viewModel.load()
+
+        XCTAssertEqual(viewModel.watchRecipes.count, 6)
+        XCTAssertFalse(
+            viewModel.watchRecipes.contains { $0.source == .other }
+        )
+    }
+
+    func testDenseArchiveFactsLeadWithProtein() {
+        XCTAssertEqual(
+            PreviewFixtures.recipes[0].libraryFacts,
+            "38 g P · 25 min · ≈ 680 cal"
+        )
+    }
+
+    func testDenseArchiveFactsScaleNutritionPerServing() {
+        let recipe = Recipe(
+            title: "Big Batch Soup",
+            source: .other,
+            originalURL: URL(string: "https://example.com/soup")!,
+            servings: 4,
+            nutrition: Nutrition(
+                calories: 1_200,
+                proteinGrams: 120,
+                servingBasis: 4,
+                isEstimated: true
+            )
+        )
+
+        XCTAssertEqual(recipe.libraryFacts, "30 g P · ≈ 300 cal")
+    }
+
     func testDisplayModePersistsAcrossViewModels() {
         let preferences = LibraryTestPreferenceStore()
         let first = LibraryViewModel(
@@ -134,7 +324,10 @@ final class LibraryViewModelTests: XCTestCase {
                 recipes: PreviewFixtures.recipes,
                 importJobs: PreviewFixtures.importJobs
             ),
-            preferenceStore: LibraryTestPreferenceStore()
+            preferenceStore: LibraryTestPreferenceStore(),
+            now: {
+                PreviewFixtures.recipes.map(\.createdAt).max()!
+            }
         )
     }
 

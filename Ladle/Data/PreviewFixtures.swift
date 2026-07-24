@@ -72,11 +72,9 @@ enum PreviewFixtures {
             id: UUID(uuidString: "FD53B35A-4E30-40BE-8D90-047908528101")!,
             createdAt: baseDate.addingTimeInterval(60)
         )
-        let review = transitionedJob(
+        let review = reviewJob(
             id: "FD53B35A-4E30-40BE-8D90-047908528102",
-            url: "https://www.instagram.com/reel/sunday-ragu",
-            source: .instagram,
-            status: .needsReview
+            recipe: recipes[1]
         )
         let failed = transitionedJob(
             id: "FD53B35A-4E30-40BE-8D90-047908528103",
@@ -466,6 +464,26 @@ enum PreviewFixtures {
             return try queued.transitioning(to: status, at: baseDate)
         } catch {
             preconditionFailure("Invalid preview import transition: \(error)")
+        }
+    }
+
+    private static func reviewJob(
+        id: String,
+        recipe: Recipe
+    ) -> ImportJob {
+        let queued = ImportJob.queued(
+            sourceURL: recipe.originalURL,
+            source: recipe.source,
+            id: UUID(uuidString: id)!,
+            createdAt: baseDate
+        )
+        do {
+            return try queued.awaitingReview(
+                recipeID: recipe.id,
+                at: baseDate
+            )
+        } catch {
+            preconditionFailure("Invalid preview review job: \(error)")
         }
     }
 }
