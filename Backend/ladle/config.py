@@ -27,6 +27,12 @@ class Settings(BaseSettings):
     environment: Literal["development", "test", "production"] = "development"
     jwt_signing_secret: SecretStr = SecretStr("change-me-development-only")
     data_encryption_key: SecretStr = SecretStr("change-me-development-only")
+    database_url: str = "postgresql+psycopg://ladle:ladle@127.0.0.1:5432/ladle"
+    access_token_issuer: str = "ladle"
+    access_token_minutes: int = Field(default=15, gt=0)
+    refresh_token_days: int = Field(default=30, gt=0)
+    refresh_rotation_grace_seconds: int = Field(default=5, ge=0)
+    attestation_enforced: bool = False
 
     supadata_base_url: AnyHttpUrl = AnyHttpUrl("https://api.supadata.ai/v1")
     supadata_timeout_seconds: float = Field(default=30, gt=0)
