@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from datetime import timedelta
 
 import httpx
@@ -45,6 +46,7 @@ from ladle.infrastructure.dns import PinnedRedirectResolver, SystemDNSResolver
 from ladle.infrastructure.object_storage import S3ObjectStorage
 from ladle.observability.metrics import MetricsRegistry
 from ladle.observability.middleware import install_request_middleware
+from ladle.recipes.repository import RecipeRepository
 from ladle.recipes.service import RecipeService
 from ladle.sync.service import RecipeSyncService
 
@@ -96,16 +98,6 @@ def create_app(
         enforced=configured.attestation_enforced
     )
     runtime_metrics = metrics or MetricsRegistry()
-    application.state.recipe_service = RecipeService(clock=runtime_clock)
-    application.state.sync_service = RecipeSyncService(metrics=runtime_metrics)
-    application.state.metrics = runtime_metrics
-    default_probes: dict[str, ReadinessProbe] = {
-        "database": DatabaseReadinessProbe(database_sessions)
-    }
-    if configured.celery_enabled:
-        default_probes["redis"] = RedisReadinessProbe(
-            Redis.from_url(configured.celery_broker_url)
-        )
     object_storage: S3ObjectStorage | None = None
     if configured.object_storage_enabled:
         object_storage = S3ObjectStorage(
@@ -114,7 +106,37 @@ def create_app(
             bucket=configured.object_storage_bucket,
             access_key=configured.object_storage_access_key,
             secret_key=configured.object_storage_secret_key.get_secret_value(),
+            public_endpoint_url=(
+                str(configured.object_storage_public_endpoint_url)
+                if configured.object_storage_public_endpoint_url is not None
+                else None
+            ),
         )
+    object_url: Callable[[str], str] | None = None
+    if object_storage is not None:
+        signing_storage = object_storage
+
+        def object_url(key: str) -> str:
+            return signing_storage.signed_read_url(key, expires_in=timedelta(hours=6))
+
+    recipe_repository = RecipeRepository(object_url=object_url)
+    application.state.recipe_service = RecipeService(
+        clock=runtime_clock,
+        repository=recipe_repository,
+    )
+    application.state.sync_service = RecipeSyncService(
+        recipe_repository,
+        metrics=runtime_metrics,
+    )
+    application.state.metrics = runtime_metrics
+    default_probes: dict[str, ReadinessProbe] = {
+        "database": DatabaseReadinessProbe(database_sessions)
+    }
+    if configured.celery_enabled:
+        default_probes["redis"] = RedisReadinessProbe(
+            Redis.from_url(configured.celery_broker_url)
+        )
+    if object_storage is not None:
         default_probes["storage"] = StorageReadinessProbe(object_storage)
     application.state.object_storage = object_storage
     application.state.readiness = ReadinessService(

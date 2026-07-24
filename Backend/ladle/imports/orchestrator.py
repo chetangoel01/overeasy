@@ -22,6 +22,7 @@ from ladle.crypto.private_text import PrivateTextCipher
 from ladle.db.models import ImportJob, SourceVideo
 from ladle.extraction.claude import ExtractionUnavailable
 from ladle.extraction.protocol import RecipeExtractor
+from ladle.imports.thumbnails import OEmbedThumbnailFetcher
 from ladle.imports.transitions import ImportTransitionService
 from ladle.observability.metrics import MetricsRegistry
 from ladle.recipes.template_clone import RecipeTemplateCloner
@@ -54,6 +55,7 @@ class ImportOrchestrator:
         private_completion: RecipeTemplateCloner | None = None,
         transitions: ImportTransitionService | None = None,
         metrics: MetricsRegistry | None = None,
+        thumbnails: OEmbedThumbnailFetcher | None = None,
     ) -> None:
         self._sessions = session_factory
         self._cache = cache
@@ -65,6 +67,7 @@ class ImportOrchestrator:
         self._private_completion = private_completion
         self._transitions = transitions
         self._metrics = metrics
+        self._thumbnails = thumbnails
 
     def process(self, job_id: UUID) -> ProcessOutcome:
         requires_recheck = False
@@ -210,6 +213,11 @@ class ImportOrchestrator:
                     )
                 )
             template = self._extractor.extract(context, job_id=job_id)
+            thumbnail_key = (
+                self._thumbnails.fetch(descriptor)
+                if self._thumbnails is not None and not bypass_cache
+                else None
+            )
         except (
             ExtractionUnavailable,
             PrivateOrDeleted,
@@ -262,6 +270,7 @@ class ImportOrchestrator:
                 contract_version=self._extractor.contract_version,
                 prompt_version=self._extractor.prompt_version,
                 model_id=self._extractor.model_id,
+                thumbnail_object_key=thumbnail_key,
             )
         return self._outcome(
             ProcessOutcome.COMPLETED,

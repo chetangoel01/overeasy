@@ -29,7 +29,9 @@ from ladle.extraction.claude import (
 from ladle.extraction.protocol import RecipeExtractor
 from ladle.imports.orchestrator import ImportOrchestrator
 from ladle.imports.reservations import ReservationService
+from ladle.imports.thumbnails import OEmbedThumbnailFetcher
 from ladle.imports.transitions import ImportTransitionService
+from ladle.infrastructure.object_storage import S3ObjectStorage
 from ladle.observability.metrics import MetricsRegistry
 from ladle.recipes.template_clone import (
     RecipeTemplate,
@@ -204,12 +206,25 @@ def runtime_orchestrator() -> ImportOrchestrator:
             max_tokens=settings.anthropic_max_tokens,
             usage=usage,
         )
+    thumbnails: OEmbedThumbnailFetcher | None = None
+    if settings.object_storage_enabled:
+        thumbnails = OEmbedThumbnailFetcher(
+            http=httpx.Client(timeout=15.0),
+            storage=S3ObjectStorage(
+                endpoint_url=str(settings.object_storage_endpoint_url),
+                region=settings.object_storage_region,
+                bucket=settings.object_storage_bucket,
+                access_key=settings.object_storage_access_key,
+                secret_key=settings.object_storage_secret_key.get_secret_value(),
+            ),
+        )
     return ImportOrchestrator(
         session_factory=sessions,
         cache=cache,
         acquirer=acquirer,
         extractor=extractor,
         clock=clock,
+        thumbnails=thumbnails,
         private_text=LocalPrivateTextCipher(settings.data_encryption_key),
         private_completion=cloner,
         transitions=ImportTransitionService(

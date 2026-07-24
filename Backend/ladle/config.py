@@ -53,6 +53,7 @@ class Settings(BaseSettings):
     server_media_fallback_enabled: bool = False
     object_storage_enabled: bool = False
     object_storage_endpoint_url: AnyHttpUrl = AnyHttpUrl("http://127.0.0.1:9000")
+    object_storage_public_endpoint_url: AnyHttpUrl | None = None
     object_storage_region: str = "us-east-1"
     object_storage_bucket: str = "ladle-private"
     object_storage_access_key: str = "ladle-local"

@@ -3,6 +3,7 @@ from typing import Any, Protocol
 
 import boto3
 from botocore.client import BaseClient
+from botocore.config import Config
 from botocore.exceptions import ClientError
 
 
@@ -25,15 +26,30 @@ class S3ObjectStorage:
         bucket: str,
         access_key: str,
         secret_key: str,
+        public_endpoint_url: str | None = None,
     ) -> None:
         self._bucket = bucket
+        addressing = Config(s3={"addressing_style": "path"})
         self._client: BaseClient = boto3.client(
             "s3",
             endpoint_url=endpoint_url,
             region_name=region,
             aws_access_key_id=access_key,
             aws_secret_access_key=secret_key,
+            config=addressing,
         )
+        # Presigned URLs must carry a host the app can reach; storage
+        # operations keep using the internal endpoint.
+        self._signing_client: BaseClient = self._client
+        if public_endpoint_url is not None:
+            self._signing_client = boto3.client(
+                "s3",
+                endpoint_url=public_endpoint_url,
+                region_name=region,
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+                config=addressing,
+            )
 
     def create_private_bucket(self) -> None:
         try:
@@ -57,7 +73,7 @@ class S3ObjectStorage:
         seconds = int(expires_in.total_seconds())
         if seconds <= 0:
             raise ValueError("signed URL lifetime must be positive")
-        value: Any = self._client.generate_presigned_url(
+        value: Any = self._signing_client.generate_presigned_url(
             "get_object",
             Params={"Bucket": self._bucket, "Key": key},
             ExpiresIn=seconds,

@@ -10,7 +10,6 @@ private enum RecipeDetailSection: String, CaseIterable, Identifiable {
 
 struct RecipeDetailView: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.openURL) private var openURL
 
     let statusText: String
     @Bindable var importCoordinator: ImportCoordinator
@@ -23,6 +22,7 @@ struct RecipeDetailView: View {
     @State private var isFavorite: Bool
     @State private var isNutritionPresented = false
     @State private var isReimportPresented = false
+    @State private var isVideoPresented = false
     @State private var isOptionsPresented = false
     @State private var editorViewModel: RecipeEditorViewModel?
     @State private var cookingViewModel: CookingViewModel?
@@ -138,6 +138,9 @@ struct RecipeDetailView: View {
             ) { recipe in
                 applyChangedRecipe(recipe)
             }
+        }
+        .sheet(isPresented: $isVideoPresented) {
+            VideoEmbedSheet(recipe: displayedRecipe)
         }
         .fullScreenCover(
             item: $cookingViewModel,
@@ -318,7 +321,7 @@ struct RecipeDetailView: View {
         case .nutrition:
             isNutritionPresented = true
         case .source:
-            openURL(displayedRecipe.originalURL)
+            isVideoPresented = true
         case .delete:
             isDeleteConfirmationPresented = true
         }

@@ -95,7 +95,6 @@ struct WatchView: View {
 }
 
 private struct WatchRecipeCard: View {
-    @Environment(\.openURL) private var openURL
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     let recipe: Recipe
@@ -104,6 +103,7 @@ private struct WatchRecipeCard: View {
     let toggleFavorite: () -> Void
 
     @State private var panel: WatchPanel = .overview
+    @State private var isVideoPresented = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -165,7 +165,7 @@ private struct WatchRecipeCard: View {
         ZStack {
             WatchRecipeImage(recipe: recipe)
             Button {
-                openURL(recipe.originalURL)
+                isVideoPresented = true
             } label: {
                 Image(systemName: "play.fill")
                     .font(.system(size: 20, weight: .bold))
@@ -173,7 +173,10 @@ private struct WatchRecipeCard: View {
                     .frame(width: 58, height: 58)
                     .background(LadleTheme.paper.opacity(0.94), in: Circle())
             }
-            .accessibilityLabel("Open original video")
+            .accessibilityLabel("Play video")
+            .sheet(isPresented: $isVideoPresented) {
+                VideoEmbedSheet(recipe: recipe)
+            }
         }
         .frame(height: 230)
         .clipShape(

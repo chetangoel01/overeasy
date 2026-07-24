@@ -207,6 +207,18 @@ class ExtractionCacheService:
             )
             database.add(entry)
             database.flush()
+        elif entry.invalidated_at is not None:
+            # A fresh extraction after invalidation refreshes the row in
+            # place; the identity columns carry a unique constraint.
+            entry.template_json = template.model_dump(mode="json", by_alias=True)
+            entry.review_status = template.review_status.value
+            entry.thumbnail_object_key = thumbnail_object_key
+            entry.invalidated_at = None
+            entry.created_at = self._clock.now()
+            database.flush()
+        elif entry.thumbnail_object_key is None and thumbnail_object_key is not None:
+            entry.thumbnail_object_key = thumbnail_object_key
+            database.flush()
 
         jobs = list(
             database.scalars(

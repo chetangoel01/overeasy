@@ -100,17 +100,18 @@ struct LibraryHomeView: View {
 
     @ViewBuilder
     private func watchThumbnail(_ recipe: Recipe) -> some View {
-        if let imageName = recipe.images.first?.localName {
-            Image(imageName)
-                .resizable()
-                .scaledToFill()
-                .frame(height: 78)
-                .frame(maxWidth: .infinity)
-                .clipShape(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                )
-                .clipped()
-                .accessibilityHidden(true)
+        if recipe.images.first != nil {
+            RecipeArtworkView(
+                recipeID: recipe.id,
+                image: recipe.images.first
+            )
+            .frame(height: 78)
+            .frame(maxWidth: .infinity)
+            .clipShape(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+            )
+            .clipped()
+            .accessibilityHidden(true)
         } else {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(LadleTheme.paper.opacity(0.12))
@@ -245,19 +246,20 @@ private struct HomeRecipeThumbnail: View {
 
     @ViewBuilder
     private var recipeImage: some View {
-        if let imageName = recipe.images.first?.localName {
-            Image(imageName)
-                .resizable()
-                .scaledToFill()
-                .aspectRatio(1, contentMode: .fit)
-                .clipShape(
-                    RoundedRectangle(
-                        cornerRadius: LadleTheme.Corner.control,
-                        style: .continuous
-                    )
+        if recipe.images.first != nil {
+            RecipeArtworkView(
+                recipeID: recipe.id,
+                image: recipe.images.first
+            )
+            .aspectRatio(1, contentMode: .fit)
+            .clipShape(
+                RoundedRectangle(
+                    cornerRadius: LadleTheme.Corner.control,
+                    style: .continuous
                 )
-                .clipped()
-                .accessibilityHidden(true)
+            )
+            .clipped()
+            .accessibilityHidden(true)
         } else {
             RoundedRectangle(
                 cornerRadius: LadleTheme.Corner.control,
