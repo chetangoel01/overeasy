@@ -12,10 +12,9 @@ struct RecipeListRow: View {
             recipeImage
 
             VStack(alignment: .leading, spacing: 6) {
-                Text(recipe.source.libraryTitle.uppercased())
-                    .ladleFont(.eyebrow)
-                    .tracking(1.1)
-                    .foregroundStyle(LadleTheme.paprika)
+                Text(recipe.source.libraryTitle)
+                    .ladleFont(.metadata)
+                    .foregroundStyle(LadleTheme.ink.opacity(0.5))
 
                 Text(recipe.title)
                     .ladleFont(.recipeTitle)

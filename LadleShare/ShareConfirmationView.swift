@@ -32,13 +32,8 @@ struct ShareConfirmationView: View {
         HStack {
             Label {
                 Text("Ladle")
-                    .font(
-                        .system(
-                            size: 19,
-                            weight: .semibold,
-                            design: .serif
-                        )
-                    )
+                    .font(.system(size: 19, weight: .bold))
+                    .fontWidth(.expanded)
             } icon: {
                 Image(systemName: "flame.fill")
                     .foregroundStyle(ShareTheme.paprika)
@@ -63,19 +58,9 @@ struct ShareConfirmationView: View {
             statusIcon
 
             VStack(spacing: 10) {
-                Text(eyebrow)
-                    .font(.system(size: 12, weight: .bold))
-                    .tracking(1.8)
-                    .foregroundStyle(ShareTheme.paprika)
-
                 Text(title)
-                    .font(
-                        .system(
-                            size: 36,
-                            weight: .semibold,
-                            design: .serif
-                        )
-                    )
+                    .font(.system(size: 30, weight: .bold))
+                    .fontWidth(.expanded)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(ShareTheme.ink)
                     .fixedSize(horizontal: false, vertical: true)
@@ -131,27 +116,15 @@ struct ShareConfirmationView: View {
     private var footer: some View {
         VStack(spacing: 8) {
             if case .success = state {
-                Text("SAFE TO CLOSE")
-                    .font(.system(size: 11, weight: .bold))
-                    .tracking(1.5)
-                    .foregroundStyle(ShareTheme.paprika)
+                Text("Safe to close")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(ShareTheme.ink.opacity(0.58))
             }
 
             Text(footerMessage)
                 .font(.system(size: 14))
                 .multilineTextAlignment(.center)
                 .foregroundStyle(ShareTheme.ink.opacity(0.48))
-        }
-    }
-
-    private var eyebrow: String {
-        switch state {
-        case .loading:
-            "ADDING TO LADLE"
-        case .success:
-            "SAVED FOR LATER"
-        case .failure:
-            "COULDN’T SAVE"
         }
     }
 

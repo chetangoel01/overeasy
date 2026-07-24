@@ -8,7 +8,7 @@ struct IngredientList: View {
         VStack(alignment: .leading, spacing: 0) {
             LadleSectionHeader(
                 title: "Ingredients",
-                detail: "\(ingredients.count) items"
+                detail: countText(ingredients.count, "ingredient")
             )
             .padding(.bottom, 10)
 

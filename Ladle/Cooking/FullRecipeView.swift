@@ -59,21 +59,14 @@ struct FullRecipeView: View {
 
     private var recipeHeader: some View {
         VStack(alignment: .leading, spacing: 9) {
-            Text("Full recipe")
-                .textCase(.uppercase)
-                .ladleFont(.eyebrow)
-                .tracking(1.5)
-                .foregroundStyle(LadleTheme.paprika)
-                .padding(.top, 12)
-                .accessibilityLabel("Full recipe")
-
             Text(viewModel.recipe.title)
                 .ladleFont(.title)
                 .foregroundStyle(LadleTheme.ink)
                 .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 12)
 
             Text(
-                "\(viewModel.recipe.orderedIngredients.count) ingredients · \(viewModel.recipe.orderedSteps.count) steps"
+                "\(countText(viewModel.recipe.orderedIngredients.count, "ingredient")) · \(countText(viewModel.recipe.orderedSteps.count, "step"))"
             )
             .ladleFont(.metadata)
             .foregroundStyle(LadleTheme.ink.opacity(0.58))
@@ -178,7 +171,7 @@ struct FullRecipeView: View {
         VStack(alignment: .leading, spacing: 14) {
             LadleSectionHeader(
                 title: "Method",
-                detail: "\(viewModel.recipe.orderedSteps.count) steps"
+                detail: countText(viewModel.recipe.orderedSteps.count, "step")
             )
 
             ForEach(

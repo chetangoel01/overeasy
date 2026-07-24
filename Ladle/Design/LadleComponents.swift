@@ -146,3 +146,7 @@ extension View {
         modifier(LadleCardModifier())
     }
 }
+
+func countText(_ count: Int, _ noun: String) -> String {
+    count == 1 ? "1 \(noun)" : "\(count) \(noun)s"
+}

@@ -16,11 +16,6 @@ struct WelcomeView: View {
                     .accessibilityHidden(true)
 
                 VStack(spacing: 10) {
-                    Text("WELCOME TO LADLE")
-                        .ladleFont(.eyebrow)
-                        .tracking(1.7)
-                        .foregroundStyle(LadleTheme.paprika)
-
                     Text("Recipes, rescued\nfrom the scroll.")
                         .ladleFont(.title)
                         .multilineTextAlignment(.center)

@@ -98,17 +98,11 @@ struct FocusModeView: View {
     private var currentStepSection: some View {
         if let step = viewModel.currentStep {
             VStack(alignment: .leading, spacing: 16) {
-                Text("DO THIS NOW")
-                    .ladleFont(.eyebrow)
-                    .tracking(1.6)
-                    .foregroundStyle(LadleTheme.paprika)
-
                 Text(step.instruction)
                     .ladleScaledFont(
-                        size: 38,
+                        size: 36,
                         relativeTo: .largeTitle,
-                        weight: .medium,
-                        design: .serif
+                        weight: .semibold
                     )
                     .foregroundStyle(LadleTheme.ink)
                     .minimumScaleFactor(
@@ -143,8 +137,9 @@ struct FocusModeView: View {
             VStack(alignment: .leading, spacing: 12) {
                 LadleSectionHeader(
                     title: "For this step",
-                    detail:
-                        "\(viewModel.relevantIngredients.count) ingredients"
+                    detail: viewModel.relevantIngredients.count == 1
+                        ? "1 ingredient"
+                        : "\(viewModel.relevantIngredients.count) ingredients"
                 )
 
                 VStack(spacing: 10) {

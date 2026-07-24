@@ -134,15 +134,9 @@ struct LibraryView: View {
 
     private var libraryHeader: some View {
         HStack(alignment: .bottom) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text("LADLE")
-                    .ladleFont(.eyebrow)
-                    .tracking(1.8)
-                    .foregroundStyle(LadleTheme.paprika)
-                Text("My Recipes")
-                    .ladleFont(.title)
-                    .foregroundStyle(LadleTheme.ink)
-            }
+            Text("My Recipes")
+                .ladleFont(.title)
+                .foregroundStyle(LadleTheme.ink)
 
             Spacer()
 

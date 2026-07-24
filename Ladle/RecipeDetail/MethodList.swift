@@ -8,7 +8,7 @@ struct MethodList: View {
         VStack(alignment: .leading, spacing: 0) {
             LadleSectionHeader(
                 title: "Method",
-                detail: "\(steps.count) steps"
+                detail: countText(steps.count, "step")
             )
             .padding(.bottom, 14)
 

@@ -86,7 +86,6 @@ struct DemoImportService: ImportService {
         pastedRecipeText: String? = nil
     ) -> Recipe {
         let details = details(for: kind, pastedRecipeText: pastedRecipeText)
-        let ingredientID = uuid(details.identifierPrefix, suffix: "02")
         let uncertainty = kind == .ragu
             ? FieldUncertainty(
                 field: "ingredients[0].quantityText",
@@ -94,6 +93,47 @@ struct DemoImportService: ImportService {
                 confidence: 0.58
             )
             : nil
+
+        let ingredients = details.ingredients.enumerated().map {
+            index, row in
+            Ingredient(
+                id: uuid(
+                    details.identifierPrefix,
+                    suffix: String(format: "%02d", 10 + index)
+                ),
+                quantityText: row.quantity,
+                unit: row.unit,
+                name: row.name,
+                preparation: row.preparation,
+                orderIndex: index,
+                uncertainty: index == 0 ? uncertainty : nil
+            )
+        }
+
+        let steps = details.steps.enumerated().map { index, row in
+            RecipeStep(
+                id: uuid(
+                    details.identifierPrefix,
+                    suffix: String(format: "%02d", 40 + index)
+                ),
+                orderIndex: index,
+                instruction: row.instruction,
+                ingredientIDs: row.ingredientIndexes.map { ingredients[$0].id },
+                timers: row.timer.map {
+                    [
+                        DetectedTimer(
+                            id: uuid(
+                                details.identifierPrefix,
+                                suffix: String(format: "%02d", 70 + index)
+                            ),
+                            label: $0.label,
+                            durationSeconds: $0.seconds
+                        ),
+                    ]
+                } ?? [],
+                uncertainty: index == 0 ? uncertainty : nil
+            )
+        }
 
         return Recipe(
             id: job.candidateRecipeID ?? job.id,
@@ -114,34 +154,17 @@ struct DemoImportService: ImportService {
                 details.preparationMinutes + details.cookingMinutes
             ),
             servings: 4,
-            ingredients: [
-                Ingredient(
-                    id: ingredientID,
-                    quantityText: kind == .ragu ? nil : "1",
-                    unit: kind == .ragu ? nil : "batch",
-                    name: details.featuredIngredient,
-                    orderIndex: 0,
-                    uncertainty: uncertainty
-                ),
-            ],
-            steps: [
-                RecipeStep(
-                    id: uuid(details.identifierPrefix, suffix: "04"),
-                    orderIndex: 0,
-                    instruction: details.instruction,
-                    ingredientIDs: [ingredientID],
-                    uncertainty: uncertainty
-                ),
-            ],
+            ingredients: ingredients,
+            steps: steps,
             nutrition: Nutrition(
                 calories: details.calories,
-                proteinGrams: 18,
-                carbohydrateGrams: 42,
-                fatGrams: 21,
+                proteinGrams: details.proteinGrams,
+                carbohydrateGrams: details.carbohydrateGrams,
+                fatGrams: details.fatGrams,
                 saturatedFatGrams: 7,
                 fiberGrams: 5,
                 sugarGrams: 6,
-                sodiumMilligrams: 640,
+                sodiumMilligrams: details.sodiumMilligrams,
                 servingBasis: 1,
                 isEstimated: true
             ),
@@ -161,14 +184,49 @@ struct DemoImportService: ImportService {
             DemoRecipeDetails(
                 identifierPrefix: "A1010101",
                 title: "Weeknight Green Curry",
-                description: "A bright coconut curry rescued from the scroll.",
+                description: "A bright coconut curry that comes together on one burner.",
                 creator: "@ladlekitchen",
                 imageName: "RecipeChicken",
                 preparationMinutes: 12,
                 cookingMinutes: 23,
                 calories: 480,
-                featuredIngredient: "green curry paste",
-                instruction: "Simmer the curry until fragrant and glossy."
+                proteinGrams: 28,
+                carbohydrateGrams: 38,
+                fatGrams: 24,
+                sodiumMilligrams: 940,
+                ingredients: [
+                    .init("3", "tbsp", "green curry paste", nil),
+                    .init("1", "can", "coconut milk", "14 oz, unshaken"),
+                    .init("1", "lb", "chicken thighs", "sliced thin"),
+                    .init("1", "cup", "green beans", "trimmed"),
+                    .init("1", nil, "red bell pepper", "sliced"),
+                    .init("1", "tbsp", "fish sauce", nil),
+                    .init("1", "tsp", "brown sugar", nil),
+                    .init("1", "handful", "Thai basil", nil),
+                    .init("4", "cups", "jasmine rice", "steamed, to serve"),
+                ],
+                steps: [
+                    .init(
+                        "Fry the curry paste in the thick coconut cream from the top of the can until fragrant.",
+                        [0, 1],
+                        nil
+                    ),
+                    .init(
+                        "Add the chicken and stir until coated and just opaque.",
+                        [2],
+                        nil
+                    ),
+                    .init(
+                        "Pour in the rest of the coconut milk with the beans and pepper, then simmer until tender.",
+                        [1, 3, 4],
+                        ("Simmer curry", 600)
+                    ),
+                    .init(
+                        "Season with fish sauce and sugar, tear in the basil, and serve over rice.",
+                        [5, 6, 7, 8],
+                        nil
+                    ),
+                ]
             )
         case .ragu:
             DemoRecipeDetails(
@@ -180,8 +238,47 @@ struct DemoImportService: ImportService {
                 preparationMinutes: 15,
                 cookingMinutes: 45,
                 calories: 530,
-                featuredIngredient: "crushed tomatoes",
-                instruction: "Simmer gently, then check the seasoning."
+                proteinGrams: 30,
+                carbohydrateGrams: 40,
+                fatGrams: 26,
+                sodiumMilligrams: 1040,
+                ingredients: [
+                    .init(nil, nil, "crushed tomatoes", nil),
+                    .init("1", "lb", "ground pork and beef", "mixed"),
+                    .init("1", nil, "yellow onion", "diced"),
+                    .init("3", "cloves", "garlic", "minced"),
+                    .init("2", "tbsp", "tomato paste", nil),
+                    .init("½", "cup", "red wine", nil),
+                    .init("1", nil, "parmesan rind", "optional"),
+                    .init("1", "tsp", "kosher salt", "plus more to taste"),
+                ],
+                steps: [
+                    .init(
+                        "Brown the meat hard in a wide pot, then push it to the side.",
+                        [1],
+                        nil
+                    ),
+                    .init(
+                        "Soften the onion and garlic, then fry the tomato paste until brick red.",
+                        [2, 3, 4],
+                        nil
+                    ),
+                    .init(
+                        "Deglaze with the wine and let it reduce by half.",
+                        [5],
+                        nil
+                    ),
+                    .init(
+                        "Add the tomatoes and parmesan rind and simmer low and slow.",
+                        [0, 6],
+                        ("Simmer ragu", 2700)
+                    ),
+                    .init(
+                        "Season with salt, then check the seasoning before serving.",
+                        [7],
+                        nil
+                    ),
+                ]
             )
         case .orzo:
             DemoRecipeDetails(
@@ -193,8 +290,40 @@ struct DemoImportService: ImportService {
                 preparationMinutes: 10,
                 cookingMinutes: 25,
                 calories: 520,
-                featuredIngredient: "orzo",
-                instruction: "Cook the orzo until creamy, then fold in feta."
+                proteinGrams: 16,
+                carbohydrateGrams: 62,
+                fatGrams: 22,
+                sodiumMilligrams: 890,
+                ingredients: [
+                    .init("1", "cup", "orzo", nil),
+                    .init("2", "cloves", "garlic", "finely chopped"),
+                    .init("2", "cups", "vegetable stock", nil),
+                    .init("1", nil, "lemon", "zested and juiced"),
+                    .init("½", "cup", "crumbled feta", nil),
+                    .init("2", "tbsp", "extra-virgin olive oil", nil),
+                ],
+                steps: [
+                    .init(
+                        "Toast the orzo with garlic until the edges turn golden.",
+                        [0, 1],
+                        nil
+                    ),
+                    .init(
+                        "Pour in the stock and simmer, stirring often, until creamy.",
+                        [2],
+                        ("Simmer orzo", 720)
+                    ),
+                    .init(
+                        "Fold in the lemon zest, juice, and half of the feta.",
+                        [3, 4],
+                        nil
+                    ),
+                    .init(
+                        "Finish with olive oil and the remaining feta, then serve.",
+                        [4, 5],
+                        nil
+                    ),
+                ]
             )
         case .pasted:
             DemoRecipeDetails(
@@ -206,8 +335,20 @@ struct DemoImportService: ImportService {
                 preparationMinutes: 10,
                 cookingMinutes: 20,
                 calories: 450,
-                featuredIngredient: "pasted ingredients",
-                instruction: "Follow the pasted recipe details."
+                proteinGrams: 18,
+                carbohydrateGrams: 42,
+                fatGrams: 21,
+                sodiumMilligrams: 640,
+                ingredients: [
+                    .init("1", "batch", "ingredients from your pasted text", nil),
+                ],
+                steps: [
+                    .init(
+                        "Follow the method from your pasted recipe text.",
+                        [0],
+                        nil
+                    ),
+                ]
             )
         }
     }
@@ -232,6 +373,41 @@ struct DemoImportService: ImportService {
 }
 
 private struct DemoRecipeDetails {
+    struct IngredientRow {
+        let quantity: String?
+        let unit: String?
+        let name: String
+        let preparation: String?
+
+        init(
+            _ quantity: String?,
+            _ unit: String?,
+            _ name: String,
+            _ preparation: String?
+        ) {
+            self.quantity = quantity
+            self.unit = unit
+            self.name = name
+            self.preparation = preparation
+        }
+    }
+
+    struct StepRow {
+        let instruction: String
+        let ingredientIndexes: [Int]
+        let timer: (label: String, seconds: Int)?
+
+        init(
+            _ instruction: String,
+            _ ingredientIndexes: [Int],
+            _ timer: (label: String, seconds: Int)?
+        ) {
+            self.instruction = instruction
+            self.ingredientIndexes = ingredientIndexes
+            self.timer = timer
+        }
+    }
+
     let identifierPrefix: String
     let title: String
     let description: String
@@ -240,6 +416,10 @@ private struct DemoRecipeDetails {
     let preparationMinutes: Int
     let cookingMinutes: Int
     let calories: Decimal
-    let featuredIngredient: String
-    let instruction: String
+    let proteinGrams: Decimal
+    let carbohydrateGrams: Decimal
+    let fatGrams: Decimal
+    let sodiumMilligrams: Decimal
+    let ingredients: [IngredientRow]
+    let steps: [StepRow]
 }

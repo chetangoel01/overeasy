@@ -161,10 +161,8 @@ struct RecipeDetailView: View {
     private var recipeHeader: some View {
         VStack(alignment: .leading, spacing: 11) {
             Text(statusText)
-                .textCase(.uppercase)
-                .ladleFont(.eyebrow)
-                .tracking(1.4)
-                .foregroundStyle(LadleTheme.paprika)
+                .ladleFont(.metadata)
+                .foregroundStyle(LadleTheme.ink.opacity(0.58))
 
             Text(displayedRecipe.title)
                 .ladleFont(.title)

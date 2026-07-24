@@ -13,9 +13,9 @@ enum LadleTextStyle {
     var baseSize: CGFloat {
         switch self {
         case .display:
-            44
+            42
         case .title:
-            32
+            31
         case .recipeTitle:
             21
         case .section:
@@ -51,24 +51,24 @@ enum LadleTextStyle {
     var weight: Font.Weight {
         switch self {
         case .display, .title:
-            .medium
+            .bold
         case .recipeTitle, .section, .bodyStrong:
             .semibold
         case .body:
             .regular
-        case .metadata:
+        case .metadata, .eyebrow:
             .medium
-        case .eyebrow:
-            .bold
         }
     }
 
-    var design: Font.Design {
+    // Display sizes carry the identity through SF's expanded width axis;
+    // everything at reading size stays standard width for legibility.
+    var width: Font.Width {
         switch self {
-        case .display, .title, .recipeTitle, .section:
-            .serif
-        case .body, .bodyStrong, .metadata, .eyebrow:
-            .default
+        case .display, .title:
+            .expanded
+        case .recipeTitle, .section, .body, .bodyStrong, .metadata, .eyebrow:
+            .standard
         }
     }
 }
@@ -77,30 +77,35 @@ private struct LadleFontModifier: ViewModifier {
     @ScaledMetric private var scaledSize: CGFloat
 
     private let weight: Font.Weight
+    private let width: Font.Width
     private let design: Font.Design
 
     init(
         size: CGFloat,
         relativeTo textStyle: Font.TextStyle,
         weight: Font.Weight,
-        design: Font.Design
+        width: Font.Width,
+        design: Font.Design = .default
     ) {
         _scaledSize = ScaledMetric(
             wrappedValue: size,
             relativeTo: textStyle
         )
         self.weight = weight
+        self.width = width
         self.design = design
     }
 
     func body(content: Content) -> some View {
-        content.font(
-            .system(
-                size: scaledSize,
-                weight: weight,
-                design: design
+        content
+            .font(
+                .system(
+                    size: scaledSize,
+                    weight: weight,
+                    design: design
+                )
             )
-        )
+            .fontWidth(width)
     }
 }
 
@@ -111,7 +116,7 @@ extension View {
                 size: style.baseSize,
                 relativeTo: style.relativeTextStyle,
                 weight: style.weight,
-                design: style.design
+                width: style.width
             )
         )
     }
@@ -120,6 +125,7 @@ extension View {
         size: CGFloat,
         relativeTo textStyle: Font.TextStyle,
         weight: Font.Weight = .regular,
+        width: Font.Width = .standard,
         design: Font.Design = .default
     ) -> some View {
         modifier(
@@ -127,6 +133,7 @@ extension View {
                 size: size,
                 relativeTo: textStyle,
                 weight: weight,
+                width: width,
                 design: design
             )
         )
