@@ -18,6 +18,7 @@ from ladle.acquisition.models import (
     MediaMetadata,
     SourceVideoDescriptor,
     TranscriptResult,
+    VisualEvidence,
     VisualResult,
 )
 from ladle.observability.metrics import MetricsRegistry
@@ -128,11 +129,13 @@ class ProviderChain:
                 segments=free.transcript,
                 language=free.language,
             )
+        # On-screen text the free rung read stays in play for every later rung.
+        free_observations = free.visual_observations
         context = self._context(
             source,
             metadata=metadata,
             transcript=transcript,
-            visual=None,
+            observations=free_observations,
             documents=documents,
             diagnostics=diagnostics,
         )
@@ -152,7 +155,7 @@ class ProviderChain:
                 source,
                 metadata=metadata,
                 transcript=transcript,
-                visual=None,
+                observations=free_observations,
                 documents=documents,
                 diagnostics=diagnostics,
             )
@@ -186,7 +189,7 @@ class ProviderChain:
             source,
             metadata=metadata,
             transcript=transcript,
-            visual=None,
+            observations=free_observations,
             documents=documents,
             diagnostics=diagnostics,
         )
@@ -205,7 +208,9 @@ class ProviderChain:
             source,
             metadata=metadata,
             transcript=transcript,
-            visual=visual,
+            observations=(
+                free_observations + (visual.observations if visual is not None else [])
+            ),
             documents=documents,
             diagnostics=diagnostics,
         )
@@ -308,7 +313,7 @@ class ProviderChain:
         *,
         metadata: MediaMetadata,
         transcript: TranscriptResult | None,
-        visual: VisualResult | None,
+        observations: list[VisualEvidence],
         documents: list[LinkedDocument],
         diagnostics: list[str],
     ) -> AcquiredVideoContext:
@@ -320,7 +325,7 @@ class ProviderChain:
             creator_name=metadata.creator_name,
             language=transcript.language if transcript is not None else None,
             transcript=transcript.segments if transcript is not None else [],
-            visual_observations=(visual.observations if visual is not None else []),
+            visual_observations=observations,
             linked_documents=documents,
             diagnostics=diagnostics,
         )

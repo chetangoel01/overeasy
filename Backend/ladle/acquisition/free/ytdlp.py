@@ -288,6 +288,7 @@ def parse_vtt(
     *,
     generated: bool,
     language: str,
+    source: str = "ytdlp",
 ) -> list[TextEvidence]:
     """WebVTT cues with their timestamps preserved.
 
@@ -298,7 +299,7 @@ def parse_vtt(
     cues = _cues(raw)
     if not cues:
         return []
-    provenance = f"ytdlp:{'auto' if generated else 'manual'}:{language}"
+    provenance = f"{source}:{'auto' if generated else 'manual'}:{language}"
     segments: list[TextEvidence] = []
     buffer: list[str] = []
     start = 0.0

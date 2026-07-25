@@ -6,7 +6,12 @@ from uuid import UUID
 import httpx
 from anthropic import Anthropic
 
-from ladle.acquisition.free import FreeAcquirer, SafeLinkFetcher, YtDlpClient
+from ladle.acquisition.free import (
+    FreeAcquirer,
+    SafeLinkFetcher,
+    TikTokPageClient,
+    YtDlpClient,
+)
 from ladle.acquisition.models import (
     AcquiredVideoContext,
     SourceVideoDescriptor,
@@ -142,14 +147,15 @@ def _free_acquirer(settings: Settings) -> FreeAcquirer | None:
         metadata_timeout_seconds=settings.ytdlp_timeout_seconds,
         subtitle_timeout_seconds=settings.ytdlp_timeout_seconds,
     )
-    fetcher = (
-        SafeLinkFetcher(http=httpx.Client(timeout=settings.linked_page_timeout_seconds))
-        if settings.free_acquisition_follow_links
-        else None
+    # TikTok's own ASR track needs a fetcher even when caption-link following
+    # is off, so the page client gets its own.
+    page_fetcher = SafeLinkFetcher(
+        http=httpx.Client(timeout=settings.linked_page_timeout_seconds)
     )
     return FreeAcquirer(
         ytdlp=ytdlp,
-        fetcher=fetcher,
+        fetcher=page_fetcher if settings.free_acquisition_follow_links else None,
+        tiktok=TikTokPageClient(fetcher=page_fetcher),
         follow_caption_links=settings.free_acquisition_follow_links,
         subtitles_enabled=settings.free_acquisition_subtitles,
     )

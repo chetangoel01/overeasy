@@ -20,12 +20,14 @@ from ladle.acquisition.free.links import (
     caption_links,
     substack_candidates,
 )
+from ladle.acquisition.free.tiktok import TikTokPageClient
 from ladle.acquisition.free.ytdlp import YtDlpClient
 from ladle.acquisition.models import (
     LinkedDocument,
     MediaMetadata,
     SourceVideoDescriptor,
     TextEvidence,
+    VisualEvidence,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -46,6 +48,7 @@ class FreeContext:
     transcript: list[TextEvidence] = field(default_factory=list)
     language: str | None = None
     linked_documents: list[LinkedDocument] = field(default_factory=list)
+    visual_observations: list[VisualEvidence] = field(default_factory=list)
     diagnostics: list[str] = field(default_factory=list)
 
     @property
@@ -63,6 +66,7 @@ def _already_covered(context: FreeContext) -> bool:
             metadata.title or "",
             metadata.description,
             *(segment.text for segment in context.transcript),
+            *(value.text for value in context.visual_observations),
         ]
     )
     return has_quantities(text) and has_instructions(text)
@@ -74,11 +78,13 @@ class FreeAcquirer:
         *,
         ytdlp: YtDlpClient,
         fetcher: LinkFetcher | None = None,
+        tiktok: TikTokPageClient | None = None,
         follow_caption_links: bool = True,
         subtitles_enabled: bool = True,
     ) -> None:
         self._ytdlp = ytdlp
         self._fetcher = fetcher
+        self._tiktok = tiktok
         self._follow_caption_links = follow_caption_links
         self._subtitles_enabled = subtitles_enabled
 
@@ -123,6 +129,11 @@ class FreeAcquirer:
                 else:
                     context.diagnostics.append("freeCaptionsUnavailable")
 
+        # yt-dlp reports nothing for TikTok, but TikTok publishes its own ASR
+        # track in the page. Worth a look whenever captions are still missing.
+        if not context.transcript and source.platform == "tiktok":
+            self._apply_tiktok_page(source.canonical_url, context)
+
         # Captions and description may already be enough. Fetching anyway would
         # chase sponsor links through redirects for nothing.
         if _already_covered(context):
@@ -135,6 +146,26 @@ class FreeAcquirer:
                 diagnostics=context.diagnostics,
             )
         return context
+
+    def _apply_tiktok_page(self, canonical_url: str, context: FreeContext) -> None:
+        if self._tiktok is None or not self._subtitles_enabled:
+            return
+        evidence = self._tiktok.evidence(canonical_url)
+        if evidence.is_empty:
+            context.diagnostics.append("tiktokPageEvidenceUnavailable")
+            return
+        if evidence.transcript:
+            context.transcript = evidence.transcript
+            context.language = evidence.language
+            context.diagnostics.append("tiktokAsrCaptionsUsed")
+        if evidence.stickers:
+            context.visual_observations = evidence.stickers
+            context.diagnostics.append("tiktokStickerTextUsed")
+        metadata = context.metadata
+        # A TikTok title is the caption's opening promo line; the on-screen
+        # sticker is what the creator actually called the dish.
+        if metadata is not None and evidence.title:
+            metadata.title = evidence.title
 
     def _documents(
         self,

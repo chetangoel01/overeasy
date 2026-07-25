@@ -45,7 +45,9 @@ class TextEvidence(WireModel):
 
 class VisualEvidence(WireModel):
     text: str = Field(min_length=1, max_length=20_000)
-    timestamp_seconds: float = Field(ge=0)
+    # On-screen text is not always timed: TikTok publishes sticker captions with
+    # no time at all. Null says so rather than claiming it appeared at 0:00.
+    timestamp_seconds: float | None = Field(default=None, ge=0)
     provenance: str = Field(min_length=1)
     confidence: float | None = Field(default=None, ge=0, le=1)
 

@@ -17,6 +17,7 @@ from ladle.acquisition.models import (
     SourceVideoDescriptor,
     TextEvidence,
     TranscriptResult,
+    VisualEvidence,
     VisualResult,
 )
 from ladle.acquisition.provider_chain import ProviderChain
@@ -182,6 +183,61 @@ def test_thin_free_result_still_falls_through_to_paid_providers() -> None:
     assert primary.calls == ["transcript:native", "transcript:auto", "visual"]
     assert fallback.calls == 1
     assert context.description == "so good"
+
+
+def test_free_sticker_text_survives_into_the_paid_result() -> None:
+    primary = Primary()
+    free = Free(
+        FreeContext(
+            metadata=MediaMetadata(title="Rice Paper Rolls", description="link in bio"),
+            visual_observations=[
+                VisualEvidence(
+                    text="Feta and Spinach Rice Paper Rolls",
+                    timestamp_seconds=None,
+                    provenance="tiktok:sticker",
+                )
+            ],
+            diagnostics=["freeMetadataUsed", "tiktokStickerTextUsed"],
+        )
+    )
+    chain = ProviderChain(primary=primary, fallback=Fallback(), free=free)
+
+    context = chain.acquire(source(), job_id=uuid4())
+
+    # The chain kept going to paid providers, but did not drop what was free.
+    assert primary.calls == ["transcript:native", "transcript:auto", "visual"]
+    assert [value.provenance for value in context.visual_observations] == [
+        "tiktok:sticker"
+    ]
+
+
+def test_free_transcript_skips_every_paid_transcript_rung() -> None:
+    primary = Primary()
+    fallback = Fallback()
+    free = Free(
+        FreeContext(
+            metadata=MediaMetadata(title="Chickpeas", description="link in bio"),
+            transcript=[
+                TextEvidence(
+                    text="I'm making recipes for real life.",
+                    start_seconds=0.04,
+                    end_seconds=3.24,
+                    provenance="tiktok:asr:auto:eng-US",
+                    generated=True,
+                )
+            ],
+            language="eng-US",
+            diagnostics=["tiktokAsrCaptionsUsed"],
+        )
+    )
+    chain = ProviderChain(primary=primary, fallback=fallback, free=free)
+
+    chain.acquire(source(), job_id=uuid4())
+
+    # TikTok's ASR covers the same audio Supadata would bill for, so only the
+    # visual rung is worth paying for after it.
+    assert primary.calls == ["visual"]
+    assert fallback.calls == 0
 
 
 def test_free_metadata_failure_falls_back_to_paid_metadata() -> None:

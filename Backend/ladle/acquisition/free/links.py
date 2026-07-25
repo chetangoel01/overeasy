@@ -168,9 +168,21 @@ class SafeLinkFetcher:
         self._max_response_bytes = max_response_bytes
 
     def fetch_text(self, url: str) -> str:
-        return _readable(self.fetch_raw(url))
+        body, content_type = self._get(url)
+        # A creator link that turns out to be a binary is not a recipe page.
+        if not any(kind in content_type for kind in ("html", "xml", "text")):
+            return ""
+        return _readable(body)
 
     def fetch_raw(self, url: str) -> str:
+        """Body as text, whatever the server claims it is.
+
+        TikTok serves its WebVTT caption tracks as `video/mp4`, so callers that
+        know what they asked for must be able to bypass the content-type gate.
+        """
+        return self._get(url)[0]
+
+    def _get(self, url: str) -> tuple[str, str]:
         current = url
         for _ in range(self._max_redirects + 1):
             target = _validated(current)
@@ -189,10 +201,10 @@ class SafeLinkFetcher:
                 current = str(httpx.URL(target).join(location))
                 continue
             response.raise_for_status()
-            content_type = response.headers.get("content-type", "")
-            if not any(kind in content_type for kind in ("html", "xml", "text")):
-                return ""
-            return response.text[: self._max_response_bytes]
+            return (
+                response.text[: self._max_response_bytes],
+                response.headers.get("content-type", ""),
+            )
         raise UnsafeURL("too many redirects")
 
 
