@@ -78,7 +78,7 @@ class Settings(BaseSettings):
     openrouter_base_url: AnyHttpUrl = AnyHttpUrl("https://openrouter.ai/api/v1")
     openrouter_timeout_seconds: float = Field(default=90, gt=0)
     openrouter_api_key: SecretStr | None = None
-    openrouter_model_id: str = "anthropic/claude-sonnet-4.5"
+    openrouter_model_id: str = "moonshotai/kimi-k2.5"
     openrouter_max_tokens: int = Field(default=8192, gt=0)
 
     apple_enabled: bool = False
