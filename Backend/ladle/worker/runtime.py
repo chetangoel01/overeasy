@@ -8,6 +8,7 @@ from anthropic import Anthropic
 
 from ladle.acquisition.free import (
     FreeAcquirer,
+    InstagramEmbedClient,
     SafeLinkFetcher,
     TikTokPageClient,
     YtDlpClient,
@@ -156,6 +157,7 @@ def _free_acquirer(settings: Settings) -> FreeAcquirer | None:
         ytdlp=ytdlp,
         fetcher=page_fetcher if settings.free_acquisition_follow_links else None,
         tiktok=TikTokPageClient(fetcher=page_fetcher),
+        instagram=InstagramEmbedClient(fetcher=page_fetcher),
         follow_caption_links=settings.free_acquisition_follow_links,
         subtitles_enabled=settings.free_acquisition_subtitles,
     )

@@ -14,6 +14,7 @@ import httpx
 
 from ladle.acquisition.coverage import has_instructions, has_quantities
 from ladle.acquisition.errors import PrivateOrDeleted, ProviderUnavailable
+from ladle.acquisition.free.instagram import InstagramEmbedClient
 from ladle.acquisition.free.links import (
     LinkFetcher,
     UnsafeURL,
@@ -79,12 +80,14 @@ class FreeAcquirer:
         ytdlp: YtDlpClient,
         fetcher: LinkFetcher | None = None,
         tiktok: TikTokPageClient | None = None,
+        instagram: InstagramEmbedClient | None = None,
         follow_caption_links: bool = True,
         subtitles_enabled: bool = True,
     ) -> None:
         self._ytdlp = ytdlp
         self._fetcher = fetcher
         self._tiktok = tiktok
+        self._instagram = instagram
         self._follow_caption_links = follow_caption_links
         self._subtitles_enabled = subtitles_enabled
 
@@ -96,38 +99,16 @@ class FreeAcquirer:
     ) -> FreeContext:
         del job_id
         context = FreeContext()
-        if not self._ytdlp.available:
-            context.diagnostics.append("freeAcquirerUnavailable")
-            return context
-        try:
-            media = self._ytdlp.metadata(source.canonical_url)
-        except PrivateOrDeleted:
-            raise
-        except ProviderUnavailable as error:
-            LOGGER.info(
-                "Free metadata unavailable for %s: %s", source.canonical_url, error
-            )
-            context.diagnostics.append("freeMetadataUnavailable")
-            return context
-        context.metadata = media.metadata
-        context.diagnostics.append("freeMetadataUsed")
 
-        if self._subtitles_enabled:
-            track = media.preferred_track()
-            if track is None:
-                context.diagnostics.append("freeCaptionsUnavailable")
-            else:
-                segments = self._ytdlp.subtitles(source.canonical_url, track=track)
-                if segments:
-                    context.transcript = segments
-                    context.language = track.language
-                    context.diagnostics.append(
-                        "freeGeneratedCaptionsUsed"
-                        if track.generated
-                        else "freeCaptionsUsed"
-                    )
-                else:
-                    context.diagnostics.append("freeCaptionsUnavailable")
+        # Instagram refuses yt-dlp without browser cookies, so its embed
+        # endpoint is the primary source there rather than a fallback.
+        if source.platform == "instagram":
+            self._apply_instagram_embed(source, context)
+        if not context.has_metadata:
+            self._apply_ytdlp(source, context)
+        metadata = context.metadata
+        if metadata is None:
+            return context
 
         # yt-dlp reports nothing for TikTok, but TikTok publishes its own ASR
         # track in the page. Worth a look whenever captions are still missing.
@@ -142,10 +123,62 @@ class FreeAcquirer:
 
         if self._follow_caption_links and self._fetcher is not None:
             context.linked_documents = self._documents(
-                media.metadata,
+                metadata,
                 diagnostics=context.diagnostics,
             )
         return context
+
+    def _apply_ytdlp(
+        self,
+        source: SourceVideoDescriptor,
+        context: FreeContext,
+    ) -> None:
+        if not self._ytdlp.available:
+            context.diagnostics.append("freeAcquirerUnavailable")
+            return
+        try:
+            media = self._ytdlp.metadata(source.canonical_url)
+        except PrivateOrDeleted:
+            raise
+        except ProviderUnavailable as error:
+            LOGGER.info(
+                "Free metadata unavailable for %s: %s", source.canonical_url, error
+            )
+            context.diagnostics.append("freeMetadataUnavailable")
+            return
+        context.metadata = media.metadata
+        context.diagnostics.append("freeMetadataUsed")
+
+        if not self._subtitles_enabled:
+            return
+        track = media.preferred_track()
+        if track is None:
+            context.diagnostics.append("freeCaptionsUnavailable")
+            return
+        segments = self._ytdlp.subtitles(source.canonical_url, track=track)
+        if not segments:
+            context.diagnostics.append("freeCaptionsUnavailable")
+            return
+        context.transcript = segments
+        context.language = track.language
+        context.diagnostics.append(
+            "freeGeneratedCaptionsUsed" if track.generated else "freeCaptionsUsed"
+        )
+
+    def _apply_instagram_embed(
+        self,
+        source: SourceVideoDescriptor,
+        context: FreeContext,
+    ) -> None:
+        if self._instagram is None:
+            return
+        media = self._instagram.metadata(source)
+        if media is None:
+            context.diagnostics.append("instagramEmbedUnavailable")
+            return
+        context.metadata = media.metadata
+        context.visual_observations = media.observations
+        context.diagnostics.append("instagramEmbedUsed")
 
     def _apply_tiktok_page(self, canonical_url: str, context: FreeContext) -> None:
         if self._tiktok is None or not self._subtitles_enabled:
