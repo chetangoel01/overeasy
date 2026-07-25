@@ -10,6 +10,7 @@ from ladle.acquisition.errors import (
     PrivateOrDeleted,
     ProviderUnavailable,
     TranscriptUnavailable,
+    VisualAnalysisUnavailable,
 )
 from ladle.acquisition.free.acquirer import FreeContext
 from ladle.acquisition.models import (
@@ -319,6 +320,99 @@ def test_an_unheard_video_with_a_rich_caption_still_bills_nothing() -> None:
     assert primary.calls == []
     assert fallback.calls == 0
     assert "audioTranscriptionUnavailable" in context.diagnostics
+
+
+@dataclass
+class Vision:
+    result: VisualResult | Exception
+    calls: int = 0
+
+    def visual(
+        self,
+        source: SourceVideoDescriptor,
+        *,
+        job_id: UUID,
+        media_url: str | None = None,
+        duration_seconds: float | None = None,
+    ) -> VisualResult:
+        del source, job_id, media_url, duration_seconds
+        self.calls += 1
+        if isinstance(self.result, Exception):
+            raise self.result
+        return self.result
+
+
+def seen_cooking() -> VisualResult:
+    return VisualResult(
+        observations=[
+            VisualEvidence(
+                text="Feta and spinach are spooned onto a rice paper sheet.",
+                timestamp_seconds=12.0,
+                provenance="vision:google/gemini-2.5-flash",
+            )
+        ],
+        billed_units=Decimal(1),
+        external_job_id="vision:visual:1",
+    )
+
+
+def test_watching_the_video_comes_before_paying_to_have_it_watched() -> None:
+    """Frames we sample ourselves undercut the visual provider they precede."""
+
+    primary = Primary()
+    vision = Vision(seen_cooking())
+    free = Free(
+        FreeContext(
+            metadata=MediaMetadata(title="Rice Paper Rolls", description="link in bio"),
+            diagnostics=["freeMetadataUsed"],
+        )
+    )
+    chain = ProviderChain(
+        primary=primary, fallback=Fallback(), free=free, vision=vision
+    )
+
+    context = chain.acquire(source(), job_id=uuid4())
+
+    assert vision.calls == 1
+    assert "visual" not in primary.calls
+    assert "frameAnalysisUsed" in context.diagnostics
+    assert context.visual_observations[0].timestamp_seconds == 12.0
+
+
+def test_unwatchable_video_still_falls_through_to_the_visual_provider() -> None:
+    primary = Primary()
+    vision = Vision(VisualAnalysisUnavailable("no media"))
+    free = Free(
+        FreeContext(
+            metadata=MediaMetadata(title="Dinner", description="so good"),
+            diagnostics=["freeMetadataUsed"],
+        )
+    )
+    chain = ProviderChain(
+        primary=primary, fallback=Fallback(), free=free, vision=vision
+    )
+
+    context = chain.acquire(source(), job_id=uuid4())
+
+    assert vision.calls == 1
+    assert "visual" in primary.calls
+    assert "frameAnalysisUnavailable" in context.diagnostics
+
+
+def test_a_covered_recipe_is_never_watched() -> None:
+    """Nothing to gain from frames when the evidence already answers."""
+
+    vision = Vision(seen_cooking())
+    chain = ProviderChain(
+        primary=Primary(),
+        fallback=Fallback(),
+        free=Free(caption_only()),
+        vision=vision,
+    )
+
+    chain.acquire(source(), job_id=uuid4())
+
+    assert vision.calls == 0
 
 
 def test_audio_transcription_runs_before_the_transcript_providers() -> None:

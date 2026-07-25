@@ -18,6 +18,28 @@ _FINISH_REASON_TO_STOP_REASON = {
 }
 
 
+def _unfenced(content: str) -> str:
+    """Strip a markdown code fence the model was asked not to emit.
+
+    It emits one anyway often enough to matter: the retry hid the cost by
+    spending a second billed call on what is a formatting habit, and a model
+    in the habit fences the retry too.
+    """
+
+    text = content.strip()
+    if not text.startswith("```"):
+        return text
+    body = text[3:]
+    # Drop the language tag on the opening fence ("json").
+    newline = body.find("\n")
+    if newline != -1 and "{" not in body[:newline] and "[" not in body[:newline]:
+        body = body[newline + 1 :]
+    closing = body.rfind("```")
+    if closing != -1:
+        body = body[:closing]
+    return body.strip()
+
+
 class OpenRouterStructuredClient:
     """Chat-completions client for OpenRouter's OpenAI-compatible API.
 
@@ -130,7 +152,7 @@ class OpenRouterStructuredClient:
         content = (choice.get("message") or {}).get("content")
         if isinstance(content, str) and content.strip():
             try:
-                parsed = RecipeExtraction.model_validate_json(content)
+                parsed = RecipeExtraction.model_validate_json(_unfenced(content))
             except ValidationError as error:
                 # Swallowing this silently cost real debugging: a whole
                 # extraction would vanish with nothing recorded about why, and

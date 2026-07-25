@@ -8,6 +8,7 @@ _PROVIDERS = frozenset(
     {
         "free",
         "whisper",
+        "vision",
         "supadata",
         "soscripted",
         "serverFallback",

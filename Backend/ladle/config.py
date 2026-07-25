@@ -81,6 +81,14 @@ class Settings(BaseSettings):
     transcription_max_audio_bytes: int = Field(default=20 * 1024 * 1024, gt=0)
     transcription_max_duration_seconds: float = Field(default=1800, gt=0)
 
+    # Frames read by a vision model, for the silent videos where the method is
+    # only ever shown. Cheaper than the visual provider it precedes, and it
+    # reuses the media transcription already downloaded.
+    frame_analysis_enabled: bool = True
+    frame_analysis_model_id: str = "google/gemini-2.5-flash"
+    frame_analysis_max_frames: int = Field(default=8, gt=0, le=32)
+    frame_analysis_timeout_seconds: float = Field(default=120, gt=0)
+
     supadata_base_url: AnyHttpUrl = AnyHttpUrl("https://api.supadata.ai/v1")
     supadata_timeout_seconds: float = Field(default=30, gt=0)
     supadata_api_key: SecretStr | None = None

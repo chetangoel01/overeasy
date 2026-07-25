@@ -29,6 +29,11 @@ from ladle.acquisition.protocol import VideoAcquirer
 from ladle.acquisition.provider_chain import ProviderChain
 from ladle.acquisition.soscripted import SoScriptedClient
 from ladle.acquisition.supadata import SupadataClient
+from ladle.acquisition.vision import (
+    FrameSampler,
+    VisionObserver,
+    VisionVisualProvider,
+)
 from ladle.cache.claims import ExtractionClaimService
 from ladle.cache.service import ExtractionCacheService
 from ladle.clock import SystemClock
@@ -178,6 +183,34 @@ def _audio_transcriber(
     )
 
 
+def _vision_provider(
+    settings: Settings,
+    *,
+    usage: ProviderUsageLedger,
+) -> VisionVisualProvider | None:
+    if not settings.frame_analysis_enabled or settings.openrouter_api_key is None:
+        return None
+    media = MediaAudioSource(
+        ytdlp=YtDlpClient(binary=settings.ytdlp_binary_path),
+        http=httpx.Client(timeout=settings.frame_analysis_timeout_seconds),
+    )
+    sampler = FrameSampler(max_frames=settings.frame_analysis_max_frames)
+    if not sampler.available:
+        LOGGER.warning("ffmpeg is missing; frame analysis is disabled")
+        return None
+    return VisionVisualProvider(
+        media_source=media,
+        sampler=sampler,
+        observer=VisionObserver(
+            http=httpx.Client(timeout=settings.frame_analysis_timeout_seconds),
+            api_key=settings.openrouter_api_key.get_secret_value(),
+            base_url=str(settings.openrouter_base_url),
+            model_id=settings.frame_analysis_model_id,
+            usage=usage,
+        ),
+    )
+
+
 def _free_acquirer(settings: Settings) -> FreeAcquirer | None:
     if not settings.free_acquisition_enabled:
         return None
@@ -290,6 +323,7 @@ def runtime_orchestrator() -> ImportOrchestrator:
             ),
             free=_free_acquirer(settings),
             audio=_audio_transcriber(settings, usage=usage),
+            vision=_vision_provider(settings, usage=usage),
             metrics=metrics,
         )
         if settings.extraction_provider == "openrouter":

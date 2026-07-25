@@ -96,6 +96,25 @@ class MediaAudioSource:
     def available(self) -> bool:
         return self._ffmpeg is not None
 
+    def media(
+        self,
+        source: SourceVideoDescriptor,
+        *,
+        media_url: str | None,
+        work_dir: Path,
+    ) -> Path | None:
+        """The downloaded file itself, picture and all.
+
+        Transcription only wants the audio, but sampling frames needs the
+        video, and both come from the same download.
+        """
+
+        if media_url:
+            downloaded = self._download(media_url, work_dir)
+            if downloaded is not None:
+                return downloaded
+        return self._ytdlp_audio(source.canonical_url, work_dir)
+
     def audio(
         self,
         source: SourceVideoDescriptor,
@@ -105,14 +124,10 @@ class MediaAudioSource:
     ) -> Path | None:
         if self._ffmpeg is None:
             return None
-        if media_url:
-            downloaded = self._download(media_url, work_dir)
-            if downloaded is not None:
-                return self._to_mp3(downloaded, work_dir)
-        extracted = self._ytdlp_audio(source.canonical_url, work_dir)
-        if extracted is None:
+        downloaded = self.media(source, media_url=media_url, work_dir=work_dir)
+        if downloaded is None:
             return None
-        return self._to_mp3(extracted, work_dir)
+        return self._to_mp3(downloaded, work_dir)
 
     def _download(self, url: str, work_dir: Path) -> Path | None:
         target = work_dir / "source-media"

@@ -20,6 +20,7 @@ model inventing a yield it was told to leave unknown.
 
 import argparse
 import json
+import re
 import statistics
 import sys
 import uuid
@@ -183,6 +184,10 @@ class Score:
     with_metric: float
     steps: int
     steps_timed: float
+    # Timers drive cooking mode's registry and its notifications, so a missed
+    # "simmer for ten minutes" costs the cook a feature, not just a detail.
+    timers: int
+    timed_phrases: int
     servings: str
     servings_basis: str
     method_provenance: str
@@ -194,9 +199,10 @@ class Score:
     def row(self) -> str:
         return (
             f"{self.name:<24} {self.transcript_segments:>4} "
-            f"{self.timed_fraction:>6.0%} {self.ingredients:>5} "
+            f"{self.ingredients:>5} "
             f"{self.with_quantity:>7.0%} {self.with_metric:>7.0%} "
-            f"{self.steps:>5} {self.steps_timed:>7.0%} "
+            f"{self.steps:>5} "
+            f"{self.timers:>3}/{self.timed_phrases:<3} {self.notes:>5} "
             f"{self.servings:>6} {self.servings_basis:<18} "
             f"{self.method_provenance:<9} {self.review_status}"
         )
@@ -204,6 +210,30 @@ class Score:
 
 def _fraction(values: list[bool]) -> float:
     return (sum(values) / len(values)) if values else 0.0
+
+
+#: Duration phrases in the evidence. A rough recall target for timers: if the
+#: creator said "simmer for ten minutes" and no timer came back, cooking mode
+#: silently lost a countdown it could have offered.
+_DURATION = re.compile(
+    r"\b(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|fifteen|twenty|"
+    r"thirty|forty|forty-five|sixty|half|a couple of|a few)\s*"
+    r"(?:-\s*\d+\s*)?(?:to\s+\d+\s*)?"
+    r"(?:seconds?|secs?|minutes?|mins?|hours?|hrs?)\b",
+    re.IGNORECASE,
+)
+
+
+def _duration_phrases(context: AcquiredVideoContext) -> int:
+    haystack = " ".join(
+        [
+            context.title or "",
+            context.description,
+            *(value.text for value in context.transcript),
+            *(value.text for value in context.linked_documents),
+        ]
+    )
+    return len(set(match.group(0).lower() for match in _DURATION.finditer(haystack)))
 
 
 def extract(label: str, only: str | None) -> None:
@@ -261,6 +291,8 @@ def extract(label: str, only: str | None) -> None:
             steps_timed=_fraction(
                 [value.source_start_seconds is not None for value in extraction.steps]
             ),
+            timers=sum(len(value.timers) for value in extraction.steps),
+            timed_phrases=_duration_phrases(context),
             servings=str(extraction.servings) if extraction.servings else "-",
             servings_basis=extraction.servings_basis,
             method_provenance=extraction.method_provenance,
@@ -293,6 +325,9 @@ def extract(label: str, only: str | None) -> None:
                     "instruction": value.instruction,
                     "start": value.source_start_seconds,
                     "end": value.source_end_seconds,
+                    "timers": [
+                        f"{t.label}={t.duration_seconds}s" for t in value.timers
+                    ],
                 }
                 for value in extraction.steps
             ],
@@ -301,8 +336,9 @@ def extract(label: str, only: str | None) -> None:
         }
 
     header = (
-        f"{'source':<24} {'segs':>4} {'timed':>6} {'ingr':>5} "
-        f"{'qty':>7} {'metric':>7} {'steps':>5} {'timed':>7} "
+        f"{'source':<24} {'segs':>4} {'ingr':>5} "
+        f"{'qty':>7} {'metric':>7} {'steps':>5} "
+        f"{'tmr/said':<7} {'notes':>5} "
         f"{'serv':>6} {'basis':<18} {'method':<9} review"
     )
     print(f"\n=== {label}  prompt={PROMPT_VERSION} ===")
@@ -313,12 +349,13 @@ def extract(label: str, only: str | None) -> None:
 
     if scores:
         print("-" * len(header))
+        found = sum(s.timers for s in scores)
+        said = sum(s.timed_phrases for s in scores)
         print(
-            f"{'MEAN':<24} {'':>4} "
-            f"{statistics.mean(s.timed_fraction for s in scores):>6.0%} "
-            f"{'':>5} {statistics.mean(s.with_quantity for s in scores):>7.0%} "
+            f"{'MEAN':<24} {'':>4} {'':>5} "
+            f"{statistics.mean(s.with_quantity for s in scores):>7.0%} "
             f"{statistics.mean(s.with_metric for s in scores):>7.0%} {'':>5} "
-            f"{statistics.mean(s.steps_timed for s in scores):>7.0%}"
+            f"{found:>3}/{said:<3}"
         )
         ready = sum(s.review_status == "ready" for s in scores)
         print(f"\nready {ready}/{len(scores)}   transcript sources:")

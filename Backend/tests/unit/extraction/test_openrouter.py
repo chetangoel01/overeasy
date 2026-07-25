@@ -148,3 +148,49 @@ def test_retry_is_bounded_to_one_extra_attempt() -> None:
 
     assert response.parsed_output is None
     assert attempts["count"] == 2
+
+
+FENCED_BODY = (
+    '{"title":"Rolls","description":"","ingredients":'
+    '[{"name":"feta","confidence":1.0}],'
+    '"steps":[{"instruction":"Roll them.","confidence":1.0}]}'
+)
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        f"```json\n{FENCED_BODY}\n```",
+        f"```\n{FENCED_BODY}\n```",
+        f"  ```json\n{FENCED_BODY}\n```  ",
+        FENCED_BODY,
+    ],
+)
+def test_a_code_fence_does_not_cost_a_second_call(content: str) -> None:
+    """The model was told not to fence, and fences anyway.
+
+    The retry used to paper over it by spending another billed call on a
+    formatting habit — and a model in that habit fences the retry too.
+    """
+
+    attempts = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        nonlocal attempts
+        attempts += 1
+        return httpx.Response(
+            200,
+            json={
+                "choices": [{"finish_reason": "stop", "message": {"content": content}}],
+                "usage": {"prompt_tokens": 10, "completion_tokens": 20},
+            },
+        )
+
+    response = client_returning(handler).parse_recipe(
+        model="m", max_tokens=100, system="s", user_prompt="u"
+    )
+
+    assert response.parsed_output is not None
+    assert response.parsed_output.title == "Rolls"
+    assert attempts == 1

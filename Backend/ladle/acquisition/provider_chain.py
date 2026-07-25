@@ -62,6 +62,17 @@ class AudioTranscriber(Protocol):
     ) -> TranscriptResult: ...
 
 
+class VisualObserver(Protocol):
+    def visual(
+        self,
+        source: SourceVideoDescriptor,
+        *,
+        job_id: UUID,
+        media_url: str | None = None,
+        duration_seconds: float | None = None,
+    ) -> VisualResult: ...
+
+
 class ContextFallback(Protocol):
     def acquire(
         self,
@@ -81,11 +92,13 @@ class ProviderChain:
         server_fallback: ContextFallback | None = None,
         free: FreeAcquirer | None = None,
         audio: AudioTranscriber | None = None,
+        vision: VisualObserver | None = None,
         metrics: MetricsRegistry | None = None,
     ) -> None:
         self._primary = primary
         self._fallback = fallback
         self._audio = audio
+        self._vision = vision
         self._circuits = circuits
         self._server_fallback = server_fallback
         self._free = free
@@ -247,15 +260,28 @@ class ProviderChain:
             diagnostics=diagnostics,
         )
         if not assess_coverage(provisional).sufficient_for_extraction:
-            try:
-                visual = self._provider_call(
-                    "supadata",
-                    lambda: self._primary.visual(source, job_id=job_id),
-                )
-            except PrivateOrDeleted:
-                raise
-            except (CircuitOpen, ProviderUnavailable):
-                diagnostics.append("visualAnalysisUnavailable")
+            # Sampling frames ourselves costs a fraction of the visual
+            # provider and reuses media we have usually already fetched, so it
+            # goes first. Silent videos land here with nothing but a caption,
+            # and what the creator's hands are doing is the only method left
+            # to read.
+            visual = self._vision_visual(
+                source,
+                job_id=job_id,
+                metadata=metadata,
+                media_url=free.media_url,
+                diagnostics=diagnostics,
+            )
+            if visual is None:
+                try:
+                    visual = self._provider_call(
+                        "supadata",
+                        lambda: self._primary.visual(source, job_id=job_id),
+                    )
+                except PrivateOrDeleted:
+                    raise
+                except (CircuitOpen, ProviderUnavailable):
+                    diagnostics.append("visualAnalysisUnavailable")
 
         result = self._context(
             source,
@@ -328,6 +354,35 @@ class ProviderChain:
             diagnostics.append("audioTranscriptionUnavailable")
             return None
         diagnostics.append("audioTranscriptionUsed")
+        return result
+
+    def _vision_visual(
+        self,
+        source: SourceVideoDescriptor,
+        *,
+        job_id: UUID,
+        metadata: MediaMetadata,
+        media_url: str | None,
+        diagnostics: list[str],
+    ) -> VisualResult | None:
+        if self._vision is None:
+            return None
+        try:
+            result = self._provider_call(
+                "vision",
+                lambda: self._vision.visual(  # type: ignore[union-attr]
+                    source,
+                    job_id=job_id,
+                    media_url=media_url,
+                    duration_seconds=metadata.duration_seconds,
+                ),
+            )
+        except PrivateOrDeleted:
+            raise
+        except (CircuitOpen, ProviderUnavailable):
+            diagnostics.append("frameAnalysisUnavailable")
+            return None
+        diagnostics.append("frameAnalysisUsed")
         return result
 
     def _transcript_or_none(

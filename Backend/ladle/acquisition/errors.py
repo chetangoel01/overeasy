@@ -32,3 +32,11 @@ class MalformedProviderResponse(ProviderUnavailable):
 
 class EmptyProviderResponse(ProviderUnavailable):
     pass
+
+
+class VisualAnalysisUnavailable(ProviderUnavailable):
+    """Nothing could be seen: no media, no frames, or nothing worth reporting.
+
+    A ProviderUnavailable so the chain treats a video we could not watch the
+    same way it treats a provider that would not answer — it keeps going.
+    """
