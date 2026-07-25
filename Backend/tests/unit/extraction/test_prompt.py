@@ -56,6 +56,9 @@ PROMPT_DIGESTS = {
     "recipe-2026-07-25-v4": (
         "797bd68e7c2be5698863e4a6d471e8faf6ca00bd851bf5617d01da291eb5134f"
     ),
+    "recipe-2026-07-25-v5": (
+        "1e6dc8cfa22e9fc6ea5d8d47d36e0410bbebe57d5a837f82d29d1d2d14be6a1c"
+    ),
 }
 
 
@@ -74,9 +77,9 @@ def test_changing_the_prompt_requires_a_new_version() -> None:
     digest = hashlib.sha256(SYSTEM_PROMPT.encode()).hexdigest()
 
     assert PROMPT_VERSION in PROMPT_DIGESTS, (
-        f"SYSTEM_PROMPT changed but PROMPT_VERSION is still {PROMPT_VERSION!r}. "
-        "Bump it and add the new digest, or cached extractions from the old "
-        "wording will be served as if this one produced them."
+        f"{PROMPT_VERSION!r} has no recorded digest. Add {digest!r} for it. "
+        "Every released wording needs its own version, or cached extractions "
+        "from the old one are served as if this one produced them."
     )
     assert PROMPT_DIGESTS[PROMPT_VERSION] == digest, (
         f"SYSTEM_PROMPT changed under an existing {PROMPT_VERSION!r}. "

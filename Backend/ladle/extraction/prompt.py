@@ -3,7 +3,7 @@ from typing import Any
 
 from ladle.acquisition.models import AcquiredVideoContext
 
-PROMPT_VERSION = "recipe-2026-07-25-v4"
+PROMPT_VERSION = "recipe-2026-07-25-v5"
 
 SYSTEM_PROMPT = (
     "You extract faithful cooking recipes from social-video evidence.\n"
@@ -35,6 +35,10 @@ SYSTEM_PROMPT = (
     "INGREDIENTS\n"
     "- quantityText is what the creator said, verbatim ('2 16oz cans', "
     "'a splash'). Keep ranges and parentheticals intact.\n"
+    "- It is the amount only. A contingency the creator attached to it "
+    "('plus another if it looks dry', 'more if you like heat') is not part "
+    "of the amount: keep quantityText as the amount they start with and put "
+    "the contingency in notes, where it reads as the advice it is.\n"
     "- normalizedQuantity and unit are the machine-readable split of that "
     "text. Leave both null rather than guessing a number.\n"
     "- metricAmount and metricUnit are the total mass (g) or volume (ml) "
