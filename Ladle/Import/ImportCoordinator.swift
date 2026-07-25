@@ -521,7 +521,7 @@ final class ImportCoordinator {
                 )
                 job.remoteJobID = update.remoteJobID
                 try repository.save(job)
-                delay = min(delay * 2, .seconds(8))
+                delay = min(delay * 2, .seconds(30))
             }
 
             try Task.checkCancellation()

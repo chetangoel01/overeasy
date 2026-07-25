@@ -42,12 +42,23 @@ class OpenRouterStructuredClient:
         system: str,
         user_prompt: str,
     ) -> ClaudeStructuredResponse:
+        schema = RecipeExtraction.model_json_schema()
         payload = {
             "model": model,
             "max_tokens": max_tokens,
             "temperature": 0,
+            # Route only to upstreams that actually enforce response_format;
+            # the rest silently return their own ad-hoc JSON shape.
+            "provider": {"require_parameters": True},
             "messages": [
-                {"role": "system", "content": system},
+                {
+                    "role": "system",
+                    "content": (
+                        f"{system}\n\nRespond with a single JSON object that "
+                        "validates against this JSON Schema. Emit no prose "
+                        f"and no code fences.\n{json.dumps(schema)}"
+                    ),
+                },
                 {"role": "user", "content": user_prompt},
             ],
             "response_format": {
@@ -55,7 +66,7 @@ class OpenRouterStructuredClient:
                 "json_schema": {
                     "name": "recipe_extraction",
                     "strict": True,
-                    "schema": RecipeExtraction.model_json_schema(),
+                    "schema": schema,
                 },
             },
         }
