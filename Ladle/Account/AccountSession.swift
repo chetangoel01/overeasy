@@ -92,6 +92,13 @@ final class AccountSession {
         }
     }
 
+    func signOut() {
+        state = .undecided
+        shouldPresentWelcome = true
+        store.removeObject(forKey: Key.accountState)
+        store.set(false, forKey: Key.onboardingComplete)
+    }
+
     private func completeWelcome(as state: AccountState) {
         self.state = state
         shouldPresentWelcome = false

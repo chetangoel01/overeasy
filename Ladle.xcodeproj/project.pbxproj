@@ -99,6 +99,7 @@
 		DA89A97C3E062E6E81CA8E40 /* SharedQueueReconcilerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57ED21827A8B76FEB98FDB19 /* SharedQueueReconcilerTests.swift */; };
 		DBE9510215C9C2051919310F /* KeychainTokenStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA758C400CD14A086E39D48D /* KeychainTokenStore.swift */; };
 		DFC659D823A4B7AA5BFD3E4E /* AllRecipesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E9503FB43D131D1ADA3B5F4 /* AllRecipesView.swift */; };
+		E25710AC24E77B43AD6B6631 /* AccountSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35EFCC50D17300CF2E3C284E /* AccountSheet.swift */; };
 		E2BE83969345FF4BDBE3CA69 /* ImportRecoveryActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = F165E4B6E30D83BFDFE33A13 /* ImportRecoveryActions.swift */; };
 		E5ADC1288191201E540C48A7 /* LadleComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 348D89D4BA7119269FD4F3BC /* LadleComponents.swift */; };
 		E5D62027E211EFC50B38F37C /* LibraryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6638D8D4EFDAA359DD3B8348 /* LibraryViewModel.swift */; };
@@ -172,6 +173,7 @@
 		2FD8652C5A7875BD43D823FC /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 		30865D07CBC2C21DCB5B7BDA /* StoredImportJob.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoredImportJob.swift; sourceTree = "<group>"; };
 		348D89D4BA7119269FD4F3BC /* LadleComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LadleComponents.swift; sourceTree = "<group>"; };
+		35EFCC50D17300CF2E3C284E /* AccountSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSheet.swift; sourceTree = "<group>"; };
 		3801D743E5C7CE52681E7C04 /* ImportCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportCoordinatorTests.swift; sourceTree = "<group>"; };
 		398FE0A6194867671568AF86 /* LadleApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LadleApp.swift; sourceTree = "<group>"; };
 		3BF1BB60CCA8DA2A2540A32F /* ImportFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportFlowTests.swift; sourceTree = "<group>"; };
@@ -368,6 +370,7 @@
 			isa = PBXGroup;
 			children = (
 				DB9237724B9663AD4AFC1232 /* AccountSession.swift */,
+				35EFCC50D17300CF2E3C284E /* AccountSheet.swift */,
 				E9C01DA218666D762AB16E8A /* AuthClient.swift */,
 				480030F07BD940462128F4AE /* GuestLimitView.swift */,
 				FA758C400CD14A086E39D48D /* KeychainTokenStore.swift */,
@@ -729,6 +732,7 @@
 				9623A5A3F2476BF1D217B6C1 /* APIClient.swift in Sources */,
 				7F7F801ED46BB5D88AB81AA1 /* APIError.swift in Sources */,
 				69743766694999A4F7022D3F /* AccountSession.swift in Sources */,
+				E25710AC24E77B43AD6B6631 /* AccountSheet.swift in Sources */,
 				FED8F6252BF9482B0F17209C /* AddRecipeSheet.swift in Sources */,
 				DFC659D823A4B7AA5BFD3E4E /* AllRecipesView.swift in Sources */,
 				93A83D9AD673751E50FE0D16 /* AppEnvironment.swift in Sources */,

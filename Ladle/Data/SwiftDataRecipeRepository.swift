@@ -120,6 +120,14 @@ final class SwiftDataRecipeRepository:
         }
     }
 
+    /// Drops every local row without queueing remote deletions — used on
+    /// sign-out, where the server copy must stay untouched.
+    func wipeAllData() throws {
+        try modelContext.delete(model: StoredRecipe.self)
+        try modelContext.delete(model: StoredImportJob.self)
+        try modelContext.save()
+    }
+
     func replaceRecipe(
         id: UUID,
         with recipe: Recipe,

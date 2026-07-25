@@ -10,10 +10,19 @@ struct LibraryHomeView: View {
     let openImportInbox: () -> Void
     let openWatch: () -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: LadleTheme.Spacing.generous) {
-                importInbox
+                if !viewModel.isImportInboxDismissed {
+                    importInbox
+                        .transition(
+                            reduceMotion
+                                ? .opacity
+                                : .move(edge: .top).combined(with: .opacity)
+                        )
+                }
                 watch
                 savedThisWeek
                 collections
@@ -22,6 +31,16 @@ struct LibraryHomeView: View {
             .padding(.bottom, 44)
         }
         .scrollIndicators(.hidden)
+        .onScrollGeometryChange(for: CGFloat.self) { geometry in
+            geometry.contentOffset.y + geometry.contentInsets.top
+        } action: { _, offset in
+            guard viewModel.isImportInboxDismissed, offset < -70 else {
+                return
+            }
+            withAnimation(reduceMotion ? nil : .default) {
+                viewModel.revealImportInbox()
+            }
+        }
         .accessibilityIdentifier("library.home")
     }
 
@@ -49,6 +68,21 @@ struct LibraryHomeView: View {
             .ladleCard()
         }
         .buttonStyle(.plain)
+        .overlay(alignment: .topTrailing) {
+            Button {
+                withAnimation(reduceMotion ? nil : .default) {
+                    viewModel.dismissImportInbox()
+                }
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(LadleTheme.mutedInk)
+                    .frame(width: 30, height: 30)
+                    .contentShape(Circle())
+            }
+            .accessibilityLabel("Hide import inbox")
+            .accessibilityHint("Pull down on the library to bring it back")
+        }
         .accessibilityIdentifier("library.import-inbox")
     }
 
@@ -126,28 +160,32 @@ struct LibraryHomeView: View {
 
     private var savedThisWeek: some View {
         VStack(alignment: .leading, spacing: 12) {
-            LadleSectionHeader(
+            collapsibleHeader(
                 title: "Saved this week",
-                detail: countText(viewModel.savedThisWeek.count)
+                detail: countText(viewModel.savedThisWeek.count),
+                isCollapsed: viewModel.isSavedThisWeekCollapsed,
+                toggle: viewModel.toggleSavedThisWeekCollapsed
             )
 
-            if viewModel.savedThisWeek.isEmpty {
-                Text("New saves will collect here for quick return.")
-                    .ladleFont(.body)
-                    .foregroundStyle(LadleTheme.mutedInk)
-                    .padding(.vertical, 18)
-            } else {
-                LazyVGrid(
-                    columns: savedColumns,
-                    spacing: 12
-                ) {
-                    ForEach(
-                        viewModel.savedThisWeek.prefix(3)
-                    ) { recipe in
-                        HomeRecipeThumbnail(
-                            recipe: recipe,
-                            action: { openRecipe(recipe) }
-                        )
+            if !viewModel.isSavedThisWeekCollapsed {
+                if viewModel.savedThisWeek.isEmpty {
+                    Text("New saves will collect here for quick return.")
+                        .ladleFont(.body)
+                        .foregroundStyle(LadleTheme.mutedInk)
+                        .padding(.vertical, 18)
+                } else {
+                    LazyVGrid(
+                        columns: savedColumns,
+                        spacing: 12
+                    ) {
+                        ForEach(
+                            viewModel.savedThisWeek.prefix(3)
+                        ) { recipe in
+                            HomeRecipeThumbnail(
+                                recipe: recipe,
+                                action: { openRecipe(recipe) }
+                            )
+                        }
                     }
                 }
             }
@@ -156,28 +194,61 @@ struct LibraryHomeView: View {
 
     private var collections: some View {
         VStack(alignment: .leading, spacing: 0) {
-            LadleSectionHeader(
+            collapsibleHeader(
                 title: "Come back to",
-                detail: "Useful groups"
+                detail: "Useful groups",
+                isCollapsed: viewModel.isComeBackToCollapsed,
+                toggle: viewModel.toggleComeBackToCollapsed
             )
             .padding(.bottom, 6)
 
-            collectionRow(
-                "Ready in 30 minutes",
-                count: viewModel.quickRecipes.count,
-                collection: .quick
-            )
-            collectionRow(
-                "Favorited",
-                count: viewModel.favoriteRecipes.count,
-                collection: .favorites
-            )
-            collectionRow(
-                "Haven’t cooked yet",
-                count: viewModel.uncookedRecipes.count,
-                collection: .uncooked
-            )
+            if !viewModel.isComeBackToCollapsed {
+                collectionRow(
+                    "Ready in 30 minutes",
+                    count: viewModel.quickRecipes.count,
+                    collection: .quick
+                )
+                collectionRow(
+                    "Favorited",
+                    count: viewModel.favoriteRecipes.count,
+                    collection: .favorites
+                )
+                collectionRow(
+                    "Haven’t cooked yet",
+                    count: viewModel.uncookedRecipes.count,
+                    collection: .uncooked
+                )
+            }
         }
+    }
+
+    private func collapsibleHeader(
+        title: String,
+        detail: String,
+        isCollapsed: Bool,
+        toggle: @escaping () -> Void
+    ) -> some View {
+        Button {
+            withAnimation(reduceMotion ? nil : .default) {
+                toggle()
+            }
+        } label: {
+            HStack(spacing: 8) {
+                LadleSectionHeader(
+                    title: title,
+                    detail: isCollapsed ? nil : detail
+                )
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(LadleTheme.mutedInk)
+                    .rotationEffect(.degrees(isCollapsed ? -90 : 0))
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
+        .accessibilityValue(isCollapsed ? "Collapsed" : "Expanded")
+        .accessibilityHint("Double tap to toggle")
     }
 
     private func collectionRow(

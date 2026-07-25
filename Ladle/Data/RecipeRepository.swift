@@ -22,6 +22,8 @@ protocol RecipeRepository {
         recipes: [Recipe],
         importJobs: [ImportJob]
     ) throws
+
+    func wipeAllData() throws
 }
 
 extension RecipeRepository {
@@ -30,6 +32,15 @@ extension RecipeRepository {
     }
 
     func deleteImportJob(id: UUID) throws {}
+
+    func wipeAllData() throws {
+        for recipe in try fetchRecipes() {
+            try deleteRecipe(id: recipe.id)
+        }
+        for job in try fetchImportJobs() {
+            try deleteImportJob(id: job.id)
+        }
+    }
 
     func replaceRecipe(
         id: UUID,

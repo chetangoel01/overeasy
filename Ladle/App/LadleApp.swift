@@ -176,6 +176,15 @@ struct LadleApp: App {
                         await importCoordinator.resumePendingImports()
                     }
                     libraryViewModel.load()
+                },
+                onSignOut: { [authClient, accountSession, libraryViewModel] in
+                    if let authClient {
+                        await authClient.signOut()
+                    } else {
+                        accountSession.signOut()
+                    }
+                    libraryViewModel.clearLocalLibrary()
+                    try? SyncCursorStore().reset()
                 }
             )
                 .tint(LadleTheme.paprika)

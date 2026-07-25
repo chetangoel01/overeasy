@@ -25,6 +25,9 @@ final class LibraryViewModel {
 
     private enum PreferenceKey {
         static let displayMode = "ladle.library.display-mode"
+        static let inboxDismissed = "ladle.library.inbox-dismissed"
+        static let savedCollapsed = "ladle.library.saved-collapsed"
+        static let comeBackCollapsed = "ladle.library.comeback-collapsed"
     }
 
     @ObservationIgnored
@@ -78,6 +81,50 @@ final class LibraryViewModel {
             .string(forKey: PreferenceKey.displayMode)
             .flatMap(LibraryDisplayMode.init(rawValue:))
             ?? .grid
+        isImportInboxDismissed = preferenceStore.bool(
+            forKey: PreferenceKey.inboxDismissed
+        )
+        isSavedThisWeekCollapsed = preferenceStore.bool(
+            forKey: PreferenceKey.savedCollapsed
+        )
+        isComeBackToCollapsed = preferenceStore.bool(
+            forKey: PreferenceKey.comeBackCollapsed
+        )
+    }
+
+    private(set) var isImportInboxDismissed = false
+    private(set) var isSavedThisWeekCollapsed = false
+    private(set) var isComeBackToCollapsed = false
+
+    func dismissImportInbox() {
+        isImportInboxDismissed = true
+        preferenceStore.set(true, forKey: PreferenceKey.inboxDismissed)
+    }
+
+    func revealImportInbox() {
+        isImportInboxDismissed = false
+        preferenceStore.set(false, forKey: PreferenceKey.inboxDismissed)
+    }
+
+    func toggleSavedThisWeekCollapsed() {
+        isSavedThisWeekCollapsed.toggle()
+        preferenceStore.set(
+            isSavedThisWeekCollapsed,
+            forKey: PreferenceKey.savedCollapsed
+        )
+    }
+
+    func toggleComeBackToCollapsed() {
+        isComeBackToCollapsed.toggle()
+        preferenceStore.set(
+            isComeBackToCollapsed,
+            forKey: PreferenceKey.comeBackCollapsed
+        )
+    }
+
+    func clearLocalLibrary() {
+        try? repository.wipeAllData()
+        load()
     }
 
     static func resetDisplayPreference(

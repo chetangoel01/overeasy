@@ -57,6 +57,16 @@ final class AuthClient {
         return tokens
     }
 
+    func signOut() async {
+        // Best-effort server revoke; local sign-out proceeds regardless.
+        try? await api.requestWithoutResponse(
+            path: "/v1/auth/session",
+            method: .delete
+        )
+        try? tokenStore.clear()
+        accountSession.signOut()
+    }
+
     func signInWithApple(
         identityToken: String,
         authorizationCode: String,

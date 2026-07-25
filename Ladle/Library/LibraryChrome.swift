@@ -7,6 +7,7 @@ enum LibrarySection: Hashable {
 
 struct LibraryTopBar: View {
     let openSearch: (() -> Void)?
+    var openAccount: (() -> Void)?
     let addRecipe: () -> Void
 
     var body: some View {
@@ -15,6 +16,13 @@ struct LibraryTopBar: View {
                 .ladleFont(.title)
                 .foregroundStyle(LadleTheme.ink)
             Spacer()
+            if let openAccount {
+                iconButton(
+                    "person",
+                    label: "Account",
+                    action: openAccount
+                )
+            }
             if let openSearch {
                 iconButton("magnifyingglass", label: "Search", action: openSearch)
             }

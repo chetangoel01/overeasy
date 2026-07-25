@@ -5,6 +5,8 @@ struct LibraryView: View {
     @Bindable var viewModel: LibraryViewModel
     @Bindable var importCoordinator: ImportCoordinator
     let accountSession: AccountSession
+    var installationID: String = "preview-installation"
+    var onSignOut: @MainActor () async -> Void = {}
 
     @State private var section: LibrarySection = .home
     @State private var isFilterSheetPresented = false
@@ -12,6 +14,7 @@ struct LibraryView: View {
     @State private var isSearchPresented = false
     @State private var isImportInboxPresented = false
     @State private var isWatchPresented = false
+    @State private var isAccountPresented = false
     @State private var failedImportJob: ImportJob?
     @State private var selectedDestination: LibraryRecipeDestination?
     @State private var pendingDestination: LibraryRecipeDestination?
@@ -21,6 +24,7 @@ struct LibraryView: View {
             VStack(spacing: 0) {
                 LibraryTopBar(
                     openSearch: { isSearchPresented = true },
+                    openAccount: { isAccountPresented = true },
                     addRecipe: { isAddSheetPresented = true }
                 )
                 LibrarySectionPicker(
@@ -40,6 +44,14 @@ struct LibraryView: View {
             }
             .sheet(isPresented: $isFilterSheetPresented) {
                 FilterSheet(viewModel: viewModel)
+            }
+            .sheet(isPresented: $isAccountPresented) {
+                AccountSheet(
+                    accountSession: accountSession,
+                    recipeCount: viewModel.recipes.count,
+                    installationID: installationID,
+                    signOut: onSignOut
+                )
             }
             .sheet(
                 isPresented: $isAddSheetPresented,
