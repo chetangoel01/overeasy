@@ -139,7 +139,11 @@ class ClaudeRecipeExtractor:
                 raise
             raise ExtractionUnavailable("Claude extraction unavailable") from error
 
-        billed_tokens = Decimal(response.input_tokens + response.output_tokens)
+        # One unit per provider call, matching every acquisition provider.
+        # Recording raw token counts here spent 13k units on a single
+        # extraction against a 1000-unit daily limit, which then rejected
+        # every subsequent import until the window rolled over.
+        billed_tokens = Decimal(1)
         self._usage.started(
             job_id=job_id,
             provider=self._provider,

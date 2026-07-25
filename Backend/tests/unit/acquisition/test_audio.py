@@ -75,7 +75,9 @@ def test_verbose_json_becomes_timed_generated_evidence(tmp_path: Path) -> None:
     assert all(segment.generated for segment in result.segments)
     assert result.segments[0].provenance == "whisper:openai/whisper-large-v3"
     assert result.language == "english"
-    assert result.billed_units == Decimal("22.300")
+    # One unit per call, like every other provider. The daily limit counts
+    # calls, so billing seconds of audio here would starve it.
+    assert result.billed_units == Decimal(1)
 
 
 def test_flat_response_keeps_text_without_inventing_timings(tmp_path: Path) -> None:

@@ -315,11 +315,12 @@ def _transcript(body: dict[str, Any], *, model_id: str) -> TranscriptResult:
                 generated=True,
             )
         )
-    duration = _seconds(body.get("duration")) or Decimal(0)
     return TranscriptResult(
         segments=segments,
         language=str(body.get("language") or "") or None,
-        billed_units=Decimal(str(duration or 0)).quantize(Decimal("0.001")),
+        # One unit per call. The daily limit counts provider calls, not
+        # seconds of audio or tokens.
+        billed_units=Decimal(1),
     )
 
 

@@ -4,7 +4,17 @@ from threading import Lock
 _CACHE_DISPOSITIONS = frozenset(
     {"hit", "leader", "follower", "bypass", "recheck", "negative"}
 )
-_PROVIDERS = frozenset({"supadata", "soscripted", "serverFallback", "claude", "apple"})
+_PROVIDERS = frozenset(
+    {
+        "free",
+        "whisper",
+        "supadata",
+        "soscripted",
+        "serverFallback",
+        "claude",
+        "apple",
+    }
+)
 _PROVIDER_OUTCOMES = frozenset(
     {"success", "failure", "fallback", "circuitOpen", "quota", "auth", "timeout"}
 )
