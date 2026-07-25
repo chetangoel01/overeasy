@@ -87,11 +87,13 @@ class ClaudeRecipeExtractor:
         model_id: str,
         max_tokens: int,
         usage: ProviderUsageSink | None = None,
+        provider: str = "anthropic",
     ) -> None:
         self._client = client
         self._model_id = model_id
         self._max_tokens = max_tokens
         self._usage = usage or NullProviderUsageSink()
+        self._provider = provider
 
     @property
     def model_id(self) -> str:
@@ -103,10 +105,12 @@ class ClaudeRecipeExtractor:
         *,
         job_id: UUID,
     ) -> RecipeTemplate:
-        idempotency_key = f"anthropic:extract:{self.prompt_version}:{self._model_id}"
+        idempotency_key = (
+            f"{self._provider}:extract:{self.prompt_version}:{self._model_id}"
+        )
         self._usage.started(
             job_id=job_id,
-            provider="anthropic",
+            provider=self._provider,
             operation="recipeExtraction",
             idempotency_key=idempotency_key,
             external_job_id=None,
@@ -124,18 +128,21 @@ class ClaudeRecipeExtractor:
             anthropic.APIConnectionError,
             anthropic.RateLimitError,
             TimeoutError,
+            ExtractionUnavailable,
         ) as error:
             self._usage.failed(
                 job_id=job_id,
                 idempotency_key=idempotency_key,
                 failure_code=type(error).__name__,
             )
+            if isinstance(error, ExtractionUnavailable):
+                raise
             raise ExtractionUnavailable("Claude extraction unavailable") from error
 
         billed_tokens = Decimal(response.input_tokens + response.output_tokens)
         self._usage.started(
             job_id=job_id,
-            provider="anthropic",
+            provider=self._provider,
             operation="recipeExtraction",
             idempotency_key=idempotency_key,
             external_job_id=None,

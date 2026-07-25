@@ -26,6 +26,7 @@ from ladle.extraction.claude import (
     AnthropicStructuredClient,
     ClaudeRecipeExtractor,
 )
+from ladle.extraction.openrouter import OpenRouterStructuredClient
 from ladle.extraction.protocol import RecipeExtractor
 from ladle.imports.orchestrator import ImportOrchestrator
 from ladle.imports.reservations import ReservationService
@@ -165,13 +166,19 @@ def runtime_orchestrator() -> ImportOrchestrator:
         acquirer = FakeRuntimeAcquirer()
         extractor = FakeRuntimeExtractor()
     else:
+        extraction_key = (
+            settings.openrouter_api_key
+            if settings.extraction_provider == "openrouter"
+            else settings.anthropic_api_key
+        )
         if (
             settings.supadata_api_key is None
             or settings.soscripted_api_key is None
-            or settings.anthropic_api_key is None
+            or extraction_key is None
         ):
             raise RuntimeError(
-                "live workers require Supadata, SoScripted, and Anthropic API keys"
+                "live workers require Supadata, SoScripted, and an "
+                f"{settings.extraction_provider} API key"
             )
         usage = ProviderUsageLedger(session_factory=sessions, clock=clock)
         acquirer = ProviderChain(
@@ -194,18 +201,33 @@ def runtime_orchestrator() -> ImportOrchestrator:
             ),
             metrics=metrics,
         )
-        extractor = ClaudeRecipeExtractor(
-            client=AnthropicStructuredClient(
-                Anthropic(
-                    api_key=settings.anthropic_api_key.get_secret_value(),
-                    base_url=str(settings.anthropic_base_url),
-                    timeout=settings.anthropic_timeout_seconds,
-                )
-            ),
-            model_id=settings.anthropic_model_id,
-            max_tokens=settings.anthropic_max_tokens,
-            usage=usage,
-        )
+        if settings.extraction_provider == "openrouter":
+            assert settings.openrouter_api_key is not None
+            extractor = ClaudeRecipeExtractor(
+                client=OpenRouterStructuredClient(
+                    http=httpx.Client(timeout=settings.openrouter_timeout_seconds),
+                    api_key=settings.openrouter_api_key.get_secret_value(),
+                    base_url=str(settings.openrouter_base_url),
+                ),
+                model_id=settings.openrouter_model_id,
+                max_tokens=settings.openrouter_max_tokens,
+                usage=usage,
+                provider="openrouter",
+            )
+        else:
+            assert settings.anthropic_api_key is not None
+            extractor = ClaudeRecipeExtractor(
+                client=AnthropicStructuredClient(
+                    Anthropic(
+                        api_key=settings.anthropic_api_key.get_secret_value(),
+                        base_url=str(settings.anthropic_base_url),
+                        timeout=settings.anthropic_timeout_seconds,
+                    )
+                ),
+                model_id=settings.anthropic_model_id,
+                max_tokens=settings.anthropic_max_tokens,
+                usage=usage,
+            )
     thumbnails: OEmbedThumbnailFetcher | None = None
     if settings.object_storage_enabled:
         thumbnails = OEmbedThumbnailFetcher(

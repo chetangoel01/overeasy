@@ -63,7 +63,14 @@ services:
       LADLE_CELERY_ENABLED: "true"
       LADLE_CELERY_BROKER_URL: redis://redis:6379/0
       LADLE_CELERY_RESULT_BACKEND: redis://redis:6379/1
-      LADLE_WORKER_PROVIDER_MODE: fake
+      # Provider settings substitute from Backend/.env; defaults keep the
+      # stack in deterministic fake mode when no keys are present.
+      LADLE_WORKER_PROVIDER_MODE: ${LADLE_WORKER_PROVIDER_MODE:-fake}
+      LADLE_EXTRACTION_PROVIDER: ${LADLE_EXTRACTION_PROVIDER:-openrouter}
+      LADLE_SUPADATA_API_KEY: ${LADLE_SUPADATA_API_KEY:-}
+      LADLE_SOSCRIPTED_API_KEY: ${LADLE_SOSCRIPTED_API_KEY:-}
+      LADLE_OPENROUTER_API_KEY: ${LADLE_OPENROUTER_API_KEY:-}
+      LADLE_OPENROUTER_MODEL_ID: ${LADLE_OPENROUTER_MODEL_ID:-anthropic/claude-sonnet-4.5}
       LADLE_OBJECT_STORAGE_ENABLED: "true"
       LADLE_OBJECT_STORAGE_ENDPOINT_URL: http://minio:9000
       LADLE_OBJECT_STORAGE_PUBLIC_ENDPOINT_URL: http://minio.ladle.localhost

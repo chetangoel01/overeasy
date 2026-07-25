@@ -430,7 +430,8 @@ Outbound adapter paths:
 | --- | --- | --- |
 | Supadata | `ladle/acquisition/supadata.py` | `GET /metadata`, `GET /transcript`, `GET /transcript/{jobID}`, `POST /extract`, `GET /extract/{jobID}` |
 | SoScripted | `ladle/acquisition/soscripted.py` | `POST /transcribe` |
-| Anthropic | `ladle/extraction/claude.py` | SDK `messages.parse` with a Pydantic output model |
+| OpenRouter (default) | `ladle/extraction/openrouter.py` | Chat completions with `json_schema` response format, Pydantic-validated |
+| Anthropic (alternative) | `ladle/extraction/claude.py` | SDK `messages.parse` with a Pydantic output model |
 | Apple | `ladle/auth/apple.py` | Apple JWKS GET and authorization-code token POST |
 
 The public extraction cache is keyed by:

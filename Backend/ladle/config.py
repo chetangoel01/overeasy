@@ -67,11 +67,19 @@ class Settings(BaseSettings):
     soscripted_timeout_seconds: float = Field(default=30, gt=0)
     soscripted_api_key: SecretStr | None = None
 
+    extraction_provider: Literal["anthropic", "openrouter"] = "openrouter"
+
     anthropic_base_url: AnyHttpUrl = AnyHttpUrl("https://api.anthropic.com")
     anthropic_timeout_seconds: float = Field(default=60, gt=0)
     anthropic_api_key: SecretStr | None = None
     anthropic_model_id: str = "claude-sonnet-4-6"
     anthropic_max_tokens: int = Field(default=8192, gt=0)
+
+    openrouter_base_url: AnyHttpUrl = AnyHttpUrl("https://openrouter.ai/api/v1")
+    openrouter_timeout_seconds: float = Field(default=90, gt=0)
+    openrouter_api_key: SecretStr | None = None
+    openrouter_model_id: str = "anthropic/claude-sonnet-4.5"
+    openrouter_max_tokens: int = Field(default=8192, gt=0)
 
     apple_enabled: bool = False
     apple_bundle_id: str = "com.ladle.app"
@@ -83,6 +91,21 @@ class Settings(BaseSettings):
     apple_timeout_seconds: float = Field(default=10, gt=0)
     apple_identity_token_maximum_age_minutes: int = Field(default=10, gt=0)
     apple_clock_skew_seconds: int = Field(default=30, ge=0)
+
+    @model_validator(mode="after")
+    def normalize_blank_provider_keys(self) -> Self:
+        # Compose-style `${VAR:-}` substitution surfaces unset keys as empty
+        # strings; treat those as absent.
+        for field_name in (
+            "supadata_api_key",
+            "soscripted_api_key",
+            "anthropic_api_key",
+            "openrouter_api_key",
+        ):
+            secret = getattr(self, field_name)
+            if secret is not None and not secret.get_secret_value().strip():
+                setattr(self, field_name, None)
+        return self
 
     @model_validator(mode="after")
     def reject_unsafe_production_secrets(self) -> Self:
@@ -109,12 +132,17 @@ class Settings(BaseSettings):
                     "object_storage_secret_key must be a non-placeholder secret "
                     "of at least 32 characters in production"
                 )
+        extraction_key = (
+            "openrouter_api_key"
+            if self.extraction_provider == "openrouter"
+            else "anthropic_api_key"
+        )
         if self.worker_provider_mode == "live" and any(
             getattr(self, field_name) is None
             for field_name in (
                 "supadata_api_key",
                 "soscripted_api_key",
-                "anthropic_api_key",
+                extraction_key,
             )
         ):
             raise ValueError("live production workers require configured provider keys")

@@ -16,7 +16,7 @@ uv run mypy ladle
 Copy `.env.example` to an ignored `.env` for local development. Replace the
 development-only signing and encryption placeholders before setting
 `LADLE_ENVIRONMENT=production`. Local Compose uses deterministic fake
-providers. Live workers require configured Supadata, SoScripted, and Anthropic
+providers. Live workers require configured Supadata, SoScripted, and OpenRouter
 credentials.
 
 See [`docs/integration-reference.md`](docs/integration-reference.md) for the
@@ -37,5 +37,5 @@ Prometheus-format bounded-label counters are available at `/metrics`. Run
 
 Apple sign-in remains disabled until `LADLE_APPLE_ENABLED=true` and the team
 ID, key ID, private key, and bundle ID are supplied. Live extraction workers
-likewise require Supadata, SoScripted, and Anthropic credentials; none belong
+likewise require Supadata, SoScripted, and OpenRouter credentials; none belong
 in the repository or iOS application.
