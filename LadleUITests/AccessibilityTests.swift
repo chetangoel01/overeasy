@@ -62,6 +62,26 @@ final class AccessibilityTests: XCTestCase {
         capture("Accessibility Large Focus Mode", in: app)
     }
 
+    func testAccessibilityLargeAccountKeepsSignOutReachable() {
+        let app = launchApp()
+        app.buttons["Account"].tap()
+
+        XCTAssertTrue(
+            app.staticTexts["Your account"].waitForExistence(timeout: 2)
+        )
+
+        let signOut = element(in: app, identifier: "account.sign-out")
+        scrollToHittable(signOut, in: app)
+        for _ in 0..<2
+            where signOut.frame.maxY > app.frame.maxY - 12 {
+            app.swipeUp()
+        }
+        XCTAssertTrue(signOut.isHittable)
+        XCTAssertLessThanOrEqual(signOut.frame.maxY, app.frame.maxY - 12)
+        assertMinimumHitTarget(signOut)
+        capture("Accessibility Large Account", in: app)
+    }
+
     private func launchApp() -> XCUIApplication {
         continueAfterFailure = false
         let app = XCUIApplication()

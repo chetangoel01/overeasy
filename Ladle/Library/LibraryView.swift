@@ -48,7 +48,7 @@ struct LibraryView: View {
             .sheet(isPresented: $isAccountPresented) {
                 AccountSheet(
                     accountSession: accountSession,
-                    recipeCount: viewModel.recipes.count,
+                    library: viewModel,
                     installationID: installationID,
                     signOut: onSignOut
                 )

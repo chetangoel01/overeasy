@@ -23,6 +23,7 @@
 		1D7AE199157D84F1562E6C95 /* ReimportSafetyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2461B3FDEC6CF3119C4548A /* ReimportSafetyTests.swift */; };
 		202BABB63D7F671836CD4F1A /* ShareURLExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A93A16FCFB7610C2A4F09D4 /* ShareURLExtractor.swift */; };
 		224F559012E7DF26C228AF43 /* APIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC34B6B51E6AF6B47D8FC45D /* APIClientTests.swift */; };
+		24197E5B542EB0789077028F /* PrivacyDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F27EE9D08B4AD704ED77330A /* PrivacyDetailView.swift */; };
 		248BCFB9AB72089B7292B552 /* ShareConfirmationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B36C84213DD9529722DAE189 /* ShareConfirmationView.swift */; };
 		292CA6391C0A45751E5542C2 /* StoredRecipe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27E622AAB3FB89F99BAD6CAE /* StoredRecipe.swift */; };
 		2AA5078390DE33D02030335E /* RemoteImportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4507355A7CFAE19690B7D70 /* RemoteImportService.swift */; };
@@ -255,6 +256,7 @@
 		E8D8492C25EEFD85B7E7240C /* SwiftDataRecipeRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftDataRecipeRepository.swift; sourceTree = "<group>"; };
 		E9C01DA218666D762AB16E8A /* AuthClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthClient.swift; sourceTree = "<group>"; };
 		F165E4B6E30D83BFDFE33A13 /* ImportRecoveryActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportRecoveryActions.swift; sourceTree = "<group>"; };
+		F27EE9D08B4AD704ED77330A /* PrivacyDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivacyDetailView.swift; sourceTree = "<group>"; };
 		F2DDA4DA24D19A4B049A9968 /* ShareConfirmationViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareConfirmationViewTests.swift; sourceTree = "<group>"; };
 		F7CCBA4794A638FF56EBDD1A /* ReimportSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReimportSheet.swift; sourceTree = "<group>"; };
 		FA758C400CD14A086E39D48D /* KeychainTokenStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainTokenStore.swift; sourceTree = "<group>"; };
@@ -374,6 +376,7 @@
 				E9C01DA218666D762AB16E8A /* AuthClient.swift */,
 				480030F07BD940462128F4AE /* GuestLimitView.swift */,
 				FA758C400CD14A086E39D48D /* KeychainTokenStore.swift */,
+				F27EE9D08B4AD704ED77330A /* PrivacyDetailView.swift */,
 				860D5C02610981E7F4B9FC0C /* WelcomeView.swift */,
 			);
 			path = Account;
@@ -769,6 +772,7 @@
 				ADFA32D4AFDD16210863F59F /* NutritionView.swift in Sources */,
 				3B24B8FC354FB569DA827D92 /* PendingImportCard.swift in Sources */,
 				5AB882C9AB6EB4BF73B1F7DC /* PreviewFixtures.swift in Sources */,
+				24197E5B542EB0789077028F /* PrivacyDetailView.swift in Sources */,
 				5368CFB524D69182278FAED5 /* RecipeArtworkView.swift in Sources */,
 				CCDAC2330A4A8A54849C8D02 /* RecipeDetailView.swift in Sources */,
 				E9A5AB80751C1695EB9A83A9 /* RecipeDraft.swift in Sources */,
