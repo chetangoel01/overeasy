@@ -67,7 +67,15 @@ class ExtractionCacheService:
         self._public_recheck_after = public_recheck_after
         self._metrics = metrics
 
-    def route(self, database: Session, *, job_id: UUID) -> CacheDecision:
+    def route(
+        self,
+        database: Session,
+        *,
+        job_id: UUID,
+        contract_version: str,
+        prompt_version: str,
+        model_id: str,
+    ) -> CacheDecision:
         job = database.execute(
             select(ImportJob).where(ImportJob.id == job_id).with_for_update()
         ).scalar_one_or_none()
@@ -86,11 +94,19 @@ class ExtractionCacheService:
         source = database.get(SourceVideo, job.source_video_id)
         if source is None:
             raise ImportJobUnavailable
+        # Keyed exactly as `complete` writes it. Matching on the source alone
+        # served a template produced by whatever prompt and model happened to
+        # run first, so bumping PROMPT_VERSION changed nothing for any video
+        # already imported: the old entry answered, extraction never ran, and
+        # no entry under the new version was ever written.
         entry = database.scalar(
             select(ExtractionCache)
             .where(
                 ExtractionCache.source_video_id == source.id,
                 ExtractionCache.source_revision == source.source_revision,
+                ExtractionCache.contract_version == contract_version,
+                ExtractionCache.prompt_version == prompt_version,
+                ExtractionCache.model_id == model_id,
                 ExtractionCache.invalidated_at.is_(None),
             )
             .order_by(ExtractionCache.created_at.desc(), ExtractionCache.id)

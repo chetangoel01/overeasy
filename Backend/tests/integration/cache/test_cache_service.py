@@ -32,6 +32,15 @@ from ladle.recipes.template_clone import RecipeTemplate, RecipeTemplateCloner
 from tests.integration.recipes.test_recipe_service import manual_recipe, seed_user
 from tests.integration.test_migrations import alembic_config
 
+#: The extraction identity a cache entry is keyed by. Lookups must use the
+#: same one they were written under, or a template from a superseded prompt
+#: answers for the current one.
+IDENTITY = {
+    "contract_version": "v1",
+    "prompt_version": "recipe-v1",
+    "model_id": "claude-sonnet",
+}
+
 
 @dataclass
 class FrozenClock:
@@ -137,12 +146,12 @@ def test_shared_completion_fans_out_and_later_hit_clones_fresh_graphs(
         follower_job = seed_job(database, source_id=source_id, index=2)
 
     with Session(engine) as database, database.begin():
-        leader = cache.route(database, job_id=leader_job)
+        leader = cache.route(database, **IDENTITY, job_id=leader_job)
     assert leader.disposition == CacheDisposition.LEADER
     assert leader.claim is not None
 
     with Session(engine) as database, database.begin():
-        follower = cache.route(database, job_id=follower_job)
+        follower = cache.route(database, **IDENTITY, job_id=follower_job)
     assert follower.disposition == CacheDisposition.FOLLOWER
 
     template = RecipeTemplate.from_recipe(extracted_recipe())
@@ -188,13 +197,29 @@ def test_shared_completion_fans_out_and_later_hit_clones_fresh_graphs(
     with Session(engine) as database, database.begin():
         later_job = seed_job(database, source_id=source_id, index=3)
     with Session(engine) as database, database.begin():
-        hit = cache.route(database, job_id=later_job)
+        hit = cache.route(database, **IDENTITY, job_id=later_job)
     assert hit.disposition == CacheDisposition.HIT
     assert hit.recipe_id not in {recipe.id for recipe in recipes}
 
     with Session(engine) as database:
         assert database.scalar(select(func.count()).select_from(Recipe)) == 3
         assert database.scalar(select(func.count()).select_from(ExtractionCache)) == 1
+
+    # A newer prompt must not be answered by a template the old one produced.
+    # Reading on the source alone meant bumping PROMPT_VERSION changed nothing
+    # for any video already imported: the stale entry answered, extraction
+    # never ran, and no entry under the new version was ever written.
+    with Session(engine) as database, database.begin():
+        reprompted_job = seed_job(database, source_id=source_id, index=4)
+    with Session(engine) as database, database.begin():
+        reprompted = cache.route(
+            database,
+            job_id=reprompted_job,
+            contract_version="v1",
+            prompt_version="recipe-v2",
+            model_id="claude-sonnet",
+        )
+    assert reprompted.disposition is not CacheDisposition.HIT
 
     engine.dispose()
 
@@ -267,7 +292,7 @@ def test_cached_reimport_updates_current_recipe_without_cloning(
         )
 
     with Session(engine) as database, database.begin():
-        decision = cache.route(database, job_id=job_id)
+        decision = cache.route(database, **IDENTITY, job_id=job_id)
 
     assert decision.disposition == CacheDisposition.HIT
     assert decision.recipe_id == current_id
@@ -319,7 +344,7 @@ def test_old_leader_cannot_complete_and_bypass_never_reads_or_writes_cache(
         )
 
     with Session(engine) as database, database.begin():
-        first = cache.route(database, job_id=first_job)
+        first = cache.route(database, **IDENTITY, job_id=first_job)
     assert first.claim is not None
     clock.value += timedelta(minutes=6)
     with Session(engine) as database, database.begin():
@@ -344,7 +369,7 @@ def test_old_leader_cannot_complete_and_bypass_never_reads_or_writes_cache(
         )
 
     with Session(engine) as database, database.begin():
-        bypass = cache.route(database, job_id=bypass_job)
+        bypass = cache.route(database, **IDENTITY, job_id=bypass_job)
     assert bypass.disposition == CacheDisposition.BYPASS
     with Session(engine) as database:
         assert database.scalar(select(func.count()).select_from(ExtractionCache)) == 0
@@ -396,13 +421,13 @@ def test_stale_public_cache_rechecks_and_private_observation_invalidates(
         job_id = seed_job(database, source_id=source_id, index=1)
 
     with Session(engine) as database, database.begin():
-        stale = cache.route(database, job_id=job_id)
+        stale = cache.route(database, **IDENTITY, job_id=job_id)
     assert stale.disposition == CacheDisposition.RECHECK
 
     with Session(engine) as database, database.begin():
         maintenance.confirm_public(database, source_video_id=source_id)
     with Session(engine) as database, database.begin():
-        hit = cache.route(database, job_id=job_id)
+        hit = cache.route(database, **IDENTITY, job_id=job_id)
     assert hit.disposition == CacheDisposition.HIT
 
     with Session(engine) as database, database.begin():
@@ -420,7 +445,7 @@ def test_stale_public_cache_rechecks_and_private_observation_invalidates(
     with Session(engine) as database, database.begin():
         negative_job = seed_job(database, source_id=source_id, index=2)
     with Session(engine) as database, database.begin():
-        negative = cache.route(database, job_id=negative_job)
+        negative = cache.route(database, **IDENTITY, job_id=negative_job)
     assert negative.disposition == CacheDisposition.NEGATIVE
 
     clock.value += timedelta(minutes=16)
@@ -428,7 +453,7 @@ def test_stale_public_cache_rechecks_and_private_observation_invalidates(
         assert maintenance.purge_expired_negative_entries(database) == 1
         post_expiry_job = seed_job(database, source_id=source_id, index=3)
     with Session(engine) as database, database.begin():
-        post_expiry = cache.route(database, job_id=post_expiry_job)
+        post_expiry = cache.route(database, **IDENTITY, job_id=post_expiry_job)
     assert post_expiry.disposition == CacheDisposition.LEADER
 
     cleaner = RecordingCleaner(deleted=[])

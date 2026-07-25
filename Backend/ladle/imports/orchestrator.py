@@ -84,7 +84,13 @@ class ImportOrchestrator:
                     source=job.source,
                 )
 
-            decision = self._cache.route(database, job_id=job_id)
+            decision = self._cache.route(
+                database,
+                job_id=job_id,
+                contract_version=self._extractor.contract_version,
+                prompt_version=self._extractor.prompt_version,
+                model_id=self._extractor.model_id,
+            )
             if decision.disposition == CacheDisposition.HIT:
                 return self._outcome(
                     ProcessOutcome.CACHE_HIT,
