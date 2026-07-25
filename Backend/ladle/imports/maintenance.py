@@ -6,6 +6,8 @@ from sqlalchemy.orm import Session
 from ladle.clock import Clock
 from ladle.db.models import ImportJob, RecipeSlotReservation
 
+RELEASE_EXPIRED_RESERVATIONS_TASK = "ladle.imports.release_expired_reservations"
+
 
 class ImportMaintenanceService:
     def __init__(self, *, clock: Clock, stale_after: timedelta) -> None:

@@ -137,6 +137,27 @@ services:
       redis:
         condition: service_healthy
 
+  # Sole scheduler. Kept out of the worker (no `--beat`) so that raising the
+  # worker's concurrency or replica count cannot start a second beat and run
+  # every sweep twice.
+  beat:
+    build: .
+    command:
+      [
+        "/app/.venv/bin/celery",
+        "-A",
+        "ladle.worker.app:celery_app",
+        "beat",
+        "--loglevel=INFO",
+        "--schedule=/tmp/celerybeat-schedule",
+      ]
+    environment: *ladle-environment
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
 volumes:
   ladle-minio:
   ladle-postgres:

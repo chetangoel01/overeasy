@@ -6,6 +6,7 @@ from uuid import UUID
 
 import httpx
 from anthropic import Anthropic
+from sqlalchemy.orm import Session, sessionmaker
 
 from ladle.acquisition.audio import (
     AudioTranscriptProvider,
@@ -41,6 +42,7 @@ from ladle.extraction.claude import (
 )
 from ladle.extraction.openrouter import OpenRouterStructuredClient
 from ladle.extraction.protocol import RecipeExtractor
+from ladle.imports.maintenance import ImportMaintenanceService
 from ladle.imports.orchestrator import ImportOrchestrator
 from ladle.imports.reservations import ReservationService
 from ladle.imports.thumbnails import OEmbedThumbnailFetcher
@@ -200,6 +202,27 @@ def _free_acquirer(settings: Settings) -> FreeAcquirer | None:
 
 
 @lru_cache(maxsize=1)
+def runtime_sessions() -> sessionmaker[Session]:
+    return build_session_factory(build_engine(Settings().database_url))
+
+
+@lru_cache(maxsize=1)
+def runtime_maintenance() -> ImportMaintenanceService:
+    """Reclaim abandoned imports.
+
+    Deliberately free of provider configuration: a stack whose providers are
+    disabled or misconfigured is exactly the one most likely to strand jobs,
+    so the sweep has to run when `runtime_orchestrator` cannot be built.
+    """
+
+    settings = Settings()
+    return ImportMaintenanceService(
+        clock=SystemClock(),
+        stale_after=timedelta(minutes=settings.import_stale_after_minutes),
+    )
+
+
+@lru_cache(maxsize=1)
 def runtime_orchestrator() -> ImportOrchestrator:
     settings = Settings()
     if settings.worker_provider_mode == "disabled":
@@ -208,7 +231,7 @@ def runtime_orchestrator() -> ImportOrchestrator:
             "set LADLE_WORKER_PROVIDER_MODE=fake for the local stack"
         )
     clock = SystemClock()
-    sessions = build_session_factory(build_engine(settings.database_url))
+    sessions = runtime_sessions()
     reservations = ReservationService(
         clock=clock,
         lifetime=timedelta(minutes=settings.import_reservation_minutes),

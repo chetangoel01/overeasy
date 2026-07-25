@@ -1,6 +1,7 @@
 from celery import Celery
 
 from ladle.config import Settings
+from ladle.imports.maintenance import RELEASE_EXPIRED_RESERVATIONS_TASK
 
 
 def create_celery_app(settings: Settings | None = None) -> Celery:
@@ -25,6 +26,15 @@ def create_celery_app(settings: Settings | None = None) -> Celery:
         },
         timezone="UTC",
         enable_utc=True,
+        beat_schedule={
+            "release-expired-reservations": {
+                "task": RELEASE_EXPIRED_RESERVATIONS_TASK,
+                "schedule": float(configured.import_maintenance_interval_seconds),
+                # A sweep that piles up behind a busy worker has nothing to add
+                # that the next one will not also find.
+                "options": {"expires": configured.import_maintenance_interval_seconds},
+            }
+        },
     )
     return application
 

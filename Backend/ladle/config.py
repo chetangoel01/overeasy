@@ -38,6 +38,11 @@ class Settings(BaseSettings):
     source_redirect_timeout_seconds: float = Field(default=10, gt=0)
     extraction_claim_minutes: int = Field(default=10, gt=0)
     public_cache_recheck_days: int = Field(default=7, gt=0)
+    # A job whose worker died stays in parsing until the sweep declares it
+    # abandoned. Longer than the claim lease, so a worker that is merely slow
+    # is never mistaken for one that is gone.
+    import_stale_after_minutes: int = Field(default=60, gt=0)
+    import_maintenance_interval_seconds: int = Field(default=300, gt=0)
 
     celery_enabled: bool = False
     celery_broker_url: str = "redis://127.0.0.1:6379/0"
