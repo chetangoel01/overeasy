@@ -45,6 +45,18 @@ _SAMPLE_RATE = "16000"
 _BITRATE = "32k"
 _MAX_SEGMENT_CHARACTERS = 20_000
 
+# Whisper returns chunk-level segments — often the whole clip as one entry —
+# which is too coarse to tell the model which moment a step came from. Word
+# timings are fine enough to rebuild utterances, so we regroup them here.
+# A break needs a real pause or a sentence ending; the caps stop a creator
+# who never pauses from producing one segment for the entire video.
+_WORD_PAUSE_SECONDS = 0.55
+_MIN_SEGMENT_SECONDS = 2.0
+_MAX_SEGMENT_SECONDS = 14.0
+_MAX_SEGMENT_TEXT = 240
+# Fullwidth stops are deliberate: CJK transcripts end sentences with them.
+_SENTENCE_ENDINGS = (".", "!", "?", "。", "！", "？")  # noqa: RUF001
+
 
 class AudioSource(Protocol):
     def audio(
@@ -240,6 +252,10 @@ class WhisperTranscriber:
                 "format": audio.suffix.lstrip(".").lower() or "mp3",
             },
             "response_format": "verbose_json",
+            # Word timings are what make per-step timestamps meaningful; the
+            # segment list alone comes back in 30-second chunks. Hosts that
+            # ignore this still return segments, which _transcript falls back to.
+            "timestamp_granularities": ["word", "segment"],
             "temperature": 0,
         }
         try:
@@ -282,8 +298,80 @@ class WhisperTranscriber:
         raise ProviderUnavailable(f"transcription rejected the request: {detail}")
 
 
+def _words(body: dict[str, Any]) -> list[tuple[str, float, float]]:
+    """Word timings, keeping only entries that carry a usable window."""
+
+    collected: list[tuple[str, float, float]] = []
+    for entry in body.get("words") or []:
+        if not isinstance(entry, dict):
+            continue
+        text = str(entry.get("word") or entry.get("text") or "").strip()
+        start = _seconds(entry.get("start"))
+        end = _seconds(entry.get("end"))
+        if not text or start is None or end is None or end < start:
+            continue
+        collected.append((text, start, end))
+    return collected
+
+
+def _segments_from_words(
+    words: list[tuple[str, float, float]],
+    *,
+    provenance: str,
+) -> list[TextEvidence]:
+    """Regroup word timings into utterance-sized, individually timed evidence."""
+
+    segments: list[TextEvidence] = []
+    pending: list[str] = []
+    start = 0.0
+    end = 0.0
+
+    def flush() -> None:
+        nonlocal pending
+        if not pending:
+            return
+        segments.append(
+            TextEvidence(
+                text=" ".join(pending)[:_MAX_SEGMENT_CHARACTERS],
+                start_seconds=start,
+                end_seconds=end,
+                provenance=provenance,
+                generated=True,
+            )
+        )
+        pending = []
+
+    for index, (text, word_start, word_end) in enumerate(words):
+        if not pending:
+            start = word_start
+        pending.append(text)
+        end = word_end
+        duration = end - start
+        gap = words[index + 1][1] - word_end if index + 1 < len(words) else None
+        long_enough = duration >= _MIN_SEGMENT_SECONDS
+        ends_sentence = text.endswith(_SENTENCE_ENDINGS)
+        paused = gap is not None and gap >= _WORD_PAUSE_SECONDS
+        if (
+            (long_enough and (ends_sentence or paused))
+            or duration >= _MAX_SEGMENT_SECONDS
+            or sum(len(value) + 1 for value in pending) >= _MAX_SEGMENT_TEXT
+        ):
+            flush()
+    flush()
+    return segments
+
+
 def _transcript(body: dict[str, Any], *, model_id: str) -> TranscriptResult:
     provenance = f"whisper:{model_id}"
+    words = _words(body)
+    if words:
+        from_words = _segments_from_words(words, provenance=provenance)
+        if from_words:
+            return TranscriptResult(
+                segments=from_words,
+                language=str(body.get("language") or "") or None,
+                billed_units=Decimal(1),
+            )
     segments: list[TextEvidence] = []
     for entry in body.get("segments") or []:
         if not isinstance(entry, dict):

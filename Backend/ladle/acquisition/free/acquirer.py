@@ -59,7 +59,14 @@ class FreeContext:
 
 
 def _already_covered(context: FreeContext) -> bool:
-    """Mirrors assess_coverage over just what the free rung holds so far."""
+    """Mirrors assess_coverage over just what the free rung holds so far.
+
+    This governs only whether to chase links out of the caption. A caption
+    carrying the whole recipe really is enough text to stop fetching more of
+    it — unlike the decision to transcribe, which the caption cannot answer
+    because narration is evidence a caption does not contain.
+    """
+
     metadata = context.metadata
     if metadata is None:
         return False

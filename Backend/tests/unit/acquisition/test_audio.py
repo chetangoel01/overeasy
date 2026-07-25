@@ -80,6 +80,123 @@ def test_verbose_json_becomes_timed_generated_evidence(tmp_path: Path) -> None:
     assert result.billed_units == Decimal(1)
 
 
+def _word(text: str, start: float, end: float) -> dict[str, object]:
+    return {"word": text, "start": start, "end": end}
+
+
+def test_word_timings_are_regrouped_into_utterances(tmp_path: Path) -> None:
+    """Whisper's 30-second chunks cannot locate a step; word timings can."""
+
+    captured: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        import json as _json
+
+        captured.update(_json.loads(request.content))
+        return httpx.Response(
+            200,
+            json={
+                "text": "Add two cans. Simmer until thick.",
+                "language": "en",
+                # One coarse chunk covering everything, as the host really
+                # returns it.
+                "segments": [
+                    {"start": 0.0, "end": 30.0, "text": "Add two cans. Simmer..."}
+                ],
+                "words": [
+                    _word("Add", 0.10, 0.30),
+                    _word("two", 0.35, 0.55),
+                    _word("cans.", 0.60, 2.40),
+                    # A clear pause: the creator moved on to the next action.
+                    _word("Simmer", 5.00, 5.40),
+                    _word("until", 5.45, 5.70),
+                    _word("thick.", 5.75, 7.60),
+                ],
+            },
+        )
+
+    result = transcriber(handler).transcribe(
+        audio_file(tmp_path), job_id=uuid4(), source_revision="rev-1"
+    )
+
+    assert captured["timestamp_granularities"] == ["word", "segment"]
+    assert [segment.text for segment in result.segments] == [
+        "Add two cans.",
+        "Simmer until thick.",
+    ]
+    assert result.segments[0].start_seconds == 0.10
+    assert result.segments[0].end_seconds == 2.40
+    assert result.segments[1].start_seconds == 5.00
+    assert result.segments[1].end_seconds == 7.60
+
+
+def test_words_win_over_the_coarse_segment_list(tmp_path: Path) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(
+            200,
+            json={
+                "text": "one two",
+                "segments": [{"start": 0.0, "end": 30.0, "text": "one two"}],
+                "words": [_word("one", 0.0, 1.0), _word("two.", 1.1, 3.5)],
+            },
+        )
+
+    result = transcriber(handler).transcribe(
+        audio_file(tmp_path), job_id=uuid4(), source_revision="rev-1"
+    )
+
+    assert result.segments[0].end_seconds == 3.5
+
+
+def test_unusable_word_timings_fall_back_to_segments(tmp_path: Path) -> None:
+    """A host echoing words without timings must not erase the transcript."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(
+            200,
+            json={
+                **VERBOSE,
+                "words": [{"word": "Add"}, {"word": "two", "start": None}],
+            },
+        )
+
+    result = transcriber(handler).transcribe(
+        audio_file(tmp_path), job_id=uuid4(), source_revision="rev-1"
+    )
+
+    assert [segment.text for segment in result.segments] == [
+        "Add two cans of chickpeas.",
+        "Simmer until thick.",
+    ]
+
+
+def test_a_creator_who_never_pauses_still_gets_split(tmp_path: Path) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(
+            200,
+            json={
+                "text": "long",
+                "words": [
+                    _word(f"word{index}", index * 1.0, index * 1.0 + 0.9)
+                    for index in range(40)
+                ],
+            },
+        )
+
+    result = transcriber(handler).transcribe(
+        audio_file(tmp_path), job_id=uuid4(), source_revision="rev-1"
+    )
+
+    assert len(result.segments) > 1
+    for segment in result.segments:
+        assert segment.start_seconds is not None
+        assert segment.end_seconds is not None
+        assert segment.end_seconds - segment.start_seconds <= 15.0
+
+
 def test_flat_response_keeps_text_without_inventing_timings(tmp_path: Path) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         del request

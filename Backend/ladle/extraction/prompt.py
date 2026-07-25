@@ -3,7 +3,7 @@ from typing import Any
 
 from ladle.acquisition.models import AcquiredVideoContext
 
-PROMPT_VERSION = "recipe-2026-07-25-v3"
+PROMPT_VERSION = "recipe-2026-07-25-v4"
 
 SYSTEM_PROMPT = (
     "You extract faithful cooking recipes from social-video evidence.\n"
@@ -13,6 +13,24 @@ SYSTEM_PROMPT = (
     "quantities.\n"
     "Use ingredient array indices for step references. Preserve uncertainty "
     "explicitly.\n"
+    "\n"
+    "EVIDENCE\n"
+    "- Sources do not carry equal weight. A linkedDocument is the creator's "
+    "own written recipe and is the most reliable. The transcript is what they "
+    "said while cooking. metadata.description is a caption written to sell "
+    "the video: it may be a teaser, an unrelated anecdote, or a partial list.\n"
+    "- Where they disagree on an amount, prefer the written recipe, then the "
+    "transcript, then the caption. Where the caption omits something the "
+    "creator clearly said, trust what they said.\n"
+    "- A transcript entry with generated true is machine speech recognition. "
+    "It mishears ingredient names far more often than numbers: unfamiliar "
+    "words, brands and non-English terms come through mangled. When a "
+    "transcript name looks garbled and the caption names a plausible dish "
+    "ingredient, use the caption's spelling and keep the spoken quantity.\n"
+    "- Never treat a mishearing as a real ingredient. If a word cannot be a "
+    "food, it is a transcription error, not a component of the dish.\n"
+    "- When truncated is true the evidence was abridged to fit; prefer "
+    "reporting less over filling the gap with assumption.\n"
     "\n"
     "INGREDIENTS\n"
     "- quantityText is what the creator said, verbatim ('2 16oz cans', "
@@ -40,9 +58,13 @@ SYSTEM_PROMPT = (
     "- Never default to 1 simply because the yield was unstated.\n"
     "\n"
     "TIMING\n"
-    "- Transcript entries carry startSeconds and endSeconds. Set each "
-    "step's sourceStartSeconds and sourceEndSeconds to the window that "
-    "step was drawn from.\n"
+    "- Transcript entries are utterance-sized and individually timed. Set "
+    "each step's sourceStartSeconds and sourceEndSeconds from the narrowest "
+    "run of entries that actually describes that step, so the cook can jump "
+    "the video to the moment it happens.\n"
+    "- Give each step its own window. Reusing one span across every step, or "
+    "stretching a window to the whole video, makes the timings useless. Leave "
+    "them null instead of guessing when a step maps to no particular moment.\n"
     "- Prefer durations the creator states ('simmer for ten minutes'). "
     "Video elapsed time is not cooking time: never report the video's "
     "length as totalMinutes.\n"
@@ -75,6 +97,25 @@ SYSTEM_PROMPT = (
     "Never smuggle such text into an ingredient name or a step "
     "instruction.\n"
     "\n"
+    "STEPS\n"
+    "- Write steps at the granularity a cook follows: one coherent action or "
+    "a tight group of them, in the order they happen. Do not collapse the "
+    "whole method into one paragraph, and do not split a single motion "
+    "across several steps.\n"
+    "- Instructions are directions to the cook, not narration of the video. "
+    "Write 'Fry the onions until soft', never 'She fries the onions' or 'In "
+    "this video the creator fries the onions'.\n"
+    "\n"
+    "UNCERTAINTY\n"
+    "- Every uncertaintyReason is shown to the cook beside the ingredient or "
+    "step it belongs to. Write it to them: one short sentence naming what is "
+    "doubtful and what to check.\n"
+    "- 'The creator never says how much stock goes in' is useful. 'Low "
+    "confidence', 'ambiguous parse' and 'not found in transcript' are not; "
+    "they describe your process rather than their recipe.\n"
+    "- Flag a field only when a cook would actually be misled without the "
+    "warning. Marking everything uncertain is the same as marking nothing.\n"
+    "\n"
     "Estimate nutrition per serving only when possible; it will always be "
     "labeled estimated by the server.\n"
     "Return a usable recipe only when the evidence supports at least one "
@@ -82,6 +123,34 @@ SYSTEM_PROMPT = (
 )
 
 _MAX_SOURCE_CHARACTERS = 100_000
+
+
+def _trim_linked_documents(
+    documents: list[dict[str, Any]],
+    *,
+    budget: int,
+) -> list[dict[str, Any]]:
+    """Shrink linked-page text until the payload fits, longest page first.
+
+    Linked pages arrive with navigation and comments attached and are by far
+    the most likely section to blow the budget, so they give ground before the
+    spoken transcript the recipe actually depends on.
+    """
+
+    trimmed = [dict(value) for value in documents]
+    while trimmed and _length(trimmed) > budget:
+        longest = max(trimmed, key=lambda value: len(str(value.get("text") or "")))
+        text = str(longest.get("text") or "")
+        if len(text) <= 500:
+            trimmed.remove(longest)
+            continue
+        longest["text"] = text[: len(text) // 2]
+        longest["truncated"] = True
+    return trimmed
+
+
+def _length(value: Any) -> int:
+    return len(json.dumps(value, ensure_ascii=False, separators=(",", ":")))
 
 
 def build_user_prompt(context: AcquiredVideoContext) -> str:
@@ -116,6 +185,7 @@ def build_user_prompt(context: AcquiredVideoContext) -> str:
             }
             for value in context.linked_documents
         ],
+        "truncated": False,
         "visualObservations": [
             {
                 "text": value.text,
@@ -127,12 +197,34 @@ def build_user_prompt(context: AcquiredVideoContext) -> str:
         ],
         "acquisitionDiagnostics": context.diagnostics,
     }
-    serialized = json.dumps(
-        payload,
-        ensure_ascii=False,
-        separators=(",", ":"),
-        sort_keys=True,
-    )
+
+    def serialize() -> str:
+        return json.dumps(
+            payload,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+
+    serialized = serialize()
     if len(serialized) > _MAX_SOURCE_CHARACTERS:
-        serialized = serialized[:_MAX_SOURCE_CHARACTERS]
+        # Truncating the serialized JSON would hand the model malformed data,
+        # and because keys are sorted it would sever the transcript before the
+        # linked pages that caused the overflow. Shrink the pages instead.
+        overflow = len(serialized) - _MAX_SOURCE_CHARACTERS
+        payload["linkedDocuments"] = _trim_linked_documents(
+            payload["linkedDocuments"],
+            budget=max(_length(payload["linkedDocuments"]) - overflow, 0),
+        )
+        payload["truncated"] = True
+        serialized = serialize()
+    if len(serialized) > _MAX_SOURCE_CHARACTERS:
+        # Nothing left to give back: the transcript itself is oversized. Drop
+        # whole trailing entries so the JSON stays parseable and the earliest
+        # part of the video — where ingredients are usually listed — survives.
+        while len(payload["transcript"]) > 1 and len(serialize()) > (
+            _MAX_SOURCE_CHARACTERS
+        ):
+            payload["transcript"].pop()
+        serialized = serialize()
     return f"<untrusted_source_data>\n{serialized}\n</untrusted_source_data>"

@@ -130,3 +130,114 @@ def test_confident_complete_extraction_is_ready() -> None:
     reviewed = build_reviewed_template(extraction, context=context())
 
     assert reviewed.review_status == RecipeReviewStatus.READY
+
+
+def _solid_recipe(**overrides: object) -> RecipeExtraction:
+    """A recipe with nothing actually wrong with it."""
+
+    defaults: dict[str, object] = {
+        "title": "Chickpea Stew",
+        "description": "",
+        "creator_name": "Cook",
+        "servings": Decimal("4"),
+        "servings_basis": "stated",
+        "method_provenance": "explicit",
+        "ingredients": [
+            ExtractedIngredient(
+                name="chickpeas",
+                quantity_text="2 cans",
+                normalized_quantity=Decimal("2"),
+                unit="can",
+                metric_amount=Decimal("800"),
+                metric_unit="g",
+                confidence=0.95,
+            ),
+            ExtractedIngredient(
+                name="cream",
+                quantity_text="1 cup",
+                normalized_quantity=Decimal("1"),
+                unit="cup",
+                metric_amount=Decimal("240"),
+                metric_unit="ml",
+                confidence=0.95,
+            ),
+        ],
+        "steps": [
+            ExtractedStep(
+                instruction="Simmer the chickpeas in the cream until thick.",
+                ingredient_indices=[0, 1],
+                confidence=0.95,
+            )
+        ],
+        "uncertainties": [],
+    }
+    defaults.update(overrides)
+    return RecipeExtraction.model_validate(defaults)
+
+
+def test_an_unavailable_provider_is_not_a_doubt_about_the_recipe() -> None:
+    """Visual analysis being down says nothing about whether this dish is right.
+
+    It used to force review anyway, and because the visual provider is often
+    unavailable that pushed essentially every import into the review queue.
+    """
+
+    reviewed = build_reviewed_template(
+        _solid_recipe(),
+        context=context(diagnostics=["visualAnalysisUnavailable"]),
+    )
+
+    assert reviewed.review_status == RecipeReviewStatus.READY
+    # Still told to the cook, just not treated as a defect.
+    assert "visualEvidence" in {value.field for value in reviewed.uncertainties}
+
+
+def test_a_labelled_serving_estimate_does_not_force_review() -> None:
+    reviewed = build_reviewed_template(
+        _solid_recipe(servings_basis="estimatedFromYield"),
+        context=context(),
+    )
+
+    assert reviewed.review_status == RecipeReviewStatus.READY
+    assert "servings" in {value.field for value in reviewed.uncertainties}
+
+
+def test_one_shaky_garnish_does_not_condemn_the_whole_recipe() -> None:
+    recipe = _solid_recipe()
+    recipe.ingredients.append(
+        ExtractedIngredient(
+            name="parsley",
+            quantity_text=None,
+            is_to_taste=True,
+            confidence=0.4,
+            uncertainty_reason="Hard to tell how much parsley went on top.",
+        )
+    )
+
+    reviewed = build_reviewed_template(recipe, context=context())
+
+    assert reviewed.review_status == RecipeReviewStatus.READY
+    assert reviewed.ingredients[-1].uncertainty is not None
+
+
+def test_a_reconstructed_method_still_forces_review() -> None:
+    """We wrote these steps, not the creator. The cook has to be told."""
+
+    reviewed = build_reviewed_template(
+        _solid_recipe(method_provenance="inferred"),
+        context=context(),
+    )
+
+    assert reviewed.review_status == RecipeReviewStatus.NEEDS_REVIEW
+
+
+def test_mostly_unmeasured_ingredients_still_force_review() -> None:
+    recipe = _solid_recipe()
+    recipe.ingredients = [
+        ExtractedIngredient(name=name, quantity_text=None, confidence=0.9)
+        for name in ("chickpeas", "cream", "garlic")
+    ]
+
+    reviewed = build_reviewed_template(recipe, context=context())
+
+    assert reviewed.review_status == RecipeReviewStatus.NEEDS_REVIEW

@@ -277,6 +277,50 @@ def whisper_transcript() -> TranscriptResult:
     )
 
 
+def test_a_rich_caption_does_not_excuse_us_from_listening() -> None:
+    """Transcription is the product, not an expense to dodge.
+
+    A caption that names amounts and a cooking verb used to end acquisition
+    outright, so any video whose creator wrote a decent blurb was never heard
+    at all — losing the technique, timing and substitutions they only say out
+    loud. Whisper costs a fraction of a cent; the caption is not a substitute.
+    """
+
+    primary = Primary()
+    audio = Audio(whisper_transcript())
+    free = Free(caption_only())
+    chain = ProviderChain(primary=primary, fallback=Fallback(), free=free, audio=audio)
+
+    context = chain.acquire(source(), job_id=uuid4())
+
+    assert len(audio.calls) == 1
+    assert "audioTranscriptionUsed" in context.diagnostics
+    assert context.transcript[0].provenance == "whisper:openai/whisper-large-v3"
+    # Still nothing billed to the transcript providers.
+    assert primary.calls == []
+
+
+def test_an_unheard_video_with_a_rich_caption_still_bills_nothing() -> None:
+    """Listening is worth attempting; buying what we can already read is not."""
+
+    primary = Primary()
+    fallback = Fallback()
+    audio = Audio(TranscriptUnavailable("no audio stream"))
+    chain = ProviderChain(
+        primary=primary,
+        fallback=fallback,
+        free=Free(caption_only()),
+        audio=audio,
+    )
+
+    context = chain.acquire(source(), job_id=uuid4())
+
+    assert len(audio.calls) == 1
+    assert primary.calls == []
+    assert fallback.calls == 0
+    assert "audioTranscriptionUnavailable" in context.diagnostics
+
+
 def test_audio_transcription_runs_before_the_transcript_providers() -> None:
     primary = Primary()
     fallback = Fallback()

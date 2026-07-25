@@ -18,6 +18,13 @@ from ladle.recipes.template_clone import (
 
 _CONFIDENCE_THRESHOLD = 0.7
 _MISSING_QUANTITY_THRESHOLD = 0.3
+# Review is a claim that the cook should check something before trusting the
+# recipe. Every caveat used to raise it, including ones that say nothing about
+# the dish — an unavailable visual provider, a serving count we estimated and
+# labelled as estimated. With those firing on nearly every import, the flag
+# stopped distinguishing anything. Only caveats that could actually mislead
+# someone cooking from the result raise it now; the rest are still recorded
+# and still shown beside the field they belong to.
 # Finished main-dish weight per adult serving. Deliberately generous: a low
 # divisor over-reports servings, which understates per-serving nutrition.
 _GRAMS_PER_SERVING = Decimal(400)
@@ -54,6 +61,9 @@ def build_reviewed_template(
     context: AcquiredVideoContext,
 ) -> RecipeTemplate:
     uncertainties = list(extraction.uncertainties)
+    # Reasons a cook could be misled by cooking straight from this, as opposed
+    # to caveats worth showing them.
+    blocking: list[str] = []
     servings = extraction.servings
     if servings is None:
         # A yield the source never stated is unknown, not one. Downstream
@@ -61,6 +71,9 @@ def build_reviewed_template(
         estimated = _estimate_servings(extraction)
         if estimated is None:
             servings = Decimal(1)
+            # Presenting a whole dish as one serving misstates every per-serving
+            # number the app derives from it.
+            blocking.append("servings")
             uncertainties.append(
                 FieldUncertaintyDTO(
                     field="servings",
@@ -97,6 +110,8 @@ def build_reviewed_template(
     if quantified and (
         missing_quantities / len(quantified) > _MISSING_QUANTITY_THRESHOLD
     ):
+        # Too much of the recipe is unmeasured to cook from without checking.
+        blocking.append("ingredientQuantities")
         uncertainties.append(
             FieldUncertaintyDTO(
                 field="ingredientQuantities",
@@ -105,6 +120,8 @@ def build_reviewed_template(
         )
 
     if extraction.method_provenance == "inferred":
+        # These steps are our reconstruction, not the creator's method.
+        blocking.append("steps")
         uncertainties.append(
             FieldUncertaintyDTO(
                 field="steps",
@@ -222,13 +239,8 @@ def build_reviewed_template(
         else None
     )
 
-    has_nested_uncertainty = any(
-        value.uncertainty is not None for value in ingredients
-    ) or any(value.uncertainty is not None for value in steps)
     review_status = (
-        RecipeReviewStatus.NEEDS_REVIEW
-        if uncertainties or has_nested_uncertainty
-        else RecipeReviewStatus.READY
+        RecipeReviewStatus.NEEDS_REVIEW if blocking else RecipeReviewStatus.READY
     )
     return RecipeTemplate(
         title=extraction.title,

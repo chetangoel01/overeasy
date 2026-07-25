@@ -152,8 +152,12 @@ class ProviderChain:
             documents=documents,
             diagnostics=diagnostics,
         )
-        # When the free rung already answered the question, no provider is billed.
-        if assess_coverage(context).sufficient_for_extraction:
+        # When the free rung already answered the question, no provider is
+        # billed. A caption alone does not answer it: transcription is the
+        # feature, and a fraction of a cent is the wrong thing to save when the
+        # alternative is a recipe assembled from a promo blurb.
+        free_coverage = assess_coverage(context)
+        if free_coverage.sufficient_without_transcription:
             return context
 
         # Whisper on the raw audio undercuts the transcript providers by an
@@ -166,6 +170,31 @@ class ProviderChain:
                 media_url=free.media_url,
                 diagnostics=diagnostics,
             )
+            if transcript is not None:
+                context = self._context(
+                    source,
+                    metadata=metadata,
+                    transcript=transcript,
+                    observations=free_observations,
+                    documents=documents,
+                    diagnostics=diagnostics,
+                )
+                if assess_coverage(context).sufficient_for_extraction:
+                    return context
+            elif free_coverage.sufficient_for_extraction:
+                # The caption carried a whole recipe and the audio was out of
+                # reach. Listening was worth a try; buying a transcript for
+                # something we can already read is not. Rebuilt rather than
+                # reused: the context above was snapshotted before the failed
+                # attempt recorded its diagnostic.
+                return self._context(
+                    source,
+                    metadata=metadata,
+                    transcript=None,
+                    observations=free_observations,
+                    documents=documents,
+                    diagnostics=diagnostics,
+                )
 
         if transcript is None:
             transcript = self._transcript_or_none(

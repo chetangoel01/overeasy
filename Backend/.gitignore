@@ -6,5 +6,7 @@ __pycache__/
 .ruff_cache/
 .coverage
 htmlcov/
+# Cached acquisition results and scoreboards from scripts/eval_extraction.py.
+.eval-cache/
 
 !.env.example
