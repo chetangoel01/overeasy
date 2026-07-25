@@ -74,7 +74,9 @@
           "label": "Simmer"
         }
       ],
-      "uncertainty": null
+      "uncertainty": null,
+      "sourceStartSeconds": null,
+      "sourceEndSeconds": null
     },
     {
       "id": "24000000-0000-4000-8000-000000000002",
@@ -84,11 +86,14 @@
       "instruction": "Stir in the lemon juice and serve.",
       "orderIndex": 1,
       "timers": [],
-      "uncertainty": null
+      "uncertainty": null,
+      "sourceStartSeconds": null,
+      "sourceEndSeconds": null
     }
   ],
   "title": "Lemon Orzo",
   "totalMinutes": 30,
   "uncertainties": [],
-  "updatedAt": "2026-07-23T20:15:00.000Z"
+  "updatedAt": "2026-07-23T20:15:00.000Z",
+  "notes": []
 }

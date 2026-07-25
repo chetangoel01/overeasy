@@ -42,6 +42,32 @@ class OpenRouterStructuredClient:
         system: str,
         user_prompt: str,
     ) -> ClaudeStructuredResponse:
+        # OpenRouter load-balances across upstreams whose schema enforcement
+        # varies, so an unparseable body is often transient. Retry once
+        # before surfacing a failure the cook has to recover from by hand.
+        response = self._attempt(
+            model=model,
+            max_tokens=max_tokens,
+            system=system,
+            user_prompt=user_prompt,
+        )
+        if response.parsed_output is not None or response.stop_reason != "end_turn":
+            return response
+        return self._attempt(
+            model=model,
+            max_tokens=max_tokens,
+            system=system,
+            user_prompt=user_prompt,
+        )
+
+    def _attempt(
+        self,
+        *,
+        model: str,
+        max_tokens: int,
+        system: str,
+        user_prompt: str,
+    ) -> ClaudeStructuredResponse:
         schema = RecipeExtraction.model_json_schema()
         payload = {
             "model": model,

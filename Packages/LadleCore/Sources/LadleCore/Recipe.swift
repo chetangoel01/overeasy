@@ -74,6 +74,10 @@ public struct RecipeStep: Codable, Hashable, Identifiable, Sendable {
     public var instruction: String
     public var ingredientIDs: [UUID]
     public var timers: [DetectedTimer]
+    /// Transcript window this step came from, when the source carried
+    /// timestamps. Enables jumping the video to the matching moment.
+    public var sourceStartSeconds: Double?
+    public var sourceEndSeconds: Double?
     public var uncertainty: FieldUncertainty?
 
     public init(
@@ -82,6 +86,8 @@ public struct RecipeStep: Codable, Hashable, Identifiable, Sendable {
         instruction: String,
         ingredientIDs: [UUID] = [],
         timers: [DetectedTimer] = [],
+        sourceStartSeconds: Double? = nil,
+        sourceEndSeconds: Double? = nil,
         uncertainty: FieldUncertainty? = nil
     ) {
         self.id = id
@@ -89,6 +95,8 @@ public struct RecipeStep: Codable, Hashable, Identifiable, Sendable {
         self.instruction = instruction
         self.ingredientIDs = ingredientIDs
         self.timers = timers
+        self.sourceStartSeconds = sourceStartSeconds
+        self.sourceEndSeconds = sourceEndSeconds
         self.uncertainty = uncertainty
     }
 }
@@ -108,6 +116,9 @@ public struct Recipe: Codable, Hashable, Identifiable, Sendable {
     public var ingredients: [Ingredient]
     public var steps: [RecipeStep]
     public var nutrition: Nutrition?
+    /// Creator caveats and context that belong beside the recipe rather
+    /// than inside its ingredient or step lists.
+    public var notes: [String]
     public var isFavorite: Bool
     public var reviewStatus: RecipeReviewStatus
     public var uncertainties: [FieldUncertainty]
@@ -130,6 +141,7 @@ public struct Recipe: Codable, Hashable, Identifiable, Sendable {
         ingredients: [Ingredient] = [],
         steps: [RecipeStep] = [],
         nutrition: Nutrition? = nil,
+        notes: [String] = [],
         isFavorite: Bool = false,
         reviewStatus: RecipeReviewStatus = .ready,
         uncertainties: [FieldUncertainty] = [],
@@ -151,12 +163,83 @@ public struct Recipe: Codable, Hashable, Identifiable, Sendable {
         self.ingredients = ingredients
         self.steps = steps
         self.nutrition = nutrition
+        self.notes = notes
         self.isFavorite = isFavorite
         self.reviewStatus = reviewStatus
         self.uncertainties = uncertainties
         self.lastCookedAt = lastCookedAt
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+    }
+
+    /// Decoded leniently so payloads persisted before a field existed still
+    /// load. Synthesized decoding would throw `keyNotFound` for any
+    /// non-optional addition and take the whole local library with it.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        title = try container.decode(String.self, forKey: .title)
+        description = try container.decodeIfPresent(
+            String.self,
+            forKey: .description
+        ) ?? ""
+        creatorName = try container.decodeIfPresent(
+            String.self,
+            forKey: .creatorName
+        )
+        source = try container.decode(RecipeSource.self, forKey: .source)
+        originalURL = try container.decode(URL.self, forKey: .originalURL)
+        images = try container.decodeIfPresent(
+            [RecipeImage].self,
+            forKey: .images
+        ) ?? []
+        preparationMinutes = try container.decodeIfPresent(
+            Int.self,
+            forKey: .preparationMinutes
+        )
+        cookingMinutes = try container.decodeIfPresent(
+            Int.self,
+            forKey: .cookingMinutes
+        )
+        totalMinutes = try container.decodeIfPresent(
+            Int.self,
+            forKey: .totalMinutes
+        )
+        servings = try container.decode(Decimal.self, forKey: .servings)
+        ingredients = try container.decodeIfPresent(
+            [Ingredient].self,
+            forKey: .ingredients
+        ) ?? []
+        steps = try container.decodeIfPresent(
+            [RecipeStep].self,
+            forKey: .steps
+        ) ?? []
+        nutrition = try container.decodeIfPresent(
+            Nutrition.self,
+            forKey: .nutrition
+        )
+        notes = try container.decodeIfPresent(
+            [String].self,
+            forKey: .notes
+        ) ?? []
+        isFavorite = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .isFavorite
+        ) ?? false
+        reviewStatus = try container.decodeIfPresent(
+            RecipeReviewStatus.self,
+            forKey: .reviewStatus
+        ) ?? .ready
+        uncertainties = try container.decodeIfPresent(
+            [FieldUncertainty].self,
+            forKey: .uncertainties
+        ) ?? []
+        lastCookedAt = try container.decodeIfPresent(
+            Date.self,
+            forKey: .lastCookedAt
+        )
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
     }
 
     public var orderedIngredients: [Ingredient] {

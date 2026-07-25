@@ -126,3 +126,25 @@ def test_transport_error_raises_extraction_unavailable() -> None:
 
     with pytest.raises(ExtractionUnavailable):
         parse(client_returning(handler))
+
+
+def test_unparseable_first_attempt_is_retried_once() -> None:
+    bodies = iter([completion('{"nope": true}'), completion(extraction_json())])
+
+    response = parse(client_returning(lambda request: next(bodies)))
+
+    assert response.parsed_output is not None
+    assert response.parsed_output.title == "Toast"
+
+
+def test_retry_is_bounded_to_one_extra_attempt() -> None:
+    attempts = {"count": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        attempts["count"] += 1
+        return completion('{"nope": true}')
+
+    response = parse(client_returning(handler))
+
+    assert response.parsed_output is None
+    assert attempts["count"] == 2

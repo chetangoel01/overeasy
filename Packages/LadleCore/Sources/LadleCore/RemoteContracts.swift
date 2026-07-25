@@ -231,6 +231,8 @@ public struct RemoteRecipeStepDTO: Codable, Hashable, Sendable {
     public let instruction: String
     public let ingredientIDs: [UUID]
     public let timers: [RemoteDetectedTimerDTO]
+    public let sourceStartSeconds: Double?
+    public let sourceEndSeconds: Double?
     public let uncertainty: RemoteFieldUncertaintyDTO?
 
     public init(_ value: RecipeStep) {
@@ -239,6 +241,8 @@ public struct RemoteRecipeStepDTO: Codable, Hashable, Sendable {
         instruction = value.instruction
         ingredientIDs = value.ingredientIDs
         timers = value.timers.map(RemoteDetectedTimerDTO.init)
+        sourceStartSeconds = value.sourceStartSeconds
+        sourceEndSeconds = value.sourceEndSeconds
         uncertainty = value.uncertainty.map(RemoteFieldUncertaintyDTO.init)
     }
 
@@ -249,6 +253,8 @@ public struct RemoteRecipeStepDTO: Codable, Hashable, Sendable {
             instruction: instruction,
             ingredientIDs: ingredientIDs,
             timers: timers.map { $0.timer() },
+            sourceStartSeconds: sourceStartSeconds,
+            sourceEndSeconds: sourceEndSeconds,
             uncertainty: uncertainty?.uncertainty()
         )
     }
@@ -349,6 +355,7 @@ public struct RemoteRecipeDTO: Codable, Hashable, Sendable {
     public let ingredients: [RemoteIngredientDTO]
     public let steps: [RemoteRecipeStepDTO]
     public let nutrition: RemoteNutritionDTO?
+    public let notes: [String]
     public let isFavorite: Bool
     public let reviewStatus: RecipeReviewStatus
     public let uncertainties: [RemoteFieldUncertaintyDTO]
@@ -380,6 +387,7 @@ public struct RemoteRecipeDTO: Codable, Hashable, Sendable {
         ingredients = recipe.ingredients.map(RemoteIngredientDTO.init)
         steps = recipe.steps.map(RemoteRecipeStepDTO.init)
         nutrition = recipe.nutrition.map(RemoteNutritionDTO.init)
+        notes = recipe.notes
         isFavorite = recipe.isFavorite
         reviewStatus = recipe.reviewStatus
         uncertainties = recipe.uncertainties.map(
@@ -406,6 +414,7 @@ public struct RemoteRecipeDTO: Codable, Hashable, Sendable {
             ingredients: try ingredients.map { try $0.ingredient() },
             steps: steps.map { $0.step() },
             nutrition: try nutrition?.nutrition(),
+            notes: notes,
             isFavorite: isFavorite,
             reviewStatus: reviewStatus,
             uncertainties: uncertainties.map { $0.uncertainty() },

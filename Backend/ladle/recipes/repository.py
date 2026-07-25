@@ -73,6 +73,7 @@ class RecipeRepository:
             user_id=user_id,
             title=recipe.title,
             description=recipe.description,
+            notes=list(recipe.notes),
             creator_name=recipe.creator_name,
             source=recipe.source.value,
             original_url=str(recipe.original_url),
@@ -153,6 +154,8 @@ class RecipeRepository:
                 recipe_id=stored.id,
                 order_index=step.order_index,
                 instruction=step.instruction,
+                source_start_seconds=step.source_start_seconds,
+                source_end_seconds=step.source_end_seconds,
             )
             for step in recipe.steps
         )
@@ -288,6 +291,7 @@ class RecipeRepository:
             id=stored.id,
             title=stored.title,
             description=stored.description,
+            notes=list(stored.notes or []),
             creator_name=stored.creator_name,
             source=RecipeSource(stored.source),
             original_url=stored.original_url,
@@ -320,6 +324,8 @@ class RecipeRepository:
                     order_index=step.order_index,
                     instruction=step.instruction,
                     ingredient_ids=links_by_step[step.id],
+                    source_start_seconds=step.source_start_seconds,
+                    source_end_seconds=step.source_end_seconds,
                     timers=[
                         DetectedTimerDTO(
                             id=timer.id,

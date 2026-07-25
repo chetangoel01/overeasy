@@ -58,6 +58,10 @@ struct RecipeDetailView: View {
                 sectionPicker
                 sectionContent
 
+                if !displayedRecipe.notes.isEmpty {
+                    creatorNotes
+                }
+
                 if displayedRecipe.nutrition?.isEstimated == true {
                     estimateNote
                 }
@@ -236,6 +240,32 @@ struct RecipeDetailView: View {
         case .method:
             MethodList(steps: displayedRecipe.orderedSteps)
         }
+    }
+
+    private var creatorNotes: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            LadleSectionHeader(title: "Notes from the source")
+
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(
+                    Array(displayedRecipe.notes.enumerated()),
+                    id: \.offset
+                ) { _, note in
+                    HStack(alignment: .top, spacing: 10) {
+                        Circle()
+                            .fill(LadleTheme.paprika)
+                            .frame(width: 5, height: 5)
+                            .padding(.top, 7)
+                            .accessibilityHidden(true)
+                        Text(note)
+                            .ladleFont(.body)
+                            .foregroundStyle(LadleTheme.ink.opacity(0.75))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+        }
+        .accessibilityIdentifier("recipe.notes")
     }
 
     private var estimateNote: some View {

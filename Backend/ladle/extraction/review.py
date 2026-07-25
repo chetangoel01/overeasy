@@ -18,6 +18,34 @@ from ladle.recipes.template_clone import (
 
 _CONFIDENCE_THRESHOLD = 0.7
 _MISSING_QUANTITY_THRESHOLD = 0.3
+# Finished main-dish weight per adult serving. Deliberately generous: a low
+# divisor over-reports servings, which understates per-serving nutrition.
+_GRAMS_PER_SERVING = Decimal(400)
+_MAX_ESTIMATED_SERVINGS = Decimal(12)
+
+
+def _estimate_servings(extraction: RecipeExtraction) -> Decimal | None:
+    """Approximate yield from the ingredients that carry metric amounts.
+
+    Seasonings and garnishes contribute negligible mass, so they are skipped
+    to keep the estimate anchored to the substance of the dish.
+    """
+    total = sum(
+        (
+            value.metric_amount
+            for value in extraction.ingredients
+            if value.metric_amount is not None
+            and value.metric_unit is not None
+            and not value.is_to_taste
+        ),
+        Decimal(0),
+    )
+    if total <= 0:
+        return None
+    estimated = (total / _GRAMS_PER_SERVING).quantize(Decimal("1"))
+    if estimated < 1:
+        return Decimal(1)
+    return min(estimated, _MAX_ESTIMATED_SERVINGS)
 
 
 def build_reviewed_template(
@@ -28,23 +56,69 @@ def build_reviewed_template(
     uncertainties = list(extraction.uncertainties)
     servings = extraction.servings
     if servings is None:
-        servings = Decimal(1)
+        # A yield the source never stated is unknown, not one. Downstream
+        # scaling and per-serving nutrition would inherit the lie.
+        estimated = _estimate_servings(extraction)
+        if estimated is None:
+            servings = Decimal(1)
+            uncertainties.append(
+                FieldUncertaintyDTO(
+                    field="servings",
+                    reason=(
+                        "Serving count was absent and could not be estimated "
+                        "from the ingredient amounts."
+                    ),
+                )
+            )
+        else:
+            servings = estimated
+            uncertainties.append(
+                FieldUncertaintyDTO(
+                    field="servings",
+                    reason=(
+                        "Serving count was absent; estimated from the total "
+                        "ingredient yield."
+                    ),
+                )
+            )
+    elif extraction.servings_basis == "estimatedFromYield":
         uncertainties.append(
             FieldUncertaintyDTO(
                 field="servings",
-                reason="Serving count was absent; defaulted to one.",
+                reason="Serving count was estimated from the recipe yield.",
             )
         )
 
+    quantified = [value for value in extraction.ingredients if not value.is_to_taste]
     missing_quantities = sum(
         value.quantity_text is None and value.normalized_quantity is None
-        for value in extraction.ingredients
+        for value in quantified
     )
-    if missing_quantities / len(extraction.ingredients) > _MISSING_QUANTITY_THRESHOLD:
+    if quantified and (
+        missing_quantities / len(quantified) > _MISSING_QUANTITY_THRESHOLD
+    ):
         uncertainties.append(
             FieldUncertaintyDTO(
                 field="ingredientQuantities",
                 reason="More than 30 percent of ingredients lack quantities.",
+            )
+        )
+
+    if extraction.method_provenance == "inferred":
+        uncertainties.append(
+            FieldUncertaintyDTO(
+                field="steps",
+                reason=(
+                    "The source did not describe a method; these steps were "
+                    "reconstructed and need your review."
+                ),
+            )
+        )
+    elif extraction.method_provenance == "partial":
+        uncertainties.append(
+            FieldUncertaintyDTO(
+                field="steps",
+                reason="Some steps were bridged where the source was silent.",
             )
         )
 
@@ -116,6 +190,8 @@ def build_reviewed_template(
                     )
                     for timer in step_value.timers
                 ],
+                source_start_seconds=step_value.source_start_seconds,
+                source_end_seconds=step_value.source_end_seconds,
                 uncertainty=uncertainty,
             )
         )
@@ -167,6 +243,7 @@ def build_reviewed_template(
         ingredients=ingredients,
         steps=steps,
         nutrition=template_nutrition,
+        notes=[note for note in (n.strip() for n in extraction.notes) if note],
         review_status=review_status,
         uncertainties=uncertainties,
     )

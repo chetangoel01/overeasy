@@ -55,6 +55,8 @@ class RecipeStepDTO(WireModel):
     order_index: int = Field(ge=0)
     instruction: str = Field(min_length=1)
     ingredient_ids: list[WireUUID] = Field(default_factory=list)
+    source_start_seconds: float | None = Field(default=None, ge=0)
+    source_end_seconds: float | None = Field(default=None, ge=0)
     timers: list[DetectedTimerDTO] = Field(default_factory=list)
     uncertainty: FieldUncertaintyDTO | None = None
 
@@ -95,6 +97,7 @@ class RecipeDTO(WireModel):
     ingredients: list[IngredientDTO] = Field(default_factory=list)
     steps: list[RecipeStepDTO] = Field(default_factory=list)
     nutrition: NutritionDTO | None = None
+    notes: list[str] = Field(default_factory=list)
     is_favorite: bool
     review_status: RecipeReviewStatus
     uncertainties: list[FieldUncertaintyDTO] = Field(default_factory=list)

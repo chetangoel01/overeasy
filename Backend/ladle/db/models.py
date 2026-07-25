@@ -9,6 +9,7 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     DateTime,
+    Float,
     ForeignKey,
     ForeignKeyConstraint,
     Index,
@@ -232,6 +233,9 @@ class Recipe(Base):
     )
     title: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
+    notes: Mapped[list[str]] = mapped_column(
+        JSON, nullable=False, default=list, server_default=text("'[]'::json")
+    )
     creator_name: Mapped[str | None] = mapped_column(Text, nullable=True)
     source: Mapped[str] = mapped_column(String(16), nullable=False)
     original_url: Mapped[str] = mapped_column(Text, nullable=False)
@@ -471,6 +475,8 @@ class RecipeStep(Base):
     )
     order_index: Mapped[int] = mapped_column(Integer, nullable=False)
     instruction: Mapped[str] = mapped_column(Text, nullable=False)
+    source_start_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    source_end_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
 class StepIngredient(Base):

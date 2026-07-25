@@ -48,6 +48,8 @@ class TemplateStep(WireModel):
     instruction: str = Field(min_length=1)
     ingredient_indexes: list[int] = Field(default_factory=list)
     timers: list[TemplateTimer] = Field(default_factory=list)
+    source_start_seconds: float | None = Field(default=None, ge=0)
+    source_end_seconds: float | None = Field(default=None, ge=0)
     uncertainty: FieldUncertaintyDTO | None = None
 
 
@@ -84,6 +86,7 @@ class RecipeTemplate(WireModel):
     ingredients: list[TemplateIngredient] = Field(default_factory=list)
     steps: list[TemplateStep] = Field(default_factory=list)
     nutrition: TemplateNutrition | None = None
+    notes: list[str] = Field(default_factory=list)
     review_status: RecipeReviewStatus
     uncertainties: list[FieldUncertaintyDTO] = Field(default_factory=list)
 

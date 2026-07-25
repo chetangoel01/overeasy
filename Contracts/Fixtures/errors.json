@@ -34,7 +34,8 @@
           "title": "Tomato Toast",
           "totalMinutes": null,
           "uncertainties": [],
-          "updatedAt": "2026-07-23T20:19:00.000Z"
+          "updatedAt": "2026-07-23T20:19:00.000Z",
+          "notes": []
         },
         "currentRevision": 2
       },
