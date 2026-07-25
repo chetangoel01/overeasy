@@ -103,17 +103,35 @@ class MediaAudioSource:
         media_url: str | None,
         work_dir: Path,
     ) -> Path | None:
-        """The downloaded file itself, picture and all.
-
-        Transcription only wants the audio, but sampling frames needs the
-        video, and both come from the same download.
-        """
+        """Whatever carries the sound, which is all transcription needs."""
 
         if media_url:
             downloaded = self._download(media_url, work_dir)
             if downloaded is not None:
                 return downloaded
         return self._ytdlp_audio(source.canonical_url, work_dir)
+
+    def video(
+        self,
+        source: SourceVideoDescriptor,
+        *,
+        media_url: str | None,
+        work_dir: Path,
+    ) -> Path | None:
+        """A file with pictures in it, for anything that samples frames.
+
+        Kept apart from `media` because the audio selector is allowed to
+        return a stream with no video track, and silently handing that to a
+        frame sampler produces no frames and no explanation.
+        """
+
+        if media_url:
+            downloaded = self._download(media_url, work_dir)
+            if downloaded is not None:
+                return downloaded
+        if not self._ytdlp.available:
+            return None
+        return self._ytdlp.video(source.canonical_url, work_dir=work_dir)
 
     def audio(
         self,

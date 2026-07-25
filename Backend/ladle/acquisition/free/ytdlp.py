@@ -213,11 +213,29 @@ class YtDlpClient:
 
     def audio(self, url: str, *, work_dir: Path) -> Path | None:
         """Best available audio stream, or None when it will not download."""
+        return self._download(url, work_dir=work_dir, selector="bestaudio/best")
+
+    def video(self, url: str, *, work_dir: Path) -> Path | None:
+        """A file that carries pictures, which "bestaudio" often does not.
+
+        Instagram publishes a separate audio stream, so the audio selector
+        returns a bare .m4a — everything transcription needs and nothing a
+        frame can be cut from. TikTok has no separate stream, which is why
+        sampling frames appeared to work there and nowhere else.
+        """
+
+        return self._download(
+            url,
+            work_dir=work_dir,
+            selector="best[vcodec!=none]/bestvideo*+bestaudio/best",
+        )
+
+    def _download(self, url: str, *, work_dir: Path, selector: str) -> Path | None:
         command = [
             self._require_binary(),
             "--no-playlist",
             "-f",
-            "bestaudio/best",
+            selector,
             "--no-warnings",
             "--socket-timeout",
             "20",
@@ -230,11 +248,11 @@ class YtDlpClient:
         try:
             result = self._runner(command, timeout=self._audio_timeout)
         except (subprocess.TimeoutExpired, OSError) as error:
-            LOGGER.info("yt-dlp audio download failed for %s: %s", url, error)
+            LOGGER.info("yt-dlp download failed for %s: %s", url, error)
             return None
         if result.returncode != 0:
             LOGGER.info(
-                "yt-dlp audio download failed: %s",
+                "yt-dlp download failed: %s",
                 _tail(result.stderr or result.stdout),
             )
             return None

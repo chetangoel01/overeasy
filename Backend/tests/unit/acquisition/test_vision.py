@@ -152,7 +152,7 @@ class Media:
         self.path = path
         self.calls: list[str | None] = []
 
-    def media(
+    def video(
         self,
         source: SourceVideoDescriptor,
         *,

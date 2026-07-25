@@ -61,7 +61,7 @@ _INSTRUCTION = (
 
 
 class MediaSource(Protocol):
-    def media(
+    def video(
         self,
         source: SourceVideoDescriptor,
         *,
@@ -325,7 +325,7 @@ class VisionVisualProvider:
             raise VisualAnalysisUnavailable("ffmpeg is unavailable")
         with tempfile.TemporaryDirectory(prefix="ladle-frames-") as folder:
             work_dir = Path(folder)
-            media = self._media_source.media(
+            media = self._media_source.video(
                 source,
                 media_url=media_url,
                 work_dir=work_dir,

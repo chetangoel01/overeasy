@@ -1,5 +1,6 @@
 import json
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -161,3 +162,33 @@ def test_missing_binary_reports_unavailable(monkeypatch: pytest.MonkeyPatch) -> 
 
 def test_binary_is_discovered_beside_the_interpreter() -> None:
     assert YtDlpClient(runner=Runner()).available is True
+
+
+def test_frame_sampling_asks_for_a_stream_that_has_pictures(tmp_path: Path) -> None:
+    """ "bestaudio" returns a bare .m4a on Instagram, which has no frames.
+
+    TikTok publishes no separate audio stream, so the audio selector fell
+    back to video there and frame sampling looked like it worked everywhere.
+    """
+
+    seen: list[list[str]] = []
+
+    def runner(
+        command: list[str], *, timeout: float
+    ) -> subprocess.CompletedProcess[str]:
+        del timeout
+        seen.append(command)
+        (tmp_path / "download.mp4").write_bytes(b"video")
+        return subprocess.CompletedProcess(
+            args=command, returncode=0, stdout="", stderr=""
+        )
+
+    client = YtDlpClient(binary="yt-dlp", runner=runner)
+
+    client.video("https://www.instagram.com/reel/abc/", work_dir=tmp_path)
+    selector = seen[0][seen[0].index("-f") + 1]
+    assert "vcodec!=none" in selector
+    assert selector != "bestaudio/best"
+
+    client.audio("https://www.instagram.com/reel/abc/", work_dir=tmp_path)
+    assert seen[1][seen[1].index("-f") + 1] == "bestaudio/best"
