@@ -17,6 +17,9 @@ dependencies = [
     "redis>=6.4,<7",
     "sqlalchemy>=2.0.41,<2.1",
     "uvicorn[standard]>=0.35,<1",
+    # Extractors break whenever a platform changes its page shape; keep this
+    # floating within the year and rebuild often.
+    "yt-dlp>=2026.7.4,<2027",
 ]
 
 [build-system]

@@ -6,6 +6,7 @@ from uuid import UUID
 import httpx
 from anthropic import Anthropic
 
+from ladle.acquisition.free import FreeAcquirer, SafeLinkFetcher, YtDlpClient
 from ladle.acquisition.models import (
     AcquiredVideoContext,
     SourceVideoDescriptor,
@@ -133,6 +134,27 @@ class FakeRuntimeExtractor:
         )
 
 
+def _free_acquirer(settings: Settings) -> FreeAcquirer | None:
+    if not settings.free_acquisition_enabled:
+        return None
+    ytdlp = YtDlpClient(
+        binary=settings.ytdlp_binary_path,
+        metadata_timeout_seconds=settings.ytdlp_timeout_seconds,
+        subtitle_timeout_seconds=settings.ytdlp_timeout_seconds,
+    )
+    fetcher = (
+        SafeLinkFetcher(http=httpx.Client(timeout=settings.linked_page_timeout_seconds))
+        if settings.free_acquisition_follow_links
+        else None
+    )
+    return FreeAcquirer(
+        ytdlp=ytdlp,
+        fetcher=fetcher,
+        follow_caption_links=settings.free_acquisition_follow_links,
+        subtitles_enabled=settings.free_acquisition_subtitles,
+    )
+
+
 @lru_cache(maxsize=1)
 def runtime_orchestrator() -> ImportOrchestrator:
     settings = Settings()
@@ -199,6 +221,7 @@ def runtime_orchestrator() -> ImportOrchestrator:
                 failure_threshold=settings.provider_circuit_failure_threshold,
                 cooldown=timedelta(seconds=settings.provider_circuit_cooldown_seconds),
             ),
+            free=_free_acquirer(settings),
             metrics=metrics,
         )
         if settings.extraction_provider == "openrouter":

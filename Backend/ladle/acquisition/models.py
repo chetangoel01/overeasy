@@ -50,6 +50,19 @@ class VisualEvidence(WireModel):
     confidence: float | None = Field(default=None, ge=0, le=1)
 
 
+class LinkedDocument(WireModel):
+    """A written page the creator themselves pointed at, fetched verbatim.
+
+    Kept apart from transcript evidence because a blog post is not narration:
+    conflating the two lets a model report a written method as something the
+    creator said on camera.
+    """
+
+    url: str = Field(pattern=r"^https?://")
+    text: str = Field(min_length=1, max_length=20_000)
+    provenance: str = Field(min_length=1)
+
+
 class MediaMetadata(WireModel):
     title: str | None = None
     description: str = Field(max_length=50_000)
@@ -82,4 +95,5 @@ class AcquiredVideoContext(WireModel):
     language: str | None = None
     transcript: list[TextEvidence] = Field(default_factory=list)
     visual_observations: list[VisualEvidence] = Field(default_factory=list)
+    linked_documents: list[LinkedDocument] = Field(default_factory=list)
     diagnostics: list[str] = Field(default_factory=list)

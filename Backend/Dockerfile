@@ -2,6 +2,12 @@ FROM python:3.12-slim
 
 COPY --from=ghcr.io/astral-sh/uv:0.8.22 /uv /uvx /bin/
 
+# The keyless acquisition rung shells out to yt-dlp for public metadata and
+# captions. No ffmpeg: audio transcription stays a billed provider's job.
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \

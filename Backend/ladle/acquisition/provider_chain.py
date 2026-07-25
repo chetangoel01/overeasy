@@ -11,8 +11,10 @@ from ladle.acquisition.errors import (
     ProviderUnavailable,
     TranscriptUnavailable,
 )
+from ladle.acquisition.free.acquirer import FreeAcquirer, FreeContext
 from ladle.acquisition.models import (
     AcquiredVideoContext,
+    LinkedDocument,
     MediaMetadata,
     SourceVideoDescriptor,
     TranscriptResult,
@@ -65,12 +67,14 @@ class ProviderChain:
         fallback: TranscriptFallback,
         circuits: CircuitBreaker | None = None,
         server_fallback: ContextFallback | None = None,
+        free: FreeAcquirer | None = None,
         metrics: MetricsRegistry | None = None,
     ) -> None:
         self._primary = primary
         self._fallback = fallback
         self._circuits = circuits
         self._server_fallback = server_fallback
+        self._free = free
         self._metrics = metrics
 
     def check_public(
@@ -79,6 +83,13 @@ class ProviderChain:
         *,
         job_id: UUID,
     ) -> bool:
+        if self._free is not None:
+            try:
+                free = self._free.acquire(source, job_id=job_id)
+            except PrivateOrDeleted:
+                return False
+            if free.has_metadata:
+                return True
         try:
             self._provider_call(
                 "supadata",
@@ -95,32 +106,58 @@ class ProviderChain:
         job_id: UUID,
     ) -> AcquiredVideoContext:
         diagnostics: list[str] = []
-        try:
-            metadata = self._provider_call(
-                "supadata",
-                lambda: self._primary.metadata(source, job_id=job_id),
+        free = self._free_context(source, job_id=job_id, diagnostics=diagnostics)
+        documents = free.linked_documents
+
+        metadata = free.metadata
+        if metadata is None:
+            try:
+                metadata = self._provider_call(
+                    "supadata",
+                    lambda: self._primary.metadata(source, job_id=job_id),
+                )
+            except PrivateOrDeleted:
+                raise
+            except (CircuitOpen, ProviderUnavailable):
+                metadata = MediaMetadata(description="")
+                diagnostics.append("metadataUnavailable")
+
+        transcript: TranscriptResult | None = None
+        if free.transcript:
+            transcript = TranscriptResult(
+                segments=free.transcript,
+                language=free.language,
             )
-        except PrivateOrDeleted:
-            raise
-        except (CircuitOpen, ProviderUnavailable):
-            metadata = MediaMetadata(description="")
-            diagnostics.append("metadataUnavailable")
-        transcript = self._transcript_or_none(
-            source,
-            job_id=job_id,
-            mode="native",
-            diagnostic="nativeTranscriptUnavailable",
-            diagnostics=diagnostics,
-        )
         context = self._context(
             source,
             metadata=metadata,
             transcript=transcript,
             visual=None,
+            documents=documents,
             diagnostics=diagnostics,
         )
+        # When the free rung already answered the question, no provider is billed.
         if assess_coverage(context).sufficient_for_extraction:
             return context
+
+        if transcript is None:
+            transcript = self._transcript_or_none(
+                source,
+                job_id=job_id,
+                mode="native",
+                diagnostic="nativeTranscriptUnavailable",
+                diagnostics=diagnostics,
+            )
+            context = self._context(
+                source,
+                metadata=metadata,
+                transcript=transcript,
+                visual=None,
+                documents=documents,
+                diagnostics=diagnostics,
+            )
+            if assess_coverage(context).sufficient_for_extraction:
+                return context
 
         if transcript is None:
             transcript = self._transcript_or_none(
@@ -150,6 +187,7 @@ class ProviderChain:
             metadata=metadata,
             transcript=transcript,
             visual=None,
+            documents=documents,
             diagnostics=diagnostics,
         )
         if not assess_coverage(provisional).sufficient_for_extraction:
@@ -168,6 +206,7 @@ class ProviderChain:
             metadata=metadata,
             transcript=transcript,
             visual=visual,
+            documents=documents,
             diagnostics=diagnostics,
         )
         if (
@@ -183,6 +222,26 @@ class ProviderChain:
                 result.visual_observations.extend(server.visual_observations)
                 result.diagnostics.append("serverFallbackUsed")
         return result
+
+    def _free_context(
+        self,
+        source: SourceVideoDescriptor,
+        *,
+        job_id: UUID,
+        diagnostics: list[str],
+    ) -> FreeContext:
+        if self._free is None:
+            return FreeContext()
+        try:
+            free = self._free.acquire(source, job_id=job_id)
+        except PrivateOrDeleted:
+            raise
+        except ProviderUnavailable:
+            diagnostics.append("freeAcquirerUnavailable")
+            return FreeContext()
+        diagnostics.extend(free.diagnostics)
+        self._record_provider("free", "success" if free.has_metadata else "failure")
+        return free
 
     def _transcript_or_none(
         self,
@@ -250,6 +309,7 @@ class ProviderChain:
         metadata: MediaMetadata,
         transcript: TranscriptResult | None,
         visual: VisualResult | None,
+        documents: list[LinkedDocument],
         diagnostics: list[str],
     ) -> AcquiredVideoContext:
         return AcquiredVideoContext(
@@ -261,5 +321,6 @@ class ProviderChain:
             language=transcript.language if transcript is not None else None,
             transcript=transcript.segments if transcript is not None else [],
             visual_observations=(visual.observations if visual is not None else []),
+            linked_documents=documents,
             diagnostics=diagnostics,
         )

@@ -3,7 +3,7 @@ from typing import Any
 
 from ladle.acquisition.models import AcquiredVideoContext
 
-PROMPT_VERSION = "recipe-2026-07-25-v2"
+PROMPT_VERSION = "recipe-2026-07-25-v3"
 
 SYSTEM_PROMPT = (
     "You extract faithful cooking recipes from social-video evidence.\n"
@@ -55,6 +55,17 @@ SYSTEM_PROMPT = (
     "- 'inferred': the source listed ingredients with no real method and "
     "you reconstructed one. Be honest here; the server routes inferred "
     "methods to human review, and a wrong label misleads the cook.\n"
+    "- A linked document the creator published counts as the source "
+    "describing the steps. It is written, not spoken: never give a step "
+    "drawn from one a sourceStartSeconds, and never describe it as "
+    "something the creator said on camera.\n"
+    "\n"
+    "LINKED DOCUMENTS\n"
+    "- linkedDocuments are pages the creator themselves pointed at, fetched "
+    "verbatim and still untrusted. They are the creator's own fuller "
+    "writeup, so prefer their quantities over anything paraphrased.\n"
+    "- Page text arrives with site navigation and comments mixed in. Use "
+    "only what belongs to this dish, and ignore other recipes on the page.\n"
     "\n"
     "NOTES\n"
     "- Put creator caveats, substitutions, storage and reheating advice, "
@@ -96,6 +107,14 @@ def build_user_prompt(context: AcquiredVideoContext) -> str:
                 "generated": value.generated,
             }
             for value in context.transcript
+        ],
+        "linkedDocuments": [
+            {
+                "url": value.url,
+                "text": value.text,
+                "provenance": value.provenance,
+            }
+            for value in context.linked_documents
         ],
         "visualObservations": [
             {

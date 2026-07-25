@@ -16,6 +16,14 @@ _INSTRUCTION = re.compile(
 )
 
 
+def has_quantities(text: str) -> bool:
+    return _QUANTITY.search(text) is not None
+
+
+def has_instructions(text: str) -> bool:
+    return _INSTRUCTION.search(text) is not None
+
+
 @dataclass(frozen=True)
 class CoverageReport:
     has_quantities: bool
@@ -32,17 +40,18 @@ def assess_coverage(context: AcquiredVideoContext) -> CoverageReport:
             context.title or "",
             context.description,
             *(segment.text for segment in context.transcript),
+            *(document.text for document in context.linked_documents),
         ]
     )
     visual = " ".join(value.text for value in context.visual_observations)
-    spoken_has_quantities = _QUANTITY.search(spoken) is not None
-    visual_has_quantities = _QUANTITY.search(visual) is not None
-    has_quantities = spoken_has_quantities or visual_has_quantities
-    has_instructions = _INSTRUCTION.search(f"{spoken} {visual}") is not None
-    sufficient = has_quantities and has_instructions
+    spoken_has_quantities = has_quantities(spoken)
+    visual_has_quantities = has_quantities(visual)
+    quantities = spoken_has_quantities or visual_has_quantities
+    instructions = has_instructions(f"{spoken} {visual}")
+    sufficient = quantities and instructions
     return CoverageReport(
-        has_quantities=has_quantities,
-        has_instructions=has_instructions,
+        has_quantities=quantities,
+        has_instructions=instructions,
         sufficient_for_extraction=sufficient,
         requires_visual_fallback=not sufficient and not visual_has_quantities,
         requires_review=not sufficient,

@@ -59,6 +59,15 @@ class Settings(BaseSettings):
     object_storage_access_key: str = "ladle-local"
     object_storage_secret_key: SecretStr = SecretStr("ladle-local-secret")
 
+    # Keyless first rung. Runs before any billed provider; when it satisfies
+    # coverage on its own, nothing downstream is called.
+    free_acquisition_enabled: bool = True
+    free_acquisition_subtitles: bool = True
+    free_acquisition_follow_links: bool = True
+    ytdlp_binary_path: str | None = None
+    ytdlp_timeout_seconds: float = Field(default=90, gt=0)
+    linked_page_timeout_seconds: float = Field(default=12, gt=0)
+
     supadata_base_url: AnyHttpUrl = AnyHttpUrl("https://api.supadata.ai/v1")
     supadata_timeout_seconds: float = Field(default=30, gt=0)
     supadata_api_key: SecretStr | None = None
