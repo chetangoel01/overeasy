@@ -1,4 +1,5 @@
 import json
+import logging
 
 import httpx
 from pydantic import ValidationError
@@ -8,6 +9,8 @@ from ladle.extraction.claude import (
     ExtractionUnavailable,
 )
 from ladle.extraction.models import RecipeExtraction
+
+LOGGER = logging.getLogger(__name__)
 
 _FINISH_REASON_TO_STOP_REASON = {
     "length": "max_tokens",
@@ -128,7 +131,19 @@ class OpenRouterStructuredClient:
         if isinstance(content, str) and content.strip():
             try:
                 parsed = RecipeExtraction.model_validate_json(content)
-            except ValidationError:
+            except ValidationError as error:
+                # Swallowing this silently cost real debugging: a whole
+                # extraction would vanish with nothing recorded about why, and
+                # the cause turned out to be a single fraction in one field.
+                LOGGER.warning(
+                    "Extraction did not match the schema (%d errors): %s",
+                    error.error_count(),
+                    "; ".join(
+                        f"{'.'.join(str(part) for part in item['loc'])}="
+                        f"{item.get('input')!r}"
+                        for item in error.errors()[:5]
+                    ),
+                )
                 parsed = None
 
         usage = data.get("usage") or {}
