@@ -35,6 +35,9 @@ _MAX_TITLE_CHARACTERS = 120
 class InstagramMedia:
     metadata: MediaMetadata
     observations: list[VisualEvidence]
+    # Instagram publishes no transcript, so the media file is the only route to
+    # what was actually said. It downloads without authentication.
+    media_url: str | None = None
 
 
 class InstagramEmbedClient:
@@ -104,6 +107,7 @@ def _media(media: dict[str, object]) -> InstagramMedia | None:
             ),
         ),
         observations=_observations(media),
+        media_url=str(media.get("video_url") or "").strip() or None,
     )
 
 

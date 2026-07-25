@@ -68,6 +68,14 @@ class Settings(BaseSettings):
     ytdlp_timeout_seconds: float = Field(default=90, gt=0)
     linked_page_timeout_seconds: float = Field(default=12, gt=0)
 
+    # Whisper on the raw audio. Cheap enough to precede the transcript
+    # providers, and it reuses the OpenRouter key rather than adding a secret.
+    audio_transcription_enabled: bool = True
+    transcription_model_id: str = "openai/whisper-large-v3"
+    transcription_timeout_seconds: float = Field(default=300, gt=0)
+    transcription_max_audio_bytes: int = Field(default=20 * 1024 * 1024, gt=0)
+    transcription_max_duration_seconds: float = Field(default=1800, gt=0)
+
     supadata_base_url: AnyHttpUrl = AnyHttpUrl("https://api.supadata.ai/v1")
     supadata_timeout_seconds: float = Field(default=30, gt=0)
     supadata_api_key: SecretStr | None = None

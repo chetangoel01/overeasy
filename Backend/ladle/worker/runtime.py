@@ -1,3 +1,4 @@
+import logging
 from datetime import timedelta
 from decimal import Decimal
 from functools import lru_cache
@@ -6,6 +7,11 @@ from uuid import UUID
 import httpx
 from anthropic import Anthropic
 
+from ladle.acquisition.audio import (
+    AudioTranscriptProvider,
+    MediaAudioSource,
+    WhisperTranscriber,
+)
 from ladle.acquisition.free import (
     FreeAcquirer,
     InstagramEmbedClient,
@@ -51,6 +57,8 @@ from ladle.recipes.template_clone import (
 from ladle.usage.circuit import CircuitBreaker
 from ladle.usage.ledger import ProviderUsageLedger
 from ladle.usage.limits import UsageLimitService
+
+LOGGER = logging.getLogger(__name__)
 
 
 class FakeRuntimeAcquirer:
@@ -138,6 +146,34 @@ class FakeRuntimeExtractor:
             ],
             review_status=RecipeReviewStatus.READY,
         )
+
+
+def _audio_transcriber(
+    settings: Settings,
+    *,
+    usage: ProviderUsageLedger,
+) -> AudioTranscriptProvider | None:
+    if not settings.audio_transcription_enabled or settings.openrouter_api_key is None:
+        return None
+    source = MediaAudioSource(
+        ytdlp=YtDlpClient(binary=settings.ytdlp_binary_path),
+        http=httpx.Client(timeout=settings.transcription_timeout_seconds),
+    )
+    if not source.available:
+        LOGGER.warning("ffmpeg is missing; audio transcription is disabled")
+        return None
+    return AudioTranscriptProvider(
+        audio_source=source,
+        transcriber=WhisperTranscriber(
+            http=httpx.Client(timeout=settings.transcription_timeout_seconds),
+            api_key=settings.openrouter_api_key.get_secret_value(),
+            base_url=str(settings.openrouter_base_url),
+            model_id=settings.transcription_model_id,
+            max_audio_bytes=settings.transcription_max_audio_bytes,
+            usage=usage,
+        ),
+        max_duration_seconds=settings.transcription_max_duration_seconds,
+    )
 
 
 def _free_acquirer(settings: Settings) -> FreeAcquirer | None:
@@ -230,6 +266,7 @@ def runtime_orchestrator() -> ImportOrchestrator:
                 cooldown=timedelta(seconds=settings.provider_circuit_cooldown_seconds),
             ),
             free=_free_acquirer(settings),
+            audio=_audio_transcriber(settings, usage=usage),
             metrics=metrics,
         )
         if settings.extraction_provider == "openrouter":

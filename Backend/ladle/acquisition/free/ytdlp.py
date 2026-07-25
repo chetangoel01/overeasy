@@ -134,11 +134,13 @@ class YtDlpClient:
         runner: CommandRunner = run_command,
         metadata_timeout_seconds: float = 90,
         subtitle_timeout_seconds: float = 90,
+        audio_timeout_seconds: float = 240,
     ) -> None:
         self._binary = binary or _discover_binary()
         self._runner = runner
         self._metadata_timeout = metadata_timeout_seconds
         self._subtitle_timeout = subtitle_timeout_seconds
+        self._audio_timeout = audio_timeout_seconds
 
     @property
     def available(self) -> bool:
@@ -208,6 +210,40 @@ class YtDlpClient:
                 return []
             raw = files[0].read_text(errors="replace")
         return parse_vtt(raw, generated=track.generated, language=track.language)
+
+    def audio(self, url: str, *, work_dir: Path) -> Path | None:
+        """Best available audio stream, or None when it will not download."""
+        command = [
+            self._require_binary(),
+            "--no-playlist",
+            "-f",
+            "bestaudio/best",
+            "--no-warnings",
+            "--socket-timeout",
+            "20",
+            "--max-filesize",
+            "150M",
+            "-o",
+            str(work_dir / "download.%(ext)s"),
+            url,
+        ]
+        try:
+            result = self._runner(command, timeout=self._audio_timeout)
+        except (subprocess.TimeoutExpired, OSError) as error:
+            LOGGER.info("yt-dlp audio download failed for %s: %s", url, error)
+            return None
+        if result.returncode != 0:
+            LOGGER.info(
+                "yt-dlp audio download failed: %s",
+                _tail(result.stderr or result.stdout),
+            )
+            return None
+        files = sorted(
+            (item for item in work_dir.glob("download.*") if item.is_file()),
+            key=lambda item: item.stat().st_size,
+            reverse=True,
+        )
+        return files[0] if files else None
 
     def _json(self, command: list[str], *, timeout: float) -> dict[str, Any]:
         try:

@@ -51,6 +51,17 @@ class TranscriptFallback(Protocol):
     ) -> TranscriptResult: ...
 
 
+class AudioTranscriber(Protocol):
+    def transcript(
+        self,
+        source: SourceVideoDescriptor,
+        *,
+        job_id: UUID,
+        media_url: str | None = None,
+        duration_seconds: float | None = None,
+    ) -> TranscriptResult: ...
+
+
 class ContextFallback(Protocol):
     def acquire(
         self,
@@ -69,10 +80,12 @@ class ProviderChain:
         circuits: CircuitBreaker | None = None,
         server_fallback: ContextFallback | None = None,
         free: FreeAcquirer | None = None,
+        audio: AudioTranscriber | None = None,
         metrics: MetricsRegistry | None = None,
     ) -> None:
         self._primary = primary
         self._fallback = fallback
+        self._audio = audio
         self._circuits = circuits
         self._server_fallback = server_fallback
         self._free = free
@@ -142,6 +155,17 @@ class ProviderChain:
         # When the free rung already answered the question, no provider is billed.
         if assess_coverage(context).sufficient_for_extraction:
             return context
+
+        # Whisper on the raw audio undercuts the transcript providers by an
+        # order of magnitude, so it goes first among the paid rungs.
+        if transcript is None:
+            transcript = self._audio_transcript(
+                source,
+                job_id=job_id,
+                metadata=metadata,
+                media_url=free.media_url,
+                diagnostics=diagnostics,
+            )
 
         if transcript is None:
             transcript = self._transcript_or_none(
@@ -247,6 +271,35 @@ class ProviderChain:
         diagnostics.extend(free.diagnostics)
         self._record_provider("free", "success" if free.has_metadata else "failure")
         return free
+
+    def _audio_transcript(
+        self,
+        source: SourceVideoDescriptor,
+        *,
+        job_id: UUID,
+        metadata: MediaMetadata,
+        media_url: str | None,
+        diagnostics: list[str],
+    ) -> TranscriptResult | None:
+        if self._audio is None:
+            return None
+        try:
+            result = self._provider_call(
+                "whisper",
+                lambda: self._audio.transcript(  # type: ignore[union-attr]
+                    source,
+                    job_id=job_id,
+                    media_url=media_url,
+                    duration_seconds=metadata.duration_seconds,
+                ),
+            )
+        except PrivateOrDeleted:
+            raise
+        except (CircuitOpen, TranscriptUnavailable, ProviderUnavailable):
+            diagnostics.append("audioTranscriptionUnavailable")
+            return None
+        diagnostics.append("audioTranscriptionUsed")
+        return result
 
     def _transcript_or_none(
         self,

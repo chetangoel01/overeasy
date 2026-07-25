@@ -1,6 +1,7 @@
 """The free rung must actually displace paid calls, not merely precede them."""
 
 from dataclasses import dataclass, field
+from decimal import Decimal
 from uuid import UUID, uuid4
 
 import pytest
@@ -238,6 +239,115 @@ def test_free_transcript_skips_every_paid_transcript_rung() -> None:
     # visual rung is worth paying for after it.
     assert primary.calls == ["visual"]
     assert fallback.calls == 0
+
+
+@dataclass
+class Audio:
+    result: TranscriptResult | Exception
+    calls: list[tuple[str | None, float | None]] = field(default_factory=list)
+
+    def transcript(
+        self,
+        source: SourceVideoDescriptor,
+        *,
+        job_id: UUID,
+        media_url: str | None = None,
+        duration_seconds: float | None = None,
+    ) -> TranscriptResult:
+        del source, job_id
+        self.calls.append((media_url, duration_seconds))
+        if isinstance(self.result, Exception):
+            raise self.result
+        return self.result
+
+
+def whisper_transcript() -> TranscriptResult:
+    return TranscriptResult(
+        segments=[
+            TextEvidence(
+                text="Add 2 cans of chickpeas, then simmer until it thickens.",
+                start_seconds=0.28,
+                end_seconds=12.0,
+                provenance="whisper:openai/whisper-large-v3",
+                generated=True,
+            )
+        ],
+        language="english",
+        billed_units=Decimal("22.3"),
+    )
+
+
+def test_audio_transcription_runs_before_the_transcript_providers() -> None:
+    primary = Primary()
+    fallback = Fallback()
+    audio = Audio(whisper_transcript())
+    free = Free(
+        FreeContext(
+            metadata=MediaMetadata(
+                title="Chickpeas",
+                description="link in bio",
+                duration_seconds=22.3,
+            ),
+            media_url="https://cdn.instagram.com/reel.mp4",
+            diagnostics=["instagramEmbedUsed"],
+        )
+    )
+    chain = ProviderChain(primary=primary, fallback=fallback, free=free, audio=audio)
+
+    context = chain.acquire(source(), job_id=uuid4())
+
+    # Whisper answered, so neither Supadata transcript rung nor SoScripted ran.
+    assert audio.calls == [("https://cdn.instagram.com/reel.mp4", 22.3)]
+    assert primary.calls == []
+    assert fallback.calls == 0
+    assert context.transcript[0].provenance == "whisper:openai/whisper-large-v3"
+    assert "audioTranscriptionUsed" in context.diagnostics
+
+
+def test_failed_transcription_still_falls_through_to_paid_providers() -> None:
+    primary = Primary()
+    fallback = Fallback()
+    audio = Audio(TranscriptUnavailable("no audio"))
+    free = Free(
+        FreeContext(
+            metadata=MediaMetadata(title="Dinner", description="so good"),
+            diagnostics=["freeMetadataUsed"],
+        )
+    )
+    chain = ProviderChain(primary=primary, fallback=fallback, free=free, audio=audio)
+
+    context = chain.acquire(source(), job_id=uuid4())
+
+    assert len(audio.calls) == 1
+    assert primary.calls == ["transcript:native", "transcript:auto", "visual"]
+    assert fallback.calls == 1
+    assert "audioTranscriptionUnavailable" in context.diagnostics
+
+
+def test_free_transcript_means_no_transcription_is_bought() -> None:
+    audio = Audio(whisper_transcript())
+    free = Free(
+        FreeContext(
+            metadata=MediaMetadata(title="Chickpeas", description="link in bio"),
+            transcript=[
+                TextEvidence(
+                    text="Add 2 cups of orzo and simmer for ten minutes.",
+                    start_seconds=0,
+                    end_seconds=5,
+                    provenance="tiktok:asr:auto:eng-US",
+                    generated=True,
+                )
+            ],
+            diagnostics=["tiktokAsrCaptionsUsed"],
+        )
+    )
+    chain = ProviderChain(
+        primary=Primary(), fallback=Fallback(), free=free, audio=audio
+    )
+
+    chain.acquire(source(), job_id=uuid4())
+
+    assert audio.calls == []
 
 
 def test_free_metadata_failure_falls_back_to_paid_metadata() -> None:
