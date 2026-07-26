@@ -41,6 +41,7 @@ from ladle.auth.apple import (
     HTTPAppleJWKS,
 )
 from ladle.auth.attestation import AppleAppAttestVerifier, AttestationService
+from ladle.auth.deletion import AccountDeletionService
 from ladle.auth.google import (
     GoogleCredentials,
     GoogleCredentialService,
@@ -298,6 +299,14 @@ def create_app(
         )
     application.state.google_credentials = google_credentials
     application.state.account_merge_service = AccountMergeService(clock=runtime_clock)
+    application.state.account_deletion = AccountDeletionService(
+        session_factory=database_sessions,
+        sessions=runtime_sessions,
+        clock=runtime_clock,
+        audit_secret=configured.jwt_signing_secret.get_secret_value(),
+        private_text=private_text,
+        apple_credentials=apple_credentials,
+    )
     redirect_client: httpx.Client | None = None
     if source_parser is None:
         redirect_client = httpx.Client(

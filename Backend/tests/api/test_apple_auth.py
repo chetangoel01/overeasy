@@ -120,9 +120,15 @@ def test_authenticated_guest_signs_in_with_apple_and_receives_rotated_tokens(
         assert active[0].user_id == identity.user_id
 
     with TestClient(app) as client:
-        deleted = client.delete(
+        deleted = client.request(
+            "DELETE",
             "/v1/auth/account",
             headers={"Authorization": f"Bearer {signed_in['accessToken']}"},
+            json={
+                "confirmation": "DELETE",
+                "refreshToken": signed_in["refreshToken"],
+                "idempotencyKey": f"delete-{signed_in['userID']}",
+            },
         )
         assert deleted.status_code == 204
         assert credentials.revocations == ["api-apple-refresh"]

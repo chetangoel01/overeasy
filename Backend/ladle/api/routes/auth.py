@@ -1,8 +1,7 @@
-from typing import Annotated, cast
+from typing import Annotated, Literal, cast
 
 from fastapi import APIRouter, Header, HTTPException, Request, Response, status
 from pydantic import Field
-from sqlalchemy import delete, select
 
 from ladle.api.dependencies import clock as request_clock
 from ladle.api.dependencies import database
@@ -11,13 +10,13 @@ from ladle.auth.apple import (
     AppleAuthorizationCodeInvalid,
     AppleCredentials,
     AppleIdentityTokenInvalid,
-    AppleTokenRevocationFailed,
 )
 from ladle.auth.attestation import (
     AppAttestEvidence,
     AttestationRejected,
     AttestationService,
 )
+from ladle.auth.deletion import AccountDeletionService, AccountDeletionUnavailable
 from ladle.auth.google import (
     GoogleCredentials,
     GoogleIdentityTokenInvalid,
@@ -36,7 +35,7 @@ from ladle.auth.tokens import (
 )
 from ladle.contracts.common import WireDateTime, WireModel, WireUUID
 from ladle.crypto.private_text import PrivateTextCipher
-from ladle.db.models import AppleIdentity, AuthSession, Device, User
+from ladle.db.models import AuthSession, Device
 
 router = APIRouter(prefix="/v1/auth", tags=["auth"])
 
@@ -60,6 +59,12 @@ class AppleAuthRequest(WireModel):
 
 class GoogleAuthRequest(WireModel):
     identity_token: str = Field(min_length=1, max_length=16_384)
+    idempotency_key: str = Field(min_length=1, max_length=255)
+
+
+class AccountDeletionRequest(WireModel):
+    confirmation: Literal["DELETE"]
+    refresh_token: str = Field(min_length=1, max_length=2048)
     idempotency_key: str = Field(min_length=1, max_length=255)
 
 
@@ -125,9 +130,9 @@ def _rate_limit_policies(request: Request) -> RateLimitPolicies:
     return cast(RateLimitPolicies, request.app.state.rate_limit_policies)
 
 
-def access_claims(
+def decoded_access_claims(
     request: Request,
-    authorization: Annotated[str | None, Header()] = None,
+    authorization: str | None,
 ) -> AccessClaims:
     if authorization is None or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
@@ -138,6 +143,14 @@ def access_claims(
         )
     except AccessTokenInvalid as error:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED) from error
+    return claims
+
+
+def access_claims(
+    request: Request,
+    authorization: Annotated[str | None, Header()] = None,
+) -> AccessClaims:
+    claims = decoded_access_claims(request, authorization)
 
     with database(request) as current_database:
         stored = current_database.get(AuthSession, claims.session_id)
@@ -152,6 +165,10 @@ def access_claims(
         ):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
     return claims
+
+
+def _account_deletion(request: Request) -> AccountDeletionService:
+    return cast(AccountDeletionService, request.app.state.account_deletion)
 
 
 @router.post(
@@ -318,32 +335,32 @@ def delete_session(
 @router.delete("/account", status_code=status.HTTP_204_NO_CONTENT)
 def delete_account(
     request: Request,
+    body: AccountDeletionRequest,
     authorization: Annotated[str | None, Header()] = None,
 ) -> Response:
-    claims = access_claims(request, authorization)
-    with database(request) as current_database:
-        identity = current_database.scalar(
-            select(AppleIdentity).where(AppleIdentity.user_id == claims.user_id)
-        )
-        encrypted_refresh_token = (
-            identity.refresh_token_encrypted if identity is not None else None
-        )
-    if encrypted_refresh_token is not None:
-        credentials = _apple_credentials(request)
-        if credentials is None:
-            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
+    decoded = decoded_access_claims(request, authorization)
+    receipt = _account_deletion(request).completed(
+        user_id=decoded.user_id,
+        idempotency_key=body.idempotency_key,
+    )
+    if receipt is None:
+        claims = access_claims(request, authorization)
         try:
-            credentials.revoke(_private_text(request).decrypt(encrypted_refresh_token))
-        except (AppleTokenRevocationFailed, ValueError) as error:
+            receipt = _account_deletion(request).delete(
+                claims=claims,
+                refresh_token=body.refresh_token,
+                idempotency_key=body.idempotency_key,
+            )
+        except RefreshTokenInvalid as error:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED) from error
+        except AccountDeletionUnavailable as error:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE
             ) from error
-    with database(request) as current_database, current_database.begin():
-        current_database.execute(
-            delete(User).where(User.merged_into_user_id == claims.user_id)
-        )
-        user = current_database.get(User, claims.user_id)
-        if user is None:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
-        current_database.delete(user)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    return Response(
+        status_code=status.HTTP_204_NO_CONTENT,
+        headers={
+            "X-Deletion-ID": str(receipt.deletion_id),
+            "X-Deletion-Status": receipt.status,
+        },
+    )

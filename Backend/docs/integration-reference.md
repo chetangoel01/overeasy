@@ -26,6 +26,7 @@ The implementation described here is on branch `codex/ladle-backend`.
 | Import worker reliability | `Backend/docs/import-worker-reliability.md` |
 | Dispatch recovery and dead letters | `Backend/docs/import-dispatch-recovery.md` |
 | Production startup and migration gate | `Backend/docs/production-startup-and-migrations.md` |
+| Account deletion and cleanup | `Backend/docs/account-deletion.md` |
 | Import/cache orchestration | `Backend/ladle/imports/`, `Backend/ladle/cache/` |
 | Provider adapters | `Backend/ladle/acquisition/` |
 | Claude extraction | `Backend/ladle/extraction/` |
@@ -650,6 +651,7 @@ The current migration chain is:
   -> 0007_add_google_identity
   -> 0008_add_quota_and_provider_budgets
   -> 0009_add_import_dispatch_outbox
+  -> 0010_add_account_deletion_audit
 ```
 
 Alembic also owns the small `alembic_version` table that records the currently

@@ -19,6 +19,12 @@ final class AuthClient {
         let idempotencyKey: String
     }
 
+    private struct AccountDeletionRequest: Encodable, Sendable {
+        let confirmation: String
+        let refreshToken: String
+        let idempotencyKey: String
+    }
+
     private let api: APIClient
     private let tokenStore: any AuthTokenStoring
     private let accountSession: AccountSession
@@ -81,9 +87,21 @@ final class AuthClient {
     }
 
     func deleteAccount() async throws {
+        guard
+            let tokens = try tokenStore.load(),
+            let refreshToken = tokens.refreshToken
+        else {
+            throw APIError.refreshUnavailable
+        }
         try await api.requestWithoutResponse(
             path: "/v1/auth/account",
-            method: .delete
+            method: .delete,
+            body: AccountDeletionRequest(
+                confirmation: "DELETE",
+                refreshToken: refreshToken,
+                idempotencyKey:
+                    "delete-\(tokens.userID.uuidString.lowercased())"
+            )
         )
         try? tokenStore.clear()
         try? await appAttester?.reset()

@@ -11,6 +11,7 @@ from alembic import command
 
 BACKEND_ROOT = Path(__file__).parents[2]
 EXPECTED_TABLES = {
+    "account_deletion_audits",
     "alembic_version",
     "app_attest_challenges",
     "app_attest_keys",
@@ -29,6 +30,7 @@ EXPECTED_TABLES = {
     "ingredients",
     "negative_extraction_cache",
     "nutrition",
+    "object_deletion_queue",
     "other_nutrients",
     "provider_attempts",
     "provider_budget_windows",

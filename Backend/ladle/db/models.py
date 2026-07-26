@@ -47,6 +47,63 @@ class User(Base):
     )
 
 
+class AccountDeletionAudit(Base):
+    __tablename__ = "account_deletion_audits"
+    __table_args__ = (
+        CheckConstraint(
+            "account_kind IN ('guest', 'apple', 'google')",
+            name="ck_account_deletion_audits_kind",
+        ),
+        CheckConstraint(
+            "status IN ('requested', 'revokingProvider', 'deleting', "
+            "'completed', 'failed')",
+            name="ck_account_deletion_audits_status",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    user_digest: Mapped[bytes] = mapped_column(LargeBinary(32), nullable=False)
+    idempotency_digest: Mapped[bytes] = mapped_column(
+        LargeBinary(32), nullable=False, unique=True
+    )
+    account_kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    failure_code: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+
+class ObjectDeletionQueue(Base):
+    __tablename__ = "object_deletion_queue"
+    __table_args__ = (
+        CheckConstraint(
+            "attempts >= 0",
+            name="ck_object_deletion_queue_attempts_nonnegative",
+        ),
+    )
+
+    object_key: Mapped[str] = mapped_column(Text, primary_key=True)
+    reason: Mapped[str] = mapped_column(String(64), nullable=False)
+    available_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    last_error: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
 class AppleIdentity(Base):
     __tablename__ = "apple_identities"
 
