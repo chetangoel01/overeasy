@@ -44,6 +44,7 @@ struct RemoteContractTests {
             .unsupportedSource,
             .invalidURL,
             .networkUnavailable,
+            .quotaExceeded,
         ])
         #expect(try failures.map { try $0.importStatus() } == [
             .failed(.parserUnavailable),
@@ -51,6 +52,7 @@ struct RemoteContractTests {
             .failed(.unsupportedSource),
             .failed(.invalidURL),
             .failed(.networkUnavailable),
+            .failed(.quotaExceeded),
         ])
     }
 

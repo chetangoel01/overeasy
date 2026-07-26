@@ -43,5 +43,14 @@
     "retryCount": 2,
     "status": "failed",
     "updatedAt": "2026-07-23T20:21:00.000Z"
+  },
+  {
+    "createdAt": "2026-07-23T20:20:00.000Z",
+    "failureReason": "quotaExceeded",
+    "jobID": "10000000-0000-4000-8000-000000000015",
+    "recipeID": null,
+    "retryCount": 0,
+    "status": "failed",
+    "updatedAt": "2026-07-23T20:21:00.000Z"
   }
 ]

@@ -26,7 +26,7 @@ from ladle.imports.thumbnails import OEmbedThumbnailFetcher
 from ladle.imports.transitions import ImportTransitionService
 from ladle.observability.metrics import MetricsRegistry
 from ladle.recipes.template_clone import RecipeTemplateCloner
-from ladle.usage.limits import UsageLimitService
+from ladle.usage.limits import UsageLimitExceeded
 
 
 class ProcessOutcome(StrEnum):
@@ -50,7 +50,6 @@ class ImportOrchestrator:
         acquirer: VideoAcquirer,
         extractor: RecipeExtractor,
         clock: Clock,
-        usage_limits: UsageLimitService | None = None,
         private_text: PrivateTextCipher | None = None,
         private_completion: RecipeTemplateCloner | None = None,
         transitions: ImportTransitionService | None = None,
@@ -62,7 +61,6 @@ class ImportOrchestrator:
         self._acquirer = acquirer
         self._extractor = extractor
         self._maintenance = CacheMaintenanceService(clock=clock)
-        self._usage_limits = usage_limits
         self._private_text = private_text
         self._private_completion = private_completion
         self._transitions = transitions
@@ -140,8 +138,6 @@ class ImportOrchestrator:
             source = database.get(SourceVideo, job.source_video_id)
             if source is None:
                 raise RuntimeError("source video disappeared during import")
-            if self._usage_limits is not None:
-                self._usage_limits.ensure_available(database)
             descriptor = SourceVideoDescriptor.from_stored(source)
             claim = decision.claim
             correction_encrypted = job.correction_notes_encrypted
@@ -150,7 +146,7 @@ class ImportOrchestrator:
         if requires_recheck:
             try:
                 is_public = self._acquirer.check_public(descriptor, job_id=job_id)
-            except ProviderUnavailable as error:
+            except (ProviderUnavailable, UsageLimitExceeded) as error:
                 if self._transitions is None:
                     raise
                 self._fail_terminal(
@@ -228,6 +224,7 @@ class ImportOrchestrator:
             ExtractionUnavailable,
             PrivateOrDeleted,
             ProviderUnavailable,
+            UsageLimitExceeded,
         ) as error:
             if self._transitions is None:
                 raise
@@ -308,6 +305,8 @@ class ImportOrchestrator:
 
         if isinstance(error, PrivateOrDeleted):
             failure_reason = "privateOrDeleted"
+        elif isinstance(error, UsageLimitExceeded):
+            failure_reason = "quotaExceeded"
         elif isinstance(error, ProviderTransientError):
             failure_reason = "networkUnavailable"
         else:

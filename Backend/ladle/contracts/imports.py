@@ -18,6 +18,7 @@ class ImportFailure(StrEnum):
     UNSUPPORTED_SOURCE = "unsupportedSource"
     INVALID_URL = "invalidURL"
     NETWORK_UNAVAILABLE = "networkUnavailable"
+    QUOTA_EXCEEDED = "quotaExceeded"
 
 
 class ImportJobResponse(WireModel):

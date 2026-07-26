@@ -319,7 +319,20 @@ def runtime_orchestrator() -> ImportOrchestrator:
             raise RuntimeError(
                 f"live workers require an {settings.extraction_provider} API key"
             )
-        usage = ProviderUsageLedger(session_factory=sessions, clock=clock)
+        usage_limits = UsageLimitService(
+            clock=clock,
+            window=timedelta(days=1),
+            max_billed_units=settings.provider_daily_billed_unit_limit,
+            reservation_lifetime=timedelta(
+                minutes=settings.provider_budget_reservation_minutes
+            ),
+        )
+        usage = ProviderUsageLedger(
+            session_factory=sessions,
+            clock=clock,
+            limits=usage_limits,
+            reservation_units=settings.provider_reservation_billed_units,
+        )
         acquirer = ProviderChain(
             primary=(
                 SupadataClient(
@@ -411,11 +424,6 @@ def runtime_orchestrator() -> ImportOrchestrator:
         transitions=ImportTransitionService(
             clock=clock,
             reservations=reservations,
-        ),
-        usage_limits=UsageLimitService(
-            clock=clock,
-            window=timedelta(days=1),
-            max_billed_units=settings.provider_daily_billed_unit_limit,
         ),
         metrics=metrics,
     )

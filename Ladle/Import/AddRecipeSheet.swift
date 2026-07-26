@@ -517,6 +517,8 @@ private extension ImportFailure {
             "The network dropped out. The import is safe to retry."
         case .parserUnavailable:
             "Overeasy couldn’t read the video, but the link is still saved."
+        case .quotaExceeded:
+            "Overeasy has reached its processing limit. Your link is safe to retry later."
         }
     }
 }

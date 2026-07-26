@@ -66,7 +66,17 @@ def test_attempt_ledger_is_idempotent_and_limit_counts_billed_units(
     engine = build_engine(clean_postgres_url)
     sessions = sessionmaker(engine, expire_on_commit=False)
     clock = FrozenClock(datetime(2026, 7, 23, 21, 0, tzinfo=UTC))
-    ledger = ProviderUsageLedger(session_factory=sessions, clock=clock)
+    limiter = UsageLimitService(
+        clock=clock,
+        window=timedelta(days=1),
+        max_billed_units=Decimal("3"),
+    )
+    ledger = ProviderUsageLedger(
+        session_factory=sessions,
+        clock=clock,
+        limits=limiter,
+        reservation_units=Decimal("3"),
+    )
     with Session(engine) as database, database.begin():
         job_id = seed_job(database)
 
@@ -99,11 +109,6 @@ def test_attempt_ledger_is_idempotent_and_limit_counts_billed_units(
         assert attempts[0].external_job_id == "external-1"
         assert attempts[0].status == "completed"
         assert attempts[0].billed_units == Decimal("3")
-        limiter = UsageLimitService(
-            clock=clock,
-            window=timedelta(days=1),
-            max_billed_units=Decimal("3"),
-        )
         with pytest.raises(UsageLimitExceeded):
             limiter.ensure_available(database)
 

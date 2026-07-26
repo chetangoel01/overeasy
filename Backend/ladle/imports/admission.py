@@ -9,6 +9,7 @@ from ladle.clock import Clock
 from ladle.contracts.imports import ImportFailure, ImportJobResponse, ImportStatus
 from ladle.crypto.private_text import PrivateTextCipher
 from ladle.db.models import ImportJob, Recipe, SourceVideo
+from ladle.imports.quotas import ImportQuotaService
 from ladle.imports.reservations import ReservationService
 from ladle.imports.source_identity import SourceIdentityParser
 from ladle.recipes.limits import ensure_recipe_capacity, lock_recipe_capacity
@@ -43,11 +44,13 @@ class AdmissionService:
         reservations: ReservationService,
         clock: Clock,
         private_text: PrivateTextCipher | None = None,
+        quota: ImportQuotaService | None = None,
     ) -> None:
         self._parser = parser
         self._reservations = reservations
         self._clock = clock
         self._private_text = private_text
+        self._quota = quota
 
     def admit(
         self,
@@ -169,6 +172,14 @@ class AdmissionService:
         )
         database.add(job)
         database.flush()
+        if self._quota is not None:
+            self._quota.consume(
+                database,
+                user_id=user_id,
+                import_job_id=job.id,
+                operation="submit",
+                event_key=f"{job.id}:submit",
+            )
         if current_recipe_id is None:
             self._reservations.reserve(
                 database,

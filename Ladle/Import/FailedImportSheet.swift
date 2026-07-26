@@ -213,6 +213,8 @@ struct FailedImportSheet: View {
             return "The saved link is incomplete. Paste the recipe details or create it manually."
         case .parserUnavailable:
             return "Overeasy couldn’t read this video. Retry, add a note, paste the details, or create it manually."
+        case .quotaExceeded:
+            return "Overeasy has reached its processing limit. Your link is safe; try again later."
         }
     }
 }

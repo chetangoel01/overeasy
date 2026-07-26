@@ -6,6 +6,7 @@ public enum ImportFailure: String, Codable, Error, Hashable, Sendable {
     case unsupportedSource
     case invalidURL
     case networkUnavailable
+    case quotaExceeded
 }
 
 public enum ImportStatus: Codable, Hashable, Sendable {

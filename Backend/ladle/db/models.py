@@ -413,6 +413,39 @@ class ImportJob(Base):
     )
 
 
+class ImportQuotaEvent(Base):
+    __tablename__ = "import_quota_events"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id",
+            "event_key",
+            name="uq_import_quota_events_user_event",
+        ),
+        CheckConstraint(
+            "operation IN ('submit', 'retry')",
+            name="ck_import_quota_events_operation",
+        ),
+        Index(
+            "ix_import_quota_events_user_occurred",
+            "user_id",
+            "occurred_at",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    import_job_id: Mapped[UUID] = mapped_column(
+        Uuid, ForeignKey("import_jobs.id", ondelete="CASCADE"), nullable=False
+    )
+    operation: Mapped[str] = mapped_column(String(16), nullable=False)
+    event_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+
 class RecipeSlotReservation(Base):
     __tablename__ = "recipe_slot_reservations"
     __table_args__ = (
@@ -472,6 +505,41 @@ class ExtractionClaim(Base):
     )
 
 
+class ProviderBudgetWindow(Base):
+    __tablename__ = "provider_budget_windows"
+    __table_args__ = (
+        CheckConstraint(
+            "window_ends_at > window_started_at",
+            name="ck_provider_budget_windows_range",
+        ),
+        CheckConstraint(
+            "maximum_units > 0",
+            name="ck_provider_budget_windows_maximum_positive",
+        ),
+        CheckConstraint(
+            "spent_units >= 0 AND reserved_units >= 0",
+            name="ck_provider_budget_windows_units_nonnegative",
+        ),
+    )
+
+    window_started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), primary_key=True
+    )
+    window_ends_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    maximum_units: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False)
+    spent_units: Mapped[Decimal] = mapped_column(
+        Numeric(18, 6), nullable=False, server_default="0"
+    )
+    reserved_units: Mapped[Decimal] = mapped_column(
+        Numeric(18, 6), nullable=False, server_default="0"
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+
 class ProviderAttempt(Base):
     __tablename__ = "provider_attempts"
     __table_args__ = (
@@ -493,6 +561,17 @@ class ProviderAttempt(Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     billed_units: Mapped[Decimal | None] = mapped_column(Numeric(18, 6), nullable=True)
+    reserved_units: Mapped[Decimal] = mapped_column(
+        Numeric(18, 6), nullable=False, server_default="0"
+    )
+    budget_window_started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        ForeignKey("provider_budget_windows.window_started_at"),
+        nullable=True,
+    )
+    reservation_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
     failure_code: Mapped[str | None] = mapped_column(String(128), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

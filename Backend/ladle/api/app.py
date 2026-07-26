@@ -55,6 +55,7 @@ from ladle.imports.dispatcher import (
     ImportDispatcher,
     NoopImportDispatcher,
 )
+from ladle.imports.quotas import ImportQuotaService
 from ladle.imports.reservations import ReservationService
 from ladle.imports.source_identity import SourceIdentityParser
 from ladle.imports.transitions import ImportRetryService
@@ -276,16 +277,23 @@ def create_app(
         clock=runtime_clock,
         lifetime=timedelta(minutes=configured.import_reservation_minutes),
     )
+    import_quota = ImportQuotaService(
+        clock=runtime_clock,
+        daily_limit=configured.user_import_daily_quota,
+        monthly_limit=configured.user_import_monthly_quota,
+    )
     application.state.admission_service = AdmissionService(
         parser=source_parser,
         reservations=reservations,
         clock=runtime_clock,
         private_text=private_text,
+        quota=import_quota,
     )
     application.state.import_retry_service = ImportRetryService(
         clock=runtime_clock,
         reservations=reservations,
         private_text=private_text,
+        quota=import_quota,
     )
     if import_dispatcher is not None:
         application.state.import_dispatcher = import_dispatcher

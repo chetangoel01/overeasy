@@ -11,6 +11,7 @@ from ladle.api.app import create_app
 from ladle.auth.attestation import AttestationService
 from ladle.auth.sessions import SessionService
 from ladle.auth.tokens import AccessTokenCodec, RefreshTokenCodec
+from ladle.config import Settings
 from ladle.db.models import ImportJob
 from ladle.db.session import build_engine
 from tests.integration.recipes.test_recipe_service import manual_recipe
@@ -178,4 +179,62 @@ def test_reimport_submission_attaches_to_current_recipe(
         assert stored.correction_notes_encrypted is not None
         assert b"Keep the lemon bright." not in stored.correction_notes_encrypted
     assert dispatcher.calls == [job_id]
+    engine.dispose()
+
+
+@pytest.mark.integration
+def test_daily_import_quota_returns_typed_429_without_dispatch(
+    clean_postgres_url: str,
+) -> None:
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    engine = build_engine(clean_postgres_url)
+    clock = FrozenClock(datetime(2026, 7, 23, 21, 0, tzinfo=UTC))
+    access_tokens = AccessTokenCodec(
+        signing_secret="test-signing-secret-that-is-long-enough",
+        issuer="ladle-test",
+        lifetime=timedelta(minutes=15),
+    )
+    dispatcher = RecordingDispatcher(engine=engine, calls=[])
+    app = create_app(
+        session_factory=sessionmaker(engine, expire_on_commit=False),
+        clock=clock,
+        access_tokens=access_tokens,
+        attestation=AttestationService(enforced=False),
+        import_dispatcher=dispatcher,
+        settings=Settings(
+            database_url=clean_postgres_url,
+            user_import_daily_quota=1,
+            user_import_monthly_quota=10,
+        ),
+    )
+
+    with TestClient(app) as client:
+        guest = client.post(
+            "/v1/auth/guest",
+            json={"installationID": "quota-api-test", "attestation": None},
+        ).json()
+        headers = {"Authorization": f"Bearer {guest['accessToken']}"}
+        first = client.post(
+            "/v1/imports",
+            json={
+                "jobID": str(uuid4()),
+                "sourceURL": "https://youtu.be/quota-api-first",
+            },
+            headers=headers,
+        )
+        second = client.post(
+            "/v1/imports",
+            json={
+                "jobID": str(uuid4()),
+                "sourceURL": "https://youtu.be/quota-api-second",
+            },
+            headers=headers,
+        )
+
+    assert first.status_code == 202
+    assert second.status_code == 429
+    assert second.headers["Retry-After"] == "10800"
+    assert second.json()["error"]["code"] == "quotaExceeded"
+    assert second.json()["error"]["retryable"] is True
+    assert len(dispatcher.calls) == 1
     engine.dispose()

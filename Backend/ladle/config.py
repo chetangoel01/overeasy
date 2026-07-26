@@ -41,6 +41,8 @@ class Settings(BaseSettings):
     app_attest_environment: Literal["development", "production"] = "production"
     app_attest_challenge_seconds: int = Field(default=300, ge=60, le=900)
     import_reservation_minutes: int = Field(default=60, gt=0)
+    user_import_daily_quota: int = Field(default=20, gt=0)
+    user_import_monthly_quota: int = Field(default=200, gt=0)
     source_redirect_timeout_seconds: float = Field(default=10, gt=0)
     extraction_claim_minutes: int = Field(default=10, gt=0)
     public_cache_recheck_days: int = Field(default=7, gt=0)
@@ -80,6 +82,8 @@ class Settings(BaseSettings):
         default=Decimal("1000"),
         gt=0,
     )
+    provider_reservation_billed_units: Decimal = Field(default=Decimal("3"), gt=0)
+    provider_budget_reservation_minutes: int = Field(default=30, gt=0)
     provider_circuit_failure_threshold: int = Field(default=3, gt=0)
     provider_circuit_cooldown_seconds: int = Field(default=300, gt=0)
     server_media_fallback_enabled: bool = False
@@ -195,6 +199,12 @@ class Settings(BaseSettings):
             secret = getattr(self, field_name)
             if secret is not None and not secret.get_secret_value().strip():
                 setattr(self, field_name, None)
+        return self
+
+    @model_validator(mode="after")
+    def validate_import_quotas(self) -> Self:
+        if self.user_import_monthly_quota < self.user_import_daily_quota:
+            raise ValueError("monthly import quota must be at least the daily quota")
         return self
 
     @model_validator(mode="after")

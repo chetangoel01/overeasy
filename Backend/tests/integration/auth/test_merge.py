@@ -16,6 +16,7 @@ from ladle.db.models import (
     AuthSession,
     Device,
     ImportJob,
+    ImportQuotaEvent,
     Recipe,
     RecipeChange,
     RecipeSlotReservation,
@@ -217,6 +218,16 @@ def test_existing_apple_account_merge_preserves_data_and_is_idempotent(
                 expires_at=clock.now() + timedelta(hours=1),
             )
         )
+        database.add(
+            ImportQuotaEvent(
+                id=uuid4(),
+                user_id=guest_id,
+                import_job_id=job_id,
+                operation="submit",
+                event_key=f"{job_id}:submit",
+                occurred_at=clock.now(),
+            )
+        )
         guest_tokens = sessions.create(
             database,
             user_id=guest_id,
@@ -251,6 +262,9 @@ def test_existing_apple_account_merge_preserves_data_and_is_idempotent(
         moved_device = database.scalar(
             select(Device).where(Device.installation_id == "merge-device")
         )
+        moved_quota = database.scalar(
+            select(ImportQuotaEvent).where(ImportQuotaEvent.import_job_id == job_id)
+        )
         old_session_id = RefreshTokenCodec().session_id(
             guest_tokens.refresh_token or ""
         )
@@ -265,6 +279,8 @@ def test_existing_apple_account_merge_preserves_data_and_is_idempotent(
         assert moved_reservation.user_id == destination_id
         assert moved_device is not None
         assert moved_device.user_id == destination_id
+        assert moved_quota is not None
+        assert moved_quota.user_id == destination_id
         assert old_session is not None
         assert old_session.revoked_at == clock.now()
         assert (

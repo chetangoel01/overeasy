@@ -11,6 +11,7 @@ from ladle.db.models import (
     Device,
     GoogleIdentity,
     ImportJob,
+    ImportQuotaEvent,
     Recipe,
     RecipeChange,
     RecipeSlotReservation,
@@ -160,6 +161,11 @@ class AccountMergeService:
         database.execute(
             update(ImportJob)
             .where(ImportJob.user_id == source.id)
+            .values(user_id=destination.id)
+        )
+        database.execute(
+            update(ImportQuotaEvent)
+            .where(ImportQuotaEvent.user_id == source.id)
             .values(user_id=destination.id)
         )
         database.execute(

@@ -29,6 +29,7 @@ from ladle.imports.admission import (
     ImportJobNotFound,
 )
 from ladle.imports.dispatcher import ImportDispatcher
+from ladle.imports.quotas import ImportQuotaExceeded
 from ladle.imports.source_identity import InvalidSourceURL, UnsupportedSource
 from ladle.imports.transitions import ImportRetryService, ImportRetryUnavailable
 from ladle.recipes.limits import GuestRecipeLimitReached
@@ -164,6 +165,21 @@ def _error(
     )
 
 
+def _quota_error(
+    request: Request,
+    error: ImportQuotaExceeded,
+) -> JSONResponse:
+    response = _error(
+        request,
+        code=ErrorCode.QUOTA_EXCEEDED,
+        message=f"Your {error.period} import quota has been reached.",
+        retryable=True,
+        http_status=status.HTTP_429_TOO_MANY_REQUESTS,
+    )
+    response.headers["Retry-After"] = str(error.retry_after_seconds)
+    return response
+
+
 @router.post(
     "",
     response_model=ImportJobResponse,
@@ -207,6 +223,8 @@ async def submit_import(
             message="Create a free account to save more recipes.",
             http_status=status.HTTP_409_CONFLICT,
         )
+    except ImportQuotaExceeded as error:
+        return _quota_error(request, error)
     except DuplicateRecipe as duplicate:
         return _error(
             request,
@@ -270,7 +288,7 @@ async def retry_import(
     body: RetryImportRequest,
     request: Request,
     authorization: Annotated[str | None, Header()] = None,
-) -> ImportJobResponse:
+) -> ImportJobResponse | JSONResponse:
     claims = access_claims(request, authorization)
     _enforce_import_rate_limit(request, operation="retry", claims=claims)
     body_sha256 = hashlib.sha256(await request.body()).hexdigest()
@@ -295,6 +313,8 @@ async def retry_import(
                 )
     except ImportRetryUnavailable as error:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT) from error
+    except ImportQuotaExceeded as error:
+        return _quota_error(request, error)
     if rejection is not None or job is None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN) from rejection
     _dispatcher(request).enqueue(job_id)

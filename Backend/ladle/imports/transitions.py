@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from ladle.clock import Clock
 from ladle.crypto.private_text import PrivateTextCipher
 from ladle.db.models import ImportJob, Recipe
+from ladle.imports.quotas import ImportQuotaService
 from ladle.imports.reservations import ReservationService
 
 
@@ -20,10 +21,12 @@ class ImportRetryService:
         clock: Clock,
         reservations: ReservationService,
         private_text: PrivateTextCipher,
+        quota: ImportQuotaService | None = None,
     ) -> None:
         self._clock = clock
         self._reservations = reservations
         self._private_text = private_text
+        self._quota = quota
 
     def retry(
         self,
@@ -44,6 +47,14 @@ class ImportRetryService:
         ).scalar_one_or_none()
         if job is None or job.status == "parsing":
             raise ImportRetryUnavailable
+        if self._quota is not None:
+            self._quota.consume(
+                database,
+                user_id=user_id,
+                import_job_id=job.id,
+                operation="retry",
+                event_key=f"{job.id}:retry:{job.retry_count + 1}",
+            )
 
         if job.candidate_recipe_id is not None:
             candidate = database.get(Recipe, job.candidate_recipe_id)

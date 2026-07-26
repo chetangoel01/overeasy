@@ -26,6 +26,7 @@ from ladle.imports.reservations import ReservationService
 from ladle.imports.source_identity import SourceIdentityParser
 from ladle.imports.transitions import ImportRetryService, ImportTransitionService
 from ladle.recipes.template_clone import RecipeTemplate, RecipeTemplateCloner
+from ladle.usage.limits import UsageLimitExceeded
 from tests.e2e.test_fake_import_round_trip import seed_import
 from tests.fakes.acquisition import FakeAcquirer
 from tests.fakes.extraction import FakeExtractor
@@ -315,3 +316,40 @@ def test_failed_private_reparse_preserves_current_recipe_and_invalidates_cache(
             )
             == 0
         )
+
+
+@pytest.mark.integration
+def test_provider_budget_exhaustion_is_a_typed_terminal_import_failure(
+    clean_postgres_url: str,
+) -> None:
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    clock = FrozenClock(datetime(2026, 7, 23, 21, 0, tzinfo=UTC))
+    recipe = manual_recipe(uuid4())
+    sessions, orchestrator, _, acquirer, _ = services(
+        clean_postgres_url,
+        clock,
+        template=RecipeTemplate.from_recipe(recipe),
+    )
+    with sessions.begin() as database:
+        source_id = uuid4()
+        database.add(
+            SourceVideo(
+                id=source_id,
+                platform="youtube",
+                platform_video_id="budget-exhausted",
+                canonical_url="https://www.youtube.com/watch?v=budget-exhausted",
+                source_revision="1",
+                source_metadata={},
+            )
+        )
+        job_id = seed_import(database, source_id=source_id, suffix="budget")
+
+    acquirer.failure = UsageLimitExceeded("budget exhausted")
+    assert orchestrator.process(job_id) == ProcessOutcome.FAILED
+
+    with sessions() as database:
+        job = database.get(ImportJob, job_id)
+        assert job is not None
+        assert job.status == "failed"
+        assert job.failure_reason == "quotaExceeded"
+        assert job.diagnostic_code == "UsageLimitExceeded"
