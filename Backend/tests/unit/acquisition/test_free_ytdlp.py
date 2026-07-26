@@ -1,7 +1,9 @@
 import json
 import subprocess
-from pathlib import Path
+from collections.abc import Sequence
+from dataclasses import dataclass
 
+import httpx
 import pytest
 
 from ladle.acquisition.errors import (
@@ -48,6 +50,14 @@ class Runner:
         if isinstance(value, Exception):
             raise value
         return value
+
+
+@dataclass
+class FakeDNS:
+    values: dict[str, Sequence[str]]
+
+    def resolve(self, hostname: str) -> Sequence[str]:
+        return self.values[hostname]
 
 
 def completed(
@@ -164,58 +174,100 @@ def test_binary_is_discovered_beside_the_interpreter() -> None:
     assert YtDlpClient(runner=Runner()).available is True
 
 
-def test_cookie_file_is_passed_to_every_ytdlp_operation(tmp_path: Path) -> None:
-    cookies = tmp_path / "cookies.txt"
-    runner = Runner(
-        completed("{}"),
-        completed(),
-        completed(returncode=1),
-        completed(returncode=1),
-    )
+def test_metadata_ignores_config_and_proxy_environment() -> None:
+    runner = Runner(completed("{}"))
     client = YtDlpClient(
         binary="yt-dlp",
-        cookies_file=cookies,
         runner=runner,
     )
 
     client.metadata("https://www.instagram.com/reel/abc/")
-    client.subtitles(
-        "https://www.instagram.com/reel/abc/",
-        track=ytdlp.SubtitleTrack(language="en", generated=True),
+
+    command = runner.commands[0]
+    assert "--no-config" in command
+    assert command[command.index("--proxy") + 1] == ""
+
+
+def test_provider_subtitle_and_media_urls_are_extracted_for_pinned_fetching() -> None:
+    payload = {
+        "formats": [
+            {
+                "url": "https://media.example/progressive.mp4",
+                "vcodec": "h264",
+                "acodec": "aac",
+                "height": 480,
+            },
+            {
+                "url": "https://media.example/audio.m4a",
+                "vcodec": "none",
+                "acodec": "aac",
+                "abr": 128,
+            },
+            {
+                "url": "https://media.example/video.mp4",
+                "vcodec": "h264",
+                "acodec": "none",
+                "height": 720,
+            },
+        ],
+        "automatic_captions": {
+            "en": [
+                {
+                    "ext": "vtt",
+                    "url": "https://captions.example/subtitle.vtt",
+                }
+            ]
+        },
+    }
+    requests: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, text=MANUAL_VTT)
+
+    client = YtDlpClient(
+        binary="yt-dlp",
+        runner=Runner(completed(json.dumps(payload))),
+        dns=FakeDNS({"captions.example": ["93.184.216.34"]}),
+        http=httpx.Client(transport=httpx.MockTransport(respond)),
     )
-    client.audio("https://www.instagram.com/reel/abc/", work_dir=tmp_path)
-    client.video("https://www.instagram.com/reel/abc/", work_dir=tmp_path)
 
-    assert len(runner.commands) == 4
-    for command in runner.commands:
-        assert command[1:3] == ["--cookies", str(cookies)]
+    media = client.metadata("https://www.youtube.com/watch?v=one")
+    track = media.preferred_track()
+
+    assert track is not None
+    assert media.media_url == "https://media.example/progressive.mp4"
+    assert media.audio_url == "https://media.example/audio.m4a"
+    assert media.video_url == "https://media.example/video.mp4"
+    assert client.subtitles("ignored", track=track)
+    assert requests[0].url.host == "93.184.216.34"
 
 
-def test_frame_sampling_asks_for_a_stream_that_has_pictures(tmp_path: Path) -> None:
-    """ "bestaudio" returns a bare .m4a on Instagram, which has no frames.
+def test_private_provider_subtitle_url_is_rejected_before_request() -> None:
+    payload = {
+        "automatic_captions": {
+            "en": [
+                {
+                    "ext": "vtt",
+                    "url": "https://captions.example/private.vtt",
+                }
+            ]
+        }
+    }
+    requests: list[httpx.Request] = []
 
-    TikTok publishes no separate audio stream, so the audio selector fell
-    back to video there and frame sampling looked like it worked everywhere.
-    """
+    def respond(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, text=MANUAL_VTT)
 
-    seen: list[list[str]] = []
+    client = YtDlpClient(
+        binary="yt-dlp",
+        runner=Runner(completed(json.dumps(payload))),
+        dns=FakeDNS({"captions.example": ["169.254.169.254"]}),
+        http=httpx.Client(transport=httpx.MockTransport(respond)),
+    )
+    track = client.metadata("https://www.youtube.com/watch?v=one").preferred_track()
 
-    def runner(
-        command: list[str], *, timeout: float
-    ) -> subprocess.CompletedProcess[str]:
-        del timeout
-        seen.append(command)
-        (tmp_path / "download.mp4").write_bytes(b"video")
-        return subprocess.CompletedProcess(
-            args=command, returncode=0, stdout="", stderr=""
-        )
-
-    client = YtDlpClient(binary="yt-dlp", runner=runner)
-
-    client.video("https://www.instagram.com/reel/abc/", work_dir=tmp_path)
-    selector = seen[0][seen[0].index("-f") + 1]
-    assert "vcodec!=none" in selector
-    assert selector != "bestaudio/best"
-
-    client.audio("https://www.instagram.com/reel/abc/", work_dir=tmp_path)
-    assert seen[1][seen[1].index("-f") + 1] == "bestaudio/best"
+    assert track is not None
+    assert client.subtitles("ignored", track=track) == []
+    assert requests == []

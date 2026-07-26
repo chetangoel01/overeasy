@@ -5,8 +5,10 @@ import httpx
 import pytest
 
 from ladle.infrastructure.dns import (
+    PinnedHTTPClient,
     PinnedRedirectResolver,
     UnsafeNetworkTarget,
+    validate_external_target,
     validate_public_target,
 )
 
@@ -32,6 +34,8 @@ class FakeDNS:
         "::1",
         "fc00::1",
         "fe80::1",
+        "::ffff:127.0.0.1",
+        "::ffff:169.254.169.254",
     ],
 )
 def test_private_reserved_and_metadata_addresses_are_rejected(address: str) -> None:
@@ -46,6 +50,86 @@ def test_mixed_public_and_private_dns_answer_is_rejected() -> None:
 
     with pytest.raises(UnsafeNetworkTarget):
         validate_public_target("https://www.youtube.com/watch?v=abc", dns=dns)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://93.184.216.34/recipe",
+        "https://93.184.216.34:8443/recipe",
+        "file:///etc/passwd",
+        "https://127.0.0.1/admin",
+        "https://169.254.169.254/latest/meta-data/",
+        "https://[::ffff:127.0.0.1]/admin",
+        "https://[64:ff9b::a9fe:a9fe]/latest/meta-data/",
+        "https://[64:ff9b:1::a9fe:a9fe]/latest/meta-data/",
+    ],
+)
+def test_external_fetch_restricts_scheme_port_and_cloud_targets(url: str) -> None:
+    with pytest.raises(UnsafeNetworkTarget):
+        validate_external_target(url, dns=FakeDNS({}))
+
+
+def test_external_fetch_pins_the_validated_address_against_dns_rebinding() -> None:
+    requests: list[httpx.Request] = []
+    dns = FakeDNS({"assets.example": ["93.184.216.34"]})
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        dns.values["assets.example"] = ["169.254.169.254"]
+        return httpx.Response(200, text="safe")
+
+    client = PinnedHTTPClient(
+        dns=dns,
+        client=httpx.Client(transport=httpx.MockTransport(respond)),
+    )
+
+    response = client.get("https://assets.example/recipe", max_bytes=1024)
+
+    assert response.text == "safe"
+    assert requests[0].url.host == "93.184.216.34"
+    assert requests[0].headers["host"] == "assets.example"
+    assert requests[0].extensions["sni_hostname"] == b"assets.example"
+
+
+def test_external_fetch_revalidates_redirects_and_rejects_mixed_dns() -> None:
+    requests: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(
+            302,
+            headers={"location": "https://cdn.example/asset"},
+        )
+
+    client = PinnedHTTPClient(
+        dns=FakeDNS(
+            {
+                "creator.example": ["93.184.216.34"],
+                "cdn.example": ["93.184.216.35", "10.0.0.9"],
+            }
+        ),
+        client=httpx.Client(transport=httpx.MockTransport(respond)),
+    )
+
+    with pytest.raises(UnsafeNetworkTarget):
+        client.get("https://creator.example/recipe", max_bytes=1024)
+
+    assert len(requests) == 1
+
+
+def test_external_fetch_rejects_response_over_its_byte_limit() -> None:
+    client = PinnedHTTPClient(
+        dns=FakeDNS({"assets.example": ["93.184.216.34"]}),
+        client=httpx.Client(
+            transport=httpx.MockTransport(
+                lambda _: httpx.Response(200, content=b"x" * 1_025)
+            )
+        ),
+    )
+
+    with pytest.raises(UnsafeNetworkTarget, match="exceeded"):
+        client.get("https://assets.example/large", max_bytes=1_024)
 
 
 def test_redirect_resolver_pins_ip_and_revalidates_every_hop() -> None:

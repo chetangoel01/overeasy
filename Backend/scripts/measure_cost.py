@@ -47,13 +47,17 @@ class Measured:
         return sum(self.costs.values())
 
 
+def _api_key(settings: Settings) -> str:
+    if settings.openrouter_api_key is None:
+        raise RuntimeError("OPENROUTER_API_KEY is required to measure provider cost")
+    return settings.openrouter_api_key.get_secret_value()
+
+
 def _post(settings: Settings, payload: dict[str, Any]) -> dict[str, Any]:
     payload = {**payload, "usage": {"include": True}}
     response = httpx.post(
         f"{str(settings.openrouter_base_url).rstrip('/')}/chat/completions",
-        headers={
-            "Authorization": f"Bearer {settings.openrouter_api_key.get_secret_value()}"
-        },
+        headers={"Authorization": f"Bearer {_api_key(settings)}"},
         json=payload,
         timeout=180,
     )
@@ -108,20 +112,23 @@ def media_costs(settings: Settings, context: AcquiredVideoContext) -> Measured:
         binary=settings.ytdlp_binary_path,
         cookies_file=settings.ytdlp_cookies_file,
     )
-    source = MediaAudioSource(ytdlp=ytdlp, http=httpx.Client(timeout=180))
+    media = ytdlp.metadata(context.source.canonical_url)
+    source = MediaAudioSource(
+        http=httpx.Client(timeout=180, trust_env=False),
+    )
     sampler = FrameSampler(max_frames=settings.frame_analysis_max_frames)
 
     with tempfile.TemporaryDirectory() as folder:
         work_dir = Path(folder)
-        audio = source.audio(context.source, media_url=None, work_dir=work_dir)
+        audio = source.audio(
+            context.source,
+            media_url=media.audio_url or media.media_url,
+            work_dir=work_dir,
+        )
         if audio is not None:
             response = httpx.post(
                 f"{str(settings.openrouter_base_url).rstrip('/')}/audio/transcriptions",
-                headers={
-                    "Authorization": (
-                        f"Bearer {settings.openrouter_api_key.get_secret_value()}"
-                    )
-                },
+                headers={"Authorization": f"Bearer {_api_key(settings)}"},
                 json={
                     "model": settings.transcription_model_id,
                     "input_audio": {
@@ -142,7 +149,11 @@ def media_costs(settings: Settings, context: AcquiredVideoContext) -> Measured:
 
     with tempfile.TemporaryDirectory() as folder:
         work_dir = Path(folder)
-        video = source.video(context.source, media_url=None, work_dir=work_dir)
+        video = source.video(
+            context.source,
+            media_url=media.video_url or media.media_url,
+            work_dir=work_dir,
+        )
         if video is not None:
             frames = sampler.frames(video, work_dir=work_dir, duration_seconds=None)
             if frames:

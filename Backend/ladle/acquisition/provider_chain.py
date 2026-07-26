@@ -187,7 +187,7 @@ class ProviderChain:
                 source,
                 job_id=job_id,
                 metadata=metadata,
-                media_url=free.media_url,
+                media_url=free.audio_url or free.media_url,
                 diagnostics=diagnostics,
             )
             if transcript is not None:
@@ -258,7 +258,7 @@ class ProviderChain:
                 source,
                 job_id=job_id,
                 metadata=metadata,
-                media_url=free.media_url,
+                media_url=free.video_url or free.media_url,
                 diagnostics=diagnostics,
             )
             if visual is None and self._primary is not None:

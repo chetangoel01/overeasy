@@ -52,6 +52,8 @@ class FreeContext:
     linked_documents: list[LinkedDocument] = field(default_factory=list)
     visual_observations: list[VisualEvidence] = field(default_factory=list)
     media_url: str | None = None
+    audio_url: str | None = None
+    video_url: str | None = None
     diagnostics: list[str] = field(default_factory=list)
 
     @property
@@ -164,6 +166,9 @@ class FreeAcquirer:
             context.diagnostics.append("freeMetadataUnavailable")
             return
         context.metadata = media.metadata
+        context.media_url = media.media_url
+        context.audio_url = media.audio_url or media.media_url
+        context.video_url = media.video_url or media.media_url
         context.diagnostics.append("freeMetadataUsed")
 
         if not self._subtitles_enabled:
@@ -196,6 +201,8 @@ class FreeAcquirer:
         context.metadata = media.metadata
         context.visual_observations = media.observations
         context.media_url = media.media_url
+        context.audio_url = media.media_url
+        context.video_url = media.media_url
         context.diagnostics.append("instagramEmbedUsed")
 
     def _apply_tiktok_page(self, canonical_url: str, context: FreeContext) -> None:

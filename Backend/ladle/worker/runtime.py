@@ -163,8 +163,10 @@ def _audio_transcriber(
     if not settings.audio_transcription_enabled or settings.openrouter_api_key is None:
         return None
     source = MediaAudioSource(
-        ytdlp=_ytdlp(settings),
-        http=httpx.Client(timeout=settings.transcription_timeout_seconds),
+        http=httpx.Client(
+            timeout=settings.transcription_timeout_seconds,
+            trust_env=False,
+        ),
     )
     if not source.available:
         LOGGER.warning("ffmpeg is missing; audio transcription is disabled")
@@ -172,7 +174,10 @@ def _audio_transcriber(
     return AudioTranscriptProvider(
         audio_source=source,
         transcriber=WhisperTranscriber(
-            http=httpx.Client(timeout=settings.transcription_timeout_seconds),
+            http=httpx.Client(
+                timeout=settings.transcription_timeout_seconds,
+                trust_env=False,
+            ),
             api_key=settings.openrouter_api_key.get_secret_value(),
             base_url=str(settings.openrouter_base_url),
             model_id=settings.transcription_model_id,
@@ -191,8 +196,10 @@ def _vision_provider(
     if not settings.frame_analysis_enabled or settings.openrouter_api_key is None:
         return None
     media = MediaAudioSource(
-        ytdlp=_ytdlp(settings),
-        http=httpx.Client(timeout=settings.frame_analysis_timeout_seconds),
+        http=httpx.Client(
+            timeout=settings.frame_analysis_timeout_seconds,
+            trust_env=False,
+        ),
     )
     sampler = FrameSampler(max_frames=settings.frame_analysis_max_frames)
     if not sampler.available:
@@ -202,7 +209,10 @@ def _vision_provider(
         media_source=media,
         sampler=sampler,
         observer=VisionObserver(
-            http=httpx.Client(timeout=settings.frame_analysis_timeout_seconds),
+            http=httpx.Client(
+                timeout=settings.frame_analysis_timeout_seconds,
+                trust_env=False,
+            ),
             api_key=settings.openrouter_api_key.get_secret_value(),
             base_url=str(settings.openrouter_base_url),
             model_id=settings.frame_analysis_model_id,
@@ -218,7 +228,10 @@ def _free_acquirer(settings: Settings) -> FreeAcquirer | None:
     # TikTok's own ASR track needs a fetcher even when caption-link following
     # is off, so the page client gets its own.
     page_fetcher = SafeLinkFetcher(
-        http=httpx.Client(timeout=settings.linked_page_timeout_seconds)
+        http=httpx.Client(
+            timeout=settings.linked_page_timeout_seconds,
+            trust_env=False,
+        )
     )
     return FreeAcquirer(
         ytdlp=ytdlp,
@@ -236,6 +249,10 @@ def _ytdlp(settings: Settings) -> YtDlpClient:
         cookies_file=settings.ytdlp_cookies_file,
         metadata_timeout_seconds=settings.ytdlp_timeout_seconds,
         subtitle_timeout_seconds=settings.ytdlp_timeout_seconds,
+        http=httpx.Client(
+            timeout=settings.ytdlp_timeout_seconds,
+            trust_env=False,
+        ),
     )
 
 
@@ -306,7 +323,10 @@ def runtime_orchestrator() -> ImportOrchestrator:
         acquirer = ProviderChain(
             primary=(
                 SupadataClient(
-                    http=httpx.Client(timeout=settings.supadata_timeout_seconds),
+                    http=httpx.Client(
+                        timeout=settings.supadata_timeout_seconds,
+                        trust_env=False,
+                    ),
                     api_key=settings.supadata_api_key,
                     base_url=str(settings.supadata_base_url),
                     usage=usage,
@@ -316,7 +336,10 @@ def runtime_orchestrator() -> ImportOrchestrator:
             ),
             fallback=(
                 SoScriptedClient(
-                    http=httpx.Client(timeout=settings.soscripted_timeout_seconds),
+                    http=httpx.Client(
+                        timeout=settings.soscripted_timeout_seconds,
+                        trust_env=False,
+                    ),
                     api_key=settings.soscripted_api_key,
                     base_url=str(settings.soscripted_base_url),
                     usage=usage,
@@ -338,7 +361,10 @@ def runtime_orchestrator() -> ImportOrchestrator:
             assert settings.openrouter_api_key is not None
             extractor = ClaudeRecipeExtractor(
                 client=OpenRouterStructuredClient(
-                    http=httpx.Client(timeout=settings.openrouter_timeout_seconds),
+                    http=httpx.Client(
+                        timeout=settings.openrouter_timeout_seconds,
+                        trust_env=False,
+                    ),
                     api_key=settings.openrouter_api_key.get_secret_value(),
                     base_url=str(settings.openrouter_base_url),
                 ),
@@ -364,7 +390,7 @@ def runtime_orchestrator() -> ImportOrchestrator:
     thumbnails: OEmbedThumbnailFetcher | None = None
     if settings.object_storage_enabled:
         thumbnails = OEmbedThumbnailFetcher(
-            http=httpx.Client(timeout=15.0),
+            http=httpx.Client(timeout=15.0, trust_env=False),
             storage=S3ObjectStorage(
                 endpoint_url=str(settings.object_storage_endpoint_url),
                 region=settings.object_storage_region,

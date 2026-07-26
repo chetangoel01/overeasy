@@ -326,6 +326,7 @@ def test_an_unheard_video_with_a_rich_caption_still_bills_nothing() -> None:
 class Vision:
     result: VisualResult | Exception
     calls: int = 0
+    media_urls: list[str | None] = field(default_factory=list)
 
     def visual(
         self,
@@ -335,8 +336,9 @@ class Vision:
         media_url: str | None = None,
         duration_seconds: float | None = None,
     ) -> VisualResult:
-        del source, job_id, media_url, duration_seconds
+        del source, job_id, duration_seconds
         self.calls += 1
+        self.media_urls.append(media_url)
         if isinstance(self.result, Exception):
             raise self.result
         return self.result
@@ -364,6 +366,7 @@ def test_watching_the_video_comes_before_paying_to_have_it_watched() -> None:
     free = Free(
         FreeContext(
             metadata=MediaMetadata(title="Rice Paper Rolls", description="link in bio"),
+            video_url="https://cdn.example/video-only.mp4",
             diagnostics=["freeMetadataUsed"],
         )
     )
@@ -374,6 +377,7 @@ def test_watching_the_video_comes_before_paying_to_have_it_watched() -> None:
     context = chain.acquire(source(), job_id=uuid4())
 
     assert vision.calls == 1
+    assert vision.media_urls == ["https://cdn.example/video-only.mp4"]
     assert "visual" not in primary.calls
     assert "frameAnalysisUsed" in context.diagnostics
     assert context.visual_observations[0].timestamp_seconds == 12.0
@@ -426,7 +430,7 @@ def test_audio_transcription_runs_before_the_transcript_providers() -> None:
                 description="link in bio",
                 duration_seconds=22.3,
             ),
-            media_url="https://cdn.instagram.com/reel.mp4",
+            audio_url="https://cdn.example/audio-only.m4a",
             diagnostics=["instagramEmbedUsed"],
         )
     )
@@ -435,7 +439,7 @@ def test_audio_transcription_runs_before_the_transcript_providers() -> None:
     context = chain.acquire(source(), job_id=uuid4())
 
     # Whisper answered, so neither Supadata transcript rung nor SoScripted ran.
-    assert audio.calls == [("https://cdn.instagram.com/reel.mp4", 22.3)]
+    assert audio.calls == [("https://cdn.example/audio-only.m4a", 22.3)]
     assert primary.calls == []
     assert fallback.calls == 0
     assert context.transcript[0].provenance == "whisper:openai/whisper-large-v3"

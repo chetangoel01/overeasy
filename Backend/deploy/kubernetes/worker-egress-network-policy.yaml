@@ -1,0 +1,98 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ladle-worker-egress
+  namespace: ladle
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: ladle-worker
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: postgresql
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: redis
+      ports:
+        - protocol: TCP
+          port: 6379
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: object-storage
+      ports:
+        - protocol: TCP
+          port: 9000
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 0.0.0.0/8
+              - 10.0.0.0/8
+              - 100.64.0.0/10
+              - 127.0.0.0/8
+              - 169.254.0.0/16
+              - 172.16.0.0/12
+              - 192.0.0.0/24
+              - 192.0.2.0/24
+              - 192.168.0.0/16
+              - 198.18.0.0/15
+              - 198.51.100.0/24
+              - 203.0.113.0/24
+              - 224.0.0.0/4
+              - 240.0.0.0/4
+      ports:
+        - protocol: TCP
+          port: 443
+    - to:
+        - ipBlock:
+            cidr: ::/0
+            except:
+              - ::/8
+              - 64:ff9b::/96
+              - 64:ff9b:1::/48
+              - 100::/8
+              - 200::/7
+              - 400::/6
+              - 800::/5
+              - 1000::/4
+              - 2001::/23
+              - 2001:db8::/32
+              - 2002::/16
+              - 3fff::/20
+              - 4000::/3
+              - 6000::/3
+              - 8000::/3
+              - a000::/3
+              - c000::/3
+              - e000::/4
+              - fc00::/7
+              - f000::/5
+              - f800::/6
+              - fe00::/9
+              - fe80::/10
+              - fec0::/10
+              - ff00::/8
+      ports:
+        - protocol: TCP
+          port: 443

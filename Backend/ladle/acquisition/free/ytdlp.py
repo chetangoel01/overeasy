@@ -7,14 +7,16 @@ but process time, so it runs before any billed provider is touched.
 import html
 import json
 import logging
+import math
 import re
 import shutil
 import subprocess
 import sys
-import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
+
+import httpx
 
 from ladle.acquisition.errors import (
     MalformedProviderResponse,
@@ -23,6 +25,12 @@ from ladle.acquisition.errors import (
     ProviderUnavailable,
 )
 from ladle.acquisition.models import MediaMetadata, TextEvidence
+from ladle.infrastructure.dns import (
+    DNSResolver,
+    PinnedHTTPClient,
+    SystemDNSResolver,
+    UnsafeNetworkTarget,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -73,29 +81,44 @@ _WHITESPACE = re.compile(r"\s+")
 # step attribution without spending a prompt segment on every three words.
 _SEGMENT_CHARACTER_TARGET = 400
 _MAX_SEGMENTS = 400
+_MAX_SUBTITLE_BYTES = 4 * 1024 * 1024
 
 
 @dataclass(frozen=True)
 class SubtitleTrack:
     language: str
     generated: bool
+    url: str | None = None
 
 
 @dataclass
 class YtDlpMedia:
     metadata: MediaMetadata
     canonical_url: str | None = None
+    media_url: str | None = None
+    audio_url: str | None = None
+    video_url: str | None = None
     manual_languages: list[str] = field(default_factory=list)
     generated_languages: list[str] = field(default_factory=list)
+    manual_subtitle_urls: dict[str, str] = field(default_factory=dict)
+    generated_subtitle_urls: dict[str, str] = field(default_factory=dict)
 
     def preferred_track(self) -> SubtitleTrack | None:
         """Creator-authored captions beat machine captions; English beats nothing."""
         for language in _PREFERRED_LANGUAGES:
             if language in self.manual_languages:
-                return SubtitleTrack(language=language, generated=False)
+                return SubtitleTrack(
+                    language=language,
+                    generated=False,
+                    url=self.manual_subtitle_urls.get(language),
+                )
         for language in _PREFERRED_LANGUAGES:
             if language in self.generated_languages:
-                return SubtitleTrack(language=language, generated=True)
+                return SubtitleTrack(
+                    language=language,
+                    generated=True,
+                    url=self.generated_subtitle_urls.get(language),
+                )
         return None
 
 
@@ -133,16 +156,23 @@ class YtDlpClient:
         binary: str | None = None,
         cookies_file: str | Path | None = None,
         runner: CommandRunner = run_command,
+        http: httpx.Client | None = None,
+        dns: DNSResolver | None = None,
         metadata_timeout_seconds: float = 90,
         subtitle_timeout_seconds: float = 90,
-        audio_timeout_seconds: float = 240,
     ) -> None:
         self._binary = binary or _discover_binary()
         self._cookies_file = str(cookies_file) if cookies_file is not None else None
         self._runner = runner
         self._metadata_timeout = metadata_timeout_seconds
-        self._subtitle_timeout = subtitle_timeout_seconds
-        self._audio_timeout = audio_timeout_seconds
+        self._http = PinnedHTTPClient(
+            dns=dns or SystemDNSResolver(),
+            client=http
+            or httpx.Client(
+                timeout=subtitle_timeout_seconds,
+                trust_env=False,
+            ),
+        )
 
     @property
     def available(self) -> bool:
@@ -168,99 +198,22 @@ class YtDlpClient:
         return _media_from_payload(payload)
 
     def subtitles(self, url: str, *, track: SubtitleTrack) -> list[TextEvidence]:
-        """Timed caption cues, or an empty list when the track will not download.
+        """Fetch the provider-returned VTT through the pinned HTTP client.
 
-        A missing subtitle file is an ordinary outcome, not a provider failure —
-        the caller simply falls through to the next rung.
+        yt-dlp only discovers metadata. It never receives authority to follow a
+        provider-returned caption URL itself.
         """
-        with tempfile.TemporaryDirectory(prefix="ladle-free-") as folder:
-            work_dir = Path(folder)
-            command = self._command(
-                "--no-playlist",
-                "--skip-download",
-                "--write-auto-subs" if track.generated else "--write-subs",
-                "--sub-langs",
-                track.language,
-                "--sub-format",
-                "vtt",
-                "--no-warnings",
-                "--socket-timeout",
-                "20",
-                "-o",
-                str(work_dir / "source.%(ext)s"),
-                url,
-            )
-            try:
-                result = self._runner(command, timeout=self._subtitle_timeout)
-            except subprocess.TimeoutExpired:
-                LOGGER.info("yt-dlp subtitle download timed out for %s", url)
-                return []
-            if result.returncode != 0:
-                LOGGER.info(
-                    "yt-dlp subtitle download failed: %s",
-                    _tail(result.stderr or result.stdout),
-                )
-                return []
-            files = sorted(
-                work_dir.glob("source*.vtt"),
-                key=lambda item: item.stat().st_size,
-                reverse=True,
-            )
-            if not files:
-                return []
-            raw = files[0].read_text(errors="replace")
-        return parse_vtt(raw, generated=track.generated, language=track.language)
-
-    def audio(self, url: str, *, work_dir: Path) -> Path | None:
-        """Best available audio stream, or None when it will not download."""
-        return self._download(url, work_dir=work_dir, selector="bestaudio/best")
-
-    def video(self, url: str, *, work_dir: Path) -> Path | None:
-        """A file that carries pictures, which "bestaudio" often does not.
-
-        Instagram publishes a separate audio stream, so the audio selector
-        returns a bare .m4a — everything transcription needs and nothing a
-        frame can be cut from. TikTok has no separate stream, which is why
-        sampling frames appeared to work there and nowhere else.
-        """
-
-        return self._download(
-            url,
-            work_dir=work_dir,
-            selector="best[vcodec!=none]/bestvideo*+bestaudio/best",
-        )
-
-    def _download(self, url: str, *, work_dir: Path, selector: str) -> Path | None:
-        command = self._command(
-            "--no-playlist",
-            "-f",
-            selector,
-            "--no-warnings",
-            "--socket-timeout",
-            "20",
-            "--max-filesize",
-            "150M",
-            "-o",
-            str(work_dir / "download.%(ext)s"),
-            url,
-        )
+        del url
+        if track.url is None:
+            return []
         try:
-            result = self._runner(command, timeout=self._audio_timeout)
-        except (subprocess.TimeoutExpired, OSError) as error:
-            LOGGER.info("yt-dlp download failed for %s: %s", url, error)
-            return None
-        if result.returncode != 0:
-            LOGGER.info(
-                "yt-dlp download failed: %s",
-                _tail(result.stderr or result.stdout),
-            )
-            return None
-        files = sorted(
-            (item for item in work_dir.glob("download.*") if item.is_file()),
-            key=lambda item: item.stat().st_size,
-            reverse=True,
-        )
-        return files[0] if files else None
+            response = self._http.get(track.url, max_bytes=_MAX_SUBTITLE_BYTES)
+            response.raise_for_status()
+            raw = response.text
+        except (httpx.HTTPError, UnsafeNetworkTarget) as error:
+            LOGGER.info("subtitle download failed: %s", error)
+            return []
+        return parse_vtt(raw, generated=track.generated, language=track.language)
 
     def _json(self, command: list[str], *, timeout: float) -> dict[str, Any]:
         try:
@@ -285,7 +238,10 @@ class YtDlpClient:
         return self._binary
 
     def _command(self, *arguments: str) -> list[str]:
-        command = [self._require_binary()]
+        # Ignore user/system configuration and proxy environment variables.
+        # Infrastructure egress policy remains the backstop for requests the
+        # extractor makes to allowlisted social platforms.
+        command = [self._require_binary(), "--no-config", "--proxy", ""]
         if self._cookies_file is not None:
             command.extend(("--cookies", self._cookies_file))
         command.extend(arguments)
@@ -328,8 +284,13 @@ def _media_from_payload(payload: dict[str, Any]) -> YtDlpMedia:
             else None,
         ),
         canonical_url=canonical or None,
+        media_url=_media_url(payload),
+        audio_url=_audio_url(payload),
+        video_url=_video_url(payload),
         manual_languages=_languages(payload.get("subtitles")),
         generated_languages=_languages(payload.get("automatic_captions")),
+        manual_subtitle_urls=_subtitle_urls(payload.get("subtitles")),
+        generated_subtitle_urls=_subtitle_urls(payload.get("automatic_captions")),
     )
 
 
@@ -337,6 +298,105 @@ def _languages(value: Any) -> list[str]:
     if not isinstance(value, dict):
         return []
     return [str(key) for key in value]
+
+
+def _subtitle_urls(value: Any) -> dict[str, str]:
+    if not isinstance(value, dict):
+        return {}
+    result: dict[str, str] = {}
+    for language, candidates in value.items():
+        if not isinstance(candidates, list):
+            continue
+        preferred = next(
+            (
+                candidate
+                for candidate in candidates
+                if isinstance(candidate, dict)
+                and candidate.get("ext") == "vtt"
+                and isinstance(candidate.get("url"), str)
+            ),
+            None,
+        )
+        if preferred is not None:
+            result[str(language)] = str(preferred["url"])
+    return result
+
+
+def _media_url(payload: dict[str, Any]) -> str | None:
+    formats = _formats(payload)
+    candidates = [
+        value
+        for value in formats
+        if _https_url(value) is not None
+        and value.get("vcodec") not in (None, "none")
+        and value.get("acodec") not in (None, "none")
+    ]
+    if not candidates:
+        return None
+    return _https_url(_best_video(candidates))
+
+
+def _audio_url(payload: dict[str, Any]) -> str | None:
+    candidates = [
+        value
+        for value in _formats(payload)
+        if _https_url(value) is not None and value.get("acodec") not in (None, "none")
+    ]
+    if not candidates:
+        return None
+    audio_only = [
+        value for value in candidates if value.get("vcodec") in (None, "none")
+    ]
+    selected = max(
+        audio_only or candidates,
+        key=lambda value: _metric(value.get("abr") or value.get("tbr")),
+    )
+    return _https_url(selected)
+
+
+def _video_url(payload: dict[str, Any]) -> str | None:
+    candidates = [
+        value
+        for value in _formats(payload)
+        if _https_url(value) is not None and value.get("vcodec") not in (None, "none")
+    ]
+    if not candidates:
+        return None
+    video_only = [
+        value for value in candidates if value.get("acodec") in (None, "none")
+    ]
+    return _https_url(_best_video(video_only or candidates))
+
+
+def _formats(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    value = payload.get("formats")
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, dict)]
+
+
+def _https_url(value: dict[str, Any]) -> str | None:
+    url = value.get("url")
+    return str(url) if isinstance(url, str) and url.startswith("https://") else None
+
+
+def _best_video(candidates: list[dict[str, Any]]) -> dict[str, Any]:
+    bounded = [value for value in candidates if 0 < _metric(value.get("height")) <= 720]
+    if bounded:
+        return max(bounded, key=lambda value: _metric(value.get("height")))
+    measured = [value for value in candidates if _metric(value.get("height")) > 0]
+    return (
+        min(measured, key=lambda value: _metric(value.get("height")))
+        if measured
+        else candidates[0]
+    )
+
+
+def _metric(value: Any) -> float:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return 0
+    number = float(value)
+    return number if math.isfinite(number) and number >= 0 else 0
 
 
 def _text(value: Any) -> str:

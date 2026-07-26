@@ -4,6 +4,11 @@ from uuid import uuid4
 import httpx
 
 from ladle.acquisition.models import SourceVideoDescriptor
+from ladle.infrastructure.dns import (
+    DNSResolver,
+    PinnedHTTPClient,
+    SystemDNSResolver,
+)
 from ladle.infrastructure.object_storage import ObjectStorage
 
 logger = logging.getLogger(__name__)
@@ -28,8 +33,17 @@ class OEmbedThumbnailFetcher:
     thumbnail" rather than failing the import.
     """
 
-    def __init__(self, *, http: httpx.Client, storage: ObjectStorage) -> None:
-        self._http = http
+    def __init__(
+        self,
+        *,
+        http: httpx.Client,
+        storage: ObjectStorage,
+        dns: DNSResolver | None = None,
+    ) -> None:
+        self._http = PinnedHTTPClient(
+            dns=dns or SystemDNSResolver(),
+            client=http,
+        )
         self._storage = storage
 
     def fetch(self, source: SourceVideoDescriptor) -> str | None:
@@ -53,7 +67,7 @@ class OEmbedThumbnailFetcher:
         response = self._http.get(
             endpoint,
             params={"url": source.canonical_url, "format": "json"},
-            follow_redirects=True,
+            max_bytes=256 * 1024,
         )
         response.raise_for_status()
         thumbnail_url = response.json().get("thumbnail_url")
@@ -68,7 +82,10 @@ class OEmbedThumbnailFetcher:
         source: SourceVideoDescriptor,
         thumbnail_url: str,
     ) -> str | None:
-        response = self._http.get(thumbnail_url, follow_redirects=True)
+        response = self._http.get(
+            thumbnail_url,
+            max_bytes=_MAX_THUMBNAIL_BYTES,
+        )
         response.raise_for_status()
         content_type = (
             response.headers.get("content-type", "image/jpeg")

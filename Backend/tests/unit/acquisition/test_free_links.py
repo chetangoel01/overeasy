@@ -1,3 +1,6 @@
+from collections.abc import Sequence
+from dataclasses import dataclass
+
 import httpx
 import pytest
 
@@ -19,12 +22,23 @@ SITEMAP = """<?xml version="1.0"?>
 """
 
 
+@dataclass
+class FakeDNS:
+    values: dict[str, Sequence[str]]
+
+    def resolve(self, hostname: str) -> Sequence[str]:
+        return self.values.get(hostname, ["93.184.216.34"])
+
+
 def fetcher_returning(body: str, *, content_type: str = "text/html") -> SafeLinkFetcher:
     def handler(request: httpx.Request) -> httpx.Response:
-        del request
+        assert request.url.host == "93.184.216.34"
         return httpx.Response(200, text=body, headers={"content-type": content_type})
 
-    return SafeLinkFetcher(http=httpx.Client(transport=httpx.MockTransport(handler)))
+    return SafeLinkFetcher(
+        http=httpx.Client(transport=httpx.MockTransport(handler)),
+        dns=FakeDNS({}),
+    )
 
 
 class Recorder:
@@ -94,13 +108,16 @@ def test_non_http_scheme_is_refused() -> None:
 
 def test_redirect_into_private_space_is_refused() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.host == "example.com":
+        if request.headers["host"] == "example.com":
             return httpx.Response(302, headers={"location": "http://169.254.169.254/"})
         return httpx.Response(
             200, text="metadata", headers={"content-type": "text/html"}
         )
 
-    fetcher = SafeLinkFetcher(http=httpx.Client(transport=httpx.MockTransport(handler)))
+    fetcher = SafeLinkFetcher(
+        http=httpx.Client(transport=httpx.MockTransport(handler)),
+        dns=FakeDNS({}),
+    )
 
     with pytest.raises(UnsafeURL):
         fetcher.fetch_raw("https://example.com/recipe")
@@ -112,7 +129,9 @@ def test_redirect_loop_is_bounded() -> None:
         return httpx.Response(302, headers={"location": "https://example.com/next"})
 
     fetcher = SafeLinkFetcher(
-        http=httpx.Client(transport=httpx.MockTransport(handler)), max_redirects=2
+        http=httpx.Client(transport=httpx.MockTransport(handler)),
+        dns=FakeDNS({}),
+        max_redirects=2,
     )
 
     with pytest.raises(UnsafeURL):

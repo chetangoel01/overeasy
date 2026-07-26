@@ -8,14 +8,19 @@ recipe to a creator is worse than returning nothing.
 """
 
 import html
-import ipaddress
 import logging
 import re
-import socket
 from typing import Protocol
-from urllib.parse import quote, urlsplit, urlunsplit
+from urllib.parse import urlsplit
 
 import httpx
+
+from ladle.infrastructure.dns import (
+    DNSResolver,
+    PinnedHTTPClient,
+    SystemDNSResolver,
+    UnsafeNetworkTarget,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -168,20 +173,23 @@ class SafeLinkFetcher:
     points at a cloud metadata endpoint. Every hop is re-resolved and every
     resolved address is checked before the request is made.
 
-    This closes SSRF via redirect and via literal private addresses. It does not
-    defeat a deliberate DNS-rebinding race, which would need connection-level IP
-    pinning; egress filtering remains the backstop for that.
+    The connection is pinned to the address that passed validation. Every
+    redirect is resolved, validated, and pinned independently.
     """
 
     def __init__(
         self,
         *,
         http: httpx.Client,
+        dns: DNSResolver | None = None,
         max_redirects: int = _MAX_REDIRECTS,
         max_response_bytes: int = _MAX_RESPONSE_BYTES,
     ) -> None:
-        self._http = http
-        self._max_redirects = max_redirects
+        self._http = PinnedHTTPClient(
+            dns=dns or SystemDNSResolver(),
+            client=http,
+            maximum_redirects=max_redirects,
+        )
         self._max_response_bytes = max_response_bytes
 
     def fetch_text(self, url: str) -> str:
@@ -200,68 +208,22 @@ class SafeLinkFetcher:
         return self._get(url)[0]
 
     def _get(self, url: str) -> tuple[str, str]:
-        current = url
-        for _ in range(self._max_redirects + 1):
-            target = _validated(current)
+        try:
             response = self._http.get(
-                target,
+                url,
                 headers={
                     "User-Agent": _USER_AGENT,
                     "Accept": "text/html,application/xhtml+xml,application/xml",
                 },
-                follow_redirects=False,
+                max_bytes=self._max_response_bytes,
             )
-            if response.is_redirect:
-                location = response.headers.get("location")
-                if not location:
-                    raise UnsafeURL("redirect without a location")
-                current = str(httpx.URL(target).join(location))
-                continue
             response.raise_for_status()
             return (
-                response.text[: self._max_response_bytes],
+                response.text,
                 response.headers.get("content-type", ""),
             )
-        raise UnsafeURL("too many redirects")
-
-
-def _validated(url: str) -> str:
-    parts = urlsplit(url)
-    if parts.scheme not in ("http", "https"):
-        raise UnsafeURL(f"unsupported scheme: {parts.scheme!r}")
-    host = (parts.hostname or "").strip()
-    if not host:
-        raise UnsafeURL("missing host")
-    for address in _resolve(host):
-        if not address.is_global or address.is_multicast:
-            raise UnsafeURL(f"host {host} resolves to non-public address {address}")
-    # Re-encode so control characters in a caption cannot smuggle a second request.
-    return urlunsplit(
-        (
-            parts.scheme,
-            parts.netloc,
-            quote(parts.path, safe="/%:@!$&'()*+,;=~-._"),
-            quote(parts.query, safe="/?=&%:@!$'()*+,;~-._"),
-            "",
-        )
-    )
-
-
-def _resolve(host: str) -> list[ipaddress.IPv4Address | ipaddress.IPv6Address]:
-    try:
-        infos = socket.getaddrinfo(host, None, proto=socket.IPPROTO_TCP)
-    except socket.gaierror as error:
-        raise UnsafeURL(f"cannot resolve {host}") from error
-    addresses = []
-    for info in infos:
-        raw = info[4][0]
-        try:
-            addresses.append(ipaddress.ip_address(raw))
-        except ValueError:
-            continue
-    if not addresses:
-        raise UnsafeURL(f"cannot resolve {host}")
-    return addresses
+        except UnsafeNetworkTarget as error:
+            raise UnsafeURL(str(error)) from error
 
 
 def _host_of(url: str) -> str:

@@ -201,7 +201,10 @@ def create_app(
             or configured.apple_private_key is None
         ):
             raise RuntimeError("Apple sign-in credentials are incomplete")
-        apple_client = httpx.Client(timeout=configured.apple_timeout_seconds)
+        apple_client = httpx.Client(
+            timeout=configured.apple_timeout_seconds,
+            trust_env=False,
+        )
         apple_credentials = AppleCredentialService(
             identity_tokens=AppleIdentityTokenVerifier(
                 jwks=HTTPAppleJWKS(
@@ -230,7 +233,8 @@ def create_app(
     redirect_client: httpx.Client | None = None
     if source_parser is None:
         redirect_client = httpx.Client(
-            timeout=configured.source_redirect_timeout_seconds
+            timeout=configured.source_redirect_timeout_seconds,
+            trust_env=False,
         )
         source_parser = SourceIdentityParser(
             redirect_resolver=PinnedRedirectResolver(

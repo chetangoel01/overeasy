@@ -33,11 +33,16 @@ from ladle.acquisition.errors import (
     ProviderUnavailable,
     TranscriptUnavailable,
 )
-from ladle.acquisition.free.ytdlp import YtDlpClient
 from ladle.acquisition.models import (
     SourceVideoDescriptor,
     TextEvidence,
     TranscriptResult,
+)
+from ladle.infrastructure.dns import (
+    DNSResolver,
+    PinnedHTTPClient,
+    SystemDNSResolver,
+    UnsafeNetworkTarget,
 )
 from ladle.usage.ledger import NullProviderUsageSink, ProviderUsageSink
 
@@ -73,25 +78,25 @@ class AudioSource(Protocol):
 class MediaAudioSource:
     """Fetches a compact audio file for a source, or None when it cannot.
 
-    Instagram hands us a direct media URL through its embed payload; every
-    other platform goes through yt-dlp.
+    The acquisition layer discovers the media URL; this class downloads that
+    untrusted URL only through the DNS-validated, address-pinned client.
     """
 
     def __init__(
         self,
         *,
-        ytdlp: YtDlpClient,
         http: httpx.Client,
+        dns: DNSResolver | None = None,
         ffmpeg_path: str | None = None,
         max_media_bytes: int = 120 * 1024 * 1024,
-        download_timeout_seconds: float = 120,
         convert_timeout_seconds: float = 180,
     ) -> None:
-        self._ytdlp = ytdlp
-        self._http = http
+        self._http = PinnedHTTPClient(
+            dns=dns or SystemDNSResolver(),
+            client=http,
+        )
         self._ffmpeg = ffmpeg_path or shutil.which("ffmpeg")
         self._max_media_bytes = max_media_bytes
-        self._download_timeout = download_timeout_seconds
         self._convert_timeout = convert_timeout_seconds
 
     @property
@@ -111,7 +116,7 @@ class MediaAudioSource:
             downloaded = self._download(media_url, work_dir)
             if downloaded is not None:
                 return downloaded
-        return self._ytdlp_audio(source.canonical_url, work_dir)
+        return None
 
     def video(
         self,
@@ -131,9 +136,7 @@ class MediaAudioSource:
             downloaded = self._download(media_url, work_dir)
             if downloaded is not None:
                 return downloaded
-        if not self._ytdlp.available:
-            return None
-        return self._ytdlp.video(source.canonical_url, work_dir=work_dir)
+        return None
 
     def audio(
         self,
@@ -152,28 +155,13 @@ class MediaAudioSource:
     def _download(self, url: str, work_dir: Path) -> Path | None:
         target = work_dir / "source-media"
         try:
-            with self._http.stream(
-                "GET", url, timeout=self._download_timeout, follow_redirects=True
-            ) as response:
-                response.raise_for_status()
-                written = 0
-                with target.open("wb") as handle:
-                    for chunk in response.iter_bytes():
-                        written += len(chunk)
-                        if written > self._max_media_bytes:
-                            LOGGER.info("Media exceeded the size cap; abandoning")
-                            return None
-                        handle.write(chunk)
-        except httpx.HTTPError as error:
+            response = self._http.get(url, max_bytes=self._max_media_bytes)
+            response.raise_for_status()
+            target.write_bytes(response.content)
+        except (httpx.HTTPError, UnsafeNetworkTarget) as error:
             LOGGER.info("Media download failed: %s", error)
             return None
         return target if target.stat().st_size > 0 else None
-
-    def _ytdlp_audio(self, url: str, work_dir: Path) -> Path | None:
-        if not self._ytdlp.available:
-            return None
-        downloaded = self._ytdlp.audio(url, work_dir=work_dir)
-        return downloaded
 
     def _to_mp3(self, media: Path, work_dir: Path) -> Path | None:
         assert self._ffmpeg is not None
