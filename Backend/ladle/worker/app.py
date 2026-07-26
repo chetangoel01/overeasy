@@ -15,6 +15,10 @@ def create_celery_app(settings: Settings | None = None) -> Celery:
     application.conf.update(
         task_acks_late=True,
         task_reject_on_worker_lost=True,
+        task_soft_time_limit=configured.celery_task_soft_time_limit_seconds,
+        task_time_limit=configured.celery_task_time_limit_seconds,
+        worker_prefetch_multiplier=1,
+        broker_connection_retry_on_startup=True,
         task_serializer="json",
         result_serializer="json",
         accept_content=["json"],

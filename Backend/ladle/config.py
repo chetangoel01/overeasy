@@ -50,11 +50,12 @@ class Settings(BaseSettings):
     user_import_monthly_quota: int = Field(default=200, gt=0)
     source_redirect_timeout_seconds: float = Field(default=10, gt=0)
     extraction_claim_minutes: int = Field(default=10, gt=0)
+    extraction_claim_heartbeat_seconds: int = Field(default=30, gt=0)
     public_cache_recheck_days: int = Field(default=7, gt=0)
     # A job whose worker died stays in parsing until the sweep declares it
     # abandoned. Longer than the claim lease, so a worker that is merely slow
     # is never mistaken for one that is gone.
-    import_stale_after_minutes: int = Field(default=60, gt=0)
+    import_stale_after_minutes: int = Field(default=45, gt=0)
     import_maintenance_interval_seconds: int = Field(default=300, gt=0)
 
     rate_limiting_enabled: bool = False
@@ -81,7 +82,9 @@ class Settings(BaseSettings):
     celery_enabled: bool = False
     celery_broker_url: str = "redis://127.0.0.1:6379/0"
     celery_result_backend: str = "redis://127.0.0.1:6379/1"
-    celery_visibility_timeout_seconds: int = Field(default=3600, gt=0)
+    celery_task_soft_time_limit_seconds: int = Field(default=1500, gt=0)
+    celery_task_time_limit_seconds: int = Field(default=1560, gt=0)
+    celery_visibility_timeout_seconds: int = Field(default=1800, gt=0)
     worker_provider_mode: Literal["disabled", "fake", "live"] = "disabled"
     provider_daily_billed_unit_limit: Decimal = Field(
         default=Decimal("1000"),
@@ -210,6 +213,40 @@ class Settings(BaseSettings):
     def validate_import_quotas(self) -> Self:
         if self.user_import_monthly_quota < self.user_import_daily_quota:
             raise ValueError("monthly import quota must be at least the daily quota")
+        return self
+
+    @model_validator(mode="after")
+    def validate_worker_timing(self) -> Self:
+        claim_seconds = self.extraction_claim_minutes * 60
+        stale_seconds = self.import_stale_after_minutes * 60
+        reservation_seconds = self.import_reservation_minutes * 60
+        budget_reservation_seconds = self.provider_budget_reservation_minutes * 60
+        longest_provider_timeout = max(
+            self.ytdlp_timeout_seconds,
+            self.linked_page_timeout_seconds,
+            self.transcription_timeout_seconds,
+            self.frame_analysis_timeout_seconds,
+            self.supadata_timeout_seconds,
+            self.soscripted_timeout_seconds,
+            self.anthropic_timeout_seconds,
+            self.openrouter_timeout_seconds,
+        )
+        safe = (
+            self.extraction_claim_heartbeat_seconds * 2 < claim_seconds
+            and longest_provider_timeout < self.celery_task_soft_time_limit_seconds
+            < self.celery_task_time_limit_seconds
+            < self.celery_visibility_timeout_seconds
+            < stale_seconds
+            < reservation_seconds
+            and self.celery_task_time_limit_seconds < budget_reservation_seconds
+        )
+        if not safe:
+            raise ValueError(
+                "worker timing must satisfy heartbeat*2 < claim lease, longest "
+                "provider timeout < soft task limit < hard task limit < broker "
+                "visibility < stale-job timeout < recipe reservation, and hard "
+                "task limit < provider budget reservation"
+            )
         return self
 
     @model_validator(mode="after")

@@ -23,6 +23,7 @@ The implementation described here is on branch `codex/ladle-backend`.
 | Celery entry point | `Backend/ladle/worker/app.py` |
 | Import worker task | `Backend/ladle/worker/tasks.py` |
 | Worker dependency wiring | `Backend/ladle/worker/runtime.py` |
+| Import worker reliability | `Backend/docs/import-worker-reliability.md` |
 | Import/cache orchestration | `Backend/ladle/imports/`, `Backend/ladle/cache/` |
 | Provider adapters | `Backend/ladle/acquisition/` |
 | Claude extraction | `Backend/ladle/extraction/` |

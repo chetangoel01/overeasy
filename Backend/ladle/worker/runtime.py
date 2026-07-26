@@ -47,6 +47,7 @@ from ladle.extraction.claude import (
 )
 from ladle.extraction.openrouter import OpenRouterStructuredClient
 from ladle.extraction.protocol import RecipeExtractor
+from ladle.imports.heartbeat import ClaimHeartbeatMonitor
 from ladle.imports.maintenance import ImportMaintenanceService
 from ladle.imports.orchestrator import ImportOrchestrator
 from ladle.imports.reservations import ReservationService
@@ -426,4 +427,9 @@ def runtime_orchestrator() -> ImportOrchestrator:
             reservations=reservations,
         ),
         metrics=metrics,
+        heartbeat=ClaimHeartbeatMonitor(
+            session_factory=sessions,
+            claims=claims,
+            interval_seconds=settings.extraction_claim_heartbeat_seconds,
+        ),
     )

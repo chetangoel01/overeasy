@@ -171,3 +171,61 @@ def test_system_clock_returns_timezone_aware_utc() -> None:
 
     assert value.tzinfo is UTC
     assert value.utcoffset() is not None
+
+
+@pytest.mark.parametrize(
+    "override",
+    [
+        {"extraction_claim_minutes": 1, "extraction_claim_heartbeat_seconds": 30},
+        {
+            "celery_task_soft_time_limit_seconds": 600,
+            "soscripted_timeout_seconds": 600,
+        },
+        {
+            "celery_task_soft_time_limit_seconds": 1200,
+            "celery_task_time_limit_seconds": 1200,
+        },
+        {
+            "celery_task_time_limit_seconds": 1800,
+            "celery_visibility_timeout_seconds": 1800,
+        },
+        {
+            "celery_visibility_timeout_seconds": 3600,
+            "import_stale_after_minutes": 60,
+        },
+        {
+            "import_stale_after_minutes": 60,
+            "import_reservation_minutes": 60,
+        },
+        {
+            "celery_task_time_limit_seconds": 1800,
+            "provider_budget_reservation_minutes": 30,
+        },
+    ],
+)
+def test_cross_setting_timing_constraints_fail_closed(
+    override: dict[str, object],
+) -> None:
+    with pytest.raises(ValidationError, match="timing"):
+        Settings(**override, _env_file=None)
+
+
+def test_default_worker_timing_chain_is_safe() -> None:
+    settings = Settings(_env_file=None)
+
+    assert (
+        settings.extraction_claim_heartbeat_seconds * 2
+        < settings.extraction_claim_minutes * 60
+    )
+    assert (
+        settings.soscripted_timeout_seconds
+        < settings.celery_task_soft_time_limit_seconds
+        < settings.celery_task_time_limit_seconds
+        < settings.celery_visibility_timeout_seconds
+        < settings.import_stale_after_minutes * 60
+        < settings.import_reservation_minutes * 60
+    )
+    assert (
+        settings.celery_task_time_limit_seconds
+        < settings.provider_budget_reservation_minutes * 60
+    )
