@@ -7,7 +7,7 @@ from pydantic import SecretStr
 
 _VERSION = b"LPT1"
 _NONCE_BYTES = 12
-_MAX_PLAINTEXT_BYTES = 200_000
+MAX_PRIVATE_TEXT_BYTES = 200_000
 
 
 class PrivateTextCipher(Protocol):
@@ -24,9 +24,7 @@ class LocalPrivateTextCipher:
         self._cipher = AESGCM(key)
 
     def encrypt(self, value: str) -> bytes:
-        encoded = value.encode()
-        if not encoded or len(encoded) > _MAX_PLAINTEXT_BYTES:
-            raise ValueError("private text length is invalid")
+        encoded = validate_private_text(value).encode()
         nonce = os.urandom(_NONCE_BYTES)
         encrypted = self._cipher.encrypt(nonce, encoded, _VERSION)
         return _VERSION + nonce + encrypted
@@ -44,3 +42,10 @@ class LocalPrivateTextCipher:
             _VERSION,
         )
         return plaintext.decode()
+
+
+def validate_private_text(value: str) -> str:
+    encoded = value.encode()
+    if not encoded or len(encoded) > MAX_PRIVATE_TEXT_BYTES:
+        raise ValueError("private text length is invalid")
+    return value

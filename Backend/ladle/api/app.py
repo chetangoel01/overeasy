@@ -16,6 +16,7 @@ from ladle.api.rate_limits import (
     RateLimitService,
     RedisTokenBucketBackend,
 )
+from ladle.api.request_limits import RequestBodyLimitMiddleware
 from ladle.api.routes.attestation import router as attestation_router
 from ladle.api.routes.auth import router as auth_router
 from ladle.api.routes.health import (
@@ -108,6 +109,10 @@ def create_app(
         version="0.1.0",
         docs_url=None,
         redoc_url=None,
+    )
+    application.add_middleware(
+        RequestBodyLimitMiddleware,
+        maximum_bytes=configured.maximum_request_body_bytes,
     )
     application.state.session_factory = database_sessions
     application.state.clock = runtime_clock

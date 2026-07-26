@@ -4,7 +4,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Header, HTTPException, Request, status
 from fastapi.responses import JSONResponse
-from pydantic import AnyHttpUrl, Field, ValidationError
+from pydantic import AnyHttpUrl, Field, ValidationError, field_validator
 from sqlalchemy.orm import Session
 
 from ladle.api.dependencies import database
@@ -21,6 +21,7 @@ from ladle.auth.tokens import AccessClaims
 from ladle.contracts.common import WireModel, WireUUID
 from ladle.contracts.errors import DuplicateRecipeDetails, ErrorCode
 from ladle.contracts.imports import ImportJobResponse
+from ladle.crypto.private_text import validate_private_text
 from ladle.db.models import Device
 from ladle.imports.admission import (
     AdmissionService,
@@ -46,10 +47,20 @@ class ImportSubmissionRequest(WireModel):
     correction_notes: str | None = Field(default=None, max_length=10_000)
     pasted_text: str | None = Field(default=None, max_length=200_000)
 
+    @field_validator("correction_notes", "pasted_text")
+    @classmethod
+    def validate_private_text_bytes(cls, value: str | None) -> str | None:
+        return validate_private_text(value) if value is not None else None
+
 
 class RetryImportRequest(WireModel):
     correction_notes: str | None = Field(default=None, max_length=10_000)
     pasted_text: str | None = Field(default=None, max_length=200_000)
+
+    @field_validator("correction_notes", "pasted_text")
+    @classmethod
+    def validate_private_text_bytes(cls, value: str | None) -> str | None:
+        return validate_private_text(value) if value is not None else None
 
 
 def _admission(request: Request) -> AdmissionService:

@@ -40,6 +40,11 @@ class Settings(BaseSettings):
     app_attest_bundle_id: str | None = Field(default=None, min_length=3, max_length=255)
     app_attest_environment: Literal["development", "production"] = "production"
     app_attest_challenge_seconds: int = Field(default=300, ge=60, le=900)
+    maximum_request_body_bytes: int = Field(
+        default=1024 * 1024,
+        ge=1024,
+        le=10 * 1024 * 1024,
+    )
     import_reservation_minutes: int = Field(default=60, gt=0)
     user_import_daily_quota: int = Field(default=20, gt=0)
     user_import_monthly_quota: int = Field(default=200, gt=0)
