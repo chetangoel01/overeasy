@@ -24,6 +24,7 @@ def test_worker_uses_late_ack_and_long_visibility_timeout() -> None:
     assert app.conf.task_time_limit == 1260
     assert app.conf.worker_prefetch_multiplier == 1
     assert app.conf.broker_connection_retry_on_startup is True
+    assert app.conf.task_default_delivery_mode == "persistent"
     assert app.conf.task_annotations[PROCESS_IMPORT_TASK] == {
         "max_retries": 3,
     }

@@ -56,8 +56,9 @@ data to advertising or data-broker services.
   the user's request.
 - Temporary object uploads: one day; noncurrent object versions: 30 days.
 
-Managed backup retention is published with the production service runbook.
-Expired backups are destroyed by the infrastructure provider's lifecycle.
+Encrypted automated backups are retained for 35 days; continuous
+point-in-time recovery covers at least the latest seven days. Expired backups
+are destroyed by the infrastructure provider's lifecycle.
 
 ## Account deletion
 
@@ -69,7 +70,8 @@ private text, sync history, and unreferenced objects. It is idempotent so a
 network retry cannot recreate or partially delete the account.
 
 Deletion cannot be undone. Backups are not used to restore an individual
-deleted account; any residual encrypted copy ages out with the backup schedule.
+deleted account; any residual encrypted copy ages out within the 35-day backup
+schedule.
 
 ## Security and changes
 
