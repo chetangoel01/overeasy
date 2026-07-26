@@ -169,6 +169,16 @@ def test_settings_load_prefixed_provider_configuration(
     assert "provider-secret" not in repr(settings)
 
 
+def test_object_storage_addressing_style_loads_from_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LADLE_OBJECT_STORAGE_ADDRESSING_STYLE", "virtual")
+
+    settings = Settings(_env_file=None)
+
+    assert settings.object_storage_addressing_style == "virtual"
+
+
 def test_soscripted_default_allows_its_synchronous_transcription_window() -> None:
     settings = Settings(_env_file=None)
 

@@ -1,13 +1,26 @@
-.env
+.git
+.github
+.env*
 .mypy_cache
 .pytest_cache
 .ruff_cache
 .venv
 __pycache__
+*.py[cod]
 htmlcov
+coverage.xml
+.coverage
 tests
+docs
+scripts
+deploy
+docker-compose*
+*.md
 # Cached video contexts and scoreboards from scripts/eval_extraction.py. Left
 # in the build context they ship inside the runtime image, and a rebuild then
 # silently restores stale evidence over whatever the harness just fetched.
 .eval-cache
 .private
+*.cookies*
+*.sqlite*
+*.db

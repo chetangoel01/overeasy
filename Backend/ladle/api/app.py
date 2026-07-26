@@ -202,6 +202,7 @@ def create_app(
             bucket=configured.object_storage_bucket,
             access_key=configured.object_storage_access_key,
             secret_key=configured.object_storage_secret_key.get_secret_value(),
+            addressing_style=configured.object_storage_addressing_style,
             public_endpoint_url=(
                 str(configured.object_storage_public_endpoint_url)
                 if configured.object_storage_public_endpoint_url is not None

@@ -27,9 +27,10 @@ class S3ObjectStorage:
         access_key: str,
         secret_key: str,
         public_endpoint_url: str | None = None,
+        addressing_style: str = "auto",
     ) -> None:
         self._bucket = bucket
-        addressing = Config(s3={"addressing_style": "path"})
+        addressing = Config(s3={"addressing_style": addressing_style})
         self._client: BaseClient = boto3.client(
             "s3",
             endpoint_url=endpoint_url,

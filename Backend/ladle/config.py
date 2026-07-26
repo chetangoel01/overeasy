@@ -151,6 +151,7 @@ class Settings(BaseSettings):
     object_storage_public_endpoint_url: AnyHttpUrl | None = None
     object_storage_region: str = "us-east-1"
     object_storage_bucket: str = "ladle-private"
+    object_storage_addressing_style: Literal["auto", "path", "virtual"] = "auto"
     object_storage_access_key: str = "ladle-local"
     object_storage_secret_key: SecretStr = SecretStr("ladle-local-secret")
 
