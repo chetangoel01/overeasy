@@ -129,11 +129,17 @@ struct RecipeEditorView: View {
             if viewModel.hasIssue(.titleRequired) {
                 validationText("Add a recipe title.")
             }
+            if viewModel.hasIssue(.titleTooLong) {
+                validationText("Keep the title to 300 characters or fewer.")
+            }
 
             editorField(
                 title: "Creator",
                 text: $viewModel.draft.creatorName
             )
+            if viewModel.hasIssue(.creatorNameTooLong) {
+                validationText("Keep the creator name to 200 characters or fewer.")
+            }
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("Description")
@@ -145,6 +151,11 @@ struct RecipeEditorView: View {
                     .frame(minHeight: 130)
                     .editorSurface()
                     .accessibilityLabel("Recipe description")
+                if viewModel.hasIssue(.descriptionTooLong) {
+                    validationText(
+                        "Keep the description to 10,000 characters or fewer."
+                    )
+                }
             }
         }
     }
@@ -200,7 +211,9 @@ struct RecipeEditorView: View {
                 keyboardType: .numberPad
             )
             if viewModel.hasIssue(.preparationMinutesInvalid) {
-                validationText("Enter zero or a whole number of minutes.")
+                validationText(
+                    "Enter a whole number from zero to 43,200."
+                )
             }
 
             editorField(
@@ -209,7 +222,14 @@ struct RecipeEditorView: View {
                 keyboardType: .numberPad
             )
             if viewModel.hasIssue(.cookingMinutesInvalid) {
-                validationText("Enter zero or a whole number of minutes.")
+                validationText(
+                    "Enter a whole number from zero to 43,200."
+                )
+            }
+            if viewModel.hasIssue(.totalMinutesInvalid) {
+                validationText(
+                    "Preparation and cooking time together must be 43,200 minutes or fewer."
+                )
             }
 
             editorField(
@@ -218,7 +238,9 @@ struct RecipeEditorView: View {
                 keyboardType: .decimalPad
             )
             if viewModel.hasIssue(.servingsMustBePositive) {
-                validationText("Servings must be greater than zero.")
+                validationText(
+                    "Servings must be greater than zero and at most 10,000."
+                )
             }
         }
     }
@@ -241,6 +263,13 @@ struct RecipeEditorView: View {
                 Label("Add ingredient", systemImage: "plus")
             }
             .buttonStyle(LadlePrimaryButtonStyle(isProminent: false))
+            .disabled(
+                viewModel.draft.ingredients.count
+                    >= RecipeContractLimits.ingredients
+            )
+            if viewModel.hasIssue(.tooManyIngredients) {
+                validationText("A recipe can have at most 200 ingredients.")
+            }
         }
     }
 
@@ -262,6 +291,12 @@ struct RecipeEditorView: View {
                 Label("Add step", systemImage: "plus")
             }
             .buttonStyle(LadlePrimaryButtonStyle(isProminent: false))
+            .disabled(
+                viewModel.draft.steps.count >= RecipeContractLimits.steps
+            )
+            if viewModel.hasIssue(.tooManySteps) {
+                validationText("A recipe can have at most 200 steps.")
+            }
         }
     }
 
@@ -330,7 +365,7 @@ struct RecipeEditorView: View {
                 }
                 if !nutritionIssues.isEmpty {
                     validationText(
-                        "Nutrition values must be zero or greater, and serving basis must be positive."
+                        "Nutrition values must be between zero and 1,000,000; serving basis must be positive."
                     )
                 }
             }
@@ -381,6 +416,13 @@ struct RecipeEditorView: View {
             ) {
                 validationText("Add an ingredient name.")
             }
+            if viewModel.hasIssue(
+                .ingredientFieldTooLong(ingredient.id)
+            ) {
+                validationText(
+                    "Shorten this ingredient’s quantity, unit, name, or preparation."
+                )
+            }
         }
         .padding(16)
         .editorSurface()
@@ -424,6 +466,11 @@ struct RecipeEditorView: View {
 
             if viewModel.hasIssue(.stepInstructionRequired(step.id)) {
                 validationText("Add an instruction for this step.")
+            }
+            if viewModel.hasIssue(.stepInstructionTooLong(step.id)) {
+                validationText(
+                    "Keep this instruction to 5,000 characters or fewer."
+                )
             }
         }
         .padding(16)

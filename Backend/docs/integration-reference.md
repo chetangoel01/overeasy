@@ -374,6 +374,10 @@ reference. For a manual recipe, change `id`, set `source` to `other`, and use
 an HTTPS `originalURL`, for example
 `https://manual.ladle.local/{recipeID}`.
 
+Recipe text, collection, number, duration, nesting, and total-complexity
+limits are part of the wire contract. See `docs/recipe-graph-limits.md` before
+constructing mutation payloads.
+
 ### Error envelope
 
 Every application error uses:

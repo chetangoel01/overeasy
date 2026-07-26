@@ -4,11 +4,19 @@ import Observation
 
 enum RecipeDraftValidationIssue: Hashable {
     case titleRequired
+    case titleTooLong
+    case creatorNameTooLong
+    case descriptionTooLong
     case servingsMustBePositive
     case preparationMinutesInvalid
     case cookingMinutesInvalid
+    case totalMinutesInvalid
+    case tooManyIngredients
+    case tooManySteps
     case ingredientNameRequired(UUID)
+    case ingredientFieldTooLong(UUID)
     case stepInstructionRequired(UUID)
+    case stepInstructionTooLong(UUID)
     case nutritionValueInvalid(String)
 }
 
@@ -57,6 +65,9 @@ final class RecipeEditorViewModel: Identifiable {
     }
 
     func addIngredient() {
+        guard draft.ingredients.count < RecipeContractLimits.ingredients else {
+            return
+        }
         draft.ingredients.append(.init())
     }
 
@@ -72,6 +83,9 @@ final class RecipeEditorViewModel: Identifiable {
     }
 
     func addStep() {
+        guard draft.steps.count < RecipeContractLimits.steps else {
+            return
+        }
         draft.steps.append(.init())
     }
 
@@ -122,7 +136,28 @@ final class RecipeEditorViewModel: Identifiable {
         if normalized(draft.title) == nil {
             issues.insert(.titleRequired)
         }
-        if let servings = decimal(draft.servings), servings > 0 {
+        if exceeds(
+            normalized(draft.title),
+            RecipeContractLimits.titleCharacters
+        ) {
+            issues.insert(.titleTooLong)
+        }
+        if exceeds(
+            normalized(draft.creatorName),
+            RecipeContractLimits.creatorCharacters
+        ) {
+            issues.insert(.creatorNameTooLong)
+        }
+        if exceeds(
+            normalized(draft.description),
+            RecipeContractLimits.descriptionCharacters
+        ) {
+            issues.insert(.descriptionTooLong)
+        }
+        if let servings = decimal(draft.servings),
+           servings > 0,
+           servings <= RecipeContractLimits.maximumServings,
+           hasValidScale(servings) {
             // Valid.
         } else {
             issues.insert(.servingsMustBePositive)
@@ -133,13 +168,50 @@ final class RecipeEditorViewModel: Identifiable {
         if !isValidOptionalInteger(draft.cookingMinutes) {
             issues.insert(.cookingMinutesInvalid)
         }
-        for ingredient in draft.ingredients
-        where normalized(ingredient.name) == nil {
-            issues.insert(.ingredientNameRequired(ingredient.id))
+        let preparation = integer(draft.preparationMinutes)
+        let cooking = integer(draft.cookingMinutes)
+        if preparation.map({ $0 > RecipeContractLimits.maximumMinutes }) == true
+            || cooking.map({ $0 > RecipeContractLimits.maximumMinutes }) == true
+            || (preparation ?? 0) + (cooking ?? 0)
+            > RecipeContractLimits.maximumMinutes {
+            issues.insert(.totalMinutesInvalid)
         }
-        for step in draft.steps
-        where normalized(step.instruction) == nil {
-            issues.insert(.stepInstructionRequired(step.id))
+        if draft.ingredients.count > RecipeContractLimits.ingredients {
+            issues.insert(.tooManyIngredients)
+        }
+        if draft.steps.count > RecipeContractLimits.steps {
+            issues.insert(.tooManySteps)
+        }
+        for ingredient in draft.ingredients {
+            if normalized(ingredient.name) == nil {
+                issues.insert(.ingredientNameRequired(ingredient.id))
+            }
+            if exceeds(
+                normalized(ingredient.quantityText),
+                RecipeContractLimits.quantityCharacters
+            ) || exceeds(
+                normalized(ingredient.unit),
+                RecipeContractLimits.unitCharacters
+            ) || exceeds(
+                normalized(ingredient.name),
+                RecipeContractLimits.ingredientNameCharacters
+            ) || exceeds(
+                normalized(ingredient.preparation),
+                RecipeContractLimits.preparationCharacters
+            ) {
+                issues.insert(.ingredientFieldTooLong(ingredient.id))
+            }
+        }
+        for step in draft.steps {
+            if normalized(step.instruction) == nil {
+                issues.insert(.stepInstructionRequired(step.id))
+            }
+            if exceeds(
+                normalized(step.instruction),
+                RecipeContractLimits.instructionCharacters
+            ) {
+                issues.insert(.stepInstructionTooLong(step.id))
+            }
         }
 
         if draft.nutrition.isIncluded {
@@ -158,7 +230,9 @@ final class RecipeEditorViewModel: Identifiable {
                 issues.insert(.nutritionValueInvalid(name))
             }
             if let basis = decimal(draft.nutrition.servingBasis),
-               basis > 0 {
+               basis > 0,
+               basis <= RecipeContractLimits.maximumDecimal,
+               hasValidScale(basis) {
                 // Valid.
             } else {
                 issues.insert(.nutritionValueInvalid("Serving basis"))
@@ -186,14 +260,24 @@ final class RecipeEditorViewModel: Identifiable {
         guard let value = normalized(text) else {
             return true
         }
-        return Int(value).map { $0 >= 0 } ?? false
+        return Int(value).map {
+            $0 >= 0 && $0 <= RecipeContractLimits.maximumMinutes
+        } ?? false
     }
 
     private func isValidOptionalDecimal(_ text: String) -> Bool {
         guard let value = normalized(text) else {
             return true
         }
-        return decimal(value).map { $0 >= 0 } ?? false
+        return decimal(value).map {
+            $0 >= 0
+                && $0 <= RecipeContractLimits.maximumDecimal
+                && hasValidScale($0)
+        } ?? false
+    }
+
+    private func integer(_ text: String) -> Int? {
+        normalized(text).flatMap(Int.init)
     }
 
     private func decimal(_ text: String) -> Decimal? {
@@ -208,5 +292,19 @@ final class RecipeEditorViewModel: Identifiable {
     private func normalized(_ text: String) -> String? {
         let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
         return value.isEmpty ? nil : value
+    }
+
+    private func exceeds(_ text: String?, _ maximum: Int) -> Bool {
+        text.map { $0.unicodeScalars.count > maximum } ?? false
+    }
+
+    private func hasValidScale(_ value: Decimal) -> Bool {
+        let text = NSDecimalNumber(decimal: value).stringValue
+        let fractional = text.split(
+            separator: ".",
+            maxSplits: 1,
+            omittingEmptySubsequences: false
+        ).dropFirst().first
+        return fractional.map { $0.count <= 6 } ?? true
     }
 }
