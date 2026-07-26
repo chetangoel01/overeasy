@@ -145,7 +145,7 @@ struct ReimportSheet: View {
                 .ladleFont(.title)
                 .foregroundStyle(LadleTheme.ink)
             Text(
-                "\(currentRecipe.title) is still saved and ready to use while Ladle checks the source."
+                "\(currentRecipe.title) is still saved and ready to use while Overeasy checks the source."
             )
             .ladleFont(.body)
             .foregroundStyle(LadleTheme.ink.opacity(0.64))

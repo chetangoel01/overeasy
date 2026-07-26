@@ -8,6 +8,7 @@ struct LibraryView: View {
     var installationID: String = "preview-installation"
     var canImport = true
     var onSignOut: @MainActor () async -> Void = {}
+    var onDeleteAccount: @MainActor () async throws -> Void = {}
 
     @State private var section: LibrarySection = .home
     @State private var isFilterSheetPresented = false
@@ -52,7 +53,8 @@ struct LibraryView: View {
                     accountSession: accountSession,
                     library: viewModel,
                     installationID: installationID,
-                    signOut: onSignOut
+                    signOut: onSignOut,
+                    deleteAccount: onDeleteAccount
                 )
             }
             .sheet(

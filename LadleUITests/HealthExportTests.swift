@@ -24,7 +24,7 @@ final class HealthExportTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["22 g"].exists)
         XCTAssertTrue(
             app.staticTexts[
-                "Apple will ask for permission only after you confirm. Ladle never exports nutrition automatically."
+                "Apple will ask for permission only after you confirm. Overeasy never exports nutrition automatically."
             ].exists
         )
         XCTAssertTrue(app.buttons["Confirm & Export"].exists)
@@ -63,6 +63,7 @@ final class HealthExportTests: XCTestCase {
     }
 
     private func openNutrition(in app: XCUIApplication) {
+        app.buttons["All 6"].tap()
         app.swipeUp()
         let card = element(
             in: app,
@@ -71,10 +72,8 @@ final class HealthExportTests: XCTestCase {
         XCTAssertTrue(card.waitForExistence(timeout: 2))
         card.tap()
 
+        app.buttons["Recipe options"].tap()
         let nutritionButton = app.buttons["View nutrition"]
-        for _ in 0..<5 where !nutritionButton.exists {
-            app.swipeUp()
-        }
         XCTAssertTrue(nutritionButton.waitForExistence(timeout: 2))
         nutritionButton.tap()
         XCTAssertTrue(

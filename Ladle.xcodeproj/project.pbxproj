@@ -54,6 +54,7 @@
 		69F3BF71002411F36B049F9F /* SyncCursorStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72BCED0B970235948B037494 /* SyncCursorStore.swift */; };
 		6FBBAE9357F2B186E26ADD35 /* LadleCore in Frameworks */ = {isa = PBXBuildFile; productRef = ACB5208FC83F92BD0A208E0F /* LadleCore */; };
 		714A88DB30214D7AD579E338 /* VideoEmbedSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FCA9C00709407DA52C805AE /* VideoEmbedSheet.swift */; };
+		72DB888843AD8B0F3C06AA55 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = DD8157BECA8D206CD8B984BB /* PrivacyInfo.xcprivacy */; };
 		75E34BC4C3ECC1FF8580FBDB /* SharedQueueReconciler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46580B3879F912E78BF1629C /* SharedQueueReconciler.swift */; };
 		7735E4254A1CC43579B1C7AD /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CAD674446D07BDCDBFD2F66 /* RootView.swift */; };
 		7903D591A395E0DD678CC58F /* RecipeTimer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AE99C267EF3E47EF936C777 /* RecipeTimer.swift */; };
@@ -253,6 +254,7 @@
 		D975A502CE6CABFF17DE770D /* LadleShare.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = LadleShare.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		DB9237724B9663AD4AFC1232 /* AccountSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSession.swift; sourceTree = "<group>"; };
 		DC8EEB0F6CE2D7F25FAF7308 /* RecipeGridCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeGridCard.swift; sourceTree = "<group>"; };
+		DD8157BECA8D206CD8B984BB /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		E2461B3FDEC6CF3119C4548A /* ReimportSafetyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReimportSafetyTests.swift; sourceTree = "<group>"; };
 		E3E83CF891E137AB8EEEC5D5 /* RecipeSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeSyncService.swift; sourceTree = "<group>"; };
 		E70BCF12B0F114BF77D3F95E /* RemoteImageCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteImageCacheTests.swift; sourceTree = "<group>"; };
@@ -292,6 +294,7 @@
 			isa = PBXGroup;
 			children = (
 				5BDEAB572C83A392AED5C622 /* Assets.xcassets */,
+				DD8157BECA8D206CD8B984BB /* PrivacyInfo.xcprivacy */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -713,6 +716,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				FBE657A54D9B4A76364BC5C3 /* Assets.xcassets in Resources */,
+				72DB888843AD8B0F3C06AA55 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -926,6 +930,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 20260726.1;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -945,6 +950,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				MARKETING_VERSION = 1.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -1042,6 +1048,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 20260726.1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -1055,6 +1062,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				MARKETING_VERSION = 1.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";

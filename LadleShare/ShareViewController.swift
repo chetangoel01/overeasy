@@ -25,7 +25,7 @@ final class ShareViewController: UIViewController {
             render(
                 state: .failure(
                     message:
-                        "Ladle couldn’t find an HTTP or HTTPS link in this share."
+                        "Overeasy couldn’t find an HTTP or HTTPS link in this share."
                 )
             )
             return
@@ -53,7 +53,7 @@ final class ShareViewController: UIViewController {
             render(
                 state: .failure(
                     message:
-                        "The link is intact, but Ladle couldn’t save it yet. Please try again."
+                        "The link is intact, but Overeasy couldn’t save it yet. Please try again."
                 )
             )
         }

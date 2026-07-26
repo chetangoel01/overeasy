@@ -34,15 +34,33 @@ final class AccessibilityTests: XCTestCase {
         XCTAssertTrue(addRecipe.waitForExistence(timeout: 2))
         assertMinimumHitTarget(addRecipe)
 
-        let search = app.textFields["Search your recipes"]
+        let search = app.buttons["Search"]
         XCTAssertTrue(search.exists)
         assertMinimumHitTarget(search)
 
+        let inbox = element(in: app, identifier: "library.import-inbox")
+        XCTAssertTrue(inbox.waitForExistence(timeout: 2))
+        inbox.tap()
+        XCTAssertTrue(
+            app.staticTexts["Import inbox"].waitForExistence(timeout: 2)
+        )
+        let inboxScrollView = app.scrollViews.firstMatch
+        XCTAssertTrue(inboxScrollView.waitForExistence(timeout: 2))
+        let importGuide = app.staticTexts["How imports work"]
+        for _ in 0..<5 {
+            if importGuide.exists {
+                break
+            }
+            inboxScrollView.swipeUp()
+        }
+        XCTAssertTrue(importGuide.waitForExistence(timeout: 2))
         XCTAssertTrue(app.staticTexts["Parsing"].exists)
         XCTAssertTrue(app.staticTexts["Needs review"].exists)
-        XCTAssertTrue(app.staticTexts["Import failed"].exists)
+        XCTAssertTrue(app.staticTexts["Failed"].exists)
         capture("Accessibility Large Library Header", in: app)
 
+        app.buttons["Back"].tap()
+        openAllRecipes(in: app)
         let recipe = app.buttons.matching(
             identifier: "recipe.grid.one-pot-lemon-orzo-with-feta"
         )
@@ -55,6 +73,7 @@ final class AccessibilityTests: XCTestCase {
 
     func testAccessibilityLargeCookingControlsRemainHittable() {
         let app = launchApp()
+        openAllRecipes(in: app)
 
         let recipe = element(
             in: app,
@@ -123,6 +142,12 @@ final class AccessibilityTests: XCTestCase {
                 .waitForExistence(timeout: 3)
         )
         return app
+    }
+
+    private func openAllRecipes(in app: XCUIApplication) {
+        let allRecipes = app.buttons["All 6"]
+        XCTAssertTrue(allRecipes.waitForExistence(timeout: 2))
+        allRecipes.tap()
     }
 
     private func assertMinimumHitTarget(

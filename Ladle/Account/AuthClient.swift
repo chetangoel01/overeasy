@@ -75,6 +75,16 @@ final class AuthClient {
         accountSession.signOut()
     }
 
+    func deleteAccount() async throws {
+        try await api.requestWithoutResponse(
+            path: "/v1/auth/account",
+            method: .delete
+        )
+        try? tokenStore.clear()
+        try? await appAttester?.reset()
+        accountSession.signOut()
+    }
+
     func signInWithApple(
         identityToken: String,
         authorizationCode: String,

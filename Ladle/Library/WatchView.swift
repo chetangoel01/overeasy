@@ -140,7 +140,7 @@ private struct WatchRecipeCard: View {
             Spacer()
             ShareLink(item: recipe.originalURL) {
                 Image(systemName: "square.and.arrow.up")
-                    .frame(width: 40, height: 40)
+                    .frame(width: 44, height: 44)
             }
             .accessibilityLabel("Share \(recipe.title)")
             Button(action: toggleFavorite) {
@@ -150,7 +150,7 @@ private struct WatchRecipeCard: View {
                             ? LadleTheme.paprika
                             : LadleTheme.ink
                     )
-                    .frame(width: 40, height: 40)
+                    .frame(width: 44, height: 44)
             }
             .accessibilityLabel(
                 recipe.isFavorite
@@ -200,7 +200,7 @@ private struct WatchRecipeCard: View {
                                 ? LadleTheme.paper
                                 : LadleTheme.ink
                         )
-                        .frame(maxWidth: .infinity, minHeight: 38)
+                        .frame(maxWidth: .infinity, minHeight: 44)
                         .background(
                             panel == candidate
                                 ? LadleTheme.plum

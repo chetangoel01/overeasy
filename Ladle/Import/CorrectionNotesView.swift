@@ -115,7 +115,7 @@ private extension RecoveryInputMode {
     var message: String {
         switch self {
         case .correctionNotes:
-            "Tell Ladle what the video says or what it missed."
+            "Tell Overeasy what the video says or what it missed."
         case .pastedDetails:
             "Paste a caption, ingredient list, or method to rescue the recipe."
         case .manual:

@@ -7,6 +7,10 @@ enum ShareConfirmationState: Equatable {
 }
 
 struct ShareConfirmationView: View {
+    static let brandName = "Overeasy"
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     let state: ShareConfirmationState
     let close: () -> Void
 
@@ -14,43 +18,62 @@ struct ShareConfirmationView: View {
         ZStack {
             ShareTheme.paper.ignoresSafeArea()
 
-            VStack(spacing: 0) {
-                header
-                Spacer(minLength: 34)
-                confirmation
-                Spacer(minLength: 38)
-                footer
+            ScrollView {
+                VStack(spacing: 30) {
+                    header
+                    confirmation
+                    footer
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 28)
+                .padding(.vertical, 20)
             }
-            .padding(.horizontal, 28)
-            .padding(.top, 18)
-            .padding(.bottom, 24)
+            .scrollIndicators(.hidden)
         }
         .accessibilityIdentifier("share.confirmation")
     }
 
     private var header: some View {
-        HStack {
-            Label {
-                Text("Ladle")
-                    .font(.system(size: 19, weight: .bold))
-                    .fontWidth(.expanded)
-            } icon: {
-                Image(systemName: "flame.fill")
-                    .foregroundStyle(ShareTheme.paprika)
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Spacer()
+                        closeButton
+                    }
+                    brand
+                }
+            } else {
+                HStack {
+                    brand
+                    Spacer()
+                    closeButton
+                }
             }
-            .foregroundStyle(ShareTheme.ink)
-
-            Spacer()
-
-            Button(action: close) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(ShareTheme.ink.opacity(0.68))
-                    .frame(width: 42, height: 42)
-                    .background(ShareTheme.field, in: Circle())
-            }
-            .accessibilityLabel("Close")
         }
+    }
+
+    private var brand: some View {
+        Label {
+            Text(Self.brandName)
+                .font(.headline.weight(.bold))
+        } icon: {
+            Image(systemName: "frying.pan.fill")
+                .foregroundStyle(ShareTheme.brick)
+        }
+        .foregroundStyle(ShareTheme.ink)
+    }
+
+    private var closeButton: some View {
+        Button(action: close) {
+            Image(systemName: "xmark")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(ShareTheme.ink.opacity(0.68))
+                .frame(width: 44, height: 44)
+                .background(ShareTheme.field, in: Circle())
+        }
+        .accessibilityLabel("Close")
+        .accessibilityIdentifier("share.close")
     }
 
     private var confirmation: some View {
@@ -59,14 +82,13 @@ struct ShareConfirmationView: View {
 
             VStack(spacing: 10) {
                 Text(title)
-                    .font(.system(size: 30, weight: .bold))
-                    .fontWidth(.expanded)
+                    .font(.title.weight(.bold))
                     .multilineTextAlignment(.center)
                     .foregroundStyle(ShareTheme.ink)
                     .fixedSize(horizontal: false, vertical: true)
 
                 Text(message)
-                    .font(.system(size: 17))
+                    .font(.body)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(ShareTheme.ink.opacity(0.62))
                     .fixedSize(horizontal: false, vertical: true)
@@ -74,10 +96,10 @@ struct ShareConfirmationView: View {
 
             if case let .success(sourceName) = state {
                 Label(sourceName, systemImage: "link")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(ShareTheme.ink.opacity(0.72))
                     .padding(.horizontal, 14)
-                    .frame(minHeight: 40)
+                    .frame(minHeight: 44)
                     .background(
                         ShareTheme.field,
                         in: Capsule()
@@ -92,7 +114,7 @@ struct ShareConfirmationView: View {
         case .loading:
             ProgressView()
                 .controlSize(.large)
-                .tint(ShareTheme.paprika)
+                .tint(ShareTheme.brick)
                 .frame(width: 86, height: 86)
                 .background(ShareTheme.review, in: Circle())
                 .accessibilityLabel("Saving shared recipe")
@@ -101,12 +123,12 @@ struct ShareConfirmationView: View {
                 .font(.system(size: 34, weight: .bold))
                 .foregroundStyle(Color.white)
                 .frame(width: 86, height: 86)
-                .background(ShareTheme.paprika, in: Circle())
+                .background(ShareTheme.brick, in: Circle())
                 .accessibilityLabel("Recipe link saved")
         case .failure:
             Image(systemName: "exclamationmark")
                 .font(.system(size: 34, weight: .bold))
-                .foregroundStyle(ShareTheme.paprika)
+                .foregroundStyle(ShareTheme.brick)
                 .frame(width: 86, height: 86)
                 .background(ShareTheme.review, in: Circle())
                 .accessibilityLabel("Recipe link was not saved")
@@ -117,12 +139,12 @@ struct ShareConfirmationView: View {
         VStack(spacing: 8) {
             if case .success = state {
                 Text("Safe to close")
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.caption.weight(.medium))
                     .foregroundStyle(ShareTheme.ink.opacity(0.58))
             }
 
             Text(footerMessage)
-                .font(.system(size: 14))
+                .font(.subheadline)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(ShareTheme.ink.opacity(0.48))
         }
@@ -144,7 +166,7 @@ struct ShareConfirmationView: View {
         case .loading:
             "Hold on for just a moment while the link is secured."
         case .success:
-            "Head back to what you were watching. Ladle will finish the import in the app."
+            "Head back to what you were watching. Overeasy will finish the import in the app."
         case let .failure(message):
             message
         }
@@ -164,28 +186,28 @@ struct ShareConfirmationView: View {
 
 private enum ShareTheme {
     static let paper = Color(
-        red: 0.985,
-        green: 0.976,
-        blue: 0.954
+        red: 0.980,
+        green: 0.965,
+        blue: 0.937
     )
     static let field = Color(
-        red: 0.944,
-        green: 0.929,
-        blue: 0.900
+        red: 0.949,
+        green: 0.925,
+        blue: 0.894
     )
     static let review = Color(
-        red: 0.970,
-        green: 0.897,
-        blue: 0.838
+        red: 0.965,
+        green: 0.925,
+        blue: 0.851
     )
-    static let paprika = Color(
-        red: 0.720,
-        green: 0.243,
-        blue: 0.105
+    static let brick = Color(
+        red: 0.678,
+        green: 0.314,
+        blue: 0.239
     )
     static let ink = Color(
-        red: 0.105,
-        green: 0.094,
-        blue: 0.083
+        red: 0.188,
+        green: 0.153,
+        blue: 0.176
     )
 }

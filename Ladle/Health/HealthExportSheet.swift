@@ -171,7 +171,7 @@ struct HealthExportSheet: View {
 
     private var permissionNote: some View {
         Label(
-            "Apple will ask for permission only after you confirm. Ladle never exports nutrition automatically.",
+            "Apple will ask for permission only after you confirm. Overeasy never exports nutrition automatically.",
             systemImage: "lock.shield"
         )
         .ladleFont(.metadata)

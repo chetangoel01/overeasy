@@ -108,6 +108,7 @@ final class EditAndReimportTests: XCTestCase {
     }
 
     private func openOrzoRecipe(in app: XCUIApplication) {
+        app.buttons["All 6"].tap()
         app.swipeUp()
         let card = element(
             in: app,
@@ -125,10 +126,12 @@ final class EditAndReimportTests: XCTestCase {
         _ title: String,
         in app: XCUIApplication
     ) {
+        app.buttons["Recipe options"].tap()
+        XCTAssertTrue(
+            app.staticTexts["Recipe options"].waitForExistence(timeout: 2)
+        )
         let button = app.buttons[title]
-        for _ in 0..<6 where !button.isHittable {
-            app.swipeUp()
-        }
+        XCTAssertTrue(button.waitForExistence(timeout: 2))
         XCTAssertTrue(button.isHittable)
         button.tap()
     }

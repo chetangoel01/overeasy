@@ -15,7 +15,7 @@ final class ImportFlowTests: XCTestCase {
         XCTAssertTrue(app.buttons["Create manually"].exists)
         XCTAssertTrue(
             app.staticTexts[
-                "Tip: sharing a video to Ladle is even faster."
+                "Tip: sharing a video to Overeasy is even faster."
             ].exists
         )
 

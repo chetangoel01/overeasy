@@ -46,6 +46,52 @@ final class ProjectSmokeTests: XCTestCase {
         )
     }
 
+    func testPrivacyManifestDeclaresUserDefaultsReason() throws {
+        let url = try XCTUnwrap(
+            Bundle.main.url(
+                forResource: "PrivacyInfo",
+                withExtension: "xcprivacy"
+            )
+        )
+        let data = try Data(contentsOf: url)
+        let manifest = try XCTUnwrap(
+            PropertyListSerialization.propertyList(
+                from: data,
+                format: nil
+            ) as? [String: Any]
+        )
+        let accessedTypes = try XCTUnwrap(
+            manifest["NSPrivacyAccessedAPITypes"]
+                as? [[String: Any]]
+        )
+        let userDefaults = try XCTUnwrap(
+            accessedTypes.first {
+                $0["NSPrivacyAccessedAPIType"] as? String
+                    == "NSPrivacyAccessedAPICategoryUserDefaults"
+            }
+        )
+
+        XCTAssertEqual(
+            userDefaults["NSPrivacyAccessedAPITypeReasons"] as? [String],
+            ["CA92.1"]
+        )
+    }
+
+    func testReleaseVersionAndBuildAreAvailableAtRuntime() {
+        XCTAssertEqual(
+            Bundle.main.object(
+                forInfoDictionaryKey: "CFBundleShortVersionString"
+            ) as? String,
+            "1.0"
+        )
+        XCTAssertEqual(
+            Bundle.main.object(
+                forInfoDictionaryKey: "CFBundleVersion"
+            ) as? String,
+            "20260726.1"
+        )
+    }
+
     func testRootViewCanBeCreated() throws {
         let environment = try AppEnvironment(isStoredInMemoryOnly: true)
         let accountSession = AccountSession()

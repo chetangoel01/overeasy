@@ -8,9 +8,13 @@ struct AccountSheet: View {
     let library: LibraryViewModel
     let installationID: String
     let signOut: @MainActor () async -> Void
+    let deleteAccount: @MainActor () async throws -> Void
 
     @State private var isSignOutConfirmationPresented = false
+    @State private var isDeleteConfirmationPresented = false
     @State private var isSigningOut = false
+    @State private var isDeletingAccount = false
+    @State private var deletionErrorMessage: String?
 
     var body: some View {
         NavigationStack {
@@ -22,6 +26,7 @@ struct AccountSheet: View {
                     accountSection
                     privacySection
                     signOutSection
+                    deleteAccountSection
                 }
                 .padding(.horizontal, LadleTheme.Spacing.generous)
                 .padding(.top, LadleTheme.Spacing.regular)
@@ -79,6 +84,60 @@ struct AccountSheet: View {
                 )
                 .stroke(LadleTheme.ink.opacity(0.08), lineWidth: 1)
             }
+        }
+    }
+
+    private var deleteAccountSection: some View {
+        VStack(alignment: .leading, spacing: LadleTheme.Spacing.medium) {
+            Text(
+                "Deleting your account permanently removes your synced recipes and account data."
+            )
+            .ladleFont(.metadata)
+            .foregroundStyle(LadleTheme.ink.opacity(0.55))
+            .fixedSize(horizontal: false, vertical: true)
+
+            Button(role: .destructive) {
+                isDeleteConfirmationPresented = true
+            } label: {
+                if isDeletingAccount {
+                    ProgressView()
+                        .frame(maxWidth: .infinity, minHeight: 24)
+                } else {
+                    Text("Delete account")
+                        .frame(maxWidth: .infinity)
+                }
+            }
+            .buttonStyle(LadlePrimaryButtonStyle(isProminent: false))
+            .tint(.red)
+            .disabled(isDeletingAccount)
+            .accessibilityIdentifier("account.delete")
+        }
+        .alert(
+            "Delete your Overeasy account?",
+            isPresented: $isDeleteConfirmationPresented
+        ) {
+            Button("Delete Account", role: .destructive) {
+                performAccountDeletion()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(
+                "Your synced recipes and account data will be permanently deleted. This can’t be undone."
+            )
+        }
+        .alert(
+            "Account could not be deleted",
+            isPresented: Binding(
+                get: { deletionErrorMessage != nil },
+                set: { if !$0 { deletionErrorMessage = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(
+                deletionErrorMessage
+                    ?? "Please check your connection and try again."
+            )
         }
     }
 
@@ -184,6 +243,23 @@ struct AccountSheet: View {
             await signOut()
             isSigningOut = false
             dismiss()
+        }
+    }
+
+    private func performAccountDeletion() {
+        guard !isDeletingAccount else {
+            return
+        }
+        isDeletingAccount = true
+        Task { @MainActor in
+            do {
+                try await deleteAccount()
+                dismiss()
+            } catch {
+                isDeletingAccount = false
+                deletionErrorMessage =
+                    "Please check your connection and try again."
+            }
         }
     }
 

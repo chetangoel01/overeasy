@@ -107,30 +107,32 @@ struct LibraryHomeView: View {
     }
 
     private var importInbox: some View {
-        Button(action: openImportInbox) {
-            HStack(spacing: 14) {
-                Image(systemName: "tray.full.fill")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(LadleTheme.paprika)
-                    .frame(width: 44, height: 44)
-                    .background(LadleTheme.review, in: Circle())
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Import inbox")
-                        .ladleFont(.bodyStrong)
-                        .foregroundStyle(LadleTheme.ink)
-                    Text(importInboxDetail)
-                        .ladleFont(.metadata)
+        ZStack(alignment: .topTrailing) {
+            Button(action: openImportInbox) {
+                HStack(spacing: 14) {
+                    Image(systemName: "tray.full.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(LadleTheme.paprika)
+                        .frame(width: 44, height: 44)
+                        .background(LadleTheme.review, in: Circle())
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Import inbox")
+                            .ladleFont(.bodyStrong)
+                            .foregroundStyle(LadleTheme.ink)
+                        Text(importInboxDetail)
+                            .ladleFont(.metadata)
+                            .foregroundStyle(LadleTheme.mutedInk)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
                         .foregroundStyle(LadleTheme.mutedInk)
                 }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .foregroundStyle(LadleTheme.mutedInk)
+                .padding(14)
+                .ladleCard()
             }
-            .padding(14)
-            .ladleCard()
-        }
-        .buttonStyle(.plain)
-        .overlay(alignment: .topTrailing) {
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("library.import-inbox")
+
             Button {
                 withAnimation(reduceMotion ? nil : .default) {
                     viewModel.dismissImportInbox()
@@ -139,13 +141,12 @@ struct LibraryHomeView: View {
                 Image(systemName: "xmark")
                     .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(LadleTheme.mutedInk)
-                    .frame(width: 30, height: 30)
+                    .frame(width: 44, height: 44)
                     .contentShape(Circle())
             }
             .accessibilityLabel("Hide import inbox")
             .accessibilityHint("Pull down on the library to bring it back")
         }
-        .accessibilityIdentifier("library.import-inbox")
     }
 
     private var importInboxDetail: String {

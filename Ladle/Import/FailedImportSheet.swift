@@ -206,7 +206,7 @@ struct FailedImportSheet: View {
         case .privateOrDeleted:
             return "The post may be private or deleted. Add any details you can see, or create the recipe manually."
         case .networkUnavailable:
-            return "The connection dropped while Ladle was working. Retrying is safe."
+            return "The connection dropped while Overeasy was working. Retrying is safe."
         case .unsupportedSource:
             return "That source isn’t supported yet, but you can keep the link and create the recipe manually."
         case .invalidURL:

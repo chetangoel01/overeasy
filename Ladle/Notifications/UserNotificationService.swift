@@ -23,7 +23,7 @@ final class UserNotificationService: NotificationService {
             let content = UNMutableNotificationContent()
             content.title = "Recipe ready"
             content.body =
-                "\(recipe.title) is ready to review and cook in Ladle."
+                "\(recipe.title) is ready to review and cook in Overeasy."
             content.sound = .default
             content.userInfo = [
                 "recipeID": recipe.id.uuidString,

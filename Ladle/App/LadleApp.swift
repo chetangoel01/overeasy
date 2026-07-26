@@ -65,7 +65,7 @@ struct LadleApp: App {
                 }
             }
         } catch {
-            fatalError("Ladle could not initialize its recipe store: \(error)")
+            fatalError("Overeasy could not initialize its recipe store: \(error)")
         }
 
         if launchArguments.contains("-reset-library-preferences") {
@@ -151,7 +151,7 @@ struct LadleApp: App {
                 )
             } catch {
                 fatalError(
-                    "Ladle could not initialize its API configuration: \(error)"
+                    "Overeasy could not initialize its API configuration: \(error)"
                 )
             }
         }
@@ -203,6 +203,16 @@ struct LadleApp: App {
                 onSignOut: { [authClient, accountSession, libraryViewModel] in
                     if let authClient {
                         await authClient.signOut()
+                    } else {
+                        accountSession.signOut()
+                    }
+                    libraryViewModel.clearLocalLibrary()
+                    try? SyncCursorStore().reset()
+                },
+                onDeleteAccount: {
+                    [authClient, accountSession, libraryViewModel] in
+                    if let authClient {
+                        try await authClient.deleteAccount()
                     } else {
                         accountSession.signOut()
                     }

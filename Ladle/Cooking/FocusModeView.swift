@@ -81,11 +81,10 @@ struct FocusModeView: View {
             VStack(alignment: .leading, spacing: 16) {
                 Text(
                     viewModel.finishedTimerForCurrentStep == nil
-                        ? "STEP \(viewModel.currentStepIndex + 1)"
-                        : "TIMER FINISHED"
+                        ? "Step \(viewModel.currentStepIndex + 1)"
+                        : "Timer finished"
                 )
                 .ladleFont(.eyebrow)
-                .tracking(1.5)
                 .foregroundStyle(LadleTheme.celery)
 
                 Text(

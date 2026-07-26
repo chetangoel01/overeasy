@@ -155,6 +155,28 @@ final class LadleLaunchTests: XCTestCase {
             ].exists
         )
         capture("Account — sign-out confirmation", in: app)
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.1))
+            .tap()
+
+        let deleteAccount = element(
+            in: app,
+            identifier: "account.delete"
+        )
+        for _ in 0..<3 where !deleteAccount.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(deleteAccount.isHittable)
+        deleteAccount.tap()
+        XCTAssertTrue(
+            app.staticTexts["Delete your Overeasy account?"]
+                .waitForExistence(timeout: 2)
+        )
+        XCTAssertTrue(
+            app.staticTexts[
+                "Your synced recipes and account data will be permanently deleted. This can’t be undone."
+            ].exists
+        )
+        capture("Account — deletion confirmation", in: app)
     }
 
     private func element(

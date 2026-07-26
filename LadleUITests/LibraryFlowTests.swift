@@ -4,20 +4,40 @@ import XCTest
 final class LibraryFlowTests: XCTestCase {
     func testLibraryShowsPendingStatesAndRecipeMetadata() {
         let app = launchApp()
+        app.buttons["Home"].tap()
 
+        let inbox = element(in: app, identifier: "library.import-inbox")
+        XCTAssertTrue(inbox.waitForExistence(timeout: 2))
+        inbox.tap()
+        XCTAssertTrue(
+            app.staticTexts["Import inbox"].waitForExistence(timeout: 2)
+        )
+        let inboxScrollView = app.scrollViews.firstMatch
+        XCTAssertTrue(inboxScrollView.waitForExistence(timeout: 2))
+        let importGuide = app.staticTexts["How imports work"]
+        for _ in 0..<5 {
+            if importGuide.exists {
+                break
+            }
+            inboxScrollView.swipeUp()
+        }
+        XCTAssertTrue(importGuide.waitForExistence(timeout: 2))
         XCTAssertTrue(app.staticTexts["Parsing"].exists)
         XCTAssertTrue(app.staticTexts["Needs review"].exists)
-        XCTAssertTrue(app.staticTexts["Import failed"].exists)
+        XCTAssertTrue(app.staticTexts["Failed"].exists)
         capture("Library — pending imports", in: app)
 
+        app.buttons["Back"].tap()
+        app.buttons["All 6"].tap()
         app.swipeUp()
 
         XCTAssertTrue(
             app.staticTexts["One-Pot Lemon Orzo with Feta"]
                 .waitForExistence(timeout: 2)
         )
-        XCTAssertTrue(app.staticTexts["35 min"].exists)
-        XCTAssertTrue(app.staticTexts["≈ 520 cal"].exists)
+        XCTAssertTrue(
+            app.staticTexts["16 g P · 35 min · ≈ 520 cal"].exists
+        )
         XCTAssertTrue(
             app.buttons[
                 "Add One-Pot Lemon Orzo with Feta to favorites"
@@ -26,9 +46,13 @@ final class LibraryFlowTests: XCTestCase {
         capture("Library — recipe grid", in: app)
     }
 
-    func testSearchAndListModeCompose() {
+    func testDedicatedSearchAndListModeWork() {
         let app = launchApp()
-        let searchField = app.textFields["Search your recipes"]
+        app.buttons["Search"].tap()
+
+        let searchField = app.textFields[
+            "Recipe, ingredient, or creator"
+        ]
         XCTAssertTrue(searchField.waitForExistence(timeout: 2))
 
         searchField.tap()
@@ -41,10 +65,22 @@ final class LibraryFlowTests: XCTestCase {
         XCTAssertFalse(
             app.staticTexts["Crispy Chili Oil Smash Burgers"].exists
         )
+        XCTAssertTrue(
+            element(
+                in: app,
+                identifier: "recipe.list.one-pot-lemon-orzo-with-feta"
+            )
+            .exists
+        )
+
+        app.buttons["Back"].tap()
+        XCTAssertTrue(
+            element(in: app, identifier: "library.all-recipes")
+                .waitForExistence(timeout: 2)
+        )
 
         app.buttons["Show recipes as a list"].tap()
 
-        XCTAssertEqual(searchField.value as? String, "orzo")
         XCTAssertTrue(
             element(
                 in: app,
@@ -59,9 +95,6 @@ final class LibraryFlowTests: XCTestCase {
             )
                 .exists
         )
-        if app.keyboards.buttons["Search"].exists {
-            app.keyboards.buttons["Search"].tap()
-        }
         capture("Library — recipe list", in: app)
     }
 
@@ -109,6 +142,43 @@ final class LibraryFlowTests: XCTestCase {
         )
     }
 
+    func testWatchWorkspaceExposesCompleteAccessibleControls() {
+        let app = launchApp()
+        app.buttons["Home"].tap()
+
+        let watch = element(in: app, identifier: "library.watch")
+        XCTAssertTrue(watch.waitForExistence(timeout: 2))
+        watch.tap()
+        XCTAssertTrue(
+            element(in: app, identifier: "library.watch.root")
+                .waitForExistence(timeout: 2)
+        )
+
+        let share = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "Share ")
+        )
+        .firstMatch
+        XCTAssertTrue(share.exists)
+        assertMinimumHitTarget(share)
+
+        let favorite = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS %@", "favorites")
+        )
+        .firstMatch
+        XCTAssertTrue(favorite.exists)
+        assertMinimumHitTarget(favorite)
+
+        for title in ["Overview", "Ingredients", "Method"] {
+            let panel = app.buttons[title].firstMatch
+            XCTAssertTrue(panel.exists)
+            assertMinimumHitTarget(panel)
+        }
+        XCTAssertTrue(app.buttons["Play video"].exists)
+        XCTAssertTrue(app.buttons["Open recipe"].exists)
+        XCTAssertTrue(app.buttons["Start cooking"].exists)
+        capture("Library — Watch workspace", in: app)
+    }
+
     private func launchApp() -> XCUIApplication {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -122,6 +192,7 @@ final class LibraryFlowTests: XCTestCase {
             element(in: app, identifier: "library.root")
                 .waitForExistence(timeout: 3)
         )
+        app.buttons["All 6"].tap()
         return app
     }
 
@@ -132,6 +203,25 @@ final class LibraryFlowTests: XCTestCase {
         app.descendants(matching: .any)
             .matching(identifier: identifier)
             .firstMatch
+    }
+
+    private func assertMinimumHitTarget(
+        _ element: XCUIElement,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertGreaterThanOrEqual(
+            element.frame.width,
+            43.5,
+            file: file,
+            line: line
+        )
+        XCTAssertGreaterThanOrEqual(
+            element.frame.height,
+            43.5,
+            file: file,
+            line: line
+        )
     }
 
     private func capture(

@@ -154,7 +154,7 @@ struct AddRecipeSheet: View {
                 HStack(spacing: 10) {
                     Image(systemName: "square.and.arrow.up")
                         .foregroundStyle(LadleTheme.paprika)
-                    Text("Tip: sharing a video to Ladle is even faster.")
+                    Text("Tip: sharing a video to Overeasy is even faster.")
                         .ladleFont(.metadata)
                         .foregroundStyle(LadleTheme.ink.opacity(0.62))
                 }

@@ -146,6 +146,43 @@ final class AuthClientTests: XCTestCase {
         XCTAssertEqual(account.state, .signedInWithApple)
     }
 
+    func testDeleteAccountRemovesServerAndLocalSession() async throws {
+        let requests = Locked<[URLRequest]>([])
+        URLProtocolStub.install { request in
+            requests.withValue { $0.append(request) }
+            return (Self.response(request, status: 204), Data())
+        }
+        let tokenStore = InMemoryAuthTokenStore(
+            tokens: .fixture(accessToken: "delete-access")
+        )
+        let account = AccountSession(store: InMemoryAuthPreferenceStore())
+        account.continueAsGuest()
+        let auth = AuthClient(
+            api: APIClient(
+                baseURL: URL(string: "https://api.ladle.test")!,
+                session: URLProtocolStub.session(),
+                tokenStore: tokenStore
+            ),
+            tokenStore: tokenStore,
+            accountSession: account
+        )
+
+        try await auth.deleteAccount()
+
+        XCTAssertEqual(requests.snapshot.count, 1)
+        XCTAssertEqual(requests.snapshot[0].url?.path, "/v1/auth/account")
+        XCTAssertEqual(requests.snapshot[0].httpMethod, "DELETE")
+        XCTAssertEqual(
+            requests.snapshot[0].value(
+                forHTTPHeaderField: "Authorization"
+            ),
+            "Bearer delete-access"
+        )
+        XCTAssertNil(try tokenStore.load())
+        XCTAssertEqual(account.state, .undecided)
+        XCTAssertTrue(account.shouldPresentWelcome)
+    }
+
     nonisolated private static func response(
         _ request: URLRequest,
         status: Int

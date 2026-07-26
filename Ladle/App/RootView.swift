@@ -10,6 +10,7 @@ struct RootView: View {
     let installationID: String
     let onAuthenticated: @MainActor () async -> Void
     let onSignOut: @MainActor () async -> Void
+    let onDeleteAccount: @MainActor () async throws -> Void
 
     init(
         accountSession: AccountSession,
@@ -18,7 +19,9 @@ struct RootView: View {
         authClient: AuthClient? = nil,
         installationID: String = "preview-installation",
         onAuthenticated: @escaping @MainActor () async -> Void = {},
-        onSignOut: @escaping @MainActor () async -> Void = {}
+        onSignOut: @escaping @MainActor () async -> Void = {},
+        onDeleteAccount:
+            @escaping @MainActor () async throws -> Void = {}
     ) {
         self.accountSession = accountSession
         self.libraryViewModel = libraryViewModel
@@ -27,6 +30,7 @@ struct RootView: View {
         self.installationID = installationID
         self.onAuthenticated = onAuthenticated
         self.onSignOut = onSignOut
+        self.onDeleteAccount = onDeleteAccount
     }
 
     var body: some View {
@@ -39,7 +43,8 @@ struct RootView: View {
                 canImport:
                     authClient == nil
                     || accountSession.isRemoteSessionReady,
-                onSignOut: onSignOut
+                onSignOut: onSignOut,
+                onDeleteAccount: onDeleteAccount
             )
                 .blur(
                     radius: accountSession.shouldPresentWelcome ? 2.5 : 0

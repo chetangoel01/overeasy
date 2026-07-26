@@ -25,7 +25,7 @@ final class RecipeDetailTests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts["Ingredients"].exists)
         XCTAssertTrue(app.staticTexts["1 cup orzo"].exists)
-        XCTAssertTrue(app.staticTexts["Method"].exists)
+        app.segmentedControls.buttons["Method"].tap()
         XCTAssertTrue(
             app.staticTexts[
                 "Toast the orzo with garlic until the edges turn golden."
@@ -36,6 +36,10 @@ final class RecipeDetailTests: XCTestCase {
 
         app.swipeUp()
 
+        app.buttons["Recipe options"].tap()
+        XCTAssertTrue(
+            app.staticTexts["Recipe options"].waitForExistence(timeout: 2)
+        )
         XCTAssertTrue(app.buttons["Edit recipe"].exists)
         XCTAssertTrue(app.buttons["Re-import from source"].exists)
         XCTAssertTrue(app.buttons["View nutrition"].exists)
@@ -51,10 +55,8 @@ final class RecipeDetailTests: XCTestCase {
         let app = launchApp()
         openOrzoRecipe(in: app)
 
+        app.buttons["Recipe options"].tap()
         let nutritionButton = app.buttons["View nutrition"]
-        for _ in 0..<5 where !nutritionButton.exists {
-            app.swipeUp()
-        }
         XCTAssertTrue(nutritionButton.waitForExistence(timeout: 2))
         nutritionButton.tap()
 
@@ -65,13 +67,22 @@ final class RecipeDetailTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Nutrition"].exists)
         XCTAssertTrue(app.staticTexts["≈ 520"].exists)
         XCTAssertTrue(app.staticTexts["Calories"].exists)
-        XCTAssertTrue(app.staticTexts["Protein"].exists)
-        XCTAssertTrue(app.staticTexts["22 g"].exists)
-        XCTAssertTrue(app.staticTexts["Carbohydrates"].exists)
-        XCTAssertTrue(app.staticTexts["48 g"].exists)
-        XCTAssertTrue(app.staticTexts["Fat"].exists)
-        XCTAssertTrue(app.staticTexts["24 g"].exists)
-        XCTAssertTrue(app.staticTexts["Per 1 serving"].exists)
+        XCTAssertEqual(
+            element(in: app, identifier: "nutrition.macro.protein").label,
+            "Protein, 16 g"
+        )
+        XCTAssertEqual(
+            element(
+                in: app,
+                identifier: "nutrition.macro.carbohydrates"
+            ).label,
+            "Carbohydrates, 62 g"
+        )
+        XCTAssertEqual(
+            element(in: app, identifier: "nutrition.macro.fat").label,
+            "Fat, 22 g"
+        )
+        XCTAssertTrue(app.staticTexts["Per serving"].exists)
         XCTAssertTrue(
             app.staticTexts[
                 "Nutrition is estimated from the imported recipe."
@@ -97,6 +108,7 @@ final class RecipeDetailTests: XCTestCase {
     }
 
     private func openOrzoRecipe(in app: XCUIApplication) {
+        app.buttons["All 6"].tap()
         app.swipeUp()
         let card = element(
             in: app,

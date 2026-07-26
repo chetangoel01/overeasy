@@ -9,16 +9,7 @@ final class CookingModeTests: XCTestCase {
             element(in: app, identifier: "cooking.full-recipe")
                 .waitForExistence(timeout: 2)
         )
-        XCTAssertTrue(
-            app.staticTexts.matching(
-                NSPredicate(
-                    format: "label ==[c] %@",
-                    "Full recipe"
-                )
-            )
-            .firstMatch
-            .waitForExistence(timeout: 2)
-        )
+        XCTAssertTrue(app.staticTexts["Cooking"].waitForExistence(timeout: 2))
         XCTAssertTrue(
             app.staticTexts["One-Pot Lemon Orzo with Feta"].exists
         )
@@ -51,7 +42,8 @@ final class CookingModeTests: XCTestCase {
             identifier: "cooking.focus-mode"
         )
         XCTAssertTrue(focusRoot.waitForExistence(timeout: 2))
-        XCTAssertTrue(app.staticTexts["Focus mode"].exists)
+        XCTAssertTrue(app.buttons["Back to full recipe"].exists)
+        XCTAssertTrue(app.staticTexts["Step 1"].exists)
         XCTAssertTrue(
             element(in: app, identifier: "focus.step.large").exists
         )
@@ -110,6 +102,7 @@ final class CookingModeTests: XCTestCase {
                 .waitForExistence(timeout: 3)
         )
 
+        app.buttons["All 6"].tap()
         app.swipeUp()
         let card = element(
             in: app,

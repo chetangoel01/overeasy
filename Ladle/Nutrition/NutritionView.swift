@@ -191,12 +191,14 @@ struct NutritionView: View {
         value: Decimal?,
         color: Color
     ) -> some View {
-        VStack(spacing: 7) {
+        let valueText = value.map { "\(decimalText($0)) g" } ?? "Unavailable"
+
+        return VStack(spacing: 7) {
             Circle()
                 .fill(color)
                 .frame(width: 8, height: 8)
                 .accessibilityHidden(true)
-            Text(value.map { "\(decimalText($0)) g" } ?? "—")
+            Text(valueText)
                 .ladleFont(.bodyStrong)
                 .foregroundStyle(LadleTheme.ink)
             Text(name)
@@ -208,6 +210,9 @@ struct NutritionView: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 16)
         .ladleCard()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(name), \(valueText)")
+        .accessibilityIdentifier("nutrition.macro.\(name.lowercased())")
     }
 
     private func nutrientRow(_ nutrient: NutritionDisplayRow) -> some View {

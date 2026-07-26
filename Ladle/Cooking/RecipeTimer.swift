@@ -73,7 +73,7 @@ final class LocalTimerNotificationScheduler:
 
             let content = UNMutableNotificationContent()
             content.title = "\(label) is ready"
-            content.body = "Your Ladle timer has finished."
+            content.body = "Your Overeasy timer has finished."
             content.sound = .default
 
             let request = UNNotificationRequest(
