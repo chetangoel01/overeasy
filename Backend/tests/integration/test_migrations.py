@@ -12,6 +12,8 @@ from alembic import command
 BACKEND_ROOT = Path(__file__).parents[2]
 EXPECTED_TABLES = {
     "alembic_version",
+    "app_attest_challenges",
+    "app_attest_keys",
     "apple_identities",
     "auth_sessions",
     "detected_timers",

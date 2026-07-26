@@ -4,7 +4,7 @@ import Foundation
 final class AuthClient {
     private struct GuestRequest: Encodable, Sendable {
         let installationID: String
-        let attestation: String?
+        let attestation: AppAttestEvidence?
     }
 
     private struct AppleRequest: Encodable, Sendable {
@@ -17,28 +17,36 @@ final class AuthClient {
     private let api: APIClient
     private let tokenStore: any AuthTokenStoring
     private let accountSession: AccountSession
+    private let appAttester: (any AppAttesting)?
 
     init(
         api: APIClient,
         tokenStore: any AuthTokenStoring,
-        accountSession: AccountSession
+        accountSession: AccountSession,
+        appAttester: (any AppAttesting)? = nil
     ) {
         self.api = api
         self.tokenStore = tokenStore
         self.accountSession = accountSession
+        self.appAttester = appAttester
     }
 
     func bootstrapGuest(
         installationID: String,
-        attestation: String?,
+        attestation: AppAttestEvidence?,
         applyAccountState: Bool = true
     ) async throws -> AuthTokens {
+        let evidence = if let attestation {
+            attestation
+        } else {
+            try await appAttester?.guestEvidence()
+        }
         let tokens: AuthTokens = try await api.request(
             path: "/v1/auth/guest",
             method: .post,
             body: GuestRequest(
                 installationID: installationID,
-                attestation: attestation
+                attestation: evidence
             ),
             authenticated: false
         )

@@ -35,29 +35,34 @@ actor APIClient {
     private let baseURL: URL
     private let session: URLSession
     private let tokenStore: any AuthTokenStoring
+    private let appAttester: (any AppAttesting)?
     private var refreshTask: Task<AuthTokens, Error>?
 
     init(
         baseURL: URL,
         session: URLSession = .shared,
-        tokenStore: any AuthTokenStoring
+        tokenStore: any AuthTokenStoring,
+        appAttester: (any AppAttesting)? = nil
     ) {
         self.baseURL = baseURL
         self.session = session
         self.tokenStore = tokenStore
+        self.appAttester = appAttester
     }
 
     func request<Response>(
         path: String,
         method: HTTPMethod = .get,
-        authenticated: Bool = true
+        authenticated: Bool = true,
+        appAttestPurpose: AppAttestPurpose? = nil
     ) async throws -> Response
     where Response: Decodable & Sendable {
         try await request(
             path: path,
             method: method,
             body: Optional<EmptyBody>.none,
-            authenticated: authenticated
+            authenticated: authenticated,
+            appAttestPurpose: appAttestPurpose
         )
     }
 
@@ -65,7 +70,8 @@ actor APIClient {
         path: String,
         method: HTTPMethod = .get,
         body: Body,
-        authenticated: Bool = true
+        authenticated: Bool = true,
+        appAttestPurpose: AppAttestPurpose? = nil
     ) async throws -> Response
     where
         Response: Decodable & Sendable,
@@ -75,7 +81,8 @@ actor APIClient {
             path: path,
             method: method,
             body: Optional(body),
-            authenticated: authenticated
+            authenticated: authenticated,
+            appAttestPurpose: appAttestPurpose
         )
     }
 
@@ -111,7 +118,8 @@ actor APIClient {
         path: String,
         method: HTTPMethod,
         body: Body?,
-        authenticated: Bool
+        authenticated: Bool,
+        appAttestPurpose: AppAttestPurpose?
     ) async throws -> Response
     where
         Response: Decodable & Sendable,
@@ -121,22 +129,24 @@ actor APIClient {
         if authenticated, tokens == nil {
             throw APIError.missingAuthentication
         }
-        let request = try makeRequest(
+        let request = try await authorizedRequest(
             path: path,
             method: method,
             body: body,
-            accessToken: tokens?.accessToken
+            accessToken: tokens?.accessToken,
+            appAttestPurpose: appAttestPurpose
         )
         let (data, response) = try await perform(request)
         if response.statusCode == 401, authenticated {
             let refreshed = try await refreshTokens(
                 failedAccessToken: tokens?.accessToken
             )
-            let replay = try makeRequest(
+            let replay = try await authorizedRequest(
                 path: path,
                 method: method,
                 body: body,
-                accessToken: refreshed.accessToken
+                accessToken: refreshed.accessToken,
+                appAttestPurpose: appAttestPurpose
             )
             let (replayData, replayResponse) = try await perform(replay)
             return try decode(
@@ -269,6 +279,29 @@ actor APIClient {
             )
         }
         return request
+    }
+
+    private func authorizedRequest<Body>(
+        path: String,
+        method: HTTPMethod,
+        body: Body?,
+        accessToken: String?,
+        appAttestPurpose: AppAttestPurpose?
+    ) async throws -> URLRequest
+    where Body: Encodable {
+        let request = try makeRequest(
+            path: path,
+            method: method,
+            body: body,
+            accessToken: accessToken
+        )
+        guard let appAttestPurpose, let appAttester else {
+            return request
+        }
+        return try await appAttester.authorize(
+            request,
+            purpose: appAttestPurpose
+        )
     }
 
     private func perform(

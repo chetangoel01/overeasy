@@ -126,7 +126,7 @@ def test_attestation_enforcement_without_verifier_fails_closed(
             "/v1/auth/guest",
             json={
                 "installationID": "ios-installation-2",
-                "attestation": "unverified",
+                "attestation": None,
             },
         )
 

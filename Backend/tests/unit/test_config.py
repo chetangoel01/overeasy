@@ -3,10 +3,17 @@ from datetime import UTC
 import pytest
 from pydantic import SecretStr, ValidationError
 
+from ladle.api.app import create_app
+from ladle.auth.attestation import AttestationService
 from ladle.clock import SystemClock
 from ladle.config import Settings
 
 GOOD_SECRET = "production-only-test-secret-that-is-at-least-32-bytes"
+PRODUCTION_ATTEST = {
+    "attestation_enforced": True,
+    "app_attest_app_id_prefix": "ABCDE12345",
+    "app_attest_bundle_id": "com.ladle.ios",
+}
 
 
 @pytest.mark.parametrize(
@@ -25,7 +32,11 @@ def test_production_rejects_missing_placeholder_or_short_core_secrets(
     signing_secret: str | None,
     encryption_key: str | None,
 ) -> None:
-    values: dict[str, object] = {"environment": "production", "_env_file": None}
+    values: dict[str, object] = {
+        "environment": "production",
+        "_env_file": None,
+        **PRODUCTION_ATTEST,
+    }
     if signing_secret is not None:
         values["jwt_signing_secret"] = signing_secret
     if encryption_key is not None:
@@ -40,6 +51,7 @@ def test_production_allows_unconfigured_optional_providers() -> None:
         environment="production",
         jwt_signing_secret=GOOD_SECRET,
         data_encryption_key=GOOD_SECRET,
+        **PRODUCTION_ATTEST,
         _env_file=None,
     )
 
@@ -55,6 +67,7 @@ def test_live_worker_requires_only_its_extraction_provider_key() -> None:
         data_encryption_key=GOOD_SECRET,
         worker_provider_mode="live",
         openrouter_api_key="openrouter-secret",
+        **PRODUCTION_ATTEST,
         _env_file=None,
     )
 
@@ -95,6 +108,34 @@ def test_soscripted_default_allows_its_synchronous_transcription_window() -> Non
     settings = Settings(_env_file=None)
 
     assert settings.soscripted_timeout_seconds == 600
+
+
+def test_production_requires_app_attest_and_its_identity() -> None:
+    with pytest.raises(ValidationError):
+        Settings(
+            environment="production",
+            jwt_signing_secret=GOOD_SECRET,
+            data_encryption_key=GOOD_SECRET,
+            _env_file=None,
+        )
+
+    settings = Settings(
+        environment="production",
+        jwt_signing_secret=GOOD_SECRET,
+        data_encryption_key=GOOD_SECRET,
+        attestation_enforced=True,
+        app_attest_app_id_prefix="ABCDE12345",
+        app_attest_bundle_id="com.ladle.ios",
+        _env_file=None,
+    )
+
+    assert settings.app_attest_app_id == "ABCDE12345.com.ladle.ios"
+
+    with pytest.raises(RuntimeError, match="App Attest verifier"):
+        create_app(
+            settings=settings,
+            attestation=AttestationService(enforced=True, verifier=None),
+        )
 
 
 def test_system_clock_returns_timezone_aware_utc() -> None:

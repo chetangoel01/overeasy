@@ -45,6 +45,7 @@ struct LadleApp: App {
         if resetsBackendSession {
             Self.resetBackendSession()
         }
+        let installationID = Self.installationID()
         let accountSession = AccountSession(
             launchArguments: launchArguments
         )
@@ -115,14 +116,21 @@ struct LadleApp: App {
         } else {
             do {
                 let tokenStore = KeychainTokenStore()
+                let baseURL = try APIConfiguration().baseURL
+                let appAttester = AppAttestClient(
+                    baseURL: baseURL,
+                    installationID: installationID
+                )
                 let api = APIClient(
-                    baseURL: try APIConfiguration().baseURL,
-                    tokenStore: tokenStore
+                    baseURL: baseURL,
+                    tokenStore: tokenStore,
+                    appAttester: appAttester
                 )
                 authClient = AuthClient(
                     api: api,
                     tokenStore: tokenStore,
-                    accountSession: accountSession
+                    accountSession: accountSession,
+                    appAttester: appAttester
                 )
                 importService = RemoteImportService(api: api)
                 syncService = RecipeSyncService(
@@ -147,8 +155,6 @@ struct LadleApp: App {
                 )
             }
         }
-        let installationID = Self.installationID()
-
         appEnvironment = environment
         self.sharedQueueReconciler = sharedQueueReconciler
         self.authClient = authClient

@@ -1,1 +1,2 @@
 LADLE_API_BASE_URL = https:/$()/api.ladle.app
+APP_ATTEST_ENVIRONMENT = production

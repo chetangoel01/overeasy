@@ -83,6 +83,45 @@ final class AuthClientTests: XCTestCase {
         XCTAssertEqual(requests.snapshot.count, 2)
     }
 
+    func testGuestBootstrapIncludesDeviceAttestationEvidence() async throws {
+        let requests = Locked<[URLRequest]>([])
+        URLProtocolStub.install { request in
+            requests.withValue { $0.append(request) }
+            return (
+                Self.response(request, status: 201),
+                Self.tokensJSON(
+                    accessToken: "guest-access",
+                    userKind: "guest"
+                )
+            )
+        }
+        let tokenStore = InMemoryAuthTokenStore()
+        let auth = AuthClient(
+            api: APIClient(
+                baseURL: URL(string: "https://api.ladle.test")!,
+                session: URLProtocolStub.session(),
+                tokenStore: tokenStore
+            ),
+            tokenStore: tokenStore,
+            accountSession: AccountSession(
+                store: InMemoryAuthPreferenceStore()
+            ),
+            appAttester: GuestEvidenceAppAttester()
+        )
+
+        _ = try await auth.bootstrapGuest(
+            installationID: "ios-installation",
+            attestation: nil
+        )
+
+        let body = try JSONSerialization.jsonObject(
+            with: URLProtocolStub.bodyData(for: requests.snapshot[0])
+        ) as? [String: Any]
+        let evidence = body?["attestation"] as? [String: Any]
+        XCTAssertEqual(evidence?["kind"] as? String, "attestation")
+        XCTAssertEqual(evidence?["keyID"] as? String, "device-key")
+    }
+
     func testRestoreAppliesPersistedServerAccountState() throws {
         let tokenStore = InMemoryAuthTokenStore(
             tokens: .fixture(
@@ -132,6 +171,31 @@ final class AuthClientTests: XCTestCase {
             "userKind": userKind,
         ])
     }
+}
+
+private actor GuestEvidenceAppAttester: AppAttesting {
+    func guestEvidence() async throws -> AppAttestEvidence? {
+        AppAttestEvidence(
+            kind: .attestation,
+            keyID: "device-key",
+            challengeID: UUID(
+                uuidString: "10000000-0000-4000-8000-000000000099"
+            )!,
+            challenge: "Y2hhbGxlbmdl",
+            attestationObject: "YXR0ZXN0YXRpb24=",
+            assertion: nil,
+            clientData: nil
+        )
+    }
+
+    func authorize(
+        _ request: URLRequest,
+        purpose: AppAttestPurpose
+    ) async throws -> URLRequest {
+        request
+    }
+
+    func reset() async throws {}
 }
 
 private final class InMemorySecureDataStore: SecureDataStoring {

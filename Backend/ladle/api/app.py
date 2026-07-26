@@ -7,6 +7,7 @@ from redis import Redis
 from sqlalchemy.orm import Session, sessionmaker
 
 from ladle.api.errors import install_error_handlers
+from ladle.api.routes.attestation import router as attestation_router
 from ladle.api.routes.auth import router as auth_router
 from ladle.api.routes.health import (
     DatabaseReadinessProbe,
@@ -25,7 +26,7 @@ from ladle.auth.apple import (
     AppleIdentityTokenVerifier,
     HTTPAppleJWKS,
 )
-from ladle.auth.attestation import AttestationService
+from ladle.auth.attestation import AppleAppAttestVerifier, AttestationService
 from ladle.auth.merge import AccountMergeService
 from ladle.auth.sessions import SessionService
 from ladle.auth.tokens import AccessTokenCodec, RefreshTokenCodec
@@ -94,9 +95,32 @@ def create_app(
     application.state.clock = runtime_clock
     application.state.session_service = runtime_sessions
     application.state.access_tokens = token_codec
-    application.state.attestation = attestation or AttestationService(
-        enforced=configured.attestation_enforced
-    )
+    runtime_attestation = attestation
+    if runtime_attestation is None:
+        verifier = (
+            AppleAppAttestVerifier(
+                app_id=configured.app_attest_app_id,
+                environment=configured.app_attest_environment,
+                clock=runtime_clock,
+            )
+            if configured.app_attest_app_id is not None
+            else None
+        )
+        runtime_attestation = AttestationService(
+            enforced=configured.attestation_enforced,
+            verifier=verifier,
+            clock=runtime_clock,
+            challenge_lifetime=timedelta(
+                seconds=configured.app_attest_challenge_seconds
+            ),
+        )
+    if configured.environment == "production" and (
+        not runtime_attestation.enforced or not runtime_attestation.configured
+    ):
+        raise RuntimeError(
+            "production requires an enabled, configured App Attest verifier"
+        )
+    application.state.attestation = runtime_attestation
     runtime_metrics = metrics or MetricsRegistry()
     object_storage: S3ObjectStorage | None = None
     if configured.object_storage_enabled:
@@ -211,6 +235,7 @@ def create_app(
         )
     else:
         application.state.import_dispatcher = NoopImportDispatcher()
+    application.include_router(attestation_router)
     application.include_router(auth_router)
     application.include_router(recipes_router)
     application.include_router(imports_router)

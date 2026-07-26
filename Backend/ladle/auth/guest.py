@@ -3,7 +3,11 @@ from uuid import uuid4
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ladle.auth.attestation import AttestationService
+from ladle.auth.attestation import (
+    AppAttestEvidence,
+    AppAttestPurpose,
+    AttestationService,
+)
 from ladle.auth.sessions import SessionService, SessionTokens
 from ladle.clock import Clock
 from ladle.db.models import Device, User, UserSyncState
@@ -13,15 +17,20 @@ def register_guest(
     database: Session,
     *,
     installation_id: str,
-    assertion: str | None,
+    evidence: AppAttestEvidence | None,
     attestation: AttestationService,
     sessions: SessionService,
     clock: Clock,
 ) -> SessionTokens:
     now = clock.now()
     attestation_state = attestation.verify(
+        database,
         installation_id=installation_id,
-        assertion=assertion,
+        purpose=AppAttestPurpose.GUEST_CREATION,
+        method="POST",
+        path="/v1/auth/guest",
+        body_sha256=None,
+        evidence=evidence,
     )
     device = database.execute(
         select(Device)
@@ -46,6 +55,12 @@ def register_guest(
     else:
         device.last_seen_at = now
         device.attestation_state = attestation_state
+    attestation.bind_device(
+        database,
+        installation_id=installation_id,
+        device_id=device.id,
+        evidence=evidence,
+    )
 
     return sessions.create(
         database,

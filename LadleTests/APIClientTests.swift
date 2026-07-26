@@ -57,6 +57,43 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(request.url?.path, "/v1/test")
     }
 
+    func testSensitiveRequestCarriesFreshAppAttestAssertionHeaders() async throws {
+        let store = InMemoryAuthTokenStore(
+            tokens: .fixture(accessToken: "guest-access")
+        )
+        let captured = Locked<[URLRequest]>([])
+        URLProtocolStub.install { request in
+            captured.withValue { $0.append(request) }
+            return (
+                Self.response(request, status: 200),
+                Self.json(["value": "ok"])
+            )
+        }
+        let client = APIClient(
+            baseURL: URL(string: "https://api.ladle.test")!,
+            session: URLProtocolStub.session(),
+            tokenStore: store,
+            appAttester: StubAppAttester()
+        )
+
+        let _: ResponseBody = try await client.request(
+            path: "/v1/imports",
+            method: .post,
+            body: RequestBody(value: "bound-body"),
+            appAttestPurpose: .importSubmission
+        )
+
+        let request = try XCTUnwrap(captured.snapshot.first)
+        XCTAssertEqual(
+            request.value(forHTTPHeaderField: "X-App-Attest-Kind"),
+            "assertion"
+        )
+        XCTAssertEqual(
+            request.value(forHTTPHeaderField: "X-App-Attest-Challenge-ID"),
+            "10000000-0000-4000-8000-000000000099"
+        )
+    }
+
     func testUnauthorizedRequestRefreshesOnceAndReplays() async throws {
         let store = InMemoryAuthTokenStore(
             tokens: .fixture(
@@ -226,6 +263,31 @@ final class APIClientTests: XCTestCase {
             "userKind": "guest",
         ])
     }
+}
+
+private actor StubAppAttester: AppAttesting {
+    func guestEvidence() async throws -> AppAttestEvidence? {
+        nil
+    }
+
+    func authorize(
+        _ request: URLRequest,
+        purpose: AppAttestPurpose
+    ) async throws -> URLRequest {
+        XCTAssertEqual(purpose, .importSubmission)
+        var authorized = request
+        authorized.setValue(
+            "assertion",
+            forHTTPHeaderField: "X-App-Attest-Kind"
+        )
+        authorized.setValue(
+            "10000000-0000-4000-8000-000000000099",
+            forHTTPHeaderField: "X-App-Attest-Challenge-ID"
+        )
+        return authorized
+    }
+
+    func reset() async throws {}
 }
 
 final class InMemoryAuthTokenStore: AuthTokenStoring, @unchecked Sendable {

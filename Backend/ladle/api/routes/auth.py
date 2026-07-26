@@ -10,7 +10,11 @@ from ladle.auth.apple import (
     AppleCredentials,
     AppleIdentityTokenInvalid,
 )
-from ladle.auth.attestation import AttestationRejected, AttestationService
+from ladle.auth.attestation import (
+    AppAttestEvidence,
+    AttestationRejected,
+    AttestationService,
+)
 from ladle.auth.guest import register_guest
 from ladle.auth.merge import AccountMergeInvalid, AccountMergeService
 from ladle.auth.sessions import (
@@ -24,14 +28,14 @@ from ladle.auth.tokens import (
     AccessTokenInvalid,
 )
 from ladle.contracts.common import WireDateTime, WireModel, WireUUID
-from ladle.db.models import AuthSession
+from ladle.db.models import AuthSession, Device
 
 router = APIRouter(prefix="/v1/auth", tags=["auth"])
 
 
 class GuestAuthRequest(WireModel):
     installation_id: str = Field(min_length=1, max_length=255)
-    attestation: str | None = None
+    attestation: AppAttestEvidence | None = None
 
 
 class RefreshRequest(WireModel):
@@ -105,8 +109,11 @@ def access_claims(
 
     with database(request) as current_database:
         stored = current_database.get(AuthSession, claims.session_id)
+        device = current_database.get(Device, claims.device_id)
         if (
             stored is None
+            or device is None
+            or device.attestation_state == "revoked"
             or stored.revoked_at is not None
             or stored.user_id != claims.user_id
             or stored.device_id != claims.device_id
@@ -121,18 +128,22 @@ def access_claims(
     status_code=status.HTTP_201_CREATED,
 )
 def create_guest(request: Request, body: GuestAuthRequest) -> AuthTokensResponse:
-    try:
-        with database(request) as current_database, current_database.begin():
+    rejection: AttestationRejected | None = None
+    tokens: SessionTokens | None = None
+    with database(request) as current_database, current_database.begin():
+        try:
             tokens = register_guest(
                 current_database,
                 installation_id=body.installation_id,
-                assertion=body.attestation,
+                evidence=body.attestation,
                 attestation=_attestation(request),
                 sessions=_sessions(request),
                 clock=request_clock(request),
             )
-    except AttestationRejected as error:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN) from error
+        except AttestationRejected as error:
+            rejection = error
+    if rejection is not None or tokens is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN) from rejection
     return AuthTokensResponse.from_tokens(tokens)
 
 

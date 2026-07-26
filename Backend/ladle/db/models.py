@@ -77,6 +77,74 @@ class Device(Base):
     )
 
 
+class AppAttestChallenge(Base):
+    __tablename__ = "app_attest_challenges"
+    __table_args__ = (
+        CheckConstraint(
+            "purpose IN ('guestCreation', 'importSubmission', 'importRetry')",
+            name="ck_app_attest_challenges_purpose",
+        ),
+        Index("ix_app_attest_challenges_expires_at", "expires_at"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    installation_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    purpose: Mapped[str] = mapped_column(String(32), nullable=False)
+    challenge_hash: Mapped[bytes] = mapped_column(LargeBinary(32), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    consumed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+
+class AppAttestKey(Base):
+    __tablename__ = "app_attest_keys"
+    __table_args__ = (
+        CheckConstraint(
+            "environment IN ('development', 'production')",
+            name="ck_app_attest_keys_environment",
+        ),
+        CheckConstraint(
+            "status IN ('valid', 'revoked')",
+            name="ck_app_attest_keys_status",
+        ),
+        Index("ix_app_attest_keys_installation_id", "installation_id"),
+    )
+
+    key_id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    installation_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    device_id: Mapped[UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("devices.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    public_key: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    receipt: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    environment: Mapped[str] = mapped_column(String(16), nullable=False)
+    assertion_counter: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, server_default="0"
+    )
+    status: Mapped[str] = mapped_column(
+        String(16), nullable=False, server_default="valid"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    last_asserted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    revoked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    revocation_reason: Mapped[str | None] = mapped_column(String(128), nullable=True)
+
+
 class AuthSession(Base):
     __tablename__ = "auth_sessions"
 

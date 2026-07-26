@@ -67,6 +67,7 @@
 		8969E7AE92F6AAC232E3E2A8 /* URLProtocolStub.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65FAD8FFBD627A1E6F1824E0 /* URLProtocolStub.swift */; };
 		8CE56A2E89D1E151C1AA6B84 /* ReimportSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7CCBA4794A638FF56EBDD1A /* ReimportSheet.swift */; };
 		8D177239F1A086FA834C85C6 /* RecipeGridCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC8EEB0F6CE2D7F25FAF7308 /* RecipeGridCard.swift */; };
+		8E8D469AEBAD18304870D64B /* AppAttestClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30A84A5F8B238E1FDC631926 /* AppAttestClientTests.swift */; };
 		910528C2827351A23281CE62 /* MethodList.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3035470E3D4E011D3DDB328 /* MethodList.swift */; };
 		93A83D9AD673751E50FE0D16 /* AppEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = C620D1903E80465BDA8FE60F /* AppEnvironment.swift */; };
 		93CF9021D2F49A9F1263B0FC /* LadleApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 398FE0A6194867671568AF86 /* LadleApp.swift */; };
@@ -84,6 +85,7 @@
 		AE4B668CBE0E318875AF01EA /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72AE00384EB09CFD40366417 /* ShareViewController.swift */; };
 		AE645C3991B22C20AF387561 /* ImportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC911C7C9A9D3FDBABF02BB9 /* ImportService.swift */; };
 		B6F2C50D9C1E3327A6A59F33 /* RecipeRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70F3A8AF60529A54861B53EB /* RecipeRepository.swift */; };
+		B8666103939A1C937D3007CF /* AppAttestClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 015AA36229E912578D0E22A5 /* AppAttestClient.swift */; };
 		B8C07A83B04420D104948A91 /* ImportCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCE40C1144201ECA9A36E8BC /* ImportCoordinator.swift */; };
 		BCE8D4284DDADFE5A4E61200 /* RemoteImageCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2364871665B549A371E8011 /* RemoteImageCache.swift */; };
 		BD4975AF606D7BFA55B03340 /* RemoteImageCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E70BCF12B0F114BF77D3F95E /* RemoteImageCacheTests.swift */; };
@@ -155,6 +157,7 @@
 
 /* Begin PBXFileReference section */
 		0056F263B0A8D49526CD0A12 /* LibraryFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryFlowTests.swift; sourceTree = "<group>"; };
+		015AA36229E912578D0E22A5 /* AppAttestClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppAttestClient.swift; sourceTree = "<group>"; };
 		02E89F28EBF53680812A3D38 /* PendingImportCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingImportCard.swift; sourceTree = "<group>"; };
 		07E8E61AD25B02CFF497294C /* LadleTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LadleTheme.swift; sourceTree = "<group>"; };
 		09B260DA499835E89F84D468 /* HealthExportViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthExportViewModelTests.swift; sourceTree = "<group>"; };
@@ -173,6 +176,7 @@
 		2FCA9C00709407DA52C805AE /* VideoEmbedSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoEmbedSheet.swift; sourceTree = "<group>"; };
 		2FD8652C5A7875BD43D823FC /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 		30865D07CBC2C21DCB5B7BDA /* StoredImportJob.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoredImportJob.swift; sourceTree = "<group>"; };
+		30A84A5F8B238E1FDC631926 /* AppAttestClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppAttestClientTests.swift; sourceTree = "<group>"; };
 		348D89D4BA7119269FD4F3BC /* LadleComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LadleComponents.swift; sourceTree = "<group>"; };
 		35EFCC50D17300CF2E3C284E /* AccountSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSheet.swift; sourceTree = "<group>"; };
 		3801D743E5C7CE52681E7C04 /* ImportCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportCoordinatorTests.swift; sourceTree = "<group>"; };
@@ -373,6 +377,7 @@
 			children = (
 				DB9237724B9663AD4AFC1232 /* AccountSession.swift */,
 				35EFCC50D17300CF2E3C284E /* AccountSheet.swift */,
+				015AA36229E912578D0E22A5 /* AppAttestClient.swift */,
 				E9C01DA218666D762AB16E8A /* AuthClient.swift */,
 				480030F07BD940462128F4AE /* GuestLimitView.swift */,
 				FA758C400CD14A086E39D48D /* KeychainTokenStore.swift */,
@@ -437,6 +442,7 @@
 				DF887E67522E51849E46A63C /* Support */,
 				B38BC487172BD4E150410E78 /* AccountSessionTests.swift */,
 				AC34B6B51E6AF6B47D8FC45D /* APIClientTests.swift */,
+				30A84A5F8B238E1FDC631926 /* AppAttestClientTests.swift */,
 				2256E64AD0B3ACFDB22A837E /* AuthClientTests.swift */,
 				96B58AC391122DA6ADD686C9 /* CookingViewModelTests.swift */,
 				ADCDE2C252635C3E9076C6DD /* DemoImportServiceTests.swift */,
@@ -738,6 +744,7 @@
 				E25710AC24E77B43AD6B6631 /* AccountSheet.swift in Sources */,
 				FED8F6252BF9482B0F17209C /* AddRecipeSheet.swift in Sources */,
 				DFC659D823A4B7AA5BFD3E4E /* AllRecipesView.swift in Sources */,
+				B8666103939A1C937D3007CF /* AppAttestClient.swift in Sources */,
 				93A83D9AD673751E50FE0D16 /* AppEnvironment.swift in Sources */,
 				9E6908D535A27DA7429230D5 /* AuthClient.swift in Sources */,
 				04F10BBF44F7962FD24A6ADD /* CookingViewModel.swift in Sources */,
@@ -819,6 +826,7 @@
 			files = (
 				224F559012E7DF26C228AF43 /* APIClientTests.swift in Sources */,
 				9C16EF897125A7B0B4CBF604 /* AccountSessionTests.swift in Sources */,
+				8E8D469AEBAD18304870D64B /* AppAttestClientTests.swift in Sources */,
 				4CE9B8C981FF6E36E6152685 /* AuthClientTests.swift in Sources */,
 				582D38A667F6429C2DAD53C9 /* CookingViewModelTests.swift in Sources */,
 				39BB9D3C3EC14FFDCE622491 /* DemoImportServiceTests.swift in Sources */,

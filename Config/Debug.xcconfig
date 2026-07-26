@@ -1,1 +1,2 @@
 LADLE_API_BASE_URL = http:/$()/api.ladle.localhost
+APP_ATTEST_ENVIRONMENT = development

@@ -34,6 +34,12 @@ class Settings(BaseSettings):
     refresh_token_days: int = Field(default=30, gt=0)
     refresh_rotation_grace_seconds: int = Field(default=5, ge=0)
     attestation_enforced: bool = False
+    app_attest_app_id_prefix: str | None = Field(
+        default=None, min_length=10, max_length=32
+    )
+    app_attest_bundle_id: str | None = Field(default=None, min_length=3, max_length=255)
+    app_attest_environment: Literal["development", "production"] = "production"
+    app_attest_challenge_seconds: int = Field(default=300, ge=60, le=900)
     import_reservation_minutes: int = Field(default=60, gt=0)
     source_redirect_timeout_seconds: float = Field(default=10, gt=0)
     extraction_claim_minutes: int = Field(default=10, gt=0)
@@ -141,6 +147,12 @@ class Settings(BaseSettings):
     apple_identity_token_maximum_age_minutes: int = Field(default=10, gt=0)
     apple_clock_skew_seconds: int = Field(default=30, ge=0)
 
+    @property
+    def app_attest_app_id(self) -> str | None:
+        if self.app_attest_app_id_prefix is None or self.app_attest_bundle_id is None:
+            return None
+        return f"{self.app_attest_app_id_prefix}.{self.app_attest_bundle_id}"
+
     @model_validator(mode="after")
     def normalize_blank_provider_keys(self) -> Self:
         # Compose-style `${VAR:-}` substitution surfaces unset keys as empty
@@ -181,6 +193,16 @@ class Settings(BaseSettings):
                     "object_storage_secret_key must be a non-placeholder secret "
                     "of at least 32 characters in production"
                 )
+        if not self.attestation_enforced:
+            raise ValueError("App Attest enforcement is required in production")
+        if self.app_attest_app_id is None:
+            raise ValueError(
+                "App Attest App ID prefix and bundle ID are required in production"
+            )
+        if self.app_attest_environment != "production":
+            raise ValueError(
+                "the production App Attest environment is required in production"
+            )
         extraction_key = (
             "openrouter_api_key"
             if self.extraction_provider == "openrouter"

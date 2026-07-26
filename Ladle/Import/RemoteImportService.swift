@@ -38,7 +38,8 @@ struct RemoteImportService: ImportService {
                 currentRecipeID: job.currentRecipeID,
                 correctionNotes: job.correctionNotes,
                 pastedText: job.pastedRecipeText
-            )
+            ),
+            appAttestPurpose: .importSubmission
         )
         return try await update(from: response)
     }
@@ -65,7 +66,8 @@ struct RemoteImportService: ImportService {
             body: RetryRequest(
                 correctionNotes: correctionNotes,
                 pastedText: pastedRecipeText
-            )
+            ),
+            appAttestPurpose: .importRetry
         )
         return try await update(from: response)
     }
