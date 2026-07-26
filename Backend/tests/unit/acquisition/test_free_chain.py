@@ -442,6 +442,32 @@ def test_audio_transcription_runs_before_the_transcript_providers() -> None:
     assert "audioTranscriptionUsed" in context.diagnostics
 
 
+def test_download_and_whisper_do_not_require_transcript_vendors() -> None:
+    audio = Audio(whisper_transcript())
+    free = Free(
+        FreeContext(
+            metadata=MediaMetadata(
+                title="Chickpeas",
+                description="link in bio",
+                duration_seconds=22.3,
+            ),
+            diagnostics=["freeMetadataUsed"],
+        )
+    )
+    chain = ProviderChain(
+        primary=None,
+        fallback=None,
+        free=free,
+        audio=audio,
+    )
+
+    context = chain.acquire(source(), job_id=uuid4())
+
+    assert audio.calls == [(None, 22.3)]
+    assert context.transcript[0].provenance == "whisper:openai/whisper-large-v3"
+    assert "audioTranscriptionUsed" in context.diagnostics
+
+
 def test_failed_transcription_still_falls_through_to_paid_providers() -> None:
     primary = Primary()
     fallback = Fallback()

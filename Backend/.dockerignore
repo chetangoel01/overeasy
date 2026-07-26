@@ -10,3 +10,4 @@ tests
 # in the build context they ship inside the runtime image, and a rebuild then
 # silently restores stale evidence over whatever the harness just fetched.
 .eval-cache
+.private

@@ -8,5 +8,6 @@ __pycache__/
 htmlcov/
 # Cached acquisition results and scoreboards from scripts/eval_extraction.py.
 .eval-cache/
+.private/
 
 !.env.example

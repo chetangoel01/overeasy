@@ -131,12 +131,14 @@ class YtDlpClient:
         self,
         *,
         binary: str | None = None,
+        cookies_file: str | Path | None = None,
         runner: CommandRunner = run_command,
         metadata_timeout_seconds: float = 90,
         subtitle_timeout_seconds: float = 90,
         audio_timeout_seconds: float = 240,
     ) -> None:
         self._binary = binary or _discover_binary()
+        self._cookies_file = str(cookies_file) if cookies_file is not None else None
         self._runner = runner
         self._metadata_timeout = metadata_timeout_seconds
         self._subtitle_timeout = subtitle_timeout_seconds
@@ -148,8 +150,7 @@ class YtDlpClient:
 
     def metadata(self, url: str) -> YtDlpMedia:
         payload = self._json(
-            [
-                self._require_binary(),
+            self._command(
                 "--no-playlist",
                 "--skip-download",
                 "--dump-single-json",
@@ -161,7 +162,7 @@ class YtDlpClient:
                 "--extractor-retries",
                 "2",
                 url,
-            ],
+            ),
             timeout=self._metadata_timeout,
         )
         return _media_from_payload(payload)
@@ -174,8 +175,7 @@ class YtDlpClient:
         """
         with tempfile.TemporaryDirectory(prefix="ladle-free-") as folder:
             work_dir = Path(folder)
-            command = [
-                self._require_binary(),
+            command = self._command(
                 "--no-playlist",
                 "--skip-download",
                 "--write-auto-subs" if track.generated else "--write-subs",
@@ -189,7 +189,7 @@ class YtDlpClient:
                 "-o",
                 str(work_dir / "source.%(ext)s"),
                 url,
-            ]
+            )
             try:
                 result = self._runner(command, timeout=self._subtitle_timeout)
             except subprocess.TimeoutExpired:
@@ -231,8 +231,7 @@ class YtDlpClient:
         )
 
     def _download(self, url: str, *, work_dir: Path, selector: str) -> Path | None:
-        command = [
-            self._require_binary(),
+        command = self._command(
             "--no-playlist",
             "-f",
             selector,
@@ -244,7 +243,7 @@ class YtDlpClient:
             "-o",
             str(work_dir / "download.%(ext)s"),
             url,
-        ]
+        )
         try:
             result = self._runner(command, timeout=self._audio_timeout)
         except (subprocess.TimeoutExpired, OSError) as error:
@@ -284,6 +283,13 @@ class YtDlpClient:
         if self._binary is None:
             raise ProviderUnavailable("yt-dlp is not installed")
         return self._binary
+
+    def _command(self, *arguments: str) -> list[str]:
+        command = [self._require_binary()]
+        if self._cookies_file is not None:
+            command.extend(("--cookies", self._cookies_file))
+        command.extend(arguments)
+        return command
 
 
 def _classify(stderr: str) -> ProviderUnavailable | PrivateOrDeleted:

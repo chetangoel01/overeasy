@@ -104,7 +104,10 @@ def media_costs(settings: Settings, context: AcquiredVideoContext) -> Measured:
     """Transcription and frame analysis, both of which need the media."""
 
     measured = Measured(name="media")
-    ytdlp = YtDlpClient(binary=settings.ytdlp_binary_path)
+    ytdlp = YtDlpClient(
+        binary=settings.ytdlp_binary_path,
+        cookies_file=settings.ytdlp_cookies_file,
+    )
     source = MediaAudioSource(ytdlp=ytdlp, http=httpx.Client(timeout=180))
     sampler = FrameSampler(max_frames=settings.frame_analysis_max_frames)
 

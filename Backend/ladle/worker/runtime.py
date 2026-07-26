@@ -163,7 +163,7 @@ def _audio_transcriber(
     if not settings.audio_transcription_enabled or settings.openrouter_api_key is None:
         return None
     source = MediaAudioSource(
-        ytdlp=YtDlpClient(binary=settings.ytdlp_binary_path),
+        ytdlp=_ytdlp(settings),
         http=httpx.Client(timeout=settings.transcription_timeout_seconds),
     )
     if not source.available:
@@ -191,7 +191,7 @@ def _vision_provider(
     if not settings.frame_analysis_enabled or settings.openrouter_api_key is None:
         return None
     media = MediaAudioSource(
-        ytdlp=YtDlpClient(binary=settings.ytdlp_binary_path),
+        ytdlp=_ytdlp(settings),
         http=httpx.Client(timeout=settings.frame_analysis_timeout_seconds),
     )
     sampler = FrameSampler(max_frames=settings.frame_analysis_max_frames)
@@ -214,11 +214,7 @@ def _vision_provider(
 def _free_acquirer(settings: Settings) -> FreeAcquirer | None:
     if not settings.free_acquisition_enabled:
         return None
-    ytdlp = YtDlpClient(
-        binary=settings.ytdlp_binary_path,
-        metadata_timeout_seconds=settings.ytdlp_timeout_seconds,
-        subtitle_timeout_seconds=settings.ytdlp_timeout_seconds,
-    )
+    ytdlp = _ytdlp(settings)
     # TikTok's own ASR track needs a fetcher even when caption-link following
     # is off, so the page client gets its own.
     page_fetcher = SafeLinkFetcher(
@@ -231,6 +227,15 @@ def _free_acquirer(settings: Settings) -> FreeAcquirer | None:
         instagram=InstagramEmbedClient(fetcher=page_fetcher),
         follow_caption_links=settings.free_acquisition_follow_links,
         subtitles_enabled=settings.free_acquisition_subtitles,
+    )
+
+
+def _ytdlp(settings: Settings) -> YtDlpClient:
+    return YtDlpClient(
+        binary=settings.ytdlp_binary_path,
+        cookies_file=settings.ytdlp_cookies_file,
+        metadata_timeout_seconds=settings.ytdlp_timeout_seconds,
+        subtitle_timeout_seconds=settings.ytdlp_timeout_seconds,
     )
 
 
@@ -293,28 +298,31 @@ def runtime_orchestrator() -> ImportOrchestrator:
             if settings.extraction_provider == "openrouter"
             else settings.anthropic_api_key
         )
-        if (
-            settings.supadata_api_key is None
-            or settings.soscripted_api_key is None
-            or extraction_key is None
-        ):
+        if extraction_key is None:
             raise RuntimeError(
-                "live workers require Supadata, SoScripted, and an "
-                f"{settings.extraction_provider} API key"
+                f"live workers require an {settings.extraction_provider} API key"
             )
         usage = ProviderUsageLedger(session_factory=sessions, clock=clock)
         acquirer = ProviderChain(
-            primary=SupadataClient(
-                http=httpx.Client(timeout=settings.supadata_timeout_seconds),
-                api_key=settings.supadata_api_key,
-                base_url=str(settings.supadata_base_url),
-                usage=usage,
+            primary=(
+                SupadataClient(
+                    http=httpx.Client(timeout=settings.supadata_timeout_seconds),
+                    api_key=settings.supadata_api_key,
+                    base_url=str(settings.supadata_base_url),
+                    usage=usage,
+                )
+                if settings.supadata_api_key is not None
+                else None
             ),
-            fallback=SoScriptedClient(
-                http=httpx.Client(timeout=settings.soscripted_timeout_seconds),
-                api_key=settings.soscripted_api_key,
-                base_url=str(settings.soscripted_base_url),
-                usage=usage,
+            fallback=(
+                SoScriptedClient(
+                    http=httpx.Client(timeout=settings.soscripted_timeout_seconds),
+                    api_key=settings.soscripted_api_key,
+                    base_url=str(settings.soscripted_base_url),
+                    usage=usage,
+                )
+                if settings.soscripted_api_key is not None
+                else None
             ),
             circuits=CircuitBreaker(
                 clock=clock,

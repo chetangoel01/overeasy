@@ -86,8 +86,8 @@ class ProviderChain:
     def __init__(
         self,
         *,
-        primary: PrimaryProvider,
-        fallback: TranscriptFallback,
+        primary: PrimaryProvider | None,
+        fallback: TranscriptFallback | None,
         circuits: CircuitBreaker | None = None,
         server_fallback: ContextFallback | None = None,
         free: FreeAcquirer | None = None,
@@ -117,10 +117,13 @@ class ProviderChain:
                 return False
             if free.has_metadata:
                 return True
+        if self._primary is None:
+            return True
+        primary = self._primary
         try:
             self._provider_call(
                 "supadata",
-                lambda: self._primary.metadata(source, job_id=job_id),
+                lambda: primary.metadata(source, job_id=job_id),
             )
         except PrivateOrDeleted:
             return False
@@ -137,17 +140,21 @@ class ProviderChain:
         documents = free.linked_documents
 
         metadata = free.metadata
-        if metadata is None:
+        if metadata is None and self._primary is not None:
+            primary = self._primary
             try:
                 metadata = self._provider_call(
                     "supadata",
-                    lambda: self._primary.metadata(source, job_id=job_id),
+                    lambda: primary.metadata(source, job_id=job_id),
                 )
             except PrivateOrDeleted:
                 raise
             except (CircuitOpen, ProviderUnavailable):
                 metadata = MediaMetadata(description="")
                 diagnostics.append("metadataUnavailable")
+        if metadata is None:
+            metadata = MediaMetadata(description="")
+            diagnostics.append("metadataUnavailable")
 
         transcript: TranscriptResult | None = None
         if free.transcript:
@@ -209,7 +216,7 @@ class ProviderChain:
                     diagnostics=diagnostics,
                 )
 
-        if transcript is None:
+        if transcript is None and self._primary is not None:
             transcript = self._transcript_or_none(
                 source,
                 job_id=job_id,
@@ -217,19 +224,20 @@ class ProviderChain:
                 diagnostic="supadataTranscriptUnavailable",
                 diagnostics=diagnostics,
             )
-            if transcript is None:
-                try:
-                    transcript = self._provider_call(
-                        "soscripted",
-                        lambda: self._fallback.transcript(
-                            source,
-                            job_id=job_id,
-                        ),
-                    )
-                except PrivateOrDeleted:
-                    raise
-                except ProviderUnavailable:
-                    diagnostics.append("soscriptedUnavailable")
+        if transcript is None and self._fallback is not None:
+            fallback = self._fallback
+            try:
+                transcript = self._provider_call(
+                    "soscripted",
+                    lambda: fallback.transcript(
+                        source,
+                        job_id=job_id,
+                    ),
+                )
+            except PrivateOrDeleted:
+                raise
+            except ProviderUnavailable:
+                diagnostics.append("soscriptedUnavailable")
 
         visual: VisualResult | None = None
         provisional = self._context(
@@ -253,11 +261,12 @@ class ProviderChain:
                 media_url=free.media_url,
                 diagnostics=diagnostics,
             )
-            if visual is None:
+            if visual is None and self._primary is not None:
+                primary = self._primary
                 try:
                     visual = self._provider_call(
                         "supadata",
-                        lambda: self._primary.visual(source, job_id=job_id),
+                        lambda: primary.visual(source, job_id=job_id),
                     )
                 except PrivateOrDeleted:
                     raise
@@ -375,10 +384,13 @@ class ProviderChain:
         diagnostic: str,
         diagnostics: list[str],
     ) -> TranscriptResult | None:
+        if self._primary is None:
+            return None
+        primary = self._primary
         try:
             return self._provider_call(
                 "supadata",
-                lambda: self._primary.transcript(
+                lambda: primary.transcript(
                     source,
                     job_id=job_id,
                     mode=mode,

@@ -48,6 +48,20 @@ def test_production_allows_unconfigured_optional_providers() -> None:
     assert settings.anthropic_api_key is None
 
 
+def test_live_worker_requires_only_its_extraction_provider_key() -> None:
+    settings = Settings(
+        environment="production",
+        jwt_signing_secret=GOOD_SECRET,
+        data_encryption_key=GOOD_SECRET,
+        worker_provider_mode="live",
+        openrouter_api_key="openrouter-secret",
+        _env_file=None,
+    )
+
+    assert settings.supadata_api_key is None
+    assert settings.soscripted_api_key is None
+
+
 def test_empty_provider_environment_values_are_unconfigured(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

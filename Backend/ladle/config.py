@@ -70,6 +70,7 @@ class Settings(BaseSettings):
     free_acquisition_subtitles: bool = True
     free_acquisition_follow_links: bool = True
     ytdlp_binary_path: str | None = None
+    ytdlp_cookies_file: str | None = None
     ytdlp_timeout_seconds: float = Field(default=90, gt=0)
     linked_page_timeout_seconds: float = Field(default=12, gt=0)
 
@@ -185,15 +186,13 @@ class Settings(BaseSettings):
             if self.extraction_provider == "openrouter"
             else "anthropic_api_key"
         )
-        if self.worker_provider_mode == "live" and any(
-            getattr(self, field_name) is None
-            for field_name in (
-                "supadata_api_key",
-                "soscripted_api_key",
-                extraction_key,
-            )
+        if (
+            self.worker_provider_mode == "live"
+            and getattr(self, extraction_key) is None
         ):
-            raise ValueError("live production workers require configured provider keys")
+            raise ValueError(
+                f"live production workers require a configured {extraction_key}"
+            )
         if self.apple_enabled and any(
             getattr(self, field_name) is None
             for field_name in (

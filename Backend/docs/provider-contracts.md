@@ -71,12 +71,12 @@ The acquisition order is:
 3. one Supadata `mode=auto` URL transcript fallback;
 4. SoScripted transcript on an independent Supadata transcript outage;
 5. sampled-frame analysis, then Supadata structured visual analysis when the
-   recipe still lacks quantities or actions;
-6. explicitly enabled server media/OCR fallback if API evidence remains sparse.
+   recipe still lacks quantities or actions.
 
 Private/deleted observations stop the chain immediately. Authentication and
-quota failures open the affected provider circuit. The server fallback is
-disabled by default and is never an on-device iOS dependency.
+quota failures open the affected provider circuit. Supadata and SoScripted are
+optional: a private worker can run the free acquisition, raw-media Whisper,
+frame-analysis, and recipe-extraction path with only its OpenRouter key.
 
 ## Transcript fallback verification
 

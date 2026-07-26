@@ -164,6 +164,33 @@ def test_binary_is_discovered_beside_the_interpreter() -> None:
     assert YtDlpClient(runner=Runner()).available is True
 
 
+def test_cookie_file_is_passed_to_every_ytdlp_operation(tmp_path: Path) -> None:
+    cookies = tmp_path / "cookies.txt"
+    runner = Runner(
+        completed("{}"),
+        completed(),
+        completed(returncode=1),
+        completed(returncode=1),
+    )
+    client = YtDlpClient(
+        binary="yt-dlp",
+        cookies_file=cookies,
+        runner=runner,
+    )
+
+    client.metadata("https://www.instagram.com/reel/abc/")
+    client.subtitles(
+        "https://www.instagram.com/reel/abc/",
+        track=ytdlp.SubtitleTrack(language="en", generated=True),
+    )
+    client.audio("https://www.instagram.com/reel/abc/", work_dir=tmp_path)
+    client.video("https://www.instagram.com/reel/abc/", work_dir=tmp_path)
+
+    assert len(runner.commands) == 4
+    for command in runner.commands:
+        assert command[1:3] == ["--cookies", str(cookies)]
+
+
 def test_frame_sampling_asks_for_a_stream_that_has_pictures(tmp_path: Path) -> None:
     """ "bestaudio" returns a bare .m4a on Instagram, which has no frames.
 

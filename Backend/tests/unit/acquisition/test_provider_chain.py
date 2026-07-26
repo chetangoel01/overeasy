@@ -150,6 +150,21 @@ def test_sufficient_supadata_auto_material_skips_paid_fallbacks() -> None:
     )
 
 
+def test_soscripted_can_run_without_supadata() -> None:
+    fallback = Fallback(
+        transcript(
+            "Add 2 cups flour. Mix well, then bake for 20 minutes.",
+            "soscripted",
+        )
+    )
+    chain = ProviderChain(primary=None, fallback=fallback)
+
+    context = chain.acquire(source(), job_id=uuid4())
+
+    assert fallback.calls == 1
+    assert context.transcript[0].provenance == "soscripted"
+
+
 def test_public_recheck_uses_metadata_without_transcript_or_visual_spend() -> None:
     primary = Primary(
         native=TranscriptUnavailable(),

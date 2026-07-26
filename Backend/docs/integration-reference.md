@@ -419,11 +419,12 @@ With `LADLE_WORKER_PROVIDER_MODE=live`, the worker follows this order:
 1. Free platform metadata, captions, on-screen text, and linked recipe pages.
 2. If evidence is incomplete, Whisper transcription of the acquired media,
    with one retry only for transport, timeout, or provider 5xx failures.
-3. If no transcript is available, one Supadata `mode=auto` request, which
+3. If configured and no transcript is available, one Supadata `mode=auto`
+   request, which
    performs its own native-first/generated-fallback policy.
-4. If no transcript is available, SoScripted transcription.
+4. If configured and no transcript is available, SoScripted transcription.
 5. If evidence is still incomplete, sampled-frame analysis followed by
-   Supadata visual extraction.
+   Supadata visual extraction when configured.
 6. Claude structured recipe and nutrition extraction.
 7. Review gating and transactional recipe/cache completion.
 
@@ -458,26 +459,65 @@ Cache safety rules:
   the old cache
 - invalidation keeps old rows for audit while excluding them from reuse
 
-### Server media/ASR backup status
+### Private server-media transcription
 
-`ladle/acquisition/server_fallback.py` defines a guarded
-`ServerFallbackAdapter`, and `ProviderChain` can invoke a supplied fallback.
-There is not yet a concrete `yt-dlp`/`ffmpeg`/`faster-whisper` processor wired
-by `worker/runtime.py`.
+Purpose: make a personal worker able to import Instagram and TikTok without
+depending on the URL-transcript vendors.
 
-Therefore, setting `LADLE_SERVER_MEDIA_FALLBACK_ENABLED=true` alone currently
-does not enable local ASR. To complete this backup:
+When free evidence is thin, `MediaAudioSource` downloads the direct media URL
+published by a platform adapter or asks `yt-dlp` for the best audio stream.
+`ffmpeg` converts it to 16 kHz mono MP3, and the worker sends that compact audio
+to the configured OpenRouter Whisper endpoint. The source media and MP3 live
+inside a `TemporaryDirectory`; neither is stored in object storage, and both
+are removed when transcription returns or raises.
 
-1. implement the `ServerMediaProcessor` protocol;
-2. own media temp-file creation and guaranteed deletion inside that processor;
-3. construct `ServerFallbackAdapter(enabled=True, processor=...)`;
-4. pass it as `server_fallback=` when building `ProviderChain`;
-5. add a container image layer for the required binaries/models;
-6. run the existing provider-chain tests plus a credential-free processor
-   integration test.
+Supadata and SoScripted keys are optional. Without them the chain remains:
 
-The primary Supadata/SoScripted/Claude parsing path is server-side and fully
-wired; no provider extraction runs on the iPhone.
+```text
+permitted free evidence -> temporary media download -> Whisper
+-> temporary frame analysis -> structured recipe extraction
+```
+
+For a personal session that public extraction cannot reach, set
+`LADLE_YTDLP_COOKIES_FILE` to a Netscape-format cookie file. Every `yt-dlp`
+metadata, caption, audio, and video command receives the same file. The file is
+an account credential: keep it under the ignored `Backend/.private/` directory,
+never send it to the API or iOS app, and mount it read-only into the worker.
+
+For Docker Compose, use a private override such as:
+
+```yaml
+services:
+  worker:
+    environment:
+      LADLE_YTDLP_COOKIES_FILE: /run/secrets/yt-dlp-cookies.txt
+    volumes:
+      - /absolute/path/to/cookies.txt:/run/secrets/yt-dlp-cookies.txt:ro
+```
+
+The OpenRouter key is still required because it performs Whisper, frame
+analysis, and structured extraction. No provider extraction runs on the
+iPhone.
+
+Affected components:
+
+- `ladle/acquisition/free/ytdlp.py`
+- `ladle/acquisition/provider_chain.py`
+- `ladle/worker/runtime.py`
+- `ladle/config.py`
+- `.env.example` and `docker-compose.yml`
+- acquisition and configuration unit tests
+
+Verification on 2026-07-26:
+
+- the focused acquisition/configuration suite passed all 50 tests;
+- the complete backend suite passed 286 tests with three explicitly selected
+  live-provider tests skipped;
+- Ruff formatting and lint, Mypy, Compose configuration validation, and
+  `git diff --check` passed;
+- a live Instagram import of reel `Ct-OnLxJlxw` with both transcript vendors
+  omitted returned a Whisper transcript and the
+  `instagramEmbedUsed`/`audioTranscriptionUsed` diagnostics.
 
 ## PostgreSQL schema
 
