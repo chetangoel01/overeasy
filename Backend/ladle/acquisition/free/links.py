@@ -25,6 +25,23 @@ _BARE_DOMAIN = re.compile(
     r"recipes|food)(?:/[^\s<>()\"']*)?",
     re.IGNORECASE,
 )
+
+
+def belongs_to_creator(url: str, creator_name: str | None) -> bool:
+    """Whether a link looks like the creator's own site rather than a sponsor.
+
+    Handles and domains agree more often than not once punctuation is dropped:
+    "justine_snacks" writes justinesnacks.com. Short handles are refused
+    because a three-letter name matches half the web by accident.
+    """
+
+    handle = re.sub(r"[^a-z0-9]", "", (creator_name or "").casefold())
+    if len(handle) < 5:
+        return False
+    host = (urlsplit(url).hostname or "").casefold().removeprefix("www.")
+    return handle in re.sub(r"[^a-z0-9]", "", host)
+
+
 _SOCIAL_HOSTS = (
     "tiktok.com",
     "instagram.com",

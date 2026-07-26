@@ -118,6 +118,11 @@ services:
         "--concurrency=2",
       ]
     environment: *ladle-environment
+    volumes:
+      # scripts/eval_extraction.py runs in here for database access but writes
+      # cached video contexts and scoreboards a human reads. Bound so they
+      # outlive the container and land straight on the host.
+      - ./.eval-cache:/app/.eval-cache
     healthcheck:
       test:
         [

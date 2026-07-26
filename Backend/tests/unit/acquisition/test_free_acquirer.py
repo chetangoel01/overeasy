@@ -88,3 +88,49 @@ def test_thin_caption_without_any_pointer_fetches_nothing() -> None:
 
     assert fetcher.urls == []
     assert context.linked_documents == []
+
+
+def test_a_covered_caption_still_fetches_the_creators_own_page() -> None:
+    """Captions list ingredients; the creator's write-up states amounts.
+
+    Justine's caption names soy sauce and gochujang with no quantity while
+    justinesnacks.com gives both, and coverage being "satisfied" used to end
+    acquisition before we ever looked.
+    """
+
+    fetcher = SpyFetcher()
+    free = FreeAcquirer(
+        ytdlp=YtDlpClient(
+            binary="yt-dlp",
+            runner=Runner(
+                {
+                    "title": "Gochujang Tofu",
+                    "description": (
+                        f"{COVERED_CAPTION} full recipe "
+                        "https://justinesnacks.com/gochujang-tofu-mince"
+                    ),
+                    "uploader": "justine_snacks",
+                }
+            ),
+        ),
+        fetcher=fetcher,
+        subtitles_enabled=False,
+    )
+
+    context = free.acquire(source(), job_id=uuid4())
+
+    assert fetcher.urls == ["https://justinesnacks.com/gochujang-tofu-mince"]
+    assert context.linked_documents[0].provenance == "captionLink"
+    assert "freeCreatorPageUsed" in context.diagnostics
+
+
+def test_a_covered_caption_still_ignores_a_sponsor_link() -> None:
+    fetcher = SpyFetcher()
+    free = acquirer(
+        f"{COVERED_CAPTION} more at https://sponsor.example.com/deal", fetcher
+    )
+
+    context = free.acquire(source(), job_id=uuid4())
+
+    assert fetcher.urls == []
+    assert context.linked_documents == []

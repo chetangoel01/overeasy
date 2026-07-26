@@ -18,6 +18,7 @@ from ladle.acquisition.free.instagram import InstagramEmbedClient
 from ladle.acquisition.free.links import (
     LinkFetcher,
     UnsafeURL,
+    belongs_to_creator,
     caption_links,
     substack_candidates,
 )
@@ -127,6 +128,14 @@ class FreeAcquirer:
         # chase sponsor links through redirects for nothing.
         if _already_covered(context):
             context.diagnostics.append("freeCoverageSatisfied")
+            # One exception to stopping here: a page on the creator's own
+            # domain. A caption that lists ingredients still rounds the
+            # amounts off — "soy sauce" with no quantity — where their own
+            # write-up states them. Sponsor links stay unfetched.
+            context.linked_documents = self._creator_documents(
+                metadata,
+                diagnostics=context.diagnostics,
+            )
             return context
 
         if self._follow_caption_links and self._fetcher is not None:
@@ -208,6 +217,28 @@ class FreeAcquirer:
         # sticker is what the creator actually called the dish.
         if metadata is not None and evidence.title:
             metadata.title = evidence.title
+
+    def _creator_documents(
+        self,
+        metadata: MediaMetadata,
+        *,
+        diagnostics: list[str],
+    ) -> list[LinkedDocument]:
+        """Only pages on the creator's own domain, for the covered case."""
+
+        if not self._follow_caption_links or self._fetcher is None:
+            return []
+        owned = [
+            url
+            for url in caption_links(metadata.description)
+            if belongs_to_creator(url, metadata.creator_name)
+        ]
+        if not owned:
+            return []
+        documents = self._fetch_all(owned, provenance="captionLink")
+        if documents:
+            diagnostics.append("freeCreatorPageUsed")
+        return documents
 
     def _documents(
         self,

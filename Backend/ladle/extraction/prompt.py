@@ -3,7 +3,7 @@ from typing import Any
 
 from ladle.acquisition.models import AcquiredVideoContext
 
-PROMPT_VERSION = "recipe-2026-07-25-v5"
+PROMPT_VERSION = "recipe-2026-07-25-v6"
 
 SYSTEM_PROMPT = (
     "You extract faithful cooking recipes from social-video evidence.\n"
@@ -109,6 +109,19 @@ SYSTEM_PROMPT = (
     "- Instructions are directions to the cook, not narration of the video. "
     "Write 'Fry the onions until soft', never 'She fries the onions' or 'In "
     "this video the creator fries the onions'.\n"
+    "\n"
+    "TIMERS\n"
+    "- Whenever a step carries a stated duration, put it on that step as a "
+    "timer. The app turns each one into a countdown the cook can start, so a "
+    "'simmer for ten minutes' left out of timers is a feature they never "
+    "get.\n"
+    "- label is what is being waited for ('Simmer', 'Bake', 'Rest'); "
+    "durationSeconds is the stated length in seconds.\n"
+    "- For a range, take the shorter end and say so in the step text: food "
+    "can always go back on the heat, and a timer that overruns is worse than "
+    "one that ends early.\n"
+    "- Only durations the source actually states. 'Until golden' and 'until "
+    "the sauce thickens' are cues, not timers, and must not become one.\n"
     "\n"
     "UNCERTAINTY\n"
     "- Every uncertaintyReason is shown to the cook beside the ingredient or "

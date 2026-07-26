@@ -1,6 +1,7 @@
 import httpx
 import pytest
 
+from ladle.acquisition.free import links
 from ladle.acquisition.free.links import (
     SafeLinkFetcher,
     UnsafeURL,
@@ -176,3 +177,22 @@ def test_substack_candidates_need_a_handle() -> None:
 
     assert substack_candidates("", "Creamy Lemon Chickpeas", fetcher=recorder) == []
     assert recorder.urls == []
+
+
+@pytest.mark.parametrize(
+    ("url", "creator", "expected"),
+    [
+        ("https://justinesnacks.com/gochujang", "justine_snacks", True),
+        ("https://www.justinesnacks.com/x", "Justine Snacks", True),
+        ("https://mishkamakesfood.substack.com/p/a", "mishkamakesfood", True),
+        ("https://sponsor.example.com/deal", "justine_snacks", False),
+        ("https://hellofresh.com/offer", "mishkamakesfood", False),
+        # Too short to mean anything: a three-letter handle matches the web.
+        ("https://abc.com/x", "abc", False),
+        ("https://anything.com/x", None, False),
+    ],
+)
+def test_creator_owned_links_are_told_from_sponsor_links(
+    url: str, creator: str | None, expected: bool
+) -> None:
+    assert links.belongs_to_creator(url, creator) is expected

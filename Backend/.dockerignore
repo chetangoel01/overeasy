@@ -6,3 +6,7 @@
 __pycache__
 htmlcov
 tests
+# Cached video contexts and scoreboards from scripts/eval_extraction.py. Left
+# in the build context they ship inside the runtime image, and a rebuild then
+# silently restores stale evidence over whatever the harness just fetched.
+.eval-cache

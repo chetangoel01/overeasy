@@ -55,6 +55,11 @@ SOURCES = [
     "https://www.instagram.com/reel/Ct-OnLxJlxw/",
     "https://www.instagram.com/reel/C6IsG9BI3WZ/",
     "https://www.instagram.com/reel/Cx8pqZDv7G0/",
+    # Held back from the tuning above, to check the work on recipes it was
+    # never shaped against: one caption-rich and full of fractions, one whose
+    # real recipe lives on the creator's own site.
+    "https://www.tiktok.com/@thegoldenbalance/video/7666186049663634702",
+    "https://www.tiktok.com/@justine_snacks/video/7665677576647609630",
 ]
 
 
