@@ -217,9 +217,7 @@ class RateLimitPolicies:
         return cls(
             global_per_minute=settings.rate_limit_global_per_minute,
             guest_ip_per_hour=settings.rate_limit_guest_ip_per_hour,
-            guest_installation_per_day=(
-                settings.rate_limit_guest_installation_per_day
-            ),
+            guest_installation_per_day=(settings.rate_limit_guest_installation_per_day),
             refresh_ip_per_minute=settings.rate_limit_refresh_ip_per_minute,
             refresh_installation_per_minute=(
                 settings.rate_limit_refresh_installation_per_minute
@@ -238,9 +236,7 @@ class RateLimitPolicies:
         )
 
     def global_request(self) -> tuple[RateLimitCheck, ...]:
-        return (
-            self._check("global", "all", self.global_per_minute, minutes=1),
-        )
+        return (self._check("global", "all", self.global_per_minute, minutes=1),)
 
     def guest(self, ip: str, installation: str) -> tuple[RateLimitCheck, ...]:
         return (
@@ -311,9 +307,7 @@ class RateLimitPolicies:
         )
 
     def sync_poll(self, user: str) -> tuple[RateLimitCheck, ...]:
-        return (
-            self._check("sync:user", user, self.sync_user_per_minute, minutes=1),
-        )
+        return (self._check("sync:user", user, self.sync_user_per_minute, minutes=1),)
 
     @staticmethod
     def _check(

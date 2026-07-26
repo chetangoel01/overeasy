@@ -29,9 +29,7 @@ def test_client_ip_uses_forwarded_chain_only_from_a_trusted_proxy() -> None:
     resolver = ClientIPResolver("10.0.0.0/8, 2001:db8:abcd::/48")
 
     assert (
-        resolver.resolve(
-            request(peer="198.51.100.10", forwarded_for="203.0.113.7")
-        )
+        resolver.resolve(request(peer="198.51.100.10", forwarded_for="203.0.113.7"))
         == "198.51.100.10"
     )
     assert (

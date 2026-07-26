@@ -22,9 +22,7 @@ class SelectiveRateLimitBackend(RateLimitBackend):
 
     def retry_after(self, checks: Sequence[RateLimitCheck]) -> int | None:
         return (
-            11
-            if any(check.bucket == self.blocked_bucket for check in checks)
-            else None
+            11 if any(check.bucket == self.blocked_bucket for check in checks) else None
         )
 
 
@@ -120,10 +118,7 @@ def test_every_sensitive_route_enforces_its_distributed_policy(
         )
 
         backend.blocked_bucket = "sync:user"
-        assert (
-            client.get("/v1/recipes/sync", headers=authorization).status_code
-            == 429
-        )
+        assert client.get("/v1/recipes/sync", headers=authorization).status_code == 429
 
         backend.blocked_bucket = "recipe-mutation:user"
         assert (
