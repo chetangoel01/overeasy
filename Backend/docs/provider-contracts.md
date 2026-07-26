@@ -67,6 +67,7 @@ The acquisition order is:
 
 1. free platform metadata, captions, on-screen text, and linked recipe pages;
 2. Whisper transcription of the acquired media when free evidence is thin;
+   transport errors and provider 5xx responses receive one bounded retry;
 3. one Supadata `mode=auto` URL transcript fallback;
 4. SoScripted transcript on an independent Supadata transcript outage;
 5. sampled-frame analysis, then Supadata structured visual analysis when the
@@ -85,8 +86,10 @@ two sequential Supadata requests that implement the same native-first policy.
 Affected components:
 
 - `ladle/acquisition/provider_chain.py`
+- `ladle/acquisition/audio.py`
 - `ladle/config.py`
 - `.env.example`
+- `tests/unit/acquisition/test_audio.py`
 - `tests/unit/acquisition/test_provider_chain.py`
 - `tests/unit/acquisition/test_free_chain.py`
 - `tests/unit/test_config.py`
@@ -94,7 +97,7 @@ Affected components:
 Verification on 2026-07-26:
 
 - the focused provider/free-chain suite passed all 23 tests;
-- the complete backend suite passed all 280 tests with three live-provider
+- the complete backend suite passed all 282 tests with three live-provider
   tests skipped when not explicitly selected;
 - a live `mode=auto` call for TikTok video `7628226554589482271` returned 11
   timestamped segments and 478 characters;
@@ -110,3 +113,9 @@ Verification on 2026-07-26:
 An empty transcript remains a valid outcome for a music-only video. It falls
 through to visual evidence rather than being retried as though another speech
 recognizer could recover speech that is not present.
+
+The OpenRouter retry is deliberately limited to one repeat of a transport,
+timeout, or 5xx failure. Empty transcripts, authentication failures, quota
+failures, and rejected requests are not retried. A live GPT-4o Mini Transcribe
+comparison also returned no text for both music-only failures, so a second STT
+model was not added to the ladder.

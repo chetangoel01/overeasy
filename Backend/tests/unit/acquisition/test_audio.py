@@ -80,6 +80,48 @@ def test_verbose_json_becomes_timed_generated_evidence(tmp_path: Path) -> None:
     assert result.billed_units == Decimal(1)
 
 
+def test_transient_service_failure_is_retried_once(tmp_path: Path) -> None:
+    calls = 0
+    delays: list[float] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        del request
+        calls += 1
+        if calls == 1:
+            return httpx.Response(503, json={"error": "temporarily unavailable"})
+        return httpx.Response(200, json=VERBOSE)
+
+    result = transcriber(
+        handler,
+        request_attempts=2,
+        sleeper=delays.append,
+    ).transcribe(audio_file(tmp_path), job_id=uuid4(), source_revision="rev-1")
+
+    assert result.segments
+    assert calls == 2
+    assert delays == [1]
+
+
+def test_empty_transcript_is_not_retried(tmp_path: Path) -> None:
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        del request
+        calls += 1
+        return httpx.Response(200, json={"text": ""})
+
+    with pytest.raises(TranscriptUnavailable):
+        transcriber(handler, request_attempts=2).transcribe(
+            audio_file(tmp_path),
+            job_id=uuid4(),
+            source_revision="rev-1",
+        )
+
+    assert calls == 1
+
+
 def _word(text: str, start: float, end: float) -> dict[str, object]:
     return {"word": text, "start": start, "end": end}
 

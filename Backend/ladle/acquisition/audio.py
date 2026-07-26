@@ -15,8 +15,10 @@ import logging
 import shutil
 import subprocess
 import tempfile
+from collections.abc import Callable
 from decimal import Decimal
 from pathlib import Path
+from time import sleep
 from typing import Any, Protocol
 from uuid import UUID
 
@@ -228,6 +230,8 @@ class WhisperTranscriber:
         base_url: str,
         model_id: str,
         max_audio_bytes: int = 20 * 1024 * 1024,
+        request_attempts: int = 2,
+        sleeper: Callable[[float], None] = sleep,
         usage: ProviderUsageSink | None = None,
     ) -> None:
         self._http = http
@@ -235,6 +239,8 @@ class WhisperTranscriber:
         self._base_url = base_url.rstrip("/")
         self._model_id = model_id
         self._max_audio_bytes = max_audio_bytes
+        self._request_attempts = request_attempts
+        self._sleep = sleeper
         self._usage = usage or NullProviderUsageSink()
 
     def transcribe(
@@ -291,21 +297,7 @@ class WhisperTranscriber:
             "timestamp_granularities": ["word", "segment"],
             "temperature": 0,
         }
-        try:
-            response = self._http.post(
-                f"{self._base_url}/audio/transcriptions",
-                json=payload,
-                headers={
-                    "Authorization": f"Bearer {self._api_key}",
-                    "Content-Type": "application/json",
-                    "X-Title": "Ladle",
-                },
-            )
-        except httpx.TimeoutException as error:
-            raise ProviderTransientError("transcription timed out") from error
-        except httpx.HTTPError as error:
-            raise ProviderUnavailable(f"transcription failed: {error}") from error
-        self._raise_for_status(response)
+        response = self._request(payload)
         try:
             body = response.json()
         except ValueError as error:
@@ -317,6 +309,33 @@ class WhisperTranscriber:
                 "transcription returned an unexpected shape"
             )
         return _transcript(body, model_id=self._model_id)
+
+    def _request(self, payload: dict[str, Any]) -> httpx.Response:
+        for attempt in range(self._request_attempts):
+            try:
+                response = self._http.post(
+                    f"{self._base_url}/audio/transcriptions",
+                    json=payload,
+                    headers={
+                        "Authorization": f"Bearer {self._api_key}",
+                        "Content-Type": "application/json",
+                        "X-Title": "Ladle",
+                    },
+                )
+            except httpx.TimeoutException as error:
+                if attempt + 1 == self._request_attempts:
+                    raise ProviderTransientError("transcription timed out") from error
+            except httpx.HTTPError as error:
+                if attempt + 1 == self._request_attempts:
+                    raise ProviderUnavailable(
+                        f"transcription failed: {error}"
+                    ) from error
+            else:
+                if response.status_code < 500 or attempt + 1 == self._request_attempts:
+                    self._raise_for_status(response)
+                    return response
+            self._sleep(2**attempt)
+        raise AssertionError("unreachable")
 
     def _raise_for_status(self, response: httpx.Response) -> None:
         if response.status_code < 400:

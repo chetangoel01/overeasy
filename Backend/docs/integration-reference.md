@@ -417,7 +417,8 @@ Only these codes carry typed details:
 With `LADLE_WORKER_PROVIDER_MODE=live`, the worker follows this order:
 
 1. Free platform metadata, captions, on-screen text, and linked recipe pages.
-2. If evidence is incomplete, Whisper transcription of the acquired media.
+2. If evidence is incomplete, Whisper transcription of the acquired media,
+   with one retry only for transport, timeout, or provider 5xx failures.
 3. If no transcript is available, one Supadata `mode=auto` request, which
    performs its own native-first/generated-fallback policy.
 4. If no transcript is available, SoScripted transcription.
