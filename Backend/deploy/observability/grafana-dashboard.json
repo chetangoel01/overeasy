@@ -1,0 +1,78 @@
+{
+  "title": "Ladle production",
+  "uid": "ladle-production",
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "time": {"from": "now-24h", "to": "now"},
+  "panels": [
+    {
+      "id": 1,
+      "title": "Import success rate",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(rate(ladle_import_jobs_total{status=~\"ready|needsReview\"}[5m])) / clamp_min(sum(rate(ladle_import_jobs_total[5m])), 0.001)"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Import p95 latency",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(ladle_import_duration_seconds_bucket[10m])))"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Cache behavior",
+      "type": "timeseries",
+      "targets": [
+        {"expr": "sum by (disposition) (rate(ladle_cache_total[5m]))"}
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Provider cost",
+      "type": "timeseries",
+      "targets": [
+        {"expr": "sum by (provider) (increase(ladle_provider_billed_units_total[1h]))"}
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Worker retries",
+      "type": "timeseries",
+      "targets": [
+        {"expr": "sum by (reason) (rate(ladle_worker_retries_total[5m]))"}
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Sync outcomes",
+      "type": "timeseries",
+      "targets": [
+        {"expr": "sum by (outcome) (rate(ladle_sync_total[5m]))"}
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Guest and abuse rejection",
+      "type": "timeseries",
+      "targets": [
+        {"expr": "sum by (policy) (rate(ladle_rate_limit_rejections_total[5m]))"}
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Queue depth and stuck jobs",
+      "type": "timeseries",
+      "targets": [
+        {"expr": "ladle_queue_depth"},
+        {"expr": "ladle_stuck_jobs"}
+      ]
+    }
+  ]
+}

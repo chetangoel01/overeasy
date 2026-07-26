@@ -63,6 +63,9 @@ services:
       LADLE_CELERY_ENABLED: "true"
       LADLE_CELERY_BROKER_URL: redis://redis:6379/0
       LADLE_CELERY_RESULT_BACKEND: redis://redis:6379/1
+      LADLE_DURABLE_METRICS_ENABLED: "true"
+      LADLE_METRICS_REDIS_URL: redis://redis:6379/3
+      LADLE_METRICS_AUTH_TOKEN: local-metrics-token-not-for-production
       # Provider settings substitute from Backend/.env; defaults keep the
       # stack in deterministic fake mode when no keys are present.
       LADLE_WORKER_PROVIDER_MODE: ${LADLE_WORKER_PROVIDER_MODE:-fake}

@@ -56,7 +56,9 @@ from ladle.imports.reservations import ReservationService
 from ladle.imports.thumbnails import OEmbedThumbnailFetcher
 from ladle.imports.transitions import ImportTransitionService
 from ladle.infrastructure.object_storage import S3ObjectStorage
-from ladle.observability.metrics import MetricsRegistry
+from ladle.observability.metrics import MetricsRegistry, RedisMetricsBackend
+from ladle.observability.operations import OperationalMetricsCollector
+from ladle.observability.tracing import instrument_database
 from ladle.privacy.retention import (
     ObjectDeletionProcessor,
     RetentionPolicy,
@@ -266,7 +268,11 @@ def _ytdlp(settings: Settings) -> YtDlpClient:
 
 @lru_cache(maxsize=1)
 def runtime_sessions() -> sessionmaker[Session]:
-    return build_session_factory(build_engine(Settings().database_url))
+    engine = build_engine(Settings().database_url)
+    from ladle.worker.app import worker_tracer_provider
+
+    instrument_database(engine, worker_tracer_provider)
+    return build_session_factory(engine)
 
 
 @lru_cache(maxsize=1)
@@ -293,6 +299,30 @@ def runtime_dispatch_outbox() -> DispatchOutboxService:
         clock=SystemClock(),
         stale_after=timedelta(minutes=settings.import_stale_after_minutes),
         maximum_dispatches=settings.import_dispatch_maximum_attempts,
+    )
+
+
+@lru_cache(maxsize=1)
+def runtime_metrics() -> MetricsRegistry:
+    settings = Settings()
+    if not settings.durable_metrics_enabled:
+        return MetricsRegistry()
+    return MetricsRegistry(
+        backend=RedisMetricsBackend(
+            Redis.from_url(settings.metrics_redis_url),
+            prefix=settings.metrics_key_prefix,
+        )
+    )
+
+
+@lru_cache(maxsize=1)
+def runtime_operational_metrics() -> OperationalMetricsCollector:
+    settings = Settings()
+    return OperationalMetricsCollector(
+        clock=SystemClock(),
+        metrics=runtime_metrics(),
+        stale_after=timedelta(minutes=settings.import_stale_after_minutes),
+        broker=Redis.from_url(settings.celery_broker_url),
     )
 
 
@@ -356,12 +386,13 @@ def runtime_orchestrator() -> ImportOrchestrator:
         clock=clock,
         lifetime=timedelta(minutes=settings.import_reservation_minutes),
     )
+    metrics = runtime_metrics()
     claims = ExtractionClaimService(
         clock=clock,
         lease_duration=timedelta(minutes=settings.extraction_claim_minutes),
+        metrics=metrics,
     )
     cloner = RecipeTemplateCloner(clock=clock, reservations=reservations)
-    metrics = MetricsRegistry()
     cache = ExtractionCacheService(
         clock=clock,
         claims=claims,
@@ -397,6 +428,7 @@ def runtime_orchestrator() -> ImportOrchestrator:
             clock=clock,
             limits=usage_limits,
             reservation_units=settings.provider_reservation_billed_units,
+            metrics=metrics,
         )
         acquirer = ProviderChain(
             primary=(

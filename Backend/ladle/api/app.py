@@ -5,6 +5,7 @@ import httpx
 from celery import Celery
 from fastapi import FastAPI, Request, Response
 from redis import Redis
+from sqlalchemy import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from ladle.api.errors import install_error_handlers, rate_limit_response
@@ -23,6 +24,7 @@ from ladle.api.routes.auth import router as auth_router
 from ladle.api.routes.health import (
     CeleryWorkerReadinessProbe,
     DatabaseReadinessProbe,
+    MetricsAccessPolicy,
     ProductionConfigurationReadinessProbe,
     ReadinessProbe,
     ReadinessService,
@@ -68,8 +70,10 @@ from ladle.imports.source_identity import SourceIdentityParser
 from ladle.imports.transitions import ImportRetryService
 from ladle.infrastructure.dns import PinnedRedirectResolver, SystemDNSResolver
 from ladle.infrastructure.object_storage import S3ObjectStorage
-from ladle.observability.metrics import MetricsRegistry
+from ladle.observability.metrics import MetricsRegistry, RedisMetricsBackend
 from ladle.observability.middleware import install_request_middleware
+from ladle.observability.structured_logging import configure_structured_logging
+from ladle.observability.tracing import instrument_application
 from ladle.recipes.repository import RecipeRepository
 from ladle.recipes.service import RecipeService
 from ladle.sync.service import RecipeSyncService
@@ -94,6 +98,8 @@ def create_app(
     """Build the HTTP application without eagerly contacting infrastructure."""
 
     configured = settings or Settings()
+    if configured.environment == "production" and configured.structured_logging_enabled:
+        configure_structured_logging(level=configured.log_level)
     runtime_clock = clock or SystemClock()
     token_codec = access_tokens or AccessTokenCodec(
         signing_secret=configured.jwt_signing_secret.get_secret_value(),
@@ -107,9 +113,12 @@ def create_app(
         rotation_grace=timedelta(seconds=configured.refresh_rotation_grace_seconds),
         clock=runtime_clock,
     )
-    database_sessions = session_factory or build_session_factory(
-        build_engine(configured.database_url)
-    )
+    database_engine: Engine | None = None
+    if session_factory is None:
+        database_engine = build_engine(configured.database_url)
+        database_sessions = build_session_factory(database_engine)
+    else:
+        database_sessions = session_factory
     application = FastAPI(
         title="Ladle API",
         version="0.1.0",
@@ -150,6 +159,25 @@ def create_app(
             "production requires an enabled, configured App Attest verifier"
         )
     application.state.attestation = runtime_attestation
+    metrics_redis: Redis | None = None
+    if metrics is not None:
+        runtime_metrics = metrics
+    elif configured.durable_metrics_enabled:
+        metrics_redis = Redis.from_url(configured.metrics_redis_url)
+        runtime_metrics = MetricsRegistry(
+            backend=RedisMetricsBackend(
+                metrics_redis,
+                prefix=configured.metrics_key_prefix,
+            )
+        )
+    else:
+        runtime_metrics = MetricsRegistry()
+    application.state.metrics = runtime_metrics
+    application.state.metrics_access = MetricsAccessPolicy(
+        configured.metrics_auth_token.get_secret_value()
+        if configured.metrics_auth_token is not None
+        else None
+    )
     rate_limit_redis: Redis | None = None
     if rate_limit_backend is None:
         if configured.rate_limiting_enabled:
@@ -163,9 +191,9 @@ def create_app(
     application.state.rate_limits = RateLimitService(
         rate_limit_backend,
         client_ips=ClientIPResolver(configured.rate_limit_trusted_proxy_cidrs),
+        metrics=runtime_metrics,
     )
     application.state.rate_limit_policies = RateLimitPolicies.from_settings(configured)
-    runtime_metrics = metrics or MetricsRegistry()
     object_storage: S3ObjectStorage | None = None
     if configured.object_storage_enabled:
         object_storage = S3ObjectStorage(
@@ -196,7 +224,6 @@ def create_app(
         recipe_repository,
         metrics=runtime_metrics,
     )
-    application.state.metrics = runtime_metrics
     readiness_redis: list[Redis] = []
     default_probes: dict[str, ReadinessProbe] = {
         "configuration": ProductionConfigurationReadinessProbe(configured),
@@ -223,6 +250,13 @@ def create_app(
         if readiness_rate_redis is not rate_limit_redis:
             readiness_redis.append(readiness_rate_redis)
         default_probes["rateLimitRedis"] = RedisReadinessProbe(readiness_rate_redis)
+    if configured.durable_metrics_enabled:
+        readiness_metrics_redis = metrics_redis or Redis.from_url(
+            configured.metrics_redis_url
+        )
+        if readiness_metrics_redis is not metrics_redis:
+            readiness_redis.append(readiness_metrics_redis)
+        default_probes["metricsRedis"] = RedisReadinessProbe(readiness_metrics_redis)
     if object_storage is not None:
         default_probes["storage"] = StorageReadinessProbe(object_storage)
     application.state.object_storage = object_storage
@@ -389,6 +423,15 @@ def create_app(
         application,
         metrics=application.state.metrics,
     )
+    if configured.tracing_enabled:
+        tracer_provider = instrument_application(
+            application,
+            settings=configured,
+            engine=database_engine,
+            instrument_dependencies=True,
+        )
+        application.state.tracer_provider = tracer_provider
+        application.router.add_event_handler("shutdown", tracer_provider.shutdown)
     if redirect_client is not None:
         application.router.add_event_handler("shutdown", redirect_client.close)
     if apple_client is not None:
@@ -397,6 +440,8 @@ def create_app(
         application.router.add_event_handler("shutdown", google_client.close)
     if rate_limit_redis is not None:
         application.router.add_event_handler("shutdown", rate_limit_redis.close)
+    if metrics_redis is not None:
+        application.router.add_event_handler("shutdown", metrics_redis.close)
     for readiness_client in readiness_redis:
         if readiness_client is not rate_limit_redis:
             application.router.add_event_handler(

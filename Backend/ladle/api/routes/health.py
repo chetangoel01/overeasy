@@ -1,8 +1,9 @@
+import hmac
 from collections.abc import Callable
 from time import sleep as system_sleep
 from typing import Any, Protocol, cast
 
-from fastapi import APIRouter, Request, Response, status
+from fastapi import APIRouter, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse, PlainTextResponse
 from sqlalchemy import text
 from sqlalchemy.orm import Session, sessionmaker
@@ -15,6 +16,23 @@ router = APIRouter(tags=["operations"])
 
 class ReadinessProbe(Protocol):
     def check(self) -> None: ...
+
+
+class MetricsAccessPolicy:
+    def __init__(self, token: str | None) -> None:
+        self._token = token
+
+    def authorize(self, authorization: str | None) -> None:
+        if self._token is None:
+            return
+        scheme, _, supplied = (authorization or "").partition(" ")
+        if (
+            scheme.casefold() != "bearer"
+            or not supplied
+            or not hmac.compare_digest(supplied, self._token)
+        ):
+            # Hide the endpoint from unauthenticated public scans.
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
 
 class DatabaseReadinessProbe:
@@ -162,5 +180,11 @@ def ready(request: Request) -> Response:
 
 @router.get("/metrics", response_class=PlainTextResponse)
 def metrics(request: Request) -> str:
+    policy = cast(MetricsAccessPolicy, request.app.state.metrics_access)
+    policy.authorize(request.headers.get("authorization"))
     registry = cast(MetricsRegistry, request.app.state.metrics)
+    readiness = cast(ReadinessService, request.app.state.readiness)
+    _, checks = readiness.check()
+    for component, result in checks.items():
+        registry.set_readiness(component, result == "ready")
     return registry.render()

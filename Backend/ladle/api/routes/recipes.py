@@ -16,6 +16,7 @@ from ladle.contracts.errors import (
     SyncConflictDetails,
 )
 from ladle.contracts.recipes import RecipeDTO, SyncPageDTO
+from ladle.observability.metrics import MetricsRegistry
 from ladle.recipes.limits import GuestRecipeLimitReached
 from ladle.recipes.service import (
     InvalidManualRecipe,
@@ -54,6 +55,7 @@ def _rate_limit_policies(request: Request) -> RateLimitPolicies:
 
 
 def _conflict_response(request: Request, conflict: SyncConflict) -> JSONResponse:
+    cast(MetricsRegistry, request.app.state.metrics).record_sync("conflict")
     current = conflict.current_recipe
     return error_response(
         request,

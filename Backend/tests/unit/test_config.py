@@ -43,6 +43,13 @@ PRODUCTION_RUNTIME = {
         '{"2026-q2":"production-encryption-key-material-previous",'
         '"2026-q3":"production-encryption-key-material-current"}'
     ),
+    "metrics_redis_url": (
+        "rediss://:production-redis-password@redis.example.test:6380/3"
+    ),
+    "durable_metrics_enabled": True,
+    "metrics_auth_token": GOOD_SECRET,
+    "tracing_enabled": True,
+    "tracing_otlp_endpoint": "https://telemetry.example.test/v1/traces",
 }
 
 
@@ -229,6 +236,10 @@ def test_enabled_google_sign_in_requires_server_client_id() -> None:
         ("celery_broker_url", "redis://redis.example.test:6379/0"),
         ("celery_result_backend", "redis://redis.example.test:6379/1"),
         ("rate_limit_redis_url", "redis://redis.example.test:6379/2"),
+        ("metrics_redis_url", "redis://redis.example.test:6379/3"),
+        ("metrics_auth_token", None),
+        ("tracing_enabled", False),
+        ("tracing_otlp_endpoint", "http://telemetry.example.test/v1/traces"),
         (
             "database_url",
             "postgresql+psycopg://ladle:secret@database.example.test/ladle",

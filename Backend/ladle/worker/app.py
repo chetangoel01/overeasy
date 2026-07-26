@@ -3,6 +3,7 @@ from celery import Celery
 from ladle.config import Settings
 from ladle.imports.dispatcher import PROCESS_IMPORT_TASK
 from ladle.imports.maintenance import RELEASE_EXPIRED_RESERVATIONS_TASK
+from ladle.observability.tracing import instrument_worker
 from ladle.privacy.retention import RETENTION_SWEEP_TASK
 
 
@@ -58,3 +59,4 @@ def create_celery_app(settings: Settings | None = None) -> Celery:
 
 
 celery_app = create_celery_app()
+worker_tracer_provider = instrument_worker(Settings())

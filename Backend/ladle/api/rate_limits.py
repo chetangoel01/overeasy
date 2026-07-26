@@ -9,6 +9,7 @@ from typing import Literal, Protocol, cast
 from fastapi import Request
 
 from ladle.config import Settings
+from ladle.observability.metrics import MetricsRegistry
 
 IPAddress = IPv4Address | IPv6Address
 
@@ -184,9 +185,11 @@ class RateLimitService:
         backend: RateLimitBackend,
         *,
         client_ips: ClientIPResolver,
+        metrics: MetricsRegistry | None = None,
     ) -> None:
         self._backend = backend
         self._client_ips = client_ips
+        self._metrics = metrics
 
     def client_ip(self, request: Request) -> str:
         return self._client_ips.resolve(request)
@@ -194,6 +197,9 @@ class RateLimitService:
     def enforce(self, checks: Sequence[RateLimitCheck]) -> None:
         retry_after = self._backend.retry_after(checks)
         if retry_after is not None:
+            if self._metrics is not None:
+                for check in checks:
+                    self._metrics.record_rate_limit(check.bucket)
             raise RateLimitExceeded(retry_after)
 
 

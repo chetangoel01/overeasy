@@ -10,6 +10,7 @@ from ladle.api.routes.health import (
     ReadinessService,
     StartupDependencyGate,
 )
+from ladle.config import Settings
 
 
 @dataclass
@@ -123,3 +124,23 @@ def test_startup_gate_retries_dependencies_then_fails_closed() -> None:
 
     assert probe.calls == 3
     assert sleeps == [0.5, 0.5]
+
+
+def test_metrics_endpoint_requires_its_dedicated_bearer_token() -> None:
+    app = create_app(
+        settings=Settings(
+            metrics_auth_token="metrics-secret-that-is-long-enough",
+            _env_file=None,
+        )
+    )
+
+    with TestClient(app) as client:
+        hidden = client.get("/metrics")
+        authorized = client.get(
+            "/metrics",
+            headers={"Authorization": "Bearer metrics-secret-that-is-long-enough"},
+        )
+
+    assert hidden.status_code == 404
+    assert authorized.status_code == 200
+    assert authorized.headers["content-type"].startswith("text/plain")

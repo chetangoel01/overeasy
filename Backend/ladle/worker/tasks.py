@@ -1,29 +1,36 @@
+import logging
 from collections.abc import Callable
 from dataclasses import asdict
 from random import SystemRandom
+from time import perf_counter
 from uuid import UUID
 
 from celery import Task
 
+from ladle.clock import SystemClock
 from ladle.config import Settings
 from ladle.imports.dispatcher import (
     PROCESS_IMPORT_TASK,
     CeleryImportDispatcher,
 )
 from ladle.imports.maintenance import RELEASE_EXPIRED_RESERVATIONS_TASK
+from ladle.observability.structured_logging import log_context
 from ladle.privacy.retention import RETENTION_SWEEP_TASK
 from ladle.worker.app import celery_app
 from ladle.worker.runtime import (
     runtime_dispatch_outbox,
     runtime_maintenance,
+    runtime_metrics,
     runtime_object_deletion_processor,
     runtime_object_storage,
+    runtime_operational_metrics,
     runtime_orchestrator,
     runtime_retention,
     runtime_sessions,
 )
 
 _RANDOM = SystemRandom()
+LOGGER = logging.getLogger(__name__)
 
 
 def retry_countdown(
@@ -52,32 +59,93 @@ def retry_countdown(
 def process_import(task: Task, job_id: str) -> str:
     settings = Settings()
     stable_id = UUID(job_id)
-    try:
-        outcome = runtime_orchestrator().process(stable_id)
-    except Exception as error:
-        attempts = task.request.retries + 1
-        if task.request.retries >= settings.celery_import_max_retries:
-            runtime_dispatch_outbox().dead_letter_job(
+    started = perf_counter()
+    attempts = task.request.retries + 1
+    runtime_metrics().set_operational(
+        "ladle_worker_last_seen_timestamp_seconds",
+        SystemClock().now().timestamp(),
+    )
+    with log_context(job_id=job_id, retry_number=attempts):
+        try:
+            outcome = runtime_orchestrator().process(stable_id)
+        except Exception as error:
+            duration_ms = round((perf_counter() - started) * 1000, 3)
+            if task.request.retries >= settings.celery_import_max_retries:
+                runtime_dispatch_outbox().dead_letter_job(
+                    stable_id,
+                    failure_code="workerRetriesExhausted",
+                    attempts=attempts,
+                )
+                LOGGER.error(
+                    "Import task exhausted retries",
+                    extra={
+                        "job_id": job_id,
+                        "retry_number": attempts,
+                        "duration_ms": duration_ms,
+                        "terminal_result": "deadLettered",
+                        "exception_type": type(error).__name__,
+                    },
+                )
+                runtime_metrics().observe_import(
+                    "failed",
+                    perf_counter() - started,
+                )
+                return "failed"
+            runtime_dispatch_outbox().record_retry(
                 stable_id,
-                failure_code="workerRetriesExhausted",
-                attempts=attempts,
+                failure_code=type(error).__name__,
             )
-            return "failed"
-        runtime_dispatch_outbox().record_retry(
-            stable_id,
-            failure_code=type(error).__name__,
+            runtime_metrics().record_worker_retry(_retry_reason(error))
+            LOGGER.warning(
+                "Import task will retry",
+                extra={
+                    "job_id": job_id,
+                    "retry_number": attempts,
+                    "duration_ms": duration_ms,
+                    "terminal_result": "retrying",
+                    "exception_type": type(error).__name__,
+                },
+            )
+            raise task.retry(
+                exc=error,
+                max_retries=settings.celery_import_max_retries,
+                countdown=retry_countdown(
+                    retry_number=attempts,
+                    base_seconds=settings.celery_import_retry_base_seconds,
+                    maximum_seconds=settings.celery_import_retry_maximum_seconds,
+                    jitter_seconds=settings.celery_import_retry_jitter_seconds,
+                ),
+            ) from error
+        LOGGER.info(
+            "Import task completed",
+            extra={
+                "job_id": job_id,
+                "retry_number": attempts,
+                "duration_ms": round((perf_counter() - started) * 1000, 3),
+                "terminal_result": outcome.value,
+            },
         )
-        raise task.retry(
-            exc=error,
-            max_retries=settings.celery_import_max_retries,
-            countdown=retry_countdown(
-                retry_number=attempts,
-                base_seconds=settings.celery_import_retry_base_seconds,
-                maximum_seconds=settings.celery_import_retry_maximum_seconds,
-                jitter_seconds=settings.celery_import_retry_jitter_seconds,
-            ),
-        ) from error
-    return outcome.value
+        import_status = (
+            "failed"
+            if outcome.value == "failed"
+            else "needsReview"
+            if "review" in outcome.value.casefold()
+            else "ready"
+        )
+        runtime_metrics().observe_import(
+            import_status,
+            perf_counter() - started,
+        )
+        return outcome.value
+
+
+def _retry_reason(error: Exception) -> str:
+    name = type(error).__name__.casefold()
+    if "timeout" in name:
+        return "providerTimeout"
+    if "connection" in name or "broker" in name:
+        return "broker"
+    return "transient"
 
 
 @celery_app.task(  # type: ignore[untyped-decorator]
@@ -92,6 +160,11 @@ def release_expired_reservations() -> int:
     with sessions() as database, database.begin():
         released = runtime_maintenance().release_expired_reservations(database)
         runtime_dispatch_outbox().recover_abandoned(database)
+        runtime_operational_metrics().capture(database)
+        runtime_metrics().set_operational(
+            "ladle_beat_last_seen_timestamp_seconds",
+            SystemClock().now().timestamp(),
+        )
     runtime_dispatch_outbox().dispatch_pending(
         CeleryImportDispatcher(celery_app),
     )

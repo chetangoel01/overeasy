@@ -38,6 +38,8 @@ class RecipeSyncService:
             and state is not None
             and cursor < state.minimum_retained_sequence
         ):
+            if self._metrics is not None:
+                self._metrics.record_sync("reset")
             raise SyncCursorExpired(state.minimum_retained_sequence)
         rows = list(
             database.scalars(

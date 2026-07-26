@@ -1,4 +1,6 @@
+import logging
 from collections.abc import Callable
+from time import perf_counter
 from typing import Protocol, TypeVar
 from uuid import UUID
 
@@ -22,9 +24,11 @@ from ladle.acquisition.models import (
     VisualResult,
 )
 from ladle.observability.metrics import MetricsRegistry
+from ladle.observability.structured_logging import log_context
 from ladle.usage.circuit import CircuitBreaker, CircuitOpen
 
 _T = TypeVar("_T")
+LOGGER = logging.getLogger(__name__)
 
 
 class PrimaryProvider(Protocol):
@@ -407,30 +411,52 @@ class ProviderChain:
         provider: str,
         operation: Callable[[], _T],
     ) -> _T:
+        started = perf_counter()
         if self._circuits is not None:
             try:
                 self._circuits.before_call(provider)
             except CircuitOpen:
                 self._record_provider(provider, "circuitOpen")
                 raise
-        try:
-            result = operation()
-        except ProviderUnavailable as error:
-            if self._circuits is not None:
-                self._circuits.record_failure(provider, error)
-            if isinstance(error, ProviderQuotaError):
-                outcome = "quota"
-            elif isinstance(error, ProviderAuthenticationError):
-                outcome = "auth"
-            elif isinstance(error, ProviderTransientError):
-                outcome = "timeout"
-            else:
-                outcome = "failure"
-            self._record_provider(provider, outcome)
-            raise
+        with log_context(provider=provider):
+            try:
+                result = operation()
+            except ProviderUnavailable as error:
+                if self._circuits is not None:
+                    self._circuits.record_failure(provider, error)
+                if isinstance(error, ProviderQuotaError):
+                    outcome = "quota"
+                elif isinstance(error, ProviderAuthenticationError):
+                    outcome = "auth"
+                elif isinstance(error, ProviderTransientError):
+                    outcome = "timeout"
+                else:
+                    outcome = "failure"
+                self._record_provider(provider, outcome)
+                LOGGER.warning(
+                    "Provider call failed",
+                    extra={
+                        "provider": provider,
+                        "duration_ms": round(
+                            (perf_counter() - started) * 1000,
+                            3,
+                        ),
+                        "terminal_result": outcome,
+                        "exception_type": type(error).__name__,
+                    },
+                )
+                raise
         if self._circuits is not None:
             self._circuits.record_success(provider)
         self._record_provider(provider, "success")
+        LOGGER.info(
+            "Provider call completed",
+            extra={
+                "provider": provider,
+                "duration_ms": round((perf_counter() - started) * 1000, 3),
+                "terminal_result": "success",
+            },
+        )
         return result
 
     def _record_provider(self, provider: str, outcome: str) -> None:

@@ -107,6 +107,20 @@ class Settings(BaseSettings):
     rate_limit_recipe_mutation_user_per_minute: int = Field(default=120, gt=0)
     rate_limit_sync_user_per_minute: int = Field(default=120, gt=0)
 
+    durable_metrics_enabled: bool = False
+    metrics_redis_url: str = "redis://127.0.0.1:6379/3"
+    metrics_key_prefix: str = Field(
+        default="ladle:metrics:v1",
+        min_length=1,
+        max_length=128,
+    )
+    metrics_auth_token: SecretStr | None = None
+    structured_logging_enabled: bool = True
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
+    tracing_enabled: bool = False
+    tracing_otlp_endpoint: AnyHttpUrl | None = None
+    tracing_service_name: str = Field(default="ladle", min_length=1, max_length=64)
+
     celery_enabled: bool = False
     celery_broker_url: str = "redis://127.0.0.1:6379/0"
     celery_result_backend: str = "redis://127.0.0.1:6379/1"
@@ -253,6 +267,12 @@ class Settings(BaseSettings):
         return self
 
     @model_validator(mode="after")
+    def validate_tracing_configuration(self) -> Self:
+        if self.tracing_enabled and self.tracing_otlp_endpoint is None:
+            raise ValueError("tracing requires an OTLP endpoint")
+        return self
+
+    @model_validator(mode="after")
     def validate_worker_timing(self) -> Self:
         claim_seconds = self.extraction_claim_minutes * 60
         stale_seconds = self.import_stale_after_minutes * 60
@@ -355,6 +375,7 @@ class Settings(BaseSettings):
             "celery_broker_url",
             "celery_result_backend",
             "rate_limit_redis_url",
+            "metrics_redis_url",
         ):
             self._require_tls_url(field_name, getattr(self, field_name), {"rediss"})
             self._require_url_password(field_name, getattr(self, field_name))
@@ -407,6 +428,27 @@ class Settings(BaseSettings):
             )
         if not self.rate_limiting_enabled:
             raise ValueError("distributed rate limiting is required in production")
+        if not self.durable_metrics_enabled:
+            raise ValueError("production requires durable distributed metrics")
+        if (
+            self.metrics_auth_token is None
+            or self._is_placeholder(self.metrics_auth_token.get_secret_value())
+            or len(self.metrics_auth_token.get_secret_value())
+            < _MINIMUM_PRODUCTION_SECRET_LENGTH
+        ):
+            raise ValueError(
+                "production metrics authentication requires a non-placeholder "
+                "secret of at least 32 characters"
+            )
+        if not self.structured_logging_enabled:
+            raise ValueError("production requires structured logging")
+        if not self.tracing_enabled or self.tracing_otlp_endpoint is None:
+            raise ValueError("production requires distributed tracing")
+        self._require_tls_url(
+            "tracing_otlp_endpoint",
+            str(self.tracing_otlp_endpoint),
+            {"https"},
+        )
         extraction_key = (
             "openrouter_api_key"
             if self.extraction_provider == "openrouter"
