@@ -50,6 +50,7 @@ from ladle.extraction.protocol import RecipeExtractor
 from ladle.imports.heartbeat import ClaimHeartbeatMonitor
 from ladle.imports.maintenance import ImportMaintenanceService
 from ladle.imports.orchestrator import ImportOrchestrator
+from ladle.imports.outbox import DispatchOutboxService
 from ladle.imports.reservations import ReservationService
 from ladle.imports.thumbnails import OEmbedThumbnailFetcher
 from ladle.imports.transitions import ImportTransitionService
@@ -275,6 +276,17 @@ def runtime_maintenance() -> ImportMaintenanceService:
     return ImportMaintenanceService(
         clock=SystemClock(),
         stale_after=timedelta(minutes=settings.import_stale_after_minutes),
+    )
+
+
+@lru_cache(maxsize=1)
+def runtime_dispatch_outbox() -> DispatchOutboxService:
+    settings = Settings()
+    return DispatchOutboxService(
+        session_factory=runtime_sessions(),
+        clock=SystemClock(),
+        stale_after=timedelta(minutes=settings.import_stale_after_minutes),
+        maximum_dispatches=settings.import_dispatch_maximum_attempts,
     )
 
 

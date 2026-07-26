@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from ladle.clock import Clock
 from ladle.crypto.private_text import PrivateTextCipher
 from ladle.db.models import ImportJob, Recipe
+from ladle.imports.outbox import DispatchOutboxService
 from ladle.imports.quotas import ImportQuotaService
 from ladle.imports.reservations import ReservationService
 
@@ -22,11 +23,13 @@ class ImportRetryService:
         reservations: ReservationService,
         private_text: PrivateTextCipher,
         quota: ImportQuotaService | None = None,
+        outbox: DispatchOutboxService | None = None,
     ) -> None:
         self._clock = clock
         self._reservations = reservations
         self._private_text = private_text
         self._quota = quota
+        self._outbox = outbox
 
     def retry(
         self,
@@ -89,6 +92,8 @@ class ImportRetryService:
         job.completed_at = None
         job.retry_count += 1
         job.updated_at = self._clock.now()
+        if self._outbox is not None:
+            self._outbox.queue(database, job.id)
         database.flush()
         return job
 

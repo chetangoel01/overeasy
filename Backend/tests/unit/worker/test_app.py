@@ -1,6 +1,8 @@
 from ladle.config import Settings
+from ladle.imports.dispatcher import PROCESS_IMPORT_TASK
 from ladle.imports.maintenance import RELEASE_EXPIRED_RESERVATIONS_TASK
 from ladle.worker.app import celery_app, create_celery_app
+from ladle.worker.tasks import retry_countdown
 
 
 def test_worker_uses_late_ack_and_long_visibility_timeout() -> None:
@@ -21,8 +23,31 @@ def test_worker_uses_late_ack_and_long_visibility_timeout() -> None:
     assert app.conf.task_time_limit == 1260
     assert app.conf.worker_prefetch_multiplier == 1
     assert app.conf.broker_connection_retry_on_startup is True
+    assert app.conf.task_annotations[PROCESS_IMPORT_TASK] == {
+        "max_retries": 3,
+    }
     assert app.conf.task_serializer == "json"
     assert app.conf.accept_content == ["json"]
+
+
+def test_worker_retry_backoff_is_bounded_and_jittered() -> None:
+    first = retry_countdown(
+        retry_number=1,
+        base_seconds=5,
+        maximum_seconds=60,
+        jitter_seconds=3,
+        jitter=lambda upper: upper,
+    )
+    late = retry_countdown(
+        retry_number=10,
+        base_seconds=5,
+        maximum_seconds=60,
+        jitter_seconds=3,
+        jitter=lambda upper: upper,
+    )
+
+    assert first == 8
+    assert late == 63
 
 
 def test_abandoned_imports_are_swept_on_a_schedule() -> None:

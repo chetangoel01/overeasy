@@ -413,6 +413,66 @@ class ImportJob(Base):
     )
 
 
+class ImportDispatchOutbox(Base):
+    __tablename__ = "import_dispatch_outbox"
+    __table_args__ = (
+        CheckConstraint(
+            "dispatch_count >= 0",
+            name="ck_import_dispatch_outbox_count_nonnegative",
+        ),
+        Index(
+            "ix_import_dispatch_outbox_pending",
+            "available_at",
+            postgresql_where=text("dispatched_at IS NULL"),
+        ),
+    )
+
+    import_job_id: Mapped[UUID] = mapped_column(
+        Uuid,
+        ForeignKey("import_jobs.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    available_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    dispatched_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    dispatch_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="0"
+    )
+    last_error: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class ImportDeadLetter(Base):
+    __tablename__ = "import_dead_letters"
+    __table_args__ = (
+        CheckConstraint(
+            "attempts > 0",
+            name="ck_import_dead_letters_attempts_positive",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    import_job_id: Mapped[UUID] = mapped_column(
+        Uuid,
+        ForeignKey("import_jobs.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
+    failure_code: Mapped[str] = mapped_column(String(128), nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
 class ImportQuotaEvent(Base):
     __tablename__ = "import_quota_events"
     __table_args__ = (

@@ -55,8 +55,9 @@ class Settings(BaseSettings):
     # A job whose worker died stays in parsing until the sweep declares it
     # abandoned. Longer than the claim lease, so a worker that is merely slow
     # is never mistaken for one that is gone.
-    import_stale_after_minutes: int = Field(default=45, gt=0)
-    import_maintenance_interval_seconds: int = Field(default=300, gt=0)
+    import_stale_after_minutes: int = Field(default=32, gt=0)
+    import_maintenance_interval_seconds: int = Field(default=30, gt=0)
+    import_dispatch_maximum_attempts: int = Field(default=3, gt=0, le=20)
 
     rate_limiting_enabled: bool = False
     rate_limit_redis_url: str = "redis://127.0.0.1:6379/2"
@@ -85,6 +86,10 @@ class Settings(BaseSettings):
     celery_task_soft_time_limit_seconds: int = Field(default=1500, gt=0)
     celery_task_time_limit_seconds: int = Field(default=1560, gt=0)
     celery_visibility_timeout_seconds: int = Field(default=1800, gt=0)
+    celery_import_max_retries: int = Field(default=3, ge=0, le=10)
+    celery_import_retry_base_seconds: int = Field(default=5, gt=0)
+    celery_import_retry_maximum_seconds: int = Field(default=300, gt=0)
+    celery_import_retry_jitter_seconds: int = Field(default=5, ge=0)
     worker_provider_mode: Literal["disabled", "fake", "live"] = "disabled"
     provider_daily_billed_unit_limit: Decimal = Field(
         default=Decimal("1000"),
@@ -233,7 +238,8 @@ class Settings(BaseSettings):
         )
         safe = (
             self.extraction_claim_heartbeat_seconds * 2 < claim_seconds
-            and longest_provider_timeout < self.celery_task_soft_time_limit_seconds
+            and longest_provider_timeout
+            < self.celery_task_soft_time_limit_seconds
             < self.celery_task_time_limit_seconds
             < self.celery_visibility_timeout_seconds
             < stale_seconds
@@ -246,6 +252,13 @@ class Settings(BaseSettings):
                 "provider timeout < soft task limit < hard task limit < broker "
                 "visibility < stale-job timeout < recipe reservation, and hard "
                 "task limit < provider budget reservation"
+            )
+        if (
+            self.celery_import_retry_maximum_seconds
+            < self.celery_import_retry_base_seconds
+        ):
+            raise ValueError(
+                "worker timing requires retry maximum to be at least retry base"
             )
         return self
 

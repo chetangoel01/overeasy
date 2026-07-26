@@ -1,6 +1,7 @@
 from celery import Celery
 
 from ladle.config import Settings
+from ladle.imports.dispatcher import PROCESS_IMPORT_TASK
 from ladle.imports.maintenance import RELEASE_EXPIRED_RESERVATIONS_TASK
 
 
@@ -19,6 +20,11 @@ def create_celery_app(settings: Settings | None = None) -> Celery:
         task_time_limit=configured.celery_task_time_limit_seconds,
         worker_prefetch_multiplier=1,
         broker_connection_retry_on_startup=True,
+        task_annotations={
+            PROCESS_IMPORT_TASK: {
+                "max_retries": configured.celery_import_max_retries,
+            }
+        },
         task_serializer="json",
         result_serializer="json",
         accept_content=["json"],

@@ -12,7 +12,7 @@ from ladle.auth.attestation import AttestationService
 from ladle.auth.sessions import SessionService
 from ladle.auth.tokens import AccessTokenCodec, RefreshTokenCodec
 from ladle.config import Settings
-from ladle.db.models import ImportJob
+from ladle.db.models import ImportDispatchOutbox, ImportJob
 from ladle.db.session import build_engine
 from tests.integration.recipes.test_recipe_service import manual_recipe
 from tests.integration.test_migrations import alembic_config
@@ -35,6 +35,15 @@ class RecordingDispatcher:
         with Session(self.engine) as database:
             assert database.get(ImportJob, job_id) is not None
         self.calls.append(job_id)
+
+
+@dataclass
+class FailingDispatcher:
+    calls: list[UUID]
+
+    def enqueue(self, job_id: UUID) -> None:
+        self.calls.append(job_id)
+        raise ConnectionError("broker unavailable")
 
 
 @pytest.mark.integration
@@ -104,6 +113,59 @@ def test_import_is_committed_before_dispatch_and_can_be_polled(
         assert repeated.json()["jobID"] == str(job_id)
         assert dispatcher.calls == [job_id]
 
+    engine.dispose()
+
+
+@pytest.mark.integration
+def test_committed_import_survives_broker_failure_and_resubmission_redispatches(
+    clean_postgres_url: str,
+) -> None:
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    engine = build_engine(clean_postgres_url)
+    sessions = sessionmaker(engine, expire_on_commit=False)
+    clock = FrozenClock(datetime(2026, 7, 23, 21, 0, tzinfo=UTC))
+    dispatcher = FailingDispatcher(calls=[])
+    app = create_app(
+        session_factory=sessions,
+        clock=clock,
+        attestation=AttestationService(enforced=False),
+        import_dispatcher=dispatcher,
+    )
+    job_id = uuid4()
+    body = {
+        "jobID": str(job_id),
+        "sourceURL": "https://youtu.be/outbox-api",
+        "idempotencyKey": "outbox-api",
+    }
+
+    with TestClient(app) as client:
+        guest = client.post(
+            "/v1/auth/guest",
+            json={"installationID": "outbox-api-test", "attestation": None},
+        ).json()
+        headers = {"Authorization": f"Bearer {guest['accessToken']}"}
+        accepted = client.post("/v1/imports", json=body, headers=headers)
+
+        assert accepted.status_code == 202
+        assert dispatcher.calls == [job_id]
+        with Session(engine) as current_database:
+            outbox = current_database.get(ImportDispatchOutbox, job_id)
+            assert outbox is not None
+            assert outbox.dispatched_at is None
+            assert outbox.last_error == "ConnectionError"
+
+        recovered = RecordingDispatcher(engine=engine, calls=[])
+        app.state.import_dispatcher = recovered
+        repeated = client.post("/v1/imports", json=body, headers=headers)
+
+    assert repeated.status_code == 202
+    assert recovered.calls == [job_id]
+    with Session(engine) as current_database:
+        outbox = current_database.get(ImportDispatchOutbox, job_id)
+        assert outbox is not None
+        assert outbox.dispatched_at == clock.now()
+        assert outbox.dispatch_count == 1
+        assert outbox.last_error is None
     engine.dispose()
 
 

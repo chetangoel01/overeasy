@@ -22,6 +22,8 @@ EXPECTED_TABLES = {
     "extraction_claims",
     "field_uncertainties",
     "google_identities",
+    "import_dead_letters",
+    "import_dispatch_outbox",
     "import_jobs",
     "import_quota_events",
     "ingredients",

@@ -22,10 +22,12 @@ stale while the task can still be alive.
   the existing claim-version fence.
 - The default claim is ten minutes, more than twice the maximum heartbeat gap.
 - Celery soft and hard limits are 25 and 26 minutes. Redis visibility is 30
-  minutes, stale-job detection is 45 minutes, recipe reservations are 60
+  minutes, stale-job detection is 32 minutes, recipe reservations are 60
   minutes, and provider budget reservations are 30 minutes.
 - Workers prefetch one late-acknowledged task and retry broker connection during
   startup.
+- Unexpected task failures retry three times with bounded exponential backoff
+  and jitter before reaching the dead-letter path.
 - Configuration validation rejects any timing combination that violates this
   ordering or lets a provider timeout outlive the soft task limit.
 
@@ -33,6 +35,7 @@ stale while the task can still be alive.
 
 - `ladle/imports/heartbeat.py`
 - `ladle/imports/orchestrator.py`
+- `ladle/imports/outbox.py`
 - `ladle/worker/runtime.py`
 - `ladle/worker/app.py`
 - `ladle/config.py`

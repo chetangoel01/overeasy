@@ -30,6 +30,7 @@ from ladle.imports.admission import (
     ImportJobNotFound,
 )
 from ladle.imports.dispatcher import ImportDispatcher
+from ladle.imports.outbox import DispatchOutboxService
 from ladle.imports.quotas import ImportQuotaExceeded
 from ladle.imports.source_identity import InvalidSourceURL, UnsupportedSource
 from ladle.imports.transitions import ImportRetryService, ImportRetryUnavailable
@@ -69,6 +70,10 @@ def _admission(request: Request) -> AdmissionService:
 
 def _dispatcher(request: Request) -> ImportDispatcher:
     return cast(ImportDispatcher, request.app.state.import_dispatcher)
+
+
+def _dispatch_outbox(request: Request) -> DispatchOutboxService:
+    return cast(DispatchOutboxService, request.app.state.dispatch_outbox)
 
 
 def _retry_service(request: Request) -> ImportRetryService:
@@ -266,7 +271,10 @@ async def submit_import(
     if rejection is not None or admitted is None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN) from rejection
     if admitted.should_dispatch:
-        _dispatcher(request).enqueue(admitted.job_id)
+        _dispatch_outbox(request).dispatch_one(
+            _dispatcher(request),
+            admitted.job_id,
+        )
     return admitted.response
 
 
@@ -328,5 +336,5 @@ async def retry_import(
         return _quota_error(request, error)
     if rejection is not None or job is None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN) from rejection
-    _dispatcher(request).enqueue(job_id)
+    _dispatch_outbox(request).dispatch_one(_dispatcher(request), job_id)
     return _admission(request).response(job)
