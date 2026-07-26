@@ -14,7 +14,7 @@ final class LadleLaunchTests: XCTestCase {
         )
     }
 
-    func testWelcomeGetsNewUsersToTheLibraryWithoutATour() {
+    func testWelcomeGetsNewUsersToTheWalkthrough() {
         let app = XCUIApplication()
         app.launchArguments = ["-ui-testing", "-reset-onboarding"]
         app.launch()
@@ -60,10 +60,52 @@ final class LadleLaunchTests: XCTestCase {
         app.buttons["Try as a guest"].tap()
 
         XCTAssertTrue(
-            element(in: app, identifier: "library.root")
+            element(in: app, identifier: "onboarding.root")
                 .waitForExistence(timeout: 2)
         )
         XCTAssertFalse(app.buttons["Try as a guest"].exists)
+        XCTAssertFalse(element(in: app, identifier: "library.root").exists)
+    }
+
+    func testFirstAccountWalkthroughTeachesTheCoreLoop() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-ui-testing", "-reset-onboarding"]
+        app.launch()
+        app.buttons["Try as a guest"].tap()
+
+        XCTAssertTrue(
+            app.staticTexts["Share from any recipe video"]
+                .waitForExistence(timeout: 2)
+        )
+        XCTAssertTrue(app.staticTexts["Add to Overeasy"].exists)
+        capture("Walkthrough — share", in: app)
+
+        app.buttons["Next"].tap()
+        XCTAssertTrue(
+            app.staticTexts["Check what Overeasy rescued"]
+                .waitForExistence(timeout: 2)
+        )
+        XCTAssertTrue(
+            app.staticTexts["One-Pot Lemon Orzo with Feta"].exists
+        )
+        capture("Walkthrough — review", in: app)
+
+        app.buttons["Next"].tap()
+        XCTAssertTrue(
+            app.staticTexts["Cook one clear step at a time"]
+                .waitForExistence(timeout: 2)
+        )
+        XCTAssertTrue(app.staticTexts["Simmer the orzo"].exists)
+        capture("Walkthrough — cook", in: app)
+
+        app.buttons["Start saving recipes"].tap()
+        XCTAssertTrue(
+            element(in: app, identifier: "library.root")
+                .waitForExistence(timeout: 2)
+        )
+        XCTAssertFalse(
+            element(in: app, identifier: "onboarding.root").exists
+        )
     }
 
     func testWelcomeProviderButtonsShareVisualRhythm() {

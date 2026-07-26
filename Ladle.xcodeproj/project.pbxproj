@@ -34,6 +34,7 @@
 		39BB9D3C3EC14FFDCE622491 /* DemoImportServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADCDE2C252635C3E9076C6DD /* DemoImportServiceTests.swift */; };
 		3B24B8FC354FB569DA827D92 /* PendingImportCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02E89F28EBF53680812A3D38 /* PendingImportCard.swift */; };
 		3BABF27DB63F60124D14F426 /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 860D5C02610981E7F4B9FC0C /* WelcomeView.swift */; };
+		3D212F33DC8232C5C1A8FAA7 /* OnboardingWalkthroughView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0370D3E55CB7D0FD1314AF8 /* OnboardingWalkthroughView.swift */; };
 		3EAD52B961E44399FA89F41E /* RecipeEditorViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EA2657D0BA391951AC9AB8A /* RecipeEditorViewModel.swift */; };
 		48D0EBCF569C98CD7A92CD0E /* ShareURLExtractorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E19326D8562639EDF5FA97E /* ShareURLExtractorTests.swift */; };
 		4C65FD233947DB0E38831B40 /* LadleCore in Frameworks */ = {isa = PBXBuildFile; productRef = ACB5208FC83F92BD0A208E0F /* LadleCore */; };
@@ -250,6 +251,7 @@
 		C620D1903E80465BDA8FE60F /* AppEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppEnvironment.swift; sourceTree = "<group>"; };
 		C657544261EA36028D1ADD38 /* WatchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchView.swift; sourceTree = "<group>"; };
 		CA9412596DCD6FFCA28EC55D /* NutritionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionView.swift; sourceTree = "<group>"; };
+		D0370D3E55CB7D0FD1314AF8 /* OnboardingWalkthroughView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingWalkthroughView.swift; sourceTree = "<group>"; };
 		D071E3D400501F481FB31EEE /* RecipeOptionsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeOptionsSheet.swift; sourceTree = "<group>"; };
 		D4507355A7CFAE19690B7D70 /* RemoteImportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteImportService.swift; sourceTree = "<group>"; };
 		D5811E544D3F145804508A12 /* DemoImportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoImportService.swift; sourceTree = "<group>"; };
@@ -389,6 +391,7 @@
 				2A229BB67821612265D01BD7 /* GoogleSignInProvider.swift */,
 				480030F07BD940462128F4AE /* GuestLimitView.swift */,
 				FA758C400CD14A086E39D48D /* KeychainTokenStore.swift */,
+				D0370D3E55CB7D0FD1314AF8 /* OnboardingWalkthroughView.swift */,
 				F27EE9D08B4AD704ED77330A /* PrivacyDetailView.swift */,
 				860D5C02610981E7F4B9FC0C /* WelcomeView.swift */,
 			);
@@ -789,6 +792,7 @@
 				910528C2827351A23281CE62 /* MethodList.swift in Sources */,
 				60F294395D35AC79B907E3B0 /* NotificationService.swift in Sources */,
 				ADFA32D4AFDD16210863F59F /* NutritionView.swift in Sources */,
+				3D212F33DC8232C5C1A8FAA7 /* OnboardingWalkthroughView.swift in Sources */,
 				3B24B8FC354FB569DA827D92 /* PendingImportCard.swift in Sources */,
 				5AB882C9AB6EB4BF73B1F7DC /* PreviewFixtures.swift in Sources */,
 				24197E5B542EB0789077028F /* PrivacyDetailView.swift in Sources */,

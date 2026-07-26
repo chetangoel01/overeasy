@@ -22,6 +22,45 @@ final class AccountSessionTests: XCTestCase {
         XCTAssertEqual(returningSession.state, .guest)
     }
 
+    func testFirstAccountChoicePresentsWalkthroughUntilCompleted() {
+        let store = InMemoryPreferenceStore()
+        let session = AccountSession(store: store)
+
+        session.signInWithGoogle()
+
+        XCTAssertFalse(session.shouldPresentWelcome)
+        XCTAssertTrue(session.shouldPresentWalkthrough)
+
+        session.completeWalkthrough()
+        let returningSession = AccountSession(store: store)
+
+        XCTAssertFalse(session.shouldPresentWalkthrough)
+        XCTAssertFalse(returningSession.shouldPresentWelcome)
+        XCTAssertFalse(returningSession.shouldPresentWalkthrough)
+    }
+
+    func testIncompleteWalkthroughResumesAfterRelaunch() {
+        let store = InMemoryPreferenceStore()
+        let session = AccountSession(store: store)
+
+        session.continueAsGuest()
+        let returningSession = AccountSession(store: store)
+
+        XCTAssertTrue(returningSession.shouldPresentWalkthrough)
+    }
+
+    func testCompletedWalkthroughDoesNotReplayAfterSignOut() {
+        let store = InMemoryPreferenceStore()
+        let session = AccountSession(store: store)
+        session.signInWithApple()
+        session.completeWalkthrough()
+
+        session.signOut()
+        session.signInWithApple()
+
+        XCTAssertFalse(session.shouldPresentWalkthrough)
+    }
+
     func testGuestSaveDecisionWarnsBeforeTenthRecipe() {
         let session = AccountSession(store: InMemoryPreferenceStore())
         session.continueAsGuest()

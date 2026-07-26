@@ -14,9 +14,9 @@ The audience is a mixed-experience home cook using the app one-handed.
 - The system launch surface now uses the Paper asset, avoiding a white flash
   before the app's warm browsing surface appears.
 - First launch presents one dedicated full-screen welcome surface instead of a
-  popup over the library or a four-page passive tour. It states the
-  link-to-recipe promise, then moves directly into account entry without
-  repeating the same benefits in a feature list.
+  popup over the library. It states the link-to-recipe promise, then moves
+  directly into account entry without repeating the same benefits in a
+  feature list.
 - The welcome uses the exact fried-egg mark shipped as the app icon.
 - Continue with Apple and Sign in with Google handle both account creation and
   returning sign-in. A short "Start your recipe box" handoff explains why an
@@ -29,6 +29,16 @@ The audience is a mixed-experience home cook using the app one-handed.
   verification, and lossless guest-account merging.
 - Authentication shows disabled controls, visible progress, and concise
   recovery copy when the backend or Apple flow cannot complete.
+- The first account choice opens a three-step, skippable walkthrough of the
+  real product loop: share a social recipe to Overeasy, review the rescued
+  ingredients and steps, then cook in Focus mode with timers.
+- The walkthrough uses the existing lemon-orzo recipe artwork and
+  product-shaped examples rather than generic feature illustrations. Its
+  progress and primary action remain visible while page content scrolls at
+  large Dynamic Type sizes.
+- An unfinished walkthrough resumes after relaunch. Finishing or skipping it
+  persists completion, and signing out does not make it replay for a returning
+  user.
 - A genuinely empty Home view now explains what will appear, opens the real
   Add Recipe sheet, and teaches Share Extension use at the point it matters.
 - Empty All Recipes removes irrelevant sort and filter controls, then offers
@@ -43,8 +53,14 @@ The audience is a mixed-experience home cook using the app one-handed.
 
 - Treat authentication as its own destination. It fills the device and owns
   the accessibility tree until an entry path succeeds.
-- Replace feature education with activation. Advanced behavior remains
-  discoverable in the actual library, import, and cooking surfaces.
+- Keep first-run education brief and task-shaped. The walkthrough teaches only
+  the three actions needed to understand Overeasy, then hands off to the empty
+  library's real first-recipe action.
+- Present the walkthrough after the account choice so provider authentication
+  stays focused and users learn only after they have entered the product.
+- Track walkthrough completion separately from the older welcome preference.
+  A pending marker resumes interrupted first-time flows without forcing the
+  new walkthrough onto existing installations.
 - Reuse the installed app icon artwork as the brand mark instead of maintaining
   a second onboarding identity.
 - Use Google's pre-approved neutral button asset instead of the SDK's visually
@@ -62,6 +78,7 @@ The audience is a mixed-experience home cook using the app one-handed.
 - `Config/Debug.xcconfig`
 - `Config/Release.xcconfig`
 - `Ladle/Account/WelcomeView.swift`
+- `Ladle/Account/OnboardingWalkthroughView.swift`
 - `Ladle/Account/GoogleSignInProvider.swift`
 - `Ladle/Account/AuthClient.swift`
 - `Ladle/Account/AccountSession.swift`
@@ -96,10 +113,19 @@ The audience is a mixed-experience home cook using the app one-handed.
   bounds.
 - Focused red-green coverage verifies the concise welcome, guest handoff,
   empty Home and All Recipes actions, and the real Add Recipe presentation.
+- Account-session coverage was written first and observed failing before
+  walkthrough state existed. It now verifies first-account presentation,
+  interrupted-flow resume, completion persistence, and no replay after
+  sign-out.
+- The first-account UI journey verifies all three lessons and the handoff to
+  the library. Simulator screenshots of the share, review, and cooking steps
+  were reviewed at the default content size.
 - iPhone 17 Pro screenshots were reviewed at the default content size and
   Accessibility Large for the welcome and empty Home state.
 - Accessibility Large coverage verifies that Apple, Google, and guest actions
-  remain visible, scrollable, and at least 44 points tall.
+  remain visible, scrollable, and at least 44 points tall. Separate walkthrough
+  coverage verifies that Skip and Next retain 44-point hit targets while the
+  lesson content scrolls.
 - The `-empty-library` launch argument keeps UI testing deterministic without
   changing production persistence behavior.
 - The focused authentication run passed 12 account/session and client tests.

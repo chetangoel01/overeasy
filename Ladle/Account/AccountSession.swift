@@ -24,6 +24,8 @@ enum AccountState: String, Equatable {
 final class AccountSession {
     private enum Key {
         static let onboardingComplete = "ladle.onboarding.complete"
+        static let walkthroughComplete = "ladle.walkthrough.complete"
+        static let walkthroughPending = "ladle.walkthrough.pending"
         static let accountState = "ladle.account.state"
     }
 
@@ -31,6 +33,7 @@ final class AccountSession {
 
     private(set) var state: AccountState
     private(set) var shouldPresentWelcome: Bool
+    private(set) var shouldPresentWalkthrough: Bool
     private(set) var isRemoteSessionReady = false
 
     init(
@@ -41,11 +44,15 @@ final class AccountSession {
 
         if launchArguments.contains("-reset-onboarding") {
             store.removeObject(forKey: Key.onboardingComplete)
+            store.removeObject(forKey: Key.walkthroughComplete)
+            store.removeObject(forKey: Key.walkthroughPending)
             store.removeObject(forKey: Key.accountState)
         }
 
         if launchArguments.contains("-onboarding-complete") {
             store.set(true, forKey: Key.onboardingComplete)
+            store.set(true, forKey: Key.walkthroughComplete)
+            store.set(false, forKey: Key.walkthroughPending)
             if store.string(forKey: Key.accountState) == nil {
                 store.set(
                     AccountState.guest.rawValue,
@@ -60,6 +67,9 @@ final class AccountSession {
         shouldPresentWelcome = !store.bool(
             forKey: Key.onboardingComplete
         )
+        shouldPresentWalkthrough =
+            store.bool(forKey: Key.walkthroughPending)
+            && !store.bool(forKey: Key.walkthroughComplete)
     }
 
     func continueAsGuest() {
@@ -104,15 +114,30 @@ final class AccountSession {
     func signOut() {
         state = .undecided
         shouldPresentWelcome = true
+        shouldPresentWalkthrough = false
         isRemoteSessionReady = false
         store.removeObject(forKey: Key.accountState)
         store.set(false, forKey: Key.onboardingComplete)
+        store.set(false, forKey: Key.walkthroughPending)
+    }
+
+    func completeWalkthrough() {
+        shouldPresentWalkthrough = false
+        store.set(true, forKey: Key.walkthroughComplete)
+        store.set(false, forKey: Key.walkthroughPending)
     }
 
     private func completeWelcome(as state: AccountState) {
         self.state = state
         shouldPresentWelcome = false
+        shouldPresentWalkthrough = !store.bool(
+            forKey: Key.walkthroughComplete
+        )
         store.set(state.rawValue, forKey: Key.accountState)
         store.set(true, forKey: Key.onboardingComplete)
+        store.set(
+            shouldPresentWalkthrough,
+            forKey: Key.walkthroughPending
+        )
     }
 }

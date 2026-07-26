@@ -47,6 +47,11 @@ struct RootView: View {
                     onAuthenticated: onAuthenticated
                 )
                 .transition(.opacity)
+            } else if accountSession.shouldPresentWalkthrough {
+                OnboardingWalkthroughView {
+                    accountSession.completeWalkthrough()
+                }
+                .transition(.opacity)
             } else {
                 LibraryView(
                     viewModel: libraryViewModel,
@@ -66,6 +71,10 @@ struct RootView: View {
         .animation(
             reduceMotion ? nil : .easeOut(duration: 0.2),
             value: accountSession.shouldPresentWelcome
+        )
+        .animation(
+            reduceMotion ? nil : .easeOut(duration: 0.2),
+            value: accountSession.shouldPresentWalkthrough
         )
     }
 }

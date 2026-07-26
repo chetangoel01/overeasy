@@ -31,6 +31,42 @@ final class AccessibilityTests: XCTestCase {
         capture("Accessibility Large Welcome", in: app)
     }
 
+    func testAccessibilityLargeWalkthroughKeepsNavigationUsable() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-ui-testing",
+            "-reset-onboarding",
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityL",
+        ]
+        app.launch()
+
+        let guest = app.buttons["Try as a guest"]
+        XCTAssertTrue(guest.waitForExistence(timeout: 3))
+        scrollToHittable(guest, in: app)
+        guest.tap()
+
+        XCTAssertTrue(
+            app.staticTexts["Share from any recipe video"]
+                .waitForExistence(timeout: 3)
+        )
+        let skip = app.buttons["Skip"]
+        let next = app.buttons["Next"]
+        assertMinimumHitTarget(skip)
+        assertMinimumHitTarget(next)
+        XCTAssertTrue(skip.isHittable)
+        XCTAssertTrue(next.isHittable)
+        capture("Accessibility Large Walkthrough", in: app)
+
+        next.tap()
+        XCTAssertTrue(
+            app.staticTexts["Check what Overeasy rescued"]
+                .waitForExistence(timeout: 2)
+        )
+        XCTAssertTrue(next.isHittable)
+    }
+
     func testAccessibilityLargeLibraryKeepsPrimaryControlsUsable() {
         let app = launchApp()
 
