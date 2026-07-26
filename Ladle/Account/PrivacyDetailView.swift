@@ -14,6 +14,16 @@ struct PrivacyDetailView: View {
                     items: Copy.storedDataItems
                 )
                 transparencySection(
+                    title: "How imports are processed",
+                    introduction:
+                        "Overeasy sends only the data needed for the feature:",
+                    items: Copy.processingItems
+                )
+                transparencySection(
+                    title: "Retention & deletion",
+                    items: Copy.retentionItems
+                )
+                transparencySection(
                     title: "What Overeasy doesn’t do",
                     items: Copy.notTrackedItems
                 )
@@ -100,14 +110,49 @@ struct PrivacyDetailView: View {
 
         static let notTrackedItems = [
             """
-            No ads, no analytics SDKs, no selling or sharing data with third \
-            parties.
+            No ads, no cross-app tracking, and no sale of personal data.
             """,
             "No tracking across other apps or websites.",
             """
             Timers, notifications, and Health export run entirely on this \
             device — nutrition leaves the app only when you explicitly export \
             a serving to Apple Health.
+            """,
+        ]
+
+        static let processingItems = [
+            """
+            Imported public links, captions, media evidence, correction notes, \
+            or pasted text may be processed by our contracted transcription \
+            and recipe-extraction providers.
+            """,
+            """
+            Recipe images and encrypted service data are stored with our \
+            hosting, database, and object-storage providers. Apple and Google \
+            process sign-in only when you choose them.
+            """,
+            """
+            Service logs use request, job, and pseudonymous account identifiers \
+            for security and reliability; they do not contain recipe text or \
+            authentication secrets.
+            """,
+        ]
+
+        static let retentionItems = [
+            """
+            Recovery text is removed shortly after an import finishes. Import \
+            diagnostics, expired sessions, cache records, and sync history each \
+            follow a documented time limit.
+            """,
+            """
+            Delete account permanently removes or anonymizes your recipes, \
+            imports, sign-in identity, sessions, devices, and unreferenced \
+            images. Sign in with Apple credentials are revoked first.
+            """,
+            """
+            Account deletion cannot be undone. Service backups age out on their \
+            published schedule and are not used to restore individual deleted \
+            accounts.
             """,
         ]
     }

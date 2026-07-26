@@ -53,7 +53,7 @@ from ladle.auth.sessions import SessionService
 from ladle.auth.tokens import AccessTokenCodec, RefreshTokenCodec
 from ladle.clock import Clock, SystemClock
 from ladle.config import Settings
-from ladle.crypto.private_text import LocalPrivateTextCipher
+from ladle.crypto.private_text import build_private_text_cipher
 from ladle.db.session import build_engine, build_session_factory
 from ladle.imports.admission import AdmissionService
 from ladle.imports.dispatcher import (
@@ -237,7 +237,11 @@ def create_app(
             delay_seconds=configured.startup_dependency_delay_seconds,
         )
         application.router.add_event_handler("startup", startup_gate.wait)
-    private_text = LocalPrivateTextCipher(configured.data_encryption_key)
+    private_text = build_private_text_cipher(
+        active_key_id=configured.data_encryption_active_key_id,
+        keyring_json=configured.data_encryption_keyring,
+        legacy_key=configured.data_encryption_key,
+    )
     application.state.private_text = private_text
     apple_client: httpx.Client | None = None
     if apple_credentials is None and configured.apple_enabled:

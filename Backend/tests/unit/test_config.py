@@ -38,6 +38,11 @@ PRODUCTION_RUNTIME = {
     "object_storage_endpoint_url": "https://objects.example.test",
     "object_storage_access_key": "production-access-key",
     "object_storage_secret_key": GOOD_SECRET,
+    "data_encryption_active_key_id": "2026-q3",
+    "data_encryption_keyring": (
+        '{"2026-q2":"production-encryption-key-material-previous",'
+        '"2026-q3":"production-encryption-key-material-current"}'
+    ),
 }
 
 
@@ -69,6 +74,36 @@ def test_production_rejects_missing_placeholder_or_short_core_secrets(
 
     with pytest.raises(ValidationError):
         Settings(**values)
+
+
+@pytest.mark.parametrize(
+    ("active_key_id", "keyring"),
+    [
+        (None, None),
+        ("missing", '{"current":"production-encryption-key-material-current"}'),
+        ("current", '{"current":"too-short"}'),
+        ("current", '{"current":"change-me-production-key-material"}'),
+        ("bad key id", '{"bad key id":"production-encryption-key-material-current"}'),
+    ],
+)
+def test_production_requires_valid_managed_encryption_keyring(
+    active_key_id: str | None,
+    keyring: str | None,
+) -> None:
+    values = {
+        **PRODUCTION_RUNTIME,
+        "data_encryption_active_key_id": active_key_id,
+        "data_encryption_keyring": keyring,
+    }
+
+    with pytest.raises(ValidationError, match="encryption"):
+        Settings(
+            environment="production",
+            jwt_signing_secret=GOOD_SECRET,
+            data_encryption_key=GOOD_SECRET,
+            **values,
+            _env_file=None,
+        )
 
 
 def test_production_allows_unconfigured_optional_acquisition_providers() -> None:

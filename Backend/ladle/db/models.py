@@ -854,6 +854,14 @@ class UserSyncState(Base):
         CheckConstraint(
             "next_sequence > 0", name="ck_user_sync_state_next_sequence_positive"
         ),
+        CheckConstraint(
+            "minimum_retained_sequence > 0",
+            name="ck_user_sync_state_minimum_retained_sequence_positive",
+        ),
+        CheckConstraint(
+            "minimum_retained_sequence <= next_sequence",
+            name="ck_user_sync_state_retention_before_next",
+        ),
     )
 
     user_id: Mapped[UUID] = mapped_column(
@@ -861,6 +869,11 @@ class UserSyncState(Base):
     )
     next_sequence: Mapped[int] = mapped_column(
         BigInteger, nullable=False, server_default="1"
+    )
+    minimum_retained_sequence: Mapped[int] = mapped_column(
+        BigInteger,
+        nullable=False,
+        server_default="1",
     )
 
 

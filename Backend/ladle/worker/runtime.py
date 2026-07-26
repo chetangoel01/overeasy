@@ -40,7 +40,7 @@ from ladle.cache.service import ExtractionCacheService
 from ladle.clock import SystemClock
 from ladle.config import Settings
 from ladle.contracts.recipes import RecipeReviewStatus, RecipeSource
-from ladle.crypto.private_text import LocalPrivateTextCipher
+from ladle.crypto.private_text import build_private_text_cipher
 from ladle.db.session import build_engine, build_session_factory
 from ladle.extraction.claude import (
     AnthropicStructuredClient,
@@ -57,6 +57,11 @@ from ladle.imports.thumbnails import OEmbedThumbnailFetcher
 from ladle.imports.transitions import ImportTransitionService
 from ladle.infrastructure.object_storage import S3ObjectStorage
 from ladle.observability.metrics import MetricsRegistry
+from ladle.privacy.retention import (
+    ObjectDeletionProcessor,
+    RetentionPolicy,
+    RetentionService,
+)
 from ladle.recipes.template_clone import (
     RecipeTemplate,
     RecipeTemplateCloner,
@@ -292,6 +297,52 @@ def runtime_dispatch_outbox() -> DispatchOutboxService:
 
 
 @lru_cache(maxsize=1)
+def runtime_retention() -> RetentionService:
+    settings = Settings()
+    return RetentionService(
+        clock=SystemClock(),
+        policy=RetentionPolicy(
+            expired_session_days=settings.retention_expired_session_days,
+            terminal_import_days=settings.retention_terminal_import_days,
+            private_text_hours=settings.retention_private_text_hours,
+            provider_attempt_days=settings.retention_provider_attempt_days,
+            sync_history_days=settings.retention_sync_history_days,
+            invalid_cache_days=settings.retention_invalid_cache_days,
+            deletion_audit_days=settings.retention_deletion_audit_days,
+        ),
+    )
+
+
+@lru_cache(maxsize=1)
+def runtime_object_deletion_processor() -> ObjectDeletionProcessor:
+    settings = Settings()
+    return ObjectDeletionProcessor(
+        clock=SystemClock(),
+        maximum_attempts=settings.object_deletion_maximum_attempts,
+        batch_size=settings.object_deletion_batch_size,
+    )
+
+
+@lru_cache(maxsize=1)
+def runtime_object_storage() -> S3ObjectStorage | None:
+    settings = Settings()
+    if not settings.object_storage_enabled:
+        return None
+    return S3ObjectStorage(
+        endpoint_url=str(settings.object_storage_endpoint_url),
+        region=settings.object_storage_region,
+        bucket=settings.object_storage_bucket,
+        access_key=settings.object_storage_access_key,
+        secret_key=settings.object_storage_secret_key.get_secret_value(),
+        public_endpoint_url=(
+            str(settings.object_storage_public_endpoint_url)
+            if settings.object_storage_public_endpoint_url is not None
+            else None
+        ),
+    )
+
+
+@lru_cache(maxsize=1)
 def runtime_orchestrator() -> ImportOrchestrator:
     settings = Settings()
     if settings.worker_provider_mode == "disabled":
@@ -434,7 +485,11 @@ def runtime_orchestrator() -> ImportOrchestrator:
         extractor=extractor,
         clock=clock,
         thumbnails=thumbnails,
-        private_text=LocalPrivateTextCipher(settings.data_encryption_key),
+        private_text=build_private_text_cipher(
+            active_key_id=settings.data_encryption_active_key_id,
+            keyring_json=settings.data_encryption_keyring,
+            legacy_key=settings.data_encryption_key,
+        ),
         private_completion=cloner,
         transitions=ImportTransitionService(
             clock=clock,

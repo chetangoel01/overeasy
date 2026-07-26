@@ -24,7 +24,7 @@ Use the exact immutable image digest intended for the API and worker:
 4. Keep the previous application version compatible with migration `0009`
    during the rollout. If that is not possible, use a two-release
    expand/migrate/contract sequence.
-5. Readiness rejects any pod whose expected migration revision (`0010`) is not current,
+5. Readiness rejects any pod whose expected migration revision (`0011`) is not current,
    preventing it from receiving service traffic.
 
 The local Compose stack uses the same ordering: its `migrate` service must

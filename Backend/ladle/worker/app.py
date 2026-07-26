@@ -3,6 +3,7 @@ from celery import Celery
 from ladle.config import Settings
 from ladle.imports.dispatcher import PROCESS_IMPORT_TASK
 from ladle.imports.maintenance import RELEASE_EXPIRED_RESERVATIONS_TASK
+from ladle.privacy.retention import RETENTION_SWEEP_TASK
 
 
 def create_celery_app(settings: Settings | None = None) -> Celery:
@@ -43,7 +44,14 @@ def create_celery_app(settings: Settings | None = None) -> Celery:
                 # A sweep that piles up behind a busy worker has nothing to add
                 # that the next one will not also find.
                 "options": {"expires": configured.import_maintenance_interval_seconds},
-            }
+            },
+            "privacy-retention-sweep": {
+                "task": RETENTION_SWEEP_TASK,
+                "schedule": float(configured.retention_maintenance_interval_seconds),
+                "options": {
+                    "expires": configured.retention_maintenance_interval_seconds
+                },
+            },
         },
     )
     return application

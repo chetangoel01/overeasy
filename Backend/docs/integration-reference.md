@@ -630,7 +630,7 @@ deletion is soft: `recipes.deleted_at` is set and a sync tombstone is emitted.
 
 | Table | Columns |
 | --- | --- |
-| `user_sync_state` | `user_id uuid PK/FK`; `next_sequence bigint > 0` |
+| `user_sync_state` | `user_id uuid PK/FK`; `next_sequence bigint > 0`; minimum retained sequence for safe snapshot resets |
 | `recipe_changes` | Composite PK `(user_id, sequence)`; recipe FK; `kind` (`upsert`/`delete`); recipe revision; changed timestamp |
 
 Sequence allocation locks the user's `user_sync_state` row. This makes
@@ -652,6 +652,7 @@ The current migration chain is:
   -> 0008_add_quota_and_provider_budgets
   -> 0009_add_import_dispatch_outbox
   -> 0010_add_account_deletion_audit
+  -> 0011_add_sync_retention_floor
 ```
 
 Alembic also owns the small `alembic_version` table that records the currently

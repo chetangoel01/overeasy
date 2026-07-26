@@ -1,3 +1,5 @@
+import json
+import re
 from decimal import Decimal
 from typing import Literal, Self
 from urllib.parse import parse_qs, urlsplit
@@ -30,6 +32,12 @@ class Settings(BaseSettings):
     environment: Literal["development", "test", "production"] = "development"
     jwt_signing_secret: SecretStr = SecretStr("change-me-development-only")
     data_encryption_key: SecretStr = SecretStr("change-me-development-only")
+    data_encryption_active_key_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=64,
+    )
+    data_encryption_keyring: SecretStr | None = None
     database_url: str = "postgresql+psycopg://ladle:ladle@127.0.0.1:5432/ladle"
     access_token_issuer: str = "ladle"
     access_token_minutes: int = Field(default=15, gt=0)
@@ -63,6 +71,20 @@ class Settings(BaseSettings):
     startup_dependency_attempts: int = Field(default=12, gt=0, le=60)
     startup_dependency_delay_seconds: float = Field(default=5, gt=0, le=60)
     readiness_worker_timeout_seconds: float = Field(default=2, gt=0, le=10)
+    retention_maintenance_interval_seconds: int = Field(
+        default=3600,
+        ge=300,
+        le=86_400,
+    )
+    retention_expired_session_days: int = Field(default=7, ge=0, le=365)
+    retention_terminal_import_days: int = Field(default=30, ge=1, le=365)
+    retention_private_text_hours: int = Field(default=24, ge=0, le=168)
+    retention_provider_attempt_days: int = Field(default=90, ge=1, le=730)
+    retention_sync_history_days: int = Field(default=365, ge=30, le=3650)
+    retention_invalid_cache_days: int = Field(default=30, ge=1, le=365)
+    retention_deletion_audit_days: int = Field(default=365, ge=30, le=3650)
+    object_deletion_maximum_attempts: int = Field(default=8, gt=0, le=20)
+    object_deletion_batch_size: int = Field(default=100, gt=0, le=1000)
 
     rate_limiting_enabled: bool = False
     rate_limit_redis_url: str = "redis://127.0.0.1:6379/2"
@@ -286,6 +308,44 @@ class Settings(BaseSettings):
                 raise ValueError(
                     f"{field_name} must be a non-placeholder secret of at least "
                     f"{_MINIMUM_PRODUCTION_SECRET_LENGTH} characters in production"
+                )
+        if (
+            self.data_encryption_active_key_id is None
+            or self.data_encryption_keyring is None
+        ):
+            raise ValueError(
+                "production requires a managed encryption active key and keyring"
+            )
+        if not re.fullmatch(
+            r"[A-Za-z0-9._-]{1,64}",
+            self.data_encryption_active_key_id,
+        ):
+            raise ValueError("production encryption key identifier is invalid")
+        try:
+            encryption_keys = json.loads(
+                self.data_encryption_keyring.get_secret_value()
+            )
+        except json.JSONDecodeError as error:
+            raise ValueError(
+                "production encryption keyring must be valid JSON"
+            ) from error
+        if (
+            not isinstance(encryption_keys, dict)
+            or self.data_encryption_active_key_id not in encryption_keys
+        ):
+            raise ValueError(
+                "production encryption keyring must contain the active key"
+            )
+        for key_id, secret in encryption_keys.items():
+            if (
+                not isinstance(key_id, str)
+                or not re.fullmatch(r"[A-Za-z0-9._-]{1,64}", key_id)
+                or not isinstance(secret, str)
+                or len(secret.strip()) < _MINIMUM_PRODUCTION_SECRET_LENGTH
+                or self._is_placeholder(secret)
+            ):
+                raise ValueError(
+                    "production encryption keyring contains an invalid key"
                 )
         if not self.celery_enabled:
             raise ValueError("production requires Celery")

@@ -1,0 +1,30 @@
+{
+  "Rules": [
+    {
+      "ID": "ladle-temporary-objects",
+      "Status": "Enabled",
+      "Filter": {
+        "Prefix": "temporary/"
+      },
+      "Expiration": {
+        "Days": 1
+      },
+      "AbortIncompleteMultipartUpload": {
+        "DaysAfterInitiation": 1
+      }
+    },
+    {
+      "ID": "ladle-noncurrent-versions",
+      "Status": "Enabled",
+      "Filter": {
+        "Prefix": ""
+      },
+      "NoncurrentVersionExpiration": {
+        "NoncurrentDays": 30
+      },
+      "Expiration": {
+        "ExpiredObjectDeleteMarker": true
+      }
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 from ladle.config import Settings
 from ladle.imports.dispatcher import PROCESS_IMPORT_TASK
 from ladle.imports.maintenance import RELEASE_EXPIRED_RESERVATIONS_TASK
+from ladle.privacy.retention import RETENTION_SWEEP_TASK
 from ladle.worker.app import celery_app, create_celery_app
 from ladle.worker.tasks import retry_countdown
 
@@ -69,3 +70,16 @@ def test_sweep_task_is_registered_on_the_worker() -> None:
     import ladle.worker.tasks  # noqa: F401
 
     assert RELEASE_EXPIRED_RESERVATIONS_TASK in celery_app.tasks
+
+
+def test_privacy_retention_and_object_cleanup_run_on_a_schedule() -> None:
+    app = create_celery_app(Settings(retention_maintenance_interval_seconds=7200))
+
+    entry = app.conf.beat_schedule["privacy-retention-sweep"]
+    assert entry["task"] == RETENTION_SWEEP_TASK
+    assert entry["schedule"] == 7200.0
+    assert entry["options"]["expires"] == 7200
+
+    import ladle.worker.tasks  # noqa: F401
+
+    assert RETENTION_SWEEP_TASK in celery_app.tasks

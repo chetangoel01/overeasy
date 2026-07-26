@@ -161,6 +161,49 @@ final class RecipeSyncServiceTests: XCTestCase {
         XCTAssertEqual(try cursor.load(), 0)
     }
 
+    func testExpiredCursorRestartsFromSnapshotAndReconcilesMissingRecipes()
+        async throws
+    {
+        let requestCount = Locked<Int>(0)
+        URLProtocolStub.install { request in
+            let index = requestCount.withValue {
+                $0 += 1
+                return $0
+            }
+            if index == 1 {
+                return (
+                    Self.response(request, status: 409),
+                    try! JSONSerialization.data(withJSONObject: [
+                        "error": [
+                            "code": "syncResetRequired",
+                            "message": "Sync history expired.",
+                            "retryable": true,
+                            "requestID":
+                                "00000000-0000-4000-8000-000000000099",
+                        ],
+                    ])
+                )
+            }
+            return (
+                Self.response(request),
+                Self.emptyPage(cursor: 8)
+            )
+        }
+        let cursor = InMemorySyncCursorStore(value: 4)
+        let repository = SyncTestRepository()
+        let service = RecipeSyncService(
+            api: makeAPI(),
+            repository: repository,
+            cursorStore: cursor
+        )
+
+        try await service.synchronize()
+
+        XCTAssertEqual(requestCount.snapshot, 2)
+        XCTAssertEqual(try cursor.load(), 8)
+        XCTAssertEqual(repository.reconciledSnapshots, [Set<UUID>()])
+    }
+
     private func makeAPI() -> APIClient {
         APIClient(
             baseURL: URL(string: "https://api.ladle.test")!,
@@ -216,6 +259,7 @@ private final class SyncTestRepository: RecipeSyncRepository {
     private(set) var syncedDeletes: [UUID] = []
     private(set) var appliedSequences: [Int64] = []
     private(set) var conflicts: [Conflict] = []
+    private(set) var reconciledSnapshots: [Set<UUID>] = []
 
     init(pending: [PendingRecipeMutation] = []) {
         self.pending = pending
@@ -252,13 +296,21 @@ private final class SyncTestRepository: RecipeSyncRepository {
     func applySyncPage(_ page: RemoteSyncPageDTO) throws {
         appliedSequences.append(contentsOf: page.changes.map(\.sequence))
     }
+
+    func reconcileServerSnapshot(activeRecipeIDs: Set<UUID>) throws {
+        reconciledSnapshots.append(activeRecipeIDs)
+    }
 }
 
 private final class InMemorySyncCursorStore:
     SyncCursorStoring,
     @unchecked Sendable
 {
-    private let value = Locked<Int64>(0)
+    private let value: Locked<Int64>
+
+    init(value: Int64 = 0) {
+        self.value = Locked(value)
+    }
 
     func load() throws -> Int64 {
         value.snapshot

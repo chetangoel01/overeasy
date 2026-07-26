@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from dataclasses import asdict
 from random import SystemRandom
 from uuid import UUID
 
@@ -10,11 +11,15 @@ from ladle.imports.dispatcher import (
     CeleryImportDispatcher,
 )
 from ladle.imports.maintenance import RELEASE_EXPIRED_RESERVATIONS_TASK
+from ladle.privacy.retention import RETENTION_SWEEP_TASK
 from ladle.worker.app import celery_app
 from ladle.worker.runtime import (
     runtime_dispatch_outbox,
     runtime_maintenance,
+    runtime_object_deletion_processor,
+    runtime_object_storage,
     runtime_orchestrator,
+    runtime_retention,
     runtime_sessions,
 )
 
@@ -91,3 +96,23 @@ def release_expired_reservations() -> int:
         CeleryImportDispatcher(celery_app),
     )
     return released
+
+
+@celery_app.task(  # type: ignore[untyped-decorator]
+    name=RETENTION_SWEEP_TASK,
+    acks_late=True,
+    reject_on_worker_lost=True,
+)
+def sweep_privacy_retention() -> dict[str, int]:
+    sessions = runtime_sessions()
+    with sessions() as database, database.begin():
+        outcome = runtime_retention().sweep(database)
+    deleted_objects = 0
+    storage = runtime_object_storage()
+    if storage is not None:
+        with sessions() as database, database.begin():
+            deleted_objects = runtime_object_deletion_processor().process(
+                database,
+                storage=storage,
+            )
+    return {**asdict(outcome), "deleted_objects": deleted_objects}
