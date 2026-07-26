@@ -1,5 +1,5 @@
 import hashlib
-from typing import Annotated, cast
+from typing import Annotated, Literal, cast
 from uuid import UUID
 
 from fastapi import APIRouter, Header, HTTPException, Request, status
@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from ladle.api.dependencies import database
 from ladle.api.errors import error_response
+from ladle.api.rate_limits import RateLimitPolicies, RateLimitService
 from ladle.api.routes.auth import access_claims
 from ladle.auth.attestation import (
     AppAttestEvidence,
@@ -64,6 +65,39 @@ def _retry_service(request: Request) -> ImportRetryService:
 
 def _attestation(request: Request) -> AttestationService:
     return cast(AttestationService, request.app.state.attestation)
+
+
+def _rate_limits(request: Request) -> RateLimitService:
+    return cast(RateLimitService, request.app.state.rate_limits)
+
+
+def _rate_limit_policies(request: Request) -> RateLimitPolicies:
+    return cast(RateLimitPolicies, request.app.state.rate_limit_policies)
+
+
+def _installation_id(request: Request, claims: AccessClaims) -> str:
+    with database(request) as current_database:
+        device = current_database.get(Device, claims.device_id)
+        if device is None or device.user_id != claims.user_id:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+        return device.installation_id
+
+
+def _enforce_import_rate_limit(
+    request: Request,
+    *,
+    operation: Literal["submit", "retry"],
+    claims: AccessClaims,
+) -> None:
+    limits = _rate_limits(request)
+    limits.enforce(
+        _rate_limit_policies(request).import_request(
+            operation,
+            limits.client_ip(request),
+            _installation_id(request, claims),
+            str(claims.user_id),
+        )
+    )
 
 
 def _assertion_evidence(request: Request) -> AppAttestEvidence | None:
@@ -141,6 +175,7 @@ async def submit_import(
     authorization: Annotated[str | None, Header()] = None,
 ) -> ImportJobResponse | JSONResponse:
     claims = access_claims(request, authorization)
+    _enforce_import_rate_limit(request, operation="submit", claims=claims)
     body_sha256 = hashlib.sha256(await request.body()).hexdigest()
     rejection: AttestationRejected | None = None
     admitted = None
@@ -237,6 +272,7 @@ async def retry_import(
     authorization: Annotated[str | None, Header()] = None,
 ) -> ImportJobResponse:
     claims = access_claims(request, authorization)
+    _enforce_import_rate_limit(request, operation="retry", claims=claims)
     body_sha256 = hashlib.sha256(await request.body()).hexdigest()
     rejection: AttestationRejected | None = None
     job = None

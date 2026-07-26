@@ -5,6 +5,12 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from ladle.api.app import create_app
+from ladle.api.rate_limits import RateLimitBackend
+
+
+class RejectingRateLimitBackend(RateLimitBackend):
+    def retry_after(self, _checks: object) -> int | None:
+        return 17
 
 
 def assert_error(
@@ -67,3 +73,17 @@ def test_unhandled_errors_are_redacted_and_use_internal_envelope(
     assert_error(response.status_code, response.json(), code="internalError")
     assert "top-secret-token-value" not in caplog.text
     assert "private pasted text" not in caplog.text
+
+
+def test_rate_limit_returns_typed_429_and_retry_after() -> None:
+    app = create_app(rate_limit_backend=RejectingRateLimitBackend())
+
+    with TestClient(app) as client:
+        response = client.get("/v1/recipes/sync")
+
+    assert response.status_code == 429
+    assert response.headers["Retry-After"] == "17"
+    error = response.json()["error"]
+    assert error["code"] == "rateLimited"
+    assert error["retryable"] is True
+    assert error["details"]["retryAt"] is not None

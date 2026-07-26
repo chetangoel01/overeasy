@@ -50,6 +50,27 @@ class Settings(BaseSettings):
     import_stale_after_minutes: int = Field(default=60, gt=0)
     import_maintenance_interval_seconds: int = Field(default=300, gt=0)
 
+    rate_limiting_enabled: bool = False
+    rate_limit_redis_url: str = "redis://127.0.0.1:6379/2"
+    rate_limit_key_prefix: str = Field(
+        default="ladle:rate-limit:v1",
+        min_length=1,
+        max_length=128,
+    )
+    rate_limit_trusted_proxy_cidrs: str = ""
+    rate_limit_global_per_minute: int = Field(default=3_000, gt=0)
+    rate_limit_guest_ip_per_hour: int = Field(default=20, gt=0)
+    rate_limit_guest_installation_per_day: int = Field(default=5, gt=0)
+    rate_limit_refresh_ip_per_minute: int = Field(default=60, gt=0)
+    rate_limit_refresh_installation_per_minute: int = Field(default=20, gt=0)
+    rate_limit_apple_ip_per_hour: int = Field(default=20, gt=0)
+    rate_limit_apple_user_per_hour: int = Field(default=10, gt=0)
+    rate_limit_import_ip_per_hour: int = Field(default=60, gt=0)
+    rate_limit_import_installation_per_hour: int = Field(default=20, gt=0)
+    rate_limit_import_user_per_hour: int = Field(default=20, gt=0)
+    rate_limit_recipe_mutation_user_per_minute: int = Field(default=120, gt=0)
+    rate_limit_sync_user_per_minute: int = Field(default=120, gt=0)
+
     celery_enabled: bool = False
     celery_broker_url: str = "redis://127.0.0.1:6379/0"
     celery_result_backend: str = "redis://127.0.0.1:6379/1"
@@ -203,6 +224,8 @@ class Settings(BaseSettings):
             raise ValueError(
                 "the production App Attest environment is required in production"
             )
+        if not self.rate_limiting_enabled:
+            raise ValueError("distributed rate limiting is required in production")
         extraction_key = (
             "openrouter_api_key"
             if self.extraction_provider == "openrouter"

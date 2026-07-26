@@ -6,6 +6,7 @@ from sqlalchemy import delete, select
 
 from ladle.api.dependencies import clock as request_clock
 from ladle.api.dependencies import database
+from ladle.api.rate_limits import RateLimitPolicies, RateLimitService
 from ladle.auth.apple import (
     AppleAuthorizationCodeInvalid,
     AppleCredentials,
@@ -100,6 +101,14 @@ def _private_text(request: Request) -> PrivateTextCipher:
     return cast(PrivateTextCipher, request.app.state.private_text)
 
 
+def _rate_limits(request: Request) -> RateLimitService:
+    return cast(RateLimitService, request.app.state.rate_limits)
+
+
+def _rate_limit_policies(request: Request) -> RateLimitPolicies:
+    return cast(RateLimitPolicies, request.app.state.rate_limit_policies)
+
+
 def access_claims(
     request: Request,
     authorization: Annotated[str | None, Header()] = None,
@@ -135,6 +144,13 @@ def access_claims(
     status_code=status.HTTP_201_CREATED,
 )
 def create_guest(request: Request, body: GuestAuthRequest) -> AuthTokensResponse:
+    limits = _rate_limits(request)
+    limits.enforce(
+        _rate_limit_policies(request).guest(
+            limits.client_ip(request),
+            body.installation_id,
+        )
+    )
     rejection: AttestationRejected | None = None
     tokens: SessionTokens | None = None
     with database(request) as current_database, current_database.begin():
@@ -161,6 +177,13 @@ def sign_in_with_apple(
     authorization: Annotated[str | None, Header()] = None,
 ) -> AuthTokensResponse:
     claims = access_claims(request, authorization)
+    limits = _rate_limits(request)
+    limits.enforce(
+        _rate_limit_policies(request).apple(
+            limits.client_ip(request),
+            str(claims.user_id),
+        )
+    )
     credentials = _apple_credentials(request)
     if credentials is None:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
@@ -198,6 +221,13 @@ def sign_in_with_apple(
 
 @router.post("/refresh", response_model=AuthTokensResponse)
 def refresh_session(request: Request, body: RefreshRequest) -> AuthTokensResponse:
+    limits = _rate_limits(request)
+    limits.enforce(
+        _rate_limit_policies(request).refresh(
+            limits.client_ip(request),
+            str(body.device_id),
+        )
+    )
     authentication_error: RefreshTokenInvalid | None = None
     tokens: SessionTokens | None = None
     with database(request) as current_database, current_database.begin():

@@ -13,6 +13,7 @@ PRODUCTION_ATTEST = {
     "attestation_enforced": True,
     "app_attest_app_id_prefix": "ABCDE12345",
     "app_attest_bundle_id": "com.ladle.ios",
+    "rate_limiting_enabled": True,
 }
 
 
@@ -126,6 +127,7 @@ def test_production_requires_app_attest_and_its_identity() -> None:
         attestation_enforced=True,
         app_attest_app_id_prefix="ABCDE12345",
         app_attest_bundle_id="com.ladle.ios",
+        rate_limiting_enabled=True,
         _env_file=None,
     )
 
@@ -135,6 +137,20 @@ def test_production_requires_app_attest_and_its_identity() -> None:
         create_app(
             settings=settings,
             attestation=AttestationService(enforced=True, verifier=None),
+        )
+
+
+def test_production_requires_distributed_rate_limiting() -> None:
+    with pytest.raises(ValidationError, match="rate limiting"):
+        Settings(
+            environment="production",
+            jwt_signing_secret=GOOD_SECRET,
+            data_encryption_key=GOOD_SECRET,
+            attestation_enforced=True,
+            app_attest_app_id_prefix="ABCDE12345",
+            app_attest_bundle_id="com.ladle.ios",
+            rate_limiting_enabled=False,
+            _env_file=None,
         )
 
 

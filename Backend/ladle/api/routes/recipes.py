@@ -7,6 +7,7 @@ from pydantic import Field, PositiveInt
 
 from ladle.api.dependencies import database
 from ladle.api.errors import error_response
+from ladle.api.rate_limits import RateLimitPolicies, RateLimitService
 from ladle.api.routes.auth import access_claims
 from ladle.clock import Clock
 from ladle.contracts.common import WireModel
@@ -44,6 +45,14 @@ def _clock(request: Request) -> Clock:
     return cast(Clock, request.app.state.clock)
 
 
+def _rate_limits(request: Request) -> RateLimitService:
+    return cast(RateLimitService, request.app.state.rate_limits)
+
+
+def _rate_limit_policies(request: Request) -> RateLimitPolicies:
+    return cast(RateLimitPolicies, request.app.state.rate_limit_policies)
+
+
 def _conflict_response(request: Request, conflict: SyncConflict) -> JSONResponse:
     current = conflict.current_recipe
     return error_response(
@@ -67,6 +76,9 @@ def sync_recipes(
     authorization: Annotated[str | None, Header()] = None,
 ) -> SyncPageDTO:
     claims = access_claims(request, authorization)
+    _rate_limits(request).enforce(
+        _rate_limit_policies(request).sync_poll(str(claims.user_id))
+    )
     with database(request) as current_database:
         return _sync(request).page(
             current_database,
@@ -102,6 +114,9 @@ def put_recipe(
     authorization: Annotated[str | None, Header()] = None,
 ) -> RecipeDTO | JSONResponse:
     claims = access_claims(request, authorization)
+    _rate_limits(request).enforce(
+        _rate_limit_policies(request).recipe_mutation(str(claims.user_id))
+    )
     if body.recipe.id != recipe_id:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -145,6 +160,9 @@ def delete_recipe(
     authorization: Annotated[str | None, Header()] = None,
 ) -> Response:
     claims = access_claims(request, authorization)
+    _rate_limits(request).enforce(
+        _rate_limit_policies(request).recipe_mutation(str(claims.user_id))
+    )
     try:
         with database(request) as current_database, current_database.begin():
             _recipes(request).delete(

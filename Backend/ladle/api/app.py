@@ -1,12 +1,21 @@
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from datetime import timedelta
 
 import httpx
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from redis import Redis
 from sqlalchemy.orm import Session, sessionmaker
 
-from ladle.api.errors import install_error_handlers
+from ladle.api.errors import install_error_handlers, rate_limit_response
+from ladle.api.rate_limits import (
+    ClientIPResolver,
+    NullRateLimitBackend,
+    RateLimitBackend,
+    RateLimitExceeded,
+    RateLimitPolicies,
+    RateLimitService,
+    RedisTokenBucketBackend,
+)
 from ladle.api.routes.attestation import router as attestation_router
 from ladle.api.routes.auth import router as auth_router
 from ladle.api.routes.health import (
@@ -64,6 +73,7 @@ def create_app(
     apple_credentials: AppleCredentials | None = None,
     readiness_probes: dict[str, ReadinessProbe] | None = None,
     metrics: MetricsRegistry | None = None,
+    rate_limit_backend: RateLimitBackend | None = None,
     settings: Settings | None = None,
 ) -> FastAPI:
     """Build the HTTP application without eagerly contacting infrastructure."""
@@ -121,6 +131,21 @@ def create_app(
             "production requires an enabled, configured App Attest verifier"
         )
     application.state.attestation = runtime_attestation
+    rate_limit_redis: Redis | None = None
+    if rate_limit_backend is None:
+        if configured.rate_limiting_enabled:
+            rate_limit_redis = Redis.from_url(configured.rate_limit_redis_url)
+            rate_limit_backend = RedisTokenBucketBackend(
+                rate_limit_redis,
+                prefix=configured.rate_limit_key_prefix,
+            )
+        else:
+            rate_limit_backend = NullRateLimitBackend()
+    application.state.rate_limits = RateLimitService(
+        rate_limit_backend,
+        client_ips=ClientIPResolver(configured.rate_limit_trusted_proxy_cidrs),
+    )
+    application.state.rate_limit_policies = RateLimitPolicies.from_settings(configured)
     runtime_metrics = metrics or MetricsRegistry()
     object_storage: S3ObjectStorage | None = None
     if configured.object_storage_enabled:
@@ -242,6 +267,23 @@ def create_app(
     application.include_router(imports_router)
     application.include_router(health_router)
     install_error_handlers(application)
+
+    @application.middleware("http")
+    async def global_rate_limit(
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
+    ) -> Response:
+        try:
+            application.state.rate_limits.enforce(
+                application.state.rate_limit_policies.global_request()
+            )
+        except RateLimitExceeded as error:
+            return rate_limit_response(
+                request,
+                retry_after_seconds=error.retry_after_seconds,
+            )
+        return await call_next(request)
+
     install_request_middleware(
         application,
         metrics=application.state.metrics,
@@ -250,6 +292,8 @@ def create_app(
         application.router.add_event_handler("shutdown", redirect_client.close)
     if apple_client is not None:
         application.router.add_event_handler("shutdown", apple_client.close)
+    if rate_limit_redis is not None:
+        application.router.add_event_handler("shutdown", rate_limit_redis.close)
     return application
 
 
