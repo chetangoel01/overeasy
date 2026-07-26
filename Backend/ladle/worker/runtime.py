@@ -2,6 +2,7 @@ import logging
 from datetime import timedelta
 from decimal import Decimal
 from functools import lru_cache
+from time import sleep
 from uuid import UUID
 
 import httpx
@@ -79,6 +80,9 @@ LOGGER = logging.getLogger(__name__)
 
 
 class FakeRuntimeAcquirer:
+    def __init__(self, *, delay_seconds: float = 0) -> None:
+        self._delay_seconds = delay_seconds
+
     def check_public(
         self,
         source: SourceVideoDescriptor,
@@ -95,6 +99,8 @@ class FakeRuntimeAcquirer:
         job_id: UUID,
     ) -> AcquiredVideoContext:
         del job_id
+        if self._delay_seconds:
+            sleep(self._delay_seconds)
         return AcquiredVideoContext(
             source=source,
             is_public=True,
@@ -364,6 +370,7 @@ def runtime_object_storage() -> S3ObjectStorage | None:
         bucket=settings.object_storage_bucket,
         access_key=settings.object_storage_access_key,
         secret_key=settings.object_storage_secret_key.get_secret_value(),
+        addressing_style=settings.object_storage_addressing_style,
         public_endpoint_url=(
             str(settings.object_storage_public_endpoint_url)
             if settings.object_storage_public_endpoint_url is not None
@@ -403,7 +410,9 @@ def runtime_orchestrator() -> ImportOrchestrator:
     acquirer: VideoAcquirer
     extractor: RecipeExtractor
     if settings.worker_provider_mode == "fake":
-        acquirer = FakeRuntimeAcquirer()
+        acquirer = FakeRuntimeAcquirer(
+            delay_seconds=settings.fake_provider_delay_seconds,
+        )
         extractor = FakeRuntimeExtractor()
     else:
         extraction_key = (

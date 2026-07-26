@@ -13,13 +13,14 @@ useful on platforms that supply their own HTTP port or S3-compatible storage.
   and `ffmpeg` are also pinned to exact versions, so an identical source tree
   cannot silently acquire different OS packages.
 - The final process runs as UID 10001 and writes caches only beneath `/tmp`.
+- uv's build cache is a BuildKit cache mount and is absent from runtime layers.
 - The image has an API readiness `HEALTHCHECK`; worker services replace it with
   a Celery ping and one-shot/scheduler services disable it.
 - The entrypoint validates the hosting platform's bare `PORT` variable and
   defaults to 4111.
-- The build context excludes Git state, environment files, tests, docs, local
-  Compose configuration, evaluation artifacts, cookies, caches, and local
-  databases.
+- The build context excludes Git state, environment files, tests, docs, load
+  harnesses, local Compose configuration, evaluation artifacts, cookies,
+  caches, and local databases.
 
 Changing a base digest or snapshot is a deliberate dependency update. Rebuild,
 run the complete suite, produce a fresh SBOM, and scan the resulting digest

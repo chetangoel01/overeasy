@@ -22,6 +22,7 @@ def test_runtime_image_is_reproducible_and_has_a_healthcheck() -> None:
     assert "ffmpeg=${FFMPEG_VERSION}" in dockerfile
     assert "HEALTHCHECK" in dockerfile
     assert 'CMD ["/app/.venv/bin/python", "-m", "ladle.api"]' in dockerfile
+    assert dockerfile.count("--mount=type=cache,target=/tmp/ladle/cache/uv") == 2
 
 
 def test_runtime_services_have_bounded_read_only_sandboxes() -> None:
@@ -52,6 +53,7 @@ def test_production_context_excludes_development_and_private_artifacts() -> None
         ".env*",
         "tests",
         "docs",
+        "load",
         "docker-compose*",
         ".eval-cache",
         "*.cookies*",

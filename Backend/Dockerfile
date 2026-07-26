@@ -28,10 +28,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     XDG_CACHE_HOME=/tmp/ladle/cache
 
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev --no-install-project
+RUN --mount=type=cache,target=/tmp/ladle/cache/uv \
+    uv sync --frozen --no-dev --no-install-project
 
 COPY . .
-RUN uv sync --frozen --no-dev
+RUN --mount=type=cache,target=/tmp/ladle/cache/uv \
+    uv sync --frozen --no-dev
 RUN useradd --create-home --uid 10001 ladle \
     && chown -R ladle:ladle /app
 

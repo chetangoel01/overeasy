@@ -35,6 +35,7 @@ from ladle.api.routes.health import (
 from ladle.api.routes.health import router as health_router
 from ladle.api.routes.imports import router as imports_router
 from ladle.api.routes.recipes import router as recipes_router
+from ladle.api.security_headers import SecurityHeadersMiddleware
 from ladle.auth.apple import (
     AppleAuthorizationCodeClient,
     AppleCredentials,
@@ -128,6 +129,10 @@ def create_app(
     application.add_middleware(
         RequestBodyLimitMiddleware,
         maximum_bytes=configured.maximum_request_body_bytes,
+    )
+    application.add_middleware(
+        SecurityHeadersMiddleware,
+        production=configured.environment == "production",
     )
     application.state.session_factory = database_sessions
     application.state.clock = runtime_clock

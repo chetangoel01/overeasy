@@ -30,7 +30,9 @@ class Settings(BaseSettings):
     )
 
     environment: Literal["development", "test", "production"] = "development"
-    jwt_signing_secret: SecretStr = SecretStr("change-me-development-only")
+    jwt_signing_secret: SecretStr = SecretStr(
+        "change-me-development-only-signing-secret"
+    )
     data_encryption_key: SecretStr = SecretStr("change-me-development-only")
     data_encryption_active_key_id: str | None = Field(
         default=None,
@@ -132,6 +134,7 @@ class Settings(BaseSettings):
     celery_import_retry_maximum_seconds: int = Field(default=300, gt=0)
     celery_import_retry_jitter_seconds: int = Field(default=5, ge=0)
     worker_provider_mode: Literal["disabled", "fake", "live"] = "disabled"
+    fake_provider_delay_seconds: float = Field(default=0, ge=0, le=120)
     provider_daily_billed_unit_limit: Decimal = Field(
         default=Decimal("1000"),
         gt=0,

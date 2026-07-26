@@ -93,7 +93,7 @@ services:
       disable: true
     environment: &ladle-environment
       LADLE_ENVIRONMENT: development
-      LADLE_JWT_SIGNING_SECRET: change-me-development-only
+      LADLE_JWT_SIGNING_SECRET: change-me-development-only-signing-secret
       LADLE_DATA_ENCRYPTION_KEY: change-me-development-only
       LADLE_DATABASE_URL: postgresql+psycopg://ladle:ladle@postgres:5432/ladle
       LADLE_CELERY_ENABLED: "true"
@@ -105,6 +105,7 @@ services:
       # Provider settings substitute from Backend/.env; defaults keep the
       # stack in deterministic fake mode when no keys are present.
       LADLE_WORKER_PROVIDER_MODE: ${LADLE_WORKER_PROVIDER_MODE:-fake}
+      LADLE_FAKE_PROVIDER_DELAY_SECONDS: ${LADLE_FAKE_PROVIDER_DELAY_SECONDS:-0}
       LADLE_EXTRACTION_PROVIDER: ${LADLE_EXTRACTION_PROVIDER:-openrouter}
       LADLE_SUPADATA_API_KEY: ${LADLE_SUPADATA_API_KEY:-}
       LADLE_SOSCRIPTED_API_KEY: ${LADLE_SOSCRIPTED_API_KEY:-}
