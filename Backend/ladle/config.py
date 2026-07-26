@@ -99,6 +99,11 @@ class Settings(BaseSettings):
     provider_budget_reservation_minutes: int = Field(default=30, gt=0)
     provider_circuit_failure_threshold: int = Field(default=3, gt=0)
     provider_circuit_cooldown_seconds: int = Field(default=300, gt=0)
+    provider_circuit_key_prefix: str = Field(
+        default="ladle:provider-circuit:v1",
+        min_length=1,
+        max_length=128,
+    )
     server_media_fallback_enabled: bool = False
     object_storage_enabled: bool = False
     object_storage_endpoint_url: AnyHttpUrl = AnyHttpUrl("http://127.0.0.1:9000")

@@ -6,6 +6,7 @@ from uuid import UUID
 
 import httpx
 from anthropic import Anthropic
+from redis import Redis
 from sqlalchemy.orm import Session, sessionmaker
 
 from ladle.acquisition.audio import (
@@ -63,7 +64,7 @@ from ladle.recipes.template_clone import (
     TemplateStep,
     TemplateTimer,
 )
-from ladle.usage.circuit import CircuitBreaker
+from ladle.usage.circuit import RedisCircuitBreaker
 from ladle.usage.ledger import ProviderUsageLedger
 from ladle.usage.limits import UsageLimitService
 
@@ -373,10 +374,11 @@ def runtime_orchestrator() -> ImportOrchestrator:
                 if settings.soscripted_api_key is not None
                 else None
             ),
-            circuits=CircuitBreaker(
-                clock=clock,
+            circuits=RedisCircuitBreaker(
+                Redis.from_url(settings.celery_broker_url),
                 failure_threshold=settings.provider_circuit_failure_threshold,
                 cooldown=timedelta(seconds=settings.provider_circuit_cooldown_seconds),
+                prefix=settings.provider_circuit_key_prefix,
             ),
             free=_free_acquirer(settings),
             audio=_audio_transcriber(settings, usage=usage),

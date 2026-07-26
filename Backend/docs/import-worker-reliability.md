@@ -28,6 +28,8 @@ stale while the task can still be alive.
   startup.
 - Unexpected task failures retry three times with bounded exponential backoff
   and jitter before reaching the dead-letter path.
+- Provider circuit failures are counted atomically in Redis, so an outage opens
+  one shared circuit instead of one independent circuit per worker process.
 - Configuration validation rejects any timing combination that violates this
   ordering or lets a provider timeout outlive the soft task limit.
 
@@ -38,6 +40,7 @@ stale while the task can still be alive.
 - `ladle/imports/outbox.py`
 - `ladle/worker/runtime.py`
 - `ladle/worker/app.py`
+- `ladle/usage/circuit.py`
 - `ladle/config.py`
 
 ## Verification
