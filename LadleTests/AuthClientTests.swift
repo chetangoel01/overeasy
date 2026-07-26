@@ -83,6 +83,65 @@ final class AuthClientTests: XCTestCase {
         XCTAssertEqual(requests.snapshot.count, 2)
     }
 
+    func testGuestBootstrapThenGoogleMergePersistsRotatedAccountState() async throws {
+        let requests = Locked<[URLRequest]>([])
+        URLProtocolStub.install { request in
+            requests.withValue { $0.append(request) }
+            if request.url?.path == "/v1/auth/guest" {
+                return (
+                    Self.response(request, status: 201),
+                    Self.tokensJSON(
+                        accessToken: "guest-access",
+                        userKind: "guest"
+                    )
+                )
+            }
+            XCTAssertEqual(request.url?.path, "/v1/auth/google")
+            XCTAssertEqual(
+                request.value(forHTTPHeaderField: "Authorization"),
+                "Bearer guest-access"
+            )
+            let body = try JSONSerialization.jsonObject(
+                with: URLProtocolStub.bodyData(for: request)
+            ) as? [String: Any]
+            XCTAssertEqual(body?["identityToken"] as? String, "google-id-token")
+            XCTAssertEqual(body?["idempotencyKey"] as? String, "google-attempt")
+            return (
+                Self.response(request, status: 200),
+                Self.tokensJSON(
+                    accessToken: "google-access",
+                    userKind: "google"
+                )
+            )
+        }
+        let tokenStore = InMemoryAuthTokenStore()
+        let api = APIClient(
+            baseURL: URL(string: "https://api.ladle.test")!,
+            session: URLProtocolStub.session(),
+            tokenStore: tokenStore
+        )
+        let account = AccountSession(store: InMemoryAuthPreferenceStore())
+        let auth = AuthClient(
+            api: api,
+            tokenStore: tokenStore,
+            accountSession: account
+        )
+
+        _ = try await auth.bootstrapGuest(
+            installationID: "ios-installation",
+            attestation: nil
+        )
+        let google = try await auth.signInWithGoogle(
+            identityToken: "google-id-token",
+            idempotencyKey: "google-attempt"
+        )
+
+        XCTAssertEqual(google.userKind, "google")
+        XCTAssertEqual(account.state, .signedInWithGoogle)
+        XCTAssertEqual(try tokenStore.load()?.accessToken, "google-access")
+        XCTAssertEqual(requests.snapshot.count, 2)
+    }
+
     func testGuestBootstrapIncludesDeviceAttestationEvidence() async throws {
         let requests = Locked<[URLRequest]>([])
         URLProtocolStub.install { request in

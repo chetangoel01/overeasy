@@ -269,6 +269,7 @@ struct AccountSheet: View {
         case .guest: "Guest"
         case .freeAccount: "Free account"
         case .signedInWithApple: "Apple account"
+        case .signedInWithGoogle: "Google account"
         }
     }
 

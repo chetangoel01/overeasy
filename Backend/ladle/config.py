@@ -167,6 +167,14 @@ class Settings(BaseSettings):
     apple_timeout_seconds: float = Field(default=10, gt=0)
     apple_identity_token_maximum_age_minutes: int = Field(default=10, gt=0)
     apple_clock_skew_seconds: int = Field(default=30, ge=0)
+    google_enabled: bool = False
+    google_server_client_id: str | None = None
+    google_jwks_url: AnyHttpUrl = AnyHttpUrl(
+        "https://www.googleapis.com/oauth2/v3/certs"
+    )
+    google_timeout_seconds: float = Field(default=10, gt=0)
+    google_identity_token_maximum_age_minutes: int = Field(default=10, gt=0)
+    google_clock_skew_seconds: int = Field(default=30, ge=0)
 
     @property
     def app_attest_app_id(self) -> str | None:
@@ -249,4 +257,6 @@ class Settings(BaseSettings):
             raise ValueError(
                 "Apple sign-in requires team, key, and private-key configuration"
             )
+        if self.google_enabled and not self.google_server_client_id:
+            raise ValueError("Google sign-in requires a server OAuth client ID")
         return self

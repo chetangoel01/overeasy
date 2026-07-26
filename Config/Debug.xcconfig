@@ -1,2 +1,6 @@
 LADLE_API_BASE_URL = http:/$()/api.ladle.localhost
 APP_ATTEST_ENVIRONMENT = development
+GOOGLE_IOS_CLIENT_ID =
+GOOGLE_REVERSED_CLIENT_ID =
+GOOGLE_SERVER_CLIENT_ID =
+#include? "../.private/GoogleAuth.xcconfig"

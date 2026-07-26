@@ -1,11 +1,13 @@
 import AuthenticationServices
 import CryptoKit
+import GoogleSignIn
 import Security
 import SwiftUI
 
 struct WelcomeView: View {
     let accountSession: AccountSession
     let authClient: AuthClient?
+    let googleSignIn: (any GoogleSignInProviding)?
     let installationID: String
     let onAuthenticated: @MainActor () async -> Void
 
@@ -16,101 +18,90 @@ struct WelcomeView: View {
     @State private var authenticationError: String?
 
     var body: some View {
-        VStack(spacing: 0) {
-            LadleSheetHandle()
-                .padding(.top, LadleTheme.Spacing.medium)
+        ZStack {
+            LadleTheme.paper
+                .ignoresSafeArea()
 
-            ScrollView {
-                VStack(spacing: LadleTheme.Spacing.generous) {
-                    welcomeMark
-
-                    VStack(spacing: LadleTheme.Spacing.medium) {
-                        Text("Recipes, rescued from the scroll.")
-                            .ladleFont(.title)
-                            .multilineTextAlignment(.center)
-                            .foregroundStyle(LadleTheme.ink)
-
-                        Text(
-                            "Turn TikTok, Instagram, and YouTube links into clear recipes made for cooking."
-                        )
-                        .ladleFont(.body)
-                        .multilineTextAlignment(.center)
-                        .foregroundStyle(LadleTheme.mutedInk)
-                        .fixedSize(horizontal: false, vertical: true)
+            GeometryReader { proxy in
+                ScrollView {
+                    VStack(spacing: LadleTheme.Spacing.generous) {
+                        welcomeMark
+                        welcomeMessage
+                        welcomeValues
+                        Spacer(minLength: LadleTheme.Spacing.regular)
+                        accountActions
                     }
-
-                    VStack(spacing: 0) {
-                        WelcomeValue(
-                            icon: "link",
-                            text: "Paste a link or share from the scroll."
-                        )
-                        Divider()
-                            .overlay(LadleTheme.ink.opacity(0.08))
-                            .padding(.leading, 46)
-                        WelcomeValue(
-                            icon: "checklist",
-                            text: "Cook from clear steps with timers ready."
-                        )
-                    }
+                    .frame(
+                        minHeight: proxy.size.height,
+                        alignment: .center
+                    )
+                    .padding(.horizontal, LadleTheme.Spacing.generous)
+                    .padding(.vertical, LadleTheme.Spacing.generous)
                 }
-                .padding(.horizontal, LadleTheme.Spacing.generous)
-                .padding(.top, LadleTheme.Spacing.generous)
-                .padding(.bottom, LadleTheme.Spacing.regular)
+                .scrollIndicators(.hidden)
             }
-            .scrollIndicators(.hidden)
-
-            accountActions
-                .padding(.horizontal, LadleTheme.Spacing.generous)
-                .padding(.top, LadleTheme.Spacing.compact)
-                .padding(.bottom, 22)
         }
-        .frame(
-            maxWidth: .infinity,
-            maxHeight: dynamicTypeSize.isAccessibilitySize
-                ? .infinity
-                : 660
-        )
-        .background(
-            LadleTheme.paper,
-            in: UnevenRoundedRectangle(
-                topLeadingRadius: LadleTheme.Corner.sheet,
-                topTrailingRadius: LadleTheme.Corner.sheet
-            )
-        )
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("welcome.sheet")
+        .accessibilityIdentifier("welcome.full-screen")
     }
 
     private var welcomeMark: some View {
-        ZStack(alignment: .bottomTrailing) {
-            Image(systemName: "frying.pan")
-                .font(.system(size: 34, weight: .semibold))
-                .foregroundStyle(LadleTheme.paper)
-                .frame(width: 88, height: 88)
-                .background(
-                    LadleTheme.plum,
-                    in: RoundedRectangle(
-                        cornerRadius: 26,
-                        style: .continuous
-                    )
+        Image("OvereasyMark")
+            .resizable()
+            .scaledToFit()
+            .frame(
+                width: dynamicTypeSize.isAccessibilitySize ? 88 : 112,
+                height: dynamicTypeSize.isAccessibilitySize ? 88 : 112
+            )
+            .clipShape(
+                RoundedRectangle(
+                    cornerRadius: 26,
+                    style: .continuous
                 )
+            )
+            .accessibilityLabel("Overeasy app icon")
+            .accessibilityIdentifier("welcome.brand-mark")
+    }
 
-            Image(systemName: "link")
-                .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(LadleTheme.paper)
-                .frame(width: 34, height: 34)
-                .background(LadleTheme.brick, in: Circle())
-                .overlay {
-                    Circle()
-                        .stroke(LadleTheme.paper, lineWidth: 3)
-                }
-                .offset(x: 5, y: 5)
+    private var welcomeMessage: some View {
+        VStack(spacing: LadleTheme.Spacing.medium) {
+            Text("Overeasy")
+                .ladleFont(.section)
+                .foregroundStyle(LadleTheme.brick)
+
+            Text("Recipes, rescued from the scroll.")
+                .ladleFont(.title)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(LadleTheme.ink)
+
+            Text(
+                "Turn TikTok, Instagram, and YouTube links into clear recipes made for cooking."
+            )
+            .ladleFont(.body)
+            .multilineTextAlignment(.center)
+            .foregroundStyle(LadleTheme.mutedInk)
+            .fixedSize(horizontal: false, vertical: true)
         }
-        .accessibilityHidden(true)
+    }
+
+    private var welcomeValues: some View {
+        VStack(spacing: 0) {
+            WelcomeValue(
+                icon: "link",
+                text: "Paste a link or share from the scroll."
+            )
+            Divider()
+                .overlay(LadleTheme.ink.opacity(0.08))
+                .padding(.leading, 46)
+            WelcomeValue(
+                icon: "checklist",
+                text: "Cook from clear steps with timers ready."
+            )
+        }
     }
 
     private var accountActions: some View {
-        VStack(spacing: LadleTheme.Spacing.medium) {
+        VStack(spacing: LadleTheme.Spacing.compact) {
             SignInWithAppleButton(.continue) { request in
                 let nonce = Self.randomNonce()
                 rawNonce = nonce
@@ -127,6 +118,12 @@ struct WelcomeView: View {
                 )
             )
             .disabled(isAuthenticating)
+
+            GoogleSignInControl(isEnabled: !isAuthenticating) {
+                authenticateWithGoogle()
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 52)
 
             Button {
                 authenticateAsGuest()
@@ -145,6 +142,7 @@ struct WelcomeView: View {
             .foregroundStyle(LadleTheme.mutedInk)
             .multilineTextAlignment(.center)
             .fixedSize(horizontal: false, vertical: true)
+            .padding(.top, LadleTheme.Spacing.compact)
 
             if isAuthenticating {
                 ProgressView("Setting up Overeasy")
@@ -159,6 +157,49 @@ struct WelcomeView: View {
                     .foregroundStyle(LadleTheme.brick)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func authenticateWithGoogle() {
+        guard !isAuthenticating else {
+            return
+        }
+        guard let googleSignIn else {
+            accountSession.signInWithGoogle()
+            Task { await onAuthenticated() }
+            return
+        }
+        isAuthenticating = true
+        authenticationError = nil
+        Task { @MainActor in
+            defer { isAuthenticating = false }
+            do {
+                let identityToken = try await googleSignIn.signIn()
+                if let authClient {
+                    if try authClient.restoreSession() == nil {
+                        _ = try await authClient.bootstrapGuest(
+                            installationID: installationID,
+                            attestation: nil,
+                            applyAccountState: false
+                        )
+                    }
+                    _ = try await authClient.signInWithGoogle(
+                        identityToken: identityToken,
+                        idempotencyKey: UUID().uuidString.lowercased()
+                    )
+                } else {
+                    accountSession.signInWithGoogle()
+                }
+                await onAuthenticated()
+            } catch GoogleSignInProviderError.cancelled {
+                return
+            } catch GoogleSignInProviderError.missingConfiguration {
+                authenticationError =
+                    "Google sign-in isn’t configured for this build."
+            } catch {
+                authenticationError =
+                    "Sign in with Google didn’t complete. Please try again."
             }
         }
     }
@@ -288,6 +329,46 @@ struct WelcomeView: View {
         SHA256.hash(data: Data(value.utf8))
             .map { String(format: "%02x", $0) }
             .joined()
+    }
+}
+
+private struct GoogleSignInControl: UIViewRepresentable {
+    let isEnabled: Bool
+    let action: @MainActor () -> Void
+
+    func makeUIView(context: Context) -> GIDSignInButton {
+        let button = GIDSignInButton()
+        button.style = .wide
+        button.colorScheme = .light
+        button.accessibilityIdentifier = "welcome.google-sign-in"
+        button.addTarget(
+            context.coordinator,
+            action: #selector(Coordinator.activate),
+            for: .touchUpInside
+        )
+        return button
+    }
+
+    func updateUIView(_ button: GIDSignInButton, context: Context) {
+        button.isEnabled = isEnabled
+        context.coordinator.action = action
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(action: action)
+    }
+
+    @MainActor
+    final class Coordinator: NSObject {
+        var action: @MainActor () -> Void
+
+        init(action: @escaping @MainActor () -> Void) {
+            self.action = action
+        }
+
+        @objc func activate() {
+            action()
+        }
     }
 }
 

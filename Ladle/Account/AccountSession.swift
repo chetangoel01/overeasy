@@ -16,6 +16,7 @@ enum AccountState: String, Equatable {
     case guest
     case freeAccount
     case signedInWithApple
+    case signedInWithGoogle
 }
 
 @MainActor
@@ -73,11 +74,17 @@ final class AccountSession {
         completeWelcome(as: .signedInWithApple)
     }
 
+    func signInWithGoogle() {
+        completeWelcome(as: .signedInWithGoogle)
+    }
+
     func applyRemoteUserKind(_ userKind: String) {
         isRemoteSessionReady = true
         switch userKind {
         case "apple":
             completeWelcome(as: .signedInWithApple)
+        case "google":
+            completeWelcome(as: .signedInWithGoogle)
         case "guest":
             completeWelcome(as: .guest)
         default:
@@ -89,7 +96,7 @@ final class AccountSession {
         switch state {
         case .guest, .undecided:
             GuestPolicy.decision(savedRecipeCount: savedRecipeCount)
-        case .freeAccount, .signedInWithApple:
+        case .freeAccount, .signedInWithApple, .signedInWithGoogle:
             .allow
         }
     }

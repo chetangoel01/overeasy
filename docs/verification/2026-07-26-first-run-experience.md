@@ -13,44 +13,61 @@ The audience is a mixed-experience home cook using the app one-handed.
 
 - The system launch surface now uses the Paper asset, avoiding a white flash
   before the app's warm browsing surface appears.
-- First launch presents one welcome surface instead of a four-page passive
-  tour. It states the link-to-recipe promise, the two ways to save, and the
-  cooking benefit without delaying entry.
-- Continue with Apple handles both account creation and returning sign-in.
-  Guest entry is a full-size secondary action with the ten-recipe limit and
-  lossless later sign-in stated before entry.
+- First launch presents one dedicated full-screen welcome surface instead of a
+  popup over the library or a four-page passive tour. It states the
+  link-to-recipe promise, the two ways to save, and the cooking benefit without
+  delaying entry.
+- The welcome uses the exact fried-egg mark shipped as the app icon.
+- Continue with Apple and Sign in with Google handle both account creation and
+  returning sign-in. Guest entry is a full-size secondary action with the
+  ten-recipe limit and lossless later sign-in stated before entry.
+- Google sign-in uses Google's official wide button artwork, a 52-point SwiftUI
+  hit surface, SDK redirect handling, backend ID-token verification, and
+  lossless guest-account merging.
 - Authentication shows disabled controls, visible progress, and concise
   recovery copy when the backend or Apple flow cannot complete.
 - A genuinely empty Home view now explains what will appear, opens the real
   Add Recipe sheet, and teaches Share Extension use at the point it matters.
 - Empty All Recipes removes irrelevant sort and filter controls, then offers
   the same first-recipe action.
-- The obscured library is hidden from the accessibility tree while the welcome
-  surface is active. Welcome content scrolls independently at large Dynamic
-  Type sizes while account actions remain reachable.
+- The library is neither rendered nor exposed to accessibility while the
+  welcome surface is active. Welcome content scrolls independently at large
+  Dynamic Type sizes while account actions remain reachable.
 - Disabled primary and secondary buttons now expose a consistent muted visual
   state throughout the app.
 
 ## Decisions
 
-- Preserve the existing bottom-sheet presentation over a softened library so
-  first launch still feels native to the established product.
+- Treat authentication as its own destination. It fills the device and owns
+  the accessibility tree until an entry path succeeds.
 - Replace feature education with activation. Advanced behavior remains
   discoverable in the actual library, import, and cooking surfaces.
-- Use SF Symbols and existing Ladle tokens instead of adding promotional
-  imagery. The frying-pan and link mark communicates the transformation while
-  food photography remains reserved for recipes.
-- Keep Apple and guest as the only honest entry paths because Apple is the
-  current account provider and remote imports require a session.
+- Reuse the installed app icon artwork as the brand mark instead of maintaining
+  a second onboarding identity.
+- Use the official Google SDK and validate server-facing ID tokens against
+  Google's rotating JWKS, expected issuer, server client audience, issue time,
+  and expiry before merging an account.
 - Show the first-use state only when both recipes and import jobs are empty.
   Active or recoverable imports continue to use the existing inbox behavior.
 
 ## Affected components
 
 - `Config/Ladle-Info.plist`
+- `Config/Debug.xcconfig`
+- `Config/Release.xcconfig`
 - `Ladle/Account/WelcomeView.swift`
+- `Ladle/Account/GoogleSignInProvider.swift`
+- `Ladle/Account/AuthClient.swift`
+- `Ladle/Account/AccountSession.swift`
 - `Ladle/App/LadleApp.swift`
 - `Ladle/App/RootView.swift`
+- `Ladle/Resources/Assets.xcassets/OvereasyMark.imageset`
+- `project.yml`
+- `Backend/ladle/auth/google.py`
+- `Backend/ladle/auth/merge.py`
+- `Backend/ladle/api/routes/auth.py`
+- `Backend/ladle/db/models.py`
+- `Backend/alembic/versions/0007_add_google_identity.py`
 - `Ladle/Design/LadleComponents.swift`
 - `Ladle/Library/LibraryView.swift`
 - `Ladle/Library/LibraryHomeView.swift`
@@ -70,12 +87,18 @@ The audience is a mixed-experience home cook using the app one-handed.
   empty Home and All Recipes actions, and the real Add Recipe presentation.
 - iPhone 17 Pro screenshots were reviewed at the default content size and
   Accessibility Large for the welcome and empty Home state.
-- Accessibility Large coverage verifies that Apple and guest actions remain
-  visible, inside the viewport, and at least 44 points tall.
+- Accessibility Large coverage verifies that Apple, Google, and guest actions
+  remain visible, scrollable, and at least 44 points tall.
 - The `-empty-library` launch argument keeps UI testing deterministic without
   changing production persistence behavior.
-- The focused app run passed five smoke tests and five UI tests: four launch
-  flows plus the Accessibility Large welcome check.
+- The focused authentication run passed 12 account/session and client tests.
+  The focused welcome run passed its full-screen journey and Accessibility
+  Large checks, including the official Google control's hit target.
+- The complete final app bundle passed 124 unit tests. All 25 UI tests passed
+  across the welcome, library, settings, import, recipe, cooking, Health, and
+  share-extension matrix.
+- Google verification and merge coverage passed as part of the 322-test
+  backend suite; 3 environment-dependent integration tests were skipped.
 - `LadleCore` passed all 37 tests across eight suites.
 - The generic iOS Simulator milestone build compiled both Ladle and
   LadleShare, and `git diff --check` passed.

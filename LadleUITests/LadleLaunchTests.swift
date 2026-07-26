@@ -23,6 +23,14 @@ final class LadleLaunchTests: XCTestCase {
             app.staticTexts["Recipes, rescued from the scroll."]
                 .waitForExistence(timeout: 2)
         )
+        let welcome = element(in: app, identifier: "welcome.full-screen")
+        XCTAssertTrue(welcome.exists)
+        XCTAssertLessThanOrEqual(welcome.frame.minY, app.frame.minY + 1)
+        XCTAssertGreaterThanOrEqual(welcome.frame.maxY, app.frame.maxY - 1)
+        XCTAssertFalse(element(in: app, identifier: "library.root").exists)
+        XCTAssertTrue(
+            element(in: app, identifier: "welcome.brand-mark").exists
+        )
         XCTAssertTrue(
             app.staticTexts[
                 "Turn TikTok, Instagram, and YouTube links into clear recipes made for cooking."
@@ -33,6 +41,9 @@ final class LadleLaunchTests: XCTestCase {
         )
         XCTAssertTrue(
             app.buttons["Continue with Apple"].exists
+        )
+        XCTAssertTrue(
+            app.buttons["Sign in with Google"].exists
         )
         XCTAssertTrue(
             app.buttons["Try as a guest"].exists

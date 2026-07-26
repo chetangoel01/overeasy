@@ -14,6 +14,11 @@ final class AuthClient {
         let idempotencyKey: String
     }
 
+    private struct GoogleRequest: Encodable, Sendable {
+        let identityToken: String
+        let idempotencyKey: String
+    }
+
     private let api: APIClient
     private let tokenStore: any AuthTokenStoring
     private let accountSession: AccountSession
@@ -98,6 +103,24 @@ final class AuthClient {
                 identityToken: identityToken,
                 authorizationCode: authorizationCode,
                 nonce: nonce,
+                idempotencyKey: idempotencyKey
+            ),
+            authenticated: true
+        )
+        try tokenStore.save(tokens)
+        accountSession.applyRemoteUserKind(tokens.userKind)
+        return tokens
+    }
+
+    func signInWithGoogle(
+        identityToken: String,
+        idempotencyKey: String
+    ) async throws -> AuthTokens {
+        let tokens: AuthTokens = try await api.request(
+            path: "/v1/auth/google",
+            method: .post,
+            body: GoogleRequest(
+                identityToken: identityToken,
                 idempotencyKey: idempotencyKey
             ),
             authenticated: true

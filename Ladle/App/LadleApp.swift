@@ -25,6 +25,7 @@ struct LadleApp: App {
     private let appEnvironment: AppEnvironment
     private let sharedQueueReconciler: SharedQueueReconciler?
     private let authClient: AuthClient?
+    private let googleSignIn: GoogleSignInProvider?
     private let syncService: RecipeSyncService?
     private let remoteImageCache: RemoteImageCache?
     private let installationID: String
@@ -99,6 +100,9 @@ struct LadleApp: App {
             runtimeConfiguration.usesInMemoryStore
                 ? DisabledNotificationService()
                 : UserNotificationService()
+        let googleSignIn = runtimeConfiguration.usesInMemoryStore
+            ? nil
+            : GoogleSignInProvider()
 
         let authClient: AuthClient?
         let importService: any ImportService
@@ -158,6 +162,7 @@ struct LadleApp: App {
         appEnvironment = environment
         self.sharedQueueReconciler = sharedQueueReconciler
         self.authClient = authClient
+        self.googleSignIn = googleSignIn
         self.syncService = syncService
         self.remoteImageCache = remoteImageCache
         self.installationID = installationID
@@ -192,6 +197,7 @@ struct LadleApp: App {
                 libraryViewModel: libraryViewModel,
                 importCoordinator: importCoordinator,
                 authClient: authClient,
+                googleSignIn: googleSignIn,
                 installationID: installationID,
                 onAuthenticated: {
                     if let syncService {
@@ -206,6 +212,7 @@ struct LadleApp: App {
                     } else {
                         accountSession.signOut()
                     }
+                    googleSignIn?.signOut()
                     libraryViewModel.clearLocalLibrary()
                     try? SyncCursorStore().reset()
                 },
@@ -216,6 +223,7 @@ struct LadleApp: App {
                     } else {
                         accountSession.signOut()
                     }
+                    await googleSignIn?.disconnect()
                     libraryViewModel.clearLocalLibrary()
                     try? SyncCursorStore().reset()
                 }
@@ -223,6 +231,9 @@ struct LadleApp: App {
                 .tint(LadleTheme.paprika)
                 .modelContainer(appEnvironment.modelContainer)
                 .environment(\.remoteImageCache, remoteImageCache)
+                .onOpenURL { url in
+                    _ = googleSignIn?.handle(url)
+                }
                 .task {
                     if let authClient {
                         do {

@@ -76,7 +76,9 @@ struct AddRecipeSheet: View {
             }
         }
         .onChange(of: accountSession.state) { _, state in
-            guard state == .freeAccount || state == .signedInWithApple,
+            guard state == .freeAccount
+                    || state == .signedInWithApple
+                    || state == .signedInWithGoogle,
                   case .guestLimit = coordinator.state else {
                 return
             }

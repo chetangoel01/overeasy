@@ -45,6 +45,9 @@ from size, weight, color, and spacing.
 
 - The tool disappears into the task: standard iOS affordances, no invented
   controls.
+- First-run identity is explicit and inclusive: a dedicated welcome screen
+  offers Apple, Google, and a clearly limited guest path before entering the
+  library.
 - Honesty in data: estimated values are always labeled estimated; uncertain
   imported fields are surfaced for review, never silently invented.
 - Demo/fixture content must be indistinguishable from real recipes; a

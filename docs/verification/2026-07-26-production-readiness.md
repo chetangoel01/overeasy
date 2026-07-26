@@ -30,10 +30,16 @@ metadata, and TestFlight packaging path before the first 1.0 beta.
   Attest protocol. Assertions are bound to each exact request body, counters
   prevent replay, and production backend startup fails closed when verification
   is not configured.
+- First launch is now a dedicated full-screen authentication destination using
+  the installed app's fried-egg mark. It offers Apple, Google, and guest entry
+  without rendering the recipe library behind it.
+- Google sign-in uses the official iOS SDK and a backend-owned ID-token
+  verifier. Existing guest recipes, imports, and device state merge into the
+  Google account instead of being discarded.
 
 ## Release decisions
 
-- Marketing version is `1.0`; this candidate uses build `20260726.1`.
+- Marketing version is `1.0`; this candidate uses build `20260726.2`.
 - App and share-extension versions come from shared Xcode build settings so they
   cannot drift.
 - `ITSAppUsesNonExemptEncryption` is false because the app uses only exempt
@@ -77,16 +83,18 @@ export a selected serving to Apple Health.
 
 1. Continue as a guest and import a supported public TikTok, Instagram, or
    YouTube recipe URL.
-2. Share a supported recipe link to “Add to Overeasy” and confirm it appears in
+2. On a signed device, sign in with Apple and Google separately; also save a
+   guest recipe before Google sign-in and confirm it remains available.
+3. Share a supported recipe link to “Add to Overeasy” and confirm it appears in
    the import inbox after returning to the app.
-3. Search, filter, favorite, edit, re-import, and delete recipes.
-4. Open Watch, play the original source, and move among Overview, Ingredients,
+4. Search, filter, favorite, edit, re-import, and delete recipes.
+5. Open Watch, play the original source, and move among Overview, Ingredients,
    and Method.
-5. Start Cooking, check ingredients and steps, enter Focus mode, and run a
+6. Start Cooking, check ingredients and steps, enter Focus mode, and run a
    detected timer.
-6. Open recipe options, review Nutrition, and test the optional Apple Health
+7. Open recipe options, review Nutrition, and test the optional Apple Health
    export.
-7. Open Account, review Privacy & data, test sign-out, and inspect the permanent
+8. Open Account, review Privacy & data, test sign-out, and inspect the permanent
    deletion confirmation.
 
 ### Beta review notes
@@ -102,6 +110,12 @@ export a selected serving to Apple Health.
 - Support URL: **required**
 - Privacy policy URL: **required**
 - App Store Connect app record for bundle ID `com.ladle.ios`
+- Google Cloud OAuth clients: one iOS client for `com.ladle.ios` and one web
+  client whose client ID is used as the server audience
+- Build-time `GOOGLE_IOS_CLIENT_ID`, `GOOGLE_REVERSED_CLIENT_ID`, and
+  `GOOGLE_SERVER_CLIENT_ID` values in
+  `.private/GoogleAuth.xcconfig`, copied from
+  `Config/GoogleAuth.xcconfig.example`
 - Apple Developer team with App Store distribution signing for
   `com.ladle.ios`, `com.ladle.ios.share`, and `group.com.ladle.ios`
 - App privacy answers matching imported URLs, recipe content, user/device IDs,
@@ -112,45 +126,51 @@ export a selected serving to Apple Health.
 The frontend candidate is locally green, but it must not be uploaded until all
 of the following external release gates are closed:
 
-1. Deploy the production API and worker, run migrations through `0006`, route
+1. Deploy the production API and worker, run migrations through `0007`, route
    `api.ladle.app` to them, and install a valid TLS certificate. Recheck both
    `/health/live` and `/health/ready` over HTTPS.
 2. Inject the production database, Redis, object-storage, extraction-provider,
    signing, encryption, Sign in with Apple, and App Attest configuration
    documented in `Backend/.env.example` and the backend verification record.
-3. Run the paid-provider capability smoke tests with real credentials. These
+3. Create the Google OAuth clients, add the reversed iOS client ID as the URL
+   scheme, inject all three iOS values above, and set
+   `LADLE_GOOGLE_ENABLED=true` plus `LADLE_GOOGLE_SERVER_CLIENT_ID` on the
+   backend. The backend audience and iOS server client ID must be identical.
+4. Run the paid-provider capability smoke tests with real credentials. These
    integrations were deliberately not represented as live when only local fake
    providers were available.
-4. Configure the Apple Developer team for both Xcode targets and create
+5. Configure the Apple Developer team for both Xcode targets and create
    distribution-capable App IDs/profiles for `com.ladle.ios`,
    `com.ladle.ios.share`, and `group.com.ladle.ios`, including Sign in with
    Apple, HealthKit, App Groups, and App Attest capabilities.
-5. Install a valid Apple Distribution identity and run the production App
-   Attest, Sign in with Apple, share-extension, import, and account-deletion
-   journeys on a signed physical device. App Attest production validation
-   cannot run in Simulator.
-6. Create or confirm the App Store Connect app record, complete the owner fields
+6. Install a valid Apple Distribution identity and run the production App
+   Attest, Sign in with Apple, Sign in with Google, share-extension, import,
+   guest-merge, and account-deletion journeys on a signed physical device. App
+   Attest production validation cannot run in Simulator.
+7. Create or confirm the App Store Connect app record, complete the owner fields
    above, archive with managed distribution signing, validate, upload, wait for
    processing, then attach the beta description, test notes, and review notes
    from this document.
 
 The compile-only handoff artifact is
-`/tmp/Overeasy-1.0-20260726.1-unsigned.xcarchive.zip` (11 MB,
-SHA-256 `39f081acb028c0add2d6d3bd90ed42afe87de8eeb17a5f1383285b03b5cc73e8`).
-It proves the generic Release device composition but is intentionally unsigned,
-cannot be installed, and cannot be uploaded to App Store Connect.
+`/tmp/Overeasy-1.0-20260726.2-unsigned.xcarchive.zip` (13 MB,
+SHA-256 `64010a9337aa85b6ee34b9a7aaf24bf28631c1a6d6ae9cb8a180d0c8b251c0a3`).
+It was generated with explicit placeholder Google client IDs and proves the
+generic Release device composition. It is intentionally unsigned, cannot be
+installed, cannot perform Google sign-in, and cannot be uploaded to App Store
+Connect.
 
 ## Verification record
 
 | Check | Result |
 | --- | --- |
 | LadleCore tests | 37 passed |
-| App/unit tests | 121 passed in the final candidate |
+| App/unit tests | 124 passed in the final candidate |
 | UI tests | 25 passed, covering the complete app navigation and settings matrix |
 | Share renders | Loading, success, and failure passed render tests and visual inspection at standard and Accessibility sizes |
-| Backend tests | 293 passed; 3 environment-dependent tests skipped |
+| Backend tests | 322 passed; 3 environment-dependent tests skipped |
 | Backend lint/type checks | Ruff format/check and mypy passed |
 | Live Release API | Blocked: HTTPS TLS hostname rejected; HTTP serves a parked-domain page |
-| Unsigned Release archive | Passed; app and extension are `1.0 (20260726.1)`, privacy manifest and both dSYMs present |
-| Signed Release archive | Blocked: both targets require an Apple development team; no valid signing identity is installed |
-| Signed App Store export/upload | Blocked by the live API plus missing valid distribution identity, team, profiles, and App Store Connect access |
+| Unsigned Release archive | Passed; app and extension are `1.0 (20260726.2)`, app and Google dependency privacy manifests plus both dSYMs are present |
+| Signed Release archive | Blocked: only an Apple Development identity is installed; the project has no distribution team/profile configuration |
+| Signed App Store export/upload | Blocked by the live API, missing real Google OAuth values, distribution signing, owner metadata, and App Store Connect access |

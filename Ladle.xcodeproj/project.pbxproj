@@ -36,6 +36,7 @@
 		3BABF27DB63F60124D14F426 /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 860D5C02610981E7F4B9FC0C /* WelcomeView.swift */; };
 		3EAD52B961E44399FA89F41E /* RecipeEditorViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EA2657D0BA391951AC9AB8A /* RecipeEditorViewModel.swift */; };
 		48D0EBCF569C98CD7A92CD0E /* ShareURLExtractorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E19326D8562639EDF5FA97E /* ShareURLExtractorTests.swift */; };
+		4C65FD233947DB0E38831B40 /* LadleCore in Frameworks */ = {isa = PBXBuildFile; productRef = ACB5208FC83F92BD0A208E0F /* LadleCore */; };
 		4CE3214444DC464505688E43 /* ScreenAwakeController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 614CB64D3827AB1339095FC2 /* ScreenAwakeController.swift */; };
 		4CE9B8C981FF6E36E6152685 /* AuthClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2256E64AD0B3ACFDB22A837E /* AuthClientTests.swift */; };
 		5042FC333DCDB3F45C5DFEC3 /* RecipeSyncServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99E1C2581DC55DA301481A34 /* RecipeSyncServiceTests.swift */; };
@@ -52,7 +53,7 @@
 		686D83B6FD0217AC67627063 /* FullRecipeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2460B2541E823AB098F4BAFA /* FullRecipeView.swift */; };
 		69743766694999A4F7022D3F /* AccountSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB9237724B9663AD4AFC1232 /* AccountSession.swift */; };
 		69F3BF71002411F36B049F9F /* SyncCursorStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72BCED0B970235948B037494 /* SyncCursorStore.swift */; };
-		6FBBAE9357F2B186E26ADD35 /* LadleCore in Frameworks */ = {isa = PBXBuildFile; productRef = ACB5208FC83F92BD0A208E0F /* LadleCore */; };
+		6FBBAE9357F2B186E26ADD35 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 00B54009DDBCAF77FABA1A87 /* GoogleSignIn */; };
 		714A88DB30214D7AD579E338 /* VideoEmbedSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FCA9C00709407DA52C805AE /* VideoEmbedSheet.swift */; };
 		72DB888843AD8B0F3C06AA55 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = DD8157BECA8D206CD8B984BB /* PrivacyInfo.xcprivacy */; };
 		75E34BC4C3ECC1FF8580FBDB /* SharedQueueReconciler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46580B3879F912E78BF1629C /* SharedQueueReconciler.swift */; };
@@ -103,6 +104,7 @@
 		DA89A97C3E062E6E81CA8E40 /* SharedQueueReconcilerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57ED21827A8B76FEB98FDB19 /* SharedQueueReconcilerTests.swift */; };
 		DBE9510215C9C2051919310F /* KeychainTokenStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA758C400CD14A086E39D48D /* KeychainTokenStore.swift */; };
 		DFC659D823A4B7AA5BFD3E4E /* AllRecipesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E9503FB43D131D1ADA3B5F4 /* AllRecipesView.swift */; };
+		E24708BEE9F21F71093AF92D /* GoogleSignInProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A229BB67821612265D01BD7 /* GoogleSignInProvider.swift */; };
 		E25710AC24E77B43AD6B6631 /* AccountSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35EFCC50D17300CF2E3C284E /* AccountSheet.swift */; };
 		E2BE83969345FF4BDBE3CA69 /* ImportRecoveryActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = F165E4B6E30D83BFDFE33A13 /* ImportRecoveryActions.swift */; };
 		E5ADC1288191201E540C48A7 /* LadleComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 348D89D4BA7119269FD4F3BC /* LadleComponents.swift */; };
@@ -172,6 +174,7 @@
 		2256E64AD0B3ACFDB22A837E /* AuthClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthClientTests.swift; sourceTree = "<group>"; };
 		2460B2541E823AB098F4BAFA /* FullRecipeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullRecipeView.swift; sourceTree = "<group>"; };
 		27E622AAB3FB89F99BAD6CAE /* StoredRecipe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoredRecipe.swift; sourceTree = "<group>"; };
+		2A229BB67821612265D01BD7 /* GoogleSignInProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleSignInProvider.swift; sourceTree = "<group>"; };
 		2AAD77DB158AB165DCE7A46D /* CookingModeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CookingModeTests.swift; sourceTree = "<group>"; };
 		2D060807D3AFDD5F858FA2FD /* LadleTypography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LadleTypography.swift; sourceTree = "<group>"; };
 		2FCA9C00709407DA52C805AE /* VideoEmbedSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoEmbedSheet.swift; sourceTree = "<group>"; };
@@ -283,7 +286,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				6FBBAE9357F2B186E26ADD35 /* LadleCore in Frameworks */,
+				6FBBAE9357F2B186E26ADD35 /* GoogleSignIn in Frameworks */,
+				4C65FD233947DB0E38831B40 /* LadleCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -382,6 +386,7 @@
 				35EFCC50D17300CF2E3C284E /* AccountSheet.swift */,
 				015AA36229E912578D0E22A5 /* AppAttestClient.swift */,
 				E9C01DA218666D762AB16E8A /* AuthClient.swift */,
+				2A229BB67821612265D01BD7 /* GoogleSignInProvider.swift */,
 				480030F07BD940462128F4AE /* GuestLimitView.swift */,
 				FA758C400CD14A086E39D48D /* KeychainTokenStore.swift */,
 				F27EE9D08B4AD704ED77330A /* PrivacyDetailView.swift */,
@@ -665,6 +670,7 @@
 			);
 			name = Ladle;
 			packageProductDependencies = (
+				00B54009DDBCAF77FABA1A87 /* GoogleSignIn */,
 				ACB5208FC83F92BD0A208E0F /* LadleCore */,
 			);
 			productName = Ladle;
@@ -695,6 +701,7 @@
 			mainGroup = 2F09FCC29A55E22EC56467F2;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				0979D950DC07D3824743A5A9 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
 				AD211C2C5E40DE641D72694A /* XCLocalSwiftPackageReference "Packages/LadleCore" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -758,6 +765,7 @@
 				EA39C0028F88E65EE07DDC79 /* FilterSheet.swift in Sources */,
 				A8723B3DB23725605D7D4B61 /* FocusModeView.swift in Sources */,
 				686D83B6FD0217AC67627063 /* FullRecipeView.swift in Sources */,
+				E24708BEE9F21F71093AF92D /* GoogleSignInProvider.swift in Sources */,
 				1028AD29B58A5FD4AE029900 /* GuestLimitView.swift in Sources */,
 				19817C767CFBCAA88DFC31C5 /* HealthExportSheet.swift in Sources */,
 				C32F195CAF0A21AC0E5F82CD /* HealthExportViewModel.swift in Sources */,
@@ -930,7 +938,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 20260726.1;
+				CURRENT_PROJECT_VERSION = 20260726.2;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -1048,7 +1056,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 20260726.1;
+				CURRENT_PROJECT_VERSION = 20260726.2;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -1202,7 +1210,23 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		0979D950DC07D3824743A5A9 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/GoogleSignIn-iOS";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 9.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
+		00B54009DDBCAF77FABA1A87 /* GoogleSignIn */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0979D950DC07D3824743A5A9 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignIn;
+		};
 		5B405345B796769819500445 /* LadleCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = LadleCore;

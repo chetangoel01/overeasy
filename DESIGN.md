@@ -95,10 +95,14 @@ Use ink text on celery and ube.
 
 ### First run
 
-- Launch on paper, then present one value-first welcome surface over the
-  softened library. Do not require a passive feature tour.
-- Continue with Apple and guest entry are the only initial account choices.
-  State the ten-recipe guest limit and that later sign-in preserves recipes.
+- Launch directly into one dedicated, full-screen welcome surface on paper.
+  Do not reveal or soften the library behind it, and do not require a passive
+  feature tour.
+- Use the same fried-egg mark as the installed app icon; do not invent a
+  secondary onboarding logo.
+- Continue with Apple, Sign in with Google, and guest entry are the initial
+  account choices. State the ten-recipe guest limit and that later sign-in
+  preserves recipes.
 - An empty Home or All Recipes view leads directly to adding the first recipe.
   Share Extension guidance stays contextual beside that action.
 

@@ -18,6 +18,10 @@ from ladle.auth.attestation import (
     AttestationRejected,
     AttestationService,
 )
+from ladle.auth.google import (
+    GoogleCredentials,
+    GoogleIdentityTokenInvalid,
+)
 from ladle.auth.guest import register_guest
 from ladle.auth.merge import AccountMergeInvalid, AccountMergeService
 from ladle.auth.sessions import (
@@ -51,6 +55,11 @@ class AppleAuthRequest(WireModel):
     identity_token: str = Field(min_length=1, max_length=16_384)
     authorization_code: str = Field(min_length=1, max_length=8_192)
     nonce: str = Field(min_length=1, max_length=512)
+    idempotency_key: str = Field(min_length=1, max_length=255)
+
+
+class GoogleAuthRequest(WireModel):
+    identity_token: str = Field(min_length=1, max_length=16_384)
     idempotency_key: str = Field(min_length=1, max_length=255)
 
 
@@ -90,6 +99,13 @@ def _apple_credentials(request: Request) -> AppleCredentials | None:
     return cast(
         AppleCredentials | None,
         request.app.state.apple_credentials,
+    )
+
+
+def _google_credentials(request: Request) -> GoogleCredentials | None:
+    return cast(
+        GoogleCredentials | None,
+        request.app.state.google_credentials,
     )
 
 
@@ -208,6 +224,46 @@ def sign_in_with_apple(
                     if credential.refresh_token is not None
                     else None
                 ),
+            )
+            tokens = _sessions(request).create(
+                current_database,
+                user_id=destination_id,
+                device_id=claims.device_id,
+            )
+    except AccountMergeInvalid as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT) from error
+    return AuthTokensResponse.from_tokens(tokens)
+
+
+@router.post("/google", response_model=AuthTokensResponse)
+def sign_in_with_google(
+    request: Request,
+    body: GoogleAuthRequest,
+    authorization: Annotated[str | None, Header()] = None,
+) -> AuthTokensResponse:
+    claims = access_claims(request, authorization)
+    limits = _rate_limits(request)
+    limits.enforce(
+        _rate_limit_policies(request).google(
+            limits.client_ip(request),
+            str(claims.user_id),
+        )
+    )
+    credentials = _google_credentials(request)
+    if credentials is None:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
+    try:
+        credential = credentials.verify(body.identity_token)
+    except GoogleIdentityTokenInvalid as error:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED) from error
+
+    try:
+        with database(request) as current_database, current_database.begin():
+            destination_id = _account_merger(request).merge_google(
+                current_database,
+                guest_user_id=claims.user_id,
+                google_subject=credential.subject,
+                idempotency_key=body.idempotency_key,
             )
             tokens = _sessions(request).create(
                 current_database,

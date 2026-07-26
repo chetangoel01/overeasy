@@ -60,6 +60,23 @@ final class AccountSessionTests: XCTestCase {
 
         XCTAssertFalse(session.isRemoteSessionReady)
     }
+
+    func testGoogleAccountRestoresAsAnUnlimitedSignedInAccount() {
+        let store = InMemoryPreferenceStore()
+        let session = AccountSession(store: store)
+
+        session.applyRemoteUserKind("google")
+        let returningSession = AccountSession(store: store)
+
+        XCTAssertTrue(session.isRemoteSessionReady)
+        XCTAssertEqual(session.state, .signedInWithGoogle)
+        XCTAssertEqual(returningSession.state, .signedInWithGoogle)
+        XCTAssertFalse(returningSession.shouldPresentWelcome)
+        XCTAssertEqual(
+            returningSession.saveDecision(savedRecipeCount: 10),
+            .allow
+        )
+    }
 }
 
 private final class InMemoryPreferenceStore: PreferenceStoring {

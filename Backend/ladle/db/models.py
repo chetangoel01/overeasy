@@ -31,7 +31,10 @@ from ladle.db.base import Base
 class User(Base):
     __tablename__ = "users"
     __table_args__ = (
-        CheckConstraint("kind IN ('guest', 'apple')", name="ck_users_kind"),
+        CheckConstraint(
+            "kind IN ('guest', 'apple', 'google')",
+            name="ck_users_kind",
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
@@ -53,6 +56,18 @@ class AppleIdentity(Base):
     )
     refresh_token_encrypted: Mapped[bytes | None] = mapped_column(
         LargeBinary, nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class GoogleIdentity(Base):
+    __tablename__ = "google_identities"
+
+    google_sub: Mapped[str] = mapped_column(String(255), primary_key=True)
+    user_id: Mapped[UUID] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

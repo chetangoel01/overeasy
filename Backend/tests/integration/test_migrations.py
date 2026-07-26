@@ -21,6 +21,7 @@ EXPECTED_TABLES = {
     "extraction_cache",
     "extraction_claims",
     "field_uncertainties",
+    "google_identities",
     "import_jobs",
     "ingredients",
     "negative_extraction_cache",

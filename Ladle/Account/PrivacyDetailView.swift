@@ -93,7 +93,8 @@ struct PrivacyDetailView: View {
             """,
             """
             An anonymous account identifier. Guests are keyed to this install; \
-            Sign in with Apple adds only the identifier Apple provides.
+            Apple or Google sign-in adds only the account identifier that \
+            provider supplies.
             """,
         ]
 

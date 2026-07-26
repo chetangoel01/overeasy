@@ -7,6 +7,7 @@ struct RootView: View {
     let libraryViewModel: LibraryViewModel
     let importCoordinator: ImportCoordinator
     let authClient: AuthClient?
+    let googleSignIn: (any GoogleSignInProviding)?
     let installationID: String
     let onAuthenticated: @MainActor () async -> Void
     let onSignOut: @MainActor () async -> Void
@@ -17,6 +18,7 @@ struct RootView: View {
         libraryViewModel: LibraryViewModel,
         importCoordinator: ImportCoordinator,
         authClient: AuthClient? = nil,
+        googleSignIn: (any GoogleSignInProviding)? = nil,
         installationID: String = "preview-installation",
         onAuthenticated: @escaping @MainActor () async -> Void = {},
         onSignOut: @escaping @MainActor () async -> Void = {},
@@ -27,6 +29,7 @@ struct RootView: View {
         self.libraryViewModel = libraryViewModel
         self.importCoordinator = importCoordinator
         self.authClient = authClient
+        self.googleSignIn = googleSignIn
         self.installationID = installationID
         self.onAuthenticated = onAuthenticated
         self.onSignOut = onSignOut
@@ -34,49 +37,34 @@ struct RootView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            LibraryView(
-                viewModel: libraryViewModel,
-                importCoordinator: importCoordinator,
-                accountSession: accountSession,
-                installationID: installationID,
-                canImport:
-                    authClient == nil
-                    || accountSession.isRemoteSessionReady,
-                onSignOut: onSignOut,
-                onDeleteAccount: onDeleteAccount
-            )
-                .blur(
-                    radius: accountSession.shouldPresentWelcome ? 2.5 : 0
-                )
-                .allowsHitTesting(!accountSession.shouldPresentWelcome)
-                .accessibilityHidden(
-                    accountSession.shouldPresentWelcome
-                )
-
+        ZStack {
             if accountSession.shouldPresentWelcome {
-                LadleTheme.ink
-                    .opacity(0.28)
-                    .ignoresSafeArea()
-                    .accessibilityHidden(true)
-
                 WelcomeView(
                     accountSession: accountSession,
                     authClient: authClient,
+                    googleSignIn: googleSignIn,
                     installationID: installationID,
                     onAuthenticated: onAuthenticated
                 )
-                    .transition(
-                        reduceMotion
-                            ? .opacity
-                            : .move(edge: .bottom)
-                                .combined(with: .opacity)
-                    )
+                .transition(.opacity)
+            } else {
+                LibraryView(
+                    viewModel: libraryViewModel,
+                    importCoordinator: importCoordinator,
+                    accountSession: accountSession,
+                    installationID: installationID,
+                    canImport:
+                        authClient == nil
+                        || accountSession.isRemoteSessionReady,
+                    onSignOut: onSignOut,
+                    onDeleteAccount: onDeleteAccount
+                )
+                .transition(.opacity)
             }
         }
         .background(LadleTheme.paper)
         .animation(
-            reduceMotion ? nil : .snappy(duration: 0.34),
+            reduceMotion ? nil : .easeOut(duration: 0.2),
             value: accountSession.shouldPresentWelcome
         )
     }

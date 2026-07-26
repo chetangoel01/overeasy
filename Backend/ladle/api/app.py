@@ -36,6 +36,12 @@ from ladle.auth.apple import (
     HTTPAppleJWKS,
 )
 from ladle.auth.attestation import AppleAppAttestVerifier, AttestationService
+from ladle.auth.google import (
+    GoogleCredentials,
+    GoogleCredentialService,
+    GoogleIdentityTokenVerifier,
+    HTTPGoogleJWKS,
+)
 from ladle.auth.merge import AccountMergeService
 from ladle.auth.sessions import SessionService
 from ladle.auth.tokens import AccessTokenCodec, RefreshTokenCodec
@@ -71,6 +77,7 @@ def create_app(
     import_dispatcher: ImportDispatcher | None = None,
     source_parser: SourceIdentityParser | None = None,
     apple_credentials: AppleCredentials | None = None,
+    google_credentials: GoogleCredentials | None = None,
     readiness_probes: dict[str, ReadinessProbe] | None = None,
     metrics: MetricsRegistry | None = None,
     rate_limit_backend: RateLimitBackend | None = None,
@@ -229,6 +236,29 @@ def create_app(
             ),
         )
     application.state.apple_credentials = apple_credentials
+    google_client: httpx.Client | None = None
+    if google_credentials is None and configured.google_enabled:
+        if configured.google_server_client_id is None:
+            raise RuntimeError("Google sign-in credentials are incomplete")
+        google_client = httpx.Client(
+            timeout=configured.google_timeout_seconds,
+            trust_env=False,
+        )
+        google_credentials = GoogleCredentialService(
+            GoogleIdentityTokenVerifier(
+                jwks=HTTPGoogleJWKS(
+                    http=google_client,
+                    url=str(configured.google_jwks_url),
+                ),
+                audience=configured.google_server_client_id,
+                clock=runtime_clock,
+                maximum_age=timedelta(
+                    minutes=configured.google_identity_token_maximum_age_minutes
+                ),
+                clock_skew=timedelta(seconds=configured.google_clock_skew_seconds),
+            )
+        )
+    application.state.google_credentials = google_credentials
     application.state.account_merge_service = AccountMergeService(clock=runtime_clock)
     redirect_client: httpx.Client | None = None
     if source_parser is None:
@@ -296,6 +326,8 @@ def create_app(
         application.router.add_event_handler("shutdown", redirect_client.close)
     if apple_client is not None:
         application.router.add_event_handler("shutdown", apple_client.close)
+    if google_client is not None:
+        application.router.add_event_handler("shutdown", google_client.close)
     if rate_limit_redis is not None:
         application.router.add_event_handler("shutdown", rate_limit_redis.close)
     return application

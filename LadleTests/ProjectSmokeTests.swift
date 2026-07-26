@@ -88,7 +88,7 @@ final class ProjectSmokeTests: XCTestCase {
             Bundle.main.object(
                 forInfoDictionaryKey: "CFBundleVersion"
             ) as? String,
-            "20260726.1"
+            "20260726.2"
         )
     }
 

@@ -18,12 +18,16 @@ final class AccessibilityTests: XCTestCase {
                 .waitForExistence(timeout: 3)
         )
         let apple = app.buttons["Continue with Apple"]
+        let google = app.buttons["Sign in with Google"]
         let guest = app.buttons["Try as a guest"]
         XCTAssertTrue(apple.exists)
+        XCTAssertTrue(google.exists)
         XCTAssertTrue(guest.exists)
         assertMinimumHitTarget(apple)
+        assertMinimumHitTarget(google)
         assertMinimumHitTarget(guest)
-        XCTAssertLessThanOrEqual(guest.frame.maxY, app.frame.maxY - 12)
+        scrollToHittable(guest, in: app)
+        XCTAssertTrue(guest.isHittable)
         capture("Accessibility Large Welcome", in: app)
     }
 

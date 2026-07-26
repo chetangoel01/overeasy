@@ -154,6 +154,18 @@ def test_production_requires_distributed_rate_limiting() -> None:
         )
 
 
+def test_enabled_google_sign_in_requires_server_client_id() -> None:
+    with pytest.raises(ValidationError, match="Google sign-in"):
+        Settings(
+            environment="production",
+            jwt_signing_secret=GOOD_SECRET,
+            data_encryption_key=GOOD_SECRET,
+            google_enabled=True,
+            **PRODUCTION_ATTEST,
+            _env_file=None,
+        )
+
+
 def test_system_clock_returns_timezone_aware_utc() -> None:
     value = SystemClock().now()
 

@@ -1,0 +1,5 @@
+// Copy to .private/GoogleAuth.xcconfig and replace each placeholder.
+// The .private directory is ignored by Git.
+GOOGLE_IOS_CLIENT_ID = IOS_CLIENT_ID.apps.googleusercontent.com
+GOOGLE_REVERSED_CLIENT_ID = com.googleusercontent.apps.IOS_CLIENT_ID
+GOOGLE_SERVER_CLIENT_ID = SERVER_CLIENT_ID.apps.googleusercontent.com
