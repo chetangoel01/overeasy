@@ -51,6 +51,9 @@ class AppleIdentity(Base):
     user_id: Mapped[UUID] = mapped_column(
         Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
+    refresh_token_encrypted: Mapped[bytes | None] = mapped_column(
+        LargeBinary, nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

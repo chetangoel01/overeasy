@@ -61,6 +61,9 @@ class FakeAppleCredentials:
         assert nonce == "acceptance-nonce"
         return AppleCredential(subject=self.subject)
 
+    def revoke(self, refresh_token: str) -> None:
+        del refresh_token
+
 
 @pytest.mark.integration
 def test_api_worker_shared_cache_apple_merge_and_tombstone_sync(

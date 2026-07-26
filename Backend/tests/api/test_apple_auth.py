@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -12,7 +12,7 @@ from ladle.auth.apple import AppleCredential
 from ladle.auth.attestation import AttestationService
 from ladle.auth.sessions import SessionService
 from ladle.auth.tokens import AccessTokenCodec, RefreshTokenCodec
-from ladle.db.models import AppleIdentity, AuthSession
+from ladle.db.models import AppleIdentity, AuthSession, User
 from ladle.db.session import build_engine
 from tests.integration.test_migrations import alembic_config
 
@@ -28,6 +28,7 @@ class FrozenClock:
 @dataclass
 class FakeAppleCredentials:
     calls: list[tuple[str, str, str]]
+    revocations: list[str] = field(default_factory=list)
 
     def verify(
         self,
@@ -37,7 +38,13 @@ class FakeAppleCredentials:
         nonce: str,
     ) -> AppleCredential:
         self.calls.append((identity_token, authorization_code, nonce))
-        return AppleCredential(subject="api-apple-subject")
+        return AppleCredential(
+            subject="api-apple-subject",
+            refresh_token="api-apple-refresh",
+        )
+
+    def revoke(self, refresh_token: str) -> None:
+        self.revocations.append(refresh_token)
 
 
 @pytest.mark.integration
@@ -111,5 +118,16 @@ def test_authenticated_guest_signs_in_with_apple_and_receives_rotated_tokens(
         )
         assert len(active) == 1
         assert active[0].user_id == identity.user_id
+
+    with TestClient(app) as client:
+        deleted = client.delete(
+            "/v1/auth/account",
+            headers={"Authorization": f"Bearer {signed_in['accessToken']}"},
+        )
+        assert deleted.status_code == 204
+        assert credentials.revocations == ["api-apple-refresh"]
+
+    with Session(engine) as database:
+        assert database.get(User, signed_in["userID"]) is None
 
     engine.dispose()

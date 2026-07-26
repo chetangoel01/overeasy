@@ -3,13 +3,15 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import select
+from sqlalchemy.orm import Session, sessionmaker
 
 from alembic import command
 from ladle.api.app import create_app
 from ladle.auth.attestation import AttestationService
 from ladle.auth.sessions import SessionService
 from ladle.auth.tokens import AccessTokenCodec, RefreshTokenCodec
+from ladle.db.models import Device, User
 from ladle.db.session import build_engine
 from tests.integration.test_migrations import alembic_config
 
@@ -91,6 +93,59 @@ def test_guest_refresh_and_explicit_session_revocation(
             },
         )
         assert rejected.status_code == 401
+
+    engine.dispose()
+
+
+@pytest.mark.integration
+def test_authenticated_guest_can_permanently_delete_account(
+    clean_postgres_url: str,
+) -> None:
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    engine = build_engine(clean_postgres_url)
+    clock = FrozenClock(datetime(2026, 7, 23, 21, 0, tzinfo=UTC))
+    access_tokens = AccessTokenCodec(
+        signing_secret="test-signing-secret-that-is-long-enough",
+        issuer="ladle-test",
+        lifetime=timedelta(minutes=15),
+    )
+    app = create_app(
+        session_factory=sessionmaker(engine, expire_on_commit=False),
+        clock=clock,
+        session_service=SessionService(
+            access_tokens=access_tokens,
+            refresh_tokens=RefreshTokenCodec(),
+            refresh_lifetime=timedelta(days=30),
+            rotation_grace=timedelta(seconds=5),
+            clock=clock,
+        ),
+        access_tokens=access_tokens,
+        attestation=AttestationService(enforced=False),
+    )
+
+    with TestClient(app) as client:
+        guest = client.post(
+            "/v1/auth/guest",
+            json={
+                "installationID": "delete-account-installation",
+                "attestation": None,
+            },
+        ).json()
+        response = client.delete(
+            "/v1/auth/account",
+            headers={"Authorization": f"Bearer {guest['accessToken']}"},
+        )
+
+        assert response.status_code == 204
+        rejected = client.delete(
+            "/v1/auth/session",
+            headers={"Authorization": f"Bearer {guest['accessToken']}"},
+        )
+        assert rejected.status_code == 401
+
+    with Session(engine) as database:
+        assert database.get(User, guest["userID"]) is None
+        assert list(database.scalars(select(Device))) == []
 
     engine.dispose()
 

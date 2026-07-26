@@ -172,9 +172,11 @@ def test_authorization_code_exchange_signs_apple_client_secret() -> None:
         clock=FrozenClock(now),
     )
 
-    client.validate("one-time-code")
+    refresh_token = client.exchange("one-time-code")
+    client.revoke("apple-refresh")
 
-    assert len(requests) == 1
+    assert refresh_token == "apple-refresh"
+    assert len(requests) == 2
     form = parse_qs(requests[0].content.decode())
     assert form["client_id"] == ["com.ladle.test"]
     assert form["code"] == ["one-time-code"]
@@ -192,3 +194,8 @@ def test_authorization_code_exchange_signs_apple_client_secret() -> None:
     assert claims["sub"] == "com.ladle.test"
     assert claims["iat"] == int(now.timestamp())
     assert claims["exp"] <= int((now + timedelta(days=180)).timestamp())
+
+    revoke_form = parse_qs(requests[1].content.decode())
+    assert revoke_form["client_id"] == ["com.ladle.test"]
+    assert revoke_form["token"] == ["apple-refresh"]
+    assert revoke_form["token_type_hint"] == ["refresh_token"]

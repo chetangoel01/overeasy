@@ -23,6 +23,10 @@ class AppleAuthorizationCodeInvalid(Exception):
     pass
 
 
+class AppleTokenRevocationFailed(Exception):
+    pass
+
+
 @dataclass(frozen=True)
 class AppleIdentityClaims:
     subject: str
@@ -31,6 +35,7 @@ class AppleIdentityClaims:
 @dataclass(frozen=True)
 class AppleCredential:
     subject: str
+    refresh_token: str | None = None
 
 
 class AppleJWKS(Protocol):
@@ -38,7 +43,9 @@ class AppleJWKS(Protocol):
 
 
 class AppleAuthorizationCodes(Protocol):
-    def validate(self, authorization_code: str) -> None: ...
+    def exchange(self, authorization_code: str) -> str | None: ...
+
+    def revoke(self, refresh_token: str) -> None: ...
 
 
 class AppleCredentials(Protocol):
@@ -49,6 +56,8 @@ class AppleCredentials(Protocol):
         authorization_code: str,
         nonce: str,
     ) -> AppleCredential: ...
+
+    def revoke(self, refresh_token: str) -> None: ...
 
 
 class HTTPAppleJWKS:
@@ -205,9 +214,41 @@ class AppleAuthorizationCodeClient:
         self._token_url = token_url
         self._clock = clock
 
-    def validate(self, authorization_code: str) -> None:
+    def exchange(self, authorization_code: str) -> str | None:
+        response = self._post(
+            {
+                "client_id": self._client_id,
+                "client_secret": self._client_secret(),
+                "code": authorization_code,
+                "grant_type": "authorization_code",
+            },
+            error_type=AppleAuthorizationCodeInvalid,
+        )
+        try:
+            payload = response.json()
+        except ValueError as error:
+            raise AppleAuthorizationCodeInvalid(
+                "Apple token response is malformed"
+            ) from error
+        if not isinstance(payload, dict) or not payload.get("access_token"):
+            raise AppleAuthorizationCodeInvalid("Apple token response is incomplete")
+        refresh_token = payload.get("refresh_token")
+        return str(refresh_token) if refresh_token else None
+
+    def revoke(self, refresh_token: str) -> None:
+        self._post(
+            {
+                "client_id": self._client_id,
+                "client_secret": self._client_secret(),
+                "token": refresh_token,
+                "token_type_hint": "refresh_token",
+            },
+            error_type=AppleTokenRevocationFailed,
+        )
+
+    def _client_secret(self) -> str:
         now = self._clock.now()
-        client_secret = jwt.encode(
+        return jwt.encode(
             {
                 "iss": self._team_id,
                 "iat": int(now.timestamp()),
@@ -219,30 +260,23 @@ class AppleAuthorizationCodeClient:
             algorithm="ES256",
             headers={"kid": self._key_id},
         )
+
+    def _post(
+        self,
+        data: dict[str, str],
+        *,
+        error_type: type[Exception],
+    ) -> httpx.Response:
         try:
             response = self._http.post(
                 self._token_url,
-                data={
-                    "client_id": self._client_id,
-                    "client_secret": client_secret,
-                    "code": authorization_code,
-                    "grant_type": "authorization_code",
-                },
+                data=data,
             )
         except httpx.HTTPError as error:
-            raise AppleAuthorizationCodeInvalid(
-                "Apple authorization-code validation is unavailable"
-            ) from error
+            raise error_type("Apple token service is unavailable") from error
         if response.status_code != 200:
-            raise AppleAuthorizationCodeInvalid("Apple authorization code is invalid")
-        try:
-            payload = response.json()
-        except ValueError as error:
-            raise AppleAuthorizationCodeInvalid(
-                "Apple token response is malformed"
-            ) from error
-        if not isinstance(payload, dict) or not payload.get("access_token"):
-            raise AppleAuthorizationCodeInvalid("Apple token response is incomplete")
+            raise error_type("Apple token request was rejected")
+        return response
 
 
 class AppleCredentialService:
@@ -263,5 +297,11 @@ class AppleCredentialService:
         nonce: str,
     ) -> AppleCredential:
         claims = self._identity_tokens.verify(identity_token, nonce=nonce)
-        self._authorization_codes.validate(authorization_code)
-        return AppleCredential(subject=claims.subject)
+        refresh_token = self._authorization_codes.exchange(authorization_code)
+        return AppleCredential(
+            subject=claims.subject,
+            refresh_token=refresh_token,
+        )
+
+    def revoke(self, refresh_token: str) -> None:
+        self._authorization_codes.revoke(refresh_token)

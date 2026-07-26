@@ -2,6 +2,7 @@ from typing import Annotated, cast
 
 from fastapi import APIRouter, Header, HTTPException, Request, Response, status
 from pydantic import Field
+from sqlalchemy import delete, select
 
 from ladle.api.dependencies import clock as request_clock
 from ladle.api.dependencies import database
@@ -9,6 +10,7 @@ from ladle.auth.apple import (
     AppleAuthorizationCodeInvalid,
     AppleCredentials,
     AppleIdentityTokenInvalid,
+    AppleTokenRevocationFailed,
 )
 from ladle.auth.attestation import (
     AppAttestEvidence,
@@ -28,7 +30,8 @@ from ladle.auth.tokens import (
     AccessTokenInvalid,
 )
 from ladle.contracts.common import WireDateTime, WireModel, WireUUID
-from ladle.db.models import AuthSession, Device
+from ladle.crypto.private_text import PrivateTextCipher
+from ladle.db.models import AppleIdentity, AuthSession, Device, User
 
 router = APIRouter(prefix="/v1/auth", tags=["auth"])
 
@@ -91,6 +94,10 @@ def _apple_credentials(request: Request) -> AppleCredentials | None:
 
 def _account_merger(request: Request) -> AccountMergeService:
     return cast(AccountMergeService, request.app.state.account_merge_service)
+
+
+def _private_text(request: Request) -> PrivateTextCipher:
+    return cast(PrivateTextCipher, request.app.state.private_text)
 
 
 def access_claims(
@@ -173,6 +180,11 @@ def sign_in_with_apple(
                 guest_user_id=claims.user_id,
                 apple_subject=credential.subject,
                 idempotency_key=body.idempotency_key,
+                apple_refresh_token_encrypted=(
+                    _private_text(request).encrypt(credential.refresh_token)
+                    if credential.refresh_token is not None
+                    else None
+                ),
             )
             tokens = _sessions(request).create(
                 current_database,
@@ -214,4 +226,38 @@ def delete_session(
             current_database,
             session_id=claims.session_id,
         )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete("/account", status_code=status.HTTP_204_NO_CONTENT)
+def delete_account(
+    request: Request,
+    authorization: Annotated[str | None, Header()] = None,
+) -> Response:
+    claims = access_claims(request, authorization)
+    with database(request) as current_database:
+        identity = current_database.scalar(
+            select(AppleIdentity).where(AppleIdentity.user_id == claims.user_id)
+        )
+        encrypted_refresh_token = (
+            identity.refresh_token_encrypted if identity is not None else None
+        )
+    if encrypted_refresh_token is not None:
+        credentials = _apple_credentials(request)
+        if credentials is None:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
+        try:
+            credentials.revoke(_private_text(request).decrypt(encrypted_refresh_token))
+        except (AppleTokenRevocationFailed, ValueError) as error:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE
+            ) from error
+    with database(request) as current_database, current_database.begin():
+        current_database.execute(
+            delete(User).where(User.merged_into_user_id == claims.user_id)
+        )
+        user = current_database.get(User, claims.user_id)
+        if user is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+        current_database.delete(user)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

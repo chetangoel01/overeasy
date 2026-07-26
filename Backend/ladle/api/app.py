@@ -166,6 +166,8 @@ def create_app(
     application.state.readiness = ReadinessService(
         readiness_probes if readiness_probes is not None else default_probes
     )
+    private_text = LocalPrivateTextCipher(configured.data_encryption_key)
+    application.state.private_text = private_text
     apple_client: httpx.Client | None = None
     if apple_credentials is None and configured.apple_enabled:
         if (
@@ -215,7 +217,6 @@ def create_app(
         clock=runtime_clock,
         lifetime=timedelta(minutes=configured.import_reservation_minutes),
     )
-    private_text = LocalPrivateTextCipher(configured.data_encryption_key)
     application.state.admission_service = AdmissionService(
         parser=source_parser,
         reservations=reservations,

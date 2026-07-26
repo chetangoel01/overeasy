@@ -33,6 +33,7 @@ class AccountMergeService:
         guest_user_id: UUID,
         apple_subject: str,
         idempotency_key: str,
+        apple_refresh_token_encrypted: bytes | None = None,
     ) -> UUID:
         if not apple_subject or not idempotency_key:
             raise AccountMergeInvalid
@@ -49,6 +50,7 @@ class AccountMergeService:
                 AppleIdentity(
                     apple_sub=apple_subject,
                     user_id=guest.id,
+                    refresh_token_encrypted=apple_refresh_token_encrypted,
                     created_at=self._clock.now(),
                 )
             )
@@ -57,6 +59,8 @@ class AccountMergeService:
             return guest.id
 
         destination_id = identity.user_id
+        if apple_refresh_token_encrypted is not None:
+            identity.refresh_token_encrypted = apple_refresh_token_encrypted
         users = self._lock_users(
             database,
             sorted({guest_user_id, destination_id}),
