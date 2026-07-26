@@ -1,5 +1,6 @@
 from decimal import Decimal
 from typing import Literal, Self
+from urllib.parse import parse_qs, urlsplit
 
 from pydantic import AnyHttpUrl, Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -9,6 +10,7 @@ _PLACEHOLDER_PREFIXES = (
     "changeme",
     "development-only",
     "example",
+    "ladle-local",
     "placeholder",
 )
 _MINIMUM_PRODUCTION_SECRET_LENGTH = 32
@@ -58,6 +60,9 @@ class Settings(BaseSettings):
     import_stale_after_minutes: int = Field(default=32, gt=0)
     import_maintenance_interval_seconds: int = Field(default=30, gt=0)
     import_dispatch_maximum_attempts: int = Field(default=3, gt=0, le=20)
+    startup_dependency_attempts: int = Field(default=12, gt=0, le=60)
+    startup_dependency_delay_seconds: float = Field(default=5, gt=0, le=60)
+    readiness_worker_timeout_seconds: float = Field(default=2, gt=0, le=10)
 
     rate_limiting_enabled: bool = False
     rate_limit_redis_url: str = "redis://127.0.0.1:6379/2"
@@ -282,16 +287,54 @@ class Settings(BaseSettings):
                     f"{field_name} must be a non-placeholder secret of at least "
                     f"{_MINIMUM_PRODUCTION_SECRET_LENGTH} characters in production"
                 )
-        if self.object_storage_enabled:
-            storage_secret = self.object_storage_secret_key.get_secret_value().strip()
-            if (
-                len(storage_secret) < _MINIMUM_PRODUCTION_SECRET_LENGTH
-                or storage_secret.casefold().startswith(_PLACEHOLDER_PREFIXES)
-            ):
-                raise ValueError(
-                    "object_storage_secret_key must be a non-placeholder secret "
-                    "of at least 32 characters in production"
-                )
+        if not self.celery_enabled:
+            raise ValueError("production requires Celery")
+        if self.worker_provider_mode != "live":
+            raise ValueError("production requires live worker provider mode")
+        for field_name in (
+            "celery_broker_url",
+            "celery_result_backend",
+            "rate_limit_redis_url",
+        ):
+            self._require_tls_url(field_name, getattr(self, field_name), {"rediss"})
+            self._require_url_password(field_name, getattr(self, field_name))
+        database = urlsplit(self.database_url)
+        ssl_mode = parse_qs(database.query).get("sslmode", [])
+        if database.scheme != "postgresql+psycopg" or not {
+            "require",
+            "verify-ca",
+            "verify-full",
+        }.intersection(ssl_mode):
+            raise ValueError(
+                "production database_url must use psycopg with TLS sslmode"
+            )
+        self._require_url_password("database_url", self.database_url)
+        if not self.object_storage_enabled:
+            raise ValueError("production requires object storage")
+        self._require_tls_url(
+            "object_storage_endpoint_url",
+            str(self.object_storage_endpoint_url),
+            {"https"},
+        )
+        if self.object_storage_public_endpoint_url is not None:
+            self._require_tls_url(
+                "object_storage_public_endpoint_url",
+                str(self.object_storage_public_endpoint_url),
+                {"https"},
+            )
+        storage_access = self.object_storage_access_key.strip()
+        if len(storage_access) < 8 or self._is_placeholder(storage_access):
+            raise ValueError(
+                "object_storage_access_key must be non-placeholder in production"
+            )
+        storage_secret = self.object_storage_secret_key.get_secret_value().strip()
+        if len(
+            storage_secret
+        ) < _MINIMUM_PRODUCTION_SECRET_LENGTH or self._is_placeholder(storage_secret):
+            raise ValueError(
+                "object_storage_secret_key must be a non-placeholder secret "
+                "of at least 32 characters in production"
+            )
         if not self.attestation_enforced:
             raise ValueError("App Attest enforcement is required in production")
         if self.app_attest_app_id is None:
@@ -309,13 +352,23 @@ class Settings(BaseSettings):
             if self.extraction_provider == "openrouter"
             else "anthropic_api_key"
         )
-        if (
-            self.worker_provider_mode == "live"
-            and getattr(self, extraction_key) is None
+        extraction_secret = getattr(self, extraction_key)
+        if extraction_secret is None or self._is_placeholder(
+            extraction_secret.get_secret_value()
         ):
             raise ValueError(
-                f"live production workers require a configured {extraction_key}"
+                f"production live workers require a configured {extraction_key}"
             )
+        for field_name in (
+            "supadata_base_url",
+            "soscripted_base_url",
+            "anthropic_base_url",
+            "openrouter_base_url",
+            "apple_jwks_url",
+            "apple_token_url",
+            "google_jwks_url",
+        ):
+            self._require_tls_url(field_name, str(getattr(self, field_name)), {"https"})
         if self.apple_enabled and any(
             getattr(self, field_name) is None
             for field_name in (
@@ -330,3 +383,31 @@ class Settings(BaseSettings):
         if self.google_enabled and not self.google_server_client_id:
             raise ValueError("Google sign-in requires a server OAuth client ID")
         return self
+
+    @staticmethod
+    def _is_placeholder(value: str) -> bool:
+        normalized = value.strip().casefold()
+        return not normalized or any(
+            normalized.startswith(prefix) for prefix in _PLACEHOLDER_PREFIXES
+        )
+
+    @classmethod
+    def _require_tls_url(
+        cls,
+        field_name: str,
+        value: str,
+        schemes: set[str],
+    ) -> None:
+        if urlsplit(value).scheme.casefold() not in schemes:
+            raise ValueError(
+                f"production {field_name} must use a TLS scheme: "
+                f"{', '.join(sorted(schemes))}"
+            )
+
+    @classmethod
+    def _require_url_password(cls, field_name: str, value: str) -> None:
+        password = urlsplit(value).password or ""
+        if len(password) < 16 or cls._is_placeholder(password):
+            raise ValueError(
+                f"production {field_name} must contain non-placeholder credentials"
+            )

@@ -15,6 +15,30 @@ PRODUCTION_ATTEST = {
     "app_attest_bundle_id": "com.ladle.ios",
     "rate_limiting_enabled": True,
 }
+PRODUCTION_RUNTIME = {
+    **PRODUCTION_ATTEST,
+    "celery_enabled": True,
+    "celery_broker_url": (
+        "rediss://:production-redis-password@redis.example.test:6380/0"
+    ),
+    "celery_result_backend": (
+        "rediss://:production-redis-password@redis.example.test:6380/1"
+    ),
+    "rate_limit_redis_url": (
+        "rediss://:production-redis-password@redis.example.test:6380/2"
+    ),
+    "worker_provider_mode": "live",
+    "openrouter_api_key": "production-openrouter-key",
+    "database_url": (
+        "postgresql+psycopg://ladle:production-database-password"
+        "@database.example.test/ladle"
+        "?sslmode=require"
+    ),
+    "object_storage_enabled": True,
+    "object_storage_endpoint_url": "https://objects.example.test",
+    "object_storage_access_key": "production-access-key",
+    "object_storage_secret_key": GOOD_SECRET,
+}
 
 
 @pytest.mark.parametrize(
@@ -36,7 +60,7 @@ def test_production_rejects_missing_placeholder_or_short_core_secrets(
     values: dict[str, object] = {
         "environment": "production",
         "_env_file": None,
-        **PRODUCTION_ATTEST,
+        **PRODUCTION_RUNTIME,
     }
     if signing_secret is not None:
         values["jwt_signing_secret"] = signing_secret
@@ -47,12 +71,12 @@ def test_production_rejects_missing_placeholder_or_short_core_secrets(
         Settings(**values)
 
 
-def test_production_allows_unconfigured_optional_providers() -> None:
+def test_production_allows_unconfigured_optional_acquisition_providers() -> None:
     settings = Settings(
         environment="production",
         jwt_signing_secret=GOOD_SECRET,
         data_encryption_key=GOOD_SECRET,
-        **PRODUCTION_ATTEST,
+        **PRODUCTION_RUNTIME,
         _env_file=None,
     )
 
@@ -66,9 +90,7 @@ def test_live_worker_requires_only_its_extraction_provider_key() -> None:
         environment="production",
         jwt_signing_secret=GOOD_SECRET,
         data_encryption_key=GOOD_SECRET,
-        worker_provider_mode="live",
-        openrouter_api_key="openrouter-secret",
-        **PRODUCTION_ATTEST,
+        **PRODUCTION_RUNTIME,
         _env_file=None,
     )
 
@@ -124,10 +146,7 @@ def test_production_requires_app_attest_and_its_identity() -> None:
         environment="production",
         jwt_signing_secret=GOOD_SECRET,
         data_encryption_key=GOOD_SECRET,
-        attestation_enforced=True,
-        app_attest_app_id_prefix="ABCDE12345",
-        app_attest_bundle_id="com.ladle.ios",
-        rate_limiting_enabled=True,
+        **PRODUCTION_RUNTIME,
         _env_file=None,
     )
 
@@ -141,15 +160,16 @@ def test_production_requires_app_attest_and_its_identity() -> None:
 
 
 def test_production_requires_distributed_rate_limiting() -> None:
+    values = {
+        **PRODUCTION_RUNTIME,
+        "rate_limiting_enabled": False,
+    }
     with pytest.raises(ValidationError, match="rate limiting"):
         Settings(
             environment="production",
             jwt_signing_secret=GOOD_SECRET,
             data_encryption_key=GOOD_SECRET,
-            attestation_enforced=True,
-            app_attest_app_id_prefix="ABCDE12345",
-            app_attest_bundle_id="com.ladle.ios",
-            rate_limiting_enabled=False,
+            **values,
             _env_file=None,
         )
 
@@ -161,7 +181,46 @@ def test_enabled_google_sign_in_requires_server_client_id() -> None:
             jwt_signing_secret=GOOD_SECRET,
             data_encryption_key=GOOD_SECRET,
             google_enabled=True,
-            **PRODUCTION_ATTEST,
+            **PRODUCTION_RUNTIME,
+            _env_file=None,
+        )
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("celery_enabled", False),
+        ("worker_provider_mode", "fake"),
+        ("celery_broker_url", "redis://redis.example.test:6379/0"),
+        ("celery_result_backend", "redis://redis.example.test:6379/1"),
+        ("rate_limit_redis_url", "redis://redis.example.test:6379/2"),
+        (
+            "database_url",
+            "postgresql+psycopg://ladle:secret@database.example.test/ladle",
+        ),
+        ("object_storage_enabled", False),
+        ("object_storage_endpoint_url", "http://objects.example.test"),
+        ("object_storage_access_key", "ladle-local"),
+        ("object_storage_secret_key", "ladle-local-secret"),
+        ("openrouter_api_key", None),
+        ("openrouter_base_url", "http://openrouter.example.test/api/v1"),
+    ],
+)
+def test_production_runtime_dependencies_fail_closed(
+    field: str,
+    value: object,
+) -> None:
+    values = {
+        **PRODUCTION_RUNTIME,
+        field: value,
+    }
+
+    with pytest.raises(ValidationError, match="production"):
+        Settings(
+            environment="production",
+            jwt_signing_secret=GOOD_SECRET,
+            data_encryption_key=GOOD_SECRET,
+            **values,
             _env_file=None,
         )
 

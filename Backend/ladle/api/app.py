@@ -2,6 +2,7 @@ from collections.abc import Awaitable, Callable
 from datetime import timedelta
 
 import httpx
+from celery import Celery
 from fastapi import FastAPI, Request, Response
 from redis import Redis
 from sqlalchemy.orm import Session, sessionmaker
@@ -20,10 +21,13 @@ from ladle.api.request_limits import RequestBodyLimitMiddleware
 from ladle.api.routes.attestation import router as attestation_router
 from ladle.api.routes.auth import router as auth_router
 from ladle.api.routes.health import (
+    CeleryWorkerReadinessProbe,
     DatabaseReadinessProbe,
+    ProductionConfigurationReadinessProbe,
     ReadinessProbe,
     ReadinessService,
     RedisReadinessProbe,
+    StartupDependencyGate,
     StorageReadinessProbe,
 )
 from ladle.api.routes.health import router as health_router
@@ -192,19 +196,46 @@ def create_app(
         metrics=runtime_metrics,
     )
     application.state.metrics = runtime_metrics
+    readiness_redis: list[Redis] = []
     default_probes: dict[str, ReadinessProbe] = {
-        "database": DatabaseReadinessProbe(database_sessions)
+        "configuration": ProductionConfigurationReadinessProbe(configured),
+        "database": DatabaseReadinessProbe(database_sessions),
     }
     if configured.celery_enabled:
-        default_probes["redis"] = RedisReadinessProbe(
-            Redis.from_url(configured.celery_broker_url)
+        broker_redis = Redis.from_url(configured.celery_broker_url)
+        result_redis = Redis.from_url(configured.celery_result_backend)
+        readiness_redis.extend([broker_redis, result_redis])
+        default_probes["broker"] = RedisReadinessProbe(broker_redis)
+        default_probes["celeryResult"] = RedisReadinessProbe(result_redis)
+        readiness_celery = Celery(
+            "ladle-api-readiness",
+            broker=configured.celery_broker_url,
         )
+        default_probes["worker"] = CeleryWorkerReadinessProbe(
+            readiness_celery.control,
+            timeout_seconds=configured.readiness_worker_timeout_seconds,
+        )
+    if configured.rate_limiting_enabled:
+        readiness_rate_redis = rate_limit_redis or Redis.from_url(
+            configured.rate_limit_redis_url
+        )
+        if readiness_rate_redis is not rate_limit_redis:
+            readiness_redis.append(readiness_rate_redis)
+        default_probes["rateLimitRedis"] = RedisReadinessProbe(readiness_rate_redis)
     if object_storage is not None:
         default_probes["storage"] = StorageReadinessProbe(object_storage)
     application.state.object_storage = object_storage
-    application.state.readiness = ReadinessService(
+    runtime_readiness = ReadinessService(
         readiness_probes if readiness_probes is not None else default_probes
     )
+    application.state.readiness = runtime_readiness
+    if configured.environment == "production":
+        startup_gate = StartupDependencyGate(
+            runtime_readiness,
+            attempts=configured.startup_dependency_attempts,
+            delay_seconds=configured.startup_dependency_delay_seconds,
+        )
+        application.router.add_event_handler("startup", startup_gate.wait)
     private_text = LocalPrivateTextCipher(configured.data_encryption_key)
     application.state.private_text = private_text
     apple_client: httpx.Client | None = None
@@ -353,6 +384,12 @@ def create_app(
         application.router.add_event_handler("shutdown", google_client.close)
     if rate_limit_redis is not None:
         application.router.add_event_handler("shutdown", rate_limit_redis.close)
+    for readiness_client in readiness_redis:
+        if readiness_client is not rate_limit_redis:
+            application.router.add_event_handler(
+                "shutdown",
+                readiness_client.close,
+            )
     return application
 
 

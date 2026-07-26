@@ -25,6 +25,7 @@ The implementation described here is on branch `codex/ladle-backend`.
 | Worker dependency wiring | `Backend/ladle/worker/runtime.py` |
 | Import worker reliability | `Backend/docs/import-worker-reliability.md` |
 | Dispatch recovery and dead letters | `Backend/docs/import-dispatch-recovery.md` |
+| Production startup and migration gate | `Backend/docs/production-startup-and-migrations.md` |
 | Import/cache orchestration | `Backend/ladle/imports/`, `Backend/ladle/cache/` |
 | Provider adapters | `Backend/ladle/acquisition/` |
 | Claude extraction | `Backend/ladle/extraction/` |
