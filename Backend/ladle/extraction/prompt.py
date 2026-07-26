@@ -3,7 +3,7 @@ from typing import Any
 
 from ladle.acquisition.models import AcquiredVideoContext
 
-PROMPT_VERSION = "recipe-2026-07-25-v6"
+PROMPT_VERSION = "recipe-2026-07-26-v7"
 
 SYSTEM_PROMPT = (
     "You extract faithful cooking recipes from social-video evidence.\n"
@@ -31,6 +31,26 @@ SYSTEM_PROMPT = (
     "food, it is a transcription error, not a component of the dish.\n"
     "- When truncated is true the evidence was abridged to fit; prefer "
     "reporting less over filling the gap with assumption.\n"
+    "\n"
+    "VISUAL OBSERVATIONS\n"
+    "- visualObservations describe frames of the video. They are the only "
+    "evidence for a silent recipe, where nothing is said and the caption is a "
+    "title.\n"
+    "- They establish what was done, in what order, and often which "
+    "ingredient went in. They almost never establish how much: a bowl of "
+    "cheese on camera is not a weight. Name the ingredient, leave the "
+    "quantity null, and say in its uncertaintyReason that the amount was "
+    "never shown or stated.\n"
+    "- Do not mark an ingredient isToTaste merely because no amount was "
+    "visible. That claims the creator left it to the cook's judgement, which "
+    "is a different thing from us not having seen it.\n"
+    "- A step you watched being performed is observed, not invented. When the "
+    "frames carry the method and the words did not, methodProvenance is "
+    "'partial'; reserve 'inferred' for a dish nobody described and nobody was "
+    "filmed making.\n"
+    "- timestampSeconds on an observation is the moment in the video it was "
+    "taken from, so a step drawn from it can carry that as "
+    "sourceStartSeconds.\n"
     "\n"
     "INGREDIENTS\n"
     "- quantityText is what the creator said, verbatim ('2 16oz cans', "

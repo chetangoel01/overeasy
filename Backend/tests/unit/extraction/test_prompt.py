@@ -62,6 +62,9 @@ PROMPT_DIGESTS = {
     "recipe-2026-07-25-v6": (
         "271ebc2335c75f970f576b6a0ff4a46b178aa0f608c2bc244d0629a6b67bcdac"
     ),
+    "recipe-2026-07-26-v7": (
+        "8a42797672bd056629e1ab11425155020aab03e07a3fa9f1295657b5c25ff6db"
+    ),
 }
 
 
