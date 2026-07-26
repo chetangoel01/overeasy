@@ -115,7 +115,11 @@ class Settings(BaseSettings):
     # four amounts unlabelled and double-counted batter it had already listed.
     # It costs about a quarter more per import; see scripts/measure_cost.py.
     openrouter_model_id: str = "google/gemini-3.6-flash"
-    openrouter_max_tokens: int = Field(default=8192, gt=0)
+    # A 35-ingredient recipe with four sub-preparations ran past 8192 and came
+    # back truncated, which the extractor can only report as a failed import.
+    # Cost is charged per token emitted, not per token allowed, so a headroom
+    # that is never reached is free — and stopping mid-recipe never is.
+    openrouter_max_tokens: int = Field(default=32_768, gt=0)
 
     apple_enabled: bool = False
     apple_bundle_id: str = "com.ladle.app"
