@@ -213,27 +213,8 @@ class ProviderChain:
             transcript = self._transcript_or_none(
                 source,
                 job_id=job_id,
-                mode="native",
-                diagnostic="nativeTranscriptUnavailable",
-                diagnostics=diagnostics,
-            )
-            context = self._context(
-                source,
-                metadata=metadata,
-                transcript=transcript,
-                observations=free_observations,
-                documents=documents,
-                diagnostics=diagnostics,
-            )
-            if assess_coverage(context).sufficient_for_extraction:
-                return context
-
-        if transcript is None:
-            transcript = self._transcript_or_none(
-                source,
-                job_id=job_id,
                 mode="auto",
-                diagnostic="supadataGeneratedUnavailable",
+                diagnostic="supadataTranscriptUnavailable",
                 diagnostics=diagnostics,
             )
             if transcript is None:

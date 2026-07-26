@@ -182,7 +182,7 @@ def test_thin_free_result_still_falls_through_to_paid_providers() -> None:
 
     # Metadata came free, so only the transcript and visual rungs are billed.
     assert "metadata" not in primary.calls
-    assert primary.calls == ["transcript:native", "transcript:auto", "visual"]
+    assert primary.calls == ["transcript:auto", "visual"]
     assert fallback.calls == 1
     assert context.description == "so good"
 
@@ -207,7 +207,7 @@ def test_free_sticker_text_survives_into_the_paid_result() -> None:
     context = chain.acquire(source(), job_id=uuid4())
 
     # The chain kept going to paid providers, but did not drop what was free.
-    assert primary.calls == ["transcript:native", "transcript:auto", "visual"]
+    assert primary.calls == ["transcript:auto", "visual"]
     assert [value.provenance for value in context.visual_observations] == [
         "tiktok:sticker"
     ]
@@ -457,7 +457,7 @@ def test_failed_transcription_still_falls_through_to_paid_providers() -> None:
     context = chain.acquire(source(), job_id=uuid4())
 
     assert len(audio.calls) == 1
-    assert primary.calls == ["transcript:native", "transcript:auto", "visual"]
+    assert primary.calls == ["transcript:auto", "visual"]
     assert fallback.calls == 1
     assert "audioTranscriptionUnavailable" in context.diagnostics
 

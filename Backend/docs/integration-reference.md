@@ -416,11 +416,13 @@ Only these codes carry typed details:
 
 With `LADLE_WORKER_PROVIDER_MODE=live`, the worker follows this order:
 
-1. Supadata metadata lookup.
-2. Supadata native transcript lookup.
-3. If evidence is incomplete, Supadata automatic/generated transcript.
+1. Free platform metadata, captions, on-screen text, and linked recipe pages.
+2. If evidence is incomplete, Whisper transcription of the acquired media.
+3. If no transcript is available, one Supadata `mode=auto` request, which
+   performs its own native-first/generated-fallback policy.
 4. If no transcript is available, SoScripted transcription.
-5. If evidence is still incomplete, Supadata visual extraction.
+5. If evidence is still incomplete, sampled-frame analysis followed by
+   Supadata visual extraction.
 6. Claude structured recipe and nutrition extraction.
 7. Review gating and transactional recipe/cache completion.
 

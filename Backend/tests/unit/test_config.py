@@ -77,6 +77,12 @@ def test_settings_load_prefixed_provider_configuration(
     assert "provider-secret" not in repr(settings)
 
 
+def test_soscripted_default_allows_its_synchronous_transcription_window() -> None:
+    settings = Settings(_env_file=None)
+
+    assert settings.soscripted_timeout_seconds == 600
+
+
 def test_system_clock_returns_timezone_aware_utc() -> None:
     value = SystemClock().now()
 

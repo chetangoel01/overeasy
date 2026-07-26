@@ -122,13 +122,13 @@ def empty_visual() -> VisualResult:
     return VisualResult(observations=[], billed_units=0, external_job_id="visual-1")
 
 
-def test_sufficient_native_material_skips_paid_fallbacks() -> None:
+def test_sufficient_supadata_auto_material_skips_paid_fallbacks() -> None:
     primary = Primary(
-        native=transcript(
+        native=TranscriptUnavailable(),
+        generated=transcript(
             "Add 2 cups flour. Mix well, then bake for 20 minutes.",
-            "supadata-native",
+            "supadata-auto",
         ),
-        generated=TranscriptUnavailable(),
         visual_result=empty_visual(),
     )
     fallback = Fallback(transcript("unused"))
@@ -141,8 +141,8 @@ def test_sufficient_native_material_skips_paid_fallbacks() -> None:
 
     context = chain.acquire(source(), job_id=uuid4())
 
-    assert context.transcript[0].provenance == "supadata-native"
-    assert primary.calls == ["metadata", "transcript:native"]
+    assert context.transcript[0].provenance == "supadata-auto"
+    assert primary.calls == ["metadata", "transcript:auto"]
     assert fallback.calls == 0
     assert (
         'ladle_provider_total{outcome="success",provider="supadata"} 2'
@@ -194,13 +194,13 @@ def test_quota_or_missing_native_uses_transcript_and_visual_backups() -> None:
     assert fallback.calls == 1
     assert context.transcript[0].provenance == "soscripted"
     assert context.visual_observations[0].text == "2 cups flour"
-    assert "supadataGeneratedUnavailable" in context.diagnostics
+    assert "supadataTranscriptUnavailable" in context.diagnostics
 
 
 def test_private_source_short_circuits_all_fallback_spend() -> None:
     primary = Primary(
-        native=PrivateOrDeleted(),
-        generated=TranscriptUnavailable(),
+        native=TranscriptUnavailable(),
+        generated=PrivateOrDeleted(),
         visual_result=empty_visual(),
     )
     fallback = Fallback(transcript("must not run"))
@@ -228,8 +228,8 @@ def test_quota_failure_opens_primary_circuit_and_uses_independent_backup() -> No
         cooldown=timedelta(minutes=10),
     )
     primary = Primary(
-        native=ProviderQuotaError(),
-        generated=transcript("must not run"),
+        native=TranscriptUnavailable(),
+        generated=ProviderQuotaError(),
         visual_result=empty_visual(),
     )
     fallback = Fallback(
@@ -247,7 +247,7 @@ def test_quota_failure_opens_primary_circuit_and_uses_independent_backup() -> No
     result = chain.acquire(source(), job_id=uuid4())
 
     assert result.transcript[0].provenance == "soscripted"
-    assert primary.calls == ["metadata", "transcript:native"]
+    assert primary.calls == ["metadata", "transcript:auto"]
     with pytest.raises(CircuitOpen):
         circuits.before_call("supadata")
 

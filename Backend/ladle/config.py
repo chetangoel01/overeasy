@@ -100,7 +100,9 @@ class Settings(BaseSettings):
     supadata_api_key: SecretStr | None = None
 
     soscripted_base_url: AnyHttpUrl = AnyHttpUrl("https://soscripted.com/api/public")
-    soscripted_timeout_seconds: float = Field(default=30, gt=0)
+    # The endpoint blocks while it downloads and transcribes the video; its
+    # documented client example uses the same ten-minute request window.
+    soscripted_timeout_seconds: float = Field(default=600, gt=0)
     soscripted_api_key: SecretStr | None = None
 
     extraction_provider: Literal["anthropic", "openrouter"] = "openrouter"
