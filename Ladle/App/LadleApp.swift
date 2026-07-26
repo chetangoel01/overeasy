@@ -10,6 +10,10 @@ struct LadleRuntimeConfiguration {
         launchArguments.contains("-ui-testing")
             || environment["XCTestConfigurationFilePath"] != nil
     }
+
+    var seedsPreviewData: Bool {
+        usesInMemoryStore && !launchArguments.contains("-empty-library")
+    }
 }
 
 @main
@@ -50,12 +54,14 @@ struct LadleApp: App {
             environment = try AppEnvironment(
                 isStoredInMemoryOnly: runtimeConfiguration.usesInMemoryStore
             )
-            if runtimeConfiguration.usesInMemoryStore {
+            if runtimeConfiguration.seedsPreviewData {
                 try environment.seedPreviewDataIfNeeded()
-            } else if resetsBackendSession {
-                try environment.recipeRepository.wipeAllData()
-            } else {
-                try environment.purgeDemoFixtures()
+            } else if !runtimeConfiguration.usesInMemoryStore {
+                if resetsBackendSession {
+                    try environment.recipeRepository.wipeAllData()
+                } else {
+                    try environment.purgeDemoFixtures()
+                }
             }
         } catch {
             fatalError("Ladle could not initialize its recipe store: \(error)")

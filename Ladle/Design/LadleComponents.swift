@@ -2,6 +2,7 @@ import SwiftUI
 
 struct LadlePrimaryButtonStyle: ButtonStyle {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.isEnabled) private var isEnabled
 
     var isProminent = true
 
@@ -28,9 +29,13 @@ struct LadlePrimaryButtonStyle: ButtonStyle {
                     .stroke(LadleTheme.ink.opacity(0.12), lineWidth: 1)
                 }
             }
-            .opacity(configuration.isPressed ? 0.72 : 1)
+            .opacity(
+                !isEnabled
+                    ? 0.48
+                    : (configuration.isPressed ? 0.72 : 1)
+            )
             .scaleEffect(
-                reduceMotion
+                reduceMotion || !isEnabled
                     ? 1
                     : (configuration.isPressed ? 0.985 : 1)
             )

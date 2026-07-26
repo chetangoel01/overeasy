@@ -93,6 +93,15 @@ Use ink text on celery and ube.
 
 ## Information architecture
 
+### First run
+
+- Launch on paper, then present one value-first welcome surface over the
+  softened library. Do not require a passive feature tour.
+- Continue with Apple and guest entry are the only initial account choices.
+  State the ten-recipe guest limit and that later sign-in preserves recipes.
+- An empty Home or All Recipes view leads directly to adding the first recipe.
+  Share Extension guidance stays contextual beside that action.
+
 ### Home
 
 - Import Inbox entry with an attention count
@@ -123,4 +132,3 @@ Use ink text on celery and ube.
 - Verify small text at WCAG AA contrast or better.
 - Capture the primary atlas destinations at the project simulator size and
   compare hierarchy, spacing, state, and content rather than HTML pixel values.
-

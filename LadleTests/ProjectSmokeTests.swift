@@ -12,6 +12,7 @@ final class ProjectSmokeTests: XCTestCase {
         )
 
         XCTAssertTrue(configuration.usesInMemoryStore)
+        XCTAssertTrue(configuration.seedsPreviewData)
     }
 
     func testRuntimeConfigurationKeepsProductionStorePersistent() {
@@ -21,6 +22,28 @@ final class ProjectSmokeTests: XCTestCase {
         )
 
         XCTAssertFalse(configuration.usesInMemoryStore)
+        XCTAssertFalse(configuration.seedsPreviewData)
+    }
+
+    func testRuntimeConfigurationCanLaunchAnEmptyTestLibrary() {
+        let configuration = LadleRuntimeConfiguration(
+            launchArguments: ["-ui-testing", "-empty-library"],
+            environment: [:]
+        )
+
+        XCTAssertTrue(configuration.usesInMemoryStore)
+        XCTAssertFalse(configuration.seedsPreviewData)
+    }
+
+    func testLaunchScreenUsesThePaperSurface() {
+        let launchScreen = Bundle.main.object(
+            forInfoDictionaryKey: "UILaunchScreen"
+        ) as? [String: Any]
+
+        XCTAssertEqual(
+            launchScreen?["UIColorName"] as? String,
+            "Paper"
+        )
     }
 
     func testRootViewCanBeCreated() throws {

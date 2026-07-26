@@ -134,6 +134,7 @@ struct LibraryView: View {
             if section == .home {
                 LibraryHomeView(
                     viewModel: viewModel,
+                    addRecipe: { isAddSheetPresented = true },
                     openRecipe: openRecipe,
                     openCollection: openCollection,
                     openImportInbox: {
@@ -144,6 +145,7 @@ struct LibraryView: View {
             } else {
                 AllRecipesView(
                     viewModel: viewModel,
+                    addRecipe: { isAddSheetPresented = true },
                     openRecipe: openRecipe,
                     presentFilters: { isFilterSheetPresented = true }
                 )

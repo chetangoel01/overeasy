@@ -2,6 +2,31 @@ import XCTest
 
 @MainActor
 final class AccessibilityTests: XCTestCase {
+    func testAccessibilityLargeWelcomeKeepsEntryActionsUsable() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-ui-testing",
+            "-reset-onboarding",
+            "-UIPreferredContentSizeCategoryName",
+            "UICTContentSizeCategoryAccessibilityL",
+        ]
+        app.launch()
+
+        XCTAssertTrue(
+            app.staticTexts["Recipes, rescued from the scroll."]
+                .waitForExistence(timeout: 3)
+        )
+        let apple = app.buttons["Continue with Apple"]
+        let guest = app.buttons["Try as a guest"]
+        XCTAssertTrue(apple.exists)
+        XCTAssertTrue(guest.exists)
+        assertMinimumHitTarget(apple)
+        assertMinimumHitTarget(guest)
+        XCTAssertLessThanOrEqual(guest.frame.maxY, app.frame.maxY - 12)
+        capture("Accessibility Large Welcome", in: app)
+    }
+
     func testAccessibilityLargeLibraryKeepsPrimaryControlsUsable() {
         let app = launchApp()
 

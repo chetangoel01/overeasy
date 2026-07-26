@@ -6,25 +6,42 @@ struct AllRecipesView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @Bindable var viewModel: LibraryViewModel
+    let addRecipe: () -> Void
     let openRecipe: (Recipe) -> Void
     let presentFilters: () -> Void
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: LadleTheme.Spacing.regular) {
-                controls
-                activeFilters
-                LadleSectionHeader(
-                    title: "All recipes",
-                    detail: recipeCountText
-                )
-                recipes
+                if viewModel.recipes.isEmpty {
+                    firstRecipeState
+                } else {
+                    controls
+                    activeFilters
+                    LadleSectionHeader(
+                        title: "All recipes",
+                        detail: recipeCountText
+                    )
+                    recipes
+                }
             }
             .padding(.horizontal, LadleTheme.Spacing.regular)
             .padding(.bottom, 44)
         }
         .scrollIndicators(.hidden)
         .accessibilityIdentifier("library.all-recipes")
+    }
+
+    private var firstRecipeState: some View {
+        LadleStateView(
+            systemImage: "books.vertical",
+            title: "No recipes yet",
+            message:
+                "Add a recipe from a link or create one yourself. Your full collection will live here.",
+            primaryTitle: "Add your first recipe",
+            primaryAction: addRecipe
+        )
+        .padding(.top, LadleTheme.Spacing.regular)
     }
 
     private var controls: some View {

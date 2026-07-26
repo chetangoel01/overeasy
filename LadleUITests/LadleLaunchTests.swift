@@ -14,49 +14,90 @@ final class LadleLaunchTests: XCTestCase {
         )
     }
 
-    func testWelcomeTourEndsWithGuestContinue() {
+    func testWelcomeGetsNewUsersToTheLibraryWithoutATour() {
         let app = XCUIApplication()
         app.launchArguments = ["-ui-testing", "-reset-onboarding"]
         app.launch()
 
         XCTAssertTrue(
-            app.staticTexts["Overeasy"]
+            app.staticTexts["Recipes, rescued from the scroll."]
                 .waitForExistence(timeout: 2)
         )
-        capture("Welcome tour", in: app)
+        XCTAssertTrue(
+            app.staticTexts[
+                "Turn TikTok, Instagram, and YouTube links into clear recipes made for cooking."
+            ].exists
+        )
+        XCTAssertTrue(
+            app.staticTexts["Paste a link or share from the scroll."].exists
+        )
+        XCTAssertTrue(
+            app.buttons["Continue with Apple"].exists
+        )
+        XCTAssertTrue(
+            app.buttons["Try as a guest"].exists
+        )
+        XCTAssertTrue(
+            app.staticTexts[
+                "Guests can save up to 10 recipes. Sign in later without losing them."
+            ].exists
+        )
+        XCTAssertFalse(app.buttons["Skip the tour"].exists)
+        XCTAssertFalse(app.buttons["Add Recipe"].isHittable)
+        capture("Welcome", in: app)
 
-        let continueButton = element(
-            in: app,
-            identifier: "welcome.continue"
-        )
-        XCTAssertTrue(continueButton.waitForExistence(timeout: 2))
-        continueButton.tap()
-        XCTAssertTrue(
-            app.staticTexts["Paste any\nrecipe link"]
-                .waitForExistence(timeout: 2)
-        )
-        continueButton.tap()
-        XCTAssertTrue(
-            element(in: app, identifier: "welcome.share-trial")
-                .waitForExistence(timeout: 2)
-        )
-        continueButton.tap()
-
-        XCTAssertTrue(
-            app.buttons["Sign in with Apple"].waitForExistence(timeout: 2)
-        )
-        XCTAssertTrue(app.buttons["Create a free account"].exists)
-        XCTAssertTrue(
-            app.staticTexts["Guests can save up to 10 recipes."].exists
-        )
-
-        app.buttons["Continue as a guest"].tap()
+        app.buttons["Try as a guest"].tap()
 
         XCTAssertTrue(
             element(in: app, identifier: "library.root")
                 .waitForExistence(timeout: 2)
         )
-        XCTAssertFalse(app.buttons["Continue as a guest"].exists)
+        XCTAssertFalse(app.buttons["Try as a guest"].exists)
+    }
+
+    func testEmptyLibraryGuidesTheFirstRecipe() {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-ui-testing",
+            "-onboarding-complete",
+            "-empty-library",
+        ]
+        app.launch()
+
+        XCTAssertTrue(
+            app.staticTexts["Save your first recipe"]
+                .waitForExistence(timeout: 2)
+        )
+        XCTAssertTrue(
+            app.staticTexts[
+                "Paste a TikTok, Instagram, or YouTube link. Overeasy turns it into ingredients and steps you can cook from."
+            ].exists
+        )
+        XCTAssertTrue(
+            app.staticTexts[
+                "While scrolling, you can also use Share and choose Add to Overeasy."
+            ].exists
+        )
+
+        let homeAddRecipe = app.buttons["Add your first recipe"]
+        XCTAssertTrue(homeAddRecipe.exists)
+        XCTAssertGreaterThanOrEqual(homeAddRecipe.frame.height, 43.5)
+        capture("Empty library", in: app)
+
+        app.buttons["All 0"].tap()
+        XCTAssertTrue(
+            app.staticTexts["No recipes yet"]
+                .waitForExistence(timeout: 2)
+        )
+        let addFirstRecipe = app.buttons["Add your first recipe"]
+        XCTAssertTrue(addFirstRecipe.exists)
+        XCTAssertGreaterThanOrEqual(addFirstRecipe.frame.height, 43.5)
+
+        addFirstRecipe.tap()
+        XCTAssertTrue(
+            app.staticTexts["Add a recipe"]
+                .waitForExistence(timeout: 2)
+        )
     }
 
     func testAccountSheetPresentsScannableTransparencyDetails() {

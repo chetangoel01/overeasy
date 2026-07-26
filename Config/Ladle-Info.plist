@@ -44,7 +44,10 @@
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>Overeasy writes nutrition for a serving only after you explicitly confirm it.</string>
 	<key>UILaunchScreen</key>
-	<dict/>
+	<dict>
+		<key>UIColorName</key>
+		<string>Paper</string>
+	</dict>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

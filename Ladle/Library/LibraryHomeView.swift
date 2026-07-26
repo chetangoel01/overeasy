@@ -5,6 +5,7 @@ struct LibraryHomeView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     let viewModel: LibraryViewModel
+    let addRecipe: () -> Void
     let openRecipe: (Recipe) -> Void
     let openCollection: (LibraryRecipeCollection) -> Void
     let openImportInbox: () -> Void
@@ -14,21 +15,29 @@ struct LibraryHomeView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: LadleTheme.Spacing.generous) {
-                if !viewModel.isImportInboxDismissed {
-                    importInbox
-                        .transition(
-                            reduceMotion
-                                ? .opacity
-                                : .move(edge: .top).combined(with: .opacity)
-                        )
+            if viewModel.recipes.isEmpty && viewModel.importJobs.isEmpty {
+                firstRecipeState
+            } else {
+                VStack(
+                    alignment: .leading,
+                    spacing: LadleTheme.Spacing.generous
+                ) {
+                    if !viewModel.isImportInboxDismissed {
+                        importInbox
+                            .transition(
+                                reduceMotion
+                                    ? .opacity
+                                    : .move(edge: .top)
+                                        .combined(with: .opacity)
+                            )
+                    }
+                    watch
+                    savedThisWeek
+                    collections
                 }
-                watch
-                savedThisWeek
-                collections
+                .padding(.horizontal, LadleTheme.Spacing.regular)
+                .padding(.bottom, 44)
             }
-            .padding(.horizontal, LadleTheme.Spacing.regular)
-            .padding(.bottom, 44)
         }
         .scrollIndicators(.hidden)
         .onScrollGeometryChange(for: CGFloat.self) { geometry in
@@ -42,6 +51,59 @@ struct LibraryHomeView: View {
             }
         }
         .accessibilityIdentifier("library.home")
+    }
+
+    private var firstRecipeState: some View {
+        VStack(spacing: LadleTheme.Spacing.generous) {
+            Image(systemName: "link.badge.plus")
+                .font(.system(size: 28, weight: .semibold))
+                .foregroundStyle(LadleTheme.brick)
+                .frame(width: 68, height: 68)
+                .background(LadleTheme.ube, in: Circle())
+                .accessibilityHidden(true)
+
+            VStack(spacing: LadleTheme.Spacing.compact) {
+                Text("Save your first recipe")
+                    .ladleFont(.title)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(LadleTheme.ink)
+
+                Text(
+                    "Paste a TikTok, Instagram, or YouTube link. Overeasy turns it into ingredients and steps you can cook from."
+                )
+                .ladleFont(.body)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(LadleTheme.mutedInk)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Button("Add your first recipe", action: addRecipe)
+                .buttonStyle(LadlePrimaryButtonStyle())
+
+            HStack(alignment: .top, spacing: LadleTheme.Spacing.medium) {
+                Image(systemName: "square.and.arrow.up")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(LadleTheme.brick)
+                    .frame(width: 24, height: 24)
+                    .accessibilityHidden(true)
+
+                Text(
+                    "While scrolling, you can also use Share and choose Add to Overeasy."
+                )
+                .ladleFont(.metadata)
+                .foregroundStyle(LadleTheme.mutedInk)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .accessibilityElement(children: .combine)
+        }
+        .frame(maxWidth: 480)
+        .padding(.horizontal, LadleTheme.Spacing.generous)
+        .padding(.top, 54)
+        .padding(.bottom, 44)
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("library.empty")
     }
 
     private var importInbox: some View {

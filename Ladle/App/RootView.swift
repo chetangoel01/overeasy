@@ -45,6 +45,9 @@ struct RootView: View {
                     radius: accountSession.shouldPresentWelcome ? 2.5 : 0
                 )
                 .allowsHitTesting(!accountSession.shouldPresentWelcome)
+                .accessibilityHidden(
+                    accountSession.shouldPresentWelcome
+                )
 
             if accountSession.shouldPresentWelcome {
                 LadleTheme.ink

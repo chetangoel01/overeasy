@@ -163,6 +163,7 @@ quota when the shared extraction cache does not already contain the videos.
 The UI suite uses these deterministic launch arguments:
 
 - `-ui-testing` uses an in-memory store and disables system permission prompts.
+- `-empty-library` keeps that in-memory store empty for first-use coverage.
 - `-onboarding-complete` opens directly to the recipe library.
 - `-reset-onboarding` presents the welcome experience.
 - `-reset-library-preferences` restores grid display and home section
