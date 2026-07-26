@@ -37,7 +37,7 @@ final class LadleLaunchTests: XCTestCase {
             ].exists
         )
         XCTAssertTrue(
-            app.staticTexts["Paste a link or share from the scroll."].exists
+            app.staticTexts["Start your recipe box"].exists
         )
         XCTAssertTrue(
             app.buttons["Continue with Apple"].exists
@@ -64,6 +64,25 @@ final class LadleLaunchTests: XCTestCase {
                 .waitForExistence(timeout: 2)
         )
         XCTAssertFalse(app.buttons["Try as a guest"].exists)
+    }
+
+    func testWelcomeProviderButtonsShareVisualRhythm() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-ui-testing", "-reset-onboarding"]
+        app.launch()
+
+        let apple = app.buttons["Continue with Apple"]
+        let google = app.buttons["Sign in with Google"]
+        XCTAssertTrue(apple.waitForExistence(timeout: 2))
+        XCTAssertTrue(google.exists)
+        XCTAssertTrue(app.staticTexts["Start your recipe box"].exists)
+        XCTAssertFalse(
+            app.staticTexts["Paste a link or share from the scroll."].exists
+        )
+        XCTAssertEqual(apple.frame.minX, google.frame.minX, accuracy: 0.5)
+        XCTAssertEqual(apple.frame.maxX, google.frame.maxX, accuracy: 0.5)
+        XCTAssertEqual(apple.frame.height, google.frame.height, accuracy: 0.5)
+        XCTAssertGreaterThanOrEqual(google.frame.height, 51.5)
     }
 
     func testEmptyLibraryGuidesTheFirstRecipe() {

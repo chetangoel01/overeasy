@@ -1,6 +1,5 @@
 import AuthenticationServices
 import CryptoKit
-import GoogleSignIn
 import Security
 import SwiftUI
 
@@ -23,20 +22,27 @@ struct WelcomeView: View {
                 .ignoresSafeArea()
 
             GeometryReader { proxy in
+                let verticalPadding: CGFloat =
+                    dynamicTypeSize.isAccessibilitySize ? 16 : 24
+
                 ScrollView {
-                    VStack(spacing: LadleTheme.Spacing.generous) {
-                        welcomeMark
-                        welcomeMessage
-                        welcomeValues
-                        Spacer(minLength: LadleTheme.Spacing.regular)
+                    VStack(
+                        spacing: dynamicTypeSize.isAccessibilitySize
+                            ? LadleTheme.Spacing.generous
+                            : LadleTheme.Spacing.cooking
+                    ) {
+                        welcomeIntroduction
                         accountActions
                     }
                     .frame(
-                        minHeight: proxy.size.height,
+                        minHeight: max(
+                            proxy.size.height - (verticalPadding * 2),
+                            0
+                        ),
                         alignment: .center
                     )
                     .padding(.horizontal, LadleTheme.Spacing.generous)
-                    .padding(.vertical, LadleTheme.Spacing.generous)
+                    .padding(.vertical, verticalPadding)
                 }
                 .scrollIndicators(.hidden)
             }
@@ -45,17 +51,24 @@ struct WelcomeView: View {
         .accessibilityIdentifier("welcome.full-screen")
     }
 
+    private var welcomeIntroduction: some View {
+        VStack(spacing: 20) {
+            welcomeMark
+            welcomeMessage
+        }
+    }
+
     private var welcomeMark: some View {
         Image("OvereasyMark")
             .resizable()
             .scaledToFit()
             .frame(
-                width: dynamicTypeSize.isAccessibilitySize ? 88 : 112,
-                height: dynamicTypeSize.isAccessibilitySize ? 88 : 112
+                width: dynamicTypeSize.isAccessibilitySize ? 84 : 96,
+                height: dynamicTypeSize.isAccessibilitySize ? 84 : 96
             )
             .clipShape(
                 RoundedRectangle(
-                    cornerRadius: 26,
+                    cornerRadius: 24,
                     style: .continuous
                 )
             )
@@ -64,13 +77,19 @@ struct WelcomeView: View {
     }
 
     private var welcomeMessage: some View {
-        VStack(spacing: LadleTheme.Spacing.medium) {
+        VStack(spacing: LadleTheme.Spacing.compact) {
             Text("Overeasy")
                 .ladleFont(.section)
                 .foregroundStyle(LadleTheme.brick)
 
             Text("Recipes, rescued from the scroll.")
-                .ladleFont(.title)
+                .ladleScaledFont(
+                    size: 29,
+                    relativeTo: .title,
+                    weight: .bold,
+                    design: .rounded
+                )
+                .lineSpacing(2)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(LadleTheme.ink)
 
@@ -82,26 +101,26 @@ struct WelcomeView: View {
             .foregroundStyle(LadleTheme.mutedInk)
             .fixedSize(horizontal: false, vertical: true)
         }
-    }
-
-    private var welcomeValues: some View {
-        VStack(spacing: 0) {
-            WelcomeValue(
-                icon: "link",
-                text: "Paste a link or share from the scroll."
-            )
-            Divider()
-                .overlay(LadleTheme.ink.opacity(0.08))
-                .padding(.leading, 46)
-            WelcomeValue(
-                icon: "checklist",
-                text: "Cook from clear steps with timers ready."
-            )
-        }
+        .frame(maxWidth: 360)
     }
 
     private var accountActions: some View {
-        VStack(spacing: LadleTheme.Spacing.compact) {
+        VStack(spacing: 0) {
+            VStack(spacing: 6) {
+                Text("Start your recipe box")
+                    .ladleFont(.section)
+                    .foregroundStyle(LadleTheme.ink)
+
+                Text(
+                    "Sign in to keep recipes synced, or try Overeasy first as a guest."
+                )
+                .ladleFont(.metadata)
+                .foregroundStyle(LadleTheme.mutedInk)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.bottom, LadleTheme.Spacing.regular)
+
             SignInWithAppleButton(.continue) { request in
                 let nonce = Self.randomNonce()
                 rawNonce = nonce
@@ -122,17 +141,21 @@ struct WelcomeView: View {
             GoogleSignInControl(isEnabled: !isAuthenticating) {
                 authenticateWithGoogle()
             }
-            .frame(maxWidth: .infinity)
-            .frame(height: 52)
+            .padding(.top, 10)
+
+            guestSeparator
+                .padding(.vertical, 14)
 
             Button {
                 authenticateAsGuest()
             } label: {
                 Text("Try as a guest")
+                    .ladleFont(.bodyStrong)
+                    .foregroundStyle(LadleTheme.ink)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .contentShape(Rectangle())
             }
-            .buttonStyle(
-                LadlePrimaryButtonStyle(isProminent: false)
-            )
+            .buttonStyle(.plain)
             .disabled(isAuthenticating)
 
             Text(
@@ -142,13 +165,14 @@ struct WelcomeView: View {
             .foregroundStyle(LadleTheme.mutedInk)
             .multilineTextAlignment(.center)
             .fixedSize(horizontal: false, vertical: true)
-            .padding(.top, LadleTheme.Spacing.compact)
+            .padding(.top, 6)
 
             if isAuthenticating {
                 ProgressView("Setting up Overeasy")
                     .ladleFont(.metadata)
                     .tint(LadleTheme.brick)
                     .foregroundStyle(LadleTheme.mutedInk)
+                    .padding(.top, LadleTheme.Spacing.medium)
             }
 
             if let authenticationError {
@@ -157,8 +181,24 @@ struct WelcomeView: View {
                     .foregroundStyle(LadleTheme.brick)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, LadleTheme.Spacing.medium)
             }
         }
+    }
+
+    private var guestSeparator: some View {
+        HStack(spacing: LadleTheme.Spacing.medium) {
+            Rectangle()
+                .fill(LadleTheme.ink.opacity(0.1))
+                .frame(height: 1)
+            Text("or")
+                .ladleFont(.metadata)
+                .foregroundStyle(LadleTheme.mutedInk)
+            Rectangle()
+                .fill(LadleTheme.ink.opacity(0.1))
+                .frame(height: 1)
+        }
+        .accessibilityHidden(true)
     }
 
     private func authenticateWithGoogle() {
@@ -332,64 +372,58 @@ struct WelcomeView: View {
     }
 }
 
-private struct GoogleSignInControl: UIViewRepresentable {
+private struct GoogleSignInControl: View {
     let isEnabled: Bool
     let action: @MainActor () -> Void
 
-    func makeUIView(context: Context) -> GIDSignInButton {
-        let button = GIDSignInButton()
-        button.style = .wide
-        button.colorScheme = .light
-        button.accessibilityIdentifier = "welcome.google-sign-in"
-        button.addTarget(
-            context.coordinator,
-            action: #selector(Coordinator.activate),
-            for: .touchUpInside
-        )
-        return button
-    }
-
-    func updateUIView(_ button: GIDSignInButton, context: Context) {
-        button.isEnabled = isEnabled
-        context.coordinator.action = action
-    }
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(action: action)
-    }
-
-    @MainActor
-    final class Coordinator: NSObject {
-        var action: @MainActor () -> Void
-
-        init(action: @escaping @MainActor () -> Void) {
-            self.action = action
-        }
-
-        @objc func activate() {
+    var body: some View {
+        Button {
             action()
+        } label: {
+            Image("GoogleSignInNeutral")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 188, height: 44)
+                .accessibilityHidden(true)
         }
+        .buttonStyle(GoogleSignInButtonStyle())
+        .disabled(!isEnabled)
+        .accessibilityLabel("Sign in with Google")
+        .accessibilityIdentifier("welcome.google-sign-in")
     }
 }
 
-private struct WelcomeValue: View {
-    let icon: String
-    let text: String
+private struct GoogleSignInButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.isEnabled) private var isEnabled
 
-    var body: some View {
-        HStack(spacing: LadleTheme.Spacing.medium) {
-            Image(systemName: icon)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(LadleTheme.brick)
-                .frame(width: 34, height: 34)
-                .background(LadleTheme.ube, in: Circle())
-
-            Text(text)
-                .ladleFont(.body)
-                .foregroundStyle(LadleTheme.ink)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(.vertical, LadleTheme.Spacing.compact)
-        .accessibilityElement(children: .combine)
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .frame(maxWidth: .infinity, minHeight: 52)
+            .background(
+                Color(
+                    red: 242 / 255,
+                    green: 242 / 255,
+                    blue: 242 / 255
+                ),
+                in: RoundedRectangle(
+                    cornerRadius: LadleTheme.Corner.control,
+                    style: .continuous
+                )
+            )
+            .opacity(
+                !isEnabled
+                    ? 0.48
+                    : (configuration.isPressed ? 0.72 : 1)
+            )
+            .scaleEffect(
+                reduceMotion || !isEnabled
+                    ? 1
+                    : (configuration.isPressed ? 0.985 : 1)
+            )
+            .animation(
+                reduceMotion ? nil : .easeOut(duration: 0.12),
+                value: configuration.isPressed
+            )
     }
 }

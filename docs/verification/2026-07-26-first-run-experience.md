@@ -15,15 +15,18 @@ The audience is a mixed-experience home cook using the app one-handed.
   before the app's warm browsing surface appears.
 - First launch presents one dedicated full-screen welcome surface instead of a
   popup over the library or a four-page passive tour. It states the
-  link-to-recipe promise, the two ways to save, and the cooking benefit without
-  delaying entry.
+  link-to-recipe promise, then moves directly into account entry without
+  repeating the same benefits in a feature list.
 - The welcome uses the exact fried-egg mark shipped as the app icon.
 - Continue with Apple and Sign in with Google handle both account creation and
-  returning sign-in. Guest entry is a full-size secondary action with the
-  ten-recipe limit and lossless later sign-in stated before entry.
-- Google sign-in uses Google's official wide button artwork, a 52-point SwiftUI
-  hit surface, SDK redirect handling, backend ID-token verification, and
-  lossless guest-account merging.
+  returning sign-in. A short "Start your recipe box" handoff explains why an
+  account helps before presenting the controls. Guest entry is a quiet,
+  full-width action with the ten-recipe limit and lossless later sign-in stated
+  before entry.
+- Google sign-in uses Google's current pre-approved neutral iOS artwork inside
+  the same 52-point bounds and 15-point continuous corner treatment as the
+  Apple control. Authentication still uses the official SDK, backend ID-token
+  verification, and lossless guest-account merging.
 - Authentication shows disabled controls, visible progress, and concise
   recovery copy when the backend or Apple flow cannot complete.
 - A genuinely empty Home view now explains what will appear, opens the real
@@ -44,6 +47,9 @@ The audience is a mixed-experience home cook using the app one-handed.
   discoverable in the actual library, import, and cooking surfaces.
 - Reuse the installed app icon artwork as the brand mark instead of maintaining
   a second onboarding identity.
+- Use Google's pre-approved neutral button asset instead of the SDK's visually
+  dated embedded wide control. The asset was downloaded from Google's
+  [Sign in with Google branding guidelines][google-branding] on 2026-07-26.
 - Use the official Google SDK and validate server-facing ID tokens against
   Google's rotating JWKS, expected issuer, server client audience, issue time,
   and expiry before merging an account.
@@ -61,6 +67,7 @@ The audience is a mixed-experience home cook using the app one-handed.
 - `Ladle/Account/AccountSession.swift`
 - `Ladle/App/LadleApp.swift`
 - `Ladle/App/RootView.swift`
+- `Ladle/Resources/Assets.xcassets/GoogleSignInNeutral.imageset`
 - `Ladle/Resources/Assets.xcassets/OvereasyMark.imageset`
 - `project.yml`
 - `Backend/ladle/auth/google.py`
@@ -83,6 +90,10 @@ The audience is a mixed-experience home cook using the app one-handed.
 - UI coverage was written first and observed failing against the passive tour,
   seeded empty launch, generic All Recipes state, and exposed background
   controls.
+- The welcome polish regression was written first and observed failing while
+  the repeated value rows were still present and the recipe-box handoff was
+  absent. It now verifies the provider controls share full-width 52-point
+  bounds.
 - Focused red-green coverage verifies the concise welcome, guest handoff,
   empty Home and All Recipes actions, and the real Add Recipe presentation.
 - iPhone 17 Pro screenshots were reviewed at the default content size and
@@ -102,3 +113,5 @@ The audience is a mixed-experience home cook using the app one-handed.
 - `LadleCore` passed all 37 tests across eight suites.
 - The generic iOS Simulator milestone build compiled both Ladle and
   LadleShare, and `git diff --check` passed.
+
+[google-branding]: https://developers.google.com/identity/branding-guidelines
