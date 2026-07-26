@@ -30,6 +30,7 @@ final class AccountSession {
 
     private(set) var state: AccountState
     private(set) var shouldPresentWelcome: Bool
+    private(set) var isRemoteSessionReady = false
 
     init(
         store: PreferenceStoring = UserDefaults.standard,
@@ -73,6 +74,7 @@ final class AccountSession {
     }
 
     func applyRemoteUserKind(_ userKind: String) {
+        isRemoteSessionReady = true
         switch userKind {
         case "apple":
             completeWelcome(as: .signedInWithApple)
@@ -95,6 +97,7 @@ final class AccountSession {
     func signOut() {
         state = .undecided
         shouldPresentWelcome = true
+        isRemoteSessionReady = false
         store.removeObject(forKey: Key.accountState)
         store.set(false, forKey: Key.onboardingComplete)
     }

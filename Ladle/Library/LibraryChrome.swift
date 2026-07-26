@@ -9,6 +9,7 @@ struct LibraryTopBar: View {
     let openSearch: (() -> Void)?
     var openAccount: (() -> Void)?
     let addRecipe: () -> Void
+    var isAddEnabled = true
 
     var body: some View {
         HStack {
@@ -31,6 +32,7 @@ struct LibraryTopBar: View {
                 label: "Add Recipe",
                 tint: LadleTheme.paprika,
                 foreground: .white,
+                isEnabled: isAddEnabled,
                 action: addRecipe
             )
         }
@@ -43,6 +45,7 @@ struct LibraryTopBar: View {
         label: String,
         tint: Color = LadleTheme.field,
         foreground: Color = LadleTheme.ink,
+        isEnabled: Bool = true,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
@@ -53,6 +56,11 @@ struct LibraryTopBar: View {
                 .background(tint, in: Circle())
         }
         .accessibilityLabel(label)
+        .accessibilityHint(
+            isEnabled ? "" : "Connecting to Overeasy"
+        )
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : 0.48)
     }
 }
 

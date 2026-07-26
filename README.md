@@ -28,14 +28,16 @@ a separate `LadleCore` domain package.
 
 The native app is connected to the FastAPI backend through real guest
 authentication, Sign in with Apple, remote import polling, and offline-first
-recipe synchronization. The production worker includes Supadata and
-SoScripted acquisition plus Claude structured extraction. Live providers and
-Apple remain disabled until deployment credentials are supplied.
+recipe synchronization. The live worker uses free source metadata and
+transcripts first, then server-side media download and Whisper transcription,
+optional frame analysis, paid transcript fallbacks, and structured extraction
+through the configured model provider.
 
 `DemoImportService` remains available only through explicit demo/test
-injection. Local Docker Compose uses fake server-side providers while still
-exercising the API, worker queue, PostgreSQL, shared extraction cache, and
-object storage.
+injection. Local Docker Compose inherits provider credentials from
+`Backend/.env`; without them it defaults to deterministic fake providers while
+still exercising the API, worker queue, PostgreSQL, shared extraction cache,
+and object storage.
 
 ## Project layout
 
@@ -107,12 +109,12 @@ extension currently share `group.com.ladle.ios`.
 ```bash
 cd Backend
 docker compose up -d --build
-curl --fail http://127.0.0.1:4111/health/ready
+curl --fail http://127.0.0.1:4112/health/ready
 ```
 
-The iOS Debug configuration expects `http://api.ladle.localhost`; route that
-hostname to port 4111 with Caddy or point `Config/Debug.xcconfig` directly at
-the local port.
+The iOS Debug configuration expects `http://api.ladle.localhost`. The root
+`Caddyfile` routes that hostname to host port 4112. If Caddy is not running,
+point `Config/Debug.xcconfig` directly at `http://127.0.0.1:4112`.
 
 See the
 [backend integration reference](Backend/docs/integration-reference.md) for
@@ -141,6 +143,21 @@ The accessibility UI flows launch with
 `UICTContentSizeCategoryAccessibilityL` and verify that the library, recipe,
 cooking, and timer actions remain labeled and hittable.
 
+With the live local backend running, verify the production iPhone composition
+against one TikTok and one Instagram import:
+
+```bash
+xcodebuild test \
+  -project Ladle.xcodeproj \
+  -scheme LadleLiveBackend \
+  -destination 'platform=iOS Simulator,name=iPhone 17'
+```
+
+The normal `Ladle` scheme skips this network-dependent test. The live scheme
+uses the real persistent store, guest authentication, API client, worker
+polling, recipe sync, and recipe detail UI. It may consume configured provider
+quota when the shared extraction cache does not already contain the videos.
+
 ## Test launch flags
 
 The UI suite uses these deterministic launch arguments:
@@ -148,7 +165,10 @@ The UI suite uses these deterministic launch arguments:
 - `-ui-testing` uses an in-memory store and disables system permission prompts.
 - `-onboarding-complete` opens directly to the recipe library.
 - `-reset-onboarding` presents the welcome experience.
-- `-reset-library-preferences` restores grid display.
+- `-reset-library-preferences` restores grid display and home section
+  visibility.
+- `-reset-backend-session` clears the simulator’s auth, sync cursor,
+  installation ID, and local recipes for an isolated live-backend run.
 
 ## Deterministic demo and test imports
 

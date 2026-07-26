@@ -127,10 +127,17 @@ final class LibraryViewModel {
         load()
     }
 
-    static func resetDisplayPreference(
+    static func resetPreferences(
         in preferenceStore: PreferenceStoring = UserDefaults.standard
     ) {
-        preferenceStore.removeObject(forKey: PreferenceKey.displayMode)
+        [
+            PreferenceKey.displayMode,
+            PreferenceKey.inboxDismissed,
+            PreferenceKey.savedCollapsed,
+            PreferenceKey.comeBackCollapsed,
+        ].forEach {
+            preferenceStore.removeObject(forKey: $0)
+        }
     }
 
     var visibleRecipes: [Recipe] {

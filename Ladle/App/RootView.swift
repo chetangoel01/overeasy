@@ -36,6 +36,9 @@ struct RootView: View {
                 importCoordinator: importCoordinator,
                 accountSession: accountSession,
                 installationID: installationID,
+                canImport:
+                    authClient == nil
+                    || accountSession.isRemoteSessionReady,
                 onSignOut: onSignOut
             )
                 .blur(

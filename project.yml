@@ -97,4 +97,18 @@ schemes:
       gatherCoverageData: true
       targets:
         - LadleTests
-        - LadleUITests
+        - name: LadleUITests
+          skippedTests:
+            - ImportFlowTests/testLiveBackendImportsTikTokAndInstagram()
+
+  LadleLiveBackend:
+    build:
+      targets:
+        Ladle: [test]
+        LadleUITests: [test]
+    test:
+      config: Debug
+      targets:
+        - name: LadleUITests
+          selectedTests:
+            - ImportFlowTests/testLiveBackendImportsTikTokAndInstagram()

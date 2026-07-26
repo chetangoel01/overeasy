@@ -276,6 +276,28 @@ final class LibraryViewModelTests: XCTestCase {
         XCTAssertEqual(returning.displayMode, .list)
     }
 
+    func testResetPreferencesRestoresDefaultLibraryPresentation() {
+        let preferences = LibraryTestPreferenceStore()
+        preferences.set(
+            LibraryDisplayMode.list.rawValue,
+            forKey: "ladle.library.display-mode"
+        )
+        preferences.set(true, forKey: "ladle.library.inbox-dismissed")
+        preferences.set(true, forKey: "ladle.library.saved-collapsed")
+        preferences.set(true, forKey: "ladle.library.comeback-collapsed")
+
+        LibraryViewModel.resetPreferences(in: preferences)
+        let viewModel = LibraryViewModel(
+            repository: LibraryTestRepository(),
+            preferenceStore: preferences
+        )
+
+        XCTAssertEqual(viewModel.displayMode, .grid)
+        XCTAssertFalse(viewModel.isImportInboxDismissed)
+        XCTAssertFalse(viewModel.isSavedThisWeekCollapsed)
+        XCTAssertFalse(viewModel.isComeBackToCollapsed)
+    }
+
     func testTogglingFavoritePersistsAndUpdatesVisibleRecipes() {
         let repository = LibraryTestRepository(
             recipes: PreviewFixtures.recipes

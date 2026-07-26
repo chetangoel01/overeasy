@@ -46,6 +46,20 @@ final class AccountSessionTests: XCTestCase {
             .allow
         )
     }
+
+    func testRemoteSessionReadinessTracksAuthenticationAndSignOut() {
+        let session = AccountSession(store: InMemoryPreferenceStore())
+
+        XCTAssertFalse(session.isRemoteSessionReady)
+
+        session.applyRemoteUserKind("guest")
+
+        XCTAssertTrue(session.isRemoteSessionReady)
+
+        session.signOut()
+
+        XCTAssertFalse(session.isRemoteSessionReady)
+    }
 }
 
 private final class InMemoryPreferenceStore: PreferenceStoring {

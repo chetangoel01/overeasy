@@ -14,6 +14,8 @@ struct LadleRuntimeConfiguration {
 
 @main
 struct LadleApp: App {
+    private static let installationIDKey = "ladle.installation.id"
+
     @Environment(\.scenePhase) private var scenePhase
 
     private let appEnvironment: AppEnvironment
@@ -33,6 +35,12 @@ struct LadleApp: App {
             launchArguments: launchArguments,
             environment: processInfo.environment
         )
+        let resetsBackendSession = launchArguments.contains(
+            "-reset-backend-session"
+        )
+        if resetsBackendSession {
+            Self.resetBackendSession()
+        }
         let accountSession = AccountSession(
             launchArguments: launchArguments
         )
@@ -44,6 +52,8 @@ struct LadleApp: App {
             )
             if runtimeConfiguration.usesInMemoryStore {
                 try environment.seedPreviewDataIfNeeded()
+            } else if resetsBackendSession {
+                try environment.recipeRepository.wipeAllData()
             } else {
                 try environment.purgeDemoFixtures()
             }
@@ -52,11 +62,12 @@ struct LadleApp: App {
         }
 
         if launchArguments.contains("-reset-library-preferences") {
-            LibraryViewModel.resetDisplayPreference()
+            LibraryViewModel.resetPreferences()
         }
 
         let sharedQueueReconciler: SharedQueueReconciler?
         if !runtimeConfiguration.usesInMemoryStore,
+           !resetsBackendSession,
            let containerURL = FileManager.default.containerURL(
                forSecurityApplicationGroupIdentifier:
                    SharedImportQueue.appGroupIdentifier
@@ -242,12 +253,19 @@ struct LadleApp: App {
     }
 
     private static func installationID() -> String {
-        let key = "ladle.installation.id"
-        if let existing = UserDefaults.standard.string(forKey: key) {
+        if let existing = UserDefaults.standard.string(
+            forKey: installationIDKey
+        ) {
             return existing
         }
         let created = UUID().uuidString.lowercased()
-        UserDefaults.standard.set(created, forKey: key)
+        UserDefaults.standard.set(created, forKey: installationIDKey)
         return created
+    }
+
+    private static func resetBackendSession() {
+        try? KeychainTokenStore().clear()
+        try? SyncCursorStore().reset()
+        UserDefaults.standard.removeObject(forKey: installationIDKey)
     }
 }

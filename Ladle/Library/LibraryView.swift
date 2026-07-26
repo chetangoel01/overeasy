@@ -6,6 +6,7 @@ struct LibraryView: View {
     @Bindable var importCoordinator: ImportCoordinator
     let accountSession: AccountSession
     var installationID: String = "preview-installation"
+    var canImport = true
     var onSignOut: @MainActor () async -> Void = {}
 
     @State private var section: LibrarySection = .home
@@ -25,7 +26,8 @@ struct LibraryView: View {
                 LibraryTopBar(
                     openSearch: { isSearchPresented = true },
                     openAccount: { isAccountPresented = true },
-                    addRecipe: { isAddSheetPresented = true }
+                    addRecipe: { isAddSheetPresented = true },
+                    isAddEnabled: canImport
                 )
                 LibrarySectionPicker(
                     selection: $section,

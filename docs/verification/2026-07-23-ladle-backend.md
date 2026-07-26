@@ -1,5 +1,75 @@
 # Ladle production backend verification — 2026-07-24
 
+## Frontend-to-backend live re-verification, 2026-07-26
+
+### Purpose and user-visible behavior
+
+The production iPhone composition was rechecked against the completed local
+backend. A user can finish guest onboarding, paste either a TikTok or Instagram
+recipe link, see the import reach `ready` or `needsReview`, open the returned
+recipe, and return to the library. The same remote service is used for imports
+reconciled from the Share Extension when the main app becomes active.
+
+The app continues to keep import work durable locally before submission. It
+polls the backend by job ID, saves terminal recipes through the offline-first
+repository, synchronizes server revisions, and preserves parsing or failed
+jobs in the import inbox.
+
+### Affected components and decisions
+
+- `LadleApp` keeps production builds on `AuthClient`, `APIClient`,
+  `RemoteImportService`, and `RecipeSyncService`; deterministic UI tests still
+  use `DemoImportService`.
+- `LadleUITests/ImportFlowTests.swift` now contains a live TikTok and Instagram
+  round trip that accepts both valid terminal outcomes and fails on the
+  recovery screen.
+- `LadleLiveBackend.xcscheme` selects that live test. The normal `Ladle` scheme
+  explicitly skips it so the regular suite remains deterministic and does not
+  consume provider quota.
+- The test handles duplicate recipes by requesting another copy, then verifies
+  navigation into the real recipe detail screen.
+- The test-only library preference reset clears grid/list and collapsed or
+  dismissed section choices so deterministic UI launches always expose the
+  Import Inbox.
+- The live scheme starts with a fresh installation identity, authentication
+  session, sync cursor, and local library. The Add Recipe action remains
+  disabled until guest bootstrap completes, closing the launch-time race
+  between a visible library and the first authenticated request.
+
+### Evidence
+
+On an iPhone 17 simulator running the Debug app against
+`http://api.ladle.localhost`:
+
+| Source | Backend job created | Terminal state | Recipe opened |
+| --- | --- | --- | --- |
+| TikTok `7655788084671401247` | `2026-07-26 05:11:21 UTC` | `ready` | Yes |
+| Instagram `Cx8pqZDv7G0` | `2026-07-26 05:11:30 UTC` | `ready` | Yes |
+
+The fresh app launch also created a real backend guest user, device, and auth
+session at `2026-07-26 05:11:13 UTC`. The two UI-created import rows had no new
+`provider_attempts` because both videos were shared-cache hits. This run proves
+the iPhone authentication, HTTP submission, polling, terminal recipe fetch,
+local persistence, and navigation path. It intentionally does not claim a new
+provider acquisition or extraction call.
+
+### Verification
+
+```bash
+curl --fail http://api.ladle.localhost/health/live
+xcodebuild test \
+  -project Ladle.xcodeproj \
+  -scheme LadleLiveBackend \
+  -destination 'platform=iOS Simulator,id=1CE0C07F-8CDD-41E5-9B38-DD908B5F5CBD'
+```
+
+Result: one selected live UI test passed in 24.024 seconds, covering both
+sources. The app and embedded Share Extension Debug build also passed.
+
+The remainder of this document records the original backend milestone at
+commit `6a8bdd8`; later acquisition, Whisper, frame-analysis, and OpenRouter
+work supersedes its provider-boundary notes.
+
 ## Scope
 
 This record verifies the production Ladle backend and the native iOS
