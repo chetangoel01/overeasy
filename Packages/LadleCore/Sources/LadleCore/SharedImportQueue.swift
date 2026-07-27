@@ -4,7 +4,15 @@ public enum SharedImportQueueError: Error, Equatable {
     case duplicateEnvelopeID(UUID)
 }
 
-public final class SharedImportQueue {
+public protocol SharedImportQueueing {
+    func enqueue(_ envelope: SharedImportEnvelope) throws
+    func pendingEnvelopes() throws -> [SharedImportEnvelope]
+
+    @discardableResult
+    func dequeue(id: UUID) throws -> SharedImportEnvelope?
+}
+
+public final class SharedImportQueue: SharedImportQueueing {
     public static let appGroupIdentifier = "group.com.ladle.ios"
     public static let appGroupDirectoryName = "SharedImports"
 

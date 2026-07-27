@@ -3,11 +3,11 @@ import LadleCore
 
 @MainActor
 final class SharedQueueReconciler {
-    private let queue: SharedImportQueue
+    private let queue: any SharedImportQueueing
     private let repository: RecipeRepository
 
     init(
-        queue: SharedImportQueue,
+        queue: any SharedImportQueueing,
         repository: RecipeRepository
     ) {
         self.queue = queue

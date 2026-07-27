@@ -65,5 +65,7 @@ API.
   27.0.
 - The physical-device launch reached the API through ngrok: guest bootstrap
   returned `201`, followed by a recipe sync returning `200`.
-- The packaged IPA SHA-256 is
-  `ee3f622e74c2ad100dc1ad539dee9ab539a31ad1aeda77278c08ca4bff709a42`.
+- The replacement share-fix build keeps the same guarded ngrok route while
+  adding the Personal Team-compatible shared-Keychain handoff. Its packaged
+  IPA SHA-256 is
+  `ec6d63cd6fd8edbfe7f2814ee421a2046d230f39d3437bce0d64a5b3de323a47`.

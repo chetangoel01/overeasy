@@ -46,6 +46,22 @@ final class ProjectSmokeTests: XCTestCase {
         XCTAssertEqual(configuration.tunnelAccessKey, "device-tunnel")
     }
 
+    func testRuntimeConfigurationReadsSharedKeychainAccessGroup() {
+        let configuration = LadleRuntimeConfiguration(
+            launchArguments: [],
+            environment: [:],
+            infoDictionary: [
+                "LadleSharedKeychainAccessGroup":
+                    "TEAM.com.ladle.shared",
+            ]
+        )
+
+        XCTAssertEqual(
+            configuration.sharedKeychainAccessGroup,
+            "TEAM.com.ladle.shared"
+        )
+    }
+
     func testRuntimeConfigurationCanLaunchAnEmptyTestLibrary() {
         let configuration = LadleRuntimeConfiguration(
             launchArguments: ["-ui-testing", "-empty-library"],

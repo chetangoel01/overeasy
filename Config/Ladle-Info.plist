@@ -43,6 +43,8 @@
 	<string>$(LADLE_API_BASE_URL)</string>
 	<key>LadleAppAttestEnabled</key>
 	<string>$(LADLE_APP_ATTEST_ENABLED)</string>
+	<key>LadleSharedKeychainAccessGroup</key>
+	<string>$(AppIdentifierPrefix)com.ladle.shared</string>
 	<key>LadleTunnelAccessKey</key>
 	<string>$(LADLE_TUNNEL_ACCESS_KEY)</string>
 	<key>NSAppTransportSecurity</key>

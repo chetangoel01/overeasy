@@ -45,6 +45,18 @@ struct LadleRuntimeConfiguration {
         }
         return value
     }
+
+    var sharedKeychainAccessGroup: String? {
+        guard
+            let value = infoDictionary[
+                "LadleSharedKeychainAccessGroup"
+            ] as? String,
+            !value.isEmpty
+        else {
+            return nil
+        }
+        return value
+    }
 }
 
 @main
@@ -105,24 +117,37 @@ struct LadleApp: App {
         }
 
         let sharedQueueReconciler: SharedQueueReconciler?
-        if !runtimeConfiguration.usesInMemoryStore,
-           !resetsBackendSession,
-           let containerURL = FileManager.default.containerURL(
-               forSecurityApplicationGroupIdentifier:
-                   SharedImportQueue.appGroupIdentifier
-           ) {
-            let queue = SharedImportQueue(
-                directoryURL: containerURL.appendingPathComponent(
-                    SharedImportQueue.appGroupDirectoryName,
-                    isDirectory: true
+        if !runtimeConfiguration.usesInMemoryStore, !resetsBackendSession {
+            let queue: (any SharedImportQueueing)?
+            if let containerURL = FileManager.default.containerURL(
+                forSecurityApplicationGroupIdentifier:
+                    SharedImportQueue.appGroupIdentifier
+            ) {
+                queue = SharedImportQueue(
+                    directoryURL: containerURL.appendingPathComponent(
+                        SharedImportQueue.appGroupDirectoryName,
+                        isDirectory: true
+                    )
                 )
-            )
-            let reconciler = SharedQueueReconciler(
-                queue: queue,
-                repository: environment.recipeRepository
-            )
-            _ = try? reconciler.reconcile()
-            sharedQueueReconciler = reconciler
+            } else if let accessGroup =
+                runtimeConfiguration.sharedKeychainAccessGroup {
+                queue = SharedKeychainImportQueue(
+                    accessGroup: accessGroup
+                )
+            } else {
+                queue = nil
+            }
+
+            if let queue {
+                let reconciler = SharedQueueReconciler(
+                    queue: queue,
+                    repository: environment.recipeRepository
+                )
+                _ = try? reconciler.reconcile()
+                sharedQueueReconciler = reconciler
+            } else {
+                sharedQueueReconciler = nil
+            }
         } else {
             sharedQueueReconciler = nil
         }

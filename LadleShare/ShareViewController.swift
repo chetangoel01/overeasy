@@ -59,18 +59,30 @@ final class ShareViewController: UIViewController {
         }
     }
 
-    private func makeQueue() throws -> SharedImportQueue {
-        guard let containerURL = FileManager.default.containerURL(
+    private func makeQueue() throws -> any SharedImportQueueing {
+        if let containerURL = FileManager.default.containerURL(
             forSecurityApplicationGroupIdentifier:
                 SharedImportQueue.appGroupIdentifier
-        ) else {
-            throw ShareHandlingError.appGroupUnavailable
-        }
-        return SharedImportQueue(
-            directoryURL: containerURL.appendingPathComponent(
-                SharedImportQueue.appGroupDirectoryName,
-                isDirectory: true
+        ) {
+            return SharedImportQueue(
+                directoryURL: containerURL.appendingPathComponent(
+                    SharedImportQueue.appGroupDirectoryName,
+                    isDirectory: true
+                )
             )
+        }
+
+        guard
+            let accessGroup = Bundle.main.object(
+                forInfoDictionaryKey:
+                    "LadleSharedKeychainAccessGroup"
+            ) as? String,
+            !accessGroup.isEmpty
+        else {
+            throw ShareHandlingError.sharedStorageUnavailable
+        }
+        return SharedKeychainImportQueue(
+            accessGroup: accessGroup
         )
     }
 
@@ -124,5 +136,5 @@ final class ShareViewController: UIViewController {
 }
 
 private enum ShareHandlingError: Error {
-    case appGroupUnavailable
+    case sharedStorageUnavailable
 }
