@@ -60,8 +60,21 @@ cd Backend
 The external probe verifies TLS, readiness, security headers, hidden
 documentation/metrics endpoints, typed authentication, application request
 limits, real 429/`Retry-After`, and response secret leakage. With a signed
-real-device token plus assertion headers for the exact request, it also
-attempts a cloud-metadata import URL and requires rejection.
+real-device token, assertion headers, and the exact JSON bytes used to create
+that assertion, it also attempts a cloud-metadata import URL and requires
+rejection:
+
+```bash
+.venv/bin/python scripts/verify_staging.py https://staging-api.example \
+  --access-token "$STAGING_ACCESS_TOKEN" \
+  --attestation-headers /secure/metadata-assertion-headers.json \
+  --attested-request-body /secure/metadata-request-body.json
+```
+
+The request-body file must contain the exact compact JSON bytes signed by App
+Attest, including a valid `jobID` and
+`"sourceURL":"http://169.254.169.254/latest/meta-data"`. Reformatting the file
+after signing invalidates the assertion by design.
 
 The script complements, but cannot replace, the staging network-policy canary,
 managed backup/PITR restore, Apple production credentials, and real-device App

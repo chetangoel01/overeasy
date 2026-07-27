@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import httpx
 
@@ -42,6 +42,7 @@ def verify(
     exercise_rate_limit: bool = False,
     access_token: str | None = None,
     attestation_headers: Mapping[str, str] | None = None,
+    attested_request_body: bytes | None = None,
 ) -> VerificationResult:
     if urlsplit(base_url).scheme != "https":
         raise VerificationFailed("staging URL must use HTTPS")
@@ -89,7 +90,7 @@ def verify(
             if candidate.status_code == 429:
                 limited = candidate
                 break
-            if candidate.status_code not in {401, 422}:
+            if candidate.status_code not in {401, 403, 422}:
                 raise VerificationFailed(
                     f"rate-limit probe returned {candidate.status_code}"
                 )
@@ -100,22 +101,36 @@ def verify(
             raise VerificationFailed("429 response has no Retry-After")
         checks.append("rateLimiting")
 
-    if access_token is not None and attestation_headers is not None:
-        # The supplied assertion must bind to this exact cloud metadata request.
+    attested_values = (
+        access_token,
+        attestation_headers,
+        attested_request_body,
+    )
+    if any(value is not None for value in attested_values) and not all(
+        value is not None for value in attested_values
+    ):
+        raise VerificationFailed(
+            "metadata probe requires an access token, assertion headers, "
+            "and exact attested request body"
+        )
+    if (
+        access_token is not None
+        and attestation_headers is not None
+        and attested_request_body is not None
+    ):
+        _validate_metadata_body(attested_request_body)
         rejected = client.post(
             f"{base_url}/v1/imports",
             headers={
                 "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json",
                 **attestation_headers,
             },
-            json={
-                "jobID": str(uuid4()),
-                "sourceURL": "http://169.254.169.254/latest/meta-data",
-            },
+            content=attested_request_body,
         )
         if rejected.status_code not in {400, 422}:
             raise VerificationFailed("cloud metadata URL was not rejected")
-        checks.append("cloud metadata SSRF")
+        checks.append("cloudMetadataSSRF")
 
     return VerificationResult(checks=tuple(checks))
 
@@ -143,6 +158,23 @@ def _no_secrets(response: httpx.Response) -> None:
             raise VerificationFailed(f"response leaked {marker}")
 
 
+def _validate_metadata_body(value: bytes) -> None:
+    try:
+        payload = json.loads(value)
+        UUID(str(payload["jobID"]))
+    except (KeyError, TypeError, UnicodeDecodeError, ValueError) as error:
+        raise VerificationFailed(
+            "attested metadata probe body must contain a valid jobID"
+        ) from error
+    if (
+        not isinstance(payload, dict)
+        or payload.get("sourceURL") != "http://169.254.169.254/latest/meta-data"
+    ):
+        raise VerificationFailed(
+            "attested metadata probe body must target the cloud metadata URL"
+        )
+
+
 def _headers(path: Path | None) -> dict[str, str] | None:
     if path is None:
         return None
@@ -160,6 +192,7 @@ def main() -> None:
     parser.add_argument("--exercise-rate-limit", action="store_true")
     parser.add_argument("--access-token")
     parser.add_argument("--attestation-headers", type=Path)
+    parser.add_argument("--attested-request-body", type=Path)
     args = parser.parse_args()
     with httpx.Client(timeout=10, follow_redirects=False) as client:
         result = verify(
@@ -168,6 +201,11 @@ def main() -> None:
             exercise_rate_limit=args.exercise_rate_limit,
             access_token=args.access_token,
             attestation_headers=_headers(args.attestation_headers),
+            attested_request_body=(
+                args.attested_request_body.read_bytes()
+                if args.attested_request_body is not None
+                else None
+            ),
         )
     print(json.dumps({"status": "passed", "checks": result.checks}))
 
