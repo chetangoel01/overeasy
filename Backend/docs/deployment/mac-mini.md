@@ -21,8 +21,11 @@ It is not the public production deployment.
 - The base Compose file remains the source of service definitions and volumes.
   The Mac mini profile only adds restart policies, bounded logs, resource
   limits, staging secrets, rate limiting, durable metrics, and non-media flags.
+- MinIO data uses the host directory `~/.local/share/ladle/minio` instead of an
+  OrbStack named volume. This keeps bucket writes on the host filesystem and
+  makes object backups inspectable without entering the container VM.
 - The Compose project stays named `backend`, so upgrading the older Mac mini
-  installation preserves its `backend_ladle-*` volumes.
+  installation preserves its PostgreSQL and Redis `backend_ladle-*` volumes.
 - `deploy.sh` creates missing staging secrets in ignored `.env.mac-mini` with
   mode `0600`. Provider credentials can be copied into that file before the
   first deployment.
@@ -69,7 +72,8 @@ curl --fail http://127.0.0.1:4112/health/ready
 
 Keep at least 20 GB free, retain off-machine database backups, and check the
 worker/API logs before updating. The profile rotates container logs at three
-10 MB files per service.
+10 MB files per service. Back up `~/.local/share/ladle/minio` with the database
+when real user objects exist.
 
 ## Verification
 
@@ -94,6 +98,9 @@ worker/API logs before updating. The profile rotates container logs at three
   `204`; the test account was removed
 - Runtime: live extraction provider, no FFmpeg, audio transcription off, frame
   analysis off, server media fallback off
+- Object storage: the prior named volume contained zero current objects,
+  versions, or delete markers before MinIO moved to the host-backed directory;
+  the old volume was retained as a rollback
 - Ingress: Tailscale Serve only; PostgreSQL and Redis have no published ports,
   while MinIO and the API bind host loopback only
 - Container policy: `unless-stopped`, three 10 MB JSON log files per service,

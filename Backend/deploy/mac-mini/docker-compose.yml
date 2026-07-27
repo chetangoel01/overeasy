@@ -33,6 +33,8 @@ services:
     logging: *bounded-logging
     mem_limit: 512m
     cpus: 0.5
+    volumes:
+      - ${LADLE_MAC_MINI_MINIO_DATA_DIR:?set by deploy.sh}:/data
 
   minio-init:
     logging: *bounded-logging

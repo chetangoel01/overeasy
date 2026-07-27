@@ -17,6 +17,7 @@ def test_mac_mini_profile_is_private_bounded_and_non_media() -> None:
     assert 'LADLE_SERVER_MEDIA_FALLBACK_ENABLED: "false"' in profile
     assert "max-size: 10m" in profile
     assert "max-file: 3" in profile
+    assert "${LADLE_MAC_MINI_MINIO_DATA_DIR:?set by deploy.sh}:/data" in profile
     assert "ports:" not in profile
 
 
@@ -29,6 +30,8 @@ def test_mac_mini_deploy_script_generates_secrets_and_runs_migrations() -> None:
     assert "LADLE_DATA_ENCRYPTION_KEY" in script
     assert "LADLE_METRICS_AUTH_TOKEN" in script
     assert "LADLE_INSTALL_MEDIA_TOOLS false" in script
+    assert "LADLE_MAC_MINI_MINIO_DATA_DIR" in script
+    assert 'mkdir -p "$minio_data_dir"' in script
     assert 'PATH="/usr/local/bin:/opt/homebrew/bin:$HOME/.orbstack/bin:$PATH"' in script
     assert "docker-compose.yml" in script
     assert "deploy/mac-mini/docker-compose.yml" in script
