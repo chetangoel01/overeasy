@@ -1,0 +1,123 @@
+# Library Interaction Polish Design
+
+## Problem
+
+Overeasy's Library Home currently has three related problems:
+
+1. In the real app on **Overeasy - iPhone 16 Pro**, tapping the visible
+   **Import inbox** card can open **Watch** instead. The existing UI test taps
+   the semantic accessibility element and therefore does not cover the
+   physical hit region that is failing.
+2. The Collections rows read as unfinished bare text. Counts and chevrons are
+   cramped against the trailing edge, the dividers do not create a clear
+   group, and the rows do not carry the visual intent of the rest of Home.
+3. Important actions have little tactile or motion response, so the app feels
+   flatter than its warm visual identity suggests.
+
+The existing uncommitted Library navigation work remains the correct basis:
+successful review completion uses one typed navigation path, returns to the
+remaining Import Inbox when actionable imports remain, and returns to Home
+when the inbox becomes empty.
+
+## Approved Direction
+
+Use a tactile, directional interaction system rather than decorative
+animation:
+
+- Pressable cards and controls compress quickly and release cleanly.
+- Collection expansion and grid/list changes reshape in place.
+- Favorites and review completion use symbol/state transitions.
+- Haptics are reserved for meaningful navigation, selection, completion,
+  timer, and error events.
+- Nothing loops, floats, pulses, or uses elastic overshoot.
+- Reduce Motion removes scale and movement while retaining opacity and state
+  clarity.
+
+## Import Inbox Hit Region
+
+The Import Inbox and Watch cards will each own an explicit rounded interaction
+shape matching their visible bounds. The Watch card will be clipped to that
+shape, and the Inbox card will sit above later siblings in hit-testing order.
+
+A UI regression will tap the physical center coordinate of the rendered Inbox
+card and assert that:
+
+- `library.import-inbox.root` appears;
+- `library.watch.root` does not appear; and
+- returning Home allows the same physical tap to work again.
+
+This complements rather than replaces the existing semantic accessibility
+tests.
+
+## Collections
+
+Collections will become one grouped panel under the existing collapsible
+header. Each 56-point row will include:
+
+- a small tinted circular icon;
+- the collection title;
+- a quiet recipe count;
+- a consistently aligned chevron; and
+- an inset divider between rows.
+
+The proposed symbols are:
+
+- **Ready in 30 minutes:** `timer`
+- **Favorited:** `heart.fill`
+- **Haven't cooked yet:** `frying.pan`
+
+The panel uses one subtle Oat/Field surface and one quiet outline. This gives
+the section intention without turning every row into a separate card.
+
+## Motion
+
+Create one shared press style with two strengths:
+
+- **Card:** scale to `0.97`, slight opacity change, 180 ms snappy return.
+- **Control:** scale to `0.94`, slight opacity change, 150 ms snappy return.
+
+Both use zero extra bounce. Primary buttons retain their existing prominence
+but use the same timing language.
+
+Section expansion uses a 220 ms opacity-and-upward transition. Existing
+grid/list changes use the same zero-bounce snappy timing. Review completion
+replaces the review action with a brief success state before the typed
+navigation path resolves to the Inbox or Home.
+
+## Haptics
+
+Use SwiftUI sensory feedback tied to state changes:
+
+- light impact when pushing a meaningful destination such as Import Inbox,
+  Watch, a collection, or a recipe;
+- selection feedback for Home/All, grid/list, filters, and favorites;
+- success feedback for completed review, completed cooking steps, and finished
+  timers;
+- medium impact for starting or resuming a timer; and
+- warning/error feedback only when an operation actually fails.
+
+Do not add haptics to ordinary scrolling, back navigation, passive loading, or
+every incidental tap.
+
+## Accessibility
+
+- Preserve at least 44-by-44-point interaction targets.
+- Keep semantic labels and identifiers on the actual buttons.
+- Use color together with symbols and text, never as the only state cue.
+- Under Reduce Motion, disable scale, move, and symbol travel while keeping
+  opacity changes and haptics.
+- Verify the grouped Collections panel with accessibility Dynamic Type and
+  dark appearance.
+
+## Verification
+
+- Run the new physical-coordinate Inbox regression before and after the fix.
+- Run the existing review-routing and reopen regressions.
+- Run Library, Recipe Detail, and Cooking focused tests.
+- Build for simulator with `xcodebuild`.
+- Launch through Xcode on **Overeasy - iPhone 16 Pro**
+  (`5CDD8E03-C52C-449A-8332-28F29FF937B7`) so the simulator app retains the
+  entitlements required to reach the local API.
+- Manually verify Inbox and Watch hit regions, Collections alignment, Reduce
+  Motion, dark appearance, review completion, favorites, cooking steps, and
+  timers.
