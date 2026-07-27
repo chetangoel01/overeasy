@@ -62,6 +62,17 @@ class S3ObjectStorage:
                 raise
         self._client.create_bucket(Bucket=self._bucket)
 
+    def configure_private_bucket(self, lifecycle: dict[str, Any]) -> None:
+        self.create_private_bucket()
+        self._client.put_bucket_versioning(
+            Bucket=self._bucket,
+            VersioningConfiguration={"Status": "Enabled"},
+        )
+        self._client.put_bucket_lifecycle_configuration(
+            Bucket=self._bucket,
+            LifecycleConfiguration=lifecycle,
+        )
+
     def put(self, key: str, data: bytes, *, content_type: str) -> None:
         self._client.put_object(
             Bucket=self._bucket,

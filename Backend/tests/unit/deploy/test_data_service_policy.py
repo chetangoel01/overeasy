@@ -45,6 +45,5 @@ def test_local_redis_matches_the_documented_durability_contract() -> None:
 def test_local_object_storage_applies_versioning_and_lifecycle_policy() -> None:
     compose = (Path(__file__).parents[3] / "docker-compose.yml").read_text()
 
-    assert "mc version enable ladle/ladle-private" in compose
-    assert "mc ilm rule import ladle/ladle-private" in compose
+    assert "ladle.infrastructure.object_storage_init" in compose
     assert "./deploy/object-storage-lifecycle.json:" in compose

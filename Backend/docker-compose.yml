@@ -80,15 +80,24 @@ services:
       - ladle-minio:/data
 
   minio-init:
-    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
-    entrypoint: ["/bin/sh", "-c"]
+    <<: *runtime-security
+    build: *runtime-build
     command:
-      - >
-        mc alias set ladle http://minio:9000 ladle-local ladle-local-secret &&
-        mc mb --ignore-existing ladle/ladle-private &&
-        mc version enable ladle/ladle-private &&
-        mc ilm rule import ladle/ladle-private
-        < /policy/object-storage-lifecycle.json
+      [
+        "/app/.venv/bin/python",
+        "-m",
+        "ladle.infrastructure.object_storage_init",
+      ]
+    environment:
+      LADLE_OBJECT_STORAGE_ENDPOINT_URL: http://minio:9000
+      LADLE_OBJECT_STORAGE_REGION: us-east-1
+      LADLE_OBJECT_STORAGE_BUCKET: ladle-private
+      LADLE_OBJECT_STORAGE_ADDRESSING_STYLE: path
+      LADLE_OBJECT_STORAGE_ACCESS_KEY: ladle-local
+      LADLE_OBJECT_STORAGE_SECRET_KEY: ladle-local-secret
+      LADLE_OBJECT_STORAGE_LIFECYCLE_PATH: /policy/object-storage-lifecycle.json
+    healthcheck:
+      disable: true
     depends_on:
       minio:
         condition: service_healthy
