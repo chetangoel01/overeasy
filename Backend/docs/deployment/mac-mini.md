@@ -13,6 +13,8 @@ production deployment.
   protocol v2) and `4113` (local operations). The API has no published port.
 - The edge image contains its read-only configuration; it does not require an
   unattended host file-sharing mount.
+- A dedicated host-publish network lets Docker Desktop bind those loopback
+  ports while the API remains isolated on its internal edge network.
 - Tailscale Serve terminates HTTPS for tailnet devices and forwards PROXY
   protocol v2 so per-IP abuse controls receive the original tailnet address.
 - Nginx rejects bodies over 1 MiB with the typed `invalidRequest` response

@@ -33,6 +33,8 @@ def test_mac_mini_profile_is_private_bounded_and_non_media() -> None:
     assert "depends_on: !reset {}" in profile
     assert "127.0.0.1:4112:8080" in profile
     assert "127.0.0.1:4113:8081" in profile
+    assert profile.count("host-publish: {}") == 2
+    assert profile.count("internal: true") == 1
     assert "ports: !reset []" in profile
     assert "LADLE_RATE_LIMIT_TRUSTED_PROXY_CIDRS: 172.30.0.2/32" in profile
     assert "network_mode: service:worker-egress" in profile

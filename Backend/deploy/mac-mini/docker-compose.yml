@@ -77,6 +77,7 @@ services:
       api:
         condition: service_healthy
     networks:
+      host-publish: {}
       edge:
         ipv4_address: 172.30.0.2
     logging: *bounded-logging
@@ -152,6 +153,7 @@ services:
     logging: *bounded-logging
 
 networks:
+  host-publish: {}
   edge:
     internal: true
     ipam:
