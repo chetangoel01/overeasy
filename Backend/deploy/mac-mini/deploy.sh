@@ -2,6 +2,9 @@
 set -eu
 
 umask 077
+PATH="/usr/local/bin:/opt/homebrew/bin:$HOME/.orbstack/bin:$PATH"
+export PATH
+
 backend_dir=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
 cd "$backend_dir"
 

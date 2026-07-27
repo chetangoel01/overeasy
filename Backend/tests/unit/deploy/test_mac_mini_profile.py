@@ -27,6 +27,7 @@ def test_mac_mini_deploy_script_generates_secrets_and_runs_migrations() -> None:
     assert "LADLE_JWT_SIGNING_SECRET" in script
     assert "LADLE_DATA_ENCRYPTION_KEY" in script
     assert "LADLE_METRICS_AUTH_TOKEN" in script
+    assert 'PATH="/usr/local/bin:/opt/homebrew/bin:$HOME/.orbstack/bin:$PATH"' in script
     assert "docker-compose.yml" in script
     assert "deploy/mac-mini/docker-compose.yml" in script
     assert "migrate" in script
