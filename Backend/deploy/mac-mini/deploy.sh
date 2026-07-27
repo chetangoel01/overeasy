@@ -56,15 +56,42 @@ compose() {
 compose config >/dev/null
 compose stop minio || true
 compose up -d postgres redis
-compose build migrate minio-init api worker beat
+compose pull edge
+compose build migrate minio-init api worker beat worker-egress
 compose run --rm migrate
-compose up -d --no-build --no-deps api worker beat
+compose up \
+    -d \
+    --no-build \
+    --no-deps \
+    --wait \
+    --wait-timeout 60 \
+    worker-egress
+compose up -d --no-build --no-deps api beat
+compose up -d --no-build --no-deps --force-recreate worker
+compose up -d --no-build --no-deps edge
 
 curl \
     --fail \
     --retry 30 \
     --retry-all-errors \
     --retry-delay 2 \
-    http://127.0.0.1:4112/health/ready
+    http://127.0.0.1:4113/health/ready
 printf '\n'
+
+if [ -x /Applications/Tailscale.app/Contents/MacOS/Tailscale ]; then
+    tailscale_bin=/Applications/Tailscale.app/Contents/MacOS/Tailscale
+elif command -v tailscale >/dev/null 2>&1; then
+    tailscale_bin=$(command -v tailscale)
+else
+    echo "Tailscale is required for the private ingress." >&2
+    exit 1
+fi
+
+"$tailscale_bin" serve \
+    --bg \
+    --yes \
+    --proxy-protocol=2 \
+    --tls-terminated-tcp=443 \
+    tcp://127.0.0.1:4112
+
 compose ps

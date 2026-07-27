@@ -9,8 +9,12 @@ production deployment.
 
 ## User-visible behavior
 
-- The API listens only on the host loopback address at port `4112`.
-- Tailscale Serve provides the HTTPS endpoint to devices in the same tailnet.
+- A rootless Nginx edge listens only on host loopback ports `4112` (PROXY
+  protocol v2) and `4113` (local operations). The API has no published port.
+- Tailscale Serve terminates HTTPS for tailnet devices and forwards PROXY
+  protocol v2 so per-IP abuse controls receive the original tailnet address.
+- Nginx rejects bodies over 1 MiB with the typed `invalidRequest` response
+  before FastAPI allocates or parses them.
 - Imports use the configured live text/extraction providers.
 - Audio transcription, frame sampling, and server media fallback are disabled.
 - Object storage and server-managed thumbnails are disabled.
@@ -21,7 +25,8 @@ production deployment.
 
 - The base Compose file remains the source of service definitions and volumes.
   The Mac mini profile only adds restart policies, bounded logs, resource
-  limits, staging secrets, rate limiting, durable metrics, and non-media flags.
+  limits, staging secrets, rate limiting, durable metrics, ingress/egress
+  enforcement, and non-media flags.
 - The Compose project stays named `backend`, so upgrading the older Mac mini
   installation preserves its PostgreSQL and Redis `backend_ladle-*` volumes.
 - MinIO is profile-disabled because both named-volume and host-bind trials
@@ -35,6 +40,11 @@ production deployment.
   the API outside the tailnet.
 - Tailscale is the only ingress. Do not add router port forwarding and do not
   use Tailscale Funnel for this profile.
+- The worker shares the network namespace of a minimal firewall sidecar. Rules
+  apply only to UID 10001: Docker DNS, the resolved PostgreSQL/Redis endpoints,
+  and public TCP/443 are allowed; private, loopback, link-local, metadata,
+  multicast, reserved, non-HTTPS, and all IPv6 egress are rejected. Only the
+  sidecar has `NET_ADMIN`; the worker remains capability-free.
 
 ## Deploy or upgrade
 
@@ -42,12 +52,18 @@ From `Backend/` on the Mac mini:
 
 ```bash
 ./deploy/mac-mini/deploy.sh
-/Applications/Tailscale.app/Contents/MacOS/Tailscale serve --bg --yes 4112
 ```
 
 The deploy script validates the merged Compose configuration, starts the data
 services, stops the unused MinIO service, builds the runtime, runs Alembic
-before replacing API/worker processes, and waits for readiness.
+before replacing API/worker processes, waits for the egress gateway and local
+edge readiness, and configures Tailscale's TLS-terminated PROXY protocol v2
+forwarder.
+
+To roll back to a commit before the edge was introduced, deploy that commit and
+restore the earlier plain HTTP forwarder with
+`Tailscale serve --bg --yes 4112`. Do not leave the PROXY protocol forwarder
+pointing at an API process that does not expect its header.
 
 Before a migration upgrade, keep a local database backup outside the checkout:
 
@@ -66,7 +82,7 @@ docker compose \
   -f deploy/mac-mini/docker-compose.yml \
   ps
 
-curl --fail http://127.0.0.1:4112/health/ready
+curl --fail http://127.0.0.1:4113/health/ready
 /Applications/Tailscale.app/Contents/MacOS/Tailscale serve status
 ```
 
@@ -81,6 +97,13 @@ worker/API logs before updating. The profile rotates container logs at three
 - Alembic migration exit status
 - Local `/health/ready`
 - Tailnet HTTPS `/health/ready`
+- A 1 MiB-plus local and tailnet request returns `413` plus
+  `error.code=invalidRequest`
+- Nginx access logs show the real tailnet source address supplied through
+  PROXY protocol v2
+- Worker probes can reach PostgreSQL, Redis, and a public HTTPS endpoint, while
+  cloud metadata, localhost, RFC1918, and public non-443 destinations are
+  rejected with matching firewall counters
 
 ## Deployment record: 2026-07-26
 

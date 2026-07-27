@@ -89,17 +89,81 @@ jobs:
           scanners: vuln
           severity: CRITICAL,HIGH
           vuln-type: os,library
+      - name: Build Mac worker egress gateway
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: Backend/deploy/mac-mini
+          file: Backend/deploy/mac-mini/egress.Dockerfile
+          load: true
+          platforms: linux/amd64
+          tags: ladle-worker-egress:${{ github.sha }}
+      - name: Load pinned Mac ingress edge
+        env:
+          LADLE_JWT_SIGNING_SECRET: ci-signing-secret-that-is-long-enough
+          LADLE_DATA_ENCRYPTION_KEY: ci-data-key-that-is-long-enough
+          LADLE_METRICS_AUTH_TOKEN: ci-metrics-token-that-is-long-enough
+        run: |
+          edge_image="$(
+            docker compose \
+              --env-file /dev/null \
+              -f Backend/docker-compose.yml \
+              -f Backend/deploy/mac-mini/docker-compose.yml \
+              config --images |
+              grep '^nginx:' |
+              head -1
+          )"
+          docker pull "$edge_image"
+          docker tag "$edge_image" "ladle-mac-edge:${{ github.sha }}"
+      - name: Scan Mac worker egress gateway
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ladle-worker-egress:${{ github.sha }}
+          exit-code: "1"
+          ignore-unfixed: true
+          scanners: vuln
+          severity: CRITICAL,HIGH
+          vuln-type: os,library
+      - name: Scan Mac ingress edge
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ladle-mac-edge:${{ github.sha }}
+          exit-code: "1"
+          ignore-unfixed: true
+          scanners: vuln
+          severity: CRITICAL,HIGH
+          vuln-type: os,library
       - name: Generate candidate SBOM
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
         with:
           image: ladle-backend:${{ github.sha }}
           format: spdx-json
           output-file: ladle-backend-${{ github.sha }}.spdx.json
+      - name: Generate Mac worker egress SBOM
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
+        with:
+          image: ladle-worker-egress:${{ github.sha }}
+          format: spdx-json
+          output-file: ladle-worker-egress-${{ github.sha }}.spdx.json
+          upload-artifact: false
+      - name: Generate Mac ingress edge SBOM
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
+        with:
+          image: ladle-mac-edge:${{ github.sha }}
+          format: spdx-json
+          output-file: ladle-mac-edge-${{ github.sha }}.spdx.json
+          upload-artifact: false
       - name: Upload SBOM
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ladle-backend-sbom
           path: ladle-backend-${{ github.sha }}.spdx.json
+      - name: Upload Mac infrastructure SBOMs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ladle-mac-infrastructure-sboms
+          path: |
+            ladle-worker-egress-${{ github.sha }}.spdx.json
+            ladle-mac-edge-${{ github.sha }}.spdx.json
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         with:

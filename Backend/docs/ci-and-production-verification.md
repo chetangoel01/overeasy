@@ -19,6 +19,12 @@ provenance attestations, rescanned by immutable digest, and keylessly signed
 only after the scan passes. Deployment consumes the signed digest, never a
 mutable tag.
 
+The same job also builds and scans the Mac mini worker-egress image and pulls
+the Mac ingress image by its pinned multi-platform digest. Both auxiliary
+images must have zero fixable HIGH/CRITICAL findings, and their SPDX SBOMs are
+retained together. This prevents a defensive proxy or firewall sidecar from
+weakening the scanned application image's supply-chain posture.
+
 Trivy is explicitly limited to its vulnerability scanner in the image jobs.
 Repository secrets remain covered by the separate full-history gitleaks gate;
 this separation prevents known public API identifiers embedded in upstream

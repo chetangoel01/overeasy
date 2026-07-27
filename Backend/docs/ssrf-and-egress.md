@@ -39,10 +39,20 @@ without Kubernetes NetworkPolicy must reproduce the same rules in their
 security group, firewall, or egress gateway. Deployment verification must
 prove metadata and task-credential endpoints are unreachable from a worker.
 
+The Mac mini profile uses `worker-egress`, a dedicated network namespace and
+firewall sidecar. The capability-free UID-10001 worker can resolve Docker DNS,
+reach only the resolved PostgreSQL/Redis addresses on their exact ports, and
+use public TCP/443. It rejects the same non-global IPv4 ranges as the
+Kubernetes policy, rejects every other port, and denies IPv6. The sidecar is
+read-only, drops every capability before adding only `NET_ADMIN`, and contains
+no application credentials.
+
 ## Verification
 
 Unit tests cover mixed DNS answers, DNS rebinding, every redirect, literal
 metadata endpoints, IPv4-mapped IPv6, nonstandard schemes and ports,
 provider-returned subtitle/media/thumbnail URLs, byte bounds, and pinned
 address/Host/SNI behavior. The exact staging worker still requires a live
-egress probe before this control is considered deployed.
+egress probe before this control is considered deployed. The Mac profile probe
+must show successful dependency/public-HTTPS counters and explicit rejection
+counters for metadata, private addresses, and public non-HTTPS traffic.

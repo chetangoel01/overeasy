@@ -11,12 +11,14 @@ def test_mac_mini_profile_is_private_bounded_and_non_media() -> None:
         "redis",
         "minio",
         "minio-init",
+        "edge",
         "api",
+        "worker-egress",
         "worker",
         "beat",
     ):
         assert f"  {service}:" in profile
-    assert profile.count("restart: unless-stopped") == 5
+    assert profile.count("restart: unless-stopped") == 7
     assert 'LADLE_RATE_LIMITING_ENABLED: "true"' in profile
     assert "LADLE_RATE_LIMIT_REDIS_URL: redis://redis:6379/2" in profile
     assert 'LADLE_DURABLE_METRICS_ENABLED: "true"' in profile
@@ -29,7 +31,56 @@ def test_mac_mini_profile_is_private_bounded_and_non_media() -> None:
     assert 'profiles: ["object-storage-disabled"]' in profile
     assert 'command: ["/bin/true"]' in profile
     assert "depends_on: !reset {}" in profile
-    assert "ports:" not in profile
+    assert "127.0.0.1:4112:8080" in profile
+    assert "127.0.0.1:4113:8081" in profile
+    assert "ports: !reset []" in profile
+    assert "LADLE_RATE_LIMIT_TRUSTED_PROXY_CIDRS: 172.30.0.2/32" in profile
+    assert "network_mode: service:worker-egress" in profile
+    assert "NET_ADMIN" in profile
+    assert "privileged: true" not in profile
+
+
+def test_mac_mini_edge_enforces_body_limit_and_preserves_proxy_protocol_ip() -> None:
+    config = (BACKEND / "deploy" / "mac-mini" / "nginx.conf").read_text()
+
+    assert "listen 8080 proxy_protocol" in config
+    assert "listen 8081" in config
+    assert "real_ip_header proxy_protocol" in config
+    assert "proxy_set_header X-Forwarded-For $remote_addr" in config
+    assert "client_max_body_size 1m" in config
+    assert "error_page 413" in config
+    assert '"code":"invalidRequest"' in config
+    assert "server api:4111" in config
+    assert "proxy_pass http://ladle_api" in config
+
+
+def test_mac_mini_worker_egress_allows_dependencies_and_public_https_only() -> None:
+    dockerfile = (BACKEND / "deploy" / "mac-mini" / "egress.Dockerfile").read_text()
+    policy = (BACKEND / "deploy" / "mac-mini" / "worker-egress.sh").read_text()
+
+    assert "@sha256:" in dockerfile
+    assert "iptables=1.8.13-r0" in dockerfile
+    assert "postgres_ip=" in policy
+    assert "redis_ip=" in policy
+    assert "--dport 5432" in policy
+    assert "--dport 6379" in policy
+    assert "--dport 443" in policy
+    for blocked in (
+        "0.0.0.0/8",
+        "10.0.0.0/8",
+        "100.64.0.0/10",
+        "127.0.0.0/8",
+        "169.254.0.0/16",
+        "172.16.0.0/12",
+        "192.168.0.0/16",
+        "224.0.0.0/4",
+        "240.0.0.0/4",
+    ):
+        assert blocked in policy
+    assert "ip6tables" in policy
+    assert "WORKER_UID:-10001" in policy
+    assert '--uid-owner "$worker_uid"' in policy
+    assert "REJECT" in policy
 
 
 def test_mac_mini_deploy_script_generates_secrets_and_runs_migrations() -> None:
@@ -47,3 +98,17 @@ def test_mac_mini_deploy_script_generates_secrets_and_runs_migrations() -> None:
     assert "deploy/mac-mini/docker-compose.yml" in script
     assert "migrate" in script
     assert "health/ready" in script
+    assert "--proxy-protocol=2" in script
+    assert "--tls-terminated-tcp=443" in script
+
+
+def test_ci_scans_and_retains_sboms_for_mac_infrastructure_images() -> None:
+    workflow = (BACKEND.parent / ".github" / "workflows" / "backend-ci.yml").read_text()
+
+    assert "Build Mac worker egress gateway" in workflow
+    assert "Load pinned Mac ingress edge" in workflow
+    assert "Scan Mac worker egress gateway" in workflow
+    assert "Scan Mac ingress edge" in workflow
+    assert "Generate Mac worker egress SBOM" in workflow
+    assert "Generate Mac ingress edge SBOM" in workflow
+    assert "ladle-mac-infrastructure-sboms" in workflow

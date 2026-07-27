@@ -42,21 +42,117 @@ services:
     volumes: !reset []
     logging: *bounded-logging
 
+  edge:
+    image: nginx:1.30.4-alpine3.24-slim@sha256:ddde39c6e51f02fde7410c2e9c234cf2d0a4c7bdbbe176aeb37d8ad7ab4eb58c
+    restart: unless-stopped
+    read_only: true
+    user: "101:101"
+    cap_drop:
+      - "ALL"
+    security_opt:
+      - "no-new-privileges:true"
+    pids_limit: 64
+    mem_limit: 128m
+    cpus: 0.25
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    ulimits:
+      nofile:
+        soft: 1024
+        hard: 2048
+      fsize:
+        soft: 16777216
+        hard: 16777216
+    ports:
+      - "127.0.0.1:4112:8080"
+      - "127.0.0.1:4113:8081"
+    volumes:
+      - ./deploy/mac-mini/nginx.conf:/etc/nginx/nginx.conf:ro
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      edge:
+        ipv4_address: 172.30.0.2
+    logging: *bounded-logging
+
   migrate:
     environment: *private-staging-environment
     logging: *bounded-logging
 
   api:
     restart: unless-stopped
-    environment: *private-staging-environment
+    environment:
+      <<: *private-staging-environment
+      LADLE_RATE_LIMIT_TRUSTED_PROXY_CIDRS: 172.30.0.2/32
+    ports: !reset []
+    networks:
+      default: {}
+      edge:
+        ipv4_address: 172.30.0.3
+    logging: *bounded-logging
+
+  worker-egress:
+    build:
+      context: ./deploy/mac-mini
+      dockerfile: egress.Dockerfile
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - "ALL"
+    cap_add:
+      - "NET_ADMIN"
+    security_opt:
+      - "no-new-privileges:true"
+    pids_limit: 32
+    mem_limit: 32m
+    cpus: 0.10
+    tmpfs:
+      - /tmp:size=4m,mode=1777
+    environment:
+      WORKER_UID: "10001"
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "sh",
+          "-c",
+          "test -f /tmp/egress-ready && iptables -C OUTPUT -m owner --uid-owner 10001 -j LADLE_WORKER_EGRESS",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     logging: *bounded-logging
 
   worker:
     restart: unless-stopped
     environment: *private-staging-environment
+    network_mode: service:worker-egress
+    depends_on:
+      worker-egress:
+        condition: service_healthy
     logging: *bounded-logging
 
   beat:
     restart: unless-stopped
     environment: *private-staging-environment
     logging: *bounded-logging
+
+networks:
+  edge:
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
