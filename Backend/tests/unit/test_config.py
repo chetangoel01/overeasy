@@ -1,4 +1,5 @@
 from datetime import UTC
+from pathlib import Path
 
 import pytest
 from pydantic import SecretStr, ValidationError
@@ -9,6 +10,7 @@ from ladle.clock import SystemClock
 from ladle.config import Settings
 
 GOOD_SECRET = "production-only-test-secret-that-is-at-least-32-bytes"
+BACKEND_ROOT = Path(__file__).parents[2]
 PRODUCTION_ATTEST = {
     "attestation_enforced": True,
     "app_attest_app_id_prefix": "ABCDE12345",
@@ -371,3 +373,14 @@ def test_default_worker_timing_chain_is_safe() -> None:
         settings.celery_task_time_limit_seconds
         < settings.provider_budget_reservation_minutes * 60
     )
+
+
+def test_example_environment_preserves_the_validated_worker_timing_chain() -> None:
+    settings = Settings(_env_file=BACKEND_ROOT / ".env.example")
+
+    assert settings.extraction_claim_heartbeat_seconds == 30
+    assert settings.celery_task_soft_time_limit_seconds == 1500
+    assert settings.celery_task_time_limit_seconds == 1560
+    assert settings.celery_visibility_timeout_seconds == 1800
+    assert settings.import_stale_after_minutes == 32
+    assert settings.provider_budget_reservation_minutes == 30

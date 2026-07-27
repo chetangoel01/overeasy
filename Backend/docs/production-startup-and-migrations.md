@@ -22,9 +22,9 @@ Use the exact immutable image digest intended for the API and worker:
    `deploy/kubernetes/migration-job.yaml` with that digest.
 2. Apply the one-shot Job and wait for successful completion.
 3. Roll out worker and API Deployments only after the Job succeeds.
-4. Keep the previous application version compatible with migration `0009`
-   during the rollout. If that is not possible, use a two-release
-   expand/migrate/contract sequence.
+4. Keep the previous application version compatible with the additive schema
+   through current head `0011` during the rollout. If that is not possible, use
+   a two-release expand/migrate/contract sequence.
 5. Readiness rejects any pod whose expected migration revision (`0011`) is not current,
    preventing it from receiving service traffic.
 
@@ -47,7 +47,8 @@ complete before API, worker, or Beat starts.
 
 ## Verification
 
-Unit tests cover each fail-closed setting, worker availability, and bounded
-startup retries. Integration tests change `alembic_version` to prove readiness
-rejects a migration mismatch. A manifest test ensures the migration gate stays
-one-shot, bounded, and explicit.
+Unit tests cover each fail-closed setting, the checked-in example environment's
+complete timing chain, worker availability, and bounded startup retries.
+Integration tests change `alembic_version` to prove readiness rejects a
+migration mismatch. A manifest test ensures the migration gate stays one-shot,
+bounded, and explicit.
