@@ -4,7 +4,6 @@ from copy import deepcopy
 from io import StringIO
 from uuid import UUID
 
-import pytest
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
@@ -129,9 +128,14 @@ def test_json_formatter_redacts_at_the_sink_and_adds_safe_context() -> None:
 
 
 def test_http_completion_log_includes_route_supplied_user_pseudonym(
-    caplog: pytest.LogCaptureFixture,
+    monkeypatch,
 ) -> None:
     app = FastAPI()
+    events: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        "ladle.observability.middleware.LOGGER.info",
+        lambda _message, *, extra: events.append(extra),
+    )
 
     @app.get("/authenticated")
     def authenticated(request: Request) -> dict[str, str]:
@@ -139,11 +143,9 @@ def test_http_completion_log_includes_route_supplied_user_pseudonym(
         return {"status": "ok"}
 
     install_request_middleware(app, metrics=MetricsRegistry())
-    caplog.set_level(logging.INFO, logger="ladle.http")
 
     with TestClient(app) as client:
         response = client.get("/authenticated")
 
     assert response.status_code == 200
-    record = next(item for item in caplog.records if item.name == "ladle.http")
-    assert record.user_safe_id == "0123456789abcdef"
+    assert events[-1]["user_safe_id"] == "0123456789abcdef"
