@@ -9,6 +9,7 @@ x-private-staging-environment: &private-staging-environment
   LADLE_DATA_ENCRYPTION_KEY: ${LADLE_DATA_ENCRYPTION_KEY:?set by deploy.sh}
   LADLE_METRICS_AUTH_TOKEN: ${LADLE_METRICS_AUTH_TOKEN:?set by deploy.sh}
   LADLE_RATE_LIMITING_ENABLED: "true"
+  LADLE_RATE_LIMIT_REDIS_URL: redis://redis:6379/2
   LADLE_DURABLE_METRICS_ENABLED: "true"
   LADLE_AUDIO_TRANSCRIPTION_ENABLED: "false"
   LADLE_FRAME_ANALYSIS_ENABLED: "false"

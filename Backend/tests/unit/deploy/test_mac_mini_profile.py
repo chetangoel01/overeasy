@@ -10,6 +10,7 @@ def test_mac_mini_profile_is_private_bounded_and_non_media() -> None:
         assert f"  {service}:" in profile
     assert profile.count("restart: unless-stopped") == 6
     assert 'LADLE_RATE_LIMITING_ENABLED: "true"' in profile
+    assert "LADLE_RATE_LIMIT_REDIS_URL: redis://redis:6379/2" in profile
     assert 'LADLE_DURABLE_METRICS_ENABLED: "true"' in profile
     assert 'LADLE_AUDIO_TRANSCRIPTION_ENABLED: "false"' in profile
     assert 'LADLE_FRAME_ANALYSIS_ENABLED: "false"' in profile
