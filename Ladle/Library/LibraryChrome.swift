@@ -30,7 +30,7 @@ struct LibraryTopBar: View {
             iconButton(
                 "plus",
                 label: "Add Recipe",
-                tint: LadleTheme.paprika,
+                tint: LadleTheme.brick,
                 foreground: LadleTheme.onAccent,
                 isEnabled: isAddEnabled,
                 action: addRecipe

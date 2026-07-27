@@ -208,7 +208,7 @@ struct ReimportSheet: View {
                 .font(.system(size: 24, weight: .bold))
                 .foregroundStyle(LadleTheme.onAccent)
                 .frame(width: 62, height: 62)
-                .background(LadleTheme.paprika, in: Circle())
+                .background(LadleTheme.brick, in: Circle())
             Text(title)
                 .ladleFont(.title)
                 .foregroundStyle(LadleTheme.ink)

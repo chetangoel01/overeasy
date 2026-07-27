@@ -10,18 +10,7 @@ struct ImportInboxView: View {
 
     var body: some View {
         List {
-            Section {
-                jobs
-            } header: {
-                LadleSectionHeader(
-                    title: "In progress",
-                    detail: inboxDetail
-                )
-            }
-
-            Section {
-                howItWorks
-            }
+            jobs
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
@@ -103,67 +92,4 @@ struct ImportInboxView: View {
         .buttonStyle(.plain)
     }
 
-    private var howItWorks: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            LadleSectionHeader(
-                title: "How imports work",
-                detail: "Your source link stays safe"
-            )
-            .padding(.bottom, 6)
-            explanation(
-                "Parsing",
-                detail: "Overeasy reads the source and structures the recipe.",
-                icon: "sparkles"
-            )
-            explanation(
-                "Needs review",
-                detail: "Check uncertain details before cooking.",
-                icon: "pencil.line"
-            )
-            explanation(
-                "Failed",
-                detail: "Retry, add context, paste details, or create manually.",
-                icon: "arrow.clockwise"
-            )
-        }
-        .listRowInsets(
-            EdgeInsets(
-                top: 18,
-                leading: LadleTheme.Spacing.regular,
-                bottom: 44,
-                trailing: LadleTheme.Spacing.regular
-            )
-        )
-        .listRowBackground(LadleTheme.paper)
-        .listRowSeparator(.hidden)
-    }
-
-    private func explanation(
-        _ title: String,
-        detail: String,
-        icon: String
-    ) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: icon)
-                .foregroundStyle(LadleTheme.paprika)
-                .frame(width: 28)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .ladleFont(.bodyStrong)
-                    .foregroundStyle(LadleTheme.ink)
-                Text(detail)
-                    .ladleFont(.metadata)
-                    .foregroundStyle(LadleTheme.mutedInk)
-            }
-        }
-        .frame(minHeight: 64)
-        .overlay(alignment: .bottom) {
-            Divider().overlay(LadleTheme.ink.opacity(0.08))
-        }
-    }
-
-    private var inboxDetail: String {
-        let count = viewModel.actionableImportJobs.count
-        return count == 1 ? "1 active import" : "\(count) active imports"
-    }
 }

@@ -1,6 +1,14 @@
 import LadleCore
 import SwiftUI
 
+private enum LibraryWorkspaceDestination: Hashable, Identifiable {
+    case search
+    case importInbox
+    case watch
+
+    var id: Self { self }
+}
+
 struct LibraryView: View {
     @Bindable var viewModel: LibraryViewModel
     @Bindable var importCoordinator: ImportCoordinator
@@ -13,9 +21,7 @@ struct LibraryView: View {
     @State private var section: LibrarySection = .home
     @State private var isFilterSheetPresented = false
     @State private var isAddSheetPresented = false
-    @State private var isSearchPresented = false
-    @State private var isImportInboxPresented = false
-    @State private var isWatchPresented = false
+    @State private var workspaceDestination: LibraryWorkspaceDestination?
     @State private var isAccountPresented = false
     @State private var failedImportJob: ImportJob?
     @State private var selectedDestination: LibraryRecipeDestination?
@@ -25,7 +31,7 @@ struct LibraryView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 LibraryTopBar(
-                    openSearch: { isSearchPresented = true },
+                    openSearch: { workspaceDestination = .search },
                     openAccount: { isAccountPresented = true },
                     addRecipe: { isAddSheetPresented = true },
                     isAddEnabled: canImport
@@ -87,24 +93,25 @@ struct LibraryView: View {
                     }
                 )
             }
-            .navigationDestination(isPresented: $isSearchPresented) {
-                LibrarySearchView(
-                    viewModel: viewModel,
-                    openRecipe: openRecipe
-                )
-            }
-            .navigationDestination(isPresented: $isImportInboxPresented) {
-                ImportInboxView(
-                    viewModel: viewModel,
-                    recoverImport: { failedImportJob = $0 },
-                    openReview: showRecipe
-                )
-            }
-            .navigationDestination(isPresented: $isWatchPresented) {
-                WatchView(
-                    viewModel: viewModel,
-                    openRecipe: openRecipe
-                )
+            .navigationDestination(item: $workspaceDestination) { destination in
+                switch destination {
+                case .search:
+                    LibrarySearchView(
+                        viewModel: viewModel,
+                        openRecipe: openRecipe
+                    )
+                case .importInbox:
+                    ImportInboxView(
+                        viewModel: viewModel,
+                        recoverImport: { failedImportJob = $0 },
+                        openReview: showRecipe
+                    )
+                case .watch:
+                    WatchView(
+                        viewModel: viewModel,
+                        openRecipe: openRecipe
+                    )
+                }
             }
             .navigationDestination(item: $selectedDestination) { destination in
                 recipeDetail(destination)
@@ -140,9 +147,9 @@ struct LibraryView: View {
                     openRecipe: openRecipe,
                     openCollection: openCollection,
                     openImportInbox: {
-                        isImportInboxPresented = true
+                        workspaceDestination = .importInbox
                     },
-                    openWatch: { isWatchPresented = true }
+                    openWatch: { workspaceDestination = .watch }
                 )
             } else {
                 AllRecipesView(

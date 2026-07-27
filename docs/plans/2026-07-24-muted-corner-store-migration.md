@@ -257,8 +257,9 @@ Important decisions:
 - SF Rounded remains the display face and SF Pro remains the body face.
 - Dark appearance uses semantic asset variants and a fixed on-accent
   foreground; feature views do not branch on appearance.
-- Provider thumbnails can remain remote in the Mac mini profile because its
-  object storage is intentionally disabled.
+- The Mac mini profile copies provider thumbnails into private MinIO storage,
+  backfills legacy remote references, and serves only short-lived signed reads
+  through its ngrok listener.
 - Recipe extraction can bridge an uncertain method from general cooking
   knowledge only when it marks the result for review and avoids invented exact
   facts.

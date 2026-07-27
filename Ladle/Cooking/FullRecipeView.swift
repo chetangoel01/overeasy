@@ -59,29 +59,16 @@ struct FullRecipeView: View {
                     }
                     .accessibilityLabel("Close cooking")
                 }
-                ToolbarItem(placement: .principal) {
-                    Text("Cooking")
-                        .ladleFont(.metadata)
-                        .foregroundStyle(LadleTheme.ink.opacity(0.62))
-                }
             }
         }
     }
 
     private var recipeHeader: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            Text(viewModel.recipe.title)
-                .ladleFont(.title)
-                .foregroundStyle(LadleTheme.ink)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 12)
-
-            Text(
-                "\(countText(viewModel.recipe.orderedIngredients.count, "ingredient")) · \(countText(viewModel.recipe.orderedSteps.count, "step"))"
-            )
-            .ladleFont(.metadata)
-            .foregroundStyle(LadleTheme.ink.opacity(0.58))
-        }
+        Text(viewModel.recipe.title)
+            .ladleFont(.title)
+            .foregroundStyle(LadleTheme.ink)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.top, 12)
     }
 
     private var cookingControls: some View {
@@ -159,10 +146,7 @@ struct FullRecipeView: View {
 
     private var ingredientsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            LadleSectionHeader(
-                title: "Ingredients",
-                detail: "Tap as you prep"
-            )
+            LadleSectionHeader(title: "Ingredients")
 
             VStack(spacing: 0) {
                 ForEach(
@@ -192,10 +176,7 @@ struct FullRecipeView: View {
 
     private var methodSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            LadleSectionHeader(
-                title: "Method",
-                detail: countText(viewModel.recipe.orderedSteps.count, "step")
-            )
+            LadleSectionHeader(title: "Method")
 
             ForEach(
                 Array(viewModel.recipe.orderedSteps.enumerated()),

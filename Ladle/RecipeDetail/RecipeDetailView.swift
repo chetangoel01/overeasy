@@ -58,39 +58,44 @@ struct RecipeDetailView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 26) {
-                heroImage
-                recipeHeader
-                RecipeMetadataBand(recipe: displayedRecipe)
-                if needsReview {
-                    reviewNotice
-                }
-                sectionPicker
-                sectionContent
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 26) {
+                    heroImage
+                    recipeHeader
+                    RecipeMetadataBand(recipe: displayedRecipe)
+                    if needsReview {
+                        reviewNotice
+                            .id("recipe-review")
+                    }
+                    sectionPicker
+                    sectionContent
 
-                if !displayedRecipe.notes.isEmpty {
-                    creatorNotes
-                }
+                    if !displayedRecipe.notes.isEmpty {
+                        creatorNotes
+                    }
 
-                if displayedRecipe.nutrition?.isEstimated == true {
-                    estimateNote
-                }
+                    if displayedRecipe.nutrition?.isEstimated == true {
+                        estimateNote
+                    }
 
-                Button("Start Cooking") {
-                    cookingViewModel = CookingViewModel(
-                        recipe: displayedRecipe
-                    )
+                    cookingAction {
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            proxy.scrollTo(
+                                "recipe-review",
+                                anchor: .center
+                            )
+                        }
+                    }
                 }
-                .buttonStyle(LadlePrimaryButtonStyle())
+                .padding(.horizontal, LadleTheme.Spacing.regular)
+                .padding(.bottom, 48)
             }
-            .padding(.horizontal, LadleTheme.Spacing.regular)
-            .padding(.bottom, 48)
+            .scrollIndicators(.hidden)
         }
-        .scrollIndicators(.hidden)
         .background(LadleTheme.paper)
         .accessibilityIdentifier("recipe.detail")
-        .navigationTitle("Recipe")
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
         .toolbarBackground(LadleTheme.paper, for: .navigationBar)
@@ -185,10 +190,6 @@ struct RecipeDetailView: View {
 
     private var recipeHeader: some View {
         VStack(alignment: .leading, spacing: 11) {
-            Text(kicker)
-                .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.ink.opacity(0.58))
-
             Text(displayedRecipe.title)
                 .ladleFont(.title)
                 .foregroundStyle(LadleTheme.ink)
@@ -303,7 +304,7 @@ struct RecipeDetailView: View {
             .foregroundStyle(LadleTheme.ink)
 
             Text(
-                "Review the ingredients and method. When they look usable, mark this recipe reviewed to clear it from the import inbox."
+                "Some details are missing or inferred. Check them before cooking."
             )
             .ladleFont(.metadata)
             .foregroundStyle(LadleTheme.mutedInk)
@@ -355,15 +356,46 @@ struct RecipeDetailView: View {
         recipeDidChange(recipe)
     }
 
-    private var kicker: String {
-        statusText == "Saved recipe"
-            || !needsReview
-            ? "Saved from \(displayedRecipe.source.libraryTitle)"
-            : statusText
-    }
-
     private var needsReview: Bool {
         reviewIsPending
+    }
+
+    @ViewBuilder
+    private func cookingAction(
+        showReview: @escaping () -> Void
+    ) -> some View {
+        switch cookingReadiness {
+        case .ready:
+            Button("Start Cooking") {
+                cookingViewModel = CookingViewModel(
+                    recipe: displayedRecipe
+                )
+            }
+            .buttonStyle(LadlePrimaryButtonStyle())
+        case .needsReview:
+            Button("Review before cooking", action: showReview)
+                .buttonStyle(
+                    LadlePrimaryButtonStyle(isProminent: false)
+                )
+        case .missingIngredients:
+            Button("Add ingredients before cooking") {
+                editorViewModel = makeEditorViewModel(displayedRecipe)
+            }
+            .buttonStyle(
+                LadlePrimaryButtonStyle(isProminent: false)
+            )
+        case .missingMethod:
+            Button("Add a method before cooking") {
+                editorViewModel = makeEditorViewModel(displayedRecipe)
+            }
+            .buttonStyle(
+                LadlePrimaryButtonStyle(isProminent: false)
+            )
+        }
+    }
+
+    private var cookingReadiness: RecipeCookingReadiness {
+        needsReview ? .needsReview : displayedRecipe.cookingReadiness
     }
 
     private var recipeOptions: [RecipeOption] {

@@ -47,7 +47,7 @@ struct RecipeMetadataBand: View {
 
     private var yieldItem: some View {
         metadataItem(
-            value: "\(decimalText(recipe.servings)) servings",
+            value: recipe.ladleYieldText,
             label: "Yield",
             systemImage: "person.2"
         )
@@ -109,5 +109,16 @@ struct RecipeMetadataBand: View {
 
     private func decimalText(_ value: Decimal) -> String {
         NSDecimalNumber(decimal: value).stringValue
+    }
+}
+
+extension Recipe {
+    var ladleYieldText: String {
+        let value = NSDecimalNumber(decimal: servings).stringValue
+        let noun = servings == 1 ? "serving" : "servings"
+        if uncertainties.contains(where: { $0.field == "servings" }) {
+            return servings == 1 ? "Yield unknown" : "About \(value) \(noun)"
+        }
+        return "\(value) \(noun)"
     }
 }

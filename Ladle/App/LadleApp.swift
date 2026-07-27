@@ -188,7 +188,12 @@ struct LadleApp: App {
                     baseURL: baseURL,
                     tokenStore: tokenStore,
                     appAttester: appAttester,
-                    tunnelAccessKey: runtimeConfiguration.tunnelAccessKey
+                    tunnelAccessKey: runtimeConfiguration.tunnelAccessKey,
+                    authenticationExpired: {
+                        await MainActor.run {
+                            accountSession.signOut()
+                        }
+                    }
                 )
                 authClient = AuthClient(
                     api: api,

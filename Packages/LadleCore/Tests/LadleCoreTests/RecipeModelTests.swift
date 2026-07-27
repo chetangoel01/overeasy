@@ -5,6 +5,39 @@ import Testing
 @Suite("Recipe models")
 struct RecipeModelTests {
     @Test
+    func recipeNeedingReviewCannotStartCooking() {
+        let recipe = Recipe(
+            title: "Partial recipe",
+            source: .tiktok,
+            originalURL: URL(string: "https://example.com/partial")!,
+            servings: 1,
+            ingredients: [
+                Ingredient(name: "Potato", orderIndex: 0),
+            ],
+            steps: [
+                RecipeStep(orderIndex: 0, instruction: "Cook the potato."),
+            ],
+            reviewStatus: .needsReview
+        )
+
+        #expect(recipe.cookingReadiness == .needsReview)
+        #expect(!recipe.canStartCooking)
+    }
+
+    @Test
+    func recipeRequiresIngredientsAndMethodToStartCooking() {
+        let empty = Recipe(
+            title: "Empty recipe",
+            source: .other,
+            originalURL: URL(string: "https://example.com/empty")!,
+            servings: 1
+        )
+
+        #expect(empty.cookingReadiness == .missingIngredients)
+        #expect(!empty.canStartCooking)
+    }
+
+    @Test
     func recipePreservesOrderedIngredientsAndSteps() {
         let salt = Ingredient(
             quantityText: "1",

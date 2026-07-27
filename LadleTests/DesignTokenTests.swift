@@ -21,6 +21,9 @@ final class DesignTokenTests: XCTestCase {
         XCTAssertEqual(LadleTheme.darkUbeHex, "#332B31")
         XCTAssertEqual(LadleTheme.darkCeleryHex, "#364536")
         XCTAssertEqual(LadleTheme.onAccentHex, "#FFF9F0")
+        XCTAssertEqual(LadleTheme.accentTextHex, "#AD503D")
+        XCTAssertEqual(LadleTheme.darkAccentTextHex, "#E58A74")
+        XCTAssertEqual(LadleTheme.focusActionTextHex, "#493943")
     }
 
     func testSpacingScaleIncreasesPredictably() {

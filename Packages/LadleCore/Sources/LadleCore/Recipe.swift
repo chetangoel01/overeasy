@@ -5,6 +5,13 @@ public enum RecipeReviewStatus: String, Codable, Hashable, Sendable {
     case needsReview
 }
 
+public enum RecipeCookingReadiness: Equatable, Sendable {
+    case ready
+    case needsReview
+    case missingIngredients
+    case missingMethod
+}
+
 public struct RecipeImage: Codable, Hashable, Identifiable, Sendable {
     public let id: UUID
     public let localName: String?
@@ -252,5 +259,22 @@ public struct Recipe: Codable, Hashable, Identifiable, Sendable {
         steps.sorted {
             ($0.orderIndex, $0.id.uuidString) < ($1.orderIndex, $1.id.uuidString)
         }
+    }
+
+    public var cookingReadiness: RecipeCookingReadiness {
+        if reviewStatus == .needsReview {
+            return .needsReview
+        }
+        if ingredients.isEmpty {
+            return .missingIngredients
+        }
+        if steps.isEmpty {
+            return .missingMethod
+        }
+        return .ready
+    }
+
+    public var canStartCooking: Bool {
+        cookingReadiness == .ready
     }
 }

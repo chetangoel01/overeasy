@@ -212,6 +212,10 @@ private struct WatchRecipeCard: View {
                         .foregroundStyle(LadleTheme.ink)
                         .lineLimit(1)
                 }
+                remainingText(
+                    shown: min(recipe.orderedIngredients.count, 4),
+                    total: recipe.orderedIngredients.count
+                )
             }
         case .method:
             VStack(alignment: .leading, spacing: 6) {
@@ -221,6 +225,10 @@ private struct WatchRecipeCard: View {
                         .foregroundStyle(LadleTheme.ink)
                         .lineLimit(2)
                 }
+                remainingText(
+                    shown: min(recipe.orderedSteps.count, 3),
+                    total: recipe.orderedSteps.count
+                )
             }
         }
     }
@@ -241,10 +249,15 @@ private struct WatchRecipeCard: View {
 
     @ViewBuilder
     private var actionButtons: some View {
-        Button("Open recipe", action: openRecipe)
-            .buttonStyle(LadlePrimaryButtonStyle(isProminent: false))
-        Button("Start cooking", action: startCooking)
-            .buttonStyle(LadlePrimaryButtonStyle())
+        if recipe.canStartCooking {
+            Button("Open recipe", action: openRecipe)
+                .buttonStyle(LadlePrimaryButtonStyle(isProminent: false))
+            Button("Start cooking", action: startCooking)
+                .buttonStyle(LadlePrimaryButtonStyle())
+        } else {
+            Button("Review recipe", action: openRecipe)
+                .buttonStyle(LadlePrimaryButtonStyle())
+        }
     }
 
     private var metadata: String {
@@ -253,10 +266,19 @@ private struct WatchRecipeCard: View {
             recipe.libraryNutrition?.proteinGrams.map {
                 "\(NSDecimalNumber(decimal: $0).stringValue) g protein"
             },
-            "\(recipe.servings.formatted()) servings",
+            recipe.ladleYieldText,
         ]
         .compactMap(\.self)
         .joined(separator: " · ")
+    }
+
+    @ViewBuilder
+    private func remainingText(shown: Int, total: Int) -> some View {
+        if total > shown {
+            Text("+\(total - shown) more in the full recipe")
+                .ladleFont(.metadata)
+                .foregroundStyle(LadleTheme.mutedInk)
+        }
     }
 }
 
@@ -273,16 +295,11 @@ private struct WatchRecipeImage: View {
 
     @ViewBuilder
     var body: some View {
-        if let localName = recipe.images.first?.localName {
-            Image(localName)
-                .resizable()
-                .scaledToFill()
-        } else if let remoteURL = recipe.images.first?.remoteURL {
-            AsyncImage(url: remoteURL) { image in
-                image.resizable().scaledToFill()
-            } placeholder: {
-                placeholder
-            }
+        if recipe.images.first != nil {
+            RecipeArtworkView(
+                recipeID: recipe.id,
+                image: recipe.images.first
+            )
         } else {
             placeholder
         }

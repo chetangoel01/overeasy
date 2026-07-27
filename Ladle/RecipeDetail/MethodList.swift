@@ -20,7 +20,7 @@ struct MethodList: View {
                         .ladleFont(.metadata)
                         .foregroundStyle(LadleTheme.onAccent)
                         .frame(width: 30, height: 30)
-                        .background(LadleTheme.paprika, in: Circle())
+                        .background(LadleTheme.brick, in: Circle())
                         .accessibilityHidden(true)
 
                     VStack(alignment: .leading, spacing: 10) {

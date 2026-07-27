@@ -12,16 +12,7 @@ final class LibraryFlowTests: XCTestCase {
         XCTAssertTrue(
             app.staticTexts["Import inbox"].waitForExistence(timeout: 2)
         )
-        let inboxList = app.collectionViews.firstMatch
-        XCTAssertTrue(inboxList.waitForExistence(timeout: 2))
-        let importGuide = app.staticTexts["How imports work"]
-        for _ in 0..<5 {
-            if importGuide.exists {
-                break
-            }
-            inboxList.swipeUp()
-        }
-        XCTAssertTrue(importGuide.waitForExistence(timeout: 2))
+        XCTAssertFalse(app.staticTexts["How imports work"].exists)
         XCTAssertTrue(app.staticTexts["Parsing"].exists)
         XCTAssertTrue(app.staticTexts["Needs review"].exists)
         XCTAssertTrue(app.staticTexts["Failed"].exists)

@@ -5,6 +5,63 @@ import SwiftUI
 
 @MainActor
 final class ProjectSmokeTests: XCTestCase {
+    func testLibraryUsesOneExclusiveWorkspaceDestination() throws {
+        let sourceURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Ladle/Library/LibraryView.swift")
+        let source = try String(contentsOf: sourceURL, encoding: .utf8)
+
+        XCTAssertTrue(source.contains("LibraryWorkspaceDestination"))
+        XCTAssertFalse(source.contains("isImportInboxPresented"))
+        XCTAssertFalse(source.contains("isWatchPresented"))
+        XCTAssertFalse(source.contains("isSearchPresented"))
+    }
+
+    func testPrimaryScreensAvoidRedundantExplanatoryHeadings() throws {
+        let project = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let home = try String(
+            contentsOf: project.appendingPathComponent(
+                "Ladle/Library/LibraryHomeView.swift"
+            ),
+            encoding: .utf8
+        )
+        let detail = try String(
+            contentsOf: project.appendingPathComponent(
+                "Ladle/RecipeDetail/RecipeDetailView.swift"
+            ),
+            encoding: .utf8
+        )
+        let cooking = try String(
+            contentsOf: project.appendingPathComponent(
+                "Ladle/Cooking/FullRecipeView.swift"
+            ),
+            encoding: .utf8
+        )
+
+        XCTAssertFalse(home.contains("Return to saved recipe videos"))
+        XCTAssertFalse(home.contains("Useful groups"))
+        XCTAssertFalse(detail.contains("Text(kicker)"))
+        XCTAssertFalse(cooking.contains("Tap as you prep"))
+        XCTAssertFalse(cooking.contains("Text(\"Cooking\")"))
+    }
+
+    func testFocusActionUsesTextForItsFixedLightSurface() throws {
+        let sourceURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Ladle/Cooking/FocusModeView.swift")
+        let source = try String(contentsOf: sourceURL, encoding: .utf8)
+
+        XCTAssertTrue(
+            source.contains(
+                ".foregroundStyle(LadleTheme.focusActionText)"
+            )
+        )
+    }
+
     func testRuntimeConfigurationUsesInMemoryStoreForUnitTests() {
         let configuration = LadleRuntimeConfiguration(
             launchArguments: [],

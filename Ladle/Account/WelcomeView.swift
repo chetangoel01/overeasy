@@ -103,7 +103,7 @@ struct WelcomeView: View {
         VStack(spacing: LadleTheme.Spacing.compact) {
             Text("Overeasy")
                 .ladleFont(.section)
-                .foregroundStyle(LadleTheme.brick)
+                .foregroundStyle(LadleTheme.paprika)
 
             Text("Recipes, rescued from the scroll.")
                 .ladleScaledFont(
@@ -129,21 +129,6 @@ struct WelcomeView: View {
 
     private var accountActions: some View {
         VStack(spacing: 0) {
-            VStack(spacing: 6) {
-                Text("Start your recipe box")
-                    .ladleFont(.section)
-                    .foregroundStyle(LadleTheme.ink)
-
-                Text(
-                    "Sign in to keep recipes synced, or try Overeasy first as a guest."
-                )
-                .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.mutedInk)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(.bottom, LadleTheme.Spacing.regular)
-
             SignInWithAppleButton(.continue) { request in
                 let nonce = Self.randomNonce()
                 rawNonce = nonce
@@ -195,7 +180,7 @@ struct WelcomeView: View {
             if isAuthenticating {
                 ProgressView("Setting up Overeasy")
                     .ladleFont(.metadata)
-                    .tint(LadleTheme.brick)
+                    .tint(LadleTheme.paprika)
                     .foregroundStyle(LadleTheme.mutedInk)
                     .padding(.top, LadleTheme.Spacing.medium)
             }
@@ -203,7 +188,7 @@ struct WelcomeView: View {
             if let authenticationError {
                 Text(authenticationError)
                     .ladleFont(.metadata)
-                    .foregroundStyle(LadleTheme.brick)
+                    .foregroundStyle(LadleTheme.paprika)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, LadleTheme.Spacing.medium)

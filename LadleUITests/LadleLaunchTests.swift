@@ -36,9 +36,7 @@ final class LadleLaunchTests: XCTestCase {
                 "Turn TikTok, Instagram, and YouTube links into clear recipes made for cooking."
             ].exists
         )
-        XCTAssertTrue(
-            app.staticTexts["Start your recipe box"].exists
-        )
+        XCTAssertFalse(app.staticTexts["Start your recipe box"].exists)
         XCTAssertTrue(
             app.buttons["Continue with Apple"].exists
         )
@@ -117,7 +115,7 @@ final class LadleLaunchTests: XCTestCase {
         let google = app.buttons["Sign in with Google"]
         XCTAssertTrue(apple.waitForExistence(timeout: 2))
         XCTAssertTrue(google.exists)
-        XCTAssertTrue(app.staticTexts["Start your recipe box"].exists)
+        XCTAssertFalse(app.staticTexts["Start your recipe box"].exists)
         XCTAssertFalse(
             app.staticTexts["Paste a link or share from the scroll."].exists
         )

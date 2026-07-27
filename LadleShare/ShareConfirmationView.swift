@@ -21,7 +21,6 @@ struct ShareConfirmationView: View {
                 VStack(spacing: 30) {
                     brand
                     confirmation
-                    footer
                     if let title = Self.dismissalTitle(for: state) {
                         Button(title, action: close)
                             .buttonStyle(SharePrimaryButtonStyle())
@@ -49,7 +48,7 @@ struct ShareConfirmationView: View {
                 )
         } icon: {
             Image(systemName: "frying.pan.fill")
-                .foregroundStyle(ShareTheme.brick)
+                .foregroundStyle(ShareTheme.accentText)
         }
         .foregroundStyle(ShareTheme.ink)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -99,7 +98,7 @@ struct ShareConfirmationView: View {
         case .loading:
             ProgressView()
                 .controlSize(.large)
-                .tint(ShareTheme.brick)
+                .tint(ShareTheme.accentText)
                 .frame(width: 86, height: 86)
                 .background(ShareTheme.review, in: Circle())
                 .accessibilityLabel("Saving shared recipe")
@@ -113,58 +112,32 @@ struct ShareConfirmationView: View {
         case .failure:
             Image(systemName: "exclamationmark")
                 .font(.system(size: 34, weight: .bold))
-                .foregroundStyle(ShareTheme.brick)
+                .foregroundStyle(ShareTheme.accentText)
                 .frame(width: 86, height: 86)
                 .background(ShareTheme.review, in: Circle())
                 .accessibilityLabel("Recipe link was not saved")
         }
     }
 
-    private var footer: some View {
-        VStack(spacing: 8) {
-            if case .success = state {
-                Text("Safe to close")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(ShareTheme.ink.opacity(0.58))
-            }
-
-            Text(footerMessage)
-                .font(.subheadline)
-                .multilineTextAlignment(.center)
-                .foregroundStyle(ShareTheme.ink.opacity(0.48))
-        }
-    }
-
     private var title: String {
         switch state {
         case .loading:
-            "Catching that recipe…"
+            "Saving link…"
         case .success:
-            "Recipe link saved"
+            "Saved to Overeasy"
         case .failure:
-            "One more try?"
+            "Couldn’t save link"
         }
     }
 
     private var message: String {
         switch state {
         case .loading:
-            "Hold on for just a moment while the link is secured."
+            "Keep this open while Overeasy saves the link."
         case .success:
-            "Head back to what you were watching. Overeasy will finish the import in the app."
+            "Tap Done when you’re ready. The recipe will finish importing in the app."
         case let .failure(message):
             message
-        }
-    }
-
-    private var footerMessage: String {
-        switch state {
-        case .loading:
-            "This should only take a moment."
-        case .success:
-            "No need to wait for the recipe to be parsed."
-        case .failure:
-            "Close this sheet and share the link again."
         }
     }
 
@@ -212,6 +185,10 @@ private enum ShareTheme {
         red: 0.678,
         green: 0.314,
         blue: 0.239
+    )
+    static let accentText = adaptive(
+        light: (0.678, 0.314, 0.239),
+        dark: (0.898, 0.541, 0.455)
     )
     static let ink = adaptive(
         light: (0.188, 0.153, 0.176),

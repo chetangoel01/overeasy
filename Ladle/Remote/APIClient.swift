@@ -37,6 +37,7 @@ actor APIClient {
     private let tokenStore: any AuthTokenStoring
     private let appAttester: (any AppAttesting)?
     private let tunnelAccessKey: String?
+    private let authenticationExpired: @Sendable () async -> Void
     private var refreshTask: Task<AuthTokens, Error>?
 
     init(
@@ -44,13 +45,16 @@ actor APIClient {
         session: URLSession = .shared,
         tokenStore: any AuthTokenStoring,
         appAttester: (any AppAttesting)? = nil,
-        tunnelAccessKey: String? = nil
+        tunnelAccessKey: String? = nil,
+        authenticationExpired:
+            @escaping @Sendable () async -> Void = {}
     ) {
         self.baseURL = baseURL
         self.session = session
         self.tokenStore = tokenStore
         self.appAttester = appAttester
         self.tunnelAccessKey = tunnelAccessKey
+        self.authenticationExpired = authenticationExpired
     }
 
     func request<Response>(
@@ -152,6 +156,10 @@ actor APIClient {
                 appAttestPurpose: appAttestPurpose
             )
             let (replayData, replayResponse) = try await perform(replay)
+            if replayResponse.statusCode == 401 {
+                await expireAuthentication()
+                throw APIError.authenticationExpired
+            }
             return try decode(
                 Response.self,
                 data: replayData,
@@ -190,6 +198,10 @@ actor APIClient {
                 accessToken: refreshed.accessToken
             )
             let (replayData, replayResponse) = try await perform(replay)
+            if replayResponse.statusCode == 401 {
+                await expireAuthentication()
+                throw APIError.authenticationExpired
+            }
             try validateEmptyResponse(
                 data: replayData,
                 response: replayResponse
@@ -214,7 +226,8 @@ actor APIClient {
             let current = try tokenStore.load(),
             let refreshToken = current.refreshToken
         else {
-            throw APIError.refreshUnavailable
+            await expireAuthentication()
+            throw APIError.authenticationExpired
         }
 
         let request = try makeRequest(
@@ -242,9 +255,20 @@ actor APIClient {
         }
         refreshTask = task
         defer { refreshTask = nil }
-        let refreshed = try await task.value
+        let refreshed: AuthTokens
+        do {
+            refreshed = try await task.value
+        } catch APIError.authenticationExpired {
+            await expireAuthentication()
+            throw APIError.authenticationExpired
+        }
         try tokenStore.save(refreshed)
         return refreshed
+    }
+
+    private func expireAuthentication() async {
+        try? tokenStore.clear()
+        await authenticationExpired()
     }
 
     private func makeRequest<Body>(
@@ -367,6 +391,9 @@ actor APIClient {
         response: HTTPURLResponse
     ) throws {
         guard (200 ..< 300).contains(response.statusCode) else {
+            if response.statusCode == 401 {
+                throw APIError.authenticationExpired
+            }
             if let envelope = try? RemoteContractJSON.decoder().decode(
                 RemoteErrorEnvelope.self,
                 from: data
@@ -382,6 +409,9 @@ actor APIClient {
         response: HTTPURLResponse
     ) throws -> AuthTokens {
         guard (200 ..< 300).contains(response.statusCode) else {
+            if response.statusCode == 401 {
+                throw APIError.authenticationExpired
+            }
             if let envelope = try? RemoteContractJSON.decoder().decode(
                 RemoteErrorEnvelope.self,
                 from: data

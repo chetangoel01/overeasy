@@ -184,6 +184,39 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(try store.load()?.accessToken, "new-access")
     }
 
+    func testRejectedRefreshClearsSessionAndReportsExpiry() async throws {
+        let store = InMemoryAuthTokenStore(
+            tokens: .fixture(
+                accessToken: "expired-access",
+                refreshToken: "expired-refresh"
+            )
+        )
+        let didExpire = Locked(false)
+        URLProtocolStub.install { request in
+            (Self.response(request, status: 401), Data())
+        }
+        let client = APIClient(
+            baseURL: URL(string: "https://api.ladle.test")!,
+            session: URLProtocolStub.session(),
+            tokenStore: store,
+            authenticationExpired: {
+                didExpire.withValue { $0 = true }
+            }
+        )
+
+        do {
+            let _: ResponseBody = try await client.request(
+                path: "/v1/protected"
+            )
+            XCTFail("Expected authentication expiry")
+        } catch {
+            XCTAssertEqual(error as? APIError, .authenticationExpired)
+        }
+
+        XCTAssertNil(try store.load())
+        XCTAssertTrue(didExpire.snapshot)
+    }
+
     func testConcurrentUnauthorizedRequestsShareOneRefresh() async throws {
         let store = InMemoryAuthTokenStore(
             tokens: .fixture(

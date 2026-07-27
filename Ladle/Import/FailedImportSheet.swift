@@ -207,6 +207,8 @@ struct FailedImportSheet: View {
             return "The post may be private or deleted. Add any details you can see, or create the recipe manually."
         case .networkUnavailable:
             return "The connection dropped while Overeasy was working. Retrying is safe."
+        case .authenticationExpired:
+            return "Your session ended while Overeasy was working. Sign in again, then retry this import."
         case .unsupportedSource:
             return "That source isn’t supported yet, but you can keep the link and create the recipe manually."
         case .invalidURL:

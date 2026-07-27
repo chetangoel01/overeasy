@@ -156,7 +156,7 @@ struct OnboardingWalkthroughView: View {
 
                     Image(systemName: "square.and.arrow.up")
                         .font(.system(size: 22, weight: .semibold))
-                        .foregroundStyle(LadleTheme.brick)
+                        .foregroundStyle(LadleTheme.paprika)
                         .frame(width: 44, height: 44)
                 }
                 .padding(LadleTheme.Spacing.regular)
@@ -170,7 +170,7 @@ struct OnboardingWalkthroughView: View {
 
                 Image(systemName: "arrow.down")
                     .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(LadleTheme.brick)
+                    .foregroundStyle(LadleTheme.paprika)
                     .accessibilityHidden(true)
 
                 HStack(spacing: LadleTheme.Spacing.medium) {
@@ -307,7 +307,7 @@ struct OnboardingWalkthroughView: View {
                 Spacer()
 
                 Image(systemName: "flame.fill")
-                    .foregroundStyle(LadleTheme.brick)
+                    .foregroundStyle(LadleTheme.paprika)
             }
 
             Text("Simmer the orzo")

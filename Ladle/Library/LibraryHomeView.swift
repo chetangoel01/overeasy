@@ -26,12 +26,6 @@ struct LibraryHomeView: View {
                     if !viewModel.actionableImportJobs.isEmpty,
                        !isImportInboxHidden {
                         importInbox
-                            .transition(
-                                reduceMotion
-                                    ? .opacity
-                                    : .move(edge: .top)
-                                        .combined(with: .opacity)
-                            )
                     }
                     watch
                     savedThisWeek
@@ -60,13 +54,9 @@ struct LibraryHomeView: View {
                     return
                 }
                 if value.translation.height < -40 {
-                    withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) {
-                        isImportInboxHidden = true
-                    }
+                    isImportInboxHidden = true
                 } else if value.translation.height > 40 {
-                    withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) {
-                        isImportInboxHidden = false
-                    }
+                    isImportInboxHidden = false
                 }
             }
     }
@@ -75,7 +65,7 @@ struct LibraryHomeView: View {
         VStack(spacing: LadleTheme.Spacing.generous) {
             Image(systemName: "link.badge.plus")
                 .font(.system(size: 28, weight: .semibold))
-                .foregroundStyle(LadleTheme.brick)
+                .foregroundStyle(LadleTheme.paprika)
                 .frame(width: 68, height: 68)
                 .background(LadleTheme.ube, in: Circle())
                 .accessibilityHidden(true)
@@ -101,7 +91,7 @@ struct LibraryHomeView: View {
             HStack(alignment: .top, spacing: LadleTheme.Spacing.medium) {
                 Image(systemName: "square.and.arrow.up")
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(LadleTheme.brick)
+                    .foregroundStyle(LadleTheme.paprika)
                     .frame(width: 24, height: 24)
                     .accessibilityHidden(true)
 
@@ -166,14 +156,9 @@ struct LibraryHomeView: View {
         Button(action: openWatch) {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("Watch")
-                            .ladleFont(.section)
-                            .foregroundStyle(LadleTheme.onAccent)
-                        Text("Return to saved recipe videos")
-                            .ladleFont(.metadata)
-                            .foregroundStyle(LadleTheme.onAccent.opacity(0.68))
-                    }
+                    Text("Watch")
+                        .ladleFont(.section)
+                        .foregroundStyle(LadleTheme.onAccent)
                     Spacer()
                     Image(systemName: "play.fill")
                         .foregroundStyle(LadleTheme.plum)
@@ -264,8 +249,8 @@ struct LibraryHomeView: View {
     private var collections: some View {
         VStack(alignment: .leading, spacing: 0) {
             collapsibleHeader(
-                title: "Come back to",
-                detail: "Useful groups",
+                title: "Collections",
+                detail: nil,
                 isCollapsed: viewModel.isComeBackToCollapsed,
                 toggle: viewModel.toggleComeBackToCollapsed
             )
@@ -293,7 +278,7 @@ struct LibraryHomeView: View {
 
     private func collapsibleHeader(
         title: String,
-        detail: String,
+        detail: String?,
         isCollapsed: Bool,
         toggle: @escaping () -> Void
     ) -> some View {

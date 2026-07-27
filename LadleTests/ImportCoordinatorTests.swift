@@ -411,6 +411,51 @@ final class ImportCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.state, .idle)
     }
 
+    func testAuthenticationExpiryMakesAdmissionJobDurablyFailed() async {
+        let repository = ImportTestRepository()
+        let coordinator = ImportCoordinator(
+            repository: repository,
+            service: ThrowingImportService(error: .authenticationExpired),
+            accountSession: AccountSession(
+                store: ImportTestPreferenceStore()
+            ),
+            clock: ImmediateImportClock()
+        )
+
+        await coordinator.submit(
+            urlText: "https://youtu.be/expired-session"
+        )
+
+        XCTAssertEqual(
+            repository.importJobs.first?.status,
+            .failed(.authenticationExpired)
+        )
+        guard case .failed = coordinator.state else {
+            return XCTFail("Expected a visible terminal failure")
+        }
+    }
+
+    func testTransportFailureMakesAdmissionJobDurablyFailed() async {
+        let repository = ImportTestRepository()
+        let coordinator = ImportCoordinator(
+            repository: repository,
+            service: ThrowingImportService(error: .transport),
+            accountSession: AccountSession(
+                store: ImportTestPreferenceStore()
+            ),
+            clock: ImmediateImportClock()
+        )
+
+        await coordinator.submit(
+            urlText: "https://youtu.be/interrupted-import"
+        )
+
+        XCTAssertEqual(
+            repository.importJobs.first?.status,
+            .failed(.networkUnavailable)
+        )
+    }
+
     private func makeCoordinator(
         repository: ImportTestRepository,
         accountSession: AccountSession = AccountSession(

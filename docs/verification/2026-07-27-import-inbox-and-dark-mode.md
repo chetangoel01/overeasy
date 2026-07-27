@@ -2,14 +2,19 @@
 
 ## Purpose
 
-Make video imports recoverable without blocking later saves, keep import state
-out of the way when it is no longer useful, and give every app and Share
-Extension surface one coherent light/dark visual system.
+Make video imports durable and recoverable without blocking later saves, keep
+import state out of the way when it is no longer useful, prevent incomplete
+recipes from entering cooking mode, and give every app and Share Extension
+surface one coherent light/dark visual system.
 
 ## User-visible behavior
 
-- Imported videos keep their provider thumbnail even when the Mac mini staging
-  profile runs without object storage.
+- Imported thumbnails are copied into a private MinIO bucket instead of
+  depending on expiring social-provider URLs. Existing cached thumbnails are
+  backfilled during deployment.
+- A rejected refresh token signs the user out instead of appearing as an
+  internet outage. Any interrupted local import becomes a durable failed item
+  with recovery actions instead of remaining in a parsing state forever.
 - Import Inbox appears on Home only while an import is parsing or needs
   attention. It scrolls away with Home content, has no close control, and
   dismisses its destination when the last actionable item is resolved.
@@ -20,7 +25,9 @@ Extension surface one coherent light/dark visual system.
 - A pending re-import review remains saved but no longer prevents starting a
   different import.
 - Search, Import Inbox, Watch, and recipe detail use native navigation bars,
-  restoring the system left-edge swipe-back gesture.
+  restoring the system left-edge swipe-back gesture. Search, Import Inbox, and
+  Watch also share one exclusive destination value so a stale Watch route
+  cannot capture an Inbox tap.
 - Share confirmation remains visible after success or failure until the user
   taps **Done**. It has no competing close icon.
 - Welcome is fixed in place at standard text sizes and scrolls only when
@@ -28,6 +35,17 @@ Extension surface one coherent light/dark visual system.
 - The app and Share Extension follow the system appearance with a warm dark
   palette. SF Rounded remains limited to display roles; body, metadata, and
   cooking instructions use the system text design.
+- Accent text uses an appearance-aware paprika token while brick remains a
+  fixed button fill. Focus Mode uses a fixed plum foreground on its fixed light
+  action surface, preserving contrast in both appearances.
+- Home, Welcome, Import Inbox, recipe detail, Watch, cooking, and Share
+  confirmation remove redundant eyebrow labels, helper sections, counts, and
+  repeated headings. Each screen keeps one primary title and only the labels
+  needed to navigate or act.
+- A recipe that still needs review, ingredients, or a method cannot enter
+  cooking mode. Watch sends it to review, and recipe detail points the user to
+  review or editing. Unknown imported yield is shown as unknown, not as
+  “1 servings,” and Watch discloses when its preview omits remaining items.
 - When source evidence clearly identifies a dish and its core ingredients,
   extraction may bridge a practical method from general cooking knowledge. It
   must label that method partial or inferred and cannot invent quantities,
@@ -37,9 +55,14 @@ Extension surface one coherent light/dark visual system.
 ## Important decisions
 
 - Acquisition carries the metadata provider's thumbnail through extraction.
-  With object storage, the existing pinned, public-address-only downloader
-  copies it into the private bucket. Without object storage, an HTTPS provider
-  URL is retained in the extraction cache and recipe image graph.
+  The pinned, public-address-only downloader copies it into the private bucket.
+  The Mac mini profile keeps MinIO off host ports, allows worker access only on
+  its internal object-storage port, and emits short-lived signed read URLs
+  through the ngrok listener.
+- Deployment runs an idempotent legacy backfill that replaces matching remote
+  locations in both extraction caches and recipe images. A copy failure leaves
+  that row unchanged so deployment can retry it later without losing the
+  current image reference.
 - Migration `0012` lets an extraction cache use at most one thumbnail
   location: an object key or a remote URL.
 - Review completion saves the recipe and related import jobs in one SwiftData
@@ -49,16 +72,21 @@ Extension surface one coherent light/dark visual system.
   back behavior. No custom gesture competes with either convention.
 - Dynamic asset-catalog variants own app appearance. A fixed warm
   `onAccent` token keeps text and symbols legible on brick, plum, and success
-  fills in both appearances.
+  fills in both appearances. A separate adaptive accent token is used for
+  text, symbols, progress controls, and errors.
+- Cooking readiness is a shared domain rule rather than a view-only check, so
+  every entry point uses the same minimum requirements.
 
 ## Affected components
 
-- Backend acquisition, thumbnail orchestration, extraction cache, template
-  cloning, prompt version `recipe-2026-07-27-v8`, and Alembic revision `0012`
+- Backend acquisition, thumbnail orchestration and backfill, MinIO, Nginx,
+  ngrok policy, extraction cache, template cloning, prompt version
+  `recipe-2026-07-27-v8`, and Alembic revision `0012`
 - `ImportCoordinator`, `LibraryViewModel`, SwiftData repository, Import Inbox,
   Home, Search, Watch, and recipe detail
-- Welcome, Share Extension confirmation, design tokens, asset colors, editor,
-  filters, recovery, Health export, and cooking surfaces
+- `APIClient`, `AccountSession`, `Recipe` cooking readiness, Welcome, Share
+  Extension confirmation, design tokens, asset colors, editor, filters,
+  recovery, Health export, and cooking surfaces
 
 ## Verification
 

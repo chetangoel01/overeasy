@@ -181,7 +181,7 @@ struct FocusModeView: View {
             Button(action: advance) {
                 Text(nextButtonTitle)
                     .ladleFont(.bodyStrong)
-                    .foregroundStyle(LadleTheme.ink)
+                    .foregroundStyle(LadleTheme.focusActionText)
                     .frame(maxWidth: .infinity, minHeight: 52)
                     .background(
                         LadleTheme.onAccent,

@@ -540,11 +540,10 @@ final class ImportCoordinator {
             state = .idle
         } catch let APIError.remote(error) {
             handleRemoteError(error, job: &job)
+        } catch APIError.authenticationExpired {
+            finishRemoteFailure(.authenticationExpired, job: &job)
         } catch {
-            state = .failed(
-                jobID: job.id,
-                reason: .networkUnavailable
-            )
+            finishRemoteFailure(.networkUnavailable, job: &job)
         }
     }
 
@@ -681,10 +680,7 @@ final class ImportCoordinator {
         case (.unsupportedSource, _):
             finishRemoteFailure(.unsupportedSource, job: &job)
         default:
-            state = .failed(
-                jobID: job.id,
-                reason: .networkUnavailable
-            )
+            finishRemoteFailure(.networkUnavailable, job: &job)
         }
     }
 

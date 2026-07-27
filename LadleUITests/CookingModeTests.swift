@@ -9,9 +9,9 @@ final class CookingModeTests: XCTestCase {
             element(in: app, identifier: "cooking.full-recipe")
                 .waitForExistence(timeout: 2)
         )
-        XCTAssertTrue(app.staticTexts["Cooking"].waitForExistence(timeout: 2))
         XCTAssertTrue(
-            app.staticTexts["One-Pot Lemon Orzo with Feta"].exists
+            app.staticTexts["One-Pot Lemon Orzo with Feta"]
+                .waitForExistence(timeout: 2)
         )
         XCTAssertTrue(app.staticTexts["Step 1 of 4"].exists)
         XCTAssertTrue(app.switches["Keep screen awake"].exists)

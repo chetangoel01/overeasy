@@ -291,7 +291,7 @@ struct AddRecipeSheet: View {
             )
 
             VStack(spacing: 8) {
-                Text(needsReview ? "Ready for a quick review" : "Ready, over easy")
+                Text(needsReview ? "Recipe needs review" : "Recipe saved")
                     .ladleFont(.title)
                     .foregroundStyle(LadleTheme.ink)
                     .multilineTextAlignment(.center)
@@ -304,7 +304,7 @@ struct AddRecipeSheet: View {
                 .multilineTextAlignment(.center)
             }
 
-            Button("View Recipe") {
+            Button("View recipe") {
                 guard let recipe = coordinator.completedRecipe else {
                     return
                 }
@@ -518,6 +518,8 @@ private extension ImportFailure {
             "That link doesn’t look complete."
         case .networkUnavailable:
             "The network dropped out. The import is safe to retry."
+        case .authenticationExpired:
+            "Your session ended. Sign in again to retry this import."
         case .parserUnavailable:
             "Overeasy couldn’t read the video, but the link is still saved."
         case .quotaExceeded:

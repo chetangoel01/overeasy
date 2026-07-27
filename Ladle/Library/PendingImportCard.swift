@@ -188,6 +188,8 @@ extension ImportFailure {
             "The saved link is incomplete."
         case .networkUnavailable:
             "Connection interrupted. Open to retry."
+        case .authenticationExpired:
+            "Sign in again, then retry."
         case .parserUnavailable:
             "Couldn’t read the video. Open for recovery options."
         case .quotaExceeded:

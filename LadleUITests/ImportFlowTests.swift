@@ -209,8 +209,8 @@ final class ImportFlowTests: XCTestCase {
         app.buttons["Import from link"].tap()
 
         let duplicate = app.staticTexts["Already in your recipes"]
-        let ready = app.staticTexts["Ready, over easy"]
-        let review = app.staticTexts["Ready for a quick review"]
+        let ready = app.staticTexts["Recipe saved"]
+        let review = app.staticTexts["Recipe needs review"]
         let failed = app.staticTexts["We saved the link"]
 
         XCTAssertTrue(

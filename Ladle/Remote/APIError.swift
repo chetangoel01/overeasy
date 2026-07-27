@@ -8,6 +8,7 @@ enum APIError: Error, Equatable, Sendable {
     case decoding
     case missingAuthentication
     case refreshUnavailable
+    case authenticationExpired
     case remote(RemoteErrorDTO)
 }
 
