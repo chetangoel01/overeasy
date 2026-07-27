@@ -14,6 +14,13 @@
 
 This plan starts from an intentionally dirty working tree.
 
+### Execution update
+
+The user subsequently directed removal of the complete `LadleUITests` suite
+and Xcode target. UI-test files, commands, and commits below are retained as
+historical handoff context but are superseded. Continue with unit/package
+tests, simulator builds, Xcode Run, and manual interaction verification.
+
 Existing app changes that must be preserved:
 
 - `Ladle.xcodeproj/project.pbxproj`

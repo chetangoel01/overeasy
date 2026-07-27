@@ -111,6 +111,9 @@ every incidental tap.
 
 ## Verification
 
+- Per the subsequent user direction, the `LadleUITests` target and source suite
+  have been removed. Physical hit-region, Dynamic Type, dark appearance,
+  Reduce Motion, and interaction checks are now manual Xcode-run verification.
 - Run the new physical-coordinate Inbox regression before and after the fix.
 - Run the existing review-routing and reopen regressions.
 - Run Library, Recipe Detail, and Cooking focused tests.

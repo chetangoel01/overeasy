@@ -14,6 +14,13 @@ struct LibraryHomeView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isImportInboxHidden = false
 
+    private var homeCardShape: RoundedRectangle {
+        RoundedRectangle(
+            cornerRadius: LadleTheme.Corner.card,
+            style: .continuous
+        )
+    }
+
     var body: some View {
         ScrollView {
             if viewModel.recipes.isEmpty && viewModel.importJobs.isEmpty {
@@ -134,10 +141,14 @@ struct LibraryHomeView: View {
                 Image(systemName: "chevron.right")
                     .foregroundStyle(LadleTheme.mutedInk)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(14)
             .ladleCard()
         }
         .buttonStyle(.plain)
+        .contentShape(.interaction, homeCardShape)
+        .clipShape(homeCardShape)
+        .zIndex(1)
         .accessibilityIdentifier("library.import-inbox")
     }
 
@@ -173,16 +184,13 @@ struct LibraryHomeView: View {
                     }
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(16)
-            .background(
-                LadleTheme.plum,
-                in: RoundedRectangle(
-                    cornerRadius: LadleTheme.Corner.card,
-                    style: .continuous
-                )
-            )
         }
+        .background(LadleTheme.plum, in: homeCardShape)
         .buttonStyle(.plain)
+        .contentShape(.interaction, homeCardShape)
+        .clipShape(homeCardShape)
         .accessibilityIdentifier("library.watch")
     }
 
