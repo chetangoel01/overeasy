@@ -19,6 +19,11 @@ provenance attestations, rescanned by immutable digest, and keylessly signed
 only after the scan passes. Deployment consumes the signed digest, never a
 mutable tag.
 
+Trivy is explicitly limited to its vulnerability scanner in the image jobs.
+Repository secrets remain covered by the separate full-history gitleaks gate;
+this separation prevents known public API identifiers embedded in upstream
+packages from being misclassified as repository secret leaks.
+
 Every third-party GitHub Action is pinned to a full commit SHA. In particular,
 the image scan uses the post-incident Trivy Action v0.36.0 commit rather than a
 mutable or pre-0.35 tag; Dependabot proposes reviewed SHA updates.

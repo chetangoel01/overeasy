@@ -25,6 +25,7 @@ def test_ci_enforces_quality_security_migrations_and_exact_image_release() -> No
     ):
         assert gate in workflow
     assert "ladle-backend:${{ github.sha }}" in workflow
+    assert workflow.count("scanners: vuln") == 2
     assert re.search(r"grafana/k6@sha256:[0-9a-f]{64}", workflow)
 
 
