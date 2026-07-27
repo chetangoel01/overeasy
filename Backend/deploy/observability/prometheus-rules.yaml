@@ -1,0 +1,94 @@
+groups:
+  - name: ladle-production
+    rules:
+      - alert: LadleElevatedAPI5xx
+        expr: |
+          sum(rate(ladle_http_requests_total{status="5xx"}[5m]))
+          /
+          clamp_min(sum(rate(ladle_http_requests_total[5m])), 0.001)
+          > 0.02
+        for: 10m
+        labels: {severity: page}
+        annotations:
+          summary: "Ladle API 5xx ratio exceeds 2%"
+      - alert: LadleElevatedRateLimiting
+        expr: sum(rate(ladle_rate_limit_rejections_total[5m])) > 5
+        for: 15m
+        labels: {severity: ticket}
+        annotations:
+          summary: "Ladle API is rejecting an elevated request volume"
+      - alert: LadleQueueBacklog
+        expr: ladle_queue_depth > 100 or ladle_oldest_queued_job_age_seconds > 300
+        for: 10m
+        labels: {severity: page}
+        annotations:
+          summary: "Ladle import queue is backlogged"
+      - alert: LadleJobsStuckParsing
+        expr: ladle_stuck_jobs > 0
+        for: 5m
+        labels: {severity: page}
+        annotations:
+          summary: "Imports are stuck in parsing"
+      - alert: LadleWorkerAbsent
+        expr: |
+          absent(ladle_worker_last_seen_timestamp_seconds)
+          or
+          time() - ladle_worker_last_seen_timestamp_seconds > 180
+        for: 2m
+        labels: {severity: page}
+        annotations:
+          summary: "No Ladle worker heartbeat"
+      - alert: LadleBeatAbsent
+        expr: |
+          absent(ladle_beat_last_seen_timestamp_seconds)
+          or
+          time() - ladle_beat_last_seen_timestamp_seconds > 180
+        for: 2m
+        labels: {severity: page}
+        annotations:
+          summary: "No Ladle Beat heartbeat"
+      - alert: LadleClaimChurn
+        expr: increase(ladle_claim_events_total{outcome=~"takeover|expired"}[15m]) > 3
+        labels: {severity: ticket}
+        annotations:
+          summary: "Extraction claims are expiring or being taken over"
+      - alert: LadleProviderAuthenticationFailure
+        expr: increase(ladle_provider_total{outcome="auth"}[10m]) > 0
+        labels: {severity: page}
+        annotations:
+          summary: "An import provider rejected authentication"
+      - alert: LadleProviderQuotaFailure
+        expr: increase(ladle_provider_total{outcome="quota"}[10m]) > 0
+        labels: {severity: page}
+        annotations:
+          summary: "An import provider rejected work for quota"
+      - alert: LadleProviderSpendWarning
+        expr: ladle_provider_spend_units + ladle_provider_reserved_units > 800
+        for: 5m
+        labels: {severity: ticket}
+        annotations:
+          summary: "Provider spend has crossed 80% of the default daily budget"
+      - alert: LadleDependencyUnavailable
+        expr: ladle_readiness{component=~"database|broker|celeryResult|rateLimitRedis|metricsRedis|storage"} == 0
+        for: 3m
+        labels: {severity: page}
+        annotations:
+          summary: "A required Ladle dependency is unavailable"
+      - alert: LadleMigrationMismatch
+        expr: ladle_readiness{component="database"} == 0
+        for: 1m
+        labels: {severity: page}
+        annotations:
+          summary: "Database connectivity or migration revision is invalid"
+      - alert: LadleDeadLetters
+        expr: ladle_dead_letters > 0
+        for: 1m
+        labels: {severity: page}
+        annotations:
+          summary: "Imports entered the dead-letter table"
+      - alert: LadleObjectCleanupFailures
+        expr: ladle_object_deletion_failures > 0
+        for: 30m
+        labels: {severity: ticket}
+        annotations:
+          summary: "Object cleanup retries are failing"

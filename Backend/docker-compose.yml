@@ -1,3 +1,27 @@
+x-runtime-security: &runtime-security
+  read_only: true
+  tmpfs:
+    - /tmp:size=256m,mode=1777
+  cap_drop:
+    - "ALL"
+  security_opt:
+    - "no-new-privileges:true"
+  pids_limit: 256
+  mem_limit: 1g
+  cpus: 1.0
+  ulimits:
+    nofile:
+      soft: 1024
+      hard: 4096
+    fsize:
+      soft: 536870912
+      hard: 536870912
+
+x-runtime-build: &runtime-build
+  context: .
+  args:
+    INSTALL_MEDIA_TOOLS: ${LADLE_INSTALL_MEDIA_TOOLS:-true}
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -15,7 +39,21 @@ services:
 
   redis:
     image: redis:7-alpine
-    command: ["redis-server", "--appendonly", "yes"]
+    command:
+      [
+        "redis-server",
+        "--appendonly",
+        "yes",
+        "--appendfsync",
+        "everysec",
+        "--save",
+        "60",
+        "1",
+        "--maxmemory-policy",
+        "noeviction",
+        "--stop-writes-on-bgsave-error",
+        "yes",
+      ]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 2s
@@ -42,30 +80,51 @@ services:
       - ladle-minio:/data
 
   minio-init:
-    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
-    entrypoint: ["/bin/sh", "-c"]
+    <<: *runtime-security
+    build: *runtime-build
     command:
-      - >
-        mc alias set ladle http://minio:9000 ladle-local ladle-local-secret &&
-        mc mb --ignore-existing ladle/ladle-private
+      [
+        "/app/.venv/bin/python",
+        "-m",
+        "ladle.infrastructure.object_storage_init",
+      ]
+    environment:
+      LADLE_OBJECT_STORAGE_ENDPOINT_URL: http://minio:9000
+      LADLE_OBJECT_STORAGE_REGION: us-east-1
+      LADLE_OBJECT_STORAGE_BUCKET: ladle-private
+      LADLE_OBJECT_STORAGE_ADDRESSING_STYLE: path
+      LADLE_OBJECT_STORAGE_ACCESS_KEY: ladle-local
+      LADLE_OBJECT_STORAGE_SECRET_KEY: ladle-local-secret
+      LADLE_OBJECT_STORAGE_LIFECYCLE_PATH: /policy/object-storage-lifecycle.json
+    healthcheck:
+      disable: true
     depends_on:
       minio:
         condition: service_healthy
+    volumes:
+      - ./deploy/object-storage-lifecycle.json:/policy/object-storage-lifecycle.json:ro
 
   migrate:
-    build: .
+    <<: *runtime-security
+    build: *runtime-build
     command: ["/app/.venv/bin/alembic", "upgrade", "head"]
+    healthcheck:
+      disable: true
     environment: &ladle-environment
       LADLE_ENVIRONMENT: development
-      LADLE_JWT_SIGNING_SECRET: change-me-development-only
+      LADLE_JWT_SIGNING_SECRET: change-me-development-only-signing-secret
       LADLE_DATA_ENCRYPTION_KEY: change-me-development-only
       LADLE_DATABASE_URL: postgresql+psycopg://ladle:ladle@postgres:5432/ladle
       LADLE_CELERY_ENABLED: "true"
       LADLE_CELERY_BROKER_URL: redis://redis:6379/0
       LADLE_CELERY_RESULT_BACKEND: redis://redis:6379/1
+      LADLE_DURABLE_METRICS_ENABLED: "true"
+      LADLE_METRICS_REDIS_URL: redis://redis:6379/3
+      LADLE_METRICS_AUTH_TOKEN: local-metrics-token-not-for-production
       # Provider settings substitute from Backend/.env; defaults keep the
       # stack in deterministic fake mode when no keys are present.
       LADLE_WORKER_PROVIDER_MODE: ${LADLE_WORKER_PROVIDER_MODE:-fake}
+      LADLE_FAKE_PROVIDER_DELAY_SECONDS: ${LADLE_FAKE_PROVIDER_DELAY_SECONDS:-0}
       LADLE_EXTRACTION_PROVIDER: ${LADLE_EXTRACTION_PROVIDER:-openrouter}
       LADLE_SUPADATA_API_KEY: ${LADLE_SUPADATA_API_KEY:-}
       LADLE_SOSCRIPTED_API_KEY: ${LADLE_SOSCRIPTED_API_KEY:-}
@@ -77,6 +136,7 @@ services:
       LADLE_OBJECT_STORAGE_PUBLIC_ENDPOINT_URL: http://minio.ladle.localhost
       LADLE_OBJECT_STORAGE_REGION: us-east-1
       LADLE_OBJECT_STORAGE_BUCKET: ladle-private
+      LADLE_OBJECT_STORAGE_ADDRESSING_STYLE: path
       LADLE_OBJECT_STORAGE_ACCESS_KEY: ladle-local
       LADLE_OBJECT_STORAGE_SECRET_KEY: ladle-local-secret
     depends_on:
@@ -84,7 +144,8 @@ services:
         condition: service_healthy
 
   api:
-    build: .
+    <<: *runtime-security
+    build: *runtime-build
     environment: *ladle-environment
     ports:
       - "127.0.0.1:4112:4111"
@@ -108,7 +169,8 @@ services:
         condition: service_completed_successfully
 
   worker:
-    build: .
+    <<: *runtime-security
+    build: *runtime-build
     command:
       [
         "/app/.venv/bin/celery",
@@ -147,7 +209,8 @@ services:
   # worker's concurrency or replica count cannot start a second beat and run
   # every sweep twice.
   beat:
-    build: .
+    <<: *runtime-security
+    build: *runtime-build
     command:
       [
         "/app/.venv/bin/celery",
@@ -158,6 +221,8 @@ services:
         "--schedule=/tmp/celerybeat-schedule",
       ]
     environment: *ladle-environment
+    healthcheck:
+      disable: true
     depends_on:
       migrate:
         condition: service_completed_successfully

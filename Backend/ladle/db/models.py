@@ -47,6 +47,63 @@ class User(Base):
     )
 
 
+class AccountDeletionAudit(Base):
+    __tablename__ = "account_deletion_audits"
+    __table_args__ = (
+        CheckConstraint(
+            "account_kind IN ('guest', 'apple', 'google')",
+            name="ck_account_deletion_audits_kind",
+        ),
+        CheckConstraint(
+            "status IN ('requested', 'revokingProvider', 'deleting', "
+            "'completed', 'failed')",
+            name="ck_account_deletion_audits_status",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    user_digest: Mapped[bytes] = mapped_column(LargeBinary(32), nullable=False)
+    idempotency_digest: Mapped[bytes] = mapped_column(
+        LargeBinary(32), nullable=False, unique=True
+    )
+    account_kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    failure_code: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+
+class ObjectDeletionQueue(Base):
+    __tablename__ = "object_deletion_queue"
+    __table_args__ = (
+        CheckConstraint(
+            "attempts >= 0",
+            name="ck_object_deletion_queue_attempts_nonnegative",
+        ),
+    )
+
+    object_key: Mapped[str] = mapped_column(Text, primary_key=True)
+    reason: Mapped[str] = mapped_column(String(64), nullable=False)
+    available_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    last_error: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
 class AppleIdentity(Base):
     __tablename__ = "apple_identities"
 
@@ -413,6 +470,66 @@ class ImportJob(Base):
     )
 
 
+class ImportDispatchOutbox(Base):
+    __tablename__ = "import_dispatch_outbox"
+    __table_args__ = (
+        CheckConstraint(
+            "dispatch_count >= 0",
+            name="ck_import_dispatch_outbox_count_nonnegative",
+        ),
+        Index(
+            "ix_import_dispatch_outbox_pending",
+            "available_at",
+            postgresql_where=text("dispatched_at IS NULL"),
+        ),
+    )
+
+    import_job_id: Mapped[UUID] = mapped_column(
+        Uuid,
+        ForeignKey("import_jobs.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    available_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    dispatched_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    dispatch_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="0"
+    )
+    last_error: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class ImportDeadLetter(Base):
+    __tablename__ = "import_dead_letters"
+    __table_args__ = (
+        CheckConstraint(
+            "attempts > 0",
+            name="ck_import_dead_letters_attempts_positive",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    import_job_id: Mapped[UUID] = mapped_column(
+        Uuid,
+        ForeignKey("import_jobs.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
+    failure_code: Mapped[str] = mapped_column(String(128), nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
 class ImportQuotaEvent(Base):
     __tablename__ = "import_quota_events"
     __table_args__ = (
@@ -737,6 +854,14 @@ class UserSyncState(Base):
         CheckConstraint(
             "next_sequence > 0", name="ck_user_sync_state_next_sequence_positive"
         ),
+        CheckConstraint(
+            "minimum_retained_sequence > 0",
+            name="ck_user_sync_state_minimum_retained_sequence_positive",
+        ),
+        CheckConstraint(
+            "minimum_retained_sequence <= next_sequence",
+            name="ck_user_sync_state_retention_before_next",
+        ),
     )
 
     user_id: Mapped[UUID] = mapped_column(
@@ -744,6 +869,11 @@ class UserSyncState(Base):
     )
     next_sequence: Mapped[int] = mapped_column(
         BigInteger, nullable=False, server_default="1"
+    )
+    minimum_retained_sequence: Mapped[int] = mapped_column(
+        BigInteger,
+        nullable=False,
+        server_default="1",
     )
 
 

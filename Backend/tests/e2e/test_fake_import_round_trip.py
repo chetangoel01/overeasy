@@ -1,4 +1,6 @@
-from dataclasses import dataclass
+from collections.abc import Iterator
+from contextlib import contextmanager
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
@@ -7,7 +9,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from alembic import command
-from ladle.cache.claims import ExtractionClaimService
+from ladle.cache.claims import ClaimLease, ExtractionClaimService
 from ladle.cache.service import ExtractionCacheService
 from ladle.contracts.recipes import RecipeSource
 from ladle.db.models import (
@@ -34,6 +36,16 @@ class FrozenClock:
 
     def now(self) -> datetime:
         return self.value
+
+
+@dataclass
+class RecordingHeartbeat:
+    claims: list[ClaimLease] = field(default_factory=list)
+
+    @contextmanager
+    def monitor(self, claim: ClaimLease) -> Iterator[None]:
+        self.claims.append(claim)
+        yield
 
 
 def seed_import(database: Session, *, source_id: UUID, suffix: str) -> UUID:
@@ -94,6 +106,7 @@ def test_worker_round_trip_then_shared_hit_and_duplicate_delivery(
     )
     acquirer = FakeAcquirer()
     extractor = FakeExtractor(RecipeTemplate.from_recipe(recipe))
+    heartbeat = RecordingHeartbeat()
     orchestrator = ImportOrchestrator(
         session_factory=sessions,
         cache=cache,
@@ -101,6 +114,7 @@ def test_worker_round_trip_then_shared_hit_and_duplicate_delivery(
         extractor=extractor,
         clock=clock,
         metrics=metrics,
+        heartbeat=heartbeat,
     )
 
     with Session(engine) as database, database.begin():
@@ -132,6 +146,7 @@ def test_worker_round_trip_then_shared_hit_and_duplicate_delivery(
     assert len(acquirer.calls) == 1
     assert acquirer.public_checks == [source_id]
     assert len(extractor.calls) == 1
+    assert [claim.owner_job_id for claim in heartbeat.claims] == [first_job]
     with Session(engine) as database:
         assert database.scalar(select(func.count()).select_from(Recipe)) == 3
         assert database.scalar(select(func.count()).select_from(ExtractionCache)) == 1

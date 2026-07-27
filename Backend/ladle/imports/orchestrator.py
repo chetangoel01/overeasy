@@ -1,4 +1,6 @@
+from contextlib import AbstractContextManager, nullcontext
 from enum import StrEnum
+from typing import Protocol
 from uuid import UUID
 
 from sqlalchemy import select
@@ -15,6 +17,7 @@ from ladle.acquisition.models import (
     TextEvidence,
 )
 from ladle.acquisition.protocol import VideoAcquirer
+from ladle.cache.claims import ClaimLease
 from ladle.cache.maintenance import CacheMaintenanceService
 from ladle.cache.service import CacheDisposition, ExtractionCacheService
 from ladle.clock import Clock
@@ -25,6 +28,7 @@ from ladle.extraction.protocol import RecipeExtractor
 from ladle.imports.thumbnails import OEmbedThumbnailFetcher
 from ladle.imports.transitions import ImportTransitionService
 from ladle.observability.metrics import MetricsRegistry
+from ladle.observability.structured_logging import log_context
 from ladle.recipes.template_clone import RecipeTemplateCloner
 from ladle.usage.limits import UsageLimitExceeded
 
@@ -41,6 +45,10 @@ class ProcessOutcome(StrEnum):
     FAILED = "failed"
 
 
+class ClaimHeartbeat(Protocol):
+    def monitor(self, claim: ClaimLease) -> AbstractContextManager[None]: ...
+
+
 class ImportOrchestrator:
     def __init__(
         self,
@@ -55,6 +63,7 @@ class ImportOrchestrator:
         transitions: ImportTransitionService | None = None,
         metrics: MetricsRegistry | None = None,
         thumbnails: OEmbedThumbnailFetcher | None = None,
+        heartbeat: ClaimHeartbeat | None = None,
     ) -> None:
         self._sessions = session_factory
         self._cache = cache
@@ -66,6 +75,7 @@ class ImportOrchestrator:
         self._transitions = transitions
         self._metrics = metrics
         self._thumbnails = thumbnails
+        self._heartbeat = heartbeat
 
     def process(self, job_id: UUID) -> ProcessOutcome:
         requires_recheck = False
@@ -145,7 +155,11 @@ class ImportOrchestrator:
 
         if requires_recheck:
             try:
-                is_public = self._acquirer.check_public(descriptor, job_id=job_id)
+                with log_context(stage="publicRecheck"):
+                    is_public = self._acquirer.check_public(
+                        descriptor,
+                        job_id=job_id,
+                    )
             except (ProviderUnavailable, UsageLimitExceeded) as error:
                 if self._transitions is None:
                     raise
@@ -183,43 +197,52 @@ class ImportOrchestrator:
                 )
             return self.process(job_id)
 
+        monitor = (
+            self._heartbeat.monitor(claim)
+            if self._heartbeat is not None and isinstance(claim, ClaimLease)
+            else nullcontext()
+        )
         try:
-            if bypass_cache and pasted_encrypted is not None:
-                assert self._private_text is not None
-                context = AcquiredVideoContext(
-                    source=descriptor,
-                    is_public=True,
-                    title=None,
-                    description="",
-                    transcript=[
+            with monitor:
+                with log_context(stage="acquisition"):
+                    if bypass_cache and pasted_encrypted is not None:
+                        assert self._private_text is not None
+                        context = AcquiredVideoContext(
+                            source=descriptor,
+                            is_public=True,
+                            title=None,
+                            description="",
+                            transcript=[
+                                TextEvidence(
+                                    text=self._private_text.decrypt(pasted_encrypted),
+                                    provenance="user-pasted-text",
+                                    generated=False,
+                                )
+                            ],
+                            visual_observations=[],
+                            diagnostics=["pastedTextRecovery"],
+                        )
+                    else:
+                        context = self._acquirer.acquire(descriptor, job_id=job_id)
+                if not context.is_public:
+                    raise PrivateOrDeleted
+                if bypass_cache and correction_encrypted is not None:
+                    assert self._private_text is not None
+                    context.transcript.append(
                         TextEvidence(
-                            text=self._private_text.decrypt(pasted_encrypted),
-                            provenance="user-pasted-text",
+                            text=self._private_text.decrypt(correction_encrypted),
+                            provenance="user-correction-notes",
                             generated=False,
                         )
-                    ],
-                    visual_observations=[],
-                    diagnostics=["pastedTextRecovery"],
-                )
-            else:
-                context = self._acquirer.acquire(descriptor, job_id=job_id)
-            if not context.is_public:
-                raise PrivateOrDeleted
-            if bypass_cache and correction_encrypted is not None:
-                assert self._private_text is not None
-                context.transcript.append(
-                    TextEvidence(
-                        text=self._private_text.decrypt(correction_encrypted),
-                        provenance="user-correction-notes",
-                        generated=False,
                     )
-                )
-            template = self._extractor.extract(context, job_id=job_id)
-            thumbnail_key = (
-                self._thumbnails.fetch(descriptor)
-                if self._thumbnails is not None and not bypass_cache
-                else None
-            )
+                with log_context(stage="extraction"):
+                    template = self._extractor.extract(context, job_id=job_id)
+                with log_context(stage="thumbnail"):
+                    thumbnail_key = (
+                        self._thumbnails.fetch(descriptor)
+                        if self._thumbnails is not None and not bypass_cache
+                        else None
+                    )
         except (
             ExtractionUnavailable,
             PrivateOrDeleted,

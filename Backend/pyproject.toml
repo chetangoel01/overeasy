@@ -12,6 +12,13 @@ dependencies = [
     "cryptography>=45,<50",
     "fastapi>=0.116,<1",
     "httpx>=0.28,<1",
+    "opentelemetry-exporter-otlp-proto-http>=1.44,<1.45",
+    "opentelemetry-instrumentation-celery==0.65b0",
+    "opentelemetry-instrumentation-fastapi==0.65b0",
+    "opentelemetry-instrumentation-httpx==0.65b0",
+    "opentelemetry-instrumentation-redis==0.65b0",
+    "opentelemetry-instrumentation-sqlalchemy==0.65b0",
+    "opentelemetry-sdk>=1.44,<1.45",
     "pydantic>=2.11,<3",
     "pydantic-settings>=2.10,<3",
     "psycopg[binary]>=3.2,<4",
@@ -30,10 +37,11 @@ build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [
+    "httpx2>=2.7,<3",
     "minio>=7.2,<8",
     "mypy>=1.17,<2",
-    "pytest>=8.4,<9",
-    "pytest-cov>=6.2,<7",
+    "pytest>=9.0.3,<10",
+    "pytest-cov>=7,<8",
     "ruff>=0.12,<1",
     "testcontainers[postgres]>=4.10,<5",
 ]
@@ -42,6 +50,7 @@ dev = [
 addopts = "--strict-markers"
 testpaths = ["tests"]
 markers = [
+    "chaos: kills real workers or infrastructure and must run in isolation",
     "integration: exercises real infrastructure and may be slower",
     "live_provider: calls an explicitly configured live external provider",
 ]

@@ -366,6 +366,18 @@ final class SwiftDataRecipeRepository:
         try modelContext.save()
     }
 
+    func reconcileServerSnapshot(activeRecipeIDs: Set<UUID>) throws {
+        let recipes = try modelContext.fetch(FetchDescriptor<StoredRecipe>())
+        for stored in recipes
+        where stored.serverRevision > 0
+            && stored.pendingMutationKey == nil
+            && !activeRecipeIDs.contains(stored.id)
+        {
+            modelContext.delete(stored)
+        }
+        try modelContext.save()
+    }
+
     private func decodeRecipe(_ stored: StoredRecipe) throws -> Recipe {
         try decoder.decode(Recipe.self, from: stored.payload)
     }

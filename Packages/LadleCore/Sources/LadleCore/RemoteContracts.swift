@@ -452,6 +452,7 @@ public enum RemoteErrorCode: String, Codable, Hashable, Sendable {
     case guestRecipeLimitReached
     case authenticationRequired
     case syncConflict
+    case syncResetRequired
     case providerUnavailable
     case quotaExceeded
     case rateLimited

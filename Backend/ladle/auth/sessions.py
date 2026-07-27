@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from ladle.auth.tokens import AccessTokenCodec, RefreshTokenCodec
 from ladle.clock import Clock
-from ladle.db.models import AuthSession, User
+from ladle.db.models import AuthSession, Device, User
 
 
 class RefreshTokenInvalid(Exception):
@@ -108,6 +108,12 @@ class SessionService:
         if now >= stored.expires_at:
             raise RefreshTokenExpired
 
+        device = database.get(Device, stored.device_id)
+        if device is None:
+            raise RefreshTokenInvalid
+        if device.attestation_state == "revoked":
+            raise RefreshTokenRevoked
+
         user = database.get(User, stored.user_id)
         if user is None:
             raise RefreshTokenInvalid
@@ -160,6 +166,46 @@ class SessionService:
         ).scalar_one_or_none()
         if stored is not None and stored.revoked_at is None:
             stored.revoked_at = self._clock.now()
+
+    def reauthenticate(
+        self,
+        database: Session,
+        *,
+        session_id: UUID,
+        device_id: UUID,
+        refresh_token: str,
+    ) -> None:
+        stored = database.execute(
+            select(AuthSession).where(AuthSession.id == session_id).with_for_update()
+        ).scalar_one_or_none()
+        now = self._clock.now()
+        if (
+            stored is None
+            or stored.device_id != device_id
+            or stored.revoked_at is not None
+            or now >= stored.expires_at
+        ):
+            raise RefreshTokenInvalid
+        try:
+            encoded_session_id = self._refresh_tokens.session_id(refresh_token)
+        except ValueError as error:
+            raise RefreshTokenInvalid from error
+        current = encoded_session_id == stored.id and self._refresh_tokens.matches(
+            refresh_token,
+            stored.refresh_token_hash,
+        )
+        previous = (
+            encoded_session_id == stored.id
+            and stored.previous_refresh_token_hash is not None
+            and stored.previous_valid_until is not None
+            and now <= stored.previous_valid_until
+            and self._refresh_tokens.matches(
+                refresh_token,
+                stored.previous_refresh_token_hash,
+            )
+        )
+        if not current and not previous:
+            raise RefreshTokenInvalid
 
     def _revoke_family(
         self,

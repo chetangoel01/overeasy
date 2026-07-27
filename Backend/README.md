@@ -35,7 +35,12 @@ Readiness checks PostgreSQL, Redis, and the private object-storage bucket.
 Prometheus-format bounded-label counters are available at `/metrics`. Run
 `scripts/check_secrets.sh` before publishing a deployment artifact.
 
-Apple sign-in remains disabled until `LADLE_APPLE_ENABLED=true` and the team
-ID, key ID, private key, and bundle ID are supplied. Provider credentials and
-optional browser cookies belong only on the worker, never in the repository or
-iOS application.
+For the private Mac mini staging deployment, see
+[`docs/deployment/mac-mini.md`](docs/deployment/mac-mini.md).
+
+Apple and Google sign-in remain disabled in local development until their
+provider settings are supplied. Production refuses to start without both
+shipped identity providers; Apple requires its team ID, key ID, private key,
+and the `com.ladle.ios` bundle ID, while Google requires its server OAuth client
+ID. Provider credentials and optional browser cookies belong only on the
+worker, never in the repository or iOS application.

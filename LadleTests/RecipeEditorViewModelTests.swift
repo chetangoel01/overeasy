@@ -95,6 +95,82 @@ final class RecipeEditorViewModelTests: XCTestCase {
         XCTAssertEqual(repository.saveCount, 0)
     }
 
+    func testServerContractLimitsStayInlineAndDoNotPersist() {
+        let repository = EditorTestRepository(
+            recipes: [PreviewFixtures.recipes[1]]
+        )
+        let viewModel = makeViewModel(repository: repository)
+        let ingredientID = viewModel.draft.ingredients[0].id
+        let stepID = viewModel.draft.steps[0].id
+        viewModel.draft.title = String(repeating: "x", count: 301)
+        viewModel.draft.creatorName = String(repeating: "x", count: 201)
+        viewModel.draft.description = String(repeating: "x", count: 10_001)
+        viewModel.draft.preparationMinutes = "43201"
+        viewModel.draft.cookingMinutes = "43201"
+        viewModel.draft.servings = "10001"
+        viewModel.draft.ingredients[0].quantityText =
+            String(repeating: "x", count: 101)
+        viewModel.draft.ingredients[0].unit =
+            String(repeating: "x", count: 51)
+        viewModel.draft.ingredients[0].name =
+            String(repeating: "x", count: 301)
+        viewModel.draft.ingredients[0].preparation =
+            String(repeating: "x", count: 501)
+        viewModel.draft.steps[0].instruction =
+            String(repeating: "x", count: 5_001)
+        viewModel.draft.nutrition.isIncluded = true
+        viewModel.draft.nutrition.calories = "1000001"
+
+        XCTAssertNil(viewModel.save())
+        XCTAssertTrue(viewModel.validationIssues.contains(.titleTooLong))
+        XCTAssertTrue(viewModel.validationIssues.contains(.creatorNameTooLong))
+        XCTAssertTrue(viewModel.validationIssues.contains(.descriptionTooLong))
+        XCTAssertTrue(
+            viewModel.validationIssues.contains(.preparationMinutesInvalid)
+        )
+        XCTAssertTrue(
+            viewModel.validationIssues.contains(.cookingMinutesInvalid)
+        )
+        XCTAssertTrue(
+            viewModel.validationIssues.contains(.totalMinutesInvalid)
+        )
+        XCTAssertTrue(
+            viewModel.validationIssues.contains(.servingsMustBePositive)
+        )
+        XCTAssertTrue(
+            viewModel.validationIssues.contains(
+                .ingredientFieldTooLong(ingredientID)
+            )
+        )
+        XCTAssertTrue(
+            viewModel.validationIssues.contains(
+                .stepInstructionTooLong(stepID)
+            )
+        )
+        XCTAssertTrue(
+            viewModel.validationIssues.contains(
+                .nutritionValueInvalid("Calories")
+            )
+        )
+        XCTAssertEqual(repository.saveCount, 0)
+    }
+
+    func testEditorCannotAddMoreThanServerCollectionLimits() {
+        let viewModel = makeViewModel()
+        while viewModel.draft.ingredients.count < 200 {
+            viewModel.addIngredient()
+        }
+        while viewModel.draft.steps.count < 200 {
+            viewModel.addStep()
+        }
+
+        viewModel.addIngredient()
+        viewModel.addStep()
+
+        XCTAssertEqual(viewModel.draft.ingredients.count, 200)
+        XCTAssertEqual(viewModel.draft.steps.count, 200)
+    }
+
     func testDiscardRestoresOriginalWithoutPersisting() {
         let recipe = PreviewFixtures.recipes[1]
         let repository = EditorTestRepository(recipes: [recipe])

@@ -27,9 +27,10 @@ class S3ObjectStorage:
         access_key: str,
         secret_key: str,
         public_endpoint_url: str | None = None,
+        addressing_style: str = "auto",
     ) -> None:
         self._bucket = bucket
-        addressing = Config(s3={"addressing_style": "path"})
+        addressing = Config(s3={"addressing_style": addressing_style})
         self._client: BaseClient = boto3.client(
             "s3",
             endpoint_url=endpoint_url,
@@ -60,6 +61,17 @@ class S3ObjectStorage:
             if status not in {403, 404}:
                 raise
         self._client.create_bucket(Bucket=self._bucket)
+
+    def configure_private_bucket(self, lifecycle: dict[str, Any]) -> None:
+        self.create_private_bucket()
+        self._client.put_bucket_versioning(
+            Bucket=self._bucket,
+            VersioningConfiguration={"Status": "Enabled"},
+        )
+        self._client.put_bucket_lifecycle_configuration(
+            Bucket=self._bucket,
+            LifecycleConfiguration=lifecycle,
+        )
 
     def put(self, key: str, data: bytes, *, content_type: str) -> None:
         self._client.put_object(

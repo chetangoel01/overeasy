@@ -14,6 +14,7 @@ class ErrorCode(StrEnum):
     GUEST_RECIPE_LIMIT_REACHED = "guestRecipeLimitReached"
     AUTHENTICATION_REQUIRED = "authenticationRequired"
     SYNC_CONFLICT = "syncConflict"
+    SYNC_RESET_REQUIRED = "syncResetRequired"
     PROVIDER_UNAVAILABLE = "providerUnavailable"
     QUOTA_EXCEEDED = "quotaExceeded"
     RATE_LIMITED = "rateLimited"

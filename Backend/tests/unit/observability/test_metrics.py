@@ -12,6 +12,9 @@ def test_product_metrics_use_only_bounded_labels_and_render_prometheus_text() ->
     metrics.record_provider("soscripted", "fallback")
     metrics.record_job("ready", "youtube")
     metrics.record_sync("success")
+    metrics.record_http("GET", "/v1/recipes/sync", 200, duration_seconds=0.12)
+    metrics.record_rate_limit("import-submit:user")
+    metrics.record_worker_retry("transient")
 
     rendered = metrics.render()
     assert 'ladle_cache_total{disposition="hit"} 1' in rendered
@@ -19,7 +22,15 @@ def test_product_metrics_use_only_bounded_labels_and_render_prometheus_text() ->
     assert 'ladle_provider_total{outcome="success",provider="supadata"} 1' in rendered
     assert 'ladle_import_jobs_total{source="youtube",status="ready"} 1' in rendered
     assert 'ladle_sync_total{outcome="success"} 1' in rendered
-    assert "user" not in rendered
+    assert (
+        'ladle_http_request_duration_seconds_count{method="GET",'
+        'route="/v1/recipes/sync"} 1' in rendered
+    )
+    assert (
+        'ladle_rate_limit_rejections_total{policy="import-submit:user"} 1' in rendered
+    )
+    assert 'ladle_worker_retries_total{reason="transient"} 1' in rendered
+    assert "user-123" not in rendered
 
 
 @pytest.mark.parametrize(

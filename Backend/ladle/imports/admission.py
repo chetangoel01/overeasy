@@ -9,6 +9,7 @@ from ladle.clock import Clock
 from ladle.contracts.imports import ImportFailure, ImportJobResponse, ImportStatus
 from ladle.crypto.private_text import PrivateTextCipher
 from ladle.db.models import ImportJob, Recipe, SourceVideo
+from ladle.imports.outbox import DispatchOutboxService
 from ladle.imports.quotas import ImportQuotaService
 from ladle.imports.reservations import ReservationService
 from ladle.imports.source_identity import SourceIdentityParser
@@ -45,12 +46,14 @@ class AdmissionService:
         clock: Clock,
         private_text: PrivateTextCipher | None = None,
         quota: ImportQuotaService | None = None,
+        outbox: DispatchOutboxService | None = None,
     ) -> None:
         self._parser = parser
         self._reservations = reservations
         self._clock = clock
         self._private_text = private_text
         self._quota = quota
+        self._outbox = outbox
 
     def admit(
         self,
@@ -75,7 +78,11 @@ class AdmissionService:
             return AdmittedImport(
                 job_id=existing.id,
                 response=self.response(existing),
-                should_dispatch=False,
+                should_dispatch=(
+                    self._outbox.ensure_dispatchable(database, existing)
+                    if self._outbox is not None and existing.status == "parsing"
+                    else False
+                ),
             )
 
         identity = self._parser.parse(source_url)
@@ -106,7 +113,11 @@ class AdmissionService:
             return AdmittedImport(
                 job_id=existing.id,
                 response=self.response(existing),
-                should_dispatch=False,
+                should_dispatch=(
+                    self._outbox.ensure_dispatchable(database, existing)
+                    if self._outbox is not None and existing.status == "parsing"
+                    else False
+                ),
             )
 
         source_video_id = database.scalar(
@@ -187,6 +198,8 @@ class AdmissionService:
                 user_id=user_id,
                 import_job_id=job.id,
             )
+        if self._outbox is not None:
+            self._outbox.queue(database, job.id)
         return AdmittedImport(
             job_id=job.id,
             response=self.response(job),

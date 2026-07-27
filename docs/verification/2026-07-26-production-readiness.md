@@ -126,7 +126,7 @@ export a selected serving to Apple Health.
 The frontend candidate is locally green, but it must not be uploaded until all
 of the following external release gates are closed:
 
-1. Deploy the production API and worker, run migrations through `0007`, route
+1. Deploy the production API and worker, run migrations through `0011`, route
    `api.ladle.app` to them, and install a valid TLS certificate. Recheck both
    `/health/live` and `/health/ready` over HTTPS.
 2. Inject the production database, Redis, object-storage, extraction-provider,
@@ -165,10 +165,9 @@ Connect.
 | Check | Result |
 | --- | --- |
 | LadleCore tests | 37 passed |
-| App/unit tests | 124 passed in the final candidate |
-| UI tests | 25 passed, covering the complete app navigation and settings matrix |
+| iOS Ladle scheme | 152 passed across app, unit, and UI coverage |
 | Share renders | Loading, success, and failure passed render tests and visual inspection at standard and Accessibility sizes |
-| Backend tests | 322 passed; 3 environment-dependent tests skipped |
+| Backend tests | 459 passed; 5 credential-gated tests intentionally deselected |
 | Backend lint/type checks | Ruff format/check and mypy passed |
 | Live Release API | Blocked: HTTPS TLS hostname rejected; HTTP serves a parked-domain page |
 | Unsigned Release archive | Passed; app and extension are `1.0 (20260726.2)`, app and Google dependency privacy manifests plus both dSYMs are present |

@@ -1,6 +1,39 @@
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+
+from billiard.exceptions import SoftTimeLimitExceeded
+from redis.exceptions import ConnectionError as RedisConnectionError
+from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError
+
+from ladle.acquisition.errors import ProviderTransientError
+from ladle.cache.claims import ClaimLost
 from ladle.config import Settings
+from ladle.imports.dispatcher import PROCESS_IMPORT_TASK
 from ladle.imports.maintenance import RELEASE_EXPIRED_RESERVATIONS_TASK
-from ladle.worker.app import celery_app, create_celery_app
+from ladle.privacy.retention import RETENTION_SWEEP_TASK
+from ladle.worker.app import (
+    celery_app,
+    configure_worker_logging,
+    create_celery_app,
+    record_worker_heartbeat,
+)
+from ladle.worker.tasks import is_retryable_import_failure, retry_countdown
+
+
+@dataclass
+class FrozenClock:
+    value: datetime
+
+    def now(self) -> datetime:
+        return self.value
+
+
+@dataclass
+class RecordingMetrics:
+    values: list[tuple[str, float]] = field(default_factory=list)
+
+    def set_operational(self, name: str, value: float) -> None:
+        self.values.append((name, value))
 
 
 def test_worker_uses_late_ack_and_long_visibility_timeout() -> None:
@@ -8,15 +41,95 @@ def test_worker_uses_late_ack_and_long_visibility_timeout() -> None:
         Settings(
             celery_broker_url="redis://127.0.0.1:6379/0",
             celery_result_backend="redis://127.0.0.1:6379/1",
-            celery_visibility_timeout_seconds=3600,
+            celery_visibility_timeout_seconds=1800,
+            celery_task_soft_time_limit_seconds=1200,
+            celery_task_time_limit_seconds=1260,
         )
     )
 
     assert app.conf.task_acks_late is True
     assert app.conf.task_reject_on_worker_lost is True
-    assert app.conf.broker_transport_options["visibility_timeout"] == 3600
+    assert app.conf.broker_transport_options["visibility_timeout"] == 1800
+    assert app.conf.task_soft_time_limit == 1200
+    assert app.conf.task_time_limit == 1260
+    assert app.conf.worker_prefetch_multiplier == 1
+    assert app.conf.broker_connection_retry_on_startup is True
+    assert app.conf.task_default_delivery_mode == "persistent"
+    assert app.conf.task_annotations[PROCESS_IMPORT_TASK] == {
+        "max_retries": 3,
+    }
     assert app.conf.task_serializer == "json"
     assert app.conf.accept_content == ["json"]
+
+
+def test_worker_retry_backoff_is_bounded_and_jittered() -> None:
+    first = retry_countdown(
+        retry_number=1,
+        base_seconds=5,
+        maximum_seconds=60,
+        jitter_seconds=3,
+        jitter=lambda upper: upper,
+    )
+    late = retry_countdown(
+        retry_number=10,
+        base_seconds=5,
+        maximum_seconds=60,
+        jitter_seconds=3,
+        jitter=lambda upper: upper,
+    )
+
+    assert first == 8
+    assert late == 63
+
+
+def test_worker_retries_only_explicit_transient_failures() -> None:
+    retryable = (
+        TimeoutError(),
+        ConnectionError(),
+        RedisConnectionError(),
+        SQLAlchemyTimeoutError(),
+        SoftTimeLimitExceeded(),
+        ProviderTransientError(),
+        ClaimLost(),
+    )
+    terminal = (
+        ValueError("malformed job"),
+        RuntimeError("broken invariant"),
+    )
+
+    assert all(is_retryable_import_failure(error) for error in retryable)
+    assert not any(is_retryable_import_failure(error) for error in terminal)
+
+
+def test_production_worker_installs_sink_boundary_json_logging(
+    monkeypatch,
+) -> None:
+    settings = Settings(_env_file=None)
+    settings.environment = "production"
+    settings.log_level = "WARNING"
+    configured: list[str] = []
+    monkeypatch.setattr(
+        "ladle.worker.app.configure_structured_logging",
+        lambda *, level: configured.append(level),
+    )
+
+    configure_worker_logging(settings=settings)
+
+    assert configured == ["WARNING"]
+
+
+def test_celery_heartbeat_updates_idle_worker_liveness() -> None:
+    now = datetime(2026, 7, 26, 20, 0, tzinfo=UTC)
+    metrics = RecordingMetrics()
+
+    record_worker_heartbeat(
+        metrics=metrics,  # type: ignore[arg-type]
+        clock=FrozenClock(now),
+    )
+
+    assert metrics.values == [
+        ("ladle_worker_last_seen_timestamp_seconds", now.timestamp())
+    ]
 
 
 def test_abandoned_imports_are_swept_on_a_schedule() -> None:
@@ -38,3 +151,16 @@ def test_sweep_task_is_registered_on_the_worker() -> None:
     import ladle.worker.tasks  # noqa: F401
 
     assert RELEASE_EXPIRED_RESERVATIONS_TASK in celery_app.tasks
+
+
+def test_privacy_retention_and_object_cleanup_run_on_a_schedule() -> None:
+    app = create_celery_app(Settings(retention_maintenance_interval_seconds=7200))
+
+    entry = app.conf.beat_schedule["privacy-retention-sweep"]
+    assert entry["task"] == RETENTION_SWEEP_TASK
+    assert entry["schedule"] == 7200.0
+    assert entry["options"]["expires"] == 7200
+
+    import ladle.worker.tasks  # noqa: F401
+
+    assert RETENTION_SWEEP_TASK in celery_app.tasks

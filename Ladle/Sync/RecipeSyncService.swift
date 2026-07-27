@@ -26,6 +26,7 @@ protocol RecipeSyncRepository: AnyObject, Sendable {
         remoteRevision: Int
     ) throws
     func applySyncPage(_ page: RemoteSyncPageDTO) throws
+    func reconcileServerSnapshot(activeRecipeIDs: Set<UUID>) throws
 }
 
 actor RecipeSyncService {
@@ -149,14 +150,42 @@ actor RecipeSyncService {
         }
 
         var cursor = try cursorStore.load()
+        var snapshotRestarted = false
+        var activeRecipeIDs = Set<UUID>()
         while true {
-            let page: RemoteSyncPageDTO = try await api.request(
-                path: "/v1/recipes/sync?cursor=\(cursor)&limit=100"
-            )
+            let page: RemoteSyncPageDTO
+            do {
+                page = try await api.request(
+                    path: "/v1/recipes/sync?cursor=\(cursor)&limit=100"
+                )
+            } catch let APIError.remote(error)
+                where error.code == .syncResetRequired && cursor > 0
+            {
+                try cursorStore.reset()
+                cursor = 0
+                snapshotRestarted = true
+                activeRecipeIDs.removeAll(keepingCapacity: true)
+                continue
+            }
+            if snapshotRestarted {
+                for change in page.changes {
+                    switch change.kind {
+                    case .upsert:
+                        activeRecipeIDs.insert(change.recipeID)
+                    case .delete:
+                        activeRecipeIDs.remove(change.recipeID)
+                    }
+                }
+            }
             try await repository.applySyncPage(page)
             try cursorStore.save(page.nextCursor)
             cursor = page.nextCursor
             if !page.hasMore {
+                if snapshotRestarted {
+                    try await repository.reconcileServerSnapshot(
+                        activeRecipeIDs: activeRecipeIDs
+                    )
+                }
                 break
             }
         }

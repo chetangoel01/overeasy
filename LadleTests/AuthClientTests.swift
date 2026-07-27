@@ -231,6 +231,16 @@ final class AuthClientTests: XCTestCase {
         XCTAssertEqual(requests.snapshot.count, 1)
         XCTAssertEqual(requests.snapshot[0].url?.path, "/v1/auth/account")
         XCTAssertEqual(requests.snapshot[0].httpMethod, "DELETE")
+        let body = try URLProtocolStub.bodyData(for: requests.snapshot[0])
+        let json = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: body) as? [String: String]
+        )
+        XCTAssertEqual(json["confirmation"], "DELETE")
+        XCTAssertEqual(json["refreshToken"], "refresh-token")
+        XCTAssertEqual(
+            json["idempotencyKey"],
+            "delete-10000000-0000-4000-8000-000000000001"
+        )
         XCTAssertEqual(
             requests.snapshot[0].value(
                 forHTTPHeaderField: "Authorization"

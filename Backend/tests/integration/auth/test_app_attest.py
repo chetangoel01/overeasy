@@ -21,7 +21,7 @@ from ladle.auth.attestation import (
 )
 from ladle.auth.sessions import SessionService
 from ladle.auth.tokens import AccessTokenCodec, RefreshTokenCodec
-from ladle.db.models import AppAttestKey
+from ladle.db.models import AppAttestKey, Device, User
 from ladle.db.session import build_engine
 from tests.integration.test_migrations import alembic_config
 
@@ -42,7 +42,7 @@ class FakeAppAttestVerifier:
         challenge: bytes,
         attestation_object: bytes,
     ) -> VerifiedAppAttestation:
-        assert key_id == "test-key"
+        assert key_id in {"test-key", "rotated-key", "replacement-key"}
         assert challenge == b"server-challenge"
         assert attestation_object == b"apple-attestation"
         return VerifiedAppAttestation(
@@ -222,6 +222,111 @@ def test_expired_challenge_and_revoked_installation_are_rejected(
                 attestation_object=_b64(b"apple-attestation"),
             ),
         )
+    engine.dispose()
+
+
+@pytest.mark.integration
+def test_valid_key_rotation_revokes_old_key_but_revoked_device_cannot_rotate(
+    clean_postgres_url: str,
+) -> None:
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    engine = build_engine(clean_postgres_url)
+    clock = FrozenClock(datetime(2026, 7, 26, 15, 0, tzinfo=UTC))
+    service = AttestationService(
+        enforced=True,
+        verifier=FakeAppAttestVerifier(),
+        clock=clock,
+        challenge_lifetime=timedelta(minutes=5),
+        challenge_bytes=lambda: b"server-challenge",
+    )
+    user_id = uuid4()
+    device_id = uuid4()
+
+    def attest(database: Session, key_id: str) -> AppAttestEvidence:
+        challenge = service.issue_challenge(
+            database,
+            installation_id="installation-1",
+            purpose=AppAttestPurpose.GUEST_CREATION,
+            key_id=key_id,
+        )
+        evidence = AppAttestEvidence(
+            kind="attestation",
+            key_id=key_id,
+            challenge_id=challenge.id,
+            challenge=challenge.challenge,
+            attestation_object=_b64(b"apple-attestation"),
+        )
+        service.verify(
+            database,
+            installation_id="installation-1",
+            purpose=AppAttestPurpose.GUEST_CREATION,
+            method="POST",
+            path="/v1/auth/guest",
+            body_sha256=None,
+            evidence=evidence,
+        )
+        return evidence
+
+    with Session(engine) as database, database.begin():
+        first = attest(database, "test-key")
+        database.add(User(id=user_id, kind="guest", created_at=clock.now()))
+        database.flush()
+        database.add(
+            Device(
+                id=device_id,
+                user_id=user_id,
+                installation_id="installation-1",
+                attestation_state="verified",
+                created_at=clock.now(),
+                last_seen_at=clock.now(),
+            )
+        )
+        database.flush()
+        service.bind_device(
+            database,
+            installation_id="installation-1",
+            device_id=device_id,
+            evidence=first,
+        )
+
+    with Session(engine) as database, database.begin():
+        rotated = attest(database, "rotated-key")
+        service.bind_device(
+            database,
+            installation_id="installation-1",
+            device_id=device_id,
+            evidence=rotated,
+        )
+
+    with Session(engine) as database:
+        old_key = database.get(AppAttestKey, "test-key")
+        new_key = database.get(AppAttestKey, "rotated-key")
+        assert old_key is not None
+        assert old_key.status == "revoked"
+        assert old_key.revocation_reason == "keyRotated"
+        assert new_key is not None
+        assert new_key.status == "valid"
+        assert new_key.device_id == device_id
+
+    with Session(engine) as database, database.begin():
+        service.revoke_installation(
+            database,
+            installation_id="installation-1",
+            reason="compromisedInstallation",
+        )
+
+    with (
+        Session(engine) as database,
+        database.begin(),
+        pytest.raises(AttestationRejected, match="installation is revoked"),
+    ):
+        attest(database, "replacement-key")
+
+    with Session(engine) as database:
+        device = database.get(Device, device_id)
+        assert device is not None
+        assert device.attestation_state == "revoked"
+        assert database.get(AppAttestKey, "replacement-key") is None
     engine.dispose()
 
 

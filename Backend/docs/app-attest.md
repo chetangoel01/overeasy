@@ -20,9 +20,14 @@ request-bound assertion for each sensitive import mutation.
   path, and SHA-256 of the exact transmitted JSON body.
 - Assertion signatures use the stored attested public key. Counters must
   increase monotonically under a database row lock across API processes.
+- A successful replacement-key attestation for a still-trusted installation
+  atomically revokes its prior keys with the `keyRotated` reason. This permits
+  intentional key rotation without leaving multiple active device keys.
 - A bad signature or non-increasing counter revokes the key and marks its device
-  revoked. Authenticated access then fails until the installation establishes a
-  new trusted lifecycle.
+  revoked. Existing access and refresh tokens then fail, and the same
+  installation ID cannot self-rehabilitate by attesting another key. Recovery
+  requires an explicit trusted server-side re-enrollment or a new installation
+  lifecycle.
 - App Attest key IDs stay in the device-only Keychain. Account deletion removes
   the local key ID after the backend succeeds.
 
@@ -54,11 +59,15 @@ production App Attest environment, while Debug selects development.
 - Generated certificate-chain fixtures exercise valid attestation/assertion,
   wrong challenge, and signature tampering.
 - PostgreSQL integration tests exercise expiry, one-time challenge consumption,
-  installation binding, counter persistence, and enforced API submission.
+  installation binding, counter persistence, enforced API submission, atomic
+  key rotation, durable installation revocation, and revoked-device refresh
+  rejection.
 - iOS tests exercise key attestation, challenge hashing, exact request-body
   binding, evidence encoding, and assertion headers.
-- A signed real-device production test is still required before rollout because
-  Apple's production attestation service is unavailable to the simulator.
+- The signed real-device test intentionally revokes its installation and must
+  run only against a disposable isolated database that is destroyed afterward.
+  Apple's production attestation service is unavailable to the simulator, so a
+  passing production-device run is still required before rollout.
 
 Apple protocol reference: [Validating apps that connect to your
 server](https://developer.apple.com/documentation/devicecheck/validating-apps-that-connect-to-your-server).

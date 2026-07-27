@@ -23,6 +23,10 @@ The implementation described here is on branch `codex/ladle-backend`.
 | Celery entry point | `Backend/ladle/worker/app.py` |
 | Import worker task | `Backend/ladle/worker/tasks.py` |
 | Worker dependency wiring | `Backend/ladle/worker/runtime.py` |
+| Import worker reliability | `Backend/docs/import-worker-reliability.md` |
+| Dispatch recovery and dead letters | `Backend/docs/import-dispatch-recovery.md` |
+| Production startup and migration gate | `Backend/docs/production-startup-and-migrations.md` |
+| Account deletion and cleanup | `Backend/docs/account-deletion.md` |
 | Import/cache orchestration | `Backend/ladle/imports/`, `Backend/ladle/cache/` |
 | Provider adapters | `Backend/ladle/acquisition/` |
 | Claude extraction | `Backend/ladle/extraction/` |
@@ -374,6 +378,10 @@ reference. For a manual recipe, change `id`, set `source` to `other`, and use
 an HTTPS `originalURL`, for example
 `https://manual.ladle.local/{recipeID}`.
 
+Recipe text, collection, number, duration, nesting, and total-complexity
+limits are part of the wire contract. See `docs/recipe-graph-limits.md` before
+constructing mutation payloads.
+
 ### Error envelope
 
 Every application error uses:
@@ -593,6 +601,8 @@ Key constraints:
 | Table | Columns |
 | --- | --- |
 | `import_jobs` | Client UUID PK; user/source FKs; source/canonical URLs; platform, status, stage, typed failure and diagnostic; retry count; cache bypass; encrypted correction/paste `bytea`; current/candidate/cache FKs; idempotency key; base revision; timestamps |
+| `import_dispatch_outbox` | Job UUID PK/FK; availability/dispatch timestamps; dispatch count; sanitized last error |
+| `import_dead_letters` | UUID PK; unique job FK; failure code; attempts; creation timestamp |
 | `recipe_slot_reservations` | `id uuid PK`; user/job FKs; `state` (`reserved`/`consumed`/`released`); creation and expiry timestamps |
 
 `(user_id, idempotency_key)` is unique. Each import job can own at most one
@@ -620,7 +630,7 @@ deletion is soft: `recipes.deleted_at` is set and a sync tombstone is emitted.
 
 | Table | Columns |
 | --- | --- |
-| `user_sync_state` | `user_id uuid PK/FK`; `next_sequence bigint > 0` |
+| `user_sync_state` | `user_id uuid PK/FK`; `next_sequence bigint > 0`; minimum retained sequence for safe snapshot resets |
 | `recipe_changes` | Composite PK `(user_id, sequence)`; recipe FK; `kind` (`upsert`/`delete`); recipe revision; changed timestamp |
 
 Sequence allocation locks the user's `user_sync_state` row. This makes
@@ -635,6 +645,14 @@ The current migration chain is:
 0001_initial_schema
   -> 0002_support_remote_recipe_images
   -> 0003_add_negative_extraction_cache
+  -> 0004_add_recipe_notes_and_step_timing
+  -> 0005_add_app_attest_state
+  -> 0006_store_apple_refresh_token
+  -> 0007_add_google_identity
+  -> 0008_add_quota_and_provider_budgets
+  -> 0009_add_import_dispatch_outbox
+  -> 0010_add_account_deletion_audit
+  -> 0011_add_sync_retention_floor
 ```
 
 Alembic also owns the small `alembic_version` table that records the currently

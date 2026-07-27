@@ -1,0 +1,161 @@
+x-bounded-logging: &bounded-logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: 3
+
+x-private-staging-environment: &private-staging-environment
+  LADLE_JWT_SIGNING_SECRET: ${LADLE_JWT_SIGNING_SECRET:?set by deploy.sh}
+  LADLE_DATA_ENCRYPTION_KEY: ${LADLE_DATA_ENCRYPTION_KEY:?set by deploy.sh}
+  LADLE_METRICS_AUTH_TOKEN: ${LADLE_METRICS_AUTH_TOKEN:?set by deploy.sh}
+  LADLE_RATE_LIMITING_ENABLED: "true"
+  LADLE_RATE_LIMIT_REDIS_URL: redis://redis:6379/2
+  LADLE_DURABLE_METRICS_ENABLED: "true"
+  LADLE_OBJECT_STORAGE_ENABLED: "false"
+  LADLE_AUDIO_TRANSCRIPTION_ENABLED: "false"
+  LADLE_FRAME_ANALYSIS_ENABLED: "false"
+  LADLE_SERVER_MEDIA_FALLBACK_ENABLED: "false"
+
+services:
+  postgres:
+    restart: unless-stopped
+    logging: *bounded-logging
+    mem_limit: 1g
+    cpus: 0.75
+
+  redis:
+    restart: unless-stopped
+    logging: *bounded-logging
+    mem_limit: 256m
+    cpus: 0.25
+
+  minio:
+    profiles: ["object-storage-disabled"]
+    logging: *bounded-logging
+    mem_limit: 512m
+    cpus: 0.5
+
+  minio-init:
+    command: ["/bin/true"]
+    depends_on: !reset {}
+    environment: !reset {}
+    volumes: !reset []
+    logging: *bounded-logging
+
+  edge:
+    build:
+      context: ./deploy/mac-mini
+      dockerfile: edge.Dockerfile
+    restart: unless-stopped
+    read_only: true
+    user: "101:101"
+    cap_drop:
+      - "ALL"
+    security_opt:
+      - "no-new-privileges:true"
+    pids_limit: 64
+    mem_limit: 128m
+    cpus: 0.25
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    ulimits:
+      nofile:
+        soft: 1024
+        hard: 2048
+      fsize:
+        soft: 16777216
+        hard: 16777216
+    ports:
+      - "127.0.0.1:4112:8080"
+      - "127.0.0.1:4113:8081"
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      host-publish: {}
+      edge:
+        ipv4_address: 172.30.0.2
+    logging: *bounded-logging
+
+  migrate:
+    environment: *private-staging-environment
+    logging: *bounded-logging
+
+  api:
+    restart: unless-stopped
+    environment:
+      <<: *private-staging-environment
+      LADLE_RATE_LIMIT_TRUSTED_PROXY_CIDRS: 172.30.0.2/32
+    ports: !reset []
+    networks:
+      default: {}
+      edge:
+        ipv4_address: 172.30.0.3
+    logging: *bounded-logging
+
+  worker-egress:
+    build:
+      context: ./deploy/mac-mini
+      dockerfile: egress.Dockerfile
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - "ALL"
+    cap_add:
+      - "NET_ADMIN"
+    security_opt:
+      - "no-new-privileges:true"
+    pids_limit: 32
+    mem_limit: 32m
+    cpus: 0.10
+    tmpfs:
+      - /tmp:size=4m,mode=1777
+    environment:
+      WORKER_UID: "10001"
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "sh",
+          "-c",
+          "test -f /tmp/egress-ready && iptables -C OUTPUT -m owner --uid-owner 10001 -j LADLE_WORKER_EGRESS",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    logging: *bounded-logging
+
+  worker:
+    restart: unless-stopped
+    environment: *private-staging-environment
+    network_mode: service:worker-egress
+    volumes: !reset []
+    depends_on:
+      worker-egress:
+        condition: service_healthy
+    logging: *bounded-logging
+
+  beat:
+    restart: unless-stopped
+    environment: *private-staging-environment
+    logging: *bounded-logging
+
+networks:
+  host-publish: {}
+  edge:
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24

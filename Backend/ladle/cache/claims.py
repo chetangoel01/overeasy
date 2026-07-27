@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from ladle.clock import Clock
 from ladle.db.models import ExtractionClaim, SourceVideo
+from ladle.observability.metrics import MetricsRegistry
 
 
 class ClaimRole(StrEnum):
@@ -34,9 +35,16 @@ class ClaimLease:
 
 
 class ExtractionClaimService:
-    def __init__(self, *, clock: Clock, lease_duration: timedelta) -> None:
+    def __init__(
+        self,
+        *,
+        clock: Clock,
+        lease_duration: timedelta,
+        metrics: MetricsRegistry | None = None,
+    ) -> None:
         self._clock = clock
         self._lease_duration = lease_duration
+        self._metrics = metrics
 
     def acquire(
         self,
@@ -69,6 +77,8 @@ class ExtractionClaimService:
             return self._lease(claim, role=ClaimRole.LEADER)
 
         if claim.lease_expires_at <= now:
+            if self._metrics is not None:
+                self._metrics.record_claim("takeover")
             claim.owner_job_id = job_id
             claim.claim_version += 1
             claim.heartbeat_at = now
@@ -108,6 +118,12 @@ class ExtractionClaimService:
             or claim.claim_version != lease.version
             or (require_live and claim.lease_expires_at <= self._clock.now())
         ):
+            if self._metrics is not None:
+                self._metrics.record_claim(
+                    "expired"
+                    if claim is not None and claim.lease_expires_at <= self._clock.now()
+                    else "lost"
+                )
             raise ClaimLost
         return claim
 

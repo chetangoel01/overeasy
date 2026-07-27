@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from ladle.clock import Clock
 from ladle.db.models import ProviderAttempt
+from ladle.observability.metrics import MetricsRegistry
 from ladle.usage.limits import UsageLimitService
 
 
@@ -104,6 +105,7 @@ class ProviderUsageLedger:
         clock: Clock,
         limits: UsageLimitService | None = None,
         reservation_units: Decimal = Decimal(1),
+        metrics: MetricsRegistry | None = None,
     ) -> None:
         if not reservation_units.is_finite() or reservation_units <= 0:
             raise ValueError(
@@ -113,6 +115,7 @@ class ProviderUsageLedger:
         self._clock = clock
         self._limits = limits
         self._reservation_units = reservation_units
+        self._metrics = metrics
 
     def existing_external_job_id(
         self,
@@ -217,6 +220,8 @@ class ProviderUsageLedger:
         billed_units: Decimal,
         latency_ms: int | None,
     ) -> None:
+        provider: str | None = None
+        actual = Decimal(0)
         with self._sessions.begin() as database:
             attempt = self._find_locked(database, job_id, idempotency_key)
             if attempt is None:
@@ -226,11 +231,14 @@ class ProviderUsageLedger:
             if attempt.status == "failed":
                 return
             actual = max(attempt.billed_units or Decimal(0), billed_units)
+            provider = attempt.provider
             self._reconcile(database, attempt=attempt, actual_units=actual)
             attempt.status = "completed"
             attempt.billed_units = actual
             attempt.latency_ms = latency_ms
             attempt.completed_at = self._clock.now()
+        if self._metrics is not None and provider is not None:
+            self._metrics.record_provider_cost(provider, float(actual))
 
     def failed(
         self,

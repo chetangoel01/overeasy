@@ -2,10 +2,12 @@ import logging
 from datetime import timedelta
 from decimal import Decimal
 from functools import lru_cache
+from time import sleep
 from uuid import UUID
 
 import httpx
 from anthropic import Anthropic
+from redis import Redis
 from sqlalchemy.orm import Session, sessionmaker
 
 from ladle.acquisition.audio import (
@@ -39,7 +41,7 @@ from ladle.cache.service import ExtractionCacheService
 from ladle.clock import SystemClock
 from ladle.config import Settings
 from ladle.contracts.recipes import RecipeReviewStatus, RecipeSource
-from ladle.crypto.private_text import LocalPrivateTextCipher
+from ladle.crypto.private_text import build_private_text_cipher
 from ladle.db.session import build_engine, build_session_factory
 from ladle.extraction.claude import (
     AnthropicStructuredClient,
@@ -47,13 +49,22 @@ from ladle.extraction.claude import (
 )
 from ladle.extraction.openrouter import OpenRouterStructuredClient
 from ladle.extraction.protocol import RecipeExtractor
+from ladle.imports.heartbeat import ClaimHeartbeatMonitor
 from ladle.imports.maintenance import ImportMaintenanceService
 from ladle.imports.orchestrator import ImportOrchestrator
+from ladle.imports.outbox import DispatchOutboxService
 from ladle.imports.reservations import ReservationService
 from ladle.imports.thumbnails import OEmbedThumbnailFetcher
 from ladle.imports.transitions import ImportTransitionService
 from ladle.infrastructure.object_storage import S3ObjectStorage
-from ladle.observability.metrics import MetricsRegistry
+from ladle.observability.metrics import MetricsRegistry, RedisMetricsBackend
+from ladle.observability.operations import OperationalMetricsCollector
+from ladle.observability.tracing import instrument_database
+from ladle.privacy.retention import (
+    ObjectDeletionProcessor,
+    RetentionPolicy,
+    RetentionService,
+)
 from ladle.recipes.template_clone import (
     RecipeTemplate,
     RecipeTemplateCloner,
@@ -61,7 +72,7 @@ from ladle.recipes.template_clone import (
     TemplateStep,
     TemplateTimer,
 )
-from ladle.usage.circuit import CircuitBreaker
+from ladle.usage.circuit import RedisCircuitBreaker
 from ladle.usage.ledger import ProviderUsageLedger
 from ladle.usage.limits import UsageLimitService
 
@@ -69,6 +80,9 @@ LOGGER = logging.getLogger(__name__)
 
 
 class FakeRuntimeAcquirer:
+    def __init__(self, *, delay_seconds: float = 0) -> None:
+        self._delay_seconds = delay_seconds
+
     def check_public(
         self,
         source: SourceVideoDescriptor,
@@ -85,6 +99,8 @@ class FakeRuntimeAcquirer:
         job_id: UUID,
     ) -> AcquiredVideoContext:
         del job_id
+        if self._delay_seconds:
+            sleep(self._delay_seconds)
         return AcquiredVideoContext(
             source=source,
             is_public=True,
@@ -258,7 +274,11 @@ def _ytdlp(settings: Settings) -> YtDlpClient:
 
 @lru_cache(maxsize=1)
 def runtime_sessions() -> sessionmaker[Session]:
-    return build_session_factory(build_engine(Settings().database_url))
+    engine = build_engine(Settings().database_url)
+    from ladle.worker.app import worker_tracer_provider
+
+    instrument_database(engine, worker_tracer_provider)
+    return build_session_factory(engine)
 
 
 @lru_cache(maxsize=1)
@@ -278,6 +298,88 @@ def runtime_maintenance() -> ImportMaintenanceService:
 
 
 @lru_cache(maxsize=1)
+def runtime_dispatch_outbox() -> DispatchOutboxService:
+    settings = Settings()
+    return DispatchOutboxService(
+        session_factory=runtime_sessions(),
+        clock=SystemClock(),
+        stale_after=timedelta(minutes=settings.import_stale_after_minutes),
+        maximum_dispatches=settings.import_dispatch_maximum_attempts,
+    )
+
+
+@lru_cache(maxsize=1)
+def runtime_metrics() -> MetricsRegistry:
+    settings = Settings()
+    if not settings.durable_metrics_enabled:
+        return MetricsRegistry()
+    return MetricsRegistry(
+        backend=RedisMetricsBackend(
+            Redis.from_url(settings.metrics_redis_url),
+            prefix=settings.metrics_key_prefix,
+        )
+    )
+
+
+@lru_cache(maxsize=1)
+def runtime_operational_metrics() -> OperationalMetricsCollector:
+    settings = Settings()
+    return OperationalMetricsCollector(
+        clock=SystemClock(),
+        metrics=runtime_metrics(),
+        stale_after=timedelta(minutes=settings.import_stale_after_minutes),
+        broker=Redis.from_url(settings.celery_broker_url),
+    )
+
+
+@lru_cache(maxsize=1)
+def runtime_retention() -> RetentionService:
+    settings = Settings()
+    return RetentionService(
+        clock=SystemClock(),
+        policy=RetentionPolicy(
+            expired_session_days=settings.retention_expired_session_days,
+            terminal_import_days=settings.retention_terminal_import_days,
+            private_text_hours=settings.retention_private_text_hours,
+            provider_attempt_days=settings.retention_provider_attempt_days,
+            sync_history_days=settings.retention_sync_history_days,
+            invalid_cache_days=settings.retention_invalid_cache_days,
+            deletion_audit_days=settings.retention_deletion_audit_days,
+        ),
+    )
+
+
+@lru_cache(maxsize=1)
+def runtime_object_deletion_processor() -> ObjectDeletionProcessor:
+    settings = Settings()
+    return ObjectDeletionProcessor(
+        clock=SystemClock(),
+        maximum_attempts=settings.object_deletion_maximum_attempts,
+        batch_size=settings.object_deletion_batch_size,
+    )
+
+
+@lru_cache(maxsize=1)
+def runtime_object_storage() -> S3ObjectStorage | None:
+    settings = Settings()
+    if not settings.object_storage_enabled:
+        return None
+    return S3ObjectStorage(
+        endpoint_url=str(settings.object_storage_endpoint_url),
+        region=settings.object_storage_region,
+        bucket=settings.object_storage_bucket,
+        access_key=settings.object_storage_access_key,
+        secret_key=settings.object_storage_secret_key.get_secret_value(),
+        addressing_style=settings.object_storage_addressing_style,
+        public_endpoint_url=(
+            str(settings.object_storage_public_endpoint_url)
+            if settings.object_storage_public_endpoint_url is not None
+            else None
+        ),
+    )
+
+
+@lru_cache(maxsize=1)
 def runtime_orchestrator() -> ImportOrchestrator:
     settings = Settings()
     if settings.worker_provider_mode == "disabled":
@@ -291,12 +393,13 @@ def runtime_orchestrator() -> ImportOrchestrator:
         clock=clock,
         lifetime=timedelta(minutes=settings.import_reservation_minutes),
     )
+    metrics = runtime_metrics()
     claims = ExtractionClaimService(
         clock=clock,
         lease_duration=timedelta(minutes=settings.extraction_claim_minutes),
+        metrics=metrics,
     )
     cloner = RecipeTemplateCloner(clock=clock, reservations=reservations)
-    metrics = MetricsRegistry()
     cache = ExtractionCacheService(
         clock=clock,
         claims=claims,
@@ -307,7 +410,9 @@ def runtime_orchestrator() -> ImportOrchestrator:
     acquirer: VideoAcquirer
     extractor: RecipeExtractor
     if settings.worker_provider_mode == "fake":
-        acquirer = FakeRuntimeAcquirer()
+        acquirer = FakeRuntimeAcquirer(
+            delay_seconds=settings.fake_provider_delay_seconds,
+        )
         extractor = FakeRuntimeExtractor()
     else:
         extraction_key = (
@@ -332,6 +437,7 @@ def runtime_orchestrator() -> ImportOrchestrator:
             clock=clock,
             limits=usage_limits,
             reservation_units=settings.provider_reservation_billed_units,
+            metrics=metrics,
         )
         acquirer = ProviderChain(
             primary=(
@@ -360,10 +466,11 @@ def runtime_orchestrator() -> ImportOrchestrator:
                 if settings.soscripted_api_key is not None
                 else None
             ),
-            circuits=CircuitBreaker(
-                clock=clock,
+            circuits=RedisCircuitBreaker(
+                Redis.from_url(settings.celery_broker_url),
                 failure_threshold=settings.provider_circuit_failure_threshold,
                 cooldown=timedelta(seconds=settings.provider_circuit_cooldown_seconds),
+                prefix=settings.provider_circuit_key_prefix,
             ),
             free=_free_acquirer(settings),
             audio=_audio_transcriber(settings, usage=usage),
@@ -419,11 +526,20 @@ def runtime_orchestrator() -> ImportOrchestrator:
         extractor=extractor,
         clock=clock,
         thumbnails=thumbnails,
-        private_text=LocalPrivateTextCipher(settings.data_encryption_key),
+        private_text=build_private_text_cipher(
+            active_key_id=settings.data_encryption_active_key_id,
+            keyring_json=settings.data_encryption_keyring,
+            legacy_key=settings.data_encryption_key,
+        ),
         private_completion=cloner,
         transitions=ImportTransitionService(
             clock=clock,
             reservations=reservations,
         ),
         metrics=metrics,
+        heartbeat=ClaimHeartbeatMonitor(
+            session_factory=sessions,
+            claims=claims,
+            interval_seconds=settings.extraction_claim_heartbeat_seconds,
+        ),
     )

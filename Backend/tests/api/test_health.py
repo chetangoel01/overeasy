@@ -1,8 +1,16 @@
 from dataclasses import dataclass
+from typing import Any
 
+import pytest
 from fastapi.testclient import TestClient
 
 from ladle.api.app import create_app
+from ladle.api.routes.health import (
+    CeleryWorkerReadinessProbe,
+    ReadinessService,
+    StartupDependencyGate,
+)
+from ladle.config import Settings
 
 
 @dataclass
@@ -69,3 +77,70 @@ def test_readiness_returns_503_when_any_dependency_is_unavailable() -> None:
             "storage": "ready",
         },
     }
+
+
+@dataclass
+class Inspector:
+    response: dict[str, Any] | None
+
+    def ping(self) -> dict[str, Any] | None:
+        return self.response
+
+
+@dataclass
+class CeleryControl:
+    response: dict[str, Any] | None
+
+    def inspect(self, *, timeout: float) -> Inspector:
+        assert timeout == 2
+        return Inspector(self.response)
+
+
+def test_worker_readiness_requires_a_live_celery_worker() -> None:
+    CeleryWorkerReadinessProbe(
+        CeleryControl({"celery@worker": {"ok": "pong"}}),  # type: ignore[arg-type]
+        timeout_seconds=2,
+    ).check()
+
+    with pytest.raises(RuntimeError, match="worker"):
+        CeleryWorkerReadinessProbe(
+            CeleryControl(None),  # type: ignore[arg-type]
+            timeout_seconds=2,
+        ).check()
+
+
+def test_startup_gate_retries_dependencies_then_fails_closed() -> None:
+    probe = Probe(healthy=False)
+    sleeps: list[float] = []
+    gate = StartupDependencyGate(
+        ReadinessService({"database": probe}),
+        attempts=3,
+        delay_seconds=0.5,
+        sleep=sleeps.append,
+    )
+
+    with pytest.raises(RuntimeError, match="startup dependencies"):
+        gate.wait()
+
+    assert probe.calls == 3
+    assert sleeps == [0.5, 0.5]
+
+
+def test_metrics_endpoint_requires_its_dedicated_bearer_token() -> None:
+    app = create_app(
+        settings=Settings(
+            metrics_auth_token="metrics-secret-that-is-long-enough",
+            _env_file=None,
+        )
+    )
+
+    with TestClient(app) as client:
+        hidden = client.get("/metrics")
+        authorized = client.get(
+            "/metrics",
+            headers={"Authorization": "Bearer metrics-secret-that-is-long-enough"},
+        )
+
+    assert hidden.status_code == 404
+    assert authorized.status_code == 200
+    assert authorized.headers["content-type"].startswith("text/plain")

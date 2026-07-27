@@ -16,6 +16,7 @@ from ladle.contracts.errors import (
     SyncConflictDetails,
 )
 from ladle.contracts.recipes import RecipeDTO, SyncPageDTO
+from ladle.observability.metrics import MetricsRegistry
 from ladle.recipes.limits import GuestRecipeLimitReached
 from ladle.recipes.service import (
     InvalidManualRecipe,
@@ -23,7 +24,7 @@ from ladle.recipes.service import (
     RecipeService,
     SyncConflict,
 )
-from ladle.sync.service import RecipeSyncService
+from ladle.sync.service import RecipeSyncService, SyncCursorExpired
 
 router = APIRouter(prefix="/v1/recipes", tags=["recipes"])
 
@@ -54,6 +55,7 @@ def _rate_limit_policies(request: Request) -> RateLimitPolicies:
 
 
 def _conflict_response(request: Request, conflict: SyncConflict) -> JSONResponse:
+    cast(MetricsRegistry, request.app.state.metrics).record_sync("conflict")
     current = conflict.current_recipe
     return error_response(
         request,
@@ -74,17 +76,26 @@ def sync_recipes(
     cursor: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[PositiveInt, Query(le=200)] = 100,
     authorization: Annotated[str | None, Header()] = None,
-) -> SyncPageDTO:
+) -> SyncPageDTO | JSONResponse:
     claims = access_claims(request, authorization)
     _rate_limits(request).enforce(
         _rate_limit_policies(request).sync_poll(str(claims.user_id))
     )
-    with database(request) as current_database:
-        return _sync(request).page(
-            current_database,
-            user_id=claims.user_id,
-            cursor=cursor,
-            limit=limit,
+    try:
+        with database(request) as current_database:
+            return _sync(request).page(
+                current_database,
+                user_id=claims.user_id,
+                cursor=cursor,
+                limit=limit,
+            )
+    except SyncCursorExpired:
+        return error_response(
+            request,
+            code=ErrorCode.SYNC_RESET_REQUIRED,
+            message="Sync history expired; restart from a full snapshot.",
+            retryable=True,
+            http_status=status.HTTP_409_CONFLICT,
         )
 
 

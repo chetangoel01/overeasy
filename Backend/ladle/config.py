@@ -1,5 +1,8 @@
+import json
+import re
 from decimal import Decimal
 from typing import Literal, Self
+from urllib.parse import parse_qs, urlsplit
 
 from pydantic import AnyHttpUrl, Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -9,6 +12,7 @@ _PLACEHOLDER_PREFIXES = (
     "changeme",
     "development-only",
     "example",
+    "ladle-local",
     "placeholder",
 )
 _MINIMUM_PRODUCTION_SECRET_LENGTH = 32
@@ -26,8 +30,16 @@ class Settings(BaseSettings):
     )
 
     environment: Literal["development", "test", "production"] = "development"
-    jwt_signing_secret: SecretStr = SecretStr("change-me-development-only")
+    jwt_signing_secret: SecretStr = SecretStr(
+        "change-me-development-only-signing-secret"
+    )
     data_encryption_key: SecretStr = SecretStr("change-me-development-only")
+    data_encryption_active_key_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=64,
+    )
+    data_encryption_keyring: SecretStr | None = None
     database_url: str = "postgresql+psycopg://ladle:ladle@127.0.0.1:5432/ladle"
     access_token_issuer: str = "ladle"
     access_token_minutes: int = Field(default=15, gt=0)
@@ -50,12 +62,31 @@ class Settings(BaseSettings):
     user_import_monthly_quota: int = Field(default=200, gt=0)
     source_redirect_timeout_seconds: float = Field(default=10, gt=0)
     extraction_claim_minutes: int = Field(default=10, gt=0)
+    extraction_claim_heartbeat_seconds: int = Field(default=30, gt=0)
     public_cache_recheck_days: int = Field(default=7, gt=0)
     # A job whose worker died stays in parsing until the sweep declares it
     # abandoned. Longer than the claim lease, so a worker that is merely slow
     # is never mistaken for one that is gone.
-    import_stale_after_minutes: int = Field(default=60, gt=0)
-    import_maintenance_interval_seconds: int = Field(default=300, gt=0)
+    import_stale_after_minutes: int = Field(default=32, gt=0)
+    import_maintenance_interval_seconds: int = Field(default=30, gt=0)
+    import_dispatch_maximum_attempts: int = Field(default=3, gt=0, le=20)
+    startup_dependency_attempts: int = Field(default=12, gt=0, le=60)
+    startup_dependency_delay_seconds: float = Field(default=5, gt=0, le=60)
+    readiness_worker_timeout_seconds: float = Field(default=2, gt=0, le=10)
+    retention_maintenance_interval_seconds: int = Field(
+        default=3600,
+        ge=300,
+        le=86_400,
+    )
+    retention_expired_session_days: int = Field(default=7, ge=0, le=365)
+    retention_terminal_import_days: int = Field(default=30, ge=1, le=365)
+    retention_private_text_hours: int = Field(default=24, ge=0, le=168)
+    retention_provider_attempt_days: int = Field(default=90, ge=1, le=730)
+    retention_sync_history_days: int = Field(default=365, ge=30, le=3650)
+    retention_invalid_cache_days: int = Field(default=30, ge=1, le=365)
+    retention_deletion_audit_days: int = Field(default=365, ge=30, le=3650)
+    object_deletion_maximum_attempts: int = Field(default=8, gt=0, le=20)
+    object_deletion_batch_size: int = Field(default=100, gt=0, le=1000)
 
     rate_limiting_enabled: bool = False
     rate_limit_redis_url: str = "redis://127.0.0.1:6379/2"
@@ -78,11 +109,32 @@ class Settings(BaseSettings):
     rate_limit_recipe_mutation_user_per_minute: int = Field(default=120, gt=0)
     rate_limit_sync_user_per_minute: int = Field(default=120, gt=0)
 
+    durable_metrics_enabled: bool = False
+    metrics_redis_url: str = "redis://127.0.0.1:6379/3"
+    metrics_key_prefix: str = Field(
+        default="ladle:metrics:v1",
+        min_length=1,
+        max_length=128,
+    )
+    metrics_auth_token: SecretStr | None = None
+    structured_logging_enabled: bool = True
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
+    tracing_enabled: bool = False
+    tracing_otlp_endpoint: AnyHttpUrl | None = None
+    tracing_service_name: str = Field(default="ladle", min_length=1, max_length=64)
+
     celery_enabled: bool = False
     celery_broker_url: str = "redis://127.0.0.1:6379/0"
     celery_result_backend: str = "redis://127.0.0.1:6379/1"
-    celery_visibility_timeout_seconds: int = Field(default=3600, gt=0)
+    celery_task_soft_time_limit_seconds: int = Field(default=1500, gt=0)
+    celery_task_time_limit_seconds: int = Field(default=1560, gt=0)
+    celery_visibility_timeout_seconds: int = Field(default=1800, gt=0)
+    celery_import_max_retries: int = Field(default=3, ge=0, le=10)
+    celery_import_retry_base_seconds: int = Field(default=5, gt=0)
+    celery_import_retry_maximum_seconds: int = Field(default=300, gt=0)
+    celery_import_retry_jitter_seconds: int = Field(default=5, ge=0)
     worker_provider_mode: Literal["disabled", "fake", "live"] = "disabled"
+    fake_provider_delay_seconds: float = Field(default=0, ge=0, le=120)
     provider_daily_billed_unit_limit: Decimal = Field(
         default=Decimal("1000"),
         gt=0,
@@ -91,12 +143,18 @@ class Settings(BaseSettings):
     provider_budget_reservation_minutes: int = Field(default=30, gt=0)
     provider_circuit_failure_threshold: int = Field(default=3, gt=0)
     provider_circuit_cooldown_seconds: int = Field(default=300, gt=0)
+    provider_circuit_key_prefix: str = Field(
+        default="ladle:provider-circuit:v1",
+        min_length=1,
+        max_length=128,
+    )
     server_media_fallback_enabled: bool = False
     object_storage_enabled: bool = False
     object_storage_endpoint_url: AnyHttpUrl = AnyHttpUrl("http://127.0.0.1:9000")
     object_storage_public_endpoint_url: AnyHttpUrl | None = None
     object_storage_region: str = "us-east-1"
     object_storage_bucket: str = "ladle-private"
+    object_storage_addressing_style: Literal["auto", "path", "virtual"] = "auto"
     object_storage_access_key: str = "ladle-local"
     object_storage_secret_key: SecretStr = SecretStr("ladle-local-secret")
 
@@ -167,7 +225,7 @@ class Settings(BaseSettings):
     openrouter_max_tokens: int = Field(default=32_768, gt=0)
 
     apple_enabled: bool = False
-    apple_bundle_id: str = "com.ladle.app"
+    apple_bundle_id: str = "com.ladle.ios"
     apple_team_id: str | None = None
     apple_key_id: str | None = None
     apple_private_key: SecretStr | None = None
@@ -213,6 +271,54 @@ class Settings(BaseSettings):
         return self
 
     @model_validator(mode="after")
+    def validate_tracing_configuration(self) -> Self:
+        if self.tracing_enabled and self.tracing_otlp_endpoint is None:
+            raise ValueError("tracing requires an OTLP endpoint")
+        return self
+
+    @model_validator(mode="after")
+    def validate_worker_timing(self) -> Self:
+        claim_seconds = self.extraction_claim_minutes * 60
+        stale_seconds = self.import_stale_after_minutes * 60
+        reservation_seconds = self.import_reservation_minutes * 60
+        budget_reservation_seconds = self.provider_budget_reservation_minutes * 60
+        longest_provider_timeout = max(
+            self.ytdlp_timeout_seconds,
+            self.linked_page_timeout_seconds,
+            self.transcription_timeout_seconds,
+            self.frame_analysis_timeout_seconds,
+            self.supadata_timeout_seconds,
+            self.soscripted_timeout_seconds,
+            self.anthropic_timeout_seconds,
+            self.openrouter_timeout_seconds,
+        )
+        safe = (
+            self.extraction_claim_heartbeat_seconds * 2 < claim_seconds
+            and longest_provider_timeout
+            < self.celery_task_soft_time_limit_seconds
+            < self.celery_task_time_limit_seconds
+            < self.celery_visibility_timeout_seconds
+            < stale_seconds
+            < reservation_seconds
+            and self.celery_task_time_limit_seconds < budget_reservation_seconds
+        )
+        if not safe:
+            raise ValueError(
+                "worker timing must satisfy heartbeat*2 < claim lease, longest "
+                "provider timeout < soft task limit < hard task limit < broker "
+                "visibility < stale-job timeout < recipe reservation, and hard "
+                "task limit < provider budget reservation"
+            )
+        if (
+            self.celery_import_retry_maximum_seconds
+            < self.celery_import_retry_base_seconds
+        ):
+            raise ValueError(
+                "worker timing requires retry maximum to be at least retry base"
+            )
+        return self
+
+    @model_validator(mode="after")
     def reject_unsafe_production_secrets(self) -> Self:
         if self.environment != "production":
             return self
@@ -227,16 +333,93 @@ class Settings(BaseSettings):
                     f"{field_name} must be a non-placeholder secret of at least "
                     f"{_MINIMUM_PRODUCTION_SECRET_LENGTH} characters in production"
                 )
-        if self.object_storage_enabled:
-            storage_secret = self.object_storage_secret_key.get_secret_value().strip()
+        if (
+            self.data_encryption_active_key_id is None
+            or self.data_encryption_keyring is None
+        ):
+            raise ValueError(
+                "production requires a managed encryption active key and keyring"
+            )
+        if not re.fullmatch(
+            r"[A-Za-z0-9._-]{1,64}",
+            self.data_encryption_active_key_id,
+        ):
+            raise ValueError("production encryption key identifier is invalid")
+        try:
+            encryption_keys = json.loads(
+                self.data_encryption_keyring.get_secret_value()
+            )
+        except json.JSONDecodeError as error:
+            raise ValueError(
+                "production encryption keyring must be valid JSON"
+            ) from error
+        if (
+            not isinstance(encryption_keys, dict)
+            or self.data_encryption_active_key_id not in encryption_keys
+        ):
+            raise ValueError(
+                "production encryption keyring must contain the active key"
+            )
+        for key_id, secret in encryption_keys.items():
             if (
-                len(storage_secret) < _MINIMUM_PRODUCTION_SECRET_LENGTH
-                or storage_secret.casefold().startswith(_PLACEHOLDER_PREFIXES)
+                not isinstance(key_id, str)
+                or not re.fullmatch(r"[A-Za-z0-9._-]{1,64}", key_id)
+                or not isinstance(secret, str)
+                or len(secret.strip()) < _MINIMUM_PRODUCTION_SECRET_LENGTH
+                or self._is_placeholder(secret)
             ):
                 raise ValueError(
-                    "object_storage_secret_key must be a non-placeholder secret "
-                    "of at least 32 characters in production"
+                    "production encryption keyring contains an invalid key"
                 )
+        if not self.celery_enabled:
+            raise ValueError("production requires Celery")
+        if self.worker_provider_mode != "live":
+            raise ValueError("production requires live worker provider mode")
+        for field_name in (
+            "celery_broker_url",
+            "celery_result_backend",
+            "rate_limit_redis_url",
+            "metrics_redis_url",
+        ):
+            self._require_tls_url(field_name, getattr(self, field_name), {"rediss"})
+            self._require_url_password(field_name, getattr(self, field_name))
+        database = urlsplit(self.database_url)
+        ssl_mode = parse_qs(database.query).get("sslmode", [])
+        if database.scheme != "postgresql+psycopg" or not {
+            "require",
+            "verify-ca",
+            "verify-full",
+        }.intersection(ssl_mode):
+            raise ValueError(
+                "production database_url must use psycopg with TLS sslmode"
+            )
+        self._require_url_password("database_url", self.database_url)
+        if not self.object_storage_enabled:
+            raise ValueError("production requires object storage")
+        self._require_tls_url(
+            "object_storage_endpoint_url",
+            str(self.object_storage_endpoint_url),
+            {"https"},
+        )
+        if self.object_storage_public_endpoint_url is not None:
+            self._require_tls_url(
+                "object_storage_public_endpoint_url",
+                str(self.object_storage_public_endpoint_url),
+                {"https"},
+            )
+        storage_access = self.object_storage_access_key.strip()
+        if len(storage_access) < 8 or self._is_placeholder(storage_access):
+            raise ValueError(
+                "object_storage_access_key must be non-placeholder in production"
+            )
+        storage_secret = self.object_storage_secret_key.get_secret_value().strip()
+        if len(
+            storage_secret
+        ) < _MINIMUM_PRODUCTION_SECRET_LENGTH or self._is_placeholder(storage_secret):
+            raise ValueError(
+                "object_storage_secret_key must be a non-placeholder secret "
+                "of at least 32 characters in production"
+            )
         if not self.attestation_enforced:
             raise ValueError("App Attest enforcement is required in production")
         if self.app_attest_app_id is None:
@@ -249,29 +432,105 @@ class Settings(BaseSettings):
             )
         if not self.rate_limiting_enabled:
             raise ValueError("distributed rate limiting is required in production")
+        if not self.durable_metrics_enabled:
+            raise ValueError("production requires durable distributed metrics")
+        if (
+            self.metrics_auth_token is None
+            or self._is_placeholder(self.metrics_auth_token.get_secret_value())
+            or len(self.metrics_auth_token.get_secret_value())
+            < _MINIMUM_PRODUCTION_SECRET_LENGTH
+        ):
+            raise ValueError(
+                "production metrics authentication requires a non-placeholder "
+                "secret of at least 32 characters"
+            )
+        if not self.structured_logging_enabled:
+            raise ValueError("production requires structured logging")
+        if not self.tracing_enabled or self.tracing_otlp_endpoint is None:
+            raise ValueError("production requires distributed tracing")
+        self._require_tls_url(
+            "tracing_otlp_endpoint",
+            str(self.tracing_otlp_endpoint),
+            {"https"},
+        )
         extraction_key = (
             "openrouter_api_key"
             if self.extraction_provider == "openrouter"
             else "anthropic_api_key"
         )
+        extraction_secret = getattr(self, extraction_key)
+        if extraction_secret is None or self._is_placeholder(
+            extraction_secret.get_secret_value()
+        ):
+            raise ValueError(
+                f"production live workers require a configured {extraction_key}"
+            )
+        for field_name in (
+            "supadata_base_url",
+            "soscripted_base_url",
+            "anthropic_base_url",
+            "openrouter_base_url",
+            "apple_jwks_url",
+            "apple_token_url",
+            "google_jwks_url",
+        ):
+            self._require_tls_url(field_name, str(getattr(self, field_name)), {"https"})
+        if not self.apple_enabled:
+            raise ValueError("production requires the shipped Apple sign-in provider")
+        apple_private_key = (
+            self.apple_private_key.get_secret_value().strip()
+            if self.apple_private_key is not None
+            else ""
+        )
         if (
-            self.worker_provider_mode == "live"
-            and getattr(self, extraction_key) is None
+            self.apple_team_id is None
+            or self.apple_key_id is None
+            or len(apple_private_key) < _MINIMUM_PRODUCTION_SECRET_LENGTH
+            or self._is_placeholder(apple_private_key)
         ):
             raise ValueError(
-                f"live production workers require a configured {extraction_key}"
+                "production Apple sign-in requires team, key, and "
+                "non-placeholder private-key configuration"
             )
-        if self.apple_enabled and any(
-            getattr(self, field_name) is None
-            for field_name in (
-                "apple_team_id",
-                "apple_key_id",
-                "apple_private_key",
+        if self.apple_bundle_id != self.app_attest_bundle_id:
+            raise ValueError(
+                "production Apple sign-in and App Attest bundle IDs must match"
             )
+        if not self.google_enabled:
+            raise ValueError("production requires the shipped Google sign-in provider")
+        if not self.google_server_client_id or self._is_placeholder(
+            self.google_server_client_id
         ):
             raise ValueError(
-                "Apple sign-in requires team, key, and private-key configuration"
+                "production Google sign-in requires a non-placeholder "
+                "server OAuth client ID"
             )
-        if self.google_enabled and not self.google_server_client_id:
-            raise ValueError("Google sign-in requires a server OAuth client ID")
         return self
+
+    @staticmethod
+    def _is_placeholder(value: str) -> bool:
+        normalized = value.strip().casefold()
+        return not normalized or any(
+            normalized.startswith(prefix) for prefix in _PLACEHOLDER_PREFIXES
+        )
+
+    @classmethod
+    def _require_tls_url(
+        cls,
+        field_name: str,
+        value: str,
+        schemes: set[str],
+    ) -> None:
+        if urlsplit(value).scheme.casefold() not in schemes:
+            raise ValueError(
+                f"production {field_name} must use a TLS scheme: "
+                f"{', '.join(sorted(schemes))}"
+            )
+
+    @classmethod
+    def _require_url_password(cls, field_name: str, value: str) -> None:
+        password = urlsplit(value).password or ""
+        if len(password) < 16 or cls._is_placeholder(password):
+            raise ValueError(
+                f"production {field_name} must contain non-placeholder credentials"
+            )

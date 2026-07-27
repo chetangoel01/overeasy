@@ -9,7 +9,7 @@ from ladle.contracts.recipes import (
     SyncChangeKind,
     SyncPageDTO,
 )
-from ladle.db.models import RecipeChange
+from ladle.db.models import RecipeChange, UserSyncState
 from ladle.observability.metrics import MetricsRegistry
 from ladle.recipes.repository import RecipeRepository
 
@@ -32,6 +32,15 @@ class RecipeSyncService:
         cursor: int,
         limit: PositiveInt,
     ) -> SyncPageDTO:
+        state = database.get(UserSyncState, user_id)
+        if (
+            cursor > 0
+            and state is not None
+            and cursor < state.minimum_retained_sequence
+        ):
+            if self._metrics is not None:
+                self._metrics.record_sync("reset")
+            raise SyncCursorExpired(state.minimum_retained_sequence)
         rows = list(
             database.scalars(
                 select(RecipeChange)
@@ -86,3 +95,9 @@ class RecipeSyncService:
         if self._metrics is not None:
             self._metrics.record_sync("success")
         return page
+
+
+class SyncCursorExpired(Exception):
+    def __init__(self, minimum_retained_sequence: int) -> None:
+        super().__init__("sync cursor predates retained history")
+        self.minimum_retained_sequence = minimum_retained_sequence

@@ -203,7 +203,7 @@ final class LadleLaunchTests: XCTestCase {
         )
         XCTAssertTrue(
             app.staticTexts[
-                "No ads, no analytics SDKs, no selling or sharing data with third parties."
+                "No ads, no cross-app tracking, and no sale of personal data."
             ].exists
         )
         capture("Account — privacy detail", in: app)
