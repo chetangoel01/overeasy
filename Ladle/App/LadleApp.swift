@@ -100,7 +100,11 @@ struct LadleApp: App {
                 isStoredInMemoryOnly: runtimeConfiguration.usesInMemoryStore
             )
             if runtimeConfiguration.seedsPreviewData {
-                try environment.seedPreviewDataIfNeeded()
+                try environment.seedPreviewDataIfNeeded(
+                    usesOneRecipe: launchArguments.contains(
+                        "-one-recipe-library"
+                    )
+                )
             } else if !runtimeConfiguration.usesInMemoryStore {
                 if resetsBackendSession {
                     try environment.recipeRepository.wipeAllData()

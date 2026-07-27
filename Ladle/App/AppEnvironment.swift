@@ -20,9 +20,11 @@ final class AppEnvironment {
         )
     }
 
-    func seedPreviewDataIfNeeded() throws {
+    func seedPreviewDataIfNeeded(usesOneRecipe: Bool = false) throws {
         try recipeRepository.seedIfNeeded(
-            recipes: PreviewFixtures.recipes,
+            recipes: usesOneRecipe
+                ? Array(PreviewFixtures.recipes.prefix(1))
+                : PreviewFixtures.recipes,
             importJobs: PreviewFixtures.importJobs
         )
     }

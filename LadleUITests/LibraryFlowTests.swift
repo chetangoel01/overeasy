@@ -68,6 +68,50 @@ final class LibraryFlowTests: XCTestCase {
         )
     }
 
+    func testPhysicalImportInboxCardTapOpensInboxInsteadOfWatch() {
+        let app = launchApp(
+            additionalArguments: ["-one-recipe-library"],
+            allRecipesButtonTitle: "All 1"
+        )
+        app.buttons["Home"].tap()
+
+        let inbox = element(
+            in: app,
+            identifier: "library.import-inbox"
+        )
+        XCTAssertTrue(inbox.waitForExistence(timeout: 2))
+        let watch = element(in: app, identifier: "library.watch")
+        XCTAssertTrue(watch.waitForExistence(timeout: 2))
+        let geometry = XCTAttachment(
+            string: "Inbox: \(inbox.frame)\nWatch: \(watch.frame)"
+        )
+        geometry.name = "Library Home card frames"
+        geometry.lifetime = .keepAlways
+        add(geometry)
+        capture("Library — physical Inbox tap geometry", in: app)
+
+        let window = app.windows.firstMatch
+        let origin = window.coordinate(
+            withNormalizedOffset: CGVector(dx: 0, dy: 0)
+        )
+        let tapY = max(inbox.frame.midY, watch.frame.minY + 1)
+        XCTAssertLessThan(tapY, inbox.frame.maxY)
+        origin.withOffset(
+            CGVector(dx: inbox.frame.midX, dy: tapY)
+        )
+        .tap()
+        capture("Library — after physical Inbox tap", in: app)
+
+        XCTAssertFalse(
+            element(in: app, identifier: "library.watch.root")
+                .waitForExistence(timeout: 1)
+        )
+        XCTAssertTrue(
+            element(in: app, identifier: "library.import-inbox.root")
+                .waitForExistence(timeout: 2)
+        )
+    }
+
     func testReviewedImportLeavesInboxAndInboxCanReopen() {
         let app = launchApp()
         app.buttons["Home"].tap()
@@ -305,7 +349,8 @@ final class LibraryFlowTests: XCTestCase {
     }
 
     private func launchApp(
-        additionalArguments: [String] = []
+        additionalArguments: [String] = [],
+        allRecipesButtonTitle: String = "All 6"
     ) -> XCUIApplication {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -319,7 +364,9 @@ final class LibraryFlowTests: XCTestCase {
             element(in: app, identifier: "library.root")
                 .waitForExistence(timeout: 3)
         )
-        app.buttons["All 6"].tap()
+        let allRecipes = app.buttons[allRecipesButtonTitle]
+        XCTAssertTrue(allRecipes.waitForExistence(timeout: 2))
+        allRecipes.tap()
         return app
     }
 
