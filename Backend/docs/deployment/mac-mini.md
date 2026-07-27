@@ -173,7 +173,7 @@ worker/API logs before updating. The profile rotates container logs at three
 
 ## Deployment update: 2026-07-27
 
-- Current deployed commit: `a2ce967`
+- Current deployed commit: `c876fa6`
 - Runtime: Docker Desktop `desktop-linux`; the unresponsive OrbStack runtime
   was stopped but its data image was not reset or deleted.
 - Restored data: the verified pre-edge dump
@@ -182,6 +182,13 @@ worker/API logs before updating. The profile rotates container logs at three
   is `b8f03b8194ef811e228c3408c45caa12712e781edb2d4a8d36147fe6b325c9b0`,
   `pg_restore --list` passed, revision is `0011`, and the two original users
   remain.
+- Fresh recovery point:
+  `/Users/chetangoel/Backups/ladle/ladle-20260727-004808-post-edge.dump`
+  exists on both the Mac mini and operator workstation with mode `0600` and
+  matching SHA-256
+  `80b6127c5c4c965d23b317fce6116037d9642f5f9d3d51c9ed29132178572157`.
+  It restored into an empty PostgreSQL 16 container at revision `0011` with
+  two users and two recipes.
 - Startup: `com.ladle.docker-start` is installed in the user's LaunchAgents
   and launch-tested. Docker restart then restored all seven containers from
   their `unless-stopped` policies in about ten seconds without a deploy.
@@ -202,6 +209,11 @@ worker/API logs before updating. The profile rotates container logs at three
   no-new-privileges. Only the gateway has `NET_ADMIN`; the worker shares its
   exact network namespace. Only edge ports `4112` and `4113` bind host
   loopback.
+- Rollback: commit `22de9e9` deployed successfully against the current
+  database, stayed ready at `0011` with two users, and exposed the expected
+  older OpenAPI behavior. Rolling forward through the normal deployment gate
+  restored commit `c876fa6`, retained the same data, and returned tailnet
+  OpenAPI access to `404`.
 - Video processing remains disabled. Supadata and SoScripted were not called.
 - The current OpenRouter, Supadata, and SoScripted credentials must be rotated
   before broader use because their values appeared in operator terminal

@@ -93,7 +93,7 @@ deployed-host TLS and egress checks, and registry publication/signing.
 
 The app/backend contract did not change after the 37 LadleCore and 152 iOS test
 passes above. The final changes were isolated to the Mac deployment profile and
-were verified on commit `a2ce967`:
+were verified again on commit `c876fa6`:
 
 - the restored database remained at revision `0011` with both users after
   repeated deploys and a Docker Desktop restart;
@@ -107,5 +107,14 @@ were verified on commit `a2ce967`:
   private, loopback, non-HTTPS, IPv4-mapped, and IPv6 destinations;
 - all video/audio/frame processing remained disabled.
 
-No new iOS regression risk was introduced by these Compose, Nginx, firewall,
-LaunchAgent, CI-policy, and documentation-only changes.
+The exact current app pass then completed with:
+
+- 37 LadleCore tests passed;
+- 128 app unit/integration tests executed with zero failures and only the
+  explicit signed-device App Attest test skipped;
+- 25 UI tests passed across accessibility, account deletion, cooking, editing,
+  import recovery, library, nutrition/Health export, and recipe detail flows;
+- the generic-device Release build passed and embedded `LadleShare.appex`.
+
+No app or Share Extension regression surfaced from the Compose, Nginx,
+firewall, LaunchAgent, CI-policy, and documentation changes.
