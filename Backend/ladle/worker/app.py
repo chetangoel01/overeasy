@@ -1,8 +1,10 @@
 from celery import Celery
+from celery.signals import setup_logging
 
 from ladle.config import Settings
 from ladle.imports.dispatcher import PROCESS_IMPORT_TASK
 from ladle.imports.maintenance import RELEASE_EXPIRED_RESERVATIONS_TASK
+from ladle.observability.structured_logging import configure_structured_logging
 from ladle.observability.tracing import instrument_worker
 from ladle.privacy.retention import RETENTION_SWEEP_TASK
 
@@ -59,5 +61,21 @@ def create_celery_app(settings: Settings | None = None) -> Celery:
     return application
 
 
-celery_app = create_celery_app()
-worker_tracer_provider = instrument_worker(Settings())
+def configure_worker_logging(
+    *,
+    settings: Settings | None = None,
+    **_: object,
+) -> None:
+    configured = settings or _worker_settings
+    if configured.environment == "production" and configured.structured_logging_enabled:
+        configure_structured_logging(level=configured.log_level)
+
+
+_worker_settings = Settings()
+celery_app = create_celery_app(_worker_settings)
+if (
+    _worker_settings.environment == "production"
+    and _worker_settings.structured_logging_enabled
+):
+    setup_logging.connect(configure_worker_logging, weak=False)
+worker_tracer_provider = instrument_worker(_worker_settings)

@@ -2,7 +2,11 @@ from ladle.config import Settings
 from ladle.imports.dispatcher import PROCESS_IMPORT_TASK
 from ladle.imports.maintenance import RELEASE_EXPIRED_RESERVATIONS_TASK
 from ladle.privacy.retention import RETENTION_SWEEP_TASK
-from ladle.worker.app import celery_app, create_celery_app
+from ladle.worker.app import (
+    celery_app,
+    configure_worker_logging,
+    create_celery_app,
+)
 from ladle.worker.tasks import retry_countdown
 
 
@@ -50,6 +54,23 @@ def test_worker_retry_backoff_is_bounded_and_jittered() -> None:
 
     assert first == 8
     assert late == 63
+
+
+def test_production_worker_installs_sink_boundary_json_logging(
+    monkeypatch,
+) -> None:
+    settings = Settings(_env_file=None)
+    settings.environment = "production"
+    settings.log_level = "WARNING"
+    configured: list[str] = []
+    monkeypatch.setattr(
+        "ladle.worker.app.configure_structured_logging",
+        lambda *, level: configured.append(level),
+    )
+
+    configure_worker_logging(settings=settings)
+
+    assert configured == ["WARNING"]
 
 
 def test_abandoned_imports_are_swept_on_a_schedule() -> None:

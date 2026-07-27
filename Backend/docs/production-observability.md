@@ -17,10 +17,13 @@ putting private recipe or authentication data in telemetry.
   outcomes, cache disposition, provider outcomes/cost, worker retries, sync
   conflicts/resets, rate-limit rejection policy, queue health, stuck jobs,
   dead letters, claim churn, and cleanup failures.
-- Every log line is JSON. The formatter—not individual callers—redacts
-  sensitive keys, `SecretStr` values, bearer credentials, and private import
-  fields. Request ID, pseudonymous job ID, stage/provider/retry context,
-  duration, and terminal result are structured fields.
+- Every API and Celery worker log line is JSON. The worker installs the same
+  formatter through Celery's production logging signal instead of accepting
+  Celery's default plain-text root logger. The formatter—not individual
+  callers—redacts sensitive keys, `SecretStr` values, bearer credentials, and
+  private import fields. Request ID, pseudonymous job ID,
+  stage/provider/retry context, duration, and terminal result are structured
+  fields.
 - OpenTelemetry emits W3C trace context through FastAPI, Celery, Redis,
   SQLAlchemy, HTTPX provider calls, and the worker. The production OTLP endpoint
   must use HTTPS.
