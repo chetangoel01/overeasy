@@ -75,6 +75,16 @@ deployments converge on the single hardened route.
 `LADLE_MAC_MINI_DOCKER_CONTEXT` is optional. Set it when more than one Docker
 runtime is installed so deployment cannot silently target the wrong daemon.
 
+Install the user login agent once so Docker Desktop starts after a Mac reboot:
+
+```bash
+./deploy/mac-mini/install-autostart.sh
+```
+
+Compose's `unless-stopped` policies then restore the database, Redis, API,
+worker, Beat, egress gateway, and edge without rebuilding or rerunning the
+deploy script. Tailscale retains its Serve route independently.
+
 To roll back to a commit before the edge was introduced, deploy that commit and
 restore the earlier plain HTTP forwarder with
 `Tailscale serve --bg --yes 4112`. Do not leave the PROXY protocol forwarder

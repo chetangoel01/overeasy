@@ -115,3 +115,18 @@ def test_mac_mini_deploy_script_generates_secrets_and_runs_migrations() -> None:
     assert '"$tailscale_bin" serve reset' in script
     assert "--proxy-protocol=2" in script
     assert "--tls-terminated-tcp=443" in script
+
+
+def test_mac_mini_autostart_installer_starts_docker_at_login() -> None:
+    installer = (
+        BACKEND / "deploy" / "mac-mini" / "install-autostart.sh"
+    ).read_text()
+    launch_agent = (
+        BACKEND / "deploy" / "mac-mini" / "com.ladle.docker-start.plist"
+    ).read_text()
+
+    assert "install -m 600" in installer
+    assert "launchctl bootstrap" in installer
+    assert "launchctl enable" in installer
+    assert "<key>RunAtLoad</key>" in launch_agent
+    assert "/Applications/Docker.app" in launch_agent
