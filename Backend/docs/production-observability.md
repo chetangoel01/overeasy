@@ -17,6 +17,10 @@ putting private recipe or authentication data in telemetry.
   outcomes, cache disposition, provider outcomes/cost, worker retries, sync
   conflicts/resets, rate-limit rejection policy, queue health, stuck jobs,
   dead letters, claim churn, and cleanup failures.
+- Celery's ready and periodic heartbeat signals update the durable
+  worker-liveness gauge even when no imports are running. Beat liveness advances
+  only when its scheduled maintenance task is received, so the two absence
+  alerts remain independent.
 - Every API and Celery worker log line is JSON. The worker installs the same
   formatter through Celery's production logging signal instead of accepting
   Celery's default plain-text root logger. The formatter—not individual

@@ -1,9 +1,11 @@
 from celery import Celery
-from celery.signals import setup_logging
+from celery.signals import heartbeat_sent, setup_logging, worker_ready
 
+from ladle.clock import Clock, SystemClock
 from ladle.config import Settings
 from ladle.imports.dispatcher import PROCESS_IMPORT_TASK
 from ladle.imports.maintenance import RELEASE_EXPIRED_RESERVATIONS_TASK
+from ladle.observability.metrics import MetricsRegistry
 from ladle.observability.structured_logging import configure_structured_logging
 from ladle.observability.tracing import instrument_worker
 from ladle.privacy.retention import RETENTION_SWEEP_TASK
@@ -71,6 +73,22 @@ def configure_worker_logging(
         configure_structured_logging(level=configured.log_level)
 
 
+def record_worker_heartbeat(
+    *,
+    metrics: MetricsRegistry | None = None,
+    clock: Clock | None = None,
+    **_: object,
+) -> None:
+    if metrics is None:
+        from ladle.worker.runtime import runtime_metrics
+
+        metrics = runtime_metrics()
+    metrics.set_operational(
+        "ladle_worker_last_seen_timestamp_seconds",
+        (clock or SystemClock()).now().timestamp(),
+    )
+
+
 _worker_settings = Settings()
 celery_app = create_celery_app(_worker_settings)
 if (
@@ -78,4 +96,6 @@ if (
     and _worker_settings.structured_logging_enabled
 ):
     setup_logging.connect(configure_worker_logging, weak=False)
+heartbeat_sent.connect(record_worker_heartbeat, weak=False)
+worker_ready.connect(record_worker_heartbeat, weak=False)
 worker_tracer_provider = instrument_worker(_worker_settings)

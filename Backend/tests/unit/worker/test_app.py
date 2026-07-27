@@ -1,3 +1,6 @@
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+
 from billiard.exceptions import SoftTimeLimitExceeded
 from redis.exceptions import ConnectionError as RedisConnectionError
 from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError
@@ -12,8 +15,25 @@ from ladle.worker.app import (
     celery_app,
     configure_worker_logging,
     create_celery_app,
+    record_worker_heartbeat,
 )
 from ladle.worker.tasks import is_retryable_import_failure, retry_countdown
+
+
+@dataclass
+class FrozenClock:
+    value: datetime
+
+    def now(self) -> datetime:
+        return self.value
+
+
+@dataclass
+class RecordingMetrics:
+    values: list[tuple[str, float]] = field(default_factory=list)
+
+    def set_operational(self, name: str, value: float) -> None:
+        self.values.append((name, value))
 
 
 def test_worker_uses_late_ack_and_long_visibility_timeout() -> None:
@@ -96,6 +116,20 @@ def test_production_worker_installs_sink_boundary_json_logging(
     configure_worker_logging(settings=settings)
 
     assert configured == ["WARNING"]
+
+
+def test_celery_heartbeat_updates_idle_worker_liveness() -> None:
+    now = datetime(2026, 7, 26, 20, 0, tzinfo=UTC)
+    metrics = RecordingMetrics()
+
+    record_worker_heartbeat(
+        metrics=metrics,  # type: ignore[arg-type]
+        clock=FrozenClock(now),
+    )
+
+    assert metrics.values == [
+        ("ladle_worker_last_seen_timestamp_seconds", now.timestamp())
+    ]
 
 
 def test_abandoned_imports_are_swept_on_a_schedule() -> None:
