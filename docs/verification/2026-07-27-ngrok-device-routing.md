@@ -18,14 +18,20 @@ address, hides OpenAPI, interactive docs, ReDoc, and metrics, enforces the
 existing 1 MiB request limit, and removes the tunnel key before proxying to the
 API.
 
+The same listener proxies private-bucket thumbnail reads. Recipe responses
+carry short-lived S3 signatures, so image requests are authorized by their
+signature rather than by the app-only tunnel header.
+
 ## Important decisions
 
 - `LADLE_TUNNEL_ACCESS_KEY` is empty in both checked-in xcconfigs. The
   short-lived value is generated outside source control and embedded only in
   the temporary device build.
 - The ngrok Traffic Policy must return `404` unless the request carries that
-  exact key. This avoids replacing the API's bearer `Authorization` header
-  with HTTP Basic authentication.
+  exact key, except for `/ladle-private/` object reads carrying a valid MinIO
+  signature. This avoids replacing the API's bearer `Authorization` header
+  with HTTP Basic authentication and lets native image loading work without
+  exposing the bucket.
 - Port `4114` remains bound to `127.0.0.1`; only an agent running on the Mac
   mini can reach it. Tailscale remains the persistent staging ingress.
 - This is development access, not a production deployment. Stop the ngrok
@@ -37,8 +43,9 @@ API.
 - `Ladle/Remote/APIClient.swift`
 - `Config/Ladle-Info.plist`
 - `Config/{Debug,Release}.xcconfig`
-- `Backend/deploy/mac-mini/{docker-compose.yml,nginx.conf}`
+- `Backend/deploy/mac-mini/{docker-compose.yml,nginx.conf,worker-egress.sh}`
 - `Backend/deploy/mac-mini/ngrok.sh`
+- `Backend/ladle/{admin/cache_cli.py,imports/thumbnail_backfill.py}`
 - `LadleTests/{APIClientTests,ProjectSmokeTests}.swift`
 - `Backend/tests/unit/deploy/test_mac_mini_profile.py`
 

@@ -49,6 +49,7 @@ write_policy() {
             "            content-type: application/json" \
             "  - name: Require X-Ladle-Tunnel-Key" \
             "    expressions:" \
+            "      - \"!req.url.path.startsWith('/ladle-private/')\"" \
             "      - \"!('x-ladle-tunnel-key' in req.headers)\"" \
             "    actions:" \
             "      - type: custom-response" \
@@ -59,6 +60,7 @@ write_policy() {
             "            content-type: application/json" \
             "  - name: Reject an incorrect X-Ladle-Tunnel-Key" \
             "    expressions:" \
+            "      - \"!req.url.path.startsWith('/ladle-private/')\"" \
             "      - \"'x-ladle-tunnel-key' in req.headers\"" \
             "      - \"!('$access_key' in req.headers['x-ladle-tunnel-key'])\"" \
             "    actions:" \

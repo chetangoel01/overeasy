@@ -11,7 +11,14 @@ x-private-staging-environment: &private-staging-environment
   LADLE_RATE_LIMITING_ENABLED: "true"
   LADLE_RATE_LIMIT_REDIS_URL: redis://redis:6379/2
   LADLE_DURABLE_METRICS_ENABLED: "true"
-  LADLE_OBJECT_STORAGE_ENABLED: "false"
+  LADLE_OBJECT_STORAGE_ENABLED: "true"
+  LADLE_OBJECT_STORAGE_ENDPOINT_URL: http://minio:9000
+  LADLE_OBJECT_STORAGE_PUBLIC_ENDPOINT_URL: ${LADLE_OBJECT_STORAGE_PUBLIC_ENDPOINT_URL:?set by deploy.sh}
+  LADLE_OBJECT_STORAGE_REGION: us-east-1
+  LADLE_OBJECT_STORAGE_BUCKET: ladle-private
+  LADLE_OBJECT_STORAGE_ADDRESSING_STYLE: path
+  LADLE_OBJECT_STORAGE_ACCESS_KEY: ${LADLE_OBJECT_STORAGE_ACCESS_KEY:?set by deploy.sh}
+  LADLE_OBJECT_STORAGE_SECRET_KEY: ${LADLE_OBJECT_STORAGE_SECRET_KEY:?set by deploy.sh}
   LADLE_AUDIO_TRANSCRIPTION_ENABLED: "false"
   LADLE_FRAME_ANALYSIS_ENABLED: "false"
   LADLE_SERVER_MEDIA_FALLBACK_ENABLED: "false"
@@ -30,16 +37,27 @@ services:
     cpus: 0.25
 
   minio:
-    profiles: ["object-storage-disabled"]
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${LADLE_OBJECT_STORAGE_ACCESS_KEY:?set by deploy.sh}
+      MINIO_ROOT_PASSWORD: ${LADLE_OBJECT_STORAGE_SECRET_KEY:?set by deploy.sh}
+    ports: !reset []
+    networks:
+      default: {}
+      edge:
+        ipv4_address: 172.30.0.4
     logging: *bounded-logging
     mem_limit: 512m
     cpus: 0.5
 
   minio-init:
-    command: ["/bin/true"]
-    depends_on: !reset {}
-    environment: !reset {}
-    volumes: !reset []
+    environment:
+      LADLE_OBJECT_STORAGE_ENDPOINT_URL: http://minio:9000
+      LADLE_OBJECT_STORAGE_REGION: us-east-1
+      LADLE_OBJECT_STORAGE_BUCKET: ladle-private
+      LADLE_OBJECT_STORAGE_ADDRESSING_STYLE: path
+      LADLE_OBJECT_STORAGE_ACCESS_KEY: ${LADLE_OBJECT_STORAGE_ACCESS_KEY:?set by deploy.sh}
+      LADLE_OBJECT_STORAGE_SECRET_KEY: ${LADLE_OBJECT_STORAGE_SECRET_KEY:?set by deploy.sh}
     logging: *bounded-logging
 
   edge:
@@ -76,6 +94,8 @@ services:
       retries: 12
     depends_on:
       api:
+        condition: service_healthy
+      minio:
         condition: service_healthy
     networks:
       host-publish: {}
@@ -120,6 +140,7 @@ services:
       WORKER_UID: "10001"
       POSTGRES_HOST: postgres
       REDIS_HOST: redis
+      MINIO_HOST: minio
     healthcheck:
       test:
         [

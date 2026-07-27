@@ -517,6 +517,7 @@ def runtime_orchestrator() -> ImportOrchestrator:
                 bucket=settings.object_storage_bucket,
                 access_key=settings.object_storage_access_key,
                 secret_key=settings.object_storage_secret_key.get_secret_value(),
+                addressing_style=settings.object_storage_addressing_style,
             ),
         )
     return ImportOrchestrator(

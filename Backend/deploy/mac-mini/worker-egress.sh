@@ -4,6 +4,7 @@ set -eu
 worker_uid=${WORKER_UID:-10001}
 postgres_host=${POSTGRES_HOST:-postgres}
 redis_host=${REDIS_HOST:-redis}
+minio_host=${MINIO_HOST:-minio}
 
 resolve_ipv4() {
     getent hosts "$1" | awk 'NR == 1 { print $1 }'
@@ -11,9 +12,11 @@ resolve_ipv4() {
 
 postgres_ip=$(resolve_ipv4 "$postgres_host")
 redis_ip=$(resolve_ipv4 "$redis_host")
+minio_ip=$(resolve_ipv4 "$minio_host")
 resolver_ip=$(awk '$1 == "nameserver" { print $2; exit }' /etc/resolv.conf)
 
-if [ -z "$postgres_ip" ] || [ -z "$redis_ip" ] || [ -z "$resolver_ip" ]; then
+if [ -z "$postgres_ip" ] || [ -z "$redis_ip" ] || [ -z "$minio_ip" ] ||
+    [ -z "$resolver_ip" ]; then
     echo "Could not resolve a required egress dependency." >&2
     exit 1
 fi
@@ -30,6 +33,8 @@ iptables -A LADLE_WORKER_EGRESS \
     -d "$postgres_ip" -p tcp --dport 5432 -j ACCEPT
 iptables -A LADLE_WORKER_EGRESS \
     -d "$redis_ip" -p tcp --dport 6379 -j ACCEPT
+iptables -A LADLE_WORKER_EGRESS \
+    -d "$minio_ip" -p tcp --dport 9000 -j ACCEPT
 
 for network in \
     0.0.0.0/8 \

@@ -2,6 +2,7 @@ import argparse
 from collections.abc import Sequence
 from typing import Any, cast
 
+import httpx
 from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
@@ -13,6 +14,9 @@ from ladle.db.models import (
     SourceVideo,
 )
 from ladle.db.session import build_engine, build_session_factory
+from ladle.imports.thumbnail_backfill import ThumbnailBackfillService
+from ladle.imports.thumbnails import OEmbedThumbnailFetcher
+from ladle.worker.runtime import runtime_object_storage
 
 
 class CacheAdministrator:
@@ -60,10 +64,30 @@ def main(argv: Sequence[str] | None = None) -> int:
         choices=("youtube", "tiktok", "instagram"),
     )
     invalidate.add_argument("--video-id", required=True)
+    subparsers.add_parser(
+        "backfill-thumbnails",
+        help="copy legacy provider thumbnails into private object storage",
+    )
     arguments = parser.parse_args(argv)
 
     settings = Settings()
     sessions = build_session_factory(build_engine(settings.database_url))
+    if arguments.command == "backfill-thumbnails":
+        storage = runtime_object_storage()
+        if storage is None:
+            parser.error("object storage must be enabled for thumbnail backfill")
+        with httpx.Client(
+            timeout=httpx.Timeout(connect=5.0, read=15.0, write=15.0, pool=5.0),
+            follow_redirects=False,
+        ) as http, sessions.begin() as database:
+            count = ThumbnailBackfillService(
+                fetcher=OEmbedThumbnailFetcher(
+                    http=http,
+                    storage=storage,
+                )
+            ).run(database)
+        print(f"backfilled {count} cache thumbnails")
+        return 0
     with sessions.begin() as database:
         count = CacheAdministrator(clock=SystemClock()).invalidate(
             database,
