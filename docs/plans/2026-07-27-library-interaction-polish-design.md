@@ -93,6 +93,14 @@ grid/list changes use the same zero-bounce snappy timing. Review completion
 replaces the review action with a brief success state before the typed
 navigation path resolves to the Inbox or Home.
 
+Implementation centralizes the two strengths in `LadlePressKind` and
+`LadlePressButtonStyle`, including disabled-state opacity and the Reduce Motion
+scale fallback. It covers Home cards and thumbnails, collection and Library
+controls, favorite controls, cooking completion/navigation controls, and
+timer/reset controls. Primary buttons now share the card timing. The token
+test was observed failing before the types existed; afterward all 27 focused
+design, cooking, and project-smoke tests and a simulator build passed.
+
 ## Haptics
 
 Use SwiftUI sensory feedback tied to state changes:

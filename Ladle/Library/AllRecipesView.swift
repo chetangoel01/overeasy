@@ -65,6 +65,7 @@ struct AllRecipesView: View {
                 )
             }
             .accessibilityLabel("Sort recipes")
+            .buttonStyle(LadlePressButtonStyle())
 
             Button(action: presentFilters) {
                 controlLabel(
@@ -73,6 +74,7 @@ struct AllRecipesView: View {
                 )
             }
             .accessibilityLabel("Filter recipes")
+            .buttonStyle(LadlePressButtonStyle())
 
             Spacer()
 
@@ -92,6 +94,7 @@ struct AllRecipesView: View {
                     ? "Show recipes as a list"
                     : "Show recipes as a grid"
             )
+            .buttonStyle(LadlePressButtonStyle())
         }
     }
 
@@ -108,6 +111,7 @@ struct AllRecipesView: View {
                                 tint: LadleTheme.success.opacity(0.45)
                             )
                         }
+                        .buttonStyle(LadlePressButtonStyle())
                         .accessibilityLabel("Remove filter: \(chip.title)")
                     }
                 }
@@ -259,7 +263,9 @@ struct AllRecipesView: View {
         if reduceMotion {
             viewModel.displayMode = mode
         } else {
-            withAnimation(.snappy(duration: 0.25)) {
+            withAnimation(
+                .snappy(duration: 0.25, extraBounce: 0)
+            ) {
                 viewModel.displayMode = mode
             }
         }

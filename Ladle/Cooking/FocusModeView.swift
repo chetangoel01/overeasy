@@ -125,7 +125,7 @@ struct FocusModeView: View {
                     LadleTheme.onAccent.opacity(0.1),
                     in: Capsule()
                 )
-                .buttonStyle(.plain)
+                .buttonStyle(LadlePressButtonStyle())
             }
         }
     }
@@ -173,9 +173,8 @@ struct FocusModeView: View {
                         in: Circle()
                     )
             }
-            .buttonStyle(.plain)
+            .buttonStyle(LadlePressButtonStyle())
             .disabled(!viewModel.canMovePrevious)
-            .opacity(viewModel.canMovePrevious ? 1 : 0.35)
             .accessibilityLabel("Previous step")
 
             Button(action: advance) {
@@ -191,7 +190,7 @@ struct FocusModeView: View {
                         )
                     )
             }
-            .buttonStyle(.plain)
+            .buttonStyle(LadlePressButtonStyle())
             .accessibilityLabel(nextButtonTitle)
         }
         .padding(.horizontal, LadleTheme.Spacing.regular)

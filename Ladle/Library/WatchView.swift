@@ -129,6 +129,7 @@ private struct WatchRecipeCard: View {
                     )
                     .frame(width: 44, height: 44)
             }
+            .buttonStyle(LadlePressButtonStyle())
             .accessibilityLabel(
                 recipe.isFavorite
                     ? "Remove from favorites"

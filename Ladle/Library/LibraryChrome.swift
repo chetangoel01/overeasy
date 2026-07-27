@@ -55,12 +55,12 @@ struct LibraryTopBar: View {
                 .frame(width: 44, height: 44)
                 .background(tint, in: Circle())
         }
+        .buttonStyle(LadlePressButtonStyle())
         .accessibilityLabel(label)
         .accessibilityHint(
             isEnabled ? "" : "Connecting to Overeasy"
         )
         .disabled(!isEnabled)
-        .opacity(isEnabled ? 1 : 0.48)
     }
 }
 

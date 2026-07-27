@@ -113,6 +113,7 @@ struct RecipeDetailView: View {
                         .frame(width: 44, height: 44)
                 }
                 .foregroundStyle(LadleTheme.ink)
+                .buttonStyle(LadlePressButtonStyle())
                 .accessibilityLabel("Recipe options")
             }
         }
@@ -347,6 +348,7 @@ struct RecipeDetailView: View {
                 )
                 .frame(width: 44, height: 44)
         }
+        .buttonStyle(LadlePressButtonStyle())
         .accessibilityLabel(
             isFavorite
                 ? "Remove \(displayedRecipe.title) from favorites"

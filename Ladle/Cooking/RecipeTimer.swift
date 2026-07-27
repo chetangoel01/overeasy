@@ -234,6 +234,7 @@ struct RecipeTimerButton: View {
                         )
                     )
                 }
+                .buttonStyle(LadlePressButtonStyle())
                 .accessibilityLabel(accessibilityTitle)
 
                 if phase != .idle {
@@ -255,6 +256,7 @@ struct RecipeTimerButton: View {
                                 in: Circle()
                             )
                     }
+                    .buttonStyle(LadlePressButtonStyle())
                     .accessibilityLabel(
                         "Reset \(detectedTimer.label) timer"
                     )

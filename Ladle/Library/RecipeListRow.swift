@@ -43,6 +43,7 @@ struct RecipeListRow: View {
                 )
                 .frame(width: 44, height: 44)
             }
+            .buttonStyle(LadlePressButtonStyle())
             .accessibilityLabel(
                 recipe.isFavorite
                     ? "Remove \(recipe.title) from favorites"

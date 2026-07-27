@@ -38,4 +38,11 @@ final class DesignTokenTests: XCTestCase {
         XCTAssertEqual(LadleTheme.Corner.card, 20)
         XCTAssertEqual(LadleTheme.Corner.sheet, 34)
     }
+
+    func testPressMotionUsesApprovedZeroBounceTimingLanguage() {
+        XCTAssertEqual(LadlePressKind.card.scale, 0.97)
+        XCTAssertEqual(LadlePressKind.card.duration, 0.18)
+        XCTAssertEqual(LadlePressKind.control.scale, 0.94)
+        XCTAssertEqual(LadlePressKind.control.duration, 0.15)
+    }
 }

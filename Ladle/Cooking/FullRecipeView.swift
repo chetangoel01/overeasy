@@ -141,7 +141,7 @@ struct FullRecipeView: View {
                 .frame(minHeight: 44)
                 .background(LadleTheme.brick, in: Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(LadlePressButtonStyle())
     }
 
     private var ingredientsSection: some View {
@@ -208,7 +208,7 @@ struct FullRecipeView: View {
             .padding(.vertical, 14)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(LadlePressButtonStyle())
         .accessibilityLabel(
             isCompleted
                 ? "Mark \(ingredient.name) incomplete"
@@ -245,7 +245,7 @@ struct FullRecipeView: View {
                 }
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(LadlePressButtonStyle())
             .accessibilityLabel(
                 isCompleted
                     ? "Mark step \(index + 1) incomplete, \(step.instruction)"

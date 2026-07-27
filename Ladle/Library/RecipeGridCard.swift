@@ -27,6 +27,7 @@ struct RecipeGridCard: View {
                     .background(.ultraThinMaterial, in: Circle())
                     .padding(8)
                 }
+                .buttonStyle(LadlePressButtonStyle())
                 .accessibilityLabel(favoriteAccessibilityLabel)
             }
 

@@ -1,5 +1,58 @@
 import SwiftUI
 
+enum LadlePressKind {
+    case card
+    case control
+
+    var scale: CGFloat {
+        switch self {
+        case .card:
+            0.97
+        case .control:
+            0.94
+        }
+    }
+
+    var duration: TimeInterval {
+        switch self {
+        case .card:
+            0.18
+        case .control:
+            0.15
+        }
+    }
+}
+
+struct LadlePressButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.isEnabled) private var isEnabled
+
+    var kind: LadlePressKind = .control
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(
+                reduceMotion || !isEnabled
+                    ? 1
+                    : (configuration.isPressed ? kind.scale : 1)
+            )
+            .opacity(
+                !isEnabled
+                    ? 0.48
+                    : (configuration.isPressed ? 0.86 : 1)
+            )
+            .animation(
+                reduceMotion
+                    ? nil
+                    : .snappy(
+                        duration: kind.duration,
+                        extraBounce: 0
+                    ),
+                value: configuration.isPressed
+            )
+    }
+}
+
 struct LadlePrimaryButtonStyle: ButtonStyle {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.isEnabled) private var isEnabled
@@ -32,15 +85,17 @@ struct LadlePrimaryButtonStyle: ButtonStyle {
             .opacity(
                 !isEnabled
                     ? 0.48
-                    : (configuration.isPressed ? 0.72 : 1)
+                    : (configuration.isPressed ? 0.86 : 1)
             )
             .scaleEffect(
                 reduceMotion || !isEnabled
                     ? 1
-                    : (configuration.isPressed ? 0.985 : 1)
+                    : (configuration.isPressed ? 0.97 : 1)
             )
             .animation(
-                reduceMotion ? nil : .easeOut(duration: 0.12),
+                reduceMotion
+                    ? nil
+                    : .snappy(duration: 0.18, extraBounce: 0),
                 value: configuration.isPressed
             )
     }
@@ -168,7 +223,7 @@ struct LadleIconButton: View {
                 .frame(width: 44, height: 44)
                 .background(tone.background, in: Circle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(LadlePressButtonStyle())
         .accessibilityLabel(accessibilityLabel)
     }
 }

@@ -152,7 +152,7 @@ struct LibraryHomeView: View {
             .padding(14)
             .ladleCard()
         }
-        .buttonStyle(.plain)
+        .buttonStyle(LadlePressButtonStyle(kind: .card))
         .contentShape(.interaction, homeCardShape)
         .clipShape(homeCardShape)
         .zIndex(1)
@@ -195,7 +195,7 @@ struct LibraryHomeView: View {
             .padding(16)
         }
         .background(LadleTheme.plum, in: homeCardShape)
-        .buttonStyle(.plain)
+        .buttonStyle(LadlePressButtonStyle(kind: .card))
         .contentShape(.interaction, homeCardShape)
         .clipShape(homeCardShape)
         .accessibilityIdentifier("library.watch")
@@ -237,26 +237,29 @@ struct LibraryHomeView: View {
             )
 
             if !viewModel.isSavedThisWeekCollapsed {
-                if viewModel.savedThisWeek.isEmpty {
-                    Text("New saves will collect here for quick return.")
-                        .ladleFont(.body)
-                        .foregroundStyle(LadleTheme.mutedInk)
-                        .padding(.vertical, 18)
-                } else {
-                    LazyVGrid(
-                        columns: savedColumns,
-                        spacing: 12
-                    ) {
-                        ForEach(
-                            viewModel.savedThisWeek.prefix(3)
-                        ) { recipe in
-                            HomeRecipeThumbnail(
-                                recipe: recipe,
-                                action: { openRecipe(recipe) }
-                            )
+                Group {
+                    if viewModel.savedThisWeek.isEmpty {
+                        Text("New saves will collect here for quick return.")
+                            .ladleFont(.body)
+                            .foregroundStyle(LadleTheme.mutedInk)
+                            .padding(.vertical, 18)
+                    } else {
+                        LazyVGrid(
+                            columns: savedColumns,
+                            spacing: 12
+                        ) {
+                            ForEach(
+                                viewModel.savedThisWeek.prefix(3)
+                            ) { recipe in
+                                HomeRecipeThumbnail(
+                                    recipe: recipe,
+                                    action: { openRecipe(recipe) }
+                                )
+                            }
                         }
                     }
                 }
+                .transition(sectionTransition)
             }
         }
     }
@@ -289,6 +292,7 @@ struct LibraryHomeView: View {
                         )
                 }
                 .clipShape(collectionPanelShape)
+                .transition(sectionTransition)
             }
         }
     }
@@ -300,7 +304,11 @@ struct LibraryHomeView: View {
         toggle: @escaping () -> Void
     ) -> some View {
         Button {
-            withAnimation(reduceMotion ? nil : .default) {
+            withAnimation(
+                reduceMotion
+                    ? nil
+                    : .snappy(duration: 0.22, extraBounce: 0)
+            ) {
                 toggle()
             }
         } label: {
@@ -316,7 +324,7 @@ struct LibraryHomeView: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(LadlePressButtonStyle())
         .accessibilityLabel(title)
         .accessibilityValue(isCollapsed ? "Collapsed" : "Expanded")
         .accessibilityHint("Double tap to toggle")
@@ -356,7 +364,7 @@ struct LibraryHomeView: View {
             .padding(.horizontal, 12)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(LadlePressButtonStyle(kind: .card))
         .overlay(alignment: .bottom) {
             if row.showsDivider {
                 Divider()
@@ -373,6 +381,12 @@ struct LibraryHomeView: View {
 
     private func countText(_ count: Int) -> String {
         count == 1 ? "1 recipe" : "\(count) recipes"
+    }
+
+    private var sectionTransition: AnyTransition {
+        reduceMotion
+            ? .opacity
+            : .opacity.combined(with: .move(edge: .top))
     }
 
     private var savedColumns: [GridItem] {
@@ -402,7 +416,7 @@ private struct HomeRecipeThumbnail: View {
                     .multilineTextAlignment(.leading)
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(LadlePressButtonStyle(kind: .card))
         .accessibilityLabel("Open \(recipe.title)")
     }
 
