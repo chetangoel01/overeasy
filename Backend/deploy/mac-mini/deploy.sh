@@ -91,7 +91,7 @@ compose up -d postgres redis minio
 compose build migrate minio-init api worker beat worker-egress edge
 compose run --rm minio-init
 compose run --rm migrate
-compose run --rm api /app/.venv/bin/python -m ladle.admin.cache_cli \
+compose run --rm migrate /app/.venv/bin/python -m ladle.admin.cache_cli \
     backfill-thumbnails
 compose up \
     -d \

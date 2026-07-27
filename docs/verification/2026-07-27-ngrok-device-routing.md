@@ -37,6 +37,9 @@ signature rather than by the app-only tunnel header.
 - Bucket initialization reads the lifecycle policy baked into the backend
   image. It does not mount a host file, avoiding Docker Desktop file-sharing
   stalls when the deployment runs from a hidden Git worktree.
+- The thumbnail backfill uses the migration service image rather than cloning
+  the API service, so it does not contend for the API's fixed edge-network
+  address during a rolling deployment.
 - This is development access, not a production deployment. Stop the ngrok
   endpoint and replace the temporary device build when testing ends.
 

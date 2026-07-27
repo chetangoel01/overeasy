@@ -164,6 +164,10 @@ def test_mac_mini_deploy_script_generates_secrets_and_runs_migrations() -> None:
     assert "compose stop minio" not in script
     assert "compose up -d postgres redis minio" in script
     assert "compose run --rm minio-init" in script
+    assert (
+        "compose run --rm migrate /app/.venv/bin/python "
+        "-m ladle.admin.cache_cli"
+    ) in script
     assert "backfill-thumbnails" in script
     assert 'PATH="/usr/local/bin:/opt/homebrew/bin:$HOME/.orbstack/bin:$PATH"' in script
     assert "docker-compose.yml" in script
