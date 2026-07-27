@@ -28,6 +28,8 @@ public production deployment.
 - Object storage and server-managed thumbnails are disabled.
 - The Mac-only image omits FFmpeg and its media libraries.
 - PostgreSQL and Redis are never published to the LAN or internet.
+- User LaunchAgents run a five-minute local health/disk watchdog and a
+  validated PostgreSQL backup every night at 03:15.
 
 ## Important decisions
 
@@ -85,6 +87,34 @@ Compose's `unless-stopped` policies then restore the database, Redis, API,
 worker, Beat, egress gateway, and edge without rebuilding or rerunning the
 deploy script. Tailscale retains its Serve route independently.
 
+Install the local operations agents once:
+
+```bash
+./deploy/mac-mini/install-local-operations.sh
+"$HOME/Library/Application Support/Ladle/local-operations.sh" backup
+```
+
+The health agent checks local readiness, all seven runtime containers, and the
+20 GiB free-disk floor every five minutes. The backup agent creates a
+custom-format PostgreSQL archive at 03:15, validates its table of contents with
+`pg_restore`, writes a SHA-256 sidecar, and removes matching archives older
+than 35 days. macOS notifications fire only on the first successful backup,
+failure transitions, and recovery.
+
+State, configuration, logs, and archives live outside the checkout:
+
+- `~/Library/Application Support/Ladle/{health,backup}.state`
+- `~/.config/ladle/local-operations.env`
+- `~/Library/Logs/Ladle/local-operations.log`
+- `~/Backups/ladle/ladle-*.dump`
+
+The empty configuration file accepts shell assignments for the documented
+`LADLE_*` overrides in `local-operations.sh`, including retention and disk
+thresholds. It is mode `0600`; do not place its contents in source control.
+These local archives protect against container or database mistakes, but not
+loss of the Mac or its disk. They are intentionally not represented as
+off-machine or point-in-time-recovery backups.
+
 To roll back to a commit before the edge was introduced, deploy that commit and
 restore the earlier plain HTTP forwarder with
 `Tailscale serve --bg --yes 4112`. Do not leave the PROXY protocol forwarder
@@ -109,6 +139,9 @@ docker compose \
 
 curl --fail http://127.0.0.1:4113/health/ready
 /Applications/Tailscale.app/Contents/MacOS/Tailscale serve status
+launchctl print "gui/$(id -u)/com.ladle.health-watch"
+launchctl print "gui/$(id -u)/com.ladle.database-backup"
+tail -n 20 "$HOME/Library/Logs/Ladle/local-operations.log"
 ```
 
 Keep at least 20 GB free, retain off-machine database backups, and check the

@@ -128,3 +128,31 @@ def test_mac_mini_autostart_installer_starts_docker_at_login() -> None:
     assert "launchctl enable" in installer
     assert "<key>RunAtLoad</key>" in launch_agent
     assert "/Applications/Docker.app" in launch_agent
+
+
+def test_mac_mini_local_operations_schedule_validated_backups_and_health() -> None:
+    operations = (
+        BACKEND / "deploy" / "mac-mini" / "local-operations.sh"
+    ).read_text()
+    installer = (
+        BACKEND / "deploy" / "mac-mini" / "install-local-operations.sh"
+    ).read_text()
+    health_agent = (
+        BACKEND / "deploy" / "mac-mini" / "com.ladle.health-watch.plist"
+    ).read_text()
+    backup_agent = (
+        BACKEND / "deploy" / "mac-mini" / "com.ladle.database-backup.plist"
+    ).read_text()
+
+    assert "pg_dump -Fc" in operations
+    assert "pg_restore --list" in operations
+    assert "shasum -a 256" in operations
+    assert "LADLE_BACKUP_RETENTION_DAYS" in operations
+    assert "health/ready" in operations
+    assert "LADLE_MINIMUM_FREE_DISK_GIB" in operations
+    assert "docker_cli inspect" in operations
+    assert "display notification" in operations
+    assert "install -m 700" in installer
+    assert "launchctl bootstrap" in installer
+    assert "<integer>300</integer>" in health_agent
+    assert "<key>StartCalendarInterval</key>" in backup_agent
