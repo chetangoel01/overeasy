@@ -87,6 +87,12 @@ final class APIClientTests: XCTestCase {
             "device-tunnel"
         )
         XCTAssertEqual(
+            request.value(
+                forHTTPHeaderField: "ngrok-skip-browser-warning"
+            ),
+            "true"
+        )
+        XCTAssertEqual(
             request.value(forHTTPHeaderField: "Authorization"),
             "Bearer guest-access"
         )

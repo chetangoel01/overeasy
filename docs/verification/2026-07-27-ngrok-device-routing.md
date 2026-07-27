@@ -9,8 +9,8 @@ development API without requiring Tailscale or MagicDNS on the phone.
 
 An explicitly configured device build reads `LadleTunnelAccessKey` and adds it
 as `X-Ladle-Tunnel-Key` to every API request, including guest bootstrap, token
-refresh, imports, and sync. Normal builds leave the setting empty and send no
-tunnel header.
+refresh, imports, and sync. It also opts API requests out of ngrok's browser
+interstitial. Normal builds leave the setting empty and send neither header.
 
 The Mac mini exposes a third Nginx listener on loopback port `4114` for ngrok.
 It treats ngrok as the HTTPS terminator, preserves the forwarded client
@@ -38,6 +38,7 @@ API.
 - `Config/Ladle-Info.plist`
 - `Config/{Debug,Release}.xcconfig`
 - `Backend/deploy/mac-mini/{docker-compose.yml,nginx.conf}`
+- `Backend/deploy/mac-mini/ngrok.sh`
 - `LadleTests/{APIClientTests,ProjectSmokeTests}.swift`
 - `Backend/tests/unit/deploy/test_mac_mini_profile.py`
 

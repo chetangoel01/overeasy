@@ -115,6 +115,20 @@ State, configuration, logs, and archives live outside the checkout:
 - `~/Library/Logs/Ladle/local-operations.log`
 - `~/Backups/ladle/ladle-*.dump`
 
+For a temporary Personal Team device tunnel, install and authenticate the
+ngrok agent at `~/bin/ngrok`, then run:
+
+```bash
+./deploy/mac-mini/ngrok.sh start
+./deploy/mac-mini/ngrok.sh status
+./deploy/mac-mini/ngrok.sh stop
+```
+
+The launcher generates the device key and Traffic Policy in
+`~/.config/ladle/ngrok` with owner-only permissions and logs the agent at
+`~/Library/Logs/Ladle/ngrok.log`. It prints only the public HTTPS URL; use
+`key-file` to locate the key for a device build without printing it.
+
 The empty configuration file accepts shell assignments for the documented
 `LADLE_*` overrides in `local-operations.sh`, including retention and disk
 thresholds. It is mode `0600`; do not place its contents in source control.
@@ -146,6 +160,7 @@ docker compose \
 
 curl --fail http://127.0.0.1:4113/health/ready
 curl --fail http://127.0.0.1:4114/health/ready
+./deploy/mac-mini/ngrok.sh status
 /Applications/Tailscale.app/Contents/MacOS/Tailscale serve status
 launchctl print "gui/$(id -u)/com.ladle.health-watch"
 launchctl print "gui/$(id -u)/com.ladle.database-backup"

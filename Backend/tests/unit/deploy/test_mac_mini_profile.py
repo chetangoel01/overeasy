@@ -57,6 +57,7 @@ def test_mac_mini_edge_enforces_body_limit_and_preserves_proxy_protocol_ip() -> 
     assert "proxy_set_header X-Forwarded-For $remote_addr" in config
     assert config.count("proxy_set_header X-Forwarded-Proto https") == 2
     assert 'proxy_set_header X-Ladle-Tunnel-Key ""' in config
+    assert 'proxy_set_header ngrok-skip-browser-warning ""' in config
     assert (
         'add_header Strict-Transport-Security "max-age=63072000; '
         'includeSubDomains; preload" always;'
@@ -68,6 +69,18 @@ def test_mac_mini_edge_enforces_body_limit_and_preserves_proxy_protocol_ip() -> 
     assert '"code":"invalidRequest"' in config
     assert "server api:4111" in config
     assert "proxy_pass http://ladle_api" in config
+
+
+def test_mac_mini_ngrok_launcher_requires_a_device_key() -> None:
+    script = (BACKEND / "deploy" / "mac-mini" / "ngrok.sh").read_text()
+
+    assert "openssl rand -hex 32" in script
+    assert "chmod 600" in script
+    assert "X-Ladle-Tunnel-Key" in script
+    assert "--traffic-policy-file" in script
+    assert "http://127.0.0.1:4114" in script
+    assert "public_url" in script
+    assert "cat \"$access_key_file\"" not in script
 
 
 def test_mac_mini_worker_egress_allows_dependencies_and_public_https_only() -> None:

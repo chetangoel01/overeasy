@@ -269,6 +269,10 @@ actor APIClient {
                 tunnelAccessKey,
                 forHTTPHeaderField: "X-Ladle-Tunnel-Key"
             )
+            request.setValue(
+                "true",
+                forHTTPHeaderField: "ngrok-skip-browser-warning"
+            )
         }
         if let accessToken {
             request.setValue(
