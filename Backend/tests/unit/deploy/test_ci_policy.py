@@ -35,6 +35,24 @@ def test_ci_enforces_quality_security_migrations_and_exact_image_release() -> No
     assert (
         "gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0"
     ) in workflow
+    for action, count in (
+        ("actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0", 2),
+        (
+            "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1",
+            1,
+        ),
+        (
+            "docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c"
+            " # v4.2.0",
+            1,
+        ),
+        (
+            "docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a"
+            " # v7.3.0",
+            2,
+        ),
+    ):
+        assert workflow.count(action) == count
     assert re.search(r"grafana/k6@sha256:[0-9a-f]{64}", workflow)
 
 
