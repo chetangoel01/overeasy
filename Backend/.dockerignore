@@ -13,7 +13,8 @@ coverage.xml
 tests
 docs
 scripts
-deploy
+deploy/*
+!deploy/object-storage-lifecycle.json
 load
 docker-compose*
 *.md

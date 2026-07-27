@@ -5,6 +5,7 @@ BACKEND = Path(__file__).parents[3]
 
 def test_mac_mini_profile_is_private_bounded_and_hosts_thumbnails() -> None:
     profile = (BACKEND / "deploy" / "mac-mini" / "docker-compose.yml").read_text()
+    dockerignore = (BACKEND / ".dockerignore").read_text()
 
     for service in (
         "postgres",
@@ -66,6 +67,7 @@ def test_mac_mini_profile_is_private_bounded_and_hosts_thumbnails() -> None:
         "LADLE_OBJECT_STORAGE_LIFECYCLE_PATH: "
         "/app/deploy/object-storage-lifecycle.json"
     ) in profile
+    assert "!deploy/object-storage-lifecycle.json" in dockerignore
     assert "MINIO_HOST: minio" in profile
     assert "NET_ADMIN" in profile
     assert "privileged: true" not in profile
