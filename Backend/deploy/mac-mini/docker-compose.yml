@@ -1,0 +1,56 @@
+x-bounded-logging: &bounded-logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: 3
+
+x-private-staging-environment: &private-staging-environment
+  LADLE_JWT_SIGNING_SECRET: ${LADLE_JWT_SIGNING_SECRET:?set by deploy.sh}
+  LADLE_DATA_ENCRYPTION_KEY: ${LADLE_DATA_ENCRYPTION_KEY:?set by deploy.sh}
+  LADLE_METRICS_AUTH_TOKEN: ${LADLE_METRICS_AUTH_TOKEN:?set by deploy.sh}
+  LADLE_RATE_LIMITING_ENABLED: "true"
+  LADLE_DURABLE_METRICS_ENABLED: "true"
+  LADLE_AUDIO_TRANSCRIPTION_ENABLED: "false"
+  LADLE_FRAME_ANALYSIS_ENABLED: "false"
+  LADLE_SERVER_MEDIA_FALLBACK_ENABLED: "false"
+
+services:
+  postgres:
+    restart: unless-stopped
+    logging: *bounded-logging
+    mem_limit: 1g
+    cpus: 0.75
+
+  redis:
+    restart: unless-stopped
+    logging: *bounded-logging
+    mem_limit: 256m
+    cpus: 0.25
+
+  minio:
+    restart: unless-stopped
+    logging: *bounded-logging
+    mem_limit: 512m
+    cpus: 0.5
+
+  minio-init:
+    logging: *bounded-logging
+
+  migrate:
+    environment: *private-staging-environment
+    logging: *bounded-logging
+
+  api:
+    restart: unless-stopped
+    environment: *private-staging-environment
+    logging: *bounded-logging
+
+  worker:
+    restart: unless-stopped
+    environment: *private-staging-environment
+    logging: *bounded-logging
+
+  beat:
+    restart: unless-stopped
+    environment: *private-staging-environment
+    logging: *bounded-logging

@@ -35,6 +35,9 @@ Readiness checks PostgreSQL, Redis, and the private object-storage bucket.
 Prometheus-format bounded-label counters are available at `/metrics`. Run
 `scripts/check_secrets.sh` before publishing a deployment artifact.
 
+For the private Mac mini staging deployment, see
+[`docs/deployment/mac-mini.md`](docs/deployment/mac-mini.md).
+
 Apple and Google sign-in remain disabled in local development until their
 provider settings are supplied. Production refuses to start without both
 shipped identity providers; Apple requires its team ID, key ID, private key,
