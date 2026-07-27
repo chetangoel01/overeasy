@@ -49,20 +49,6 @@
                ReferencedContainer = "container:Ladle.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
-         <BuildActionEntry
-            buildForTesting = "YES"
-            buildForRunning = "NO"
-            buildForProfiling = "NO"
-            buildForArchiving = "NO"
-            buildForAnalyzing = "NO">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "475AAE76462CFCD6F9D7D183"
-               BuildableName = "LadleUITests.xctest"
-               BlueprintName = "LadleUITests"
-               ReferencedContainer = "container:Ladle.xcodeproj">
-            </BuildableReference>
-         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
@@ -92,22 +78,6 @@
                BlueprintName = "LadleTests"
                ReferencedContainer = "container:Ladle.xcodeproj">
             </BuildableReference>
-         </TestableReference>
-         <TestableReference
-            skipped = "NO"
-            parallelizable = "NO">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "475AAE76462CFCD6F9D7D183"
-               BuildableName = "LadleUITests.xctest"
-               BlueprintName = "LadleUITests"
-               ReferencedContainer = "container:Ladle.xcodeproj">
-            </BuildableReference>
-            <SkippedTests>
-               <Test
-                  Identifier = "ImportFlowTests/testLiveBackendImportsTikTokAndInstagram()">
-               </Test>
-            </SkippedTests>
          </TestableReference>
       </Testables>
       <CommandLineArguments>

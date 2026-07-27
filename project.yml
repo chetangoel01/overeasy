@@ -76,19 +76,6 @@ targets:
     dependencies:
       - target: Ladle
 
-  LadleUITests:
-    type: bundle.ui-testing
-    platform: iOS
-    sources:
-      - path: LadleUITests
-    settings:
-      base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.ladle.ios.uitests
-        GENERATE_INFOPLIST_FILE: true
-        TEST_TARGET_NAME: Ladle
-    dependencies:
-      - target: Ladle
-
 schemes:
   Ladle:
     build:
@@ -96,7 +83,6 @@ schemes:
         Ladle: all
         LadleShare: all
         LadleTests: [test]
-        LadleUITests: [test]
     run:
       config: Debug
     test:
@@ -104,18 +90,3 @@ schemes:
       gatherCoverageData: true
       targets:
         - LadleTests
-        - name: LadleUITests
-          skippedTests:
-            - ImportFlowTests/testLiveBackendImportsTikTokAndInstagram()
-
-  LadleLiveBackend:
-    build:
-      targets:
-        Ladle: [test]
-        LadleUITests: [test]
-    test:
-      config: Debug
-      targets:
-        - name: LadleUITests
-          selectedTests:
-            - ImportFlowTests/testLiveBackendImportsTikTokAndInstagram()

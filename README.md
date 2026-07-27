@@ -57,7 +57,6 @@ Ladle/                  SwiftUI application
 LadleShare/             iOS Share Extension
 Packages/LadleCore/     Domain models, querying, cooking, and shared queue
 LadleTests/             App and persistence tests
-LadleUITests/           End-to-end and visual verification flows
 Config/                 Plists and entitlements
 Backend/                FastAPI API, Celery worker, PostgreSQL schema
   ladle/api/            HTTP composition, routes, errors, health
@@ -130,7 +129,7 @@ Run the domain package:
 swift test --package-path Packages/LadleCore
 ```
 
-Run the app, Share Extension, and UI suites:
+Run the app and Share Extension unit tests:
 
 ```bash
 xcodebuild test \
@@ -138,38 +137,6 @@ xcodebuild test \
   -scheme Ladle \
   -destination 'platform=iOS Simulator,name=iPhone 17'
 ```
-
-The accessibility UI flows launch with
-`UICTContentSizeCategoryAccessibilityL` and verify that the library, recipe,
-cooking, and timer actions remain labeled and hittable.
-
-With the live local backend running, verify the production iPhone composition
-against one TikTok and one Instagram import:
-
-```bash
-xcodebuild test \
-  -project Ladle.xcodeproj \
-  -scheme LadleLiveBackend \
-  -destination 'platform=iOS Simulator,name=iPhone 17'
-```
-
-The normal `Ladle` scheme skips this network-dependent test. The live scheme
-uses the real persistent store, guest authentication, API client, worker
-polling, recipe sync, and recipe detail UI. It may consume configured provider
-quota when the shared extraction cache does not already contain the videos.
-
-## Test launch flags
-
-The UI suite uses these deterministic launch arguments:
-
-- `-ui-testing` uses an in-memory store and disables system permission prompts.
-- `-empty-library` keeps that in-memory store empty for first-use coverage.
-- `-onboarding-complete` opens directly to the recipe library.
-- `-reset-onboarding` presents the welcome experience.
-- `-reset-library-preferences` restores grid display and home section
-  visibility.
-- `-reset-backend-session` clears the simulator’s auth, sync cursor,
-  installation ID, and local recipes for an isolated live-backend run.
 
 ## Deterministic demo and test imports
 
