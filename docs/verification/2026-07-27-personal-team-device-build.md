@@ -67,8 +67,8 @@ confirmation in the share sheet.
 - The share-fix build installed and launched on the paired iPhone. Sharing a
   Safari URL through “Add to Overeasy” displayed the normal success path; when
   Overeasy became active, the API accepted the reconciled import with `202`,
-  repeated status requests returned `200`, and the worker received the import
-  task.
+  repeated status requests returned `200`, and the worker completed the import
+  task successfully.
 - The packaged share-fix IPA is
   `/tmp/Overeasy-1.0-20260726.2-ngrok-share-fix.ipa`; its SHA-256 is
   `ec6d63cd6fd8edbfe7f2814ee421a2046d230f39d3437bce0d64a5b3de323a47`.
