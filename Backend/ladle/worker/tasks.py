@@ -108,7 +108,11 @@ def process_import(task: Task, job_id: str) -> str:
         "ladle_worker_last_seen_timestamp_seconds",
         SystemClock().now().timestamp(),
     )
-    with log_context(job_id=job_id, retry_number=attempts):
+    with log_context(
+        job_id=job_id,
+        retry_number=attempts,
+        stage="orchestration",
+    ):
         try:
             outcome = runtime_orchestrator().process(stable_id)
         except Exception as error:

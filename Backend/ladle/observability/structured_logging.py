@@ -1,3 +1,5 @@
+import hashlib
+import hmac
 import json
 import logging
 from collections.abc import Iterator
@@ -5,6 +7,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import UTC, datetime
 from typing import Any
+from uuid import UUID
 
 from opentelemetry import trace
 
@@ -34,6 +37,11 @@ def log_context(**values: object) -> Iterator[None]:
         yield
     finally:
         _CONTEXT.reset(token)
+
+
+def pseudonymous_identifier(value: UUID, *, secret: str) -> str:
+    key = hashlib.sha256(b"ladle-log-v1\0" + secret.encode("utf-8")).digest()
+    return hmac.digest(key, value.bytes, "sha256").hex()[:16]
 
 
 class JSONRedactingFormatter(logging.Formatter):

@@ -28,6 +28,7 @@ from ladle.extraction.protocol import RecipeExtractor
 from ladle.imports.thumbnails import OEmbedThumbnailFetcher
 from ladle.imports.transitions import ImportTransitionService
 from ladle.observability.metrics import MetricsRegistry
+from ladle.observability.structured_logging import log_context
 from ladle.recipes.template_clone import RecipeTemplateCloner
 from ladle.usage.limits import UsageLimitExceeded
 
@@ -154,7 +155,11 @@ class ImportOrchestrator:
 
         if requires_recheck:
             try:
-                is_public = self._acquirer.check_public(descriptor, job_id=job_id)
+                with log_context(stage="publicRecheck"):
+                    is_public = self._acquirer.check_public(
+                        descriptor,
+                        job_id=job_id,
+                    )
             except (ProviderUnavailable, UsageLimitExceeded) as error:
                 if self._transitions is None:
                     raise
@@ -199,25 +204,26 @@ class ImportOrchestrator:
         )
         try:
             with monitor:
-                if bypass_cache and pasted_encrypted is not None:
-                    assert self._private_text is not None
-                    context = AcquiredVideoContext(
-                        source=descriptor,
-                        is_public=True,
-                        title=None,
-                        description="",
-                        transcript=[
-                            TextEvidence(
-                                text=self._private_text.decrypt(pasted_encrypted),
-                                provenance="user-pasted-text",
-                                generated=False,
-                            )
-                        ],
-                        visual_observations=[],
-                        diagnostics=["pastedTextRecovery"],
-                    )
-                else:
-                    context = self._acquirer.acquire(descriptor, job_id=job_id)
+                with log_context(stage="acquisition"):
+                    if bypass_cache and pasted_encrypted is not None:
+                        assert self._private_text is not None
+                        context = AcquiredVideoContext(
+                            source=descriptor,
+                            is_public=True,
+                            title=None,
+                            description="",
+                            transcript=[
+                                TextEvidence(
+                                    text=self._private_text.decrypt(pasted_encrypted),
+                                    provenance="user-pasted-text",
+                                    generated=False,
+                                )
+                            ],
+                            visual_observations=[],
+                            diagnostics=["pastedTextRecovery"],
+                        )
+                    else:
+                        context = self._acquirer.acquire(descriptor, job_id=job_id)
                 if not context.is_public:
                     raise PrivateOrDeleted
                 if bypass_cache and correction_encrypted is not None:
@@ -229,12 +235,14 @@ class ImportOrchestrator:
                             generated=False,
                         )
                     )
-                template = self._extractor.extract(context, job_id=job_id)
-                thumbnail_key = (
-                    self._thumbnails.fetch(descriptor)
-                    if self._thumbnails is not None and not bypass_cache
-                    else None
-                )
+                with log_context(stage="extraction"):
+                    template = self._extractor.extract(context, job_id=job_id)
+                with log_context(stage="thumbnail"):
+                    thumbnail_key = (
+                        self._thumbnails.fetch(descriptor)
+                        if self._thumbnails is not None and not bypass_cache
+                        else None
+                    )
         except (
             ExtractionUnavailable,
             PrivateOrDeleted,

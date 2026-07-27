@@ -41,17 +41,19 @@ def install_request_middleware(
             response.status_code,
             duration_seconds=duration,
         )
+        safe_user = getattr(request.state, "user_safe_id", None)
+        event: dict[str, object] = {
+            "request_id": str(identifier),
+            "method": request.method,
+            "route": str(route_path),
+            "status_code": response.status_code,
+            "duration_ms": round(duration * 1000, 3),
+            "terminal_result": ("success" if response.status_code < 500 else "failure"),
+        }
+        if isinstance(safe_user, str):
+            event["user_safe_id"] = safe_user
         LOGGER.info(
             "HTTP request completed",
-            extra={
-                "request_id": str(identifier),
-                "method": request.method,
-                "route": str(route_path),
-                "status_code": response.status_code,
-                "duration_ms": round(duration * 1000, 3),
-                "terminal_result": "success"
-                if response.status_code < 500
-                else "failure",
-            },
+            extra=event,
         )
         return response

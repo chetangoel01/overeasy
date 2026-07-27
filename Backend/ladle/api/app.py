@@ -1,5 +1,6 @@
 from collections.abc import Awaitable, Callable
 from datetime import timedelta
+from functools import partial
 
 import httpx
 from celery import Celery
@@ -73,7 +74,10 @@ from ladle.infrastructure.dns import PinnedRedirectResolver, SystemDNSResolver
 from ladle.infrastructure.object_storage import S3ObjectStorage
 from ladle.observability.metrics import MetricsRegistry, RedisMetricsBackend
 from ladle.observability.middleware import install_request_middleware
-from ladle.observability.structured_logging import configure_structured_logging
+from ladle.observability.structured_logging import (
+    configure_structured_logging,
+    pseudonymous_identifier,
+)
 from ladle.observability.tracing import instrument_application
 from ladle.recipes.repository import RecipeRepository
 from ladle.recipes.service import RecipeService
@@ -138,6 +142,10 @@ def create_app(
     application.state.clock = runtime_clock
     application.state.session_service = runtime_sessions
     application.state.access_tokens = token_codec
+    application.state.user_log_identifier = partial(
+        pseudonymous_identifier,
+        secret=configured.jwt_signing_secret.get_secret_value(),
+    )
     runtime_attestation = attestation
     if runtime_attestation is None:
         verifier = (

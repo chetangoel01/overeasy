@@ -1,4 +1,6 @@
+from collections.abc import Callable
 from typing import Annotated, Literal, cast
+from uuid import UUID
 
 from fastapi import APIRouter, Header, HTTPException, Request, Response, status
 from pydantic import Field
@@ -130,6 +132,13 @@ def _rate_limit_policies(request: Request) -> RateLimitPolicies:
     return cast(RateLimitPolicies, request.app.state.rate_limit_policies)
 
 
+def _user_log_identifier(request: Request) -> Callable[[UUID], str]:
+    return cast(
+        Callable[[UUID], str],
+        request.app.state.user_log_identifier,
+    )
+
+
 def decoded_access_claims(
     request: Request,
     authorization: str | None,
@@ -164,6 +173,7 @@ def access_claims(
             or stored.device_id != claims.device_id
         ):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+    request.state.user_safe_id = _user_log_identifier(request)(claims.user_id)
     return claims
 
 
