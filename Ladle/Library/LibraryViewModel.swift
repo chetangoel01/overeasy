@@ -25,7 +25,6 @@ final class LibraryViewModel {
 
     private enum PreferenceKey {
         static let displayMode = "ladle.library.display-mode"
-        static let inboxDismissed = "ladle.library.inbox-dismissed"
         static let savedCollapsed = "ladle.library.saved-collapsed"
         static let comeBackCollapsed = "ladle.library.comeback-collapsed"
     }
@@ -81,9 +80,6 @@ final class LibraryViewModel {
             .string(forKey: PreferenceKey.displayMode)
             .flatMap(LibraryDisplayMode.init(rawValue:))
             ?? .grid
-        isImportInboxDismissed = preferenceStore.bool(
-            forKey: PreferenceKey.inboxDismissed
-        )
         isSavedThisWeekCollapsed = preferenceStore.bool(
             forKey: PreferenceKey.savedCollapsed
         )
@@ -92,19 +88,8 @@ final class LibraryViewModel {
         )
     }
 
-    private(set) var isImportInboxDismissed = false
     private(set) var isSavedThisWeekCollapsed = false
     private(set) var isComeBackToCollapsed = false
-
-    func dismissImportInbox() {
-        isImportInboxDismissed = true
-        preferenceStore.set(true, forKey: PreferenceKey.inboxDismissed)
-    }
-
-    func revealImportInbox() {
-        isImportInboxDismissed = false
-        preferenceStore.set(false, forKey: PreferenceKey.inboxDismissed)
-    }
 
     func toggleSavedThisWeekCollapsed() {
         isSavedThisWeekCollapsed.toggle()
@@ -132,7 +117,7 @@ final class LibraryViewModel {
     ) {
         [
             PreferenceKey.displayMode,
-            PreferenceKey.inboxDismissed,
+            "ladle.library.inbox-dismissed",
             PreferenceKey.savedCollapsed,
             PreferenceKey.comeBackCollapsed,
         ].forEach {
@@ -280,6 +265,61 @@ final class LibraryViewModel {
         } catch {
             operationErrorMessage = "That recipe couldn’t be deleted."
             return false
+        }
+    }
+
+    func deleteImport(jobID: UUID) -> Bool {
+        do {
+            try repository.deleteImportJob(id: jobID)
+            importJobs.removeAll { $0.id == jobID }
+            operationErrorMessage = nil
+            return true
+        } catch {
+            operationErrorMessage = "That import couldn’t be deleted."
+            return false
+        }
+    }
+
+    func completeReview(recipeID: UUID) -> Recipe? {
+        guard var recipe = recipes.first(
+            where: { $0.id == recipeID }
+        ) else {
+            return nil
+        }
+        recipe.reviewStatus = .ready
+        recipe.updatedAt = now()
+
+        do {
+            let completedJobs = try importJobs.map { job in
+                guard job.status == .needsReview,
+                      job.reviewCandidate == nil,
+                      job.reviewRecipeID == recipeID else {
+                    return job
+                }
+                return try job.transitioning(
+                    to: .ready,
+                    at: recipe.updatedAt
+                )
+            }
+            try repository.completeReview(
+                recipe: recipe,
+                importJobs: completedJobs.filter { completed in
+                    importJobs.contains {
+                        $0.id == completed.id
+                            && $0.status != completed.status
+                    }
+                }
+            )
+            recipes[recipes.firstIndex { $0.id == recipeID }!] = recipe
+            importJobs = completedJobs
+            operationErrorMessage = nil
+            Task {
+                await didMutate()
+            }
+            return recipe
+        } catch {
+            operationErrorMessage = "That review couldn’t be completed."
+            return nil
         }
     }
 

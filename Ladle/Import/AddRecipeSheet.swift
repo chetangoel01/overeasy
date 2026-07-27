@@ -71,6 +71,7 @@ struct AddRecipeSheet: View {
             }
         }
         .onAppear {
+            coordinator.prepareForNewImport()
             if coordinator.operation == nil {
                 coordinator.reset()
             }
@@ -280,7 +281,9 @@ struct AddRecipeSheet: View {
                     : "checkmark"
             )
             .font(.system(size: 25, weight: .bold))
-            .foregroundStyle(needsReview ? LadleTheme.ink : Color.white)
+            .foregroundStyle(
+                needsReview ? LadleTheme.ink : LadleTheme.onAccent
+            )
             .frame(width: 62, height: 62)
             .background(
                 needsReview ? LadleTheme.review : LadleTheme.success,

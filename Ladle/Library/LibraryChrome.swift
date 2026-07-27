@@ -31,7 +31,7 @@ struct LibraryTopBar: View {
                 "plus",
                 label: "Add Recipe",
                 tint: LadleTheme.paprika,
-                foreground: .white,
+                foreground: LadleTheme.onAccent,
                 isEnabled: isAddEnabled,
                 action: addRecipe
             )

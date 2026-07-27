@@ -149,7 +149,7 @@ struct FullRecipeView: View {
         } label: {
             Label("Focus mode", systemImage: "rectangle.expand.vertical")
                 .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.paper)
+                .foregroundStyle(LadleTheme.onAccent)
                 .padding(.horizontal, 12)
                 .frame(minHeight: 44)
                 .background(LadleTheme.brick, in: Capsule())
@@ -310,7 +310,7 @@ struct FullRecipeView: View {
             if isCompleted {
                 Image(systemName: "checkmark")
                     .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(Color.white)
+                    .foregroundStyle(LadleTheme.onAccent)
             } else if let number {
                 Text("\(number)")
                     .ladleFont(.metadata)

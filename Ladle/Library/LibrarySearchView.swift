@@ -10,12 +10,15 @@ struct LibrarySearchView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            LibraryDestinationHeader("Search")
             searchField
             content
         }
         .background(LadleTheme.paper)
-        .toolbar(.hidden, for: .navigationBar)
+        .navigationTitle("Search")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.visible, for: .navigationBar)
+        .toolbarBackground(LadleTheme.paper, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
         .task {
             await Task.yield()
             searchIsFocused = true

@@ -137,7 +137,7 @@ struct OnboardingWalkthroughView: View {
 
                         Image(systemName: "play.fill")
                             .font(.system(size: 20, weight: .bold))
-                            .foregroundStyle(LadleTheme.paper)
+                            .foregroundStyle(LadleTheme.onAccent)
                     }
                     .frame(width: 52, height: 64)
 
@@ -312,20 +312,20 @@ struct OnboardingWalkthroughView: View {
 
             Text("Simmer the orzo")
                 .ladleFont(.title)
-                .foregroundStyle(LadleTheme.paper)
+                .foregroundStyle(LadleTheme.onAccent)
                 .fixedSize(horizontal: false, vertical: true)
 
             Text(
                 "Stir in the stock and orzo. Simmer gently until tender, stirring often."
             )
             .ladleFont(.body)
-            .foregroundStyle(LadleTheme.paper.opacity(0.84))
+            .foregroundStyle(LadleTheme.onAccent.opacity(0.84))
             .fixedSize(horizontal: false, vertical: true)
 
             HStack {
                 Label("12:00", systemImage: "timer")
                     .ladleFont(.section)
-                    .foregroundStyle(LadleTheme.paper)
+                    .foregroundStyle(LadleTheme.onAccent)
 
                 Spacer()
 
@@ -353,7 +353,7 @@ struct OnboardingWalkthroughView: View {
                         .fill(
                             index < 3
                                 ? LadleTheme.brick
-                                : LadleTheme.paper.opacity(0.18)
+                                : LadleTheme.onAccent.opacity(0.18)
                         )
                         .frame(maxWidth: .infinity)
                 }

@@ -244,13 +244,13 @@ struct RecipeTimerButton: View {
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundStyle(
                                 onDark
-                                    ? LadleTheme.paper
+                                    ? LadleTheme.onAccent
                                     : LadleTheme.paprika
                             )
                             .frame(width: 48, height: 48)
                             .background(
                                 onDark
-                                    ? LadleTheme.paper.opacity(0.12)
+                                    ? LadleTheme.onAccent.opacity(0.12)
                                     : LadleTheme.field,
                                 in: Circle()
                             )
@@ -276,7 +276,7 @@ struct RecipeTimerButton: View {
         if phase == .finished {
             LadleTheme.celery
         } else {
-            onDark ? LadleTheme.paper : LadleTheme.review
+            onDark ? LadleTheme.onAccent : LadleTheme.review
         }
     }
 

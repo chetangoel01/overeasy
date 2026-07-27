@@ -115,7 +115,7 @@ struct LibraryView: View {
                 }
             }
             .alert(
-                "Couldn’t update favorite",
+                "Couldn’t update library",
                 isPresented: operationErrorIsPresented
             ) {
                 Button("OK", action: viewModel.clearOperationError)
@@ -171,6 +171,7 @@ struct LibraryView: View {
                 viewModel.load()
             },
             toggleFavorite: viewModel.toggleFavorite,
+            completeReview: viewModel.completeReview,
             deleteRecipe: viewModel.deleteRecipe
         )
     }

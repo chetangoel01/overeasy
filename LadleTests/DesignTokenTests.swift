@@ -13,6 +13,16 @@ final class DesignTokenTests: XCTestCase {
         XCTAssertEqual(LadleTheme.mutedInkHex, "#72676D")
     }
 
+    func testDarkPaletteStaysWarmAndKeepsAccentTextSeparate() {
+        XCTAssertEqual(LadleTheme.darkPaperHex, "#1D191C")
+        XCTAssertEqual(LadleTheme.darkOatHex, "#282226")
+        XCTAssertEqual(LadleTheme.darkInkHex, "#F7F0E8")
+        XCTAssertEqual(LadleTheme.darkMutedInkHex, "#B9ADB3")
+        XCTAssertEqual(LadleTheme.darkUbeHex, "#332B31")
+        XCTAssertEqual(LadleTheme.darkCeleryHex, "#364536")
+        XCTAssertEqual(LadleTheme.onAccentHex, "#FFF9F0")
+    }
+
     func testSpacingScaleIncreasesPredictably() {
         XCTAssertEqual(LadleTheme.Spacing.compact, 8)
         XCTAssertEqual(LadleTheme.Spacing.regular, 16)

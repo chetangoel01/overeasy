@@ -41,14 +41,6 @@ final class ShareViewController: UIViewController {
                     sourceName: sourceName(for: url)
                 )
             )
-
-            try? await ContinuousClock().sleep(
-                for: .milliseconds(850)
-            )
-            extensionContext?.completeRequest(
-                returningItems: [],
-                completionHandler: nil
-            )
         } catch {
             render(
                 state: .failure(

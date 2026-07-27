@@ -232,3 +232,39 @@ Verification:
 - `git diff --check` passes.
 - The outgoing UI automation suite remains deferred for its final atlas-aware
   rewrite, as requested.
+
+### Checkpoint 7: Import continuity and dark appearance
+
+Purpose:
+
+- Keep import recovery useful without turning it into a persistent obstruction,
+  and extend the approved visual language to the system dark appearance.
+
+User-visible behavior:
+
+- Home shows Import Inbox only for actionable work, while the destination
+  supports swipe deletion and clears itself when the work is resolved.
+- Review completion clears the recipe and inbox state together, and a saved
+  re-import decision no longer blocks unrelated imports.
+- Native destination navigation restores the standard iOS edge-swipe back
+  gesture.
+- Share confirmation waits for an explicit Done action, Welcome avoids
+  unnecessary scrolling, and all shared surfaces adapt to a warm dark palette.
+
+Important decisions:
+
+- System navigation and list gestures are used instead of custom substitutes.
+- SF Rounded remains the display face and SF Pro remains the body face.
+- Dark appearance uses semantic asset variants and a fixed on-accent
+  foreground; feature views do not branch on appearance.
+- Provider thumbnails can remain remote in the Mac mini profile because its
+  object storage is intentionally disabled.
+- Recipe extraction can bridge an uncertain method from general cooking
+  knowledge only when it marks the result for review and avoids invented exact
+  facts.
+
+Verification:
+
+- See
+  `Docs/verification/2026-07-27-import-inbox-and-dark-mode.md` for regression,
+  build, visual, deployment, and physical-device evidence.

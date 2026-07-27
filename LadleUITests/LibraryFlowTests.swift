@@ -12,14 +12,14 @@ final class LibraryFlowTests: XCTestCase {
         XCTAssertTrue(
             app.staticTexts["Import inbox"].waitForExistence(timeout: 2)
         )
-        let inboxScrollView = app.scrollViews.firstMatch
-        XCTAssertTrue(inboxScrollView.waitForExistence(timeout: 2))
+        let inboxList = app.collectionViews.firstMatch
+        XCTAssertTrue(inboxList.waitForExistence(timeout: 2))
         let importGuide = app.staticTexts["How imports work"]
         for _ in 0..<5 {
             if importGuide.exists {
                 break
             }
-            inboxScrollView.swipeUp()
+            inboxList.swipeUp()
         }
         XCTAssertTrue(importGuide.waitForExistence(timeout: 2))
         XCTAssertTrue(app.staticTexts["Parsing"].exists)
@@ -44,6 +44,64 @@ final class LibraryFlowTests: XCTestCase {
             ].exists
         )
         capture("Library — recipe grid", in: app)
+    }
+
+    func testInboxSupportsSwipeDeleteAndInteractiveBackGesture() {
+        let app = launchApp()
+        app.buttons["Home"].tap()
+        element(in: app, identifier: "library.import-inbox").tap()
+
+        let failed = element(
+            in: app,
+            identifier: "import.FD53B35A-4E30-40BE-8D90-047908528103"
+        )
+        XCTAssertTrue(failed.waitForExistence(timeout: 2))
+        failed.swipeLeft()
+        app.buttons["Delete"].tap()
+        XCTAssertFalse(failed.exists)
+
+        let screen = app.windows.firstMatch
+        screen.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.01, dy: 0.5)
+        )
+        .press(
+            forDuration: 0.05,
+            thenDragTo: screen.coordinate(
+                withNormalizedOffset: CGVector(dx: 0.82, dy: 0.5)
+            )
+        )
+
+        XCTAssertTrue(
+            element(in: app, identifier: "library.home")
+                .waitForExistence(timeout: 2)
+        )
+    }
+
+    func testDarkHomeScrollsInboxAwayWithoutACloseControl() {
+        let app = launchApp(
+            additionalArguments: ["-AppleInterfaceStyle", "Dark"]
+        )
+        app.buttons["Home"].tap()
+        let inbox = element(
+            in: app,
+            identifier: "library.import-inbox"
+        )
+
+        XCTAssertTrue(inbox.waitForExistence(timeout: 2))
+        XCTAssertFalse(app.buttons["Hide import inbox"].exists)
+        capture("Library — dark Home", in: app)
+
+        app.swipeUp()
+        XCTAssertFalse(inbox.exists)
+        capture("Library — dark Home, inbox scrolled away", in: app)
+
+        app.swipeDown()
+        XCTAssertTrue(inbox.waitForExistence(timeout: 2))
+        inbox.tap()
+        XCTAssertTrue(
+            app.staticTexts["Import inbox"].waitForExistence(timeout: 2)
+        )
+        capture("Library — dark Import Inbox", in: app)
     }
 
     func testDedicatedSearchAndListModeWork() {
@@ -179,14 +237,16 @@ final class LibraryFlowTests: XCTestCase {
         capture("Library — Watch workspace", in: app)
     }
 
-    private func launchApp() -> XCUIApplication {
+    private func launchApp(
+        additionalArguments: [String] = []
+    ) -> XCUIApplication {
         continueAfterFailure = false
         let app = XCUIApplication()
         app.launchArguments = [
             "-ui-testing",
             "-onboarding-complete",
             "-reset-library-preferences",
-        ]
+        ] + additionalArguments
         app.launch()
         XCTAssertTrue(
             element(in: app, identifier: "library.root")

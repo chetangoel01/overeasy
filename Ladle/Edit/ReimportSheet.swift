@@ -206,7 +206,7 @@ struct ReimportSheet: View {
         VStack(spacing: 20) {
             Image(systemName: icon)
                 .font(.system(size: 24, weight: .bold))
-                .foregroundStyle(Color.white)
+                .foregroundStyle(LadleTheme.onAccent)
                 .frame(width: 62, height: 62)
                 .background(LadleTheme.paprika, in: Circle())
             Text(title)

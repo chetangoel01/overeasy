@@ -17,6 +17,10 @@ protocol RecipeRepository {
         with recipe: Recipe,
         completing importJob: ImportJob
     ) throws
+    func completeReview(
+        recipe: Recipe,
+        importJobs: [ImportJob]
+    ) throws
 
     func seedIfNeeded(
         recipes: [Recipe],
@@ -50,5 +54,15 @@ extension RecipeRepository {
         try save(recipe)
         try save(importJob)
         try deleteRecipe(id: id)
+    }
+
+    func completeReview(
+        recipe: Recipe,
+        importJobs: [ImportJob]
+    ) throws {
+        try save(recipe)
+        for job in importJobs {
+            try save(job)
+        }
     }
 }

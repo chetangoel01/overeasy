@@ -11,6 +11,7 @@ struct WelcomeView: View {
     let onAuthenticated: @MainActor () async -> Void
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.colorScheme) private var colorScheme
 
     @State private var rawNonce: String?
     @State private var isAuthenticating = false
@@ -25,30 +26,52 @@ struct WelcomeView: View {
                 let verticalPadding: CGFloat =
                     dynamicTypeSize.isAccessibilitySize ? 16 : 24
 
-                ScrollView {
-                    VStack(
-                        spacing: dynamicTypeSize.isAccessibilitySize
-                            ? LadleTheme.Spacing.generous
-                            : LadleTheme.Spacing.cooking
-                    ) {
-                        welcomeIntroduction
-                        accountActions
+                if Self.usesScrollingLayout(for: dynamicTypeSize) {
+                    ScrollView {
+                        welcomeContent(
+                            minimumHeight: proxy.size.height
+                                - (verticalPadding * 2),
+                            verticalPadding: verticalPadding
+                        )
                     }
-                    .frame(
-                        minHeight: max(
-                            proxy.size.height - (verticalPadding * 2),
-                            0
-                        ),
-                        alignment: .center
+                    .scrollIndicators(.hidden)
+                } else {
+                    welcomeContent(
+                        minimumHeight: proxy.size.height
+                            - (verticalPadding * 2),
+                        verticalPadding: verticalPadding
                     )
-                    .padding(.horizontal, LadleTheme.Spacing.generous)
-                    .padding(.vertical, verticalPadding)
                 }
-                .scrollIndicators(.hidden)
             }
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("welcome.full-screen")
+    }
+
+    private func welcomeContent(
+        minimumHeight: CGFloat,
+        verticalPadding: CGFloat
+    ) -> some View {
+        VStack(
+            spacing: dynamicTypeSize.isAccessibilitySize
+                ? LadleTheme.Spacing.generous
+                : LadleTheme.Spacing.cooking
+        ) {
+            welcomeIntroduction
+            accountActions
+        }
+        .frame(
+            minHeight: max(minimumHeight, 0),
+            alignment: .center
+        )
+        .padding(.horizontal, LadleTheme.Spacing.generous)
+        .padding(.vertical, verticalPadding)
+    }
+
+    static func usesScrollingLayout(
+        for dynamicTypeSize: DynamicTypeSize
+    ) -> Bool {
+        dynamicTypeSize.isAccessibilitySize
     }
 
     private var welcomeIntroduction: some View {
@@ -129,7 +152,9 @@ struct WelcomeView: View {
             } onCompletion: { result in
                 handleAppleCompletion(result)
             }
-            .signInWithAppleButtonStyle(.black)
+            .signInWithAppleButtonStyle(
+                colorScheme == .dark ? .white : .black
+            )
             .frame(height: 52)
             .clipShape(
                 RoundedRectangle(
@@ -401,11 +426,7 @@ private struct GoogleSignInButtonStyle: ButtonStyle {
         configuration.label
             .frame(maxWidth: .infinity, minHeight: 52)
             .background(
-                Color(
-                    red: 242 / 255,
-                    green: 242 / 255,
-                    blue: 242 / 255
-                ),
+                LadleTheme.field,
                 in: RoundedRectangle(
                     cornerRadius: LadleTheme.Corner.control,
                     style: .continuous

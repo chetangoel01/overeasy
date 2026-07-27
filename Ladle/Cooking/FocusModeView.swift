@@ -49,10 +49,10 @@ struct FocusModeView: View {
                 } label: {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(LadleTheme.paper)
+                        .foregroundStyle(LadleTheme.onAccent)
                         .frame(width: 44, height: 44)
                         .background(
-                            LadleTheme.paper.opacity(0.1),
+                            LadleTheme.onAccent.opacity(0.1),
                             in: Circle()
                         )
                 }
@@ -62,7 +62,7 @@ struct FocusModeView: View {
 
                 Text(viewModel.progressText)
                     .ladleFont(.metadata)
-                    .foregroundStyle(LadleTheme.paper.opacity(0.82))
+                    .foregroundStyle(LadleTheme.onAccent.opacity(0.82))
             }
 
             ProgressView(value: viewModel.progress)
@@ -97,7 +97,7 @@ struct FocusModeView: View {
                         relativeTo: .largeTitle,
                         weight: .semibold
                     )
-                    .foregroundStyle(LadleTheme.paper)
+                    .foregroundStyle(LadleTheme.onAccent)
                     .minimumScaleFactor(
                         dynamicTypeSize.isAccessibilitySize ? 1 : 0.72
                     )
@@ -118,11 +118,11 @@ struct FocusModeView: View {
                     )
                 }
                 .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.paper)
+                .foregroundStyle(LadleTheme.onAccent)
                 .padding(.horizontal, 12)
                 .frame(minHeight: 44)
                 .background(
-                    LadleTheme.paper.opacity(0.1),
+                    LadleTheme.onAccent.opacity(0.1),
                     in: Capsule()
                 )
                 .buttonStyle(.plain)
@@ -140,7 +140,7 @@ struct FocusModeView: View {
                     .joined(separator: " · ")
             )
             .ladleFont(.body)
-            .foregroundStyle(LadleTheme.paper.opacity(0.8))
+            .foregroundStyle(LadleTheme.onAccent.opacity(0.8))
             .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -166,10 +166,10 @@ struct FocusModeView: View {
             } label: {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 17, weight: .bold))
-                    .foregroundStyle(LadleTheme.paper)
+                    .foregroundStyle(LadleTheme.onAccent)
                     .frame(width: 52, height: 52)
                     .background(
-                        LadleTheme.paper.opacity(0.1),
+                        LadleTheme.onAccent.opacity(0.1),
                         in: Circle()
                     )
             }
@@ -184,7 +184,7 @@ struct FocusModeView: View {
                     .foregroundStyle(LadleTheme.ink)
                     .frame(maxWidth: .infinity, minHeight: 52)
                     .background(
-                        LadleTheme.paper,
+                        LadleTheme.onAccent,
                         in: RoundedRectangle(
                             cornerRadius: LadleTheme.Corner.control,
                             style: .continuous

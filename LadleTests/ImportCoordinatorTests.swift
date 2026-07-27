@@ -187,6 +187,39 @@ final class ImportCoordinatorTests: XCTestCase {
         XCTAssertEqual(repository.importJobs.first?.status, .needsReview)
     }
 
+    func testPersistedReimportReviewDoesNotBlockAnotherImport() async throws {
+        let current = importRecipe(
+            title: "Current Recipe",
+            originalURL: URL(
+                string: "https://www.instagram.com/reel/current-recipe"
+            )!
+        )
+        let repository = ImportTestRepository(recipes: [current])
+        let coordinator = ImportCoordinator(
+            repository: repository,
+            service: ContextualNeedsReviewImportService(),
+            accountSession: AccountSession(
+                store: ImportTestPreferenceStore()
+            ),
+            clock: ImmediateImportClock()
+        )
+
+        await coordinator.reimport(recipe: current)
+        XCTAssertTrue(coordinator.operation?.isReimport == true)
+        XCTAssertEqual(repository.importJobs.count, 1)
+
+        coordinator.prepareForNewImport()
+        await coordinator.submit(
+            urlText: "https://www.tiktok.com/@ladle/video/another-recipe"
+        )
+
+        XCTAssertEqual(repository.importJobs.count, 2)
+        XCTAssertEqual(
+            repository.importJobs.filter { $0.status == .needsReview }.count,
+            2
+        )
+    }
+
     func testManualRecipeCanContinueThroughTenthGuestPrompt() async {
         let repository = ImportTestRepository(
             recipes: (0..<9).map {
@@ -499,6 +532,41 @@ private actor FixedImportService: ImportService {
         pastedRecipeText: String?
     ) async throws -> ImportServiceUpdate {
         ImportServiceUpdate(remoteJobID: remoteJobID, progress: outcome)
+    }
+}
+
+private actor ContextualNeedsReviewImportService: ImportService {
+    func submit(
+        _ job: ImportJob,
+        allowingDuplicate: Bool
+    ) async throws -> ImportServiceUpdate {
+        let recipe = importRecipe(
+            id: job.candidateRecipeID ?? job.id,
+            title: "Recipe to Review",
+            originalURL: job.sourceURL
+        )
+        return ImportServiceUpdate(
+            remoteJobID: job.id.uuidString,
+            progress: .needsReview(recipe)
+        )
+    }
+
+    func status(remoteJobID: String) async throws -> ImportServiceUpdate {
+        ImportServiceUpdate(
+            remoteJobID: remoteJobID,
+            progress: .failed(.networkUnavailable)
+        )
+    }
+
+    func retry(
+        remoteJobID: String,
+        correctionNotes: String?,
+        pastedRecipeText: String?
+    ) async throws -> ImportServiceUpdate {
+        ImportServiceUpdate(
+            remoteJobID: remoteJobID,
+            progress: .failed(.networkUnavailable)
+        )
     }
 }
 

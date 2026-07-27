@@ -72,7 +72,7 @@ struct RecipeEditorView: View {
                             .ladleFont(.metadata)
                             .foregroundStyle(
                                 selectedSection == section
-                                    ? Color.white
+                                    ? LadleTheme.onAccent
                                     : LadleTheme.ink
                             )
                             .padding(.horizontal, 13)

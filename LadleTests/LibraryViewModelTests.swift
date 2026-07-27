@@ -171,6 +171,58 @@ final class LibraryViewModelTests: XCTestCase {
         )
     }
 
+    func testDeletingImportRemovesOnlyThatInboxItem() throws {
+        let repository = LibraryTestRepository(
+            recipes: PreviewFixtures.recipes,
+            importJobs: PreviewFixtures.importJobs
+        )
+        let viewModel = LibraryViewModel(
+            repository: repository,
+            preferenceStore: LibraryTestPreferenceStore()
+        )
+        viewModel.load()
+        let job = try XCTUnwrap(viewModel.actionableImportJobs.first)
+
+        XCTAssertTrue(viewModel.deleteImport(jobID: job.id))
+
+        XCTAssertFalse(repository.importJobs.contains { $0.id == job.id })
+        XCTAssertFalse(
+            viewModel.actionableImportJobs.contains { $0.id == job.id }
+        )
+        XCTAssertEqual(repository.recipes, PreviewFixtures.recipes)
+    }
+
+    func testCompletingReviewClearsRecipeAndInboxReviewStatus() throws {
+        var recipe = PreviewFixtures.recipes[1]
+        recipe.reviewStatus = .needsReview
+        let reviewJob = try ImportJob.queued(
+            sourceURL: recipe.originalURL,
+            source: recipe.source
+        )
+        .awaitingReview(recipeID: recipe.id)
+        let repository = LibraryTestRepository(
+            recipes: [recipe],
+            importJobs: [reviewJob]
+        )
+        let completedAt = Date(timeIntervalSince1970: 900)
+        let viewModel = LibraryViewModel(
+            repository: repository,
+            preferenceStore: LibraryTestPreferenceStore(),
+            now: { completedAt }
+        )
+        viewModel.load()
+
+        let reviewed = try XCTUnwrap(
+            viewModel.completeReview(recipeID: recipe.id)
+        )
+
+        XCTAssertEqual(reviewed.reviewStatus, .ready)
+        XCTAssertEqual(reviewed.updatedAt, completedAt)
+        XCTAssertEqual(repository.recipes.first?.reviewStatus, .ready)
+        XCTAssertEqual(repository.importJobs.first?.status, .ready)
+        XCTAssertTrue(viewModel.actionableImportJobs.isEmpty)
+    }
+
     func testReimportReviewFallsBackToCurrentRecipeInInbox() throws {
         let current = PreviewFixtures.recipes[1]
         let candidateID = UUID()
@@ -293,7 +345,6 @@ final class LibraryViewModelTests: XCTestCase {
         )
 
         XCTAssertEqual(viewModel.displayMode, .grid)
-        XCTAssertFalse(viewModel.isImportInboxDismissed)
         XCTAssertFalse(viewModel.isSavedThisWeekCollapsed)
         XCTAssertFalse(viewModel.isComeBackToCollapsed)
     }
@@ -438,6 +489,10 @@ private final class LibraryTestRepository: RecipeRepository {
         } else {
             importJobs.append(importJob)
         }
+    }
+
+    func deleteImportJob(id: UUID) throws {
+        importJobs.removeAll { $0.id == id }
     }
 
     func seedIfNeeded(

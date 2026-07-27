@@ -125,6 +125,36 @@ final class SwiftDataRecipeRepositoryTests: XCTestCase {
         XCTAssertEqual(try repository.fetchImportJobs().first?.status, .ready)
     }
 
+    func testCompletingReviewUpdatesRecipeAndImportAtomically() throws {
+        let fixture = try makeFixture()
+        let repository = fixture.repository
+        var recipe = makeRecipe()
+        recipe.reviewStatus = .needsReview
+        var job = try ImportJob.queued(
+            sourceURL: recipe.originalURL,
+            source: recipe.source
+        )
+        .awaitingReview(recipeID: recipe.id)
+        try repository.save(recipe)
+        try repository.save(job)
+
+        recipe.reviewStatus = .ready
+        job = try job.transitioning(to: .ready)
+        try repository.completeReview(
+            recipe: recipe,
+            importJobs: [job]
+        )
+
+        XCTAssertEqual(
+            try repository.fetchRecipe(id: recipe.id)?.reviewStatus,
+            .ready
+        )
+        XCTAssertEqual(
+            try repository.fetchImportJobs().first?.status,
+            .ready
+        )
+    }
+
     func testPreviewSeedingIsIdempotent() throws {
         let fixture = try makeFixture()
         let repository = fixture.repository

@@ -8,7 +8,7 @@ struct PendingImportCard: View {
 
     var body: some View {
         Group {
-            if dynamicTypeSize.isAccessibilitySize {
+            if usesStackedLayout {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(alignment: .top, spacing: 12) {
                         statusIcon
@@ -45,9 +45,9 @@ struct PendingImportCard: View {
             Text("From \(job.source.libraryTitle) · \(detailText)")
                 .ladleFont(.metadata)
                 .foregroundStyle(LadleTheme.ink.opacity(0.56))
-                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+                .lineLimit(usesStackedLayout ? 2 : 1)
                 .minimumScaleFactor(
-                    dynamicTypeSize.isAccessibilitySize ? 1 : 0.82
+                    usesStackedLayout ? 1 : 0.82
                 )
         }
         .layoutPriority(1)
@@ -88,6 +88,18 @@ struct PendingImportCard: View {
         }
     }
 
+    private var usesStackedLayout: Bool {
+        if dynamicTypeSize.isAccessibilitySize {
+            return true
+        }
+        switch job.status {
+        case .needsReview, .failed:
+            return true
+        case .parsing, .ready:
+            return false
+        }
+    }
+
     private var title: String {
         let component = job.sourceURL.lastPathComponent
             .removingPercentEncoding
@@ -122,8 +134,8 @@ struct PendingImportCard: View {
             job.candidateRecipeID == nil
                 ? "Check a few details"
                 : "Open the current recipe"
-        case .failed:
-            "Tap to recover"
+        case let .failed(reason):
+            reason.importInboxMessage
         case .ready:
             "Recipe ready"
         }
@@ -161,6 +173,25 @@ struct PendingImportCard: View {
             LadleTheme.success
         case .parsing, .needsReview:
             LadleTheme.ink
+        }
+    }
+}
+
+extension ImportFailure {
+    var importInboxMessage: String {
+        switch self {
+        case .privateOrDeleted:
+            "Post is private or unavailable. Add details manually."
+        case .unsupportedSource:
+            "This source isn’t supported yet."
+        case .invalidURL:
+            "The saved link is incomplete."
+        case .networkUnavailable:
+            "Connection interrupted. Open to retry."
+        case .parserUnavailable:
+            "Couldn’t read the video. Open for recovery options."
+        case .quotaExceeded:
+            "Processing limit reached. Try again later."
         }
     }
 }

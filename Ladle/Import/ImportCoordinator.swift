@@ -433,6 +433,16 @@ final class ImportCoordinator {
         }
     }
 
+    func prepareForNewImport() {
+        guard operation?.isReimport == true,
+              state.isReplacementDecision else {
+            return
+        }
+        operation = nil
+        completedRecipe = nil
+        state = .idle
+    }
+
     @discardableResult
     func acceptReplacementCandidate() async -> Recipe? {
         guard !isResolvingReplacement,

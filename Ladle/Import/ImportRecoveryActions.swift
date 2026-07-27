@@ -10,7 +10,7 @@ struct ImportRecoveryActions: View {
             Button(action: retry) {
                 if isRetrying {
                     ProgressView()
-                        .tint(.white)
+                        .tint(LadleTheme.onAccent)
                         .frame(maxWidth: .infinity)
                 } else {
                     Text("Retry import")

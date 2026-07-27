@@ -2,7 +2,6 @@ import LadleCore
 import SwiftUI
 
 struct WatchView: View {
-    @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @Bindable var viewModel: LibraryViewModel
@@ -11,75 +10,53 @@ struct WatchView: View {
     @State private var cookingViewModel: CookingViewModel?
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            GeometryReader { proxy in
-                if viewModel.watchRecipes.isEmpty {
-                    emptyState
-                } else {
-                    ScrollView {
-                        LazyVStack(spacing: 16) {
-                            ForEach(viewModel.watchRecipes) { recipe in
-                                WatchRecipeCard(
-                                    recipe: recipe,
-                                    openRecipe: { openRecipe(recipe) },
-                                    startCooking: {
-                                        cookingViewModel = CookingViewModel(
-                                            recipe: recipe
-                                        )
-                                    },
-                                    toggleFavorite: {
-                                        viewModel.toggleFavorite(
-                                            recipeID: recipe.id
-                                        )
-                                    }
-                                )
-                                .frame(
-                                    height: dynamicTypeSize.isAccessibilitySize
-                                        ? max(proxy.size.height * 1.5, 900)
-                                        : max(proxy.size.height - 52, 520)
-                                )
-                            }
+        GeometryReader { proxy in
+            if viewModel.watchRecipes.isEmpty {
+                emptyState
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 16) {
+                        ForEach(viewModel.watchRecipes) { recipe in
+                            WatchRecipeCard(
+                                recipe: recipe,
+                                openRecipe: { openRecipe(recipe) },
+                                startCooking: {
+                                    cookingViewModel = CookingViewModel(
+                                        recipe: recipe
+                                    )
+                                },
+                                toggleFavorite: {
+                                    viewModel.toggleFavorite(
+                                        recipeID: recipe.id
+                                    )
+                                }
+                            )
+                            .frame(
+                                height: dynamicTypeSize.isAccessibilitySize
+                                    ? max(proxy.size.height * 1.5, 900)
+                                    : max(proxy.size.height - 12, 520)
+                            )
                         }
-                        .scrollTargetLayout()
-                        .padding(.horizontal, LadleTheme.Spacing.regular)
-                        .padding(.bottom, 36)
                     }
-                    .scrollIndicators(.hidden)
-                    .scrollTargetBehavior(.viewAligned(limitBehavior: .always))
+                    .scrollTargetLayout()
+                    .padding(.horizontal, LadleTheme.Spacing.regular)
+                    .padding(.bottom, 36)
                 }
+                .scrollIndicators(.hidden)
+                .scrollTargetBehavior(.viewAligned(limitBehavior: .always))
             }
         }
         .background(LadleTheme.plum)
-        .toolbar(.hidden, for: .navigationBar)
+        .navigationTitle("Watch")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.visible, for: .navigationBar)
+        .toolbarBackground(LadleTheme.plum, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
+        .toolbarColorScheme(.dark, for: .navigationBar)
         .fullScreenCover(item: $cookingViewModel) {
             FullRecipeView(viewModel: $0)
         }
         .accessibilityIdentifier("library.watch.root")
-    }
-
-    private var header: some View {
-        HStack(spacing: 12) {
-            Button(action: dismiss.callAsFunction) {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 16, weight: .bold))
-                    .frame(width: 44, height: 44)
-                    .background(LadleTheme.paper.opacity(0.12), in: Circle())
-            }
-            .foregroundStyle(LadleTheme.paper)
-            .accessibilityLabel("Back")
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Watch")
-                    .ladleFont(.section)
-                    .foregroundStyle(LadleTheme.paper)
-                Text("Saved videos")
-                    .ladleFont(.metadata)
-                    .foregroundStyle(LadleTheme.paper.opacity(0.62))
-            }
-            Spacer()
-        }
-        .padding(.horizontal, LadleTheme.Spacing.regular)
-        .padding(.vertical, 10)
     }
 
     private var emptyState: some View {
@@ -90,7 +67,7 @@ struct WatchView: View {
                 "Recipes imported from TikTok, Instagram, and YouTube appear here."
             )
         )
-        .foregroundStyle(LadleTheme.paper)
+        .foregroundStyle(LadleTheme.onAccent)
     }
 }
 
@@ -171,7 +148,7 @@ private struct WatchRecipeCard: View {
                     .font(.system(size: 20, weight: .bold))
                     .foregroundStyle(LadleTheme.plum)
                     .frame(width: 58, height: 58)
-                    .background(LadleTheme.paper.opacity(0.94), in: Circle())
+                    .background(LadleTheme.onAccent.opacity(0.94), in: Circle())
             }
             .accessibilityLabel("Play video")
             .sheet(isPresented: $isVideoPresented) {
@@ -197,7 +174,7 @@ private struct WatchRecipeCard: View {
                         .ladleFont(.metadata)
                         .foregroundStyle(
                             panel == candidate
-                                ? LadleTheme.paper
+                                ? LadleTheme.onAccent
                                 : LadleTheme.ink
                         )
                         .frame(maxWidth: .infinity, minHeight: 44)

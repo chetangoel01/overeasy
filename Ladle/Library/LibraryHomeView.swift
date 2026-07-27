@@ -12,6 +12,7 @@ struct LibraryHomeView: View {
     let openWatch: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isImportInboxHidden = false
 
     var body: some View {
         ScrollView {
@@ -22,7 +23,8 @@ struct LibraryHomeView: View {
                     alignment: .leading,
                     spacing: LadleTheme.Spacing.generous
                 ) {
-                    if !viewModel.isImportInboxDismissed {
+                    if !viewModel.actionableImportJobs.isEmpty,
+                       !isImportInboxHidden {
                         importInbox
                             .transition(
                                 reduceMotion
@@ -40,17 +42,33 @@ struct LibraryHomeView: View {
             }
         }
         .scrollIndicators(.hidden)
-        .onScrollGeometryChange(for: CGFloat.self) { geometry in
-            geometry.contentOffset.y + geometry.contentInsets.top
-        } action: { _, offset in
-            guard viewModel.isImportInboxDismissed, offset < -70 else {
-                return
-            }
-            withAnimation(reduceMotion ? nil : .default) {
-                viewModel.revealImportInbox()
+        .simultaneousGesture(inboxVisibilityGesture)
+        .onChange(of: viewModel.actionableImportJobs.map(\.id)) {
+            oldIDs,
+            newIDs in
+            if newIDs.isEmpty || !Set(newIDs).isSubset(of: Set(oldIDs)) {
+                isImportInboxHidden = false
             }
         }
         .accessibilityIdentifier("library.home")
+    }
+
+    private var inboxVisibilityGesture: some Gesture {
+        DragGesture(minimumDistance: 18)
+            .onEnded { value in
+                guard !viewModel.actionableImportJobs.isEmpty else {
+                    return
+                }
+                if value.translation.height < -40 {
+                    withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) {
+                        isImportInboxHidden = true
+                    }
+                } else if value.translation.height > 40 {
+                    withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) {
+                        isImportInboxHidden = false
+                    }
+                }
+            }
     }
 
     private var firstRecipeState: some View {
@@ -107,53 +125,41 @@ struct LibraryHomeView: View {
     }
 
     private var importInbox: some View {
-        ZStack(alignment: .topTrailing) {
-            Button(action: openImportInbox) {
-                HStack(spacing: 14) {
-                    Image(systemName: "tray.full.fill")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(LadleTheme.paprika)
-                        .frame(width: 44, height: 44)
-                        .background(LadleTheme.review, in: Circle())
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("Import inbox")
-                            .ladleFont(.bodyStrong)
-                            .foregroundStyle(LadleTheme.ink)
-                        Text(importInboxDetail)
-                            .ladleFont(.metadata)
-                            .foregroundStyle(LadleTheme.mutedInk)
-                    }
-                    Spacer()
-                    Image(systemName: "chevron.right")
+        Button(action: openImportInbox) {
+            HStack(spacing: 14) {
+                Image(systemName: "tray.full.fill")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(LadleTheme.paprika)
+                    .frame(width: 44, height: 44)
+                    .background(LadleTheme.review, in: Circle())
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Import inbox")
+                        .ladleFont(.bodyStrong)
+                        .foregroundStyle(LadleTheme.ink)
+                    Text(importInboxDetail)
+                        .ladleFont(.metadata)
                         .foregroundStyle(LadleTheme.mutedInk)
                 }
-                .padding(14)
-                .ladleCard()
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("library.import-inbox")
-
-            Button {
-                withAnimation(reduceMotion ? nil : .default) {
-                    viewModel.dismissImportInbox()
-                }
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 11, weight: .bold))
+                Spacer()
+                Image(systemName: "chevron.right")
                     .foregroundStyle(LadleTheme.mutedInk)
-                    .frame(width: 44, height: 44)
-                    .contentShape(Circle())
             }
-            .accessibilityLabel("Hide import inbox")
-            .accessibilityHint("Pull down on the library to bring it back")
+            .padding(14)
+            .ladleCard()
         }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("library.import-inbox")
     }
 
     private var importInboxDetail: String {
         let count = viewModel.importAttentionCount
-        return count == 0
-            ? "Imports and recovery"
-            : "\(count) need\(count == 1 ? "s" : "") attention"
+        if count > 0 {
+            return "\(count) need\(count == 1 ? "s" : "") attention"
+        }
+        let active = viewModel.actionableImportJobs.count
+        return active == 1
+            ? "1 import in progress"
+            : "\(active) imports in progress"
     }
 
     private var watch: some View {
@@ -163,16 +169,16 @@ struct LibraryHomeView: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Watch")
                             .ladleFont(.section)
-                            .foregroundStyle(LadleTheme.paper)
+                            .foregroundStyle(LadleTheme.onAccent)
                         Text("Return to saved recipe videos")
                             .ladleFont(.metadata)
-                            .foregroundStyle(LadleTheme.paper.opacity(0.68))
+                            .foregroundStyle(LadleTheme.onAccent.opacity(0.68))
                     }
                     Spacer()
                     Image(systemName: "play.fill")
                         .foregroundStyle(LadleTheme.plum)
                         .frame(width: 44, height: 44)
-                        .background(LadleTheme.paper, in: Circle())
+                        .background(LadleTheme.onAccent, in: Circle())
                 }
                 HStack(spacing: 8) {
                     ForEach(
@@ -211,11 +217,11 @@ struct LibraryHomeView: View {
             .accessibilityHidden(true)
         } else {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(LadleTheme.paper.opacity(0.12))
+                .fill(LadleTheme.onAccent.opacity(0.12))
                 .frame(height: 78)
                 .overlay {
                     Image(systemName: "play.rectangle")
-                        .foregroundStyle(LadleTheme.paper)
+                        .foregroundStyle(LadleTheme.onAccent)
                 }
                 .accessibilityHidden(true)
         }

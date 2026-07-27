@@ -229,7 +229,9 @@ private struct FilterChoiceButton: View {
         Button(action: action) {
             Text(title)
                 .ladleFont(.metadata)
-                .foregroundStyle(isSelected ? Color.white : LadleTheme.ink)
+                .foregroundStyle(
+                    isSelected ? LadleTheme.onAccent : LadleTheme.ink
+                )
                 .frame(maxWidth: .infinity, minHeight: 44)
                 .background(
                     isSelected ? LadleTheme.plum : LadleTheme.field,

@@ -162,6 +162,42 @@ final class SwiftDataRecipeRepository:
         }
     }
 
+    func completeReview(
+        recipe: Recipe,
+        importJobs: [ImportJob]
+    ) throws {
+        do {
+            let recipePayload = try encoder.encode(recipe)
+            if let stored = try storedRecipe(id: recipe.id) {
+                apply(recipe, payload: recipePayload, to: stored)
+                stored.isDeleted = false
+                stored.pendingMutationKey = PendingMutation.upsert.rawValue
+            } else {
+                modelContext.insert(
+                    makeStoredRecipe(
+                        recipe,
+                        payload: recipePayload,
+                        pendingMutation: .upsert
+                    )
+                )
+            }
+            for job in importJobs {
+                let payload = try encoder.encode(job)
+                if let stored = try storedImportJob(id: job.id) {
+                    apply(job, payload: payload, to: stored)
+                } else {
+                    modelContext.insert(
+                        makeStoredImportJob(job, payload: payload)
+                    )
+                }
+            }
+            try modelContext.save()
+        } catch {
+            modelContext.rollback()
+            throw error
+        }
+    }
+
     func seedIfNeeded(
         recipes: [Recipe],
         importJobs: [ImportJob]

@@ -1,4 +1,6 @@
 import XCTest
+import LadleCore
+import SwiftUI
 @testable import Ladle
 
 @MainActor
@@ -142,6 +144,30 @@ final class ProjectSmokeTests: XCTestCase {
                 service: DemoImportService(),
                 accountSession: accountSession
             )
+        )
+    }
+
+    func testWelcomeOnlyScrollsForAccessibilityTextSizes() {
+        XCTAssertFalse(
+            WelcomeView.usesScrollingLayout(for: .large)
+        )
+        XCTAssertTrue(
+            WelcomeView.usesScrollingLayout(for: .accessibility1)
+        )
+    }
+
+    func testImportFailuresExplainTheRecoveryPathInTheInbox() {
+        XCTAssertEqual(
+            ImportFailure.parserUnavailable.importInboxMessage,
+            "Couldn’t read the video. Open for recovery options."
+        )
+        XCTAssertEqual(
+            ImportFailure.networkUnavailable.importInboxMessage,
+            "Connection interrupted. Open to retry."
+        )
+        XCTAssertEqual(
+            ImportFailure.quotaExceeded.importInboxMessage,
+            "Processing limit reached. Try again later."
         )
     }
 }

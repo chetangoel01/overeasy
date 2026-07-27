@@ -8,10 +8,36 @@ final class ShareConfirmationViewTests: XCTestCase {
         XCTAssertEqual(ShareConfirmationView.brandName, "Overeasy")
     }
 
+    func testOnlyCompletedStatesOfferExplicitDoneAction() {
+        XCTAssertNil(
+            ShareConfirmationView.dismissalTitle(for: .loading)
+        )
+        XCTAssertEqual(
+            ShareConfirmationView.dismissalTitle(
+                for: .success(sourceName: "instagram.com")
+            ),
+            "Done"
+        )
+        XCTAssertEqual(
+            ShareConfirmationView.dismissalTitle(
+                for: .failure(message: "Try again.")
+            ),
+            "Done"
+        )
+    }
+
     func testSuccessConfirmationRendersAtShareSheetSize() throws {
         try assertRenders(
             state: .success(sourceName: "instagram.com"),
             attachmentName: "Share confirmation — success"
+        )
+    }
+
+    func testSuccessConfirmationRendersInDarkMode() throws {
+        try assertRenders(
+            state: .success(sourceName: "youtube.com"),
+            colorScheme: .dark,
+            attachmentName: "Share confirmation — success, dark"
         )
     }
 
@@ -34,10 +60,12 @@ final class ShareConfirmationViewTests: XCTestCase {
     private func assertRenders(
         state: ShareConfirmationState,
         dynamicTypeSize: DynamicTypeSize = .large,
+        colorScheme: ColorScheme = .light,
         attachmentName: String
     ) throws {
         let content = ShareConfirmationView(state: state, close: {})
             .environment(\.dynamicTypeSize, dynamicTypeSize)
+            .environment(\.colorScheme, colorScheme)
             .frame(width: 402, height: 620)
         let size = CGSize(width: 402, height: 620)
         let host = UIHostingController(rootView: content)

@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 enum ShareConfirmationState: Equatable {
     case loading
@@ -9,8 +10,6 @@ enum ShareConfirmationState: Equatable {
 struct ShareConfirmationView: View {
     static let brandName = "Overeasy"
 
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
     let state: ShareConfirmationState
     let close: () -> Void
 
@@ -20,9 +19,14 @@ struct ShareConfirmationView: View {
 
             ScrollView {
                 VStack(spacing: 30) {
-                    header
+                    brand
                     confirmation
                     footer
+                    if let title = Self.dismissalTitle(for: state) {
+                        Button(title, action: close)
+                            .buttonStyle(SharePrimaryButtonStyle())
+                            .accessibilityIdentifier("share.done")
+                    }
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, 28)
@@ -33,47 +37,22 @@ struct ShareConfirmationView: View {
         .accessibilityIdentifier("share.confirmation")
     }
 
-    private var header: some View {
-        Group {
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        Spacer()
-                        closeButton
-                    }
-                    brand
-                }
-            } else {
-                HStack {
-                    brand
-                    Spacer()
-                    closeButton
-                }
-            }
-        }
-    }
-
     private var brand: some View {
         Label {
             Text(Self.brandName)
-                .font(.headline.weight(.bold))
+                .font(
+                    .system(
+                        .headline,
+                        design: .rounded,
+                        weight: .bold
+                    )
+                )
         } icon: {
             Image(systemName: "frying.pan.fill")
                 .foregroundStyle(ShareTheme.brick)
         }
         .foregroundStyle(ShareTheme.ink)
-    }
-
-    private var closeButton: some View {
-        Button(action: close) {
-            Image(systemName: "xmark")
-                .font(.body.weight(.semibold))
-                .foregroundStyle(ShareTheme.ink.opacity(0.68))
-                .frame(width: 44, height: 44)
-                .background(ShareTheme.field, in: Circle())
-        }
-        .accessibilityLabel("Close")
-        .accessibilityIdentifier("share.close")
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var confirmation: some View {
@@ -82,7 +61,13 @@ struct ShareConfirmationView: View {
 
             VStack(spacing: 10) {
                 Text(title)
-                    .font(.title.weight(.bold))
+                    .font(
+                        .system(
+                            .title,
+                            design: .rounded,
+                            weight: .bold
+                        )
+                    )
                     .multilineTextAlignment(.center)
                     .foregroundStyle(ShareTheme.ink)
                     .fixedSize(horizontal: false, vertical: true)
@@ -121,7 +106,7 @@ struct ShareConfirmationView: View {
         case .success:
             Image(systemName: "checkmark")
                 .font(.system(size: 34, weight: .bold))
-                .foregroundStyle(Color.white)
+                .foregroundStyle(ShareTheme.onAccent)
                 .frame(width: 86, height: 86)
                 .background(ShareTheme.brick, in: Circle())
                 .accessibilityLabel("Recipe link saved")
@@ -182,32 +167,78 @@ struct ShareConfirmationView: View {
             "Close this sheet and share the link again."
         }
     }
+
+    static func dismissalTitle(
+        for state: ShareConfirmationState
+    ) -> String? {
+        switch state {
+        case .loading:
+            nil
+        case .success, .failure:
+            "Done"
+        }
+    }
+}
+
+private struct SharePrimaryButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.body.weight(.semibold))
+            .foregroundStyle(ShareTheme.onAccent)
+            .frame(maxWidth: .infinity, minHeight: 52)
+            .background(
+                ShareTheme.brick.opacity(
+                    configuration.isPressed ? 0.78 : 1
+                ),
+                in: RoundedRectangle(cornerRadius: 15)
+            )
+    }
 }
 
 private enum ShareTheme {
-    static let paper = Color(
-        red: 0.980,
-        green: 0.965,
-        blue: 0.937
+    static let paper = adaptive(
+        light: (0.980, 0.965, 0.937),
+        dark: (0.114, 0.098, 0.110)
     )
-    static let field = Color(
-        red: 0.949,
-        green: 0.925,
-        blue: 0.894
+    static let field = adaptive(
+        light: (0.949, 0.925, 0.894),
+        dark: (0.157, 0.133, 0.149)
     )
-    static let review = Color(
-        red: 0.965,
-        green: 0.925,
-        blue: 0.851
+    static let review = adaptive(
+        light: (0.867, 0.835, 0.875),
+        dark: (0.200, 0.169, 0.192)
     )
     static let brick = Color(
         red: 0.678,
         green: 0.314,
         blue: 0.239
     )
-    static let ink = Color(
-        red: 0.188,
-        green: 0.153,
-        blue: 0.176
+    static let ink = adaptive(
+        light: (0.188, 0.153, 0.176),
+        dark: (0.969, 0.941, 0.910)
     )
+    static let onAccent = Color(
+        red: 1,
+        green: 249 / 255,
+        blue: 240 / 255
+    )
+
+    private static func adaptive(
+        light: (CGFloat, CGFloat, CGFloat),
+        dark: (CGFloat, CGFloat, CGFloat)
+    ) -> Color {
+        Color(
+            uiColor: UIColor { traits in
+                let components = traits.userInterfaceStyle == .dark
+                    ? dark
+                    : light
+                return UIColor(
+                    red: components.0,
+                    green: components.1,
+                    blue: components.2,
+                    alpha: 1
+                )
+            }
+        )
+    }
 }

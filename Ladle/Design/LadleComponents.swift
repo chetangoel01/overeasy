@@ -10,7 +10,7 @@ struct LadlePrimaryButtonStyle: ButtonStyle {
         configuration.label
             .ladleFont(.bodyStrong)
             .foregroundStyle(
-                isProminent ? LadleTheme.paper : LadleTheme.ink
+                isProminent ? LadleTheme.onAccent : LadleTheme.ink
             )
             .frame(maxWidth: .infinity, minHeight: 52)
             .background(
@@ -140,7 +140,7 @@ enum LadleIconButtonTone {
         case .primary:
             LadleTheme.brick
         case .onDark:
-            LadleTheme.paper.opacity(0.12)
+            LadleTheme.onAccent.opacity(0.12)
         }
     }
 
@@ -149,7 +149,7 @@ enum LadleIconButtonTone {
         case .quiet:
             LadleTheme.ink
         case .primary, .onDark:
-            LadleTheme.paper
+            LadleTheme.onAccent
         }
     }
 }

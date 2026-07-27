@@ -18,7 +18,7 @@ struct MethodList: View {
                 HStack(alignment: .top, spacing: 14) {
                     Text("\(index + 1)")
                         .ladleFont(.metadata)
-                        .foregroundStyle(Color.white)
+                        .foregroundStyle(LadleTheme.onAccent)
                         .frame(width: 30, height: 30)
                         .background(LadleTheme.paprika, in: Circle())
                         .accessibilityHidden(true)

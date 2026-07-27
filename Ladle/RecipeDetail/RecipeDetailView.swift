@@ -16,6 +16,7 @@ struct RecipeDetailView: View {
     let makeEditorViewModel: (Recipe) -> RecipeEditorViewModel
     let recipeDidChange: (Recipe) -> Void
     let toggleFavorite: (UUID) -> Void
+    let completeReview: (UUID) -> Recipe?
     let deleteRecipe: (UUID) -> Bool
 
     @State private var displayedRecipe: Recipe
@@ -29,6 +30,7 @@ struct RecipeDetailView: View {
     @State private var section: RecipeDetailSection = .ingredients
     @State private var pendingOption: RecipeOption?
     @State private var isDeleteConfirmationPresented = false
+    @State private var reviewIsPending: Bool
 
     init(
         recipe: Recipe,
@@ -37,6 +39,7 @@ struct RecipeDetailView: View {
         makeEditorViewModel: @escaping (Recipe) -> RecipeEditorViewModel,
         recipeDidChange: @escaping (Recipe) -> Void,
         toggleFavorite: @escaping (UUID) -> Void,
+        completeReview: @escaping (UUID) -> Recipe? = { _ in nil },
         deleteRecipe: @escaping (UUID) -> Bool = { _ in false }
     ) {
         self.statusText = statusText
@@ -44,9 +47,14 @@ struct RecipeDetailView: View {
         self.makeEditorViewModel = makeEditorViewModel
         self.recipeDidChange = recipeDidChange
         self.toggleFavorite = toggleFavorite
+        self.completeReview = completeReview
         self.deleteRecipe = deleteRecipe
         _displayedRecipe = State(initialValue: recipe)
         _isFavorite = State(initialValue: recipe.isFavorite)
+        _reviewIsPending = State(
+            initialValue: recipe.reviewStatus == .needsReview
+                || statusText == "Needs review"
+        )
     }
 
     var body: some View {
@@ -55,6 +63,9 @@ struct RecipeDetailView: View {
                 heroImage
                 recipeHeader
                 RecipeMetadataBand(recipe: displayedRecipe)
+                if needsReview {
+                    reviewNotice
+                }
                 sectionPicker
                 sectionContent
 
@@ -79,28 +90,12 @@ struct RecipeDetailView: View {
         .scrollIndicators(.hidden)
         .background(LadleTheme.paper)
         .accessibilityIdentifier("recipe.detail")
+        .navigationTitle("Recipe")
         .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(true)
         .toolbar(.visible, for: .navigationBar)
         .toolbarBackground(LadleTheme.paper, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbar {
-            ToolbarItem(placement: .navigation) {
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(LadleTheme.ink)
-                        .frame(width: 44, height: 44)
-                }
-                .accessibilityLabel("Back to recipes")
-            }
-            ToolbarItem(placement: .principal) {
-                Text("Recipe")
-                    .ladleFont(.metadata)
-                    .foregroundStyle(LadleTheme.ink.opacity(0.62))
-            }
             ToolbarItemGroup(placement: .primaryAction) {
                 favoriteButton
                 Button {
@@ -298,6 +293,44 @@ struct RecipeDetailView: View {
         )
     }
 
+    private var reviewNotice: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label(
+                "Check uncertain details",
+                systemImage: "pencil.and.list.clipboard"
+            )
+            .ladleFont(.bodyStrong)
+            .foregroundStyle(LadleTheme.ink)
+
+            Text(
+                "Review the ingredients and method. When they look usable, mark this recipe reviewed to clear it from the import inbox."
+            )
+            .ladleFont(.metadata)
+            .foregroundStyle(LadleTheme.mutedInk)
+            .fixedSize(horizontal: false, vertical: true)
+
+            Button("Mark reviewed") {
+                guard let reviewed = completeReview(
+                    displayedRecipe.id
+                ) else {
+                    return
+                }
+                reviewIsPending = false
+                applyChangedRecipe(reviewed)
+            }
+            .buttonStyle(LadlePrimaryButtonStyle(isProminent: false))
+            .accessibilityIdentifier("recipe.complete-review")
+        }
+        .padding(16)
+        .background(
+            LadleTheme.review,
+            in: RoundedRectangle(
+                cornerRadius: LadleTheme.Corner.card,
+                style: .continuous
+            )
+        )
+    }
+
     private var favoriteButton: some View {
         Button {
             isFavorite.toggle()
@@ -324,8 +357,13 @@ struct RecipeDetailView: View {
 
     private var kicker: String {
         statusText == "Saved recipe"
+            || !needsReview
             ? "Saved from \(displayedRecipe.source.libraryTitle)"
             : statusText
+    }
+
+    private var needsReview: Bool {
+        reviewIsPending
     }
 
     private var recipeOptions: [RecipeOption] {

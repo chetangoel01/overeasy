@@ -2,28 +2,42 @@ import LadleCore
 import SwiftUI
 
 struct ImportInboxView: View {
+    @Environment(\.dismiss) private var dismiss
+
     @Bindable var viewModel: LibraryViewModel
     let recoverImport: (ImportJob) -> Void
     let openReview: (Recipe, String) -> Void
 
     var body: some View {
-        VStack(spacing: 0) {
-            LibraryDestinationHeader(
-                "Import inbox",
-                detail: inboxDetail
-            )
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    jobs
-                    howItWorks
-                }
-                .padding(.horizontal, LadleTheme.Spacing.regular)
-                .padding(.bottom, 44)
+        List {
+            Section {
+                jobs
+            } header: {
+                LadleSectionHeader(
+                    title: "In progress",
+                    detail: inboxDetail
+                )
             }
-            .scrollIndicators(.hidden)
+
+            Section {
+                howItWorks
+            }
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
         .background(LadleTheme.paper)
-        .toolbar(.hidden, for: .navigationBar)
+        .navigationTitle("Import inbox")
+        .navigationBarTitleDisplayMode(.large)
+        .toolbar(.visible, for: .navigationBar)
+        .toolbarBackground(LadleTheme.paper, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
+        .onChange(of: viewModel.actionableImportJobs.count) {
+            oldCount,
+            newCount in
+            if oldCount > 0, newCount == 0 {
+                dismiss()
+            }
+        }
         .accessibilityIdentifier("library.import-inbox.root")
     }
 
@@ -38,38 +52,55 @@ struct ImportInboxView: View {
                 )
             )
             .foregroundStyle(LadleTheme.ink)
+            .listRowBackground(LadleTheme.paper)
+            .listRowSeparator(.hidden)
         } else {
-            VStack(alignment: .leading, spacing: 12) {
-                LadleSectionHeader(
-                    title: "In progress",
-                    detail: inboxDetail
-                )
-                ForEach(viewModel.actionableImportJobs) { job in
+            ForEach(viewModel.actionableImportJobs) { job in
+                Group {
                     if case .failed = job.status {
-                        Button {
-                            recoverImport(job)
-                        } label: {
-                            PendingImportCard(job: job)
-                        }
-                        .buttonStyle(.plain)
+                        importButton(job, action: { recoverImport(job) })
+                    } else if job.reviewCandidate != nil {
+                        importButton(job, action: { recoverImport(job) })
                     } else if let recipe = viewModel.recipeForReview(job) {
-                        Button {
-                            openReview(
-                                recipe,
-                                job.candidateRecipeID == nil
-                                    ? "Needs review"
-                                    : "Current recipe · re-import review pending"
-                            )
-                        } label: {
-                            PendingImportCard(job: job)
-                        }
-                        .buttonStyle(.plain)
+                        importButton(
+                            job,
+                            action: {
+                                openReview(recipe, "Needs review")
+                            }
+                        )
                     } else {
                         PendingImportCard(job: job)
                     }
                 }
+                .listRowInsets(
+                    EdgeInsets(
+                        top: 6,
+                        leading: LadleTheme.Spacing.regular,
+                        bottom: 6,
+                        trailing: LadleTheme.Spacing.regular
+                    )
+                )
+                .listRowBackground(LadleTheme.paper)
+                .listRowSeparator(.hidden)
+                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                    Button(role: .destructive) {
+                        _ = viewModel.deleteImport(jobID: job.id)
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
+                }
             }
         }
+    }
+
+    private func importButton(
+        _ job: ImportJob,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            PendingImportCard(job: job)
+        }
+        .buttonStyle(.plain)
     }
 
     private var howItWorks: some View {
@@ -95,6 +126,16 @@ struct ImportInboxView: View {
                 icon: "arrow.clockwise"
             )
         }
+        .listRowInsets(
+            EdgeInsets(
+                top: 18,
+                leading: LadleTheme.Spacing.regular,
+                bottom: 44,
+                trailing: LadleTheme.Spacing.regular
+            )
+        )
+        .listRowBackground(LadleTheme.paper)
+        .listRowSeparator(.hidden)
     }
 
     private func explanation(

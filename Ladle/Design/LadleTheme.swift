@@ -9,6 +9,13 @@ enum LadleTheme {
     static let celeryHex = "#BEC9AE"
     static let ubeHex = "#DDD5DF"
     static let mutedInkHex = "#72676D"
+    static let darkPaperHex = "#1D191C"
+    static let darkOatHex = "#282226"
+    static let darkInkHex = "#F7F0E8"
+    static let darkMutedInkHex = "#B9ADB3"
+    static let darkUbeHex = "#332B31"
+    static let darkCeleryHex = "#364536"
+    static let onAccentHex = "#FFF9F0"
 
     static let plum = Color("Plum")
     static let paper = Color("Paper")
@@ -18,6 +25,11 @@ enum LadleTheme {
     static let celery = Color("Celery")
     static let ube = Color("Ube")
     static let mutedInk = Color("MutedInk")
+    static let onAccent = Color(
+        red: 1,
+        green: 249 / 255,
+        blue: 240 / 255
+    )
 
     static let field = oat
     static let paprika = brick
