@@ -57,6 +57,8 @@ def test_mac_mini_edge_enforces_body_limit_and_preserves_proxy_protocol_ip() -> 
         'add_header Strict-Transport-Security "max-age=63072000; '
         'includeSubDomains; preload" always;'
     ) in config
+    for hidden in ("/openapi.json", "/docs", "/redoc", "/metrics"):
+        assert f"location = {hidden}" in config
     assert "client_max_body_size 1m" in config
     assert "error_page 413" in config
     assert '"code":"invalidRequest"' in config
