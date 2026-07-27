@@ -77,3 +77,29 @@ worker/API logs before updating. The profile rotates container logs at three
 - Alembic migration exit status
 - Local `/health/ready`
 - Tailnet HTTPS `/health/ready`
+
+## Deployment record: 2026-07-26
+
+- Host: `Chetans-Mac-mini.local`, Apple M4, 16 GB RAM
+- Commit: `f819b22`
+- Private endpoint:
+  `https://chetans-mac-mini.tail19e758.ts.net`
+- Pre-migration database backup:
+  `/Users/chetangoel/Backups/ladle/ladle-20260726-214838.dump`
+- Migration: upgraded transactionally from `0003` through `0011 (head)`
+- Readiness: database, broker, result backend, worker, Redis-backed metrics,
+  Redis-backed rate limiting, configuration, and object storage ready
+- Smoke flow: guest creation `201`, authenticated sync `200`, account deletion
+  `204`; the test account was removed
+- Runtime: live extraction provider, no FFmpeg, audio transcription off, frame
+  analysis off, server media fallback off
+- Ingress: Tailscale Serve only; PostgreSQL and Redis have no published ports,
+  while MinIO and the API bind host loopback only
+- Container policy: `unless-stopped`, three 10 MB JSON log files per service,
+  and service CPU/memory limits
+
+The public-production verifier intentionally does not pass this private profile:
+`LADLE_ENVIRONMENT=development` omits HSTS and public App Attest enforcement.
+Do not expose this endpoint outside the tailnet. The host had about 12 GiB free
+after deployment, so storage cleanup or expansion remains required before
+retaining meaningful user data.
