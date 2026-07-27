@@ -117,3 +117,27 @@ surface one coherent light/dark visual system.
   `/tmp/Overeasy-1.0-20260727.1-import-dark-mode.ipa`; ZIP validation passes,
   the Share Extension binary is present, and its SHA-256 is
   `a4c18c1e08974cf2b2ce7c1d48afc138c65bcd7301b6bc58e07f4e0a3486de96`.
+
+### Current replacement build
+
+- `swift test --package-path Packages/LadleCore` passes all 42 tests.
+- The complete `LadleTests` target passes 150 tests with one intentional live
+  App Attest skip and zero failures. Focused coverage includes rejected-token
+  sign-out, durable terminal import failures, exclusive Library workspace
+  navigation, cooking readiness, contrast tokens, and reduced heading
+  hierarchy.
+- The backend thumbnail/deployment regressions pass, along with targeted Ruff,
+  strict mypy, shell syntax, and merged Compose configuration checks.
+- Per the user's direction, no UI test target was run. A manual Simulator
+  launch inspected the revised dark empty-Home hierarchy, typography, action
+  contrast, and fixed standard-size layout.
+- Release build `1.0 (20260727.2)` succeeds for the paired iPhone and includes
+  the Share Extension. Strict signature verification passes, both binaries
+  contain `P48VDW72LU.com.ladle.shared`, the embedded ngrok endpoint and tunnel
+  key match the live route, and App Attest is explicitly disabled for this
+  Personal Team development backend.
+- The build installed successfully on the paired iPhone. Automatic launch was
+  deferred because the device locked after installation.
+- `/tmp/Overeasy-1.0-20260727.2-thumbnail-import-fixes.ipa` passes ZIP
+  validation and contains the Share Extension binary. Its SHA-256 is
+  `406eca12005bc7db8ccebdca4e09526f1b66aa20dfe028608e5227a979b52309`.

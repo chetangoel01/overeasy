@@ -82,3 +82,20 @@ signature rather than by the app-only tunnel header.
   adding the Personal Team-compatible shared-Keychain handoff. Its packaged
   IPA SHA-256 is
   `ec6d63cd6fd8edbfe7f2814ee421a2046d230f39d3437bce0d64a5b3de323a47`.
+
+### Signed-thumbnail deployment
+
+- Mac mini commit `6bf3153` is deployed. PostgreSQL, Redis, MinIO, API, worker,
+  beat, worker egress, and edge containers are healthy.
+- Deployment initialized the private, versioned `ladle-private` bucket and
+  backfilled two legacy cache thumbnails. The database now has two
+  object-backed cache rows and two object-backed recipe images, with zero
+  provider-remote thumbnail rows remaining.
+- The live ngrok policy returns `404` for readiness without the tunnel key and
+  `200` with the key. A five-minute signed thumbnail URL uses the active ngrok
+  host and returns `200` without the app-only header; the same object path
+  without its signature returns `403`.
+- Docker Desktop 4.66.1 accepted container creation but stalled start requests
+  through its API proxy. The deployment completed through Docker Desktop's
+  local raw engine socket using the same Compose configuration; the normal
+  loopback bindings and ngrok route were verified afterward.
