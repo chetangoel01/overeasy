@@ -30,13 +30,19 @@ groups:
         annotations:
           summary: "Imports are stuck in parsing"
       - alert: LadleWorkerAbsent
-        expr: time() - ladle_worker_last_seen_timestamp_seconds > 180
+        expr: |
+          absent(ladle_worker_last_seen_timestamp_seconds)
+          or
+          time() - ladle_worker_last_seen_timestamp_seconds > 180
         for: 2m
         labels: {severity: page}
         annotations:
           summary: "No Ladle worker heartbeat"
       - alert: LadleBeatAbsent
-        expr: time() - ladle_beat_last_seen_timestamp_seconds > 180
+        expr: |
+          absent(ladle_beat_last_seen_timestamp_seconds)
+          or
+          time() - ladle_beat_last_seen_timestamp_seconds > 180
         for: 2m
         labels: {severity: page}
         annotations:

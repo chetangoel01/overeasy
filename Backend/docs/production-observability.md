@@ -20,7 +20,8 @@ putting private recipe or authentication data in telemetry.
 - Celery's ready and periodic heartbeat signals update the durable
   worker-liveness gauge even when no imports are running. Beat liveness advances
   only when its scheduled maintenance task is received, so the two absence
-  alerts remain independent.
+  alerts remain independent. Both alert expressions also use Prometheus
+  `absent(...)`, covering a process that never emitted its first heartbeat.
 - Every API and Celery worker log line is JSON. The worker installs the same
   formatter through Celery's production logging signal instead of accepting
   Celery's default plain-text root logger. The formatter—not individual
@@ -69,7 +70,8 @@ current compatible 1.44.0/0.65b0 release family documented by the
 ## Verification
 
 - Unit tests cover bounded labels, histograms, sink-boundary redaction,
-  authenticated metrics, and FastAPI span emission.
+  authenticated metrics, FastAPI span emission, the required alert set,
+  never-seen worker/Beat detection, and dashboard coverage.
 - A Redis integration test proves increments are atomic, visible between
   registries, and still present after registry recreation.
 - In staging, restart API and worker replicas, confirm counters remain, follow
