@@ -11,30 +11,37 @@ report ready under the intended container restrictions.
 - `swift test --package-path Packages/LadleCore`: 37 tests passed across 8
   suites.
 - `xcodebuild test` for the `Ladle` scheme on an iPhone 17 Pro simulator
-  running iOS 26.5: 152 tests passed with no failures or skips.
+  running iOS 26.5: 152 tests passed with no failures. The only skip is the
+  compile-gated test that requires Apple's real App Attest service and a
+  signed physical device.
 - Release build for the `Ladle` scheme on a generic iOS device: passed with
-  code signing disabled. This build includes the embedded Share Extension.
-- Independent Release build for the `LadleShare` target: passed with code
-  signing disabled.
+  code signing disabled. The shared scheme explicitly builds `LadleShare`, and
+  the resulting app contains an arm64 `com.ladle.ios.share` extension.
 
 No shared-contract, app-flow, or Share Extension regression surfaced.
 
+The project intentionally has no standalone `LadleShare` scheme. A raw
+target-only Xcode invocation does not resolve the local `LadleCore` package and
+is not a supported release path; the shared `Ladle` scheme is the archive and
+distribution path and compiled both products successfully.
+
 ## Final Mac mini regression pass
 
-After the private staging profile moved to commit `46d1922`:
+After the private staging profile moved to commit `e9e07c7`:
 
 - the tailnet readiness endpoint returned `200` with database, broker, Celery
   result backend, worker, Redis-backed rate limits and metrics, and
   configuration ready;
-- a text-only live OpenRouter import produced a ready Garlic Butter Toast
-  recipe with four ingredients and three steps, synchronized it, fetched it,
-  and permanently deleted the smoke account;
+- a fresh text-only live OpenRouter import produced a ready Simple Tomato Toast
+  recipe with four ingredients and three steps, fetched it, and permanently
+  deleted the smoke account;
 - object storage and all video/audio/frame processing remained disabled;
-- LadleCore again passed 37 tests, while the Ladle simulator run passed 127
-  app tests and 25 UI tests, for 152 total.
+- LadleCore again passed 37 tests, while the Ladle simulator run passed all 152
+  ordinary app/UI tests and skipped only the explicit real-device App Attest
+  gate.
 
-GitHub Actions run `30232538607` also passed Ruff, strict mypy for 108 source
-files, 464 non-live tests with five intentional deselections, migration
+GitHub Actions run `30234296154` also passed Ruff, strict mypy for 108 source
+files, 467 non-live tests with the intentional live/chaos exclusions, migration
 consistency, a real PostgreSQL restore, dependency and secret scanning, the
 Linux/amd64 image vulnerability scan, and SBOM generation.
 
