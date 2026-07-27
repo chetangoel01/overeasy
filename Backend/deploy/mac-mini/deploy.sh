@@ -35,20 +35,6 @@ ensure_setting() {
 }
 
 ensure_setting LADLE_INSTALL_MEDIA_TOOLS false
-ensure_setting LADLE_MAC_MINI_MINIO_DATA_DIR "$HOME/.local/share/ladle/minio"
-
-minio_data_dir=$(
-    sed -n 's/^LADLE_MAC_MINI_MINIO_DATA_DIR=//p' "$env_file" | tail -n 1
-)
-case "$minio_data_dir" in
-    "$HOME"/.local/share/ladle/*) ;;
-    *)
-        echo "LADLE_MAC_MINI_MINIO_DATA_DIR must stay under ~/.local/share/ladle." >&2
-        exit 1
-        ;;
-esac
-mkdir -p "$minio_data_dir"
-chmod 700 "$minio_data_dir"
 
 if command -v docker >/dev/null 2>&1; then
     docker_bin=$(command -v docker)
@@ -68,9 +54,9 @@ compose() {
 }
 
 compose config >/dev/null
-compose up -d postgres redis minio
-compose run --rm minio-init
-compose build migrate api worker beat
+compose stop minio || true
+compose up -d postgres redis
+compose build migrate minio-init api worker beat
 compose run --rm migrate
 compose up -d --no-build --no-deps api worker beat
 

@@ -3,9 +3,9 @@
 ## Purpose
 
 This profile runs the Ladle API, one Celery worker, Beat, PostgreSQL, Redis,
-and MinIO on the always-on Mac mini through OrbStack. It is the low-cost
-private staging environment for device testing and a small invited beta.
-It is not the public production deployment.
+on the always-on Mac mini through OrbStack. It is the low-cost private staging
+environment for device testing and a small invited beta. It is not the public
+production deployment.
 
 ## User-visible behavior
 
@@ -13,19 +13,20 @@ It is not the public production deployment.
 - Tailscale Serve provides the HTTPS endpoint to devices in the same tailnet.
 - Imports use the configured live text/extraction providers.
 - Audio transcription, frame sampling, and server media fallback are disabled.
+- Object storage and server-managed thumbnails are disabled.
 - The Mac-only image omits FFmpeg and its media libraries.
-- PostgreSQL, Redis, and MinIO are never published to the LAN or internet.
+- PostgreSQL and Redis are never published to the LAN or internet.
 
 ## Important decisions
 
 - The base Compose file remains the source of service definitions and volumes.
   The Mac mini profile only adds restart policies, bounded logs, resource
   limits, staging secrets, rate limiting, durable metrics, and non-media flags.
-- MinIO data uses the host directory `~/.local/share/ladle/minio` instead of an
-  OrbStack named volume. This keeps bucket writes on the host filesystem and
-  makes object backups inspectable without entering the container VM.
 - The Compose project stays named `backend`, so upgrading the older Mac mini
   installation preserves its PostgreSQL and Redis `backend_ladle-*` volumes.
+- MinIO is profile-disabled because both named-volume and host-bind trials
+  repeatedly tripped its 30-second drive probe under OrbStack. The empty old
+  volume and empty host directory remain untouched for rollback evidence.
 - `deploy.sh` creates missing staging secrets in ignored `.env.mac-mini` with
   mode `0600`. Provider credentials can be copied into that file before the
   first deployment.
@@ -45,9 +46,8 @@ From `Backend/` on the Mac mini:
 ```
 
 The deploy script validates the merged Compose configuration, starts the data
-services, initializes the versioned private bucket and its lifecycle rules,
-builds the runtime, runs Alembic before replacing API/worker processes, and
-waits for readiness.
+services, stops the unused MinIO service, builds the runtime, runs Alembic
+before replacing API/worker processes, and waits for readiness.
 
 Before a migration upgrade, keep a local database backup outside the checkout:
 
@@ -72,8 +72,7 @@ curl --fail http://127.0.0.1:4112/health/ready
 
 Keep at least 20 GB free, retain off-machine database backups, and check the
 worker/API logs before updating. The profile rotates container logs at three
-10 MB files per service. Back up `~/.local/share/ladle/minio` with the database
-when real user objects exist.
+10 MB files per service.
 
 ## Verification
 
@@ -98,9 +97,9 @@ when real user objects exist.
   `204`; the test account was removed
 - Runtime: live extraction provider, no FFmpeg, audio transcription off, frame
   analysis off, server media fallback off
-- Object storage: the prior named volume contained zero current objects,
-  versions, or delete markers before MinIO moved to the host-backed directory;
-  the old volume was retained as a rollback
+- Object storage: disabled after the prior named volume was verified to contain
+  zero current objects, versions, or delete markers; both attempted storage
+  locations were retained
 - Ingress: Tailscale Serve only; PostgreSQL and Redis have no published ports,
   while MinIO and the API bind host loopback only
 - Container policy: `unless-stopped`, three 10 MB JSON log files per service,

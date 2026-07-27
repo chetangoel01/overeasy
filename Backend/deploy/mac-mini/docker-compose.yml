@@ -11,6 +11,7 @@ x-private-staging-environment: &private-staging-environment
   LADLE_RATE_LIMITING_ENABLED: "true"
   LADLE_RATE_LIMIT_REDIS_URL: redis://redis:6379/2
   LADLE_DURABLE_METRICS_ENABLED: "true"
+  LADLE_OBJECT_STORAGE_ENABLED: "false"
   LADLE_AUDIO_TRANSCRIPTION_ENABLED: "false"
   LADLE_FRAME_ANALYSIS_ENABLED: "false"
   LADLE_SERVER_MEDIA_FALLBACK_ENABLED: "false"
@@ -29,14 +30,16 @@ services:
     cpus: 0.25
 
   minio:
-    restart: unless-stopped
+    profiles: ["object-storage-disabled"]
     logging: *bounded-logging
     mem_limit: 512m
     cpus: 0.5
-    volumes:
-      - ${LADLE_MAC_MINI_MINIO_DATA_DIR:?set by deploy.sh}:/data
 
   minio-init:
+    command: ["/bin/true"]
+    depends_on: !reset {}
+    environment: !reset {}
+    volumes: !reset []
     logging: *bounded-logging
 
   migrate:
