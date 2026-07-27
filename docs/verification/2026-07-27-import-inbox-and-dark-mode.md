@@ -136,8 +136,9 @@ surface one coherent light/dark visual system.
   contain `P48VDW72LU.com.ladle.shared`, the embedded ngrok endpoint and tunnel
   key match the live route, and App Attest is explicitly disabled for this
   Personal Team development backend.
-- The build installed successfully on the paired iPhone. Automatic launch was
-  deferred because the device locked after installation.
+- The build installed and launched successfully on the paired iPhone. Its
+  first sync received the expected stale-access-token `401`, refreshed with
+  `200`, replayed sync with `200`, and remained signed in.
 - `/tmp/Overeasy-1.0-20260727.2-thumbnail-import-fixes.ipa` passes ZIP
   validation and contains the Share Extension binary. Its SHA-256 is
   `406eca12005bc7db8ccebdca4e09526f1b66aa20dfe028608e5227a979b52309`.

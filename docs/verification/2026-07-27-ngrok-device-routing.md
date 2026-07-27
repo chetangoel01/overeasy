@@ -99,3 +99,5 @@ signature rather than by the app-only tunnel header.
   through its API proxy. The deployment completed through Docker Desktop's
   local raw engine socket using the same Compose configuration; the normal
   loopback bindings and ngrok route were verified afterward.
+- Physical release build `20260727.2` launched through the route, refreshed an
+  expired access token successfully, and completed recipe sync with `200`.
