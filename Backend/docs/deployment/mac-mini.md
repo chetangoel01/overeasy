@@ -85,7 +85,8 @@ worker/API logs before updating. The profile rotates container logs at three
 ## Deployment record: 2026-07-26
 
 - Host: `Chetans-Mac-mini.local`, Apple M4, 16 GB RAM
-- Commit: `46d1922`
+- Initial verified commit: `46d1922`
+- Current deployed commit: `e9e07c7`
 - Private endpoint:
   `https://chetans-mac-mini.tail19e758.ts.net`
 - Pre-migration database backup:
@@ -99,8 +100,9 @@ worker/API logs before updating. The profile rotates container logs at three
   Redis-backed rate limiting, and configuration ready
 - Text-only live smoke: guest creation `201`, import submission `202`,
   OpenRouter extraction `200`, terminal job `ready`, recipe retrieval `200`
-  with four ingredients and three steps, sync `200`, and account deletion
-  `204`; the test account and recipe were removed
+  for both Garlic Butter Toast and the post-upgrade Simple Tomato Toast check,
+  with four ingredients and three steps; account deletion returned `204` and
+  both test accounts and recipes were removed
 - Runtime: live extraction provider, no FFmpeg, audio transcription off, frame
   analysis off, server media fallback off
 - Object storage: disabled after the prior named volume was verified to contain
@@ -108,12 +110,23 @@ worker/API logs before updating. The profile rotates container logs at three
   locations were retained
 - Ingress: Tailscale Serve only; PostgreSQL and Redis have no published ports,
   while the API binds host loopback only
-- Container policy: API, worker, Beat, PostgreSQL, and Redis use
-  `unless-stopped`, three 10 MB JSON log files per service, and service
-  CPU/memory limits
+- Container policy: API, worker, and Beat have read-only roots, bounded tmpfs,
+  all capabilities dropped, no-new-privileges, Docker's built-in seccomp
+  profile, and CPU/memory/PID/file limits; every service uses
+  `unless-stopped` and three 10 MB JSON log files
+- Worker replacement drill: an idle worker was force-recreated, received a new
+  container identity, reached healthy, and answered Celery ping
+- Redis restart drill: AOF and RDB status were healthy before restart, a
+  short-lived database-15 canary survived the restart, the worker reconnected,
+  and every API readiness check returned ready afterward
+- Cleanup: ten untagged Ladle build images, one obsolete stopped Ladle
+  migration container/image, and the reproducible BuildKit cache were removed.
+  No Immich, media-stack, user-data, or named-volume content was deleted.
 
 The public-production verifier intentionally does not pass this private profile:
 `LADLE_ENVIRONMENT=development` omits HSTS and public App Attest enforcement.
-Do not expose this endpoint outside the tailnet. The host had about 12 GiB free
-after deployment, so storage cleanup or expansion remains required before
-retaining meaningful user data.
+Do not expose this endpoint outside the tailnet. The host still reports about
+13 GiB free after the scoped container cleanup, below the 20 GiB operating
+target. Free or add at least 7 GiB before retaining meaningful user data; the
+remaining large consumers are host-level Xcode simulators/caches and personal
+data, which this deployment did not delete.

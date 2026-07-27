@@ -75,7 +75,7 @@ policy file into a deployed control.
 | Production dashboards | DEPLOY | Grafana JSON has the eight required success/latency/cache/cost/retry/sync/abuse/queue views. Import and validate it against hosted metrics. |
 | Managed PostgreSQL backups and PITR | EXTERNAL | The checked policy requires PostgreSQL 16+, encrypted multi-AZ daily backups, 35-day retention, cross-region copy, and seven-day PITR. Provisioning evidence is still required. |
 | Real restore drill | PASS | Real PostgreSQL 16.14 `pg_dump` to empty-server `pg_restore` restored two rows with identical source/target SHA-256. Repeat against the managed backup/PITR control plane. |
-| Redis durability and failure behavior | DEPLOY | Local Redis uses AOF every second, hourly snapshots, no eviction, and persistence-error write refusal; Celery messages are persistent and PostgreSQL outbox recovers queue loss. Verify managed multi-AZ/failover settings. |
+| Redis durability and failure behavior | DEPLOY | Local Redis uses AOF every second, hourly snapshots, no eviction, and persistence-error write refusal; a Mac mini restart drill retained an expiring canary, restored full API readiness, and reconnected the worker. Celery messages are persistent and PostgreSQL outbox recovers queue loss. Verify managed multi-AZ/failover settings. |
 | Incident runbooks | PASS | Provider outage, Redis loss, database failover, secret rotation, runaway spend, stuck migration, worker rollback, and account deletion runbooks exist. |
 | Service-level objectives | PASS | A 28-day SLO/error-budget policy defines availability, import success/latency, sync/queue latency, deletion, and recovery objectives. |
 
@@ -88,8 +88,8 @@ policy file into a deployed control.
 | Docker `HEALTHCHECK` | PASS | API readiness uses the hosting `PORT`; worker overrides with Celery ping. |
 | Read-only root and bounded temporary storage | PASS | Runtime uses a read-only root and 256 MiB tmpfs. |
 | CPU/memory/PID/FD/temp/file-size limits | PASS | Compose runtime and tests enforce one CPU, 1 GiB, 256 PIDs, bounded FDs/tmpfs/file size. Preserve or tighten these on the host. |
-| Capabilities and seccomp/AppArmor | DEPLOY | All capabilities and privilege escalation are dropped; the migration manifest declares `RuntimeDefault` seccomp. Confirm the API/worker platform profile. |
-| Final OS and Python image scan | PASS | Commit `46d1922` produced Linux/amd64 manifest `sha256:34269c0319e91b0f18cd08937f1c07e14f6d5e589526c80ebe9a34403dbb4757`; CI run `30232538607` passed the HIGH/CRITICAL OS and Python vulnerability gate. |
+| Capabilities and seccomp/AppArmor | PASS | All capabilities and privilege escalation are dropped; the migration manifest declares `RuntimeDefault` seccomp. Docker inspection on the Mac mini confirmed the built-in seccomp profile plus the expected read-only, capability, and no-new-privileges settings on API, worker, and Beat. Preserve these controls on any replacement host. |
+| Final OS and Python image scan | PASS | Commit `e9e07c7` produced Linux/amd64 manifest `sha256:1b1f6239537d293a793c297a57172f7c6184d89035a561e7fe22dc2e802d560c`; CI run `30234296154` passed the HIGH/CRITICAL OS and Python vulnerability gate. |
 | SBOM, provenance, and image signing | DEPLOY | The current candidate generated a valid SPDX 2.3 SBOM with 390 packages and 6,869 relationships. Main-branch BuildKit SBOM/provenance plus keyless digest signing are configured; publish/sign the final main digest through GitHub OIDC. |
 | Production-context exclusions | PASS | Git, env files, tests/docs/scripts/deploy/load, Compose, cookies, caches, local DBs, and evaluation artifacts are excluded and layer-tested. |
 | Configurable S3 addressing | PASS | `auto`, `path`, and `virtual` configure internal and public clients; Compose uses path and Railway can use virtual. |
@@ -108,21 +108,21 @@ policy file into a deployed control.
 | Credentialed live-provider smoke | EXTERNAL | A text-only live OpenRouter extraction passed on the Mac mini. Supadata and SoScripted remain intentionally uncalled under the explicit no-video scope, and no Anthropic credential is configured. |
 | Production Apple real-device validation | EXTERNAL | A physical paired iPhone is visible, but this Mac has no signed-in Xcode team or provisioning profiles for the app, tests, and share extension. Add the production Apple account and profiles, then validate the final signed build. |
 | App Attest real-device matrix | EXTERNAL | A gated XCTest now exercises real Apple attestation, installation binding, a valid assertion, replay, valid key rotation with prior-key retirement, invalid-assertion revocation, and durable rejection of replacement attestation. Its generic iOS device path compiles, and an isolated enforcing Mac endpoint rejected unattested guests. Execution on the paired iPhone is blocked by the missing Xcode account/profiles; rerun only against a disposable isolated database in the production App Attest environment afterward. |
-| Build and scan exact production image | PASS | CI rebuilt commit `46d1922` for Linux/amd64, scanned manifest `sha256:34269c0319e91b0f18cd08937f1c07e14f6d5e589526c80ebe9a34403dbb4757`, and retained its fresh SPDX SBOM. Runtime hardening and empty-database migration were proven on the prior candidate; the current API/worker behavior was exercised on the Mac arm64 build. |
-| Staging migration/rollout/rollback/restore/Redis/worker/provider drills | EXTERNAL | Requires the deployed staging environment and managed services. |
+| Build and scan exact production image | PASS | CI run `30234296154` rebuilt commit `e9e07c7` for Linux/amd64, scanned manifest `sha256:1b1f6239537d293a793c297a57172f7c6184d89035a561e7fe22dc2e802d560c`, and retained its fresh SPDX SBOM as artifact `8641128436`. Runtime hardening and empty-database migration were proven on the prior candidate; the exact current behavior was exercised on the Mac arm64 build. |
+| Staging migration/rollout/rollback/restore/Redis/worker/provider drills | EXTERNAL | The private Mac staging host passed its migration gate, text-only live provider smoke, worker replacement, Redis persistence/reconnect, and off-host logical restore checks. Managed rollout/rollback, PITR restore, and failover still require the eventual production service control planes. |
 | Final external security check | EXTERNAL | Run `verify_staging.py` against the HTTPS hostname with real rate limiting and a byte-exact real-device metadata assertion, plus worker egress and secret-exposure canaries. |
 
 ## Final local verification snapshot
 
 - Backend quality gates: Ruff formatting and lint passed, strict mypy passed
-  for 108 source files, and the complete non-live suite passed with 464 tests
-  and 5 intentional credential-gated deselections.
+  for 108 source files, and the latest complete non-live suite passed with 467
+  tests, 3 credential-gated skips, and 2 live/chaos deselections.
 - Supply chain: the committed-secret scan found no high-confidence patterns,
   `pip-audit` found no known vulnerabilities, and digest-pinned Trivy found
   zero fixable HIGH/CRITICAL findings.
-- Current exact image: Linux/amd64 manifest
-  `sha256:34269c0319e91b0f18cd08937f1c07e14f6d5e589526c80ebe9a34403dbb4757`;
-  its HIGH/CRITICAL scan and fresh SPDX SBOM passed in CI.
+- Current exact image: commit `e9e07c7`, Linux/amd64 manifest
+  `sha256:1b1f6239537d293a793c297a57172f7c6184d89035a561e7fe22dc2e802d560c`;
+  its HIGH/CRITICAL scan and fresh SPDX SBOM passed in CI run `30234296154`.
 - Prior exact-image runtime: an empty PostgreSQL 16 database upgraded through
   revision `0011`; readiness reported database, broker, result backend,
   rate-limit Redis, metrics Redis, storage, configuration, and worker as
@@ -141,11 +141,13 @@ policy file into a deployed control.
   a credential-gated XCTest and its physical-device branch compiles. The
   available paired iPhone could not run it because Xcode has no authenticated
   Apple team or provisioning profiles; no build was installed on the phone.
-- Private staging: the Mac mini passed a live text-only OpenRouter import,
-  recipe retrieval, sync, and account deletion with object storage and every
-  video/audio/frame path disabled.
-- Resilience and load: worker-kill and Redis-outage recovery passed; the local
-  load run completed 3,277 checks with no unexpected failures.
+- Private staging: the Mac mini runs commit `e9e07c7` and passed a fresh live
+  text-only OpenRouter import, recipe retrieval, and account deletion with
+  object storage and every video/audio/frame path disabled.
+- Resilience and load: isolated worker-kill and Redis-outage recovery passed;
+  the deployed idle-worker replacement and Redis AOF persistence/reconnect
+  drills also passed, while the local load run completed 3,277 checks with no
+  unexpected failures.
 
 ## Release conclusion
 
