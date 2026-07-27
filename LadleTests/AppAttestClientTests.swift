@@ -114,7 +114,6 @@ final class AppAttestClientTests: XCTestCase {
             let installationID =
                 "live-app-attest-\(deviceID.uuidString.lowercased())"
             let keychainService = "com.ladle.ios.live-app-attest-tests"
-            let tokenStore = InMemoryAuthTokenStore()
             let client = AppAttestClient(
                 baseURL: baseURL,
                 installationID: installationID,
@@ -124,7 +123,6 @@ final class AppAttestClientTests: XCTestCase {
             )
 
             try? await client.reset()
-            var currentTokens: AuthTokens?
             do {
                 let initialEvidenceValue = try await client.guestEvidence()
                 let initialEvidence = try XCTUnwrap(initialEvidenceValue)
@@ -145,12 +143,9 @@ final class AppAttestClientTests: XCTestCase {
                     AuthTokens.self,
                     from: initialGuest.data
                 )
-                try tokenStore.save(tokens)
-                currentTokens = tokens
 
                 let accepted = try await Self.authorizedUnsupportedImport(
                     baseURL: baseURL,
-                    installationID: installationID,
                     accessToken: tokens.accessToken,
                     client: client
                 )
@@ -169,9 +164,45 @@ final class AppAttestClientTests: XCTestCase {
                     403
                 )
 
-                var invalid = try await Self.authorizedUnsupportedImport(
+                let oldKeyStore = AppAttestMemoryStore()
+                try oldKeyStore.write(
+                    Data(initialEvidence.keyID.utf8),
+                    service: "live-old-key",
+                    account: "key-id"
+                )
+                let oldKeyClient = AppAttestClient(
                     baseURL: baseURL,
                     installationID: installationID,
+                    secureStore: oldKeyStore,
+                    keychainService: "live-old-key",
+                    keychainAccount: "key-id"
+                )
+                try await client.reset()
+                let rotatedEvidenceValue = try await client.guestEvidence()
+                let rotatedEvidence = try XCTUnwrap(rotatedEvidenceValue)
+                let rotatedGuest = try await Self.createGuest(
+                    baseURL: baseURL,
+                    installationID: installationID,
+                    evidence: rotatedEvidence
+                )
+                XCTAssertEqual(rotatedGuest.response.statusCode, 201)
+                tokens = try RemoteContractJSON.decoder().decode(
+                    AuthTokens.self,
+                    from: rotatedGuest.data
+                )
+                do {
+                    _ = try await Self.authorizedUnsupportedImport(
+                        baseURL: baseURL,
+                        accessToken: tokens.accessToken,
+                        client: oldKeyClient
+                    )
+                    XCTFail("Rotation must retire the prior key.")
+                } catch AppAttestClientError.keyRequiresAttestation {
+                    // Expected: only the rotated key remains active.
+                }
+
+                var invalid = try await Self.authorizedUnsupportedImport(
+                    baseURL: baseURL,
                     accessToken: tokens.accessToken,
                     client: client
                 )
@@ -190,7 +221,6 @@ final class AppAttestClientTests: XCTestCase {
                 do {
                     _ = try await Self.authorizedUnsupportedImport(
                         baseURL: baseURL,
-                        installationID: installationID,
                         accessToken: tokens.accessToken,
                         client: client
                     )
@@ -199,35 +229,46 @@ final class AppAttestClientTests: XCTestCase {
                     // Expected: the invalid assertion revoked the device key.
                 }
 
+                var refresh = URLRequest(
+                    url: baseURL.appending(path: "/v1/auth/refresh")
+                )
+                refresh.httpMethod = "POST"
+                refresh.httpBody = try RemoteContractJSON.encode(
+                    LiveRefreshRequest(
+                        refreshToken: try XCTUnwrap(tokens.refreshToken),
+                        deviceID: tokens.deviceID
+                    )
+                )
+                refresh.setValue(
+                    "application/json",
+                    forHTTPHeaderField: "Content-Type"
+                )
+                let (_, refreshResponse) = try await URLSession.shared.data(
+                    for: refresh
+                )
+                XCTAssertEqual(
+                    try XCTUnwrap(
+                        refreshResponse as? HTTPURLResponse
+                    ).statusCode,
+                    401
+                )
+
                 try await client.reset()
-                let rotatedEvidenceValue = try await client.guestEvidence()
-                let rotatedEvidence = try XCTUnwrap(rotatedEvidenceValue)
-                let rotatedGuest = try await Self.createGuest(
+                let replacementEvidenceValue = try await client.guestEvidence()
+                let replacementEvidence = try XCTUnwrap(
+                    replacementEvidenceValue
+                )
+                let blockedReplacement = try await Self.createGuest(
                     baseURL: baseURL,
                     installationID: installationID,
-                    evidence: rotatedEvidence
+                    evidence: replacementEvidence
                 )
-                XCTAssertEqual(rotatedGuest.response.statusCode, 201)
-                tokens = try RemoteContractJSON.decoder().decode(
-                    AuthTokens.self,
-                    from: rotatedGuest.data
+                XCTAssertEqual(
+                    blockedReplacement.response.statusCode,
+                    403
                 )
-                try tokenStore.save(tokens)
-                currentTokens = tokens
-
-                try await Self.deleteAccount(
-                    baseURL: baseURL,
-                    tokens: tokens
-                )
-                currentTokens = nil
                 try await client.reset()
             } catch {
-                if let currentTokens {
-                    try? await Self.deleteAccount(
-                        baseURL: baseURL,
-                        tokens: currentTokens
-                    )
-                }
                 try? await client.reset()
                 throw error
             }
@@ -265,7 +306,6 @@ final class AppAttestClientTests: XCTestCase {
 
     private static func authorizedUnsupportedImport(
         baseURL: URL,
-        installationID: String,
         accessToken: String,
         client: AppAttestClient
     ) async throws -> URLRequest {
@@ -294,40 +334,6 @@ final class AppAttestClientTests: XCTestCase {
             purpose: .importSubmission
         )
     }
-
-    private static func deleteAccount(
-        baseURL: URL,
-        tokens: AuthTokens
-    ) async throws {
-        let refreshToken = try XCTUnwrap(tokens.refreshToken)
-        let userID = tokens.userID.uuidString.lowercased()
-        var request = URLRequest(
-            url: baseURL.appending(path: "/v1/auth/account")
-        )
-        request.httpMethod = "DELETE"
-        request.httpBody = try RemoteContractJSON.encode(
-            LiveAccountDeletionRequest(
-                confirmation: "DELETE",
-                refreshToken: refreshToken,
-                idempotencyKey: "live-attest-delete-\(userID)"
-            )
-        )
-        request.setValue(
-            "application/json",
-            forHTTPHeaderField: "Content-Type"
-        )
-        request.setValue(
-            "Bearer \(tokens.accessToken)",
-            forHTTPHeaderField: "Authorization"
-        )
-        let (_, rawResponse) = try await URLSession.shared.data(
-            for: request
-        )
-        XCTAssertEqual(
-            try XCTUnwrap(rawResponse as? HTTPURLResponse).statusCode,
-            204
-        )
-    }
 }
 
 private struct LiveGuestRequest: Encodable, Sendable {
@@ -342,10 +348,9 @@ private struct LiveImportRequest: Encodable, Sendable {
     let idempotencyKey: String
 }
 
-private struct LiveAccountDeletionRequest: Encodable, Sendable {
-    let confirmation: String
+private struct LiveRefreshRequest: Encodable, Sendable {
     let refreshToken: String
-    let idempotencyKey: String
+    let deviceID: UUID
 }
 
 private final class FakeAppAttestPlatform:

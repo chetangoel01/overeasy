@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from ladle.auth.tokens import AccessTokenCodec, RefreshTokenCodec
 from ladle.clock import Clock
-from ladle.db.models import AuthSession, User
+from ladle.db.models import AuthSession, Device, User
 
 
 class RefreshTokenInvalid(Exception):
@@ -107,6 +107,12 @@ class SessionService:
             raise RefreshTokenRevoked
         if now >= stored.expires_at:
             raise RefreshTokenExpired
+
+        device = database.get(Device, stored.device_id)
+        if device is None:
+            raise RefreshTokenInvalid
+        if device.attestation_state == "revoked":
+            raise RefreshTokenRevoked
 
         user = database.get(User, stored.user_id)
         if user is None:

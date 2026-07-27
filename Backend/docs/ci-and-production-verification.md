@@ -97,12 +97,16 @@ HTTPS environment, it uses Apple's real device service to prove:
 - attestation and installation binding;
 - a valid sensitive-request assertion;
 - rejection of the same assertion/challenge replay;
+- valid key rotation with retirement of the prior key;
 - invalid-assertion device/key revocation; and
-- recovery with a newly attested key.
+- rejection of refresh and replacement-key attestation after revocation.
 
 It uses an unsupported HTTPS import source so no provider or media job is
-dispatched, then deletes its test account. Run it only on a physical device
-with the matching App Attest environment and a signed provisioning profile:
+dispatched. The invalid-assertion case deliberately leaves its installation and
+test account revoked, so run it only on a physical device against a dedicated
+isolated database and destroy that database after the run. Never point this
+test at a shared staging or production database. The device needs the matching
+App Attest environment and a signed provisioning profile:
 
 ```bash
 xcodebuild test \
@@ -120,4 +124,5 @@ xcodebuild test \
 
 The test's device code path is compile-checked without signing using a generic
 iOS `build-for-testing`. A passing production claim still requires rerunning
-against the production App Attest environment and final signed app identity.
+against the production App Attest environment and final signed app identity in
+another disposable isolated environment.

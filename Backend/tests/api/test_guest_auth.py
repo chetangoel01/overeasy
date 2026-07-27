@@ -111,6 +111,42 @@ def test_guest_refresh_and_explicit_session_revocation(
 
 
 @pytest.mark.integration
+def test_revoked_device_refresh_returns_unauthorized(
+    clean_postgres_url: str,
+) -> None:
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    engine = build_engine(clean_postgres_url)
+    app = create_app(
+        session_factory=sessionmaker(engine, expire_on_commit=False),
+        attestation=AttestationService(enforced=False),
+    )
+
+    with TestClient(app) as client:
+        guest = client.post(
+            "/v1/auth/guest",
+            json={
+                "installationID": "revoked-refresh-installation",
+                "attestation": None,
+            },
+        ).json()
+        with Session(engine) as database, database.begin():
+            device = database.get(Device, guest["deviceID"])
+            assert device is not None
+            device.attestation_state = "revoked"
+
+        response = client.post(
+            "/v1/auth/refresh",
+            json={
+                "refreshToken": guest["refreshToken"],
+                "deviceID": guest["deviceID"],
+            },
+        )
+
+    assert response.status_code == 401
+    engine.dispose()
+
+
+@pytest.mark.integration
 def test_authenticated_guest_can_permanently_delete_account(
     clean_postgres_url: str,
 ) -> None:

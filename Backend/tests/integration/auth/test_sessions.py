@@ -12,6 +12,7 @@ from alembic import command
 from ladle.auth.sessions import (
     RefreshTokenExpired,
     RefreshTokenReuseDetected,
+    RefreshTokenRevoked,
     SessionService,
 )
 from ladle.auth.tokens import AccessTokenCodec, RefreshTokenCodec
@@ -158,6 +159,38 @@ def test_expired_refresh_token_is_rejected(clean_postgres_url: str) -> None:
         Session(engine) as database,
         database.begin(),
         pytest.raises(RefreshTokenExpired),
+    ):
+        auth.refresh(
+            database,
+            refresh_token=initial.refresh_token,
+            device_id=device_id,
+        )
+
+    engine.dispose()
+
+
+@pytest.mark.integration
+def test_revoked_device_cannot_refresh(clean_postgres_url: str) -> None:
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    engine = build_engine(clean_postgres_url)
+    clock = FrozenClock(datetime(2026, 7, 23, 21, 0, tzinfo=UTC))
+    auth = service(clock)
+
+    with Session(engine) as database, database.begin():
+        user_id, device_id = seed_identity(database, clock.now())
+        initial = auth.create(
+            database,
+            user_id=user_id,
+            device_id=device_id,
+        )
+        device = database.get(Device, device_id)
+        assert device is not None
+        device.attestation_state = "revoked"
+
+    with (
+        Session(engine) as database,
+        database.begin(),
+        pytest.raises(RefreshTokenRevoked),
     ):
         auth.refresh(
             database,

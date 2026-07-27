@@ -399,6 +399,13 @@ class AttestationService:
             return "development"
         if self._verifier is None or evidence is None:
             raise AttestationRejected("App Attest evidence is required")
+        device_state = database.execute(
+            select(Device.attestation_state)
+            .where(Device.installation_id == installation_id)
+            .with_for_update()
+        ).scalar_one_or_none()
+        if device_state == "revoked":
+            raise AttestationRejected("App Attest installation is revoked")
         challenge = database.execute(
             select(AppAttestChallenge)
             .where(AppAttestChallenge.id == evidence.challenge_id)
@@ -512,14 +519,42 @@ class AttestationService:
     ) -> None:
         if not self._enforced or evidence is None:
             return
-        key = database.get(AppAttestKey, evidence.key_id)
+        device = database.execute(
+            select(Device)
+            .where(
+                Device.id == device_id,
+                Device.installation_id == installation_id,
+            )
+            .with_for_update()
+        ).scalar_one_or_none()
+        key = database.execute(
+            select(AppAttestKey)
+            .where(AppAttestKey.key_id == evidence.key_id)
+            .with_for_update()
+        ).scalar_one_or_none()
         if (
-            key is None
+            device is None
+            or device.attestation_state == "revoked"
+            or key is None
             or key.installation_id != installation_id
             or key.status != "valid"
             or (key.device_id is not None and key.device_id != device_id)
         ):
             raise AttestationRejected("App Attest key cannot bind to this device")
+        if evidence.kind == "attestation":
+            database.execute(
+                update(AppAttestKey)
+                .where(
+                    AppAttestKey.installation_id == installation_id,
+                    AppAttestKey.key_id != key.key_id,
+                    AppAttestKey.status == "valid",
+                )
+                .values(
+                    status="revoked",
+                    revoked_at=self._clock.now(),
+                    revocation_reason="keyRotated",
+                )
+            )
         key.device_id = device_id
 
     def revoke_installation(
