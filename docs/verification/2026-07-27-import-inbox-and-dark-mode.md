@@ -77,5 +77,15 @@ Extension surface one coherent light/dark visual system.
   row wrapping, and native navigation remain legible without clipping.
 - The full simulator app build succeeds and validates the embedded
   `LadleShare.appex`.
-- Mac mini migration/deployment, live thumbnail import, physical-device
-  installation, and ngrok verification are recorded here after deployment.
+- Mac mini deployment commit `13ac0b6` is healthy at migration `0012`.
+  A real Instagram import through the keyed ngrok route completed as
+  `needsReview`, and recipe retrieval returned one HTTPS thumbnail. The
+  temporary guest account was then deleted successfully.
+- Release build `1.0 (20260727.1)` passed strict signature verification for
+  the app and embedded Share Extension. Both contain the shared
+  `P48VDW72LU.com.ladle.shared` Keychain entitlement, and the build installed
+  successfully on the paired iPhone.
+- The packaged device artifact is
+  `/tmp/Overeasy-1.0-20260727.1-import-dark-mode.ipa`; ZIP validation passes,
+  the Share Extension binary is present, and its SHA-256 is
+  `a4c18c1e08974cf2b2ce7c1d48afc138c65bcd7301b6bc58e07f4e0a3486de96`.

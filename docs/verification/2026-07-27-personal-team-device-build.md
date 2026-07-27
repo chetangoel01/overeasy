@@ -72,3 +72,11 @@ confirmation in the share sheet.
 - The packaged share-fix IPA is
   `/tmp/Overeasy-1.0-20260726.2-ngrok-share-fix.ipa`; its SHA-256 is
   `ec6d63cd6fd8edbfe7f2814ee421a2046d230f39d3437bce0d64a5b3de323a47`.
+- The import-recovery and dark-mode replacement is release build
+  `1.0 (20260727.1)`. The app and Share Extension passed strict signature
+  verification, contain the same shared Keychain access group, and installed
+  successfully on the paired iPhone.
+- Its packaged IPA is
+  `/tmp/Overeasy-1.0-20260727.1-import-dark-mode.ipa`; ZIP validation passes,
+  the embedded Share Extension binary is present, and its SHA-256 is
+  `a4c18c1e08974cf2b2ce7c1d48afc138c65bcd7301b6bc58e07f4e0a3486de96`.

@@ -283,3 +283,15 @@ The non-attested external checks pass, but
 enforcement off. Do not expose this endpoint outside the tailnet. The host
 reported about 31 GiB free on 2026-07-27 after operator cleanup, above the
 20 GiB operating target. The old OrbStack data remains preserved for recovery.
+
+## Deployment update: 2026-07-27 thumbnail retention
+
+- Detached deployment commit `13ac0b6` contains the thumbnail-retention and
+  bounded recipe-inference backend changes from branch commit `5f3dd6e`.
+- The normal deployment gate upgraded the database from revision `0011` to
+  `0012`. Local and keyed ngrok readiness passed, and the worker remained
+  healthy.
+- A real Instagram import submitted through the keyed ngrok route completed
+  as `needsReview`. Fetching its recipe returned one HTTPS provider thumbnail,
+  proving the no-object-storage path from acquisition through recipe output.
+  Account deletion returned `204`, removing the temporary smoke-test guest.
