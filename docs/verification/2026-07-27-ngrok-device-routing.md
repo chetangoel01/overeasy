@@ -48,5 +48,22 @@ API.
   `APIClient` initializer did not exist.
 - The Mac mini profile regressions first failed because port `4114` and the
   tunnel listener did not exist.
-- Final test, deployment, tunnel-policy, and physical-device results are
-  recorded after the endpoint is live.
+- All 15 focused `APIClientTests` and `ProjectSmokeTests` passed. The added
+  ngrok browser-interstitial assertion also passed independently.
+- All seven Mac mini deployment regressions passed, and `ngrok.sh` passed
+  `sh -n`.
+- Commit `db2cbea` is deployed on the Mac mini. The edge container is healthy
+  with port `4114` bound only to host loopback.
+- The live ngrok policy returned `404` for a missing key, `404` for a wrong
+  key, `200` for keyed readiness, and `404` for keyed metrics access.
+- Xcode exposed the first temporary key in verbose build output. That key and
+  endpoint were discarded and rotated before installation. The final silent,
+  clean build embedded the rotated key and
+  `https://6072-2603-7002-1500-16-90c7-c848-df5a-c70a.ngrok-free.app`.
+- The final build contains the app and Share Extension, is signed by the
+  Personal Team, and installed successfully on the paired iPhone running iOS
+  27.0.
+- The physical-device launch reached the API through ngrok: guest bootstrap
+  returned `201`, followed by a recipe sync returning `200`.
+- The packaged IPA SHA-256 is
+  `ee3f622e74c2ad100dc1ad539dee9ab539a31ad1aeda77278c08ca4bff709a42`.
