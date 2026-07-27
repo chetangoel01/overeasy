@@ -8,10 +8,11 @@ traffic or worker jobs.
 ## User-visible behavior
 
 A production process refuses to start unless Celery, live extraction, TLS Redis
-and PostgreSQL, object storage, App Attest, rate limiting, and the configured
-identity providers are usable. Startup retries transient dependency failures.
-After startup, readiness continues checking the database revision, broker,
-result backend, rate-limit Redis, object storage, and at least one worker.
+and PostgreSQL, object storage, App Attest, rate limiting, and both identity
+providers shipped in the iOS app are configured. Startup retries transient
+dependency failures. After startup, readiness continues checking the database
+revision, broker, result backend, rate-limit Redis, object storage, and at least
+one worker.
 
 ## Deployment gate
 
@@ -38,6 +39,9 @@ complete before API, worker, or Beat starts.
 - Provider and object-storage HTTP endpoints must use HTTPS.
 - Object storage, live worker mode, an extraction credential, App Attest, and
   distributed rate limiting are mandatory in production.
+- Apple and Google sign-in are visible in the shipped iOS account flow, so
+  production requires both backends. The Apple audience must match the App
+  Attest bundle ID and its private key must be non-placeholder.
 - Startup tries dependencies 12 times at five-second intervals, while readiness
   remains a continuous deployment signal.
 

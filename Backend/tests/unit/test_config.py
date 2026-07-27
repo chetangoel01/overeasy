@@ -50,6 +50,13 @@ PRODUCTION_RUNTIME = {
     "metrics_auth_token": GOOD_SECRET,
     "tracing_enabled": True,
     "tracing_otlp_endpoint": "https://telemetry.example.test/v1/traces",
+    "apple_enabled": True,
+    "apple_bundle_id": "com.ladle.ios",
+    "apple_team_id": "ABCDE12345",
+    "apple_key_id": "APPLEKEY01",
+    "apple_private_key": GOOD_SECRET,
+    "google_enabled": True,
+    "google_server_client_id": "ladle-ios.apps.googleusercontent.com",
 }
 
 
@@ -226,14 +233,34 @@ def test_production_requires_distributed_rate_limiting() -> None:
         )
 
 
-def test_enabled_google_sign_in_requires_server_client_id() -> None:
-    with pytest.raises(ValidationError, match="Google sign-in"):
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("apple_enabled", False),
+        ("apple_team_id", None),
+        ("apple_key_id", None),
+        ("apple_private_key", None),
+        ("apple_private_key", "change-me-apple-private-key"),
+        ("apple_bundle_id", "com.ladle.wrong"),
+        ("google_enabled", False),
+        ("google_server_client_id", None),
+    ],
+)
+def test_production_requires_shipped_account_provider_configuration(
+    field: str,
+    value: object,
+) -> None:
+    values = {
+        **PRODUCTION_RUNTIME,
+        field: value,
+    }
+
+    with pytest.raises(ValidationError, match="production"):
         Settings(
             environment="production",
             jwt_signing_secret=GOOD_SECRET,
             data_encryption_key=GOOD_SECRET,
-            google_enabled=True,
-            **PRODUCTION_RUNTIME,
+            **values,
             _env_file=None,
         )
 

@@ -225,7 +225,7 @@ class Settings(BaseSettings):
     openrouter_max_tokens: int = Field(default=32_768, gt=0)
 
     apple_enabled: bool = False
-    apple_bundle_id: str = "com.ladle.app"
+    apple_bundle_id: str = "com.ladle.ios"
     apple_team_id: str | None = None
     apple_key_id: str | None = None
     apple_private_key: SecretStr | None = None
@@ -475,19 +475,36 @@ class Settings(BaseSettings):
             "google_jwks_url",
         ):
             self._require_tls_url(field_name, str(getattr(self, field_name)), {"https"})
-        if self.apple_enabled and any(
-            getattr(self, field_name) is None
-            for field_name in (
-                "apple_team_id",
-                "apple_key_id",
-                "apple_private_key",
-            )
+        if not self.apple_enabled:
+            raise ValueError("production requires the shipped Apple sign-in provider")
+        apple_private_key = (
+            self.apple_private_key.get_secret_value().strip()
+            if self.apple_private_key is not None
+            else ""
+        )
+        if (
+            self.apple_team_id is None
+            or self.apple_key_id is None
+            or len(apple_private_key) < _MINIMUM_PRODUCTION_SECRET_LENGTH
+            or self._is_placeholder(apple_private_key)
         ):
             raise ValueError(
-                "Apple sign-in requires team, key, and private-key configuration"
+                "production Apple sign-in requires team, key, and "
+                "non-placeholder private-key configuration"
             )
-        if self.google_enabled and not self.google_server_client_id:
-            raise ValueError("Google sign-in requires a server OAuth client ID")
+        if self.apple_bundle_id != self.app_attest_bundle_id:
+            raise ValueError(
+                "production Apple sign-in and App Attest bundle IDs must match"
+            )
+        if not self.google_enabled:
+            raise ValueError("production requires the shipped Google sign-in provider")
+        if not self.google_server_client_id or self._is_placeholder(
+            self.google_server_client_id
+        ):
+            raise ValueError(
+                "production Google sign-in requires a non-placeholder "
+                "server OAuth client ID"
+            )
         return self
 
     @staticmethod
