@@ -87,3 +87,37 @@ The script complements, but cannot replace, the staging network-policy canary,
 managed backup/PITR restore, Apple production credentials, and real-device App
 Attest matrix. Store every run's hostname, image digest, migration revision,
 time, and result in `docs/verification`.
+
+## Real-device App Attest gate
+
+`AppAttestClientTests.testLiveRealDeviceEnforcesBindingReplayRevocationAndRotation`
+is excluded from ordinary simulator runs. Against an App-Attest-enforcing
+HTTPS environment, it uses Apple's real device service to prove:
+
+- attestation and installation binding;
+- a valid sensitive-request assertion;
+- rejection of the same assertion/challenge replay;
+- invalid-assertion device/key revocation; and
+- recovery with a newly attested key.
+
+It uses an unsupported HTTPS import source so no provider or media job is
+dispatched, then deletes its test account. Run it only on a physical device
+with the matching App Attest environment and a signed provisioning profile:
+
+```bash
+xcodebuild test \
+  -project Ladle.xcodeproj \
+  -scheme Ladle \
+  -destination 'id=<physical-device-udid>' \
+  -only-testing:LadleTests/AppAttestClientTests/testLiveRealDeviceEnforcesBindingReplayRevocationAndRotation \
+  -allowProvisioningUpdates \
+  DEVELOPMENT_TEAM=<apple-team-id> \
+  CODE_SIGN_STYLE=Automatic \
+  APP_ATTEST_ENVIRONMENT=development \
+  LADLE_API_BASE_URL=https://attest-staging.example \
+  'OTHER_SWIFT_FLAGS=$(inherited) -DLADLE_LIVE_APP_ATTEST'
+```
+
+The test's device code path is compile-checked without signing using a generic
+iOS `build-for-testing`. A passing production claim still requires rerunning
+against the production App Attest environment and final signed app identity.

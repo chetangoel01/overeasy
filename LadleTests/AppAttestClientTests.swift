@@ -1,5 +1,7 @@
 import CryptoKit
 import Foundation
+import LadleCore
+import UIKit
 import XCTest
 @testable import Ladle
 
@@ -94,6 +96,256 @@ final class AppAttestClientTests: XCTestCase {
         )
         XCTAssertEqual(requests.snapshot.count, 2)
     }
+
+    @MainActor
+    func testLiveRealDeviceEnforcesBindingReplayRevocationAndRotation() async throws {
+        #if !LADLE_LIVE_APP_ATTEST
+            throw XCTSkip(
+                "Enable with OTHER_SWIFT_FLAGS=-DLADLE_LIVE_APP_ATTEST."
+            )
+        #elseif targetEnvironment(simulator)
+            throw XCTSkip("Live App Attest requires a physical iOS device.")
+        #else
+            let baseURL = try APIConfiguration().baseURL
+            XCTAssertEqual(baseURL.scheme, "https")
+            let deviceID = try XCTUnwrap(
+                UIDevice.current.identifierForVendor
+            )
+            let installationID =
+                "live-app-attest-\(deviceID.uuidString.lowercased())"
+            let keychainService = "com.ladle.ios.live-app-attest-tests"
+            let tokenStore = InMemoryAuthTokenStore()
+            let client = AppAttestClient(
+                baseURL: baseURL,
+                installationID: installationID,
+                secureStore: SystemKeychainDataStore(),
+                keychainService: keychainService,
+                keychainAccount: "key-id"
+            )
+
+            try? await client.reset()
+            var currentTokens: AuthTokens?
+            do {
+                let initialEvidenceValue = try await client.guestEvidence()
+                let initialEvidence = try XCTUnwrap(initialEvidenceValue)
+                let wrongInstallation = try await Self.createGuest(
+                    baseURL: baseURL,
+                    installationID: "\(installationID)-wrong",
+                    evidence: initialEvidence
+                )
+                XCTAssertEqual(wrongInstallation.response.statusCode, 403)
+
+                let initialGuest = try await Self.createGuest(
+                    baseURL: baseURL,
+                    installationID: installationID,
+                    evidence: initialEvidence
+                )
+                XCTAssertEqual(initialGuest.response.statusCode, 201)
+                var tokens = try RemoteContractJSON.decoder().decode(
+                    AuthTokens.self,
+                    from: initialGuest.data
+                )
+                try tokenStore.save(tokens)
+                currentTokens = tokens
+
+                let accepted = try await Self.authorizedUnsupportedImport(
+                    baseURL: baseURL,
+                    installationID: installationID,
+                    accessToken: tokens.accessToken,
+                    client: client
+                )
+                let first = try await URLSession.shared.data(
+                    for: accepted
+                )
+                XCTAssertEqual(
+                    try XCTUnwrap(first.1 as? HTTPURLResponse).statusCode,
+                    422
+                )
+                let replay = try await URLSession.shared.data(
+                    for: accepted
+                )
+                XCTAssertEqual(
+                    try XCTUnwrap(replay.1 as? HTTPURLResponse).statusCode,
+                    403
+                )
+
+                var invalid = try await Self.authorizedUnsupportedImport(
+                    baseURL: baseURL,
+                    installationID: installationID,
+                    accessToken: tokens.accessToken,
+                    client: client
+                )
+                invalid.setValue(
+                    Data("invalid-assertion".utf8).base64EncodedString(),
+                    forHTTPHeaderField: "X-App-Attest-Assertion"
+                )
+                let rejected = try await URLSession.shared.data(
+                    for: invalid
+                )
+                XCTAssertEqual(
+                    try XCTUnwrap(rejected.1 as? HTTPURLResponse).statusCode,
+                    403
+                )
+
+                do {
+                    _ = try await Self.authorizedUnsupportedImport(
+                        baseURL: baseURL,
+                        installationID: installationID,
+                        accessToken: tokens.accessToken,
+                        client: client
+                    )
+                    XCTFail("A revoked key must require fresh attestation.")
+                } catch AppAttestClientError.keyRequiresAttestation {
+                    // Expected: the invalid assertion revoked the device key.
+                }
+
+                try await client.reset()
+                let rotatedEvidenceValue = try await client.guestEvidence()
+                let rotatedEvidence = try XCTUnwrap(rotatedEvidenceValue)
+                let rotatedGuest = try await Self.createGuest(
+                    baseURL: baseURL,
+                    installationID: installationID,
+                    evidence: rotatedEvidence
+                )
+                XCTAssertEqual(rotatedGuest.response.statusCode, 201)
+                tokens = try RemoteContractJSON.decoder().decode(
+                    AuthTokens.self,
+                    from: rotatedGuest.data
+                )
+                try tokenStore.save(tokens)
+                currentTokens = tokens
+
+                try await Self.deleteAccount(
+                    baseURL: baseURL,
+                    tokens: tokens
+                )
+                currentTokens = nil
+                try await client.reset()
+            } catch {
+                if let currentTokens {
+                    try? await Self.deleteAccount(
+                        baseURL: baseURL,
+                        tokens: currentTokens
+                    )
+                }
+                try? await client.reset()
+                throw error
+            }
+        #endif
+    }
+
+    private static func createGuest(
+        baseURL: URL,
+        installationID: String,
+        evidence: AppAttestEvidence
+    ) async throws -> (data: Data, response: HTTPURLResponse) {
+        let body = try RemoteContractJSON.encode(
+            LiveGuestRequest(
+                installationID: installationID,
+                attestation: evidence
+            )
+        )
+        var request = URLRequest(
+            url: baseURL.appending(path: "/v1/auth/guest")
+        )
+        request.httpMethod = "POST"
+        request.httpBody = body
+        request.setValue(
+            "application/json",
+            forHTTPHeaderField: "Content-Type"
+        )
+        let (data, rawResponse) = try await URLSession.shared.data(
+            for: request
+        )
+        return (
+            data,
+            try XCTUnwrap(rawResponse as? HTTPURLResponse)
+        )
+    }
+
+    private static func authorizedUnsupportedImport(
+        baseURL: URL,
+        installationID: String,
+        accessToken: String,
+        client: AppAttestClient
+    ) async throws -> URLRequest {
+        var request = URLRequest(
+            url: baseURL.appending(path: "/v1/imports")
+        )
+        request.httpMethod = "POST"
+        request.httpBody = try RemoteContractJSON.encode(
+            LiveImportRequest(
+                jobID: UUID(),
+                sourceURL: URL(string: "https://example.com/recipe")!,
+                allowDuplicate: false,
+                idempotencyKey: UUID().uuidString.lowercased()
+            )
+        )
+        request.setValue(
+            "application/json",
+            forHTTPHeaderField: "Content-Type"
+        )
+        request.setValue(
+            "Bearer \(accessToken)",
+            forHTTPHeaderField: "Authorization"
+        )
+        return try await client.authorize(
+            request,
+            purpose: .importSubmission
+        )
+    }
+
+    private static func deleteAccount(
+        baseURL: URL,
+        tokens: AuthTokens
+    ) async throws {
+        let refreshToken = try XCTUnwrap(tokens.refreshToken)
+        let userID = tokens.userID.uuidString.lowercased()
+        var request = URLRequest(
+            url: baseURL.appending(path: "/v1/auth/account")
+        )
+        request.httpMethod = "DELETE"
+        request.httpBody = try RemoteContractJSON.encode(
+            LiveAccountDeletionRequest(
+                confirmation: "DELETE",
+                refreshToken: refreshToken,
+                idempotencyKey: "live-attest-delete-\(userID)"
+            )
+        )
+        request.setValue(
+            "application/json",
+            forHTTPHeaderField: "Content-Type"
+        )
+        request.setValue(
+            "Bearer \(tokens.accessToken)",
+            forHTTPHeaderField: "Authorization"
+        )
+        let (_, rawResponse) = try await URLSession.shared.data(
+            for: request
+        )
+        XCTAssertEqual(
+            try XCTUnwrap(rawResponse as? HTTPURLResponse).statusCode,
+            204
+        )
+    }
+}
+
+private struct LiveGuestRequest: Encodable, Sendable {
+    let installationID: String
+    let attestation: AppAttestEvidence
+}
+
+private struct LiveImportRequest: Encodable, Sendable {
+    let jobID: UUID
+    let sourceURL: URL
+    let allowDuplicate: Bool
+    let idempotencyKey: String
+}
+
+private struct LiveAccountDeletionRequest: Encodable, Sendable {
+    let confirmation: String
+    let refreshToken: String
+    let idempotencyKey: String
 }
 
 private final class FakeAppAttestPlatform:
