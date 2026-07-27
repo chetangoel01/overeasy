@@ -26,6 +26,16 @@ ensure_secret LADLE_JWT_SIGNING_SECRET
 ensure_secret LADLE_DATA_ENCRYPTION_KEY
 ensure_secret LADLE_METRICS_AUTH_TOKEN
 
+ensure_setting() {
+    key=$1
+    value=$2
+    if ! grep -q "^${key}=" "$env_file"; then
+        printf '%s=%s\n' "$key" "$value" >>"$env_file"
+    fi
+}
+
+ensure_setting LADLE_INSTALL_MEDIA_TOOLS false
+
 if command -v docker >/dev/null 2>&1; then
     docker_bin=$(command -v docker)
 elif [ -x "$HOME/.orbstack/bin/docker" ]; then

@@ -7,6 +7,7 @@ COPY --from=ghcr.io/astral-sh/uv:0.8.22@sha256:9874eb7afe5ca16c363fe80b294fe700e
 ARG DEBIAN_SNAPSHOT=20260713T000000Z
 ARG CA_CERTIFICATES_VERSION=20230311+deb12u1
 ARG FFMPEG_VERSION=7:5.1.9-0+deb12u1
+ARG INSTALL_MEDIA_TOOLS=true
 RUN sed -i \
         -e "s|http://deb.debian.org/debian$|https://snapshot.debian.org/archive/debian/${DEBIAN_SNAPSHOT}|" \
         -e "s|http://deb.debian.org/debian-security$|https://snapshot.debian.org/archive/debian-security/${DEBIAN_SNAPSHOT}|" \
@@ -15,7 +16,9 @@ RUN sed -i \
     && apt-get update \
     && apt-get install --no-install-recommends -y \
         ca-certificates=${CA_CERTIFICATES_VERSION} \
-        ffmpeg=${FFMPEG_VERSION} \
+    && if [ "$INSTALL_MEDIA_TOOLS" = "true" ]; then \
+        apt-get install --no-install-recommends -y ffmpeg=${FFMPEG_VERSION}; \
+    fi \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

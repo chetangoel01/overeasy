@@ -20,6 +20,10 @@ def test_runtime_image_is_reproducible_and_has_a_healthcheck() -> None:
     assert "snapshot.debian.org" in dockerfile
     assert "ca-certificates=${CA_CERTIFICATES_VERSION}" in dockerfile
     assert "ffmpeg=${FFMPEG_VERSION}" in dockerfile
+    assert "ARG INSTALL_MEDIA_TOOLS=true" in dockerfile
+    assert 'if [ "$INSTALL_MEDIA_TOOLS" = "true" ]' in dockerfile
+    compose = (BACKEND / "docker-compose.yml").read_text()
+    assert "INSTALL_MEDIA_TOOLS: ${LADLE_INSTALL_MEDIA_TOOLS:-true}" in compose
     assert "HEALTHCHECK" in dockerfile
     assert 'CMD ["/app/.venv/bin/python", "-m", "ladle.api"]' in dockerfile
     assert dockerfile.count("--mount=type=cache,target=/tmp/ladle/cache/uv") == 2

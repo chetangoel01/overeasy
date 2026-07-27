@@ -17,6 +17,11 @@ x-runtime-security: &runtime-security
       soft: 536870912
       hard: 536870912
 
+x-runtime-build: &runtime-build
+  context: .
+  args:
+    INSTALL_MEDIA_TOOLS: ${LADLE_INSTALL_MEDIA_TOOLS:-true}
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -87,7 +92,7 @@ services:
 
   migrate:
     <<: *runtime-security
-    build: .
+    build: *runtime-build
     command: ["/app/.venv/bin/alembic", "upgrade", "head"]
     healthcheck:
       disable: true
@@ -126,7 +131,7 @@ services:
 
   api:
     <<: *runtime-security
-    build: .
+    build: *runtime-build
     environment: *ladle-environment
     ports:
       - "127.0.0.1:4112:4111"
@@ -151,7 +156,7 @@ services:
 
   worker:
     <<: *runtime-security
-    build: .
+    build: *runtime-build
     command:
       [
         "/app/.venv/bin/celery",
@@ -191,7 +196,7 @@ services:
   # every sweep twice.
   beat:
     <<: *runtime-security
-    build: .
+    build: *runtime-build
     command:
       [
         "/app/.venv/bin/celery",

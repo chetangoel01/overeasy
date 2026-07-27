@@ -13,6 +13,7 @@ It is not the public production deployment.
 - Tailscale Serve provides the HTTPS endpoint to devices in the same tailnet.
 - Imports use the configured live text/extraction providers.
 - Audio transcription, frame sampling, and server media fallback are disabled.
+- The Mac-only image omits FFmpeg and its media libraries.
 - PostgreSQL, Redis, and MinIO are never published to the LAN or internet.
 
 ## Important decisions
