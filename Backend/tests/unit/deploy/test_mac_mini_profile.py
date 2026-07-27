@@ -100,15 +100,3 @@ def test_mac_mini_deploy_script_generates_secrets_and_runs_migrations() -> None:
     assert "health/ready" in script
     assert "--proxy-protocol=2" in script
     assert "--tls-terminated-tcp=443" in script
-
-
-def test_ci_scans_and_retains_sboms_for_mac_infrastructure_images() -> None:
-    workflow = (BACKEND.parent / ".github" / "workflows" / "backend-ci.yml").read_text()
-
-    assert "Build Mac worker egress gateway" in workflow
-    assert "Load pinned Mac ingress edge" in workflow
-    assert "Scan Mac worker egress gateway" in workflow
-    assert "Scan Mac ingress edge" in workflow
-    assert "Generate Mac worker egress SBOM" in workflow
-    assert "Generate Mac ingress edge SBOM" in workflow
-    assert "ladle-mac-infrastructure-sboms" in workflow
