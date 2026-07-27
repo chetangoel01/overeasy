@@ -106,4 +106,36 @@ final class DesignTokenTests: XCTestCase {
             )
         )
     }
+
+    func testReviewCompletionShowsReviewedBeforePromptNavigation() {
+        var presentation = ReviewCompletionPresentation()
+
+        XCTAssertEqual(presentation.title, "Mark reviewed")
+        XCTAssertNil(presentation.systemImage)
+        XCTAssertFalse(presentation.isReviewed)
+
+        presentation.markReviewed()
+
+        XCTAssertEqual(presentation.title, "Reviewed")
+        XCTAssertEqual(presentation.systemImage, "checkmark")
+        XCTAssertTrue(presentation.isReviewed)
+        XCTAssertEqual(
+            ReviewCompletionPresentation.navigationDelay(
+                reduceMotion: false
+            ),
+            .milliseconds(160)
+        )
+        XCTAssertLessThanOrEqual(
+            ReviewCompletionPresentation.navigationDelay(
+                reduceMotion: false
+            ),
+            .milliseconds(180)
+        )
+        XCTAssertEqual(
+            ReviewCompletionPresentation.navigationDelay(
+                reduceMotion: true
+            ),
+            .zero
+        )
+    }
 }

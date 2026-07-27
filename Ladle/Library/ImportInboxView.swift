@@ -2,6 +2,8 @@ import LadleCore
 import SwiftUI
 
 struct ImportInboxView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     @Bindable var viewModel: LibraryViewModel
     let recoverImport: (ImportJob) -> Void
     let openReview: (Recipe, String) -> Void
@@ -18,6 +20,12 @@ struct ImportInboxView: View {
         .toolbar(.visible, for: .navigationBar)
         .toolbarBackground(LadleTheme.paper, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
+        .animation(
+            reduceMotion
+                ? nil
+                : .snappy(duration: 0.2, extraBounce: 0),
+            value: viewModel.actionableImportJobs.map(\.id)
+        )
         .accessibilityIdentifier("library.import-inbox.root")
     }
 

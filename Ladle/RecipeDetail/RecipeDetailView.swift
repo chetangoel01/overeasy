@@ -1,6 +1,26 @@
 import LadleCore
 import SwiftUI
 
+struct ReviewCompletionPresentation: Equatable {
+    private(set) var isReviewed = false
+
+    var title: String {
+        isReviewed ? "Reviewed" : "Mark reviewed"
+    }
+
+    var systemImage: String? {
+        isReviewed ? "checkmark" : nil
+    }
+
+    mutating func markReviewed() {
+        isReviewed = true
+    }
+
+    static func navigationDelay(reduceMotion: Bool) -> Duration {
+        reduceMotion ? .zero : .milliseconds(160)
+    }
+}
+
 private enum RecipeDetailSection: String, CaseIterable, Identifiable {
     case ingredients = "Ingredients"
     case method = "Method"
@@ -10,6 +30,7 @@ private enum RecipeDetailSection: String, CaseIterable, Identifiable {
 
 struct RecipeDetailView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     let statusText: String
     @Bindable var importCoordinator: ImportCoordinator
@@ -32,6 +53,8 @@ struct RecipeDetailView: View {
     @State private var pendingOption: RecipeOption?
     @State private var isDeleteConfirmationPresented = false
     @State private var reviewIsPending: Bool
+    @State private var reviewPresentation =
+        ReviewCompletionPresentation()
 
     init(
         recipe: Recipe,
@@ -67,7 +90,7 @@ struct RecipeDetailView: View {
                     heroImage
                     recipeHeader
                     RecipeMetadataBand(recipe: displayedRecipe)
-                    if needsReview {
+                    if showsReviewNotice {
                         reviewNotice
                             .id("recipe-review")
                     }
@@ -105,6 +128,24 @@ struct RecipeDetailView: View {
                 wasPending: wasPending,
                 isPending: isPending
             )
+        }
+        .task(id: reviewPresentation.isReviewed) {
+            guard reviewPresentation.isReviewed else {
+                return
+            }
+            do {
+                try await Task.sleep(
+                    for: ReviewCompletionPresentation.navigationDelay(
+                        reduceMotion: reduceMotion
+                    )
+                )
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else {
+                return
+            }
+            reviewDidComplete()
         }
         .accessibilityIdentifier("recipe.detail")
         .navigationTitle("")
@@ -323,18 +364,7 @@ struct RecipeDetailView: View {
             .foregroundStyle(LadleTheme.mutedInk)
             .fixedSize(horizontal: false, vertical: true)
 
-            Button("Mark reviewed") {
-                guard let reviewed = completeReview(
-                    displayedRecipe.id
-                ) else {
-                    return
-                }
-                reviewIsPending = false
-                applyChangedRecipe(reviewed)
-                reviewDidComplete()
-            }
-            .buttonStyle(LadlePrimaryButtonStyle(isProminent: false))
-            .accessibilityIdentifier("recipe.complete-review")
+            reviewAction
         }
         .padding(16)
         .background(
@@ -344,6 +374,47 @@ struct RecipeDetailView: View {
                 style: .continuous
             )
         )
+    }
+
+    @ViewBuilder
+    private var reviewAction: some View {
+        if let systemImage = reviewPresentation.systemImage {
+            Label(
+                reviewPresentation.title,
+                systemImage: systemImage
+            )
+            .ladleFont(.bodyStrong)
+            .foregroundStyle(LadleTheme.ink)
+            .frame(maxWidth: .infinity, minHeight: 52)
+            .background(
+                LadleTheme.success.opacity(0.62),
+                in: RoundedRectangle(
+                    cornerRadius: LadleTheme.Corner.control,
+                    style: .continuous
+                )
+            )
+            .accessibilityIdentifier("recipe.reviewed")
+        } else {
+            Button(
+                reviewPresentation.title,
+                action: markReviewed
+            )
+            .buttonStyle(
+                LadlePrimaryButtonStyle(isProminent: false)
+            )
+            .accessibilityIdentifier("recipe.complete-review")
+        }
+    }
+
+    private func markReviewed() {
+        guard let reviewed = completeReview(
+            displayedRecipe.id
+        ) else {
+            return
+        }
+        reviewPresentation.markReviewed()
+        reviewIsPending = false
+        applyChangedRecipe(reviewed)
     }
 
     private var favoriteButton: some View {
@@ -374,6 +445,10 @@ struct RecipeDetailView: View {
 
     private var needsReview: Bool {
         reviewIsPending
+    }
+
+    private var showsReviewNotice: Bool {
+        needsReview || reviewPresentation.isReviewed
     }
 
     @ViewBuilder

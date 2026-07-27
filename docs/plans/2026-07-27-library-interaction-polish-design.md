@@ -101,6 +101,15 @@ timer/reset controls. Primary buttons now share the card timing. The token
 test was observed failing before the types existed; afterward all 27 focused
 design, cooking, and project-smoke tests and a simulator build passed.
 
+Review completion now persists first, replaces the action with a visible
+checkmark and “Reviewed,” applies the returned recipe, and lets that state
+remain for 160 ms before resolving the typed navigation path. Reduce Motion
+uses a zero delay. A view-scoped SwiftUI task provides the delay and is
+automatically cancelled if Recipe Detail disappears. The Import Inbox list
+uses a 200 ms zero-bounce update, and the presentation/delay test plus all
+three navigation-state tests protect the remaining-inbox and empty-inbox
+routes.
+
 ## Haptics
 
 Use SwiftUI sensory feedback tied to state changes:
