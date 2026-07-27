@@ -64,8 +64,7 @@ compose() {
 compose config >/dev/null
 compose stop minio || true
 compose up -d postgres redis
-compose pull edge
-compose build migrate minio-init api worker beat worker-egress
+compose build migrate minio-init api worker beat worker-egress edge
 compose run --rm migrate
 compose up \
     -d \

@@ -55,7 +55,7 @@ def test_ci_enforces_quality_security_migrations_and_exact_image_release() -> No
         (
             "docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a"
             " # v7.3.0",
-            3,
+            4,
         ),
     ):
         assert workflow.count(action) == count

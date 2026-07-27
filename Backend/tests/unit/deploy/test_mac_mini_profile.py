@@ -42,8 +42,11 @@ def test_mac_mini_profile_is_private_bounded_and_non_media() -> None:
 
 
 def test_mac_mini_edge_enforces_body_limit_and_preserves_proxy_protocol_ip() -> None:
+    dockerfile = (BACKEND / "deploy" / "mac-mini" / "edge.Dockerfile").read_text()
     config = (BACKEND / "deploy" / "mac-mini" / "nginx.conf").read_text()
 
+    assert "@sha256:" in dockerfile
+    assert "COPY --chown=101:101 --chmod=0444 nginx.conf" in dockerfile
     assert "listen 8080 proxy_protocol" in config
     assert "listen 8081" in config
     assert "real_ip_header proxy_protocol" in config
