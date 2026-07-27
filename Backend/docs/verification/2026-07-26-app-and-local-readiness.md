@@ -19,6 +19,25 @@ report ready under the intended container restrictions.
 
 No shared-contract, app-flow, or Share Extension regression surfaced.
 
+## Final Mac mini regression pass
+
+After the private staging profile moved to commit `46d1922`:
+
+- the tailnet readiness endpoint returned `200` with database, broker, Celery
+  result backend, worker, Redis-backed rate limits and metrics, and
+  configuration ready;
+- a text-only live OpenRouter import produced a ready Garlic Butter Toast
+  recipe with four ingredients and three steps, synchronized it, fetched it,
+  and permanently deleted the smoke account;
+- object storage and all video/audio/frame processing remained disabled;
+- LadleCore again passed 37 tests, while the Ladle simulator run passed 127
+  app tests and 25 UI tests, for 152 total.
+
+GitHub Actions run `30232538607` also passed Ruff, strict mypy for 108 source
+files, 464 non-live tests with five intentional deselections, migration
+consistency, a real PostgreSQL restore, dependency and secret scanning, the
+Linux/amd64 image vulnerability scan, and SBOM generation.
+
 ## Backend release checks
 
 - Production configuration, security headers, health probes, migration

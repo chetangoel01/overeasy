@@ -89,8 +89,8 @@ policy file into a deployed control.
 | Read-only root and bounded temporary storage | PASS | Runtime uses a read-only root and 256 MiB tmpfs. |
 | CPU/memory/PID/FD/temp/file-size limits | PASS | Compose runtime and tests enforce one CPU, 1 GiB, 256 PIDs, bounded FDs/tmpfs/file size. Preserve or tighten these on the host. |
 | Capabilities and seccomp/AppArmor | DEPLOY | All capabilities and privilege escalation are dropped; the migration manifest declares `RuntimeDefault` seccomp. Confirm the API/worker platform profile. |
-| Final OS and Python image scan | PASS | Exact image `sha256:1b2430ddf036e63e1268895a5691b7aba93bbb116c2573eb4d9ffd6c19bbc8ee` has zero fixable HIGH/CRITICAL Debian or Python findings under digest-pinned Trivy 0.72.0. |
-| SBOM, provenance, and image signing | DEPLOY | The exact image generated a valid SPDX 2.3 SBOM with 384 packages and 946 relationships. Main-branch BuildKit SBOM/provenance plus keyless digest signing are configured; publish/sign the final main digest through GitHub OIDC. |
+| Final OS and Python image scan | PASS | Commit `46d1922` produced Linux/amd64 manifest `sha256:34269c0319e91b0f18cd08937f1c07e14f6d5e589526c80ebe9a34403dbb4757`; CI run `30232538607` passed the HIGH/CRITICAL OS and Python vulnerability gate. |
+| SBOM, provenance, and image signing | DEPLOY | The current candidate generated a valid SPDX 2.3 SBOM with 390 packages and 6,869 relationships. Main-branch BuildKit SBOM/provenance plus keyless digest signing are configured; publish/sign the final main digest through GitHub OIDC. |
 | Production-context exclusions | PASS | Git, env files, tests/docs/scripts/deploy/load, Compose, cookies, caches, local DBs, and evaluation artifacts are excluded and layer-tested. |
 | Configurable S3 addressing | PASS | `auto`, `path`, and `virtual` configure internal and public clients; Compose uses path and Railway can use virtual. |
 | Configurable `PORT` | PASS | Validated `PORT` entrypoint supports Render/Railway and the image health check follows it. |
@@ -105,25 +105,25 @@ policy file into a deployed control.
 | Tests for new controls | PASS | Dedicated App Attest, rate-limit, quotas/budgets, production settings, body/graph/SSRF, deletion/retention, outbox/heartbeat, observability, and container policy suites exist. |
 | Load tests | PASS | Isolated k6 scenarios passed guest creation, import bursts, sync polling, and maximum graphs; PostgreSQL concurrency tests cover budget enforcement. |
 | Worker-kill/broker-outage tests | PASS | Isolated SIGKILL and Redis-loss scenarios recovered to deterministic success. |
-| Credentialed live-provider smoke | EXTERNAL | Three credential-gated live tests remain intentionally excluded until production-like provider credentials are supplied. |
+| Credentialed live-provider smoke | EXTERNAL | A text-only live OpenRouter extraction passed on the Mac mini. Supadata and SoScripted remain intentionally uncalled under the explicit no-video scope, and no Anthropic credential is configured. |
 | Production Apple real-device validation | EXTERNAL | Requires production Apple credentials and a signed physical device. |
 | App Attest real-device matrix | EXTERNAL | Requires production App Attest on a signed physical device for valid, replay, invalid, revoked/compromised, and key-rotation cases. |
-| Build and scan exact production image | PASS | The final Linux/amd64 image was rebuilt, inspected as non-root `ladle`, scanned clean, given a fresh SPDX SBOM, migrated from empty PostgreSQL through `0011`, and exercised under the hardened runtime profile. |
+| Build and scan exact production image | PASS | CI rebuilt commit `46d1922` for Linux/amd64, scanned manifest `sha256:34269c0319e91b0f18cd08937f1c07e14f6d5e589526c80ebe9a34403dbb4757`, and retained its fresh SPDX SBOM. Runtime hardening and empty-database migration were proven on the prior candidate; the current API/worker behavior was exercised on the Mac arm64 build. |
 | Staging migration/rollout/rollback/restore/Redis/worker/provider drills | EXTERNAL | Requires the deployed staging environment and managed services. |
 | Final external security check | EXTERNAL | Run `verify_staging.py` against the HTTPS hostname with real rate limiting and a byte-exact real-device metadata assertion, plus worker egress and secret-exposure canaries. |
 
 ## Final local verification snapshot
 
 - Backend quality gates: Ruff formatting and lint passed, strict mypy passed
-  for 107 source files, and the complete non-live suite passed with 459 tests
+  for 108 source files, and the complete non-live suite passed with 464 tests
   and 5 intentional credential-gated deselections.
 - Supply chain: the committed-secret scan found no high-confidence patterns,
   `pip-audit` found no known vulnerabilities, and digest-pinned Trivy found
   zero fixable HIGH/CRITICAL findings.
-- Exact image: Linux/amd64
-  `sha256:1b2430ddf036e63e1268895a5691b7aba93bbb116c2573eb4d9ffd6c19bbc8ee`,
-  333,768,482 bytes, configured as user `ladle`.
-- Exact-image runtime: an empty PostgreSQL 16 database upgraded through
+- Current exact image: Linux/amd64 manifest
+  `sha256:34269c0319e91b0f18cd08937f1c07e14f6d5e589526c80ebe9a34403dbb4757`;
+  its HIGH/CRITICAL scan and fresh SPDX SBOM passed in CI.
+- Prior exact-image runtime: an empty PostgreSQL 16 database upgraded through
   revision `0011`; readiness reported database, broker, result backend,
   rate-limit Redis, metrics Redis, storage, configuration, and worker as
   ready.
@@ -137,6 +137,9 @@ policy file into a deployed control.
   `8dc3c7e28f5cc227f54029d278de104cf4854f8838a396213c6081298a091dbb`.
 - Client compatibility: LadleCore passed 37 tests, the iOS Ladle scheme passed
   152 tests, and Release builds passed for the app and Share Extension.
+- Private staging: the Mac mini passed a live text-only OpenRouter import,
+  recipe retrieval, sync, and account deletion with object storage and every
+  video/audio/frame path disabled.
 - Resilience and load: worker-kill and Redis-outage recovery passed; the local
   load run completed 3,277 checks with no unexpected failures.
 
