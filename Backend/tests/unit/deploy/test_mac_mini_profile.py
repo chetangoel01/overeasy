@@ -106,5 +106,6 @@ def test_mac_mini_deploy_script_generates_secrets_and_runs_migrations() -> None:
     assert '--context "$LADLE_MAC_MINI_DOCKER_CONTEXT"' in script
     assert "migrate" in script
     assert "health/ready" in script
+    assert '"$tailscale_bin" serve reset' in script
     assert "--proxy-protocol=2" in script
     assert "--tls-terminated-tcp=443" in script

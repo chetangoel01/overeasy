@@ -65,7 +65,8 @@ The deploy script validates the merged Compose configuration, starts the data
 services, stops the unused MinIO service, builds the runtime, runs Alembic
 before replacing API/worker processes, waits for the egress gateway and local
 edge readiness, and configures Tailscale's TLS-terminated PROXY protocol v2
-forwarder.
+forwarder. It first replaces any legacy web proxy on this node so repeated
+deployments converge on the single hardened route.
 
 `LADLE_MAC_MINI_DOCKER_CONTEXT` is optional. Set it when more than one Docker
 runtime is installed so deployment cannot silently target the wrong daemon.

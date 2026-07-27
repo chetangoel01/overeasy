@@ -94,6 +94,7 @@ else
     exit 1
 fi
 
+"$tailscale_bin" serve reset
 "$tailscale_bin" serve \
     --bg \
     --yes \
