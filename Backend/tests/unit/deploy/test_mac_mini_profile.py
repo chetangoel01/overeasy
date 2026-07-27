@@ -118,9 +118,7 @@ def test_mac_mini_deploy_script_generates_secrets_and_runs_migrations() -> None:
 
 
 def test_mac_mini_autostart_installer_starts_docker_at_login() -> None:
-    installer = (
-        BACKEND / "deploy" / "mac-mini" / "install-autostart.sh"
-    ).read_text()
+    installer = (BACKEND / "deploy" / "mac-mini" / "install-autostart.sh").read_text()
     launch_agent = (
         BACKEND / "deploy" / "mac-mini" / "com.ladle.docker-start.plist"
     ).read_text()

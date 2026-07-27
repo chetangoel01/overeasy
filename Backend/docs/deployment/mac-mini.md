@@ -3,9 +3,9 @@
 ## Purpose
 
 This profile runs the Ladle API, one Celery worker, Beat, PostgreSQL, and Redis
-on the always-on Mac mini through OrbStack. It is the low-cost private staging
-environment for device testing and a small invited beta. It is not the public
-production deployment.
+on the always-on Mac mini through Docker Desktop. It is the low-cost private
+staging environment for device testing and a small invited beta. It is not the
+public production deployment.
 
 ## User-visible behavior
 
@@ -171,10 +171,45 @@ worker/API logs before updating. The profile rotates container logs at three
   migration container/image, and the reproducible BuildKit cache were removed.
   No Immich, media-stack, user-data, or named-volume content was deleted.
 
-The public-production verifier intentionally does not pass this private profile:
-`LADLE_ENVIRONMENT=development` omits HSTS and public App Attest enforcement.
-Do not expose this endpoint outside the tailnet. The host still reports about
-13 GiB free after the scoped container cleanup, below the 20 GiB operating
-target. Free or add at least 7 GiB before retaining meaningful user data; the
-remaining large consumers are host-level Xcode simulators/caches and personal
-data, which this deployment did not delete.
+## Deployment update: 2026-07-27
+
+- Current deployed commit: `a2ce967`
+- Runtime: Docker Desktop `desktop-linux`; the unresponsive OrbStack runtime
+  was stopped but its data image was not reset or deleted.
+- Restored data: the verified pre-edge dump
+  `/Users/chetangoel/Backups/ladle/ladle-20260727-000040-pre-edge.dump`
+  restored to the new Docker Desktop volumes. Its mode is `0600`, its SHA-256
+  is `b8f03b8194ef811e228c3408c45caa12712e781edb2d4a8d36147fe6b325c9b0`,
+  `pg_restore --list` passed, revision is `0011`, and the two original users
+  remain.
+- Startup: `com.ladle.docker-start` is installed in the user's LaunchAgents
+  and launch-tested. Docker restart then restored all seven containers from
+  their `unless-stopped` policies in about ten seconds without a deploy.
+- Ingress: local and tailnet readiness passed; raw HTTP cannot use the PROXY
+  listener; a real tailnet request logged the original `100.x` client address.
+  Local and tailnet bodies over 1 MiB returned typed `413 invalidRequest`.
+- External boundary: `verify_staging.py` passed TLS, HSTS/security headers,
+  secret-leak checks, dependencies, hidden diagnostics, authentication, and
+  the request-size boundary.
+- Rate limiting: a local-only guest probe returned typed `429 rateLimited`
+  with `Retry-After` on attempt six. Its one temporary account was deleted and
+  the database user count remained two.
+- Worker egress: live probes allowed only PostgreSQL, Redis, and public HTTPS;
+  cloud metadata over HTTP/HTTPS, private and loopback addresses, public
+  non-HTTPS, IPv4-mapped metadata, and IPv6 were rejected with firewall
+  counters.
+- Hardening: API, worker, gateway, and edge are read-only and mount-free with
+  no-new-privileges. Only the gateway has `NET_ADMIN`; the worker shares its
+  exact network namespace. Only edge ports `4112` and `4113` bind host
+  loopback.
+- Video processing remains disabled. Supadata and SoScripted were not called.
+- The current OpenRouter, Supadata, and SoScripted credentials must be rotated
+  before broader use because their values appeared in operator terminal
+  output during an earlier configuration diagnostic.
+
+The non-attested external checks pass, but
+`LADLE_ENVIRONMENT=development` intentionally leaves real App Attest
+enforcement off. Do not expose this endpoint outside the tailnet. The host
+reports about 15 GiB free after safe Docker cache cleanup, still below the
+20 GiB operating target. The old OrbStack data was preserved for recovery and
+is the largest known reclaimable deployment-related allocation.

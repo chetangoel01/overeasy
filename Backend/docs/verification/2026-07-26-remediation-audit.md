@@ -25,8 +25,8 @@ policy file into a deployed control.
 | Concurrent cross-worker provider budget enforcement | PASS | PostgreSQL budget-window row locking and a real concurrent integration race admit exactly the budgeted work. |
 | Explicit `UsageLimitExceeded` terminal handling | PASS | Orchestration maps it to terminal `quotaExceeded`, clears private text, releases capacity/claims, and does not strand `parsing`. |
 | Complete application SSRF defense | PASS | The pinned client validates all DNS answers, pins IP plus Host/SNI, revalidates each redirect, rejects non-global and mapped addresses, restricts HTTPS/443, bounds bytes, ignores proxy environment, and covers linked pages, media, captions, oEmbed, and thumbnails. DNS rebinding, mixed answers, redirects, metadata, and IPv4-mapped IPv6 have tests. |
-| Worker egress backstop | DEPLOY | Default-deny `worker-egress-network-policy.yaml` permits labelled dependencies and public 443 while excluding private/metadata/task-credential ranges. Apply equivalent hosted firewall/security-group rules and run a worker egress canary. |
-| Load-balancer and application request-size limits | DEPLOY | Application streaming/declared limits and Nginx 1 MiB policy exist; exact-image smoke returned typed 413. Apply the ingress equivalent and verify it on staging. |
+| Worker egress backstop | PASS | The private Mac host runs a UID-scoped default-deny gateway. Live worker probes allowed only PostgreSQL, Redis, and public HTTPS; metadata HTTP/HTTPS, RFC1918, loopback, non-443, IPv4-mapped metadata, and IPv6 were rejected with matching counters. Any replacement public host still needs equivalent control-plane egress rules. |
+| Load-balancer and application request-size limits | PASS | Application streaming/declared limits and the rootless Nginx 1 MiB boundary are active. Local and tailnet 1 MiB-plus requests returned typed `413 invalidRequest`. |
 | Bounded recipe graph, text, counts, nesting, complexity, decimals, durations | PASS | `RecipeDTO` enforces every requested field/list/reference/numeric/depth/node/aggregate bound; contract and iOS editor tests cover rejection and compatible fixtures. |
 | Character/encryption byte-limit alignment | PASS | Import private text validates the 200,000-byte UTF-8 ceiling before encryption; multibyte boundaries and cipher limits are tested. |
 
@@ -47,7 +47,7 @@ policy file into a deployed control.
 | Cross-setting timing validation | PASS | A model-level validator rejects every unsafe ordering and the checked-in environment example is loaded in tests. |
 | Startup dependency retries | PASS | Production API retries the full readiness set 12 times; Celery retries broker startup. |
 | Extended readiness | PASS | Database connectivity/head revision, broker, result backend, rate-limit/metrics Redis, storage, production configuration, and live worker ping are checked. Queue depth/age and stuck work are durable gauges with paging alerts. |
-| Safe migration deployment gate and rollback compatibility | DEPLOY | One-shot bounded migration Job and Compose ordering use the release image; readiness rejects non-`0011`. All release migrations are additive for rollback compatibility. Execute the gate and rollout/rollback drill in staging. |
+| Safe migration deployment gate and rollback compatibility | PASS | The Mac deploy runs the one-shot release migration before replacing API/worker processes, and readiness rejects non-`0011`. Repeated live deploys completed the gate at `0011`; every release migration remains additive for rollback compatibility. |
 
 ## P1 — privacy and account lifecycle
 
@@ -75,7 +75,7 @@ policy file into a deployed control.
 | Production dashboards | DEPLOY | Grafana JSON has the eight required success/latency/cache/cost/retry/sync/abuse/queue views. Import and validate it against hosted metrics. |
 | Managed PostgreSQL backups and PITR | EXTERNAL | The checked policy requires PostgreSQL 16+, encrypted multi-AZ daily backups, 35-day retention, cross-region copy, and seven-day PITR. Provisioning evidence is still required. |
 | Real restore drill | PASS | Real PostgreSQL 16.14 `pg_dump` to empty-server `pg_restore` restored two rows with identical source/target SHA-256. Repeat against the managed backup/PITR control plane. |
-| Redis durability and failure behavior | DEPLOY | Local Redis uses AOF every second, hourly snapshots, no eviction, and persistence-error write refusal; a Mac mini restart drill retained an expiring canary, restored full API readiness, and reconnected the worker. Celery messages are persistent and PostgreSQL outbox recovers queue loss. Verify managed multi-AZ/failover settings. |
+| Redis durability and failure behavior | PASS | Redis uses AOF every second, hourly snapshots, no eviction, and persistence-error write refusal. Redis and full Docker Desktop restart drills retained data, restored API readiness, and reconnected the worker. Celery messages are persistent and PostgreSQL outbox recovers queue loss; this single-host profile accepts host loss as its documented residual risk. |
 | Incident runbooks | PASS | Provider outage, Redis loss, database failover, secret rotation, runaway spend, stuck migration, worker rollback, and account deletion runbooks exist. |
 | Service-level objectives | PASS | A 28-day SLO/error-budget policy defines availability, import success/latency, sync/queue latency, deletion, and recovery objectives. |
 
@@ -110,7 +110,7 @@ policy file into a deployed control.
 | App Attest real-device matrix | EXTERNAL | A gated XCTest now exercises real Apple attestation, installation binding, a valid assertion, replay, valid key rotation with prior-key retirement, invalid-assertion revocation, and durable rejection of replacement attestation. Its generic iOS device path compiles, and an isolated enforcing Mac endpoint rejected unattested guests. Execution on the paired iPhone is blocked by the missing Xcode account/profiles; rerun only against a disposable isolated database in the production App Attest environment afterward. |
 | Build and scan exact production image | PASS | CI run `30234296154` rebuilt commit `e9e07c7` for Linux/amd64, scanned manifest `sha256:1b1f6239537d293a793c297a57172f7c6184d89035a561e7fe22dc2e802d560c`, and retained its fresh SPDX SBOM as artifact `8641128436`. Runtime hardening and empty-database migration were proven on the prior candidate; the exact current behavior was exercised on the Mac arm64 build. |
 | Staging migration/rollout/rollback/restore/Redis/worker/provider drills | EXTERNAL | The private Mac staging host passed its migration gate, text-only live provider smoke, worker replacement, Redis persistence/reconnect, and off-host logical restore checks. Managed rollout/rollback, PITR restore, and failover still require the eventual production service control planes. |
-| Final external security check | EXTERNAL | Run `verify_staging.py` against the HTTPS hostname with real rate limiting and a byte-exact real-device metadata assertion, plus worker egress and secret-exposure canaries. |
+| Final external security check | EXTERNAL | The private tailnet hostname passed `verify_staging.py` for TLS, headers, secret leakage, dependencies, hidden endpoints, authentication, and request size. A live local-isolated probe produced typed `429` plus `Retry-After`, and worker egress canaries passed. The byte-exact real-device App Attest/metadata assertion remains external. |
 
 ## Final local verification snapshot
 
@@ -120,9 +120,10 @@ policy file into a deployed control.
 - Supply chain: the committed-secret scan found no high-confidence patterns,
   `pip-audit` found no known vulnerabilities, and digest-pinned Trivy found
   zero fixable HIGH/CRITICAL findings.
-- Current exact image: commit `e9e07c7`, Linux/amd64 manifest
-  `sha256:1b1f6239537d293a793c297a57172f7c6184d89035a561e7fe22dc2e802d560c`;
-  its HIGH/CRITICAL scan and fresh SPDX SBOM passed in CI run `30234296154`.
+- Current exact private deployment: commit `a2ce967` on Docker Desktop, with
+  the final Linux/amd64 CI run pending at the time of this record update. The
+  previous exact application manifest and all subsequent ingress/gateway
+  candidates passed their HIGH/CRITICAL scan and fresh SPDX SBOM gates.
 - Prior exact-image runtime: an empty PostgreSQL 16 database upgraded through
   revision `0011`; readiness reported database, broker, result backend,
   rate-limit Redis, metrics Redis, storage, configuration, and worker as
@@ -141,9 +142,12 @@ policy file into a deployed control.
   a credential-gated XCTest and its physical-device branch compiles. The
   available paired iPhone could not run it because Xcode has no authenticated
   Apple team or provisioning profiles; no build was installed on the phone.
-- Private staging: the Mac mini runs commit `e9e07c7` and passed a fresh live
-  text-only OpenRouter import, recipe retrieval, and account deletion with
-  object storage and every video/audio/frame path disabled.
+- Private staging: the Mac mini runs commit `a2ce967` with all
+  video/audio/frame paths disabled. TLS/security/exposure verification, typed
+  live 413/429 boundaries, real client-IP forwarding, restart recovery, and
+  infrastructure egress canaries pass. The earlier text-only OpenRouter import
+  passed; it was not repeated after the provider credentials became subject to
+  mandatory rotation.
 - Resilience and load: isolated worker-kill and Redis-outage recovery passed;
   the deployed idle-worker replacement and Redis AOF persistence/reconnect
   drills also passed, while the local load run completed 3,277 checks with no

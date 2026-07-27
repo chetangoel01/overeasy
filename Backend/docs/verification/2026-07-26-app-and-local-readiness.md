@@ -88,3 +88,24 @@ Local verification does not replace the credentialed and hosted checks already
 listed in the CI/chaos/load verification record: signed-device Apple and App
 Attest flows, live providers, managed backup/PITR, staged rollout and rollback,
 deployed-host TLS and egress checks, and registry publication/signing.
+
+## Mac mini infrastructure regression — 2026-07-27
+
+The app/backend contract did not change after the 37 LadleCore and 152 iOS test
+passes above. The final changes were isolated to the Mac deployment profile and
+were verified on commit `a2ce967`:
+
+- the restored database remained at revision `0011` with both users after
+  repeated deploys and a Docker Desktop restart;
+- API, worker, Beat, Redis, PostgreSQL, edge, and worker-egress recovered
+  automatically and readiness returned green locally and over Tailscale;
+- the HTTPS staging verifier passed TLS, headers, secret leakage, dependency,
+  exposed-endpoint, authentication, and 1 MiB request-boundary checks;
+- a live rate-limit probe returned typed `429` plus `Retry-After` and deleted
+  its temporary account, leaving the user count unchanged;
+- live worker probes allowed dependencies/public HTTPS and rejected metadata,
+  private, loopback, non-HTTPS, IPv4-mapped, and IPv6 destinations;
+- all video/audio/frame processing remained disabled.
+
+No new iOS regression risk was introduced by these Compose, Nginx, firewall,
+LaunchAgent, CI-policy, and documentation-only changes.
