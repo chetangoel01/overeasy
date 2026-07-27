@@ -58,6 +58,8 @@ services:
       LADLE_OBJECT_STORAGE_ADDRESSING_STYLE: path
       LADLE_OBJECT_STORAGE_ACCESS_KEY: ${LADLE_OBJECT_STORAGE_ACCESS_KEY:?set by deploy.sh}
       LADLE_OBJECT_STORAGE_SECRET_KEY: ${LADLE_OBJECT_STORAGE_SECRET_KEY:?set by deploy.sh}
+      LADLE_OBJECT_STORAGE_LIFECYCLE_PATH: /app/deploy/object-storage-lifecycle.json
+    volumes: !reset []
     logging: *bounded-logging
 
   edge:

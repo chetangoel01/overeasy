@@ -61,7 +61,11 @@ def test_mac_mini_profile_is_private_bounded_and_hosts_thumbnails() -> None:
     assert "ports: !reset []" in profile
     assert "LADLE_RATE_LIMIT_TRUSTED_PROXY_CIDRS: 172.30.0.2/32" in profile
     assert "network_mode: service:worker-egress" in profile
-    assert profile.count("volumes: !reset []") == 1
+    assert profile.count("volumes: !reset []") == 2
+    assert (
+        "LADLE_OBJECT_STORAGE_LIFECYCLE_PATH: "
+        "/app/deploy/object-storage-lifecycle.json"
+    ) in profile
     assert "MINIO_HOST: minio" in profile
     assert "NET_ADMIN" in profile
     assert "privileged: true" not in profile

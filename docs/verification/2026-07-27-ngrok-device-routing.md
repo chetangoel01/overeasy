@@ -34,6 +34,9 @@ signature rather than by the app-only tunnel header.
   exposing the bucket.
 - Port `4114` remains bound to `127.0.0.1`; only an agent running on the Mac
   mini can reach it. Tailscale remains the persistent staging ingress.
+- Bucket initialization reads the lifecycle policy baked into the backend
+  image. It does not mount a host file, avoiding Docker Desktop file-sharing
+  stalls when the deployment runs from a hidden Git worktree.
 - This is development access, not a production deployment. Stop the ngrok
   endpoint and replace the temporary device build when testing ends.
 
