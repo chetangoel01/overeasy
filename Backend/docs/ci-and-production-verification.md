@@ -26,7 +26,9 @@ packages from being misclassified as repository secret leaks.
 
 Every third-party GitHub Action is pinned to a full commit SHA. In particular,
 the image scan uses the post-incident Trivy Action v0.36.0 commit rather than a
-mutable or pre-0.35 tag; Dependabot proposes reviewed SHA updates.
+mutable or pre-0.35 tag; Dependabot proposes reviewed SHA updates. Checkout
+v7.0.1 and gitleaks-action v3.0.0 run on Node 24, avoiding GitHub's deprecated
+Node 20 action runtime.
 
 Pytest is constrained to 9.0.3 or newer; the current lock selects 9.1.1.
 The test client uses Starlette's maintained HTTPX2 path, avoiding the deprecated
