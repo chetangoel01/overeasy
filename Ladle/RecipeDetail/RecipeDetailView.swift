@@ -16,7 +16,7 @@ struct RecipeDetailView: View {
     let makeEditorViewModel: (Recipe) -> RecipeEditorViewModel
     let recipeDidChange: (Recipe) -> Void
     let reviewDidComplete: () -> Void
-    let toggleFavorite: (UUID) -> Void
+    let toggleFavorite: (UUID) -> Bool
     let completeReview: (UUID) -> Recipe?
     let deleteRecipe: (UUID) -> Bool
 
@@ -40,7 +40,7 @@ struct RecipeDetailView: View {
         makeEditorViewModel: @escaping (Recipe) -> RecipeEditorViewModel,
         recipeDidChange: @escaping (Recipe) -> Void,
         reviewDidComplete: @escaping () -> Void = {},
-        toggleFavorite: @escaping (UUID) -> Void,
+        toggleFavorite: @escaping (UUID) -> Bool,
         completeReview: @escaping (UUID) -> Recipe? = { _ in nil },
         deleteRecipe: @escaping (UUID) -> Bool = { _ in false }
     ) {
@@ -97,6 +97,15 @@ struct RecipeDetailView: View {
             .scrollIndicators(.hidden)
         }
         .background(LadleTheme.paper)
+        .sensoryFeedback(.selection, trigger: isFavorite)
+        .sensoryFeedback(.success, trigger: reviewIsPending) {
+            wasPending,
+            isPending in
+            LadleFeedbackPolicy.didFinishReview(
+                wasPending: wasPending,
+                isPending: isPending
+            )
+        }
         .accessibilityIdentifier("recipe.detail")
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
@@ -339,8 +348,9 @@ struct RecipeDetailView: View {
 
     private var favoriteButton: some View {
         Button {
-            isFavorite.toggle()
-            toggleFavorite(displayedRecipe.id)
+            if toggleFavorite(displayedRecipe.id) {
+                isFavorite.toggle()
+            }
         } label: {
             Image(systemName: isFavorite ? "heart.fill" : "heart")
                 .foregroundStyle(

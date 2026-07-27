@@ -140,6 +140,22 @@ struct LibraryView: View {
                 Text(viewModel.operationErrorMessage ?? "Please try again.")
             }
         }
+        .sensoryFeedback(.selection, trigger: section)
+        .sensoryFeedback(
+            .impact(weight: .light, intensity: 0.65),
+            trigger: navigation.path.count
+        ) { oldCount, newCount in
+            LadleFeedbackPolicy.didPush(
+                from: oldCount,
+                to: newCount
+            )
+        }
+        .sensoryFeedback(
+            .error,
+            trigger: viewModel.operationErrorMessage
+        ) { oldMessage, newMessage in
+            newMessage != nil && newMessage != oldMessage
+        }
     }
 
     @ViewBuilder

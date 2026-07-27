@@ -267,9 +267,10 @@ final class LibraryViewModel {
         }
     }
 
-    func toggleFavorite(recipeID: UUID) {
+    @discardableResult
+    func toggleFavorite(recipeID: UUID) -> Bool {
         guard var recipe = recipes.first(where: { $0.id == recipeID }) else {
-            return
+            return false
         }
 
         recipe.isFavorite.toggle()
@@ -286,8 +287,10 @@ final class LibraryViewModel {
             Task {
                 await didMutate()
             }
+            return true
         } catch {
             operationErrorMessage = "That favorite couldn’t be updated."
+            return false
         }
     }
 

@@ -49,6 +49,7 @@ struct RecipeGridCard: View {
         .accessibilityAddTraits(.isButton)
         .accessibilityAction(named: "Open recipe", openRecipe)
         .accessibilityIdentifier("recipe.grid.\(recipe.librarySlug)")
+        .sensoryFeedback(.selection, trigger: recipe.isFavorite)
     }
 
     @ViewBuilder

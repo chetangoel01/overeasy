@@ -29,6 +29,14 @@ struct AllRecipesView: View {
             .padding(.bottom, 44)
         }
         .scrollIndicators(.hidden)
+        .sensoryFeedback(
+            .selection,
+            trigger: viewModel.displayMode
+        )
+        .sensoryFeedback(
+            .selection,
+            trigger: filterChips.map(\.title)
+        )
         .accessibilityIdentifier("library.all-recipes")
     }
 

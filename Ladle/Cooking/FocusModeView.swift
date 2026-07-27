@@ -126,6 +126,15 @@ struct FocusModeView: View {
                     in: Capsule()
                 )
                 .buttonStyle(LadlePressButtonStyle())
+                .sensoryFeedback(
+                    .success,
+                    trigger: viewModel.isStepCompleted(step.id)
+                ) { wasComplete, isComplete in
+                    LadleFeedbackPolicy.didComplete(
+                        from: wasComplete,
+                        to: isComplete
+                    )
+                }
             }
         }
     }

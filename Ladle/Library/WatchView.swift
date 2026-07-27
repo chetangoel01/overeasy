@@ -104,6 +104,7 @@ private struct WatchRecipeCard: View {
             )
         )
         .accessibilityIdentifier("watch.\(recipe.librarySlug)")
+        .sensoryFeedback(.selection, trigger: recipe.isFavorite)
     }
 
     private var sourceBar: some View {

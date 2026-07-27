@@ -399,7 +399,7 @@ final class LibraryViewModelTests: XCTestCase {
             }
         )
 
-        viewModel.toggleFavorite(recipeID: orzo.id)
+        XCTAssertTrue(viewModel.toggleFavorite(recipeID: orzo.id))
 
         XCTAssertEqual(
             repository.savedRecipes.last?.isFavorite,
@@ -408,6 +408,34 @@ final class LibraryViewModelTests: XCTestCase {
         XCTAssertEqual(
             viewModel.visibleRecipes.first { $0.id == orzo.id }?.isFavorite,
             true
+        )
+    }
+
+    func testFavoriteFailureDoesNotPublishOptimisticState() {
+        let repository = LibraryTestRepository(
+            recipes: PreviewFixtures.recipes
+        )
+        repository.saveError = LibraryTestError.unavailable
+        let viewModel = LibraryViewModel(
+            repository: repository,
+            preferenceStore: LibraryTestPreferenceStore()
+        )
+        viewModel.load()
+        let orzo = try! XCTUnwrap(
+            viewModel.visibleRecipes.first {
+                $0.title == "One-Pot Lemon Orzo with Feta"
+            }
+        )
+
+        XCTAssertFalse(viewModel.toggleFavorite(recipeID: orzo.id))
+
+        XCTAssertEqual(
+            viewModel.visibleRecipes.first { $0.id == orzo.id }?.isFavorite,
+            orzo.isFavorite
+        )
+        XCTAssertEqual(
+            viewModel.operationErrorMessage,
+            "That favorite couldn’t be updated."
         )
     }
 
@@ -476,6 +504,7 @@ private final class LibraryTestRepository: RecipeRepository {
     var importJobs: [ImportJob]
     var savedRecipes: [Recipe] = []
     var fetchError: Error?
+    var saveError: Error?
 
     init(
         recipes: [Recipe] = [],
@@ -497,6 +526,9 @@ private final class LibraryTestRepository: RecipeRepository {
     }
 
     func save(_ recipe: Recipe) throws {
+        if let saveError {
+            throw saveError
+        }
         savedRecipes.append(recipe)
         if let index = recipes.firstIndex(where: { $0.id == recipe.id }) {
             recipes[index] = recipe

@@ -116,6 +116,16 @@ Use SwiftUI sensory feedback tied to state changes:
 Do not add haptics to ordinary scrolling, back navigation, passive loading, or
 every incidental tap.
 
+Implementation routes conditional feedback through
+`LadleFeedbackPolicy`: navigation only acknowledges path growth, completion
+only acknowledges an incomplete-to-complete transition, and timer feedback
+maps only start/resume, pause, and finish phase changes. Favorites publish
+their state only after repository persistence succeeds, while real operation
+errors use error feedback. Section, display-mode, filter, and persisted
+favorite changes use selection feedback. The policy and persistence tests
+were observed failing first and then passing after implementation; tactile
+quality still requires the final physical-device follow-up.
+
 ## Accessibility
 
 - Preserve at least 44-by-44-point interaction targets.

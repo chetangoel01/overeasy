@@ -45,4 +45,65 @@ final class DesignTokenTests: XCTestCase {
         XCTAssertEqual(LadlePressKind.control.scale, 0.94)
         XCTAssertEqual(LadlePressKind.control.duration, 0.15)
     }
+
+    func testFeedbackPolicyOnlyAcknowledgesMeaningfulStateChanges() {
+        XCTAssertTrue(
+            LadleFeedbackPolicy.didPush(from: 0, to: 1)
+        )
+        XCTAssertFalse(
+            LadleFeedbackPolicy.didPush(from: 1, to: 0)
+        )
+        XCTAssertFalse(
+            LadleFeedbackPolicy.didPush(from: 1, to: 1)
+        )
+
+        XCTAssertTrue(
+            LadleFeedbackPolicy.didComplete(from: false, to: true)
+        )
+        XCTAssertFalse(
+            LadleFeedbackPolicy.didComplete(from: true, to: false)
+        )
+        XCTAssertTrue(
+            LadleFeedbackPolicy.didFinishReview(
+                wasPending: true,
+                isPending: false
+            )
+        )
+    }
+
+    func testTimerFeedbackIgnoresIdleAndRepeatedPhaseChanges() {
+        XCTAssertEqual(
+            LadleFeedbackPolicy.timerFeedback(
+                from: .idle,
+                to: .running
+            ),
+            .started
+        )
+        XCTAssertEqual(
+            LadleFeedbackPolicy.timerFeedback(
+                from: .running,
+                to: .paused
+            ),
+            .paused
+        )
+        XCTAssertEqual(
+            LadleFeedbackPolicy.timerFeedback(
+                from: .running,
+                to: .finished
+            ),
+            .finished
+        )
+        XCTAssertNil(
+            LadleFeedbackPolicy.timerFeedback(
+                from: .running,
+                to: .running
+            )
+        )
+        XCTAssertNil(
+            LadleFeedbackPolicy.timerFeedback(
+                from: .finished,
+                to: .idle
+            )
+        )
+    }
 }

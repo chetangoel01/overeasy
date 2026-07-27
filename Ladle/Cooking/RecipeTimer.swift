@@ -263,6 +263,31 @@ struct RecipeTimerButton: View {
                 }
             }
         }
+        .sensoryFeedback(
+            .impact(weight: .medium, intensity: 0.8),
+            trigger: phase
+        ) { oldPhase, newPhase in
+            LadleFeedbackPolicy.timerFeedback(
+                from: oldPhase,
+                to: newPhase
+            ) == .started
+        }
+        .sensoryFeedback(.selection, trigger: phase) {
+            oldPhase,
+            newPhase in
+            LadleFeedbackPolicy.timerFeedback(
+                from: oldPhase,
+                to: newPhase
+            ) == .paused
+        }
+        .sensoryFeedback(.success, trigger: phase) {
+            oldPhase,
+            newPhase in
+            LadleFeedbackPolicy.timerFeedback(
+                from: oldPhase,
+                to: newPhase
+            ) == .finished
+        }
     }
 
     private var phase: RecipeTimerPhase {

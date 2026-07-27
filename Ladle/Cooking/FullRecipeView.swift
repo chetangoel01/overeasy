@@ -209,6 +209,14 @@ struct FullRecipeView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(LadlePressButtonStyle())
+        .sensoryFeedback(.success, trigger: isCompleted) {
+            wasComplete,
+            isComplete in
+            LadleFeedbackPolicy.didComplete(
+                from: wasComplete,
+                to: isComplete
+            )
+        }
         .accessibilityLabel(
             isCompleted
                 ? "Mark \(ingredient.name) incomplete"
@@ -246,6 +254,14 @@ struct FullRecipeView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(LadlePressButtonStyle())
+            .sensoryFeedback(.success, trigger: isCompleted) {
+                wasComplete,
+                isComplete in
+                LadleFeedbackPolicy.didComplete(
+                    from: wasComplete,
+                    to: isComplete
+                )
+            }
             .accessibilityLabel(
                 isCompleted
                     ? "Mark step \(index + 1) incomplete, \(step.instruction)"

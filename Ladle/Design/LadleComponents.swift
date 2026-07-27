@@ -23,6 +23,49 @@ enum LadlePressKind {
     }
 }
 
+enum LadleTimerFeedback: Equatable {
+    case started
+    case paused
+    case finished
+}
+
+enum LadleFeedbackPolicy {
+    static func didPush(from oldCount: Int, to newCount: Int) -> Bool {
+        newCount > oldCount
+    }
+
+    static func didComplete(from wasComplete: Bool, to isComplete: Bool)
+        -> Bool {
+        !wasComplete && isComplete
+    }
+
+    static func didFinishReview(
+        wasPending: Bool,
+        isPending: Bool
+    ) -> Bool {
+        wasPending && !isPending
+    }
+
+    static func timerFeedback(
+        from oldPhase: RecipeTimerPhase,
+        to newPhase: RecipeTimerPhase
+    ) -> LadleTimerFeedback? {
+        guard oldPhase != newPhase else {
+            return nil
+        }
+        switch newPhase {
+        case .idle:
+            return nil
+        case .running:
+            return .started
+        case .paused:
+            return .paused
+        case .finished:
+            return .finished
+        }
+    }
+}
+
 struct LadlePressButtonStyle: ButtonStyle {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.isEnabled) private var isEnabled

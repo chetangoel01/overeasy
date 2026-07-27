@@ -58,6 +58,7 @@ struct RecipeListRow: View {
         .accessibilityAddTraits(.isButton)
         .accessibilityAction(named: "Open recipe", openRecipe)
         .accessibilityIdentifier("recipe.list.\(recipe.librarySlug)")
+        .sensoryFeedback(.selection, trigger: recipe.isFavorite)
     }
 
     @ViewBuilder
