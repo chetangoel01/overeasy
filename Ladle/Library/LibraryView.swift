@@ -1,12 +1,23 @@
 import LadleCore
 import SwiftUI
 
-private enum LibraryWorkspaceDestination: Hashable, Identifiable {
+enum LibraryNavigationDestination: Hashable {
     case search
     case importInbox
     case watch
+    case recipe(LibraryRecipeDestination)
+}
 
-    var id: Self { self }
+struct LibraryNavigationState: Equatable {
+    var path: [LibraryNavigationDestination] = []
+
+    mutating func open(_ destination: LibraryNavigationDestination) {
+        path.append(destination)
+    }
+
+    mutating func reviewDidComplete(hasActionableImports: Bool) {
+        path = hasActionableImports ? [.importInbox] : []
+    }
 }
 
 struct LibraryView: View {
@@ -21,17 +32,16 @@ struct LibraryView: View {
     @State private var section: LibrarySection = .home
     @State private var isFilterSheetPresented = false
     @State private var isAddSheetPresented = false
-    @State private var workspaceDestination: LibraryWorkspaceDestination?
+    @State private var navigation = LibraryNavigationState()
     @State private var isAccountPresented = false
     @State private var failedImportJob: ImportJob?
-    @State private var selectedDestination: LibraryRecipeDestination?
     @State private var pendingDestination: LibraryRecipeDestination?
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $navigation.path) {
             VStack(spacing: 0) {
                 LibraryTopBar(
-                    openSearch: { workspaceDestination = .search },
+                    openSearch: { navigation.open(.search) },
                     openAccount: { isAccountPresented = true },
                     addRecipe: { isAddSheetPresented = true },
                     isAddEnabled: canImport
@@ -93,7 +103,8 @@ struct LibraryView: View {
                     }
                 )
             }
-            .navigationDestination(item: $workspaceDestination) { destination in
+            .navigationDestination(for: LibraryNavigationDestination.self) {
+                destination in
                 switch destination {
                 case .search:
                     LibrarySearchView(
@@ -111,10 +122,9 @@ struct LibraryView: View {
                         viewModel: viewModel,
                         openRecipe: openRecipe
                     )
+                case let .recipe(destination):
+                    recipeDetail(destination)
                 }
-            }
-            .navigationDestination(item: $selectedDestination) { destination in
-                recipeDetail(destination)
             }
             .onChange(of: importCoordinator.state) { _, state in
                 if state.refreshesLibrary {
@@ -147,9 +157,9 @@ struct LibraryView: View {
                     openRecipe: openRecipe,
                     openCollection: openCollection,
                     openImportInbox: {
-                        workspaceDestination = .importInbox
+                        navigation.open(.importInbox)
                     },
-                    openWatch: { workspaceDestination = .watch }
+                    openWatch: { navigation.open(.watch) }
                 )
             } else {
                 AllRecipesView(
@@ -170,13 +180,10 @@ struct LibraryView: View {
             statusText: destination.statusText,
             importCoordinator: importCoordinator,
             makeEditorViewModel: viewModel.makeEditorViewModel,
-            recipeDidChange: { recipe in
-                selectedDestination = .init(
-                    recipe: recipe,
-                    statusText: destination.statusText
-                )
+            recipeDidChange: { _ in
                 viewModel.load()
             },
+            reviewDidComplete: finishReviewNavigation,
             toggleFavorite: viewModel.toggleFavorite,
             completeReview: viewModel.completeReview,
             deleteRecipe: viewModel.deleteRecipe
@@ -196,9 +203,13 @@ struct LibraryView: View {
         _ recipe: Recipe,
         statusText: String
     ) {
-        selectedDestination = .init(
-            recipe: recipe,
-            statusText: statusText
+        navigation.open(
+            .recipe(
+                .init(
+                    recipe: recipe,
+                    statusText: statusText
+                )
+            )
         )
     }
 
@@ -219,7 +230,18 @@ struct LibraryView: View {
         pendingDestination = nil
         Task { @MainActor in
             await Task.yield()
-            selectedDestination = destination
+            navigation.open(.recipe(destination))
+        }
+    }
+
+    private func finishReviewNavigation() {
+        let hasActionableImports =
+            !viewModel.actionableImportJobs.isEmpty
+        navigation.reviewDidComplete(
+            hasActionableImports: hasActionableImports
+        )
+        if !hasActionableImports {
+            section = .home
         }
     }
 

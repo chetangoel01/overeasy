@@ -5,17 +5,13 @@ import SwiftUI
 
 @MainActor
 final class ProjectSmokeTests: XCTestCase {
-    func testLibraryUsesOneExclusiveWorkspaceDestination() throws {
-        let sourceURL = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("Ladle/Library/LibraryView.swift")
-        let source = try String(contentsOf: sourceURL, encoding: .utf8)
+    func testLibraryUsesOneNavigationPathForWorkspaceDestinations() {
+        var state = LibraryNavigationState()
 
-        XCTAssertTrue(source.contains("LibraryWorkspaceDestination"))
-        XCTAssertFalse(source.contains("isImportInboxPresented"))
-        XCTAssertFalse(source.contains("isWatchPresented"))
-        XCTAssertFalse(source.contains("isSearchPresented"))
+        state.open(.search)
+        state.open(.watch)
+
+        XCTAssertEqual(state.path, [.search, .watch])
     }
 
     func testPrimaryScreensAvoidRedundantExplanatoryHeadings() throws {

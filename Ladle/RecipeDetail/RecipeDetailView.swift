@@ -15,6 +15,7 @@ struct RecipeDetailView: View {
     @Bindable var importCoordinator: ImportCoordinator
     let makeEditorViewModel: (Recipe) -> RecipeEditorViewModel
     let recipeDidChange: (Recipe) -> Void
+    let reviewDidComplete: () -> Void
     let toggleFavorite: (UUID) -> Void
     let completeReview: (UUID) -> Recipe?
     let deleteRecipe: (UUID) -> Bool
@@ -38,6 +39,7 @@ struct RecipeDetailView: View {
         importCoordinator: ImportCoordinator,
         makeEditorViewModel: @escaping (Recipe) -> RecipeEditorViewModel,
         recipeDidChange: @escaping (Recipe) -> Void,
+        reviewDidComplete: @escaping () -> Void = {},
         toggleFavorite: @escaping (UUID) -> Void,
         completeReview: @escaping (UUID) -> Recipe? = { _ in nil },
         deleteRecipe: @escaping (UUID) -> Bool = { _ in false }
@@ -46,6 +48,7 @@ struct RecipeDetailView: View {
         self.importCoordinator = importCoordinator
         self.makeEditorViewModel = makeEditorViewModel
         self.recipeDidChange = recipeDidChange
+        self.reviewDidComplete = reviewDidComplete
         self.toggleFavorite = toggleFavorite
         self.completeReview = completeReview
         self.deleteRecipe = deleteRecipe
@@ -318,6 +321,7 @@ struct RecipeDetailView: View {
                 }
                 reviewIsPending = false
                 applyChangedRecipe(reviewed)
+                reviewDidComplete()
             }
             .buttonStyle(LadlePrimaryButtonStyle(isProminent: false))
             .accessibilityIdentifier("recipe.complete-review")

@@ -15,7 +15,7 @@ final class LibraryFlowTests: XCTestCase {
         XCTAssertFalse(app.staticTexts["How imports work"].exists)
         XCTAssertTrue(app.staticTexts["Parsing"].exists)
         XCTAssertTrue(app.staticTexts["Needs review"].exists)
-        XCTAssertTrue(app.staticTexts["Failed"].exists)
+        XCTAssertTrue(app.staticTexts["Import failed"].exists)
         capture("Library — pending imports", in: app)
 
         app.buttons["Back"].tap()
@@ -65,6 +65,82 @@ final class LibraryFlowTests: XCTestCase {
         XCTAssertTrue(
             element(in: app, identifier: "library.home")
                 .waitForExistence(timeout: 2)
+        )
+    }
+
+    func testReviewedImportLeavesInboxAndInboxCanReopen() {
+        let app = launchApp()
+        app.buttons["Home"].tap()
+        let inboxCard = element(
+            in: app,
+            identifier: "library.import-inbox"
+        )
+        inboxCard.tap()
+
+        let reviewedImport = element(
+            in: app,
+            identifier: "import.FD53B35A-4E30-40BE-8D90-047908528102"
+        )
+        XCTAssertTrue(reviewedImport.waitForExistence(timeout: 2))
+        reviewedImport.tap()
+
+        let completeReview = element(
+            in: app,
+            identifier: "recipe.complete-review"
+        )
+        XCTAssertTrue(completeReview.waitForExistence(timeout: 2))
+        app.swipeUp()
+        completeReview.tap()
+
+        XCTAssertTrue(
+            element(in: app, identifier: "library.import-inbox.root")
+                .waitForExistence(timeout: 2)
+        )
+        XCTAssertFalse(reviewedImport.exists)
+
+        app.buttons["Back"].tap()
+        XCTAssertTrue(inboxCard.waitForExistence(timeout: 2))
+        inboxCard.tap()
+        XCTAssertTrue(
+            element(in: app, identifier: "library.import-inbox.root")
+                .waitForExistence(timeout: 2)
+        )
+    }
+
+    func testCompletingLastInboxReviewReturnsHome() {
+        let app = launchApp()
+        app.buttons["Home"].tap()
+        element(in: app, identifier: "library.import-inbox").tap()
+
+        deleteImport(
+            "import.FD53B35A-4E30-40BE-8D90-047908528101",
+            in: app
+        )
+        deleteImport(
+            "import.FD53B35A-4E30-40BE-8D90-047908528103",
+            in: app
+        )
+
+        let reviewedImport = element(
+            in: app,
+            identifier: "import.FD53B35A-4E30-40BE-8D90-047908528102"
+        )
+        reviewedImport.tap()
+
+        let completeReview = element(
+            in: app,
+            identifier: "recipe.complete-review"
+        )
+        XCTAssertTrue(completeReview.waitForExistence(timeout: 2))
+        app.swipeUp()
+        completeReview.tap()
+
+        XCTAssertTrue(
+            element(in: app, identifier: "library.home")
+                .waitForExistence(timeout: 2)
+        )
+        XCTAssertFalse(
+            element(in: app, identifier: "library.import-inbox").exists
         )
     }
 
@@ -273,6 +349,17 @@ final class LibraryFlowTests: XCTestCase {
             file: file,
             line: line
         )
+    }
+
+    private func deleteImport(
+        _ identifier: String,
+        in app: XCUIApplication
+    ) {
+        let importCard = element(in: app, identifier: identifier)
+        XCTAssertTrue(importCard.waitForExistence(timeout: 2))
+        importCard.swipeLeft()
+        app.buttons["Delete"].tap()
+        XCTAssertFalse(importCard.exists)
     }
 
     private func capture(
