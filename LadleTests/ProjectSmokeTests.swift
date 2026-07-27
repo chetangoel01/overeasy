@@ -23,6 +23,17 @@ final class ProjectSmokeTests: XCTestCase {
 
         XCTAssertFalse(configuration.usesInMemoryStore)
         XCTAssertFalse(configuration.seedsPreviewData)
+        XCTAssertTrue(configuration.usesAppAttest)
+    }
+
+    func testRuntimeConfigurationCanDisableAppAttestForDeviceBuild() {
+        let configuration = LadleRuntimeConfiguration(
+            launchArguments: [],
+            environment: [:],
+            infoDictionary: ["LadleAppAttestEnabled": "NO"]
+        )
+
+        XCTAssertFalse(configuration.usesAppAttest)
     }
 
     func testRuntimeConfigurationCanLaunchAnEmptyTestLibrary() {

@@ -41,6 +41,8 @@
 	<true/>
 	<key>LadleAPIBaseURL</key>
 	<string>$(LADLE_API_BASE_URL)</string>
+	<key>LadleAppAttestEnabled</key>
+	<string>$(LADLE_APP_ATTEST_ENABLED)</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>

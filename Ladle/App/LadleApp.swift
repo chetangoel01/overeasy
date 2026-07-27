@@ -1,3 +1,4 @@
+import Foundation
 import LadleCore
 import SwiftData
 import SwiftUI
@@ -5,6 +6,17 @@ import SwiftUI
 struct LadleRuntimeConfiguration {
     let launchArguments: [String]
     let environment: [String: String]
+    private let infoDictionary: [String: Any]
+
+    init(
+        launchArguments: [String],
+        environment: [String: String],
+        infoDictionary: [String: Any] = Bundle.main.infoDictionary ?? [:]
+    ) {
+        self.launchArguments = launchArguments
+        self.environment = environment
+        self.infoDictionary = infoDictionary
+    }
 
     var usesInMemoryStore: Bool {
         launchArguments.contains("-ui-testing")
@@ -13,6 +25,15 @@ struct LadleRuntimeConfiguration {
 
     var seedsPreviewData: Bool {
         usesInMemoryStore && !launchArguments.contains("-empty-library")
+    }
+
+    var usesAppAttest: Bool {
+        guard
+            let value = infoDictionary["LadleAppAttestEnabled"] as? String
+        else {
+            return true
+        }
+        return !["0", "false", "no"].contains(value.lowercased())
     }
 }
 
@@ -121,10 +142,13 @@ struct LadleApp: App {
             do {
                 let tokenStore = KeychainTokenStore()
                 let baseURL = try APIConfiguration().baseURL
-                let appAttester = AppAttestClient(
-                    baseURL: baseURL,
-                    installationID: installationID
-                )
+                let appAttester: AppAttestClient? =
+                    runtimeConfiguration.usesAppAttest
+                    ? AppAttestClient(
+                        baseURL: baseURL,
+                        installationID: installationID
+                    )
+                    : nil
                 let api = APIClient(
                     baseURL: baseURL,
                     tokenStore: tokenStore,
