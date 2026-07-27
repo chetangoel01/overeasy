@@ -45,13 +45,16 @@ production deployment.
   and public TCP/443 are allowed; private, loopback, link-local, metadata,
   multicast, reserved, non-HTTPS, and all IPv6 egress are rejected. Only the
   sidecar has `NET_ADMIN`; the worker remains capability-free.
+- The production worker removes the base profile's `.eval-cache` bind mount.
+  Evaluation artifacts are development-only, and removing the host write path
+  also avoids runtime file-sharing prompts on unattended Docker Desktop hosts.
 
 ## Deploy or upgrade
 
 From `Backend/` on the Mac mini:
 
 ```bash
-./deploy/mac-mini/deploy.sh
+LADLE_MAC_MINI_DOCKER_CONTEXT=desktop-linux ./deploy/mac-mini/deploy.sh
 ```
 
 The deploy script validates the merged Compose configuration, starts the data
@@ -59,6 +62,9 @@ services, stops the unused MinIO service, builds the runtime, runs Alembic
 before replacing API/worker processes, waits for the egress gateway and local
 edge readiness, and configures Tailscale's TLS-terminated PROXY protocol v2
 forwarder.
+
+`LADLE_MAC_MINI_DOCKER_CONTEXT` is optional. Set it when more than one Docker
+runtime is installed so deployment cannot silently target the wrong daemon.
 
 To roll back to a commit before the edge was introduced, deploy that commit and
 restore the earlier plain HTTP forwarder with

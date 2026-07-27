@@ -140,6 +140,7 @@ services:
     restart: unless-stopped
     environment: *private-staging-environment
     network_mode: service:worker-egress
+    volumes: !reset []
     depends_on:
       worker-egress:
         condition: service_healthy

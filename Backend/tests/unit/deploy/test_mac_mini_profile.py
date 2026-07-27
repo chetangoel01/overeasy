@@ -36,6 +36,7 @@ def test_mac_mini_profile_is_private_bounded_and_non_media() -> None:
     assert "ports: !reset []" in profile
     assert "LADLE_RATE_LIMIT_TRUSTED_PROXY_CIDRS: 172.30.0.2/32" in profile
     assert "network_mode: service:worker-egress" in profile
+    assert profile.count("volumes: !reset []") == 2
     assert "NET_ADMIN" in profile
     assert "privileged: true" not in profile
 
@@ -96,6 +97,8 @@ def test_mac_mini_deploy_script_generates_secrets_and_runs_migrations() -> None:
     assert 'PATH="/usr/local/bin:/opt/homebrew/bin:$HOME/.orbstack/bin:$PATH"' in script
     assert "docker-compose.yml" in script
     assert "deploy/mac-mini/docker-compose.yml" in script
+    assert "LADLE_MAC_MINI_DOCKER_CONTEXT" in script
+    assert '--context "$LADLE_MAC_MINI_DOCKER_CONTEXT"' in script
     assert "migrate" in script
     assert "health/ready" in script
     assert "--proxy-protocol=2" in script

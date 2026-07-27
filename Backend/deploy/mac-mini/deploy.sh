@@ -46,6 +46,14 @@ else
 fi
 
 compose() {
+    if [ -n "${LADLE_MAC_MINI_DOCKER_CONTEXT:-}" ]; then
+        "$docker_bin" --context "$LADLE_MAC_MINI_DOCKER_CONTEXT" compose \
+            --env-file "$env_file" \
+            -f docker-compose.yml \
+            -f deploy/mac-mini/docker-compose.yml \
+            "$@"
+        return
+    fi
     "$docker_bin" compose \
         --env-file "$env_file" \
         -f docker-compose.yml \
