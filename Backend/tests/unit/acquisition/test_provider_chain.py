@@ -35,6 +35,7 @@ class Primary:
     native: TranscriptResult | Exception
     generated: TranscriptResult | Exception
     visual_result: VisualResult | Exception
+    thumbnail_url: str | None = None
     calls: list[str] = field(default_factory=list)
 
     def metadata(self, source: SourceVideoDescriptor, *, job_id: UUID) -> MediaMetadata:
@@ -44,7 +45,7 @@ class Primary:
             title="Recipe",
             description="Add flour and bake.",
             creator_name="Creator",
-            thumbnail_url=None,
+            thumbnail_url=self.thumbnail_url,
             duration_seconds=30,
             billed_units=1,
         )
@@ -148,6 +149,23 @@ def test_sufficient_supadata_auto_material_skips_paid_fallbacks() -> None:
         'ladle_provider_total{outcome="success",provider="supadata"} 2'
         in metrics.render()
     )
+
+
+def test_acquired_context_preserves_provider_thumbnail() -> None:
+    primary = Primary(
+        native=TranscriptUnavailable(),
+        generated=transcript(
+            "Add 2 cups flour. Mix well, then bake for 20 minutes.",
+            "supadata-auto",
+        ),
+        visual_result=empty_visual(),
+        thumbnail_url="https://images.example/recipe.jpg",
+    )
+    chain = ProviderChain(primary=primary, fallback=None)
+
+    context = chain.acquire(source(), job_id=uuid4())
+
+    assert context.thumbnail_url == "https://images.example/recipe.jpg"
 
 
 def test_soscripted_can_run_without_supadata() -> None:

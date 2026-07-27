@@ -23,9 +23,9 @@ Use the exact immutable image digest intended for the API and worker:
 2. Apply the one-shot Job and wait for successful completion.
 3. Roll out worker and API Deployments only after the Job succeeds.
 4. Keep the previous application version compatible with the additive schema
-   through current head `0011` during the rollout. If that is not possible, use
+   through current head `0012` during the rollout. If that is not possible, use
    a two-release expand/migrate/contract sequence.
-5. Readiness rejects any pod whose expected migration revision (`0011`) is not current,
+5. Readiness rejects any pod whose expected migration revision (`0012`) is not current,
    preventing it from receiving service traffic.
 
 The local Compose stack uses the same ordering: its `migrate` service must

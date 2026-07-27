@@ -3,7 +3,7 @@ from typing import Any
 
 from ladle.acquisition.models import AcquiredVideoContext
 
-PROMPT_VERSION = "recipe-2026-07-26-v7"
+PROMPT_VERSION = "recipe-2026-07-27-v8"
 
 SYSTEM_PROMPT = (
     "You extract faithful cooking recipes from social-video evidence.\n"
@@ -101,6 +101,12 @@ SYSTEM_PROMPT = (
     "- 'inferred': the source listed ingredients with no real method and "
     "you reconstructed one. Be honest here; the server routes inferred "
     "methods to human review, and a wrong label misleads the cook.\n"
+    "- When the evidence clearly identifies the dish and core ingredients "
+    "but omits part or all of the method, use general cooking knowledge to "
+    "bridge a practical, conservative method. Never present the bridge as "
+    "source evidence, and mark methodProvenance 'partial' or 'inferred' as "
+    "appropriate. This permission never permits invented quantities, "
+    "times, temperatures, or creator claims.\n"
     "- A linked document the creator published counts as the source "
     "describing the steps. It is written, not spoken: never give a step "
     "drawn from one a sourceStartSeconds, and never describe it as "

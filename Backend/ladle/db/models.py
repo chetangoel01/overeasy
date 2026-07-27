@@ -304,6 +304,10 @@ class ExtractionCache(Base):
             "review_status IN ('ready', 'needsReview')",
             name="ck_extraction_cache_review_status",
         ),
+        CheckConstraint(
+            "thumbnail_object_key IS NULL OR thumbnail_remote_url IS NULL",
+            name="ck_extraction_cache_one_thumbnail_location",
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
@@ -317,6 +321,7 @@ class ExtractionCache(Base):
     template_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     review_status: Mapped[str] = mapped_column(String(24), nullable=False)
     thumbnail_object_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    thumbnail_remote_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

@@ -40,7 +40,7 @@ class DatabaseReadinessProbe:
         self,
         sessions: sessionmaker[Session],
         *,
-        expected_revision: str = "0011",
+        expected_revision: str = "0012",
     ) -> None:
         self._sessions = sessions
         self._expected_revision = expected_revision

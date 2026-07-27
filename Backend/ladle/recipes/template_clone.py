@@ -475,14 +475,17 @@ class RecipeTemplateCloner:
         recipe_id: UUID,
         cache_entry: ExtractionCache | None,
     ) -> None:
-        if cache_entry is None or cache_entry.thumbnail_object_key is None:
+        if cache_entry is None or (
+            cache_entry.thumbnail_object_key is None
+            and cache_entry.thumbnail_remote_url is None
+        ):
             return
         database.add(
             RecipeImage(
                 id=uuid4(),
                 recipe_id=recipe_id,
                 object_key=cache_entry.thumbnail_object_key,
-                remote_url=None,
+                remote_url=cache_entry.thumbnail_remote_url,
                 order_index=0,
             )
         )

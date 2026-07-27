@@ -52,3 +52,39 @@ def test_provider_returned_thumbnail_is_revalidated_before_download() -> None:
     assert len(requests) == 1
     assert requests[0].url.host == "93.184.216.34"
     assert storage.puts == []
+
+
+def test_acquired_thumbnail_skips_oembed_and_is_copied_safely() -> None:
+    requests: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(
+            200,
+            content=b"thumbnail-bytes",
+            headers={"content-type": "image/jpeg"},
+        )
+
+    storage = RecordingStorage()
+    fetcher = OEmbedThumbnailFetcher(
+        http=httpx.Client(transport=httpx.MockTransport(respond)),
+        dns=FakeDNS({"images.example": ["93.184.216.34"]}),
+        storage=storage,  # type: ignore[arg-type]
+    )
+    source = SourceVideoDescriptor(
+        source_video_id=uuid4(),
+        platform="instagram",
+        platform_video_id="reel-1",
+        canonical_url="https://www.instagram.com/reel/reel-1",
+        source_revision="1",
+    )
+
+    key = fetcher.fetch(
+        source,
+        candidate_url="https://images.example/recipe.jpg",
+    )
+
+    assert key is not None
+    assert len(requests) == 1
+    assert requests[0].url.host == "93.184.216.34"
+    assert storage.puts[0][1:] == (b"thumbnail-bytes", "image/jpeg")

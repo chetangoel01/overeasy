@@ -29,7 +29,8 @@ public production deployment.
   before FastAPI allocates or parses them.
 - Imports use the configured live text/extraction providers.
 - Audio transcription, frame sampling, and server media fallback are disabled.
-- Object storage and server-managed thumbnails are disabled.
+- Object storage and private thumbnail copies are disabled. Imports retain
+  provider-hosted HTTPS thumbnails as remote recipe images instead.
 - The Mac-only image omits FFmpeg and its media libraries.
 - PostgreSQL and Redis are never published to the LAN or internet.
 - User LaunchAgents run a five-minute local health/disk watchdog and a

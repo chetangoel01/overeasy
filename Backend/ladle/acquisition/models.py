@@ -94,6 +94,7 @@ class AcquiredVideoContext(WireModel):
     title: str | None = None
     description: str = Field(max_length=50_000)
     creator_name: str | None = None
+    thumbnail_url: str | None = None
     language: str | None = None
     transcript: list[TextEvidence] = Field(default_factory=list)
     visual_observations: list[VisualEvidence] = Field(default_factory=list)

@@ -46,9 +46,17 @@ class OEmbedThumbnailFetcher:
         )
         self._storage = storage
 
-    def fetch(self, source: SourceVideoDescriptor) -> str | None:
+    def fetch(
+        self,
+        source: SourceVideoDescriptor,
+        *,
+        candidate_url: str | None = None,
+    ) -> str | None:
         try:
-            thumbnail_url = self._resolve_thumbnail_url(source)
+            thumbnail_url = self._resolve_thumbnail_url(
+                source,
+                candidate_url=candidate_url,
+            )
             if thumbnail_url is None:
                 return None
             return self._copy_to_storage(source, thumbnail_url)
@@ -60,7 +68,14 @@ class OEmbedThumbnailFetcher:
             )
             return None
 
-    def _resolve_thumbnail_url(self, source: SourceVideoDescriptor) -> str | None:
+    def _resolve_thumbnail_url(
+        self,
+        source: SourceVideoDescriptor,
+        *,
+        candidate_url: str | None,
+    ) -> str | None:
+        if candidate_url is not None and candidate_url.startswith("https://"):
+            return candidate_url
         endpoint = _OEMBED_ENDPOINTS.get(source.platform)
         if endpoint is None:
             return None

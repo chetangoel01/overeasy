@@ -239,8 +239,19 @@ class ImportOrchestrator:
                     template = self._extractor.extract(context, job_id=job_id)
                 with log_context(stage="thumbnail"):
                     thumbnail_key = (
-                        self._thumbnails.fetch(descriptor)
+                        self._thumbnails.fetch(
+                            descriptor,
+                            candidate_url=context.thumbnail_url,
+                        )
                         if self._thumbnails is not None and not bypass_cache
+                        else None
+                    )
+                    thumbnail_remote_url = (
+                        context.thumbnail_url
+                        if self._thumbnails is None
+                        and context.thumbnail_url is not None
+                        and context.thumbnail_url.startswith("https://")
+                        and not bypass_cache
                         else None
                     )
         except (
@@ -297,6 +308,7 @@ class ImportOrchestrator:
                 prompt_version=self._extractor.prompt_version,
                 model_id=self._extractor.model_id,
                 thumbnail_object_key=thumbnail_key,
+                thumbnail_remote_url=thumbnail_remote_url,
             )
         return self._outcome(
             ProcessOutcome.COMPLETED,

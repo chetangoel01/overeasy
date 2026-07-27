@@ -479,6 +479,7 @@ class ProviderChain:
             title=metadata.title,
             description=metadata.description,
             creator_name=metadata.creator_name,
+            thumbnail_url=metadata.thumbnail_url,
             language=transcript.language if transcript is not None else None,
             transcript=transcript.segments if transcript is not None else [],
             visual_observations=observations,

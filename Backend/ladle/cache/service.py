@@ -193,7 +193,13 @@ class ExtractionCacheService:
         prompt_version: str,
         model_id: str,
         thumbnail_object_key: str | None = None,
+        thumbnail_remote_url: str | None = None,
     ) -> CacheCompletion:
+        if (
+            thumbnail_object_key is not None
+            and thumbnail_remote_url is not None
+        ):
+            raise ValueError("a thumbnail must have exactly one location")
         self._claims.assert_leader(database, claim, require_live=True)
         source = database.get(SourceVideo, claim.source_video_id)
         if source is None:
@@ -219,6 +225,7 @@ class ExtractionCacheService:
                 template_json=template.model_dump(mode="json", by_alias=True),
                 review_status=template.review_status.value,
                 thumbnail_object_key=thumbnail_object_key,
+                thumbnail_remote_url=thumbnail_remote_url,
                 created_at=self._clock.now(),
             )
             database.add(entry)
@@ -229,12 +236,21 @@ class ExtractionCacheService:
             entry.template_json = template.model_dump(mode="json", by_alias=True)
             entry.review_status = template.review_status.value
             entry.thumbnail_object_key = thumbnail_object_key
+            entry.thumbnail_remote_url = thumbnail_remote_url
             entry.invalidated_at = None
             entry.created_at = self._clock.now()
             database.flush()
-        elif entry.thumbnail_object_key is None and thumbnail_object_key is not None:
+        elif (
+            entry.thumbnail_object_key is None
+            and entry.thumbnail_remote_url is None
+        ):
             entry.thumbnail_object_key = thumbnail_object_key
-            database.flush()
+            entry.thumbnail_remote_url = thumbnail_remote_url
+            if (
+                thumbnail_object_key is not None
+                or thumbnail_remote_url is not None
+            ):
+                database.flush()
 
         jobs = list(
             database.scalars(

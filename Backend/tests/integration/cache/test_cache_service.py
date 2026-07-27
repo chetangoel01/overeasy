@@ -225,6 +225,57 @@ def test_shared_completion_fans_out_and_later_hit_clones_fresh_graphs(
 
 
 @pytest.mark.integration
+def test_shared_completion_uses_remote_thumbnail_without_object_storage(
+    clean_postgres_url: str,
+) -> None:
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    engine = build_engine(clean_postgres_url)
+    clock = FrozenClock(datetime(2026, 7, 23, 21, 0, tzinfo=UTC))
+    _, cache = build_services(clock)
+    with Session(engine) as database, database.begin():
+        source_id = uuid4()
+        database.add(
+            SourceVideo(
+                id=source_id,
+                platform="tiktok",
+                platform_video_id="remote-thumbnail",
+                canonical_url=(
+                    "https://www.tiktok.com/@cook/video/remote-thumbnail"
+                ),
+                public_access_confirmed_at=clock.now(),
+                source_revision="1",
+                source_metadata={},
+            )
+        )
+        job_id = seed_job(database, source_id=source_id, index=7)
+
+    with Session(engine) as database, database.begin():
+        leader = cache.route(database, **IDENTITY, job_id=job_id)
+    assert leader.claim is not None
+
+    with Session(engine) as database, database.begin():
+        cache.complete_shared(
+            database,
+            claim=leader.claim,
+            template=RecipeTemplate.from_recipe(extracted_recipe()),
+            contract_version="v1",
+            prompt_version="recipe-v1",
+            model_id="claude-sonnet",
+            thumbnail_remote_url="https://images.example/recipe.jpg",
+        )
+
+    with Session(engine) as database:
+        image = database.scalar(select(RecipeImage))
+        entry = database.scalar(select(ExtractionCache))
+        assert image is not None
+        assert image.object_key is None
+        assert image.remote_url == "https://images.example/recipe.jpg"
+        assert entry is not None
+        assert entry.thumbnail_object_key is None
+        assert entry.thumbnail_remote_url == "https://images.example/recipe.jpg"
+
+
+@pytest.mark.integration
 def test_cached_reimport_updates_current_recipe_without_cloning(
     clean_postgres_url: str,
 ) -> None:
