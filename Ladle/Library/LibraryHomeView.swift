@@ -21,6 +21,13 @@ struct LibraryHomeView: View {
         )
     }
 
+    private var collectionPanelShape: RoundedRectangle {
+        RoundedRectangle(
+            cornerRadius: LadleTheme.Corner.card,
+            style: .continuous
+        )
+    }
+
     var body: some View {
         ScrollView {
             if viewModel.recipes.isEmpty && viewModel.importJobs.isEmpty {
@@ -265,21 +272,23 @@ struct LibraryHomeView: View {
             .padding(.bottom, 6)
 
             if !viewModel.isComeBackToCollapsed {
-                collectionRow(
-                    "Ready in 30 minutes",
-                    count: viewModel.quickRecipes.count,
-                    collection: .quick
-                )
-                collectionRow(
-                    "Favorited",
-                    count: viewModel.favoriteRecipes.count,
-                    collection: .favorites
-                )
-                collectionRow(
-                    "Haven’t cooked yet",
-                    count: viewModel.uncookedRecipes.count,
-                    collection: .uncooked
-                )
+                VStack(spacing: 0) {
+                    ForEach(
+                        viewModel.collectionRows,
+                        id: \.identifier
+                    ) { row in
+                        collectionRow(row)
+                    }
+                }
+                .background(LadleTheme.oat, in: collectionPanelShape)
+                .overlay {
+                    collectionPanelShape
+                        .stroke(
+                            LadleTheme.ink.opacity(0.08),
+                            lineWidth: 1
+                        )
+                }
+                .clipShape(collectionPanelShape)
             }
         }
     }
@@ -314,32 +323,52 @@ struct LibraryHomeView: View {
     }
 
     private func collectionRow(
-        _ title: String,
-        count: Int,
-        collection: LibraryRecipeCollection
+        _ row: LibraryCollectionRowPresentation
     ) -> some View {
         Button {
-            openCollection(collection)
+            openCollection(row.collection)
         } label: {
-            HStack {
-                Text(title)
+            HStack(spacing: 12) {
+                Image(systemName: row.systemImage)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(LadleTheme.paprika)
+                    .frame(width: 36, height: 36)
+                    .background(LadleTheme.ube, in: Circle())
+                    .accessibilityHidden(true)
+
+                Text(row.title)
                     .ladleFont(.bodyStrong)
                     .foregroundStyle(LadleTheme.ink)
-                Spacer()
-                Text("\(count)")
-                    .ladleFont(.metadata)
-                    .foregroundStyle(LadleTheme.mutedInk)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(LadleTheme.mutedInk)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                HStack(spacing: 10) {
+                    Text("\(row.count)")
+                        .ladleFont(.metadata)
+                        .foregroundStyle(LadleTheme.mutedInk)
+                        .frame(minWidth: 24, alignment: .trailing)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(LadleTheme.mutedInk)
+                        .accessibilityHidden(true)
+                }
             }
-            .frame(minHeight: 52)
+            .frame(maxWidth: .infinity, minHeight: 56)
+            .padding(.horizontal, 12)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .overlay(alignment: .bottom) {
-            Divider().overlay(LadleTheme.ink.opacity(0.08))
+            if row.showsDivider {
+                Divider()
+                    .overlay(LadleTheme.ink.opacity(0.08))
+                    .padding(.leading, 60)
+            }
         }
+        .accessibilityLabel(row.title)
+        .accessibilityValue(countText(row.count))
+        .accessibilityIdentifier(
+            "library.collection.\(row.identifier)"
+        )
     }
 
     private func countText(_ count: Int) -> String {

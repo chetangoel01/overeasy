@@ -69,6 +69,15 @@ The proposed symbols are:
 The panel uses one subtle Oat/Field surface and one quiet outline. This gives
 the section intention without turning every row into a separate card.
 
+Implementation keeps the ordered row content in
+`LibraryCollectionRowPresentation`, exposed by `LibraryViewModel`, so titles,
+symbols, counts, destinations, identifiers, and divider placement have one
+testable source. `LibraryHomeView` renders that source as the grouped panel.
+The presentation test was observed failing before the model existed, then all
+22 `LibraryViewModelTests` and a dedicated simulator build passed after the
+panel was implemented. Dark appearance and accessibility Dynamic Type remain
+part of the final Xcode-run manual checkpoint.
+
 ## Motion
 
 Create one shared press style with two strengths:

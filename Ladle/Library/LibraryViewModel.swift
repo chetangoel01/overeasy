@@ -14,6 +14,15 @@ enum LibraryRecipeCollection: Equatable {
     case uncooked
 }
 
+struct LibraryCollectionRowPresentation: Equatable {
+    let title: String
+    let systemImage: String
+    let count: Int
+    let collection: LibraryRecipeCollection
+    let identifier: String
+    let showsDivider: Bool
+}
+
 @MainActor
 @Observable
 final class LibraryViewModel {
@@ -162,6 +171,35 @@ final class LibraryViewModel {
 
     var uncookedRecipes: [Recipe] {
         RecipeQuery().apply(to: recipes.filter { $0.lastCookedAt == nil })
+    }
+
+    var collectionRows: [LibraryCollectionRowPresentation] {
+        [
+            LibraryCollectionRowPresentation(
+                title: "Ready in 30 minutes",
+                systemImage: "timer",
+                count: quickRecipes.count,
+                collection: .quick,
+                identifier: "quick",
+                showsDivider: true
+            ),
+            LibraryCollectionRowPresentation(
+                title: "Favorited",
+                systemImage: "heart.fill",
+                count: favoriteRecipes.count,
+                collection: .favorites,
+                identifier: "favorites",
+                showsDivider: true
+            ),
+            LibraryCollectionRowPresentation(
+                title: "Haven’t cooked yet",
+                systemImage: "frying.pan",
+                count: uncookedRecipes.count,
+                collection: .uncooked,
+                identifier: "uncooked",
+                showsDivider: false
+            ),
+        ]
     }
 
     var watchRecipes: [Recipe] {

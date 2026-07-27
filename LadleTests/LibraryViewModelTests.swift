@@ -68,6 +68,41 @@ final class LibraryViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.uncookedRecipes.count, 6)
     }
 
+    func testCollectionRowsExposeApprovedOrderAndPresentation() {
+        let viewModel = makeViewModel()
+        viewModel.load()
+
+        XCTAssertEqual(
+            viewModel.collectionRows,
+            [
+                LibraryCollectionRowPresentation(
+                    title: "Ready in 30 minutes",
+                    systemImage: "timer",
+                    count: 3,
+                    collection: .quick,
+                    identifier: "quick",
+                    showsDivider: true
+                ),
+                LibraryCollectionRowPresentation(
+                    title: "Favorited",
+                    systemImage: "heart.fill",
+                    count: 2,
+                    collection: .favorites,
+                    identifier: "favorites",
+                    showsDivider: true
+                ),
+                LibraryCollectionRowPresentation(
+                    title: "Haven’t cooked yet",
+                    systemImage: "frying.pan",
+                    count: 6,
+                    collection: .uncooked,
+                    identifier: "uncooked",
+                    showsDivider: false
+                ),
+            ]
+        )
+    }
+
     func testCollectionAndMacroFiltersComposeInAllRecipes() {
         var cookedBurger = PreviewFixtures.recipes[0]
         cookedBurger.lastCookedAt = .now
