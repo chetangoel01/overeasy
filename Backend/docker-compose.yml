@@ -85,10 +85,15 @@ services:
     command:
       - >
         mc alias set ladle http://minio:9000 ladle-local ladle-local-secret &&
-        mc mb --ignore-existing ladle/ladle-private
+        mc mb --ignore-existing ladle/ladle-private &&
+        mc version enable ladle/ladle-private &&
+        mc ilm import ladle/ladle-private
+        < /policy/object-storage-lifecycle.json
     depends_on:
       minio:
         condition: service_healthy
+    volumes:
+      - ./deploy/object-storage-lifecycle.json:/policy/object-storage-lifecycle.json:ro
 
   migrate:
     <<: *runtime-security

@@ -42,8 +42,9 @@ From `Backend/` on the Mac mini:
 ```
 
 The deploy script validates the merged Compose configuration, starts the data
-services, initializes the private bucket, builds the runtime, runs Alembic
-before replacing API/worker processes, and waits for readiness.
+services, initializes the versioned private bucket and its lifecycle rules,
+builds the runtime, runs Alembic before replacing API/worker processes, and
+waits for readiness.
 
 Before a migration upgrade, keep a local database backup outside the checkout:
 

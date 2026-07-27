@@ -39,8 +39,9 @@ Celery Beat invokes `ladle.privacy.sweep` hourly. The task:
 
 The bucket lifecycle in `deploy/object-storage-lifecycle.json` expires temporary
 objects and incomplete uploads after one day and noncurrent object versions
-after 30 days. Apply it to every environment's private bucket and enable bucket
-versioning before production.
+after 30 days. Compose bucket initialization enables versioning and imports
+this policy into local and Mac mini MinIO automatically. Apply the same policy
+to every externally managed environment's private bucket before production.
 
 ## Managed encryption keys
 
