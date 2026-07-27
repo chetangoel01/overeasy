@@ -90,6 +90,10 @@ worker/API logs before updating. The profile rotates container logs at three
   `https://chetans-mac-mini.tail19e758.ts.net`
 - Pre-migration database backup:
   `/Users/chetangoel/Backups/ladle/ladle-20260726-214838.dump`
+- Post-verification backup copied to the operator workstation:
+  `/Users/chetangoel/Backups/ladle/ladle-mac-mini-20260726-post-head.dump`;
+  `pg_restore --list` passed and its SHA-256 is
+  `29e3ac33512c5bdf9d62a91b6b5a47f8e36f49c6eea35ee7f04d4a4f789cd169`
 - Migration: upgraded transactionally from `0003` through `0011 (head)`
 - Readiness: database, broker, result backend, worker, Redis-backed metrics,
   Redis-backed rate limiting, and configuration ready
