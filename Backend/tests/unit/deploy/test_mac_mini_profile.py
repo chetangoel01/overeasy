@@ -77,6 +77,7 @@ def test_mac_mini_ngrok_launcher_requires_a_device_key() -> None:
     assert "openssl rand -hex 32" in script
     assert "chmod 600" in script
     assert "X-Ladle-Tunnel-Key" in script
+    assert "x-ladle-tunnel-key" in script
     assert "--traffic-policy-file" in script
     assert "http://127.0.0.1:4114" in script
     assert "public_url" in script

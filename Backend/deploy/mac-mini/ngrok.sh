@@ -47,9 +47,20 @@ write_policy() {
             "          body: '{\"detail\":\"Not Found\"}'" \
             "          headers:" \
             "            content-type: application/json" \
-            "  - name: Require device tunnel key" \
+            "  - name: Require X-Ladle-Tunnel-Key" \
             "    expressions:" \
-            "      - \"!('$access_key' in req.headers['X-Ladle-Tunnel-Key'])\"" \
+            "      - \"!('x-ladle-tunnel-key' in req.headers)\"" \
+            "    actions:" \
+            "      - type: custom-response" \
+            "        config:" \
+            "          status_code: 404" \
+            "          body: '{\"detail\":\"Not Found\"}'" \
+            "          headers:" \
+            "            content-type: application/json" \
+            "  - name: Reject an incorrect X-Ladle-Tunnel-Key" \
+            "    expressions:" \
+            "      - \"'x-ladle-tunnel-key' in req.headers\"" \
+            "      - \"!('$access_key' in req.headers['x-ladle-tunnel-key'])\"" \
             "    actions:" \
             "      - type: custom-response" \
             "        config:" \
