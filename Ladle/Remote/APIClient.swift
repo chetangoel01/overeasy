@@ -36,18 +36,21 @@ actor APIClient {
     private let session: URLSession
     private let tokenStore: any AuthTokenStoring
     private let appAttester: (any AppAttesting)?
+    private let tunnelAccessKey: String?
     private var refreshTask: Task<AuthTokens, Error>?
 
     init(
         baseURL: URL,
         session: URLSession = .shared,
         tokenStore: any AuthTokenStoring,
-        appAttester: (any AppAttesting)? = nil
+        appAttester: (any AppAttesting)? = nil,
+        tunnelAccessKey: String? = nil
     ) {
         self.baseURL = baseURL
         self.session = session
         self.tokenStore = tokenStore
         self.appAttester = appAttester
+        self.tunnelAccessKey = tunnelAccessKey
     }
 
     func request<Response>(
@@ -261,6 +264,12 @@ actor APIClient {
             UUID().uuidString.lowercased(),
             forHTTPHeaderField: "X-Request-ID"
         )
+        if let tunnelAccessKey {
+            request.setValue(
+                tunnelAccessKey,
+                forHTTPHeaderField: "X-Ladle-Tunnel-Key"
+            )
+        }
         if let accessToken {
             request.setValue(
                 "Bearer \(accessToken)",

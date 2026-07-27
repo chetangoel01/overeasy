@@ -35,6 +35,16 @@ struct LadleRuntimeConfiguration {
         }
         return !["0", "false", "no"].contains(value.lowercased())
     }
+
+    var tunnelAccessKey: String? {
+        guard
+            let value = infoDictionary["LadleTunnelAccessKey"] as? String,
+            !value.isEmpty
+        else {
+            return nil
+        }
+        return value
+    }
 }
 
 @main
@@ -152,7 +162,8 @@ struct LadleApp: App {
                 let api = APIClient(
                     baseURL: baseURL,
                     tokenStore: tokenStore,
-                    appAttester: appAttester
+                    appAttester: appAttester,
+                    tunnelAccessKey: runtimeConfiguration.tunnelAccessKey
                 )
                 authClient = AuthClient(
                     api: api,

@@ -68,6 +68,7 @@ services:
     ports:
       - "127.0.0.1:4112:8080"
       - "127.0.0.1:4113:8081"
+      - "127.0.0.1:4114:8082"
     healthcheck:
       test: ["CMD", "nginx", "-t"]
       interval: 5s

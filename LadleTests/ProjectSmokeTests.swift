@@ -36,6 +36,16 @@ final class ProjectSmokeTests: XCTestCase {
         XCTAssertFalse(configuration.usesAppAttest)
     }
 
+    func testRuntimeConfigurationReadsOptionalTunnelAccessKey() {
+        let configuration = LadleRuntimeConfiguration(
+            launchArguments: [],
+            environment: [:],
+            infoDictionary: ["LadleTunnelAccessKey": "device-tunnel"]
+        )
+
+        XCTAssertEqual(configuration.tunnelAccessKey, "device-tunnel")
+    }
+
     func testRuntimeConfigurationCanLaunchAnEmptyTestLibrary() {
         let configuration = LadleRuntimeConfiguration(
             launchArguments: ["-ui-testing", "-empty-library"],

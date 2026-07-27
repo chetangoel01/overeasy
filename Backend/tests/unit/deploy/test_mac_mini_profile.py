@@ -33,6 +33,7 @@ def test_mac_mini_profile_is_private_bounded_and_non_media() -> None:
     assert "depends_on: !reset {}" in profile
     assert "127.0.0.1:4112:8080" in profile
     assert "127.0.0.1:4113:8081" in profile
+    assert "127.0.0.1:4114:8082" in profile
     assert profile.count("host-publish: {}") == 2
     assert profile.count("internal: true") == 1
     assert "ports: !reset []" in profile
@@ -51,14 +52,17 @@ def test_mac_mini_edge_enforces_body_limit_and_preserves_proxy_protocol_ip() -> 
     assert "COPY --chown=101:101 --chmod=0444 nginx.conf" in dockerfile
     assert "listen 8080 proxy_protocol" in config
     assert "listen 8081" in config
+    assert "listen 8082" in config
     assert "real_ip_header proxy_protocol" in config
     assert "proxy_set_header X-Forwarded-For $remote_addr" in config
+    assert config.count("proxy_set_header X-Forwarded-Proto https") == 2
+    assert 'proxy_set_header X-Ladle-Tunnel-Key ""' in config
     assert (
         'add_header Strict-Transport-Security "max-age=63072000; '
         'includeSubDomains; preload" always;'
     ) in config
     for hidden in ("/openapi.json", "/docs", "/redoc", "/metrics"):
-        assert f"location = {hidden}" in config
+        assert config.count(f"location = {hidden}") == 2
     assert "client_max_body_size 1m" in config
     assert "error_page 413" in config
     assert '"code":"invalidRequest"' in config

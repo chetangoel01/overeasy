@@ -10,7 +10,8 @@ public production deployment.
 ## User-visible behavior
 
 - A rootless Nginx edge listens only on host loopback ports `4112` (PROXY
-  protocol v2) and `4113` (local operations). The API has no published port.
+  protocol v2), `4113` (local operations), and `4114` (HTTPS-terminated
+  development tunnels). The API has no published port.
 - The edge image contains its read-only configuration; it does not require an
   unattended host file-sharing mount.
 - A dedicated host-publish network lets Docker Desktop bind those loopback
@@ -21,6 +22,9 @@ public production deployment.
   security verifier; the local operations listener does not.
 - The tailnet edge hides OpenAPI, interactive docs, ReDoc, and metrics; those
   routes are never exposed to tailnet clients by the staging configuration.
+- The optional development-tunnel edge also hides those routes, forwards the
+  original ngrok client address, marks the upstream request as HTTPS, and
+  removes the device tunnel key before the request reaches the API.
 - Nginx rejects bodies over 1 MiB with the typed `invalidRequest` response
   before FastAPI allocates or parses them.
 - Imports use the configured live text/extraction providers.
@@ -46,10 +50,13 @@ public production deployment.
   mode `0600`. Provider credentials can be copied into that file before the
   first deployment.
 - This environment intentionally remains `development`. App Attest and all
-  public-production fail-closed requirements must be enabled before exposing
-  the API outside the tailnet.
-- Tailscale is the only ingress. Do not add router port forwarding and do not
-  use Tailscale Funnel for this profile.
+  public-production fail-closed requirements must be enabled before a general
+  public deployment.
+- Tailscale remains the persistent ingress. Port `4114` may be attached to a
+  temporary ngrok agent for Personal Team device testing only when ngrok
+  rejects requests without a freshly generated `X-Ladle-Tunnel-Key`. Keep the
+  port loopback-only, stop the endpoint after testing, and never add router
+  port forwarding or use Tailscale Funnel for this profile.
 - The worker shares the network namespace of a minimal firewall sidecar. Rules
   apply only to UID 10001: Docker DNS, the resolved PostgreSQL/Redis endpoints,
   and public TCP/443 are allowed; private, loopback, link-local, metadata,
@@ -138,6 +145,7 @@ docker compose \
   ps
 
 curl --fail http://127.0.0.1:4113/health/ready
+curl --fail http://127.0.0.1:4114/health/ready
 /Applications/Tailscale.app/Contents/MacOS/Tailscale serve status
 launchctl print "gui/$(id -u)/com.ladle.health-watch"
 launchctl print "gui/$(id -u)/com.ladle.database-backup"
@@ -154,6 +162,8 @@ worker/API logs before updating. The profile rotates container logs at three
 - `docker compose ... config`
 - Alembic migration exit status
 - Local `/health/ready`
+- Development-tunnel `/health/ready`, with ngrok rejecting a missing or wrong
+  device key before the request reaches the host
 - Tailnet HTTPS `/health/ready`
 - A 1 MiB-plus local and tailnet request returns `413` plus
   `error.code=invalidRequest`

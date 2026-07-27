@@ -57,6 +57,41 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(request.url?.path, "/v1/test")
     }
 
+    func testTunnelRequestAddsAccessKeyWithoutReplacingBearer() async throws {
+        let store = InMemoryAuthTokenStore(
+            tokens: .fixture(accessToken: "guest-access")
+        )
+        let captured = Locked<[URLRequest]>([])
+        URLProtocolStub.install { request in
+            captured.withValue { $0.append(request) }
+            return (
+                Self.response(request, status: 200),
+                Self.json(["value": "ok"])
+            )
+        }
+        let client = APIClient(
+            baseURL: URL(string: "https://example.ngrok.app")!,
+            session: URLProtocolStub.session(),
+            tokenStore: store,
+            tunnelAccessKey: "device-tunnel"
+        )
+
+        let _: ResponseBody = try await client.request(
+            path: "/v1/test",
+            authenticated: true
+        )
+
+        let request = try XCTUnwrap(captured.snapshot.first)
+        XCTAssertEqual(
+            request.value(forHTTPHeaderField: "X-Ladle-Tunnel-Key"),
+            "device-tunnel"
+        )
+        XCTAssertEqual(
+            request.value(forHTTPHeaderField: "Authorization"),
+            "Bearer guest-access"
+        )
+    }
+
     func testSensitiveRequestCarriesFreshAppAttestAssertionHeaders() async throws {
         let store = InMemoryAuthTokenStore(
             tokens: .fixture(accessToken: "guest-access")
