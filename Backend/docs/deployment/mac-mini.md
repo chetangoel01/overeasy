@@ -17,6 +17,8 @@ production deployment.
   ports while the API remains isolated on its internal edge network.
 - Tailscale Serve terminates HTTPS for tailnet devices and forwards PROXY
   protocol v2 so per-IP abuse controls receive the original tailnet address.
+- The tailnet ingress adds the two-year HSTS policy expected by the external
+  security verifier; the local operations listener does not.
 - Nginx rejects bodies over 1 MiB with the typed `invalidRequest` response
   before FastAPI allocates or parses them.
 - Imports use the configured live text/extraction providers.

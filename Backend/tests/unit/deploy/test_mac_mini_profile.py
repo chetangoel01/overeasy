@@ -53,6 +53,10 @@ def test_mac_mini_edge_enforces_body_limit_and_preserves_proxy_protocol_ip() -> 
     assert "listen 8081" in config
     assert "real_ip_header proxy_protocol" in config
     assert "proxy_set_header X-Forwarded-For $remote_addr" in config
+    assert (
+        'add_header Strict-Transport-Security "max-age=63072000; '
+        'includeSubDomains; preload" always;'
+    ) in config
     assert "client_max_body_size 1m" in config
     assert "error_page 413" in config
     assert '"code":"invalidRequest"' in config
