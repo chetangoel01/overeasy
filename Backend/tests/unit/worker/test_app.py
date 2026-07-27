@@ -1,3 +1,9 @@
+from billiard.exceptions import SoftTimeLimitExceeded
+from redis.exceptions import ConnectionError as RedisConnectionError
+from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError
+
+from ladle.acquisition.errors import ProviderTransientError
+from ladle.cache.claims import ClaimLost
 from ladle.config import Settings
 from ladle.imports.dispatcher import PROCESS_IMPORT_TASK
 from ladle.imports.maintenance import RELEASE_EXPIRED_RESERVATIONS_TASK
@@ -7,7 +13,7 @@ from ladle.worker.app import (
     configure_worker_logging,
     create_celery_app,
 )
-from ladle.worker.tasks import retry_countdown
+from ladle.worker.tasks import is_retryable_import_failure, retry_countdown
 
 
 def test_worker_uses_late_ack_and_long_visibility_timeout() -> None:
@@ -54,6 +60,25 @@ def test_worker_retry_backoff_is_bounded_and_jittered() -> None:
 
     assert first == 8
     assert late == 63
+
+
+def test_worker_retries_only_explicit_transient_failures() -> None:
+    retryable = (
+        TimeoutError(),
+        ConnectionError(),
+        RedisConnectionError(),
+        SQLAlchemyTimeoutError(),
+        SoftTimeLimitExceeded(),
+        ProviderTransientError(),
+        ClaimLost(),
+    )
+    terminal = (
+        ValueError("malformed job"),
+        RuntimeError("broken invariant"),
+    )
+
+    assert all(is_retryable_import_failure(error) for error in retryable)
+    assert not any(is_retryable_import_failure(error) for error in terminal)
 
 
 def test_production_worker_installs_sink_boundary_json_logging(

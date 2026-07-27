@@ -27,8 +27,9 @@ fails as `networkUnavailable` and receives a durable dead-letter record.
   can be retried without consuming the worker-loss allowance.
 - Pending rows are locked with `SKIP LOCKED`, so multiple maintenance workers
   cannot dispatch the same row concurrently.
-- Celery retries unexpected task failures up to three times with exponential
-  backoff, bounded delay, and jitter. Retry exhaustion and repeated worker loss
+- Celery retries explicitly transient task failures up to three times with
+  exponential backoff, bounded delay, and jitter. Non-retryable failures enter
+  the same terminal path immediately. Retry exhaustion and repeated worker loss
   both clear private text, release recipe capacity and claims, fail the job, and
   create `import_dead_letters`.
 - Task IDs remain deterministic (`import:{job_id}`), and the orchestrator is

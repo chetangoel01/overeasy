@@ -5,8 +5,25 @@ from random import SystemRandom
 from time import perf_counter
 from uuid import UUID
 
+import httpx
+from billiard.exceptions import SoftTimeLimitExceeded  # type: ignore[import-untyped]
 from celery import Task
+from kombu.exceptions import (  # type: ignore[import-untyped]
+    OperationalError as KombuOperationalError,
+)
+from redis.exceptions import RedisError
+from sqlalchemy.exc import (
+    InterfaceError as SQLAlchemyInterfaceError,
+)
+from sqlalchemy.exc import (
+    OperationalError as SQLAlchemyOperationalError,
+)
+from sqlalchemy.exc import (
+    TimeoutError as SQLAlchemyTimeoutError,
+)
 
+from ladle.acquisition.errors import ProviderTransientError
+from ladle.cache.claims import ClaimLost
 from ladle.clock import SystemClock
 from ladle.config import Settings
 from ladle.imports.dispatcher import (
@@ -31,6 +48,19 @@ from ladle.worker.runtime import (
 
 _RANDOM = SystemRandom()
 LOGGER = logging.getLogger(__name__)
+_RETRYABLE_IMPORT_FAILURES = (
+    TimeoutError,
+    ConnectionError,
+    SoftTimeLimitExceeded,
+    httpx.TransportError,
+    RedisError,
+    KombuOperationalError,
+    SQLAlchemyInterfaceError,
+    SQLAlchemyOperationalError,
+    SQLAlchemyTimeoutError,
+    ProviderTransientError,
+    ClaimLost,
+)
 
 
 def retry_countdown(
@@ -48,6 +78,19 @@ def retry_countdown(
         else float(_RANDOM.uniform(0, jitter_seconds))
     )
     return int(exponential + round(jitter_value))
+
+
+def is_retryable_import_failure(error: BaseException) -> bool:
+    """Classify only operational failures that can succeed without code changes."""
+
+    current: BaseException | None = error
+    seen: set[int] = set()
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if isinstance(current, _RETRYABLE_IMPORT_FAILURES):
+            return True
+        current = current.__cause__ or current.__context__
+    return False
 
 
 @celery_app.task(  # type: ignore[untyped-decorator]
@@ -70,20 +113,34 @@ def process_import(task: Task, job_id: str) -> str:
             outcome = runtime_orchestrator().process(stable_id)
         except Exception as error:
             duration_ms = round((perf_counter() - started) * 1000, 3)
-            if task.request.retries >= settings.celery_import_max_retries:
+            retryable = is_retryable_import_failure(error)
+            retries_exhausted = (
+                task.request.retries >= settings.celery_import_max_retries
+            )
+            if not retryable or retries_exhausted:
+                failure_code = (
+                    "workerRetriesExhausted"
+                    if retryable
+                    else f"workerNonRetryable:{type(error).__name__}"
+                )
                 runtime_dispatch_outbox().dead_letter_job(
                     stable_id,
-                    failure_code="workerRetriesExhausted",
+                    failure_code=failure_code,
                     attempts=attempts,
                 )
                 LOGGER.error(
-                    "Import task exhausted retries",
+                    (
+                        "Import task exhausted retries"
+                        if retryable
+                        else "Import task failed permanently"
+                    ),
                     extra={
                         "job_id": job_id,
                         "retry_number": attempts,
                         "duration_ms": duration_ms,
                         "terminal_result": "deadLettered",
                         "exception_type": type(error).__name__,
+                        "failure_code": failure_code,
                     },
                 )
                 runtime_metrics().observe_import(

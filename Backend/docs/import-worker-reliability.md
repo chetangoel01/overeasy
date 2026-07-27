@@ -26,8 +26,12 @@ stale while the task can still be alive.
   minutes, and provider budget reservations are 30 minutes.
 - Workers prefetch one late-acknowledged task and retry broker connection during
   startup.
-- Unexpected task failures retry three times with bounded exponential backoff
-  and jitter before reaching the dead-letter path.
+- Only explicit transient task failures—timeouts, lost connections, Redis or
+  broker failures, transient database errors, provider transport failures, and
+  lost claims—retry three times with bounded exponential backoff and jitter.
+  Validation and invariant failures enter the terminal dead-letter path
+  immediately instead of repeating work that cannot recover without a code or
+  data change.
 - Provider circuit failures are counted atomically in Redis, so an outage opens
   one shared circuit instead of one independent circuit per worker process.
 - Configuration validation rejects any timing combination that violates this
@@ -45,6 +49,7 @@ stale while the task can still be alive.
 
 ## Verification
 
-Unit tests cover periodic renewal, lost-claim propagation, task configuration,
-and invalid timing combinations. The end-to-end worker test proves that the
-production orchestration path installs a monitor around a leader extraction.
+Unit tests cover periodic renewal, lost-claim propagation, the transient
+failure allowlist, task configuration, and invalid timing combinations. The
+end-to-end worker test proves that the production orchestration path installs a
+monitor around a leader extraction.
