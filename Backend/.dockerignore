@@ -15,8 +15,12 @@ docs
 scripts
 deploy/*
 !deploy/object-storage-lifecycle.json
+!deploy/vps/
+deploy/vps/*
+!deploy/vps/Caddyfile
 load
 docker-compose*
+!deploy/vps/docker-compose.yml
 *.md
 # Cached video contexts and scoreboards from scripts/eval_extraction.py. Left
 # in the build context they ship inside the runtime image, and a rebuild then
