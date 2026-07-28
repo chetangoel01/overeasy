@@ -79,13 +79,14 @@ state_started=false
 
 finish_deployment() {
     status=$?
+    finalize_deployment_exit "$status" "$state_started" "$state_directory" \
+        "$revision" "$deployment_phase" /opt/ladle/current 0 ||
+        true
+    status=$DEPLOYMENT_FINAL_STATUS
     if [ "$status" -ne 0 ]; then
-        if [ "$state_started" = true ]; then
-            write_deployment_state "$state_directory" failed \
-                "$revision" "$deployment_phase" 0 ||
-                true
-        fi
         progress failure "$deployment_phase failed" || true
+    elif [ "$DEPLOYMENT_COMMIT_RECOVERED" = true ]; then
+        progress success "revision $revision is active" || true
     fi
     trap - 0
     exit "$status"
@@ -237,14 +238,8 @@ wait_for_beat_stability "$beat_stability_checks" "$beat_stability_interval" ||
     die "The Celery Beat stability gate failed."
 
 deployment_phase=activation
-write_deployment_state \
-    "$state_directory" deploying "$revision" "$deployment_phase" 0 ||
-    die "Cannot update deployment state."
 progress "activation" "activating revision $revision"
-activate_release "$release" /opt/ladle/current ||
+activate_deployment_revision \
+    "$state_directory" "$revision" "$release" /opt/ladle/current 0 ||
     die "The current release could not be activated."
-
-deployment_phase=success
-write_deployment_state "$state_directory" active "$revision" complete 0 ||
-    die "Cannot record active deployment state."
-progress "success" "revision $revision is active"
+progress "success" "revision $revision is active" || true

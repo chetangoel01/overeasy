@@ -448,10 +448,13 @@ git commit -m "feat: deploy exact revisions to VPS"
   dependent worker. A donor failure stops the rollout before the dependent is
   started.
 - `/var/lib/ladle/deployment-state` is atomically updated at mode `0644` before
-  service mutation and for each deployment phase. It is authoritative only
-  when it says `active`, names the same revision as `/opt/ladle/current`, and
-  has phase `complete`; failures remain explicitly visible without attempting
-  an unsafe database or symlink rollback.
+  service mutation and for each deployment phase. After every readiness gate,
+  `active`/`complete` state is durably precommitted before the current symlink
+  changes; it becomes authoritative only when it names the same revision as
+  `/opt/ladle/current`. An activation failure overwrites the precommit with
+  `failed` and leaves the prior current release. A handled signal immediately
+  after the symlink move recognizes matching state and current as committed,
+  instead of falsely reporting failure or rolling either side back.
 - Each server phase is streamed to the invoking terminal and written without
   command or secret content to the root-owned mode-`0640`
   `/var/log/ladle/setup.log`. A second SSH session can follow it with
@@ -460,7 +463,7 @@ git commit -m "feat: deploy exact revisions to VPS"
   `0755`, and upload normalizes a candidate to a traversable root-owned mode
   `0755` before running the exact release's executable permission validator.
   Rerunning provisioning cannot weaken completed releases.
-- Local verification covers 52 VPS deployment tests, including executable
+- Local verification covers 54 VPS deployment tests, including executable
   permission-boundary, lock-serialization, concurrent secret-update,
   deployment-state, namespace-sharing worker rollout, and Beat stability
   harnesses, plus POSIX and Dash parsing, Ruff, the complete deploy-unit suite,

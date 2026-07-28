@@ -1581,9 +1581,9 @@ def test_deploy_waits_for_api_edge_worker_and_activates_last() -> None:
     assert "--timeout=10" in deploy
     assert "LADLE_HEALTH_ATTEMPTS" in deploy
     assert "sleep 2" in deploy
-    assert 'activate_release "$release" /opt/ladle/current' in deploy
+    assert "activate_deployment_revision" in deploy
 
-    activation = deploy.index('activate_release "$release" /opt/ladle/current')
+    activation = deploy.index("activate_deployment_revision")
     for gate in (
         "wait_for_api_readiness",
         "wait_for_edge_readiness",
@@ -1947,7 +1947,73 @@ def test_deployment_state_flags_failure_without_changing_current(
     assert authoritative.returncode != 0
 
 
-def test_deployment_state_becomes_active_only_after_activation(tmp_path: Path) -> None:
+def test_active_state_write_failure_leaves_current_on_previous_release(
+    tmp_path: Path,
+) -> None:
+    state_directory = tmp_path / "state"
+    state_directory.mkdir(mode=0o750)
+    previous = tmp_path / ("a" * 40)
+    candidate = tmp_path / ("b" * 40)
+    previous.mkdir(mode=0o755)
+    candidate.mkdir(mode=0o755)
+    current = tmp_path / "current"
+    current.symlink_to(previous)
+
+    failed = _run_deployment_library(
+        "activate_deployment_revision",
+        state_directory,
+        candidate.name,
+        candidate,
+        current,
+        str(os.getuid() + 1),
+    )
+
+    assert failed.returncode == 1
+    assert current.resolve() == previous
+    assert not (state_directory / "deployment-state").exists()
+
+
+def test_activation_failure_leaves_current_old_and_records_failed_state(
+    tmp_path: Path,
+) -> None:
+    state_directory = tmp_path / "state"
+    state_directory.mkdir(mode=0o750)
+    previous = tmp_path / ("a" * 40)
+    candidate = tmp_path / ("b" * 40)
+    previous.mkdir(mode=0o755)
+    candidate.mkdir(mode=0o755)
+    current = tmp_path / "current"
+    current.symlink_to(previous)
+    state_file = state_directory / "deployment-state"
+
+    failed = _run_library_script(
+        """
+mkdir "$4.next.$$"
+set +e
+activate_deployment_revision "$1" "$2" "$3" "$4" "$5"
+transaction_status=$?
+set -e
+finalize_deployment_exit \
+    "$transaction_status" true "$1" "$2" activation "$4" "$5"
+[ "$DEPLOYMENT_FINAL_STATUS" -eq 1 ]
+""",
+        state_directory,
+        candidate.name,
+        candidate,
+        current,
+        str(os.getuid()),
+    )
+
+    assert failed.returncode == 0, failed.stderr
+    assert current.resolve() == previous
+    assert state_file.read_text() == (
+        f"STATUS=failed\nREVISION={candidate.name}\nPHASE=activation\n"
+    )
+
+
+def test_failure_after_current_moves_is_reconciled_as_committed(
+    tmp_path: Path,
+) -> None:
     state_directory = tmp_path / "state"
     state_directory.mkdir(mode=0o750)
     release = tmp_path / ("c" * 40)
@@ -1955,28 +2021,22 @@ def test_deployment_state_becomes_active_only_after_activation(tmp_path: Path) -
     current = tmp_path / "current"
     state_file = state_directory / "deployment-state"
 
-    assert (
-        _run_deployment_library(
-            "write_deployment_state",
-            state_directory,
-            "deploying",
-            release.name,
-            "activation",
-            str(os.getuid()),
-        ).returncode
-        == 0
+    interrupted = _run_library_script(
+        """
+activate_deployment_revision "$1" "$2" "$3" "$4" "$5"
+finalize_deployment_exit 143 true "$1" "$2" activation "$4" "$5"
+[ "$DEPLOYMENT_FINAL_STATUS" -eq 0 ]
+[ "$DEPLOYMENT_COMMIT_RECOVERED" = true ]
+""",
+        state_directory,
+        release.name,
+        release,
+        current,
+        str(os.getuid()),
     )
-    assert _run_deployment_library("activate_release", release, current).returncode == 0
-    assert (
-        _run_deployment_library(
-            "write_deployment_state",
-            state_directory,
-            "active",
-            release.name,
-            "complete",
-            str(os.getuid()),
-        ).returncode
-        == 0
+    assert interrupted.returncode == 0, interrupted.stderr
+    assert state_file.read_text() == (
+        f"STATUS=active\nREVISION={release.name}\nPHASE=complete\n"
     )
     authoritative = _run_deployment_library(
         "deployment_state_matches_current",
@@ -1995,13 +2055,24 @@ def test_deployment_state_becomes_active_only_after_activation(tmp_path: Path) -
     assert unsafe.returncode != 0
 
     deploy = DEPLOY.read_text()
+    library = DEPLOYMENT_LIB.read_text()
+    activation_helper = library[
+        library.index("activate_deployment_revision()") : library.index(
+            "finalize_deployment_exit()"
+        )
+    ]
+    assert activation_helper.index("write_deployment_state") < (
+        activation_helper.index("activate_release")
+    )
+    activation = deploy.index("activate_deployment_revision")
+    success = deploy.index('progress "success"')
+    assert activation < success
+    assert 'progress "success" "revision $revision is active" || true' in deploy
     assert deploy.index(
         'write_deployment_state "$state_directory" deploying'
     ) < deploy.index("compose up -d")
-    assert deploy.index(
-        'activate_release "$release" /opt/ladle/current'
-    ) < deploy.index('write_deployment_state "$state_directory" active')
-    assert 'write_deployment_state "$state_directory" failed' in deploy
+    assert "finalize_deployment_exit" in deploy
+    assert 'write_deployment_state "$finalization_state_directory" failed' in library
 
 
 def test_worker_rollout_command_order_and_failure_are_executable(
@@ -2093,7 +2164,7 @@ wait_for_beat_stability 3 1
         "wait_for_beat_stability"
     )
     assert deploy.index("wait_for_beat_stability") < deploy.index(
-        'activate_release "$release" /opt/ladle/current'
+        "activate_deployment_revision"
     )
 
 

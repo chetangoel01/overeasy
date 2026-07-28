@@ -397,6 +397,53 @@ activate_release() {
     fi
 }
 
+activate_deployment_revision() {
+    activation_state_directory=$1
+    activation_revision=$2
+    activation_release=$3
+    activation_current=$4
+    activation_state_uid=$5
+    write_deployment_state "$activation_state_directory" active \
+        "$activation_revision" complete "$activation_state_uid" ||
+        return 1
+    activate_release "$activation_release" "$activation_current"
+}
+
+finalize_deployment_exit() {
+    finalization_status=$1
+    finalization_state_started=$2
+    finalization_state_directory=$3
+    finalization_revision=$4
+    finalization_phase=$5
+    finalization_current=$6
+    finalization_state_uid=$7
+    DEPLOYMENT_FINAL_STATUS=$finalization_status
+    DEPLOYMENT_COMMIT_RECOVERED=false
+    case "$finalization_status" in
+        "" | *[!0-9]*) return 1 ;;
+    esac
+    case "$finalization_state_started" in
+        true | false) ;;
+        *) return 1 ;;
+    esac
+    [ "$finalization_status" -ne 0 ] || return 0
+    if [ "$finalization_state_started" = true ] &&
+        deployment_state_matches_current \
+            "$finalization_state_directory/deployment-state" \
+            "$finalization_current" "$finalization_state_uid"; then
+        DEPLOYMENT_FINAL_STATUS=0
+        DEPLOYMENT_COMMIT_RECOVERED=true
+        return 0
+    fi
+    if [ "$finalization_state_started" = true ]; then
+        write_deployment_state "$finalization_state_directory" failed \
+            "$finalization_revision" "$finalization_phase" \
+            "$finalization_state_uid" ||
+            true
+    fi
+    return 0
+}
+
 validate_progress_text() {
     progress_phase_candidate=$1
     progress_message_candidate=$2
