@@ -18,7 +18,7 @@ fi
 secret_group="ladle-secrets"
 env_file=/etc/ladle/ladle.env
 staging_key_file=/etc/ladle/staging-access-key
-environment_lock=/var/lock/ladle-environment.lock
+environment_lock=/var/lib/ladle/locks/environment.lock
 env_tmp=
 staging_tmp=
 initialization_phase=environment

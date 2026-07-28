@@ -2,6 +2,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import stat
 import subprocess
 from pathlib import Path
@@ -125,6 +126,48 @@ def _run_deployment_library(
     )
 
 
+def _run_operations_library(
+    script: str,
+    *arguments: str | Path,
+    env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [
+            "/bin/sh",
+            "-c",
+            f'. "$1"; shift; {script}',
+            "test",
+            str(OPERATIONS),
+            *(str(argument) for argument in arguments),
+        ],
+        check=False,
+        capture_output=True,
+        env={**os.environ, **(env or {})},
+        text=True,
+    )
+
+
+def _run_installer_library(
+    script: str,
+    *arguments: str | Path,
+    env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [
+            "/bin/sh",
+            "-c",
+            f'. "$1"; shift; {script}',
+            "test",
+            str(INSTALL_OPERATIONS),
+            *(str(argument) for argument in arguments),
+        ],
+        check=False,
+        capture_output=True,
+        env={**os.environ, **(env or {})},
+        text=True,
+    )
+
+
 def _run_library_script(
     script: str,
     *arguments: str | Path,
@@ -163,6 +206,156 @@ except BlockingIOError:
 """
     )
     path.chmod(0o755)
+
+
+def _write_operations_installer_fakes(path: Path) -> None:
+    path.mkdir()
+    (path / "install").write_text(
+        """#!/usr/bin/env python3
+import os
+import shutil
+import sys
+
+arguments = sys.argv[1:]
+mode = int(arguments[arguments.index("-m") + 1], 8)
+source, target = arguments[-2:]
+if os.environ.get("FAIL_PHASE") == "stage" and not os.environ.get(
+    "STAGE_FAILURE_USED"
+):
+    marker = os.environ["FAKE_STATE"] + ".stage"
+    if not os.path.exists(marker):
+        open(marker, "w").close()
+        raise SystemExit(1)
+shutil.copyfile(source, target)
+os.chmod(target, mode)
+"""
+    )
+    (path / "stat").write_text(
+        """#!/usr/bin/env python3
+import os
+import stat
+import sys
+
+target = sys.argv[-1]
+metadata = os.stat(target, follow_symlinks=False)
+mode = stat.S_IMODE(metadata.st_mode)
+format_string = sys.argv[2]
+if format_string == "%u:%a":
+    print(f"{metadata.st_uid}:{mode:o}")
+elif format_string == "%u:%g:%a":
+    print(f"{metadata.st_uid}:{metadata.st_gid}:{mode:o}")
+else:
+    raise SystemExit(f"unsupported stat format: {format_string}")
+"""
+    )
+    (path / "mv").write_text(
+        """#!/usr/bin/env python3
+import os
+import sys
+import time
+
+source, target = sys.argv[-2:]
+marker = os.environ["FAKE_STATE"] + ".swap"
+if (
+    os.environ.get("FAIL_PHASE") == "swap"
+    and ".ladle-stage." in os.path.basename(source)
+    and os.path.basename(target) == "ladle-health.service"
+    and not os.path.exists(marker)
+):
+    open(marker, "w").close()
+    raise SystemExit(1)
+if (
+    os.environ.get("PAUSE_SWAP") == "1"
+    and ".ladle-stage." in os.path.basename(source)
+    and os.path.basename(target) == "ladle-health.service"
+):
+    open(os.environ["FAKE_STATE"] + ".signal", "w").close()
+    time.sleep(30)
+os.replace(source, target)
+"""
+    )
+    (path / "rm").write_text(
+        """#!/usr/bin/env python3
+import os
+import subprocess
+import sys
+
+if os.environ.get("FAIL_PHASE") == "cleanup" and any(
+    ".ladle-backup." in argument for argument in sys.argv[1:]
+):
+    raise SystemExit(1)
+raise SystemExit(subprocess.run(["/bin/rm", *sys.argv[1:]], check=False).returncode)
+"""
+    )
+    (path / "systemd-analyze").write_text(
+        """#!/bin/sh
+[ "${FAIL_PHASE:-}" != verify ]
+"""
+    )
+    (path / "systemctl").write_text(
+        """#!/usr/bin/env python3
+import os
+import sys
+
+command = sys.argv[1]
+state = os.environ["FAKE_STATE"]
+with open(state, "a") as trace:
+    trace.write(" ".join(sys.argv[1:]) + "\\n")
+if command in {"is-enabled", "is-active"}:
+    raise SystemExit(0 if os.environ.get("PREVIOUS_TIMERS_ACTIVE") == "1" else 1)
+if command == "daemon-reload" and os.environ.get("FAIL_PHASE") == "daemon":
+    marker = state + ".daemon"
+    if not os.path.exists(marker):
+        open(marker, "w").close()
+        raise SystemExit(1)
+if command == "enable" and os.environ.get("FAIL_PHASE") == "enable":
+    raise SystemExit(1)
+if command == "start" and os.environ.get("FAIL_PHASE") == "start":
+    raise SystemExit(1)
+"""
+    )
+    for fake in path.iterdir():
+        fake.chmod(0o755)
+
+
+def _operations_installer_fixture(
+    tmp_path: Path,
+    *,
+    preexisting: bool,
+) -> tuple[Path, Path, Path, tuple[Path, ...], Path, Path]:
+    source = tmp_path / "source"
+    source.mkdir()
+    binary_source = source / "operations.sh"
+    binary_source.write_text("#!/bin/sh\nprintf '%s\\n' new-operations\n")
+    binary_source.chmod(0o755)
+    unit_names = (
+        "ladle-health.service",
+        "ladle-health.timer",
+        "ladle-backup.service",
+        "ladle-backup.timer",
+    )
+    for name in unit_names:
+        (source / name).write_text(f"[Unit]\nDescription=new {name}\n")
+    binary_dir = tmp_path / "sbin"
+    unit_dir = tmp_path / "systemd"
+    binary_dir.mkdir()
+    unit_dir.mkdir()
+    binary_target = binary_dir / "ladle-operations"
+    targets = (binary_target, *(unit_dir / name for name in unit_names))
+    if preexisting:
+        for target in targets:
+            target.write_text(f"old:{target.name}\n")
+            target.chmod(0o755 if target == binary_target else 0o644)
+    fake_bin = tmp_path / "bin"
+    _write_operations_installer_fakes(fake_bin)
+    return (
+        source,
+        binary_target,
+        unit_dir,
+        targets,
+        fake_bin,
+        tmp_path / "systemctl.trace",
+    )
 
 
 def _staging_environment() -> str:
@@ -1883,11 +2076,26 @@ def test_environment_lock_is_shared_and_acquired_before_environment_reads() -> N
     set_secret = SET_SECRET.read_text()
     deploy = DEPLOY.read_text()
 
-    assert "/var/lock/ladle-environment.lock" in provision
+    lock_directory = "/var/lib/ladle/locks"
+    deployment_lock = f"{lock_directory}/deploy.lock"
+    environment_lock = f"{lock_directory}/environment.lock"
+
+    assert lock_directory in provision
+    assert deployment_lock in provision
+    assert environment_lock in provision
     assert "mode 0600" in provision
-    assert "/var/lock/ladle-environment.lock" in initialize
-    assert "/var/lock/ladle-environment.lock" in set_secret
-    assert "/var/lock/ladle-environment.lock" in deploy
+    assert environment_lock in initialize
+    assert environment_lock in set_secret
+    assert deployment_lock in deploy
+    assert environment_lock in deploy
+    assert deployment_lock in OPERATIONS.read_text()
+    assert deployment_lock in INSTALL_OPERATIONS.read_text()
+    assert environment_lock in INSTALL_OPERATIONS.read_text()
+    assert "safe_directory /var/lib/ladle/locks 700" in OPERATIONS.read_text()
+    assert "/var/lock/ladle-" not in provision
+    assert "/var/lock/ladle-" not in initialize
+    assert "/var/lock/ladle-" not in set_secret
+    assert "/var/lock/ladle-" not in deploy
     assert initialize.index("acquire_environment_lock") < initialize.index(
         'if [ -e "$env_file" ]'
     )
@@ -1903,6 +2111,49 @@ def test_environment_lock_is_shared_and_acquired_before_environment_reads() -> N
     assert deploy.index("acquire_environment_lock") < deploy.index(
         "compose config --quiet"
     )
+
+
+def test_persistent_lock_contract_rejects_a_volatile_symlink_alias(
+    tmp_path: Path,
+) -> None:
+    persistent = tmp_path / "var" / "lib" / "ladle" / "locks"
+    persistent.mkdir(parents=True, mode=0o700)
+    persistent_lock = persistent / "deploy.lock"
+    persistent_lock.touch(mode=0o600)
+    volatile = tmp_path / "run" / "lock"
+    volatile.mkdir(parents=True)
+    volatile_lock = volatile / "deploy.lock"
+    volatile_lock.touch(mode=0o600)
+    legacy_parent = tmp_path / "var" / "lock"
+    legacy_parent.symlink_to(volatile, target_is_directory=True)
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    _write_fake_flock(fake_bin / "flock")
+
+    canonical = _run_library_script(
+        """
+PATH=$1:$PATH
+acquire_deployment_lock "$2" "$3"
+""",
+        fake_bin,
+        persistent_lock,
+        str(os.getuid()),
+    )
+    alias = _run_library_script(
+        """
+PATH=$1:$PATH
+acquire_deployment_lock "$2" "$3"
+""",
+        fake_bin,
+        legacy_parent / "deploy.lock",
+        str(os.getuid()),
+    )
+    volatile_lock.unlink()
+
+    assert canonical.returncode == 0, canonical.stderr
+    assert alias.returncode != 0
+    assert persistent_lock.is_file()
+    assert persistent_lock.stat().st_mode & 0o777 == 0o600
 
 
 def test_deployment_state_flags_failure_without_changing_current(
@@ -2212,6 +2463,7 @@ def test_vps_operations_create_validated_atomic_postgres_backups() -> None:
     assert "pg_dump -Fc" in operations
     assert "pg_restore --list" in operations
     assert "sha256sum" in operations
+    assert '[ "${#backup_digest}" -eq 64 ]' in operations
     assert "chmod 0600" in operations
     assert "stat -c" in operations
     assert "mktemp" in operations
@@ -2318,13 +2570,15 @@ def test_operations_installer_validates_exact_release_before_atomic_install() ->
     assert "mktemp" in installer
     assert "install -o root -g root" in installer
     assert "mv -f --" in installer
-    assert installer.index(
-        'atomic_install "$operations_source" /usr/local/sbin/ladle-operations 755'
-    ) < installer.index("systemd-analyze verify")
-    assert installer.index("systemd-analyze verify") < installer.index(
-        "systemctl daemon-reload"
+    assert "transactional_install_operations" in installer
+    assert "rollback_operations_install" in installer
+    transaction = installer[installer.index("transactional_install_operations()") :]
+    assert transaction.index("verify_staged_units") < transaction.index(
+        "if ! systemctl daemon-reload"
     )
-    assert "systemctl enable --now ladle-health.timer ladle-backup.timer" in installer
+    assert "systemctl enable ladle-health.timer ladle-backup.timer" in installer
+    assert "systemctl start ladle-health.timer ladle-backup.timer" in installer
+    assert "systemctl disable --now ladle-health.timer ladle-backup.timer" in installer
     assert "/var/backups/ladle" in installer
     assert "/var/lib/ladle/operations" in installer
 
@@ -2343,10 +2597,493 @@ def test_backup_refuses_to_race_the_deployment_transaction() -> None:
     operations = OPERATIONS.read_text()
     backup = operations[operations.index("database_backup()") :]
 
-    assert "/var/lock/ladle-deploy.lock" in operations
+    lock_path = "/var/lib/ladle/locks/deploy.lock"
+    assert lock_path in operations
     assert "flock -n" in operations
     assert backup.index("acquire_deployment_lock") < backup.index(
         "load_authoritative_release"
     )
     assert backup.index("acquire_deployment_lock") < backup.index("pg_dump -Fc")
-    assert "/var/lock/ladle-deploy.lock" in BACKUP_SERVICE.read_text()
+    assert lock_path in BACKUP_SERVICE.read_text()
+    assert "/var/lock/ladle-deploy.lock" not in operations
+    assert "/var/lock/ladle-deploy.lock" not in BACKUP_SERVICE.read_text()
+
+
+def test_operations_transition_log_deduplicates_and_records_recovery(
+    tmp_path: Path,
+) -> None:
+    state = tmp_path / "state"
+    state.mkdir()
+    log = tmp_path / "operations.log"
+    log.touch()
+
+    result = _run_operations_library(
+        """
+operations_state=$1
+operations_log=$2
+safe_regular_file() { [ -f "$1" ] && [ ! -L "$1" ]; }
+validate_runtime_paths() { runtime_paths_ready=true; }
+load_authoritative_release() { :; }
+check_containers() { :; }
+check_caddy() { :; }
+check_nginx() { :; }
+check_api() {
+    [ "$health_mode" = healthy ] || append_failure "API readiness"
+}
+check_worker() { :; }
+check_postgres() { :; }
+check_redis() { :; }
+check_minio() { :; }
+check_certificate() { :; }
+check_backup_freshness() { :; }
+health_mode=failed
+health_check || :
+health_check || :
+health_mode=healthy
+health_check
+""",
+        state,
+        log,
+    )
+
+    assert result.returncode == 0, result.stderr
+    lines = log.read_text().splitlines()
+    assert len(lines) == 2
+    assert lines[0].endswith("health failed: API readiness")
+    assert lines[1].endswith("health healthy: all checks passed")
+    assert (state / "health.state").read_text() == "healthy\n"
+    assert (state / "health.state").stat().st_mode & 0o777 == 0o600
+
+
+def test_operations_deployment_lock_is_actually_contended(tmp_path: Path) -> None:
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    _write_fake_flock(fake_bin / "flock")
+    lock = tmp_path / "deploy.lock"
+    lock.touch(mode=0o600)
+    marker = tmp_path / "held"
+    holder = tmp_path / "holder.sh"
+    holder.write_text(
+        f"""#!/bin/sh
+set -eu
+. "{OPERATIONS}"
+PATH=$1:$PATH
+deployment_lock=$2
+safe_regular_file() {{ [ -f "$1" ] && [ ! -L "$1" ]; }}
+acquire_deployment_lock
+printf '%s\\n' held >"$3"
+sleep 1
+"""
+    )
+    holder.chmod(0o755)
+    process = subprocess.Popen(
+        [str(holder), str(fake_bin), str(lock), str(marker)],
+        env=os.environ,
+    )
+    for _ in range(100):
+        if marker.exists():
+            break
+        subprocess.run(["/bin/sleep", "0.01"], check=True)
+    assert marker.exists()
+
+    contended = _run_operations_library(
+        """
+PATH=$1:$PATH
+deployment_lock=$2
+safe_regular_file() { [ -f "$1" ] && [ ! -L "$1" ]; }
+acquire_deployment_lock
+""",
+        fake_bin,
+        lock,
+    )
+    assert contended.returncode != 0
+    assert process.wait(timeout=5) == 0
+    available = _run_operations_library(
+        """
+PATH=$1:$PATH
+deployment_lock=$2
+safe_regular_file() { [ -f "$1" ] && [ ! -L "$1" ]; }
+acquire_deployment_lock
+""",
+        fake_bin,
+        lock,
+    )
+    assert available.returncode == 0, available.stderr
+
+
+@pytest.mark.parametrize(
+    ("failure", "published_pair"),
+    (
+        ("pg_dump", False),
+        ("empty_dump", False),
+        ("pg_restore", False),
+        ("chmod_dump", False),
+        ("digest_command", False),
+        ("digest_shape", False),
+        ("checksum_write", False),
+        ("chmod_checksum", False),
+        ("publish_dump", False),
+        ("publish_checksum", False),
+        ("sync", True),
+        ("retention", True),
+        ("stat", True),
+        ("log", True),
+    ),
+)
+def test_backup_failures_are_explicit_and_leave_no_orphans(
+    tmp_path: Path,
+    failure: str,
+    published_pair: bool,
+) -> None:
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+    state = tmp_path / "state"
+    state.mkdir()
+    log = tmp_path / "transitions"
+    result = _run_operations_library(
+        """
+failure=$1
+backup_dir=$2
+operations_state=$3
+operations_log=$4
+runtime_paths_ready=true
+validate_runtime_paths() { runtime_paths_ready=true; }
+acquire_deployment_lock() { :; }
+load_authoritative_release() { :; }
+check_postgres() { health_failures=; }
+compose() {
+    case "$*" in
+        *"pg_dump -Fc"*)
+            [ "$failure" != pg_dump ] || return 1
+            [ "$failure" = empty_dump ] || command printf '%s' archive
+            ;;
+        *"pg_restore --list"*)
+            cat >/dev/null
+            [ "$failure" != pg_restore ]
+            ;;
+        *) return 1 ;;
+    esac
+}
+df() {
+    command printf '%s\n' \
+        "Filesystem 1024-blocks Used Available Capacity Mounted" \
+        "test 99999999 1 99999998 1% /"
+}
+chmod() {
+    case "$failure:$*" in
+        chmod_dump:*".ladle-backup."*) return 1 ;;
+        chmod_checksum:*".ladle-checksum."*) return 1 ;;
+    esac
+    command chmod "$@"
+}
+sha256sum() {
+    [ "$failure" != digest_command ] || return 1
+    if [ "$failure" = digest_shape ]; then
+        command printf '%s  %s\n' abc "$1"
+    else
+        command printf '%064d  %s\n' 0 "$1"
+    fi
+}
+printf() {
+    if [ "$failure" = checksum_write ] && [ "$#" -eq 3 ]; then
+        return 1
+    fi
+    command printf "$@"
+}
+mv() {
+    case "$failure:$*" in
+        publish_dump:*".ladle-backup."*) return 1 ;;
+        publish_checksum:*".ladle-checksum."*) return 1 ;;
+    esac
+    command mv "$@"
+}
+sync() { [ "$failure" != sync ]; }
+find() { [ "$failure" != retention ]; }
+stat() {
+    [ "$failure" != stat ] || return 1
+    command printf '%s\n' 7
+}
+log_transition() {
+    [ "$failure" != log ] || return 1
+    command printf '%s %s %s\n' "$1" "$2" "$3" >>"$operations_log"
+}
+run_backup
+""",
+        failure,
+        backup_dir,
+        state,
+        log,
+    )
+
+    assert result.returncode != 0
+    assert "backup ready:" not in result.stdout
+    assert "healthy" not in log.read_text() if log.exists() else True
+    assert not list(backup_dir.glob(".ladle-*"))
+    dumps = list(backup_dir.glob("ladle-*.dump"))
+    checksums = list(backup_dir.glob("ladle-*.dump.sha256"))
+    assert bool(dumps) is published_pair
+    assert bool(checksums) is published_pair
+
+
+def test_backup_success_requires_a_validated_complete_pair(tmp_path: Path) -> None:
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+    state = tmp_path / "state"
+    state.mkdir()
+    log = tmp_path / "transitions"
+    result = _run_operations_library(
+        """
+failure=none
+backup_dir=$1
+operations_state=$2
+operations_log=$3
+runtime_paths_ready=true
+validate_runtime_paths() { runtime_paths_ready=true; }
+acquire_deployment_lock() { :; }
+load_authoritative_release() { :; }
+check_postgres() { health_failures=; }
+compose() {
+    case "$*" in
+        *"pg_dump -Fc"*) command printf '%s' archive ;;
+        *"pg_restore --list"*) cat >/dev/null ;;
+        *) return 1 ;;
+    esac
+}
+df() {
+    command printf '%s\n' \
+        "Filesystem 1024-blocks Used Available Capacity Mounted" \
+        "test 99999999 1 99999998 1% /"
+}
+sha256sum() { command printf '%064d  %s\n' 0 "$1"; }
+sync() { :; }
+find() { :; }
+stat() { command printf '%s\n' 7; }
+log_transition() {
+    command printf '%s %s %s\n' "$1" "$2" "$3" >>"$operations_log"
+}
+run_backup
+""",
+        backup_dir,
+        state,
+        log,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "backup ready:" in result.stdout
+    assert "backup healthy validated archive" in log.read_text()
+    dumps = list(backup_dir.glob("ladle-*.dump"))
+    checksums = list(backup_dir.glob("ladle-*.dump.sha256"))
+    assert len(dumps) == len(checksums) == 1
+    assert dumps[0].stat().st_mode & 0o777 == 0o600
+    assert checksums[0].stat().st_mode & 0o777 == 0o600
+
+
+@pytest.mark.parametrize(
+    "failure",
+    ("stage", "verify", "swap", "daemon", "enable", "start"),
+)
+@pytest.mark.parametrize("preexisting", (False, True))
+def test_operations_installer_rolls_back_every_failure(
+    tmp_path: Path,
+    failure: str,
+    preexisting: bool,
+) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    binary_source = source / "operations.sh"
+    binary_source.write_text("#!/bin/sh\nprintf '%s\\n' new-operations\n")
+    binary_source.chmod(0o755)
+    unit_names = (
+        "ladle-health.service",
+        "ladle-health.timer",
+        "ladle-backup.service",
+        "ladle-backup.timer",
+    )
+    for name in unit_names:
+        (source / name).write_text(f"[Unit]\nDescription=new {name}\n")
+    binary_dir = tmp_path / "sbin"
+    unit_dir = tmp_path / "systemd"
+    binary_dir.mkdir()
+    unit_dir.mkdir()
+    binary_target = binary_dir / "ladle-operations"
+    targets = (binary_target, *(unit_dir / name for name in unit_names))
+    if preexisting:
+        for target in targets:
+            target.write_text(f"old:{target.name}\n")
+            target.chmod(0o755 if target == binary_target else 0o644)
+
+    fake_bin = tmp_path / "bin"
+    _write_operations_installer_fakes(fake_bin)
+    fake_state = tmp_path / "systemctl.trace"
+    result = _run_installer_library(
+        """
+PATH=$1:$PATH
+transactional_install_operations "$2" "$3" "$4" "$5"
+""",
+        fake_bin,
+        source,
+        binary_target,
+        unit_dir,
+        str(os.getuid()),
+        env={
+            "FAIL_PHASE": failure,
+            "FAKE_STATE": str(fake_state),
+            "PREVIOUS_TIMERS_ACTIVE": (
+                "1" if failure == "start" and preexisting else "0"
+            ),
+        },
+    )
+
+    assert result.returncode != 0
+    for target in targets:
+        if preexisting:
+            assert target.read_text() == f"old:{target.name}\n"
+        else:
+            assert not target.exists()
+    assert not list(binary_dir.glob(".ladle-*"))
+    assert not list(unit_dir.glob(".ladle-*"))
+    trace = fake_state.read_text() if fake_state.exists() else ""
+    assert "Ladle health and backup timers installed" not in result.stdout
+    if failure in {"enable", "start"}:
+        assert "disable --now ladle-health.timer ladle-backup.timer" in trace
+        assert trace.count("daemon-reload") >= 2
+    if failure == "start" and preexisting:
+        assert "enable ladle-health.timer" in trace
+        assert "enable ladle-backup.timer" in trace
+        assert trace.count("start ladle-health.timer") >= 1
+        assert trace.count("start ladle-backup.timer") >= 1
+
+
+def test_operations_installer_commits_the_whole_file_set_together(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    binary_source = source / "operations.sh"
+    binary_source.write_text("#!/bin/sh\nprintf '%s\\n' new-operations\n")
+    binary_source.chmod(0o755)
+    unit_names = (
+        "ladle-health.service",
+        "ladle-health.timer",
+        "ladle-backup.service",
+        "ladle-backup.timer",
+    )
+    for name in unit_names:
+        (source / name).write_text(f"[Unit]\nDescription=new {name}\n")
+    binary_dir = tmp_path / "sbin"
+    unit_dir = tmp_path / "systemd"
+    binary_dir.mkdir()
+    unit_dir.mkdir()
+    binary_target = binary_dir / "ladle-operations"
+    fake_bin = tmp_path / "bin"
+    _write_operations_installer_fakes(fake_bin)
+    fake_state = tmp_path / "systemctl.trace"
+
+    result = _run_installer_library(
+        """
+PATH=$1:$PATH
+transactional_install_operations "$2" "$3" "$4" "$5"
+""",
+        fake_bin,
+        source,
+        binary_target,
+        unit_dir,
+        str(os.getuid()),
+        env={"FAIL_PHASE": "none", "FAKE_STATE": str(fake_state)},
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert binary_target.read_text() == binary_source.read_text()
+    assert binary_target.stat().st_mode & 0o777 == 0o755
+    for name in unit_names:
+        target = unit_dir / name
+        assert target.read_text() == (source / name).read_text()
+        assert target.stat().st_mode & 0o777 == 0o644
+    trace = fake_state.read_text()
+    assert "daemon-reload" in trace
+    assert "enable ladle-health.timer ladle-backup.timer" in trace
+    assert "start ladle-health.timer ladle-backup.timer" in trace
+
+
+@pytest.mark.parametrize("preexisting", (False, True))
+def test_operations_installer_rolls_back_when_signaled_during_swap(
+    tmp_path: Path,
+    preexisting: bool,
+) -> None:
+    assert "trap '' HUP INT TERM" in INSTALL_OPERATIONS.read_text()
+    source, binary_target, unit_dir, targets, fake_bin, fake_state = (
+        _operations_installer_fixture(tmp_path, preexisting=preexisting)
+    )
+    command = """
+. "$1"
+shift
+PATH=$1:$PATH
+transactional_install_operations "$2" "$3" "$4" "$5"
+"""
+    process = subprocess.Popen(
+        [
+            "/bin/sh",
+            "-c",
+            command,
+            "test",
+            str(INSTALL_OPERATIONS),
+            str(fake_bin),
+            str(source),
+            str(binary_target),
+            str(unit_dir),
+            str(os.getuid()),
+        ],
+        env={
+            **os.environ,
+            "FAIL_PHASE": "none",
+            "FAKE_STATE": str(fake_state),
+            "PAUSE_SWAP": "1",
+        },
+        start_new_session=True,
+    )
+    signal_marker = Path(f"{fake_state}.signal")
+    for _ in range(300):
+        if signal_marker.exists():
+            break
+        subprocess.run(["/bin/sleep", "0.01"], check=True)
+    assert signal_marker.exists()
+
+    os.killpg(process.pid, signal.SIGTERM)
+    assert process.wait(timeout=10) != 0
+    for target in targets:
+        if preexisting:
+            assert target.read_text() == f"old:{target.name}\n"
+        else:
+            assert not target.exists()
+    assert not list(binary_target.parent.glob(".ladle-*"))
+    assert not list(unit_dir.glob(".ladle-*"))
+    assert "daemon-reload" in fake_state.read_text()
+
+
+def test_operations_installer_cleanup_warning_does_not_undo_commit(
+    tmp_path: Path,
+) -> None:
+    source, binary_target, unit_dir, targets, fake_bin, fake_state = (
+        _operations_installer_fixture(tmp_path, preexisting=True)
+    )
+    result = _run_installer_library(
+        """
+PATH=$1:$PATH
+transactional_install_operations "$2" "$3" "$4" "$5"
+""",
+        fake_bin,
+        source,
+        binary_target,
+        unit_dir,
+        str(os.getuid()),
+        env={
+            "FAIL_PHASE": "cleanup",
+            "FAKE_STATE": str(fake_state),
+        },
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "committed; stale rollback files require cleanup" in result.stderr
+    for target in targets:
+        assert "new" in target.read_text()
+    assert "start ladle-health.timer ladle-backup.timer" in fake_state.read_text()

@@ -94,8 +94,8 @@ finish_deployment() {
 trap finish_deployment 0
 trap 'exit 1' HUP INT TERM
 
-deployment_lock=/var/lock/ladle-deploy.lock
-environment_lock=/var/lock/ladle-environment.lock
+deployment_lock=/var/lib/ladle/locks/deploy.lock
+environment_lock=/var/lib/ladle/locks/environment.lock
 acquire_deployment_lock "$deployment_lock" 0 ||
     die "Another Ladle deployment is running or the lock is unsafe."
 acquire_environment_lock "$environment_lock" 0 ||

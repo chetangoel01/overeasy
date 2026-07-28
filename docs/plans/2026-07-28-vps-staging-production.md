@@ -439,10 +439,12 @@ git commit -m "feat: deploy exact revisions to VPS"
   remaining stable for a bounded observation window. `/opt/ladle/current`
   changes only after every gate succeeds.
 - Provisioning creates separate root-owned mode-`0600` deployment and
-  environment lock files. Initialization, provider-secret updates, and the
-  complete deployment transaction share the environment lock, so no deploy
-  can read a partially rewritten environment. Deployment acquires its
-  nonblocking deployment lock before the blocking environment lock.
+  environment lock files under the persistent, canonical root-only
+  `/var/lib/ladle/locks` directory. They survive reboot and avoid Ubuntu's
+  `/var/lock` symlink into volatile `/run`. Initialization, provider-secret
+  updates, and the complete deployment transaction share the environment lock,
+  so no deploy can read a partially rewritten environment. Deployment acquires
+  its nonblocking deployment lock before the blocking environment lock.
 - The worker rollout removes the namespace-sharing worker before replacing
   `worker-egress`, waits for that donor container, and then force-recreates the
   dependent worker. A donor failure stops the rollout before the dependent is
@@ -559,31 +561,45 @@ git commit -m "feat: monitor and back up VPS staging"
   are never arguments or output. Each dump must be nonempty and pass
   `pg_restore --list` before its mode-`0600` archive and SHA-256 sidecar are
   atomically named. The path refuses to start below 20 GiB free and retains 35
-  days of archives.
+  days of archives. Every dump, validation, permission, exact 64-hex digest,
+  checksum, publish, sync, retention, metadata, transition, cleanup, and final
+  output step propagates failure explicitly even when POSIX `errexit` is
+  suppressed by a caller. A one-file publish failure removes its orphan; a
+  completely published validated pair is retained but never reported as
+  successful when a later operational step fails.
 - An on-demand or timer backup takes the same nonblocking root deployment lock
-  used by `deploy.sh` before reading the authoritative release or running
-  `pg_dump`. It fails clearly when a deployment owns the lock, so an archive
-  cannot race migrations or a mixed service rollout.
+  at `/var/lib/ladle/locks/deploy.lock` used by `deploy.sh` before reading the
+  authoritative release or running `pg_dump`. It fails clearly when a
+  deployment owns the lock, so an archive cannot race migrations or a mixed
+  service rollout.
 - Host state, transition records, logs, and backups remain under
   `/var/lib/ladle`, `/var/log/ladle`, and `/var/backups/ladle`, outside release
   checkouts. Staging alerts record only fixed, secret-free state transitions.
   Production promotion still requires an external notification destination.
 - `install-operations.sh` accepts a full revision, requires that exact
-  root-owned, non-writable release and its immutable marker, verifies the unit
-  sources after atomically staging their referenced executable but before
-  installing or enabling any unit, atomically installs the root-owned units,
-  and then reloads systemd and enables both timers.
-- A focused local run passes all 62 VPS profile/operations tests, and the full
-  deploy-unit set passes all 99 tests. POSIX `sh` and Dash parsing for every
-  VPS script, Ruff for the changed Python contract, and `git diff --check` also
-  pass. `systemd-analyze` is unavailable in the macOS workspace, so unit
-  verification remains an explicit Ubuntu-side check before enabling the
-  timers.
+  root-owned, non-writable release and its immutable marker, stages and verifies
+  the complete binary/unit set before swapping any target, and retains exact
+  rollback copies until daemon reload and both timer activations succeed.
+  Swap, reload, enable, start, and handled-signal failures restore the prior
+  complete set and timer intent; a second signal is ignored during
+  reconciliation. Successful timer start is the commit point, so a later
+  hidden rollback-file cleanup failure warns without falsely rolling back a
+  committed installation.
+- Executable shell harnesses cover real lock contention, health transition
+  deduplication and recovery, backup success plus 14 injected failure stages,
+  installer first-install and upgrade failures at six transaction phases, and
+  signal rollback. The focused profile contains 96 tests and the complete
+  deploy-unit set contains 133. POSIX `sh` and Dash parsing for every VPS
+  script, Ruff for the changed Python contract, and `git diff --check` also
+  pass. `systemd-analyze` is unavailable in the macOS workspace, so real unit
+  verification remains an explicit Ubuntu-side check before enabling timers;
+  installer tests use a command shim only to exercise rollback behavior and do
+  not represent local systemd verification.
 - Affected components are `deploy/vps/operations.sh`,
-  `install-operations.sh`, the health/backup service and timer units, and
-  `tests/unit/deploy/test_vps_profile.py`. No VPS, SSH, DNS, credential,
-  systemd, backup, or live service state was accessed or changed at this
-  checkpoint.
+  `install-operations.sh`, provisioning/deployment/secret scripts, the backup
+  unit, and `tests/unit/deploy/test_vps_profile.py`. No VPS, SSH, DNS,
+  credential, systemd, backup, or live service state was accessed or changed
+  at this checkpoint.
 
 ### Task 6: Document deployment, recovery, and production promotion
 

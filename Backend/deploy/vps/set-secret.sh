@@ -37,7 +37,7 @@ secret_value=$DOTENV_STDIN_VALUE
 
 secret_group=ladle-secrets
 env_file=/etc/ladle/ladle.env
-environment_lock=/var/lock/ladle-environment.lock
+environment_lock=/var/lib/ladle/locks/environment.lock
 env_tmp=
 secret_phase=secret-update
 

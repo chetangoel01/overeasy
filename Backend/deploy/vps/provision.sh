@@ -137,12 +137,13 @@ install -d -o root -g root -m 0755 /opt/ladle/releases
 install -d -o root -g root -m 0700 /etc/ladle
 install -d -o root -g root -m 0700 /var/backups/ladle
 install -d -o root -g root -m 0750 /var/lib/ladle
+install -d -o root -g root -m 0700 /var/lib/ladle/locks
 install -d -o root -g root -m 0700 /etc/iptables
 
 # Lock files remain root-owned at mode 0600 and are never replaced on reruns.
 for lock_file in \
-    /var/lock/ladle-deploy.lock \
-    /var/lock/ladle-environment.lock; do
+    /var/lib/ladle/locks/deploy.lock \
+    /var/lib/ladle/locks/environment.lock; do
     if [ -L "$lock_file" ]; then
         die "Refusing a symlink Ladle lock file."
     fi

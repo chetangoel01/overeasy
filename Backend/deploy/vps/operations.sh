@@ -5,24 +5,23 @@ umask 077
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export PATH
 
-if [ "$(id -u)" -ne 0 ]; then
-    printf '%s\n' "Run ladle-operations as root." >&2
-    exit 1
-fi
-
 env_file=/etc/ladle/ladle.env
 current_release=/opt/ladle/current
 deployment_state=/var/lib/ladle/deployment-state
 operations_state=/var/lib/ladle/operations
 backup_dir=/var/backups/ladle
 operations_log=/var/log/ladle/operations.log
-deployment_lock=/var/lock/ladle-deploy.lock
+deployment_lock=/var/lib/ladle/locks/deploy.lock
 backup_retention_days=35
 minimum_free_disk_gib=20
 backup_max_age_hours=36
 certificate_minimum_seconds=604800
 temporary_backup=
 temporary_checksum=
+backup_path=
+checksum_path=
+backup_published=false
+checksum_published=false
 backend_directory=
 base_compose=
 vps_compose=
@@ -60,6 +59,10 @@ validate_runtime_paths() {
     runtime_paths_ready=false
     safe_directory "$operations_state" 700 || {
         fail "Operations state directory metadata is unsafe."
+        return 1
+    }
+    safe_directory /var/lib/ladle/locks 700 || {
+        fail "Operations lock directory metadata is unsafe."
         return 1
     }
     safe_directory "$backup_dir" 700 || {
@@ -199,10 +202,14 @@ read_transition_state() {
 write_transition_state() {
     transition_file=$1
     transition_value=$2
-    transition_tmp=$(mktemp "$operations_state/.transition.XXXXXX")
-    printf '%s\n' "$transition_value" >"$transition_tmp"
-    chmod 0600 "$transition_tmp"
-    mv -f -- "$transition_tmp" "$transition_file"
+    transition_tmp=$(mktemp "$operations_state/.transition.XXXXXX") ||
+        return 1
+    if ! printf '%s\n' "$transition_value" >"$transition_tmp" ||
+        ! chmod 0600 "$transition_tmp" ||
+        ! mv -f -- "$transition_tmp" "$transition_file"; then
+        rm -f -- "$transition_tmp" || true
+        return 1
+    fi
 }
 
 log_transition() {
@@ -212,11 +219,20 @@ log_transition() {
     transition_file=$operations_state/$transition_kind.state
     previous_transition=$(read_transition_state "$transition_file")
     [ "$previous_transition" = "$transition_state" ] && return 0
-    printf '%s %s %s: %s\n' \
+    write_transition_state "$transition_file" "$transition_state" ||
+        return 1
+    if ! printf '%s %s %s: %s\n' \
         "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
         "$transition_kind" "$transition_state" "$transition_message" \
-        >>"$operations_log"
-    write_transition_state "$transition_file" "$transition_state"
+        >>"$operations_log"; then
+        if [ "$previous_transition" = unknown ]; then
+            rm -f -- "$transition_file" || true
+        else
+            write_transition_state \
+                "$transition_file" "$previous_transition" || true
+        fi
+        return 1
+    fi
     # Staging records state transitions locally. Production requires an
     # external notification destination before promotion.
 }
@@ -399,15 +415,39 @@ health_check() {
 }
 
 cleanup_backup() {
+    cleanup_status=0
     if [ -n "$temporary_backup" ] && [ -f "$temporary_backup" ]; then
-        rm -f -- "$temporary_backup"
+        rm -f -- "$temporary_backup" || cleanup_status=1
     fi
     if [ -n "$temporary_checksum" ] && [ -f "$temporary_checksum" ]; then
-        rm -f -- "$temporary_checksum"
+        rm -f -- "$temporary_checksum" || cleanup_status=1
     fi
+    if [ "$backup_published" != "$checksum_published" ]; then
+        if [ "$backup_published" = true ] && [ -n "$backup_path" ]; then
+            if rm -f -- "$backup_path"; then
+                backup_published=false
+            else
+                cleanup_status=1
+            fi
+        fi
+        if [ "$checksum_published" = true ] && [ -n "$checksum_path" ]; then
+            if rm -f -- "$checksum_path"; then
+                checksum_published=false
+            else
+                cleanup_status=1
+            fi
+        fi
+    fi
+    [ "$cleanup_status" -eq 0 ]
 }
 
 database_backup() {
+    temporary_backup=
+    temporary_checksum=
+    backup_path=
+    checksum_path=
+    backup_published=false
+    checksum_published=false
     validate_runtime_paths || return 1
     acquire_deployment_lock || return 1
     load_authoritative_release || return 1
@@ -430,10 +470,12 @@ database_backup() {
     backup_path=$backup_dir/$backup_name
     checksum_path=$backup_path.sha256
     [ ! -e "$backup_path" ] && [ ! -e "$checksum_path" ] || return 1
-    temporary_backup=$(mktemp "$backup_dir/.ladle-backup.XXXXXX")
-    temporary_checksum=$(mktemp "$backup_dir/.ladle-checksum.XXXXXX")
-    trap cleanup_backup 0
-    trap 'exit 1' HUP INT TERM
+    temporary_backup=$(mktemp "$backup_dir/.ladle-backup.XXXXXX") ||
+        return 1
+    trap cleanup_backup 0 || return 1
+    trap 'exit 1' HUP INT TERM || return 1
+    temporary_checksum=$(mktemp "$backup_dir/.ladle-checksum.XXXXXX") ||
+        return 1
 
     if ! compose exec -T postgres pg_dump -Fc -U ladle ladle \
         >"$temporary_backup"; then
@@ -447,34 +489,49 @@ database_backup() {
         return 1
     fi
 
-    chmod 0600 "$temporary_backup"
-    backup_digest=$(sha256sum "$temporary_backup" | awk '{ print $1 }')
+    chmod 0600 "$temporary_backup" || return 1
+    digest_output=$(sha256sum "$temporary_backup") || return 1
+    backup_digest=${digest_output%% *}
+    [ "${#backup_digest}" -eq 64 ] || return 1
     case "$backup_digest" in
         *[!0-9a-f]* | "") return 1 ;;
     esac
-    printf '%s  %s\n' "$backup_digest" "$backup_name" >"$temporary_checksum"
-    chmod 0600 "$temporary_checksum"
-    mv -f -- "$temporary_backup" "$backup_path"
+    printf '%s  %s\n' "$backup_digest" "$backup_name" \
+        >"$temporary_checksum" || return 1
+    chmod 0600 "$temporary_checksum" || return 1
+    if ! mv -f -- "$temporary_backup" "$backup_path"; then
+        [ -f "$backup_path" ] && backup_published=true
+        return 1
+    fi
+    backup_published=true
     temporary_backup=
-    mv -f -- "$temporary_checksum" "$checksum_path"
+    if ! mv -f -- "$temporary_checksum" "$checksum_path"; then
+        [ -f "$checksum_path" ] && checksum_published=true
+        return 1
+    fi
+    checksum_published=true
     temporary_checksum=
-    sync
+    sync || return 1
 
     find "$backup_dir" -maxdepth 1 -type f \
         \( -name 'ladle-*.dump' -o -name 'ladle-*.dump.sha256' \) \
-        -mtime "+$backup_retention_days" -delete
-    backup_size=$(stat -c '%s' -- "$backup_path")
+        -mtime "+$backup_retention_days" -delete ||
+        return 1
+    backup_size=$(stat -c '%s' -- "$backup_path") || return 1
     log_transition backup healthy \
-        "validated archive $backup_name ($backup_size bytes)"
-    trap - 0 HUP INT TERM
-    printf 'backup ready: %s\n' "$backup_name"
+        "validated archive $backup_name ($backup_size bytes)" ||
+        return 1
+    trap - 0 HUP INT TERM || return 1
+    printf 'backup ready: %s\n' "$backup_name" || return 1
 }
 
 run_backup() {
     if database_backup; then
         return 0
     fi
-    cleanup_backup
+    if cleanup_backup; then
+        trap - 0 HUP INT TERM || true
+    fi
     if [ "$runtime_paths_ready" = true ]; then
         log_transition backup failed "database backup did not complete" || true
     fi
@@ -512,30 +569,42 @@ show_logs() {
     fi
 }
 
-command_name=${1:-}
-case "$command_name" in
-    health)
-        [ "$#" -eq 1 ] || fail "Usage: ladle-operations health"
-        health_check
-        ;;
-    backup)
-        [ "$#" -eq 1 ] || fail "Usage: ladle-operations backup"
-        run_backup
-        ;;
-    status)
-        [ "$#" -le 2 ] || fail "Usage: ladle-operations status [LINES]"
-        validate_log_lines "${2:-80}" || fail "LINES must be between 1 and 500."
-        show_status
-        ;;
-    logs)
-        [ "$#" -le 2 ] || fail "Usage: ladle-operations logs [LINES]"
-        validate_log_lines "${2:-80}" || fail "LINES must be between 1 and 500."
-        show_logs
-        ;;
-    *)
-        printf '%s\n' \
-            "Usage: ladle-operations {health|backup|status [LINES]|logs [LINES]}" \
-            >&2
-        exit 64
-        ;;
+operations_main() {
+    if [ "$(id -u)" -ne 0 ]; then
+        printf '%s\n' "Run ladle-operations as root." >&2
+        return 1
+    fi
+    command_name=${1:-}
+    case "$command_name" in
+        health)
+            [ "$#" -eq 1 ] || fail "Usage: ladle-operations health"
+            health_check
+            ;;
+        backup)
+            [ "$#" -eq 1 ] || fail "Usage: ladle-operations backup"
+            run_backup
+            ;;
+        status)
+            [ "$#" -le 2 ] || fail "Usage: ladle-operations status [LINES]"
+            validate_log_lines "${2:-80}" ||
+                fail "LINES must be between 1 and 500."
+            show_status
+            ;;
+        logs)
+            [ "$#" -le 2 ] || fail "Usage: ladle-operations logs [LINES]"
+            validate_log_lines "${2:-80}" ||
+                fail "LINES must be between 1 and 500."
+            show_logs
+            ;;
+        *)
+            printf '%s\n' \
+                "Usage: ladle-operations {health|backup|status [LINES]|logs [LINES]}" \
+                >&2
+            return 64
+            ;;
+    esac
+}
+
+case ${0##*/} in
+    operations.sh | ladle-operations) operations_main "$@" ;;
 esac
