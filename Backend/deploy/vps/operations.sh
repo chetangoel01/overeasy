@@ -12,16 +12,17 @@ operations_state=/var/lib/ladle/operations
 backup_dir=/var/backups/ladle
 operations_log=/var/log/ladle/operations.log
 deployment_lock=/var/lib/ladle/locks/deploy.lock
+transition_lock=/var/lib/ladle/locks/transition.lock
 backup_retention_days=35
 minimum_free_disk_gib=20
 backup_max_age_hours=36
 certificate_minimum_seconds=604800
+beat_stability_observations=3
+beat_stability_interval_seconds=1
 temporary_backup=
 temporary_checksum=
 backup_path=
 checksum_path=
-backup_published=false
-checksum_published=false
 backend_directory=
 base_compose=
 vps_compose=
@@ -63,6 +64,10 @@ validate_runtime_paths() {
     }
     safe_directory /var/lib/ladle/locks 700 || {
         fail "Operations lock directory metadata is unsafe."
+        return 1
+    }
+    safe_regular_file "$transition_lock" 600 || {
+        fail "Transition lock metadata is unsafe."
         return 1
     }
     safe_directory "$backup_dir" 700 || {
@@ -190,6 +195,13 @@ acquire_deployment_lock() {
     }
 }
 
+acquire_transition_lock() {
+    safe_regular_file "$transition_lock" 600 || return 1
+    exec 8>"$transition_lock"
+    flock 8 || return 1
+    safe_regular_file "$transition_lock" 600
+}
+
 read_transition_state() {
     transition_file=$1
     if safe_regular_file "$transition_file" 600; then
@@ -217,22 +229,17 @@ log_transition() {
     transition_state=$2
     transition_message=$3
     transition_file=$operations_state/$transition_kind.state
-    previous_transition=$(read_transition_state "$transition_file")
+    acquire_transition_lock || return 1
+    previous_transition=$(read_transition_state "$transition_file") || return 1
     [ "$previous_transition" = "$transition_state" ] && return 0
-    write_transition_state "$transition_file" "$transition_state" ||
-        return 1
+    transition_timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ) || return 1
     if ! printf '%s %s %s: %s\n' \
-        "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        "$transition_timestamp" \
         "$transition_kind" "$transition_state" "$transition_message" \
         >>"$operations_log"; then
-        if [ "$previous_transition" = unknown ]; then
-            rm -f -- "$transition_file" || true
-        else
-            write_transition_state \
-                "$transition_file" "$previous_transition" || true
-        fi
         return 1
     fi
+    write_transition_state "$transition_file" "$transition_state" || return 1
     # Staging records state transitions locally. Production requires an
     # external notification destination before promotion.
 }
@@ -248,6 +255,7 @@ append_failure() {
 
 container_is_ready() {
     container_service=$1
+    container_health_requirement=${2:-optional}
     container_id=$(compose ps -q "$container_service" 2>/dev/null) || return 1
     [ -n "$container_id" ] || return 1
     container_state=$(
@@ -256,9 +264,39 @@ container_is_ready() {
             "$container_id" 2>/dev/null
     ) || return 1
     case "$container_state" in
-        true\|healthy | true\|none) return 0 ;;
+        true\|healthy) return 0 ;;
+        true\|none)
+            [ "$container_health_requirement" = optional ]
+            ;;
         *) return 1 ;;
     esac
+}
+
+beat_is_stable() {
+    beat_expected_id=$(compose ps --status running -q beat) || return 1
+    case "$beat_expected_id" in
+        "" | *[!0-9a-f]*) return 1 ;;
+    esac
+    [ "${#beat_expected_id}" -eq 64 ] || return 1
+    beat_observation=1
+    while [ "$beat_observation" -le "$beat_stability_observations" ]; do
+        beat_current_id=$(compose ps --status running -q beat) || return 1
+        [ "$beat_current_id" = "$beat_expected_id" ] || return 1
+        beat_state=$(
+            docker inspect \
+                --format '{{.State.Running}} {{.State.Restarting}} {{.RestartCount}}' \
+                "$beat_expected_id" 2>/dev/null
+        ) || return 1
+        set -f
+        set -- $beat_state
+        set +f
+        [ "$#" -eq 3 ] || return 1
+        [ "$1" = true ] && [ "$2" = false ] && [ "$3" = 0 ] || return 1
+        if [ "$beat_observation" -lt "$beat_stability_observations" ]; then
+            sleep "$beat_stability_interval_seconds" || return 1
+        fi
+        beat_observation=$((beat_observation + 1))
+    done
 }
 
 check_containers() {
@@ -268,6 +306,12 @@ check_containers() {
             append_failure "$runtime_service container"
         fi
     done
+    if ! container_is_ready worker-egress healthy; then
+        append_failure "worker-egress container"
+    fi
+    if ! beat_is_stable; then
+        append_failure "beat stability"
+    fi
 }
 
 check_caddy() {
@@ -351,11 +395,46 @@ check_certificate() {
     fi
 }
 
+backup_pair_is_valid() {
+    pair_backup=$1
+    pair_checksum=$2
+    safe_regular_file "$pair_backup" 600 || return 1
+    safe_regular_file "$pair_checksum" 600 || return 1
+    pair_basename=$(basename -- "$pair_backup") || return 1
+    checksum_line=$(cat "$pair_checksum") || return 1
+    checksum_digest=${checksum_line%%  *}
+    [ "$checksum_line" = "$checksum_digest  $pair_basename" ] || return 1
+    [ "${#checksum_digest}" -eq 64 ] || return 1
+    case "$checksum_digest" in
+        "" | *[!0-9a-f]*) return 1 ;;
+    esac
+    (
+        cd "$backup_dir" || exit 1
+        sha256sum -c --status "$(basename -- "$pair_checksum")"
+    )
+}
+
 latest_backup_path() {
-    find "$backup_dir" -maxdepth 1 -type f -name 'ladle-*.dump' \
-        -printf '%T@ %p\n' |
-        sort -rn |
-        awk 'NR == 1 { print $2 }'
+    latest_complete_backup=
+    latest_complete_mtime=-1
+    for candidate_backup in "$backup_dir"/ladle-*.dump; do
+        if [ ! -e "$candidate_backup" ] && [ ! -L "$candidate_backup" ]; then
+            continue
+        fi
+        candidate_checksum=$candidate_backup.sha256
+        backup_pair_is_valid "$candidate_backup" "$candidate_checksum" ||
+            continue
+        candidate_mtime=$(stat -c '%Y' -- "$candidate_backup") || continue
+        case "$candidate_mtime" in
+            "" | *[!0-9]*) continue ;;
+        esac
+        if [ "$candidate_mtime" -gt "$latest_complete_mtime" ]; then
+            latest_complete_backup=$candidate_backup
+            latest_complete_mtime=$candidate_mtime
+        fi
+    done
+    [ -n "$latest_complete_backup" ] || return 0
+    printf '%s\n' "$latest_complete_backup"
 }
 
 check_backup_freshness() {
@@ -370,9 +449,15 @@ check_backup_freshness() {
         append_failure "backup is stale"
         return
     fi
-    backup_age_seconds=$((
-        $(date +%s) - $(stat -c '%Y' -- "$latest_backup")
-    ))
+    backup_now=$(date +%s) || {
+        append_failure "backup is stale"
+        return
+    }
+    backup_mtime=$(stat -c '%Y' -- "$latest_backup") || {
+        append_failure "backup is stale"
+        return
+    }
+    backup_age_seconds=$((backup_now - backup_mtime))
     if [ "$backup_age_seconds" -lt 0 ] ||
         [ "$backup_age_seconds" -gt $((backup_max_age_hours * 3600)) ]; then
         append_failure "backup is stale"
@@ -422,23 +507,75 @@ cleanup_backup() {
     if [ -n "$temporary_checksum" ] && [ -f "$temporary_checksum" ]; then
         rm -f -- "$temporary_checksum" || cleanup_status=1
     fi
-    if [ "$backup_published" != "$checksum_published" ]; then
-        if [ "$backup_published" = true ] && [ -n "$backup_path" ]; then
-            if rm -f -- "$backup_path"; then
-                backup_published=false
-            else
-                cleanup_status=1
-            fi
+    backup_final_exists=false
+    checksum_final_exists=false
+    if [ -n "$backup_path" ] &&
+        { [ -e "$backup_path" ] || [ -L "$backup_path" ]; }; then
+        backup_final_exists=true
+    fi
+    if [ -n "$checksum_path" ] &&
+        { [ -e "$checksum_path" ] || [ -L "$checksum_path" ]; }; then
+        checksum_final_exists=true
+    fi
+    if [ "$backup_final_exists" != "$checksum_final_exists" ]; then
+        if [ "$backup_final_exists" = true ]; then
+            incomplete_final=$backup_path
+        else
+            incomplete_final=$checksum_path
         fi
-        if [ "$checksum_published" = true ] && [ -n "$checksum_path" ]; then
-            if rm -f -- "$checksum_path"; then
-                checksum_published=false
-            else
-                cleanup_status=1
-            fi
+        if ! safe_regular_file "$incomplete_final" 600 ||
+            ! rm -f -- "$incomplete_final"; then
+            cleanup_status=1
         fi
     fi
     [ "$cleanup_status" -eq 0 ]
+}
+
+remove_incomplete_backup_pairs() {
+    for incomplete_dump in "$backup_dir"/ladle-*.dump; do
+        if [ ! -e "$incomplete_dump" ] && [ ! -L "$incomplete_dump" ]; then
+            continue
+        fi
+        incomplete_checksum=$incomplete_dump.sha256
+        if [ -e "$incomplete_checksum" ] || [ -L "$incomplete_checksum" ]; then
+            continue
+        fi
+        safe_regular_file "$incomplete_dump" 600 || return 1
+        rm -f -- "$incomplete_dump" || return 1
+    done
+    for incomplete_checksum in "$backup_dir"/ladle-*.dump.sha256; do
+        if [ ! -e "$incomplete_checksum" ] &&
+            [ ! -L "$incomplete_checksum" ]; then
+            continue
+        fi
+        incomplete_dump=${incomplete_checksum%.sha256}
+        if [ -e "$incomplete_dump" ] || [ -L "$incomplete_dump" ]; then
+            continue
+        fi
+        safe_regular_file "$incomplete_checksum" 600 || return 1
+        rm -f -- "$incomplete_checksum" || return 1
+    done
+}
+
+retain_backup_pairs() {
+    for retained_dump in "$backup_dir"/ladle-*.dump; do
+        if [ ! -e "$retained_dump" ] && [ ! -L "$retained_dump" ]; then
+            continue
+        fi
+        retained_checksum=$retained_dump.sha256
+        if [ ! -e "$retained_checksum" ] &&
+            [ ! -L "$retained_checksum" ]; then
+            continue
+        fi
+        safe_regular_file "$retained_dump" 600 || return 1
+        safe_regular_file "$retained_checksum" 600 || return 1
+        expired_backup=$(
+            find "$retained_dump" -prune \
+                -mtime "+$backup_retention_days" -print
+        ) || return 1
+        [ -n "$expired_backup" ] || continue
+        rm -f -- "$retained_dump" "$retained_checksum" || return 1
+    done
 }
 
 database_backup() {
@@ -446,10 +583,9 @@ database_backup() {
     temporary_checksum=
     backup_path=
     checksum_path=
-    backup_published=false
-    checksum_published=false
     validate_runtime_paths || return 1
     acquire_deployment_lock || return 1
+    remove_incomplete_backup_pairs || return 1
     load_authoritative_release || return 1
     health_failures=
     check_postgres
@@ -499,24 +635,13 @@ database_backup() {
     printf '%s  %s\n' "$backup_digest" "$backup_name" \
         >"$temporary_checksum" || return 1
     chmod 0600 "$temporary_checksum" || return 1
-    if ! mv -f -- "$temporary_backup" "$backup_path"; then
-        [ -f "$backup_path" ] && backup_published=true
-        return 1
-    fi
-    backup_published=true
+    mv -f -- "$temporary_backup" "$backup_path" || return 1
     temporary_backup=
-    if ! mv -f -- "$temporary_checksum" "$checksum_path"; then
-        [ -f "$checksum_path" ] && checksum_published=true
-        return 1
-    fi
-    checksum_published=true
+    mv -f -- "$temporary_checksum" "$checksum_path" || return 1
     temporary_checksum=
     sync || return 1
 
-    find "$backup_dir" -maxdepth 1 -type f \
-        \( -name 'ladle-*.dump' -o -name 'ladle-*.dump.sha256' \) \
-        -mtime "+$backup_retention_days" -delete ||
-        return 1
+    retain_backup_pairs || return 1
     backup_size=$(stat -c '%s' -- "$backup_path") || return 1
     log_transition backup healthy \
         "validated archive $backup_name ($backup_size bytes)" ||
@@ -565,7 +690,7 @@ show_logs() {
         -u ladle-health.service -u ladle-backup.service
     if load_authoritative_release; then
         compose logs --no-color --tail "$log_lines" \
-            caddy edge api worker beat postgres redis minio
+            caddy edge api worker worker-egress beat postgres redis minio
     fi
 }
 

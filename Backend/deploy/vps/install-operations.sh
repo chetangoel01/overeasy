@@ -23,10 +23,10 @@ transaction_health_service_existed=false
 transaction_health_timer_existed=false
 transaction_backup_service_existed=false
 transaction_backup_timer_existed=false
-transaction_health_enabled=false
-transaction_backup_enabled=false
-transaction_health_active=false
-transaction_backup_active=false
+transaction_health_enable_state=
+transaction_backup_enable_state=
+transaction_health_active_state=
+transaction_backup_active_state=
 transaction_live=false
 transaction_activation_touched=false
 transaction_committed=false
@@ -189,37 +189,124 @@ rollback_operations_install() {
     return 0
 }
 
+timer_enable_state() {
+    timer_unit=$1
+    timer_query_output=
+    timer_query_status=0
+    if timer_query_output=$(systemctl is-enabled "$timer_unit" 2>/dev/null); then
+        timer_query_status=0
+    else
+        timer_query_status=$?
+    fi
+    case "$timer_query_status:$timer_query_output" in
+        0:enabled | 0:enabled-runtime | 1:disabled | 4:not-found)
+            printf '%s\n' "$timer_query_output"
+            ;;
+        *) return 1 ;;
+    esac
+}
+
+timer_active_state() {
+    timer_unit=$1
+    timer_query_output=
+    timer_query_status=0
+    if timer_query_output=$(systemctl is-active "$timer_unit" 2>/dev/null); then
+        timer_query_status=0
+    else
+        timer_query_status=$?
+    fi
+    case "$timer_query_status:$timer_query_output" in
+        0:active | 3:inactive) printf '%s\n' "$timer_query_output" ;;
+        *) return 1 ;;
+    esac
+}
+
+snapshot_timer_state() {
+    transaction_health_enable_state=$(
+        timer_enable_state ladle-health.timer
+    ) || return 1
+    transaction_backup_enable_state=$(
+        timer_enable_state ladle-backup.timer
+    ) || return 1
+    if [ "$transaction_health_enable_state" = not-found ]; then
+        transaction_health_active_state=not-found
+    else
+        transaction_health_active_state=$(
+            timer_active_state ladle-health.timer
+        ) || return 1
+    fi
+    if [ "$transaction_backup_enable_state" = not-found ]; then
+        transaction_backup_active_state=not-found
+    else
+        transaction_backup_active_state=$(
+            timer_active_state ladle-backup.timer
+        ) || return 1
+    fi
+}
+
+restore_timer_enable_state() {
+    timer_prior_state=$1
+    timer_unit=$2
+    case "$timer_prior_state" in
+        enabled) systemctl enable "$timer_unit" ;;
+        enabled-runtime) systemctl enable --runtime "$timer_unit" ;;
+        disabled | not-found) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+restore_timer_active_state() {
+    timer_prior_state=$1
+    timer_unit=$2
+    case "$timer_prior_state" in
+        active) systemctl start "$timer_unit" ;;
+        inactive | not-found) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 restore_timer_state() {
     timer_restore_result=0
-    if [ "$transaction_health_enabled" = true ]; then
-        systemctl enable ladle-health.timer || timer_restore_result=1
-    fi
-    if [ "$transaction_backup_enabled" = true ]; then
-        systemctl enable ladle-backup.timer || timer_restore_result=1
-    fi
-    if [ "$transaction_health_active" = true ]; then
-        systemctl start ladle-health.timer || timer_restore_result=1
-    fi
-    if [ "$transaction_backup_active" = true ]; then
-        systemctl start ladle-backup.timer || timer_restore_result=1
-    fi
+    restore_timer_enable_state \
+        "$transaction_health_enable_state" ladle-health.timer ||
+        timer_restore_result=1
+    restore_timer_enable_state \
+        "$transaction_backup_enable_state" ladle-backup.timer ||
+        timer_restore_result=1
+    restore_timer_active_state \
+        "$transaction_health_active_state" ladle-health.timer ||
+        timer_restore_result=1
+    restore_timer_active_state \
+        "$transaction_backup_active_state" ladle-backup.timer ||
+        timer_restore_result=1
     [ "$timer_restore_result" -eq 0 ]
 }
 
 rollback_after_activation_failure() {
     activation_rollback_result=0
     activation_files_restored=true
+    activation_units_reloaded=true
     systemctl disable --now ladle-health.timer ladle-backup.timer ||
         activation_rollback_result=1
     if ! rollback_operations_install; then
         activation_files_restored=false
         activation_rollback_result=1
     fi
-    systemctl daemon-reload || activation_rollback_result=1
-    if [ "$activation_files_restored" = true ]; then
+    if ! systemctl daemon-reload; then
+        activation_units_reloaded=false
+        activation_rollback_result=1
+    fi
+    if [ "$activation_files_restored" = true ] &&
+        [ "$activation_units_reloaded" = true ]; then
         restore_timer_state || activation_rollback_result=1
     fi
     [ "$activation_rollback_result" -eq 0 ]
+}
+
+report_timer_reconciliation_failure() {
+    printf '%s\n' \
+        "Operations rollback incomplete; timer state or loaded units require inspection." \
+        >&2
 }
 
 clear_transaction_traps() {
@@ -233,17 +320,23 @@ abort_transaction_preflight() {
 }
 
 abort_live_transaction() {
+    live_rollback_result=0
     transaction_live=false
     clear_transaction_traps
-    rollback_operations_install || true
-    systemctl daemon-reload || true
+    rollback_operations_install || live_rollback_result=1
+    systemctl daemon-reload || live_rollback_result=1
+    if [ "$live_rollback_result" -ne 0 ]; then
+        report_timer_reconciliation_failure
+    fi
     return 1
 }
 
 abort_activation_transaction() {
     transaction_live=false
     clear_transaction_traps
-    rollback_after_activation_failure || true
+    if ! rollback_after_activation_failure; then
+        report_timer_reconciliation_failure
+    fi
     return 1
 }
 
@@ -270,6 +363,7 @@ handle_transaction_signal() {
         cleanup_transaction_artifacts || signal_rollback_result=1
     fi
     if [ "$signal_rollback_result" -ne 0 ]; then
+        report_timer_reconciliation_failure
         printf 'Operations install interrupted by %s; rollback incomplete.\n' \
             "$handled_signal" >&2
         exit 1
@@ -500,21 +594,15 @@ transactional_install_operations() {
         return 1
     }
 
-    transaction_health_enabled=false
-    transaction_backup_enabled=false
-    transaction_health_active=false
-    transaction_backup_active=false
-    if systemctl is-enabled --quiet ladle-health.timer; then
-        transaction_health_enabled=true
-    fi
-    if systemctl is-enabled --quiet ladle-backup.timer; then
-        transaction_backup_enabled=true
-    fi
-    if systemctl is-active --quiet ladle-health.timer; then
-        transaction_health_active=true
-    fi
-    if systemctl is-active --quiet ladle-backup.timer; then
-        transaction_backup_active=true
+    transaction_health_enable_state=
+    transaction_backup_enable_state=
+    transaction_health_active_state=
+    transaction_backup_active_state=
+    if ! snapshot_timer_state; then
+        printf '%s\n' \
+            "Cannot safely snapshot prior Ladle timer state." >&2
+        abort_transaction_preflight
+        return 1
     fi
 
     transaction_live=true
@@ -663,7 +751,8 @@ install_operations_main() {
     ensure_root_directory /etc/systemd/system 755
     for required_lock in \
         /var/lib/ladle/locks/deploy.lock \
-        /var/lib/ladle/locks/environment.lock; do
+        /var/lib/ladle/locks/environment.lock \
+        /var/lib/ladle/locks/transition.lock; do
         if ! target_metadata_is_safe "$required_lock" 0 600; then
             printf '%s\n' "A persistent Ladle lock file is unsafe." >&2
             return 1

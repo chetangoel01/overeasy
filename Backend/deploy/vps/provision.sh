@@ -143,7 +143,8 @@ install -d -o root -g root -m 0700 /etc/iptables
 # Lock files remain root-owned at mode 0600 and are never replaced on reruns.
 for lock_file in \
     /var/lib/ladle/locks/deploy.lock \
-    /var/lib/ladle/locks/environment.lock; do
+    /var/lib/ladle/locks/environment.lock \
+    /var/lib/ladle/locks/transition.lock; do
     if [ -L "$lock_file" ]; then
         die "Refusing a symlink Ladle lock file."
     fi

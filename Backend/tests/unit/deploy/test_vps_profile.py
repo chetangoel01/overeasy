@@ -332,15 +332,57 @@ state = os.environ["FAKE_STATE"]
 with open(state, "a") as trace:
     trace.write(" ".join(sys.argv[1:]) + "\\n")
 if command in {"is-enabled", "is-active"}:
-    raise SystemExit(0 if os.environ.get("PREVIOUS_TIMERS_ACTIVE") == "1" else 1)
+    if os.environ.get("QUERY_FAILURE") == "1":
+        print("Failed to query unit state", file=sys.stderr)
+        raise SystemExit(1)
+    if os.environ.get("TIMERS_NOT_FOUND") == "1":
+        print("not-found" if command == "is-enabled" else "unknown")
+        raise SystemExit(4)
+    previous_active = os.environ.get("PREVIOUS_TIMERS_ACTIVE") == "1"
+    if command == "is-enabled":
+        print("enabled" if previous_active else "disabled")
+        raise SystemExit(0 if previous_active else 1)
+    print("active" if previous_active else "inactive")
+    raise SystemExit(0 if previous_active else 3)
+if (
+    command == "disable"
+    and os.environ.get("ROLLBACK_FAILURE") == "disable"
+):
+    raise SystemExit(1)
 if command == "daemon-reload" and os.environ.get("FAIL_PHASE") == "daemon":
     marker = state + ".daemon"
     if not os.path.exists(marker):
         open(marker, "w").close()
         raise SystemExit(1)
-if command == "enable" and os.environ.get("FAIL_PHASE") == "enable":
+if (
+    command == "daemon-reload"
+    and os.environ.get("ROLLBACK_FAILURE") == "reload"
+    and open(state).read().splitlines().count("daemon-reload") >= 2
+):
     raise SystemExit(1)
-if command == "start" and os.environ.get("FAIL_PHASE") == "start":
+if (
+    command == "enable"
+    and os.environ.get("FAIL_PHASE") == "enable"
+    and len(sys.argv[2:]) == 2
+):
+    raise SystemExit(1)
+if (
+    command == "enable"
+    and os.environ.get("ROLLBACK_FAILURE") == "enable"
+    and len(sys.argv[2:]) == 1
+):
+    raise SystemExit(1)
+if (
+    command == "start"
+    and os.environ.get("FAIL_PHASE") == "start"
+    and len(sys.argv[2:]) == 2
+):
+    raise SystemExit(1)
+if (
+    command == "start"
+    and os.environ.get("ROLLBACK_FAILURE") == "start"
+    and len(sys.argv[2:]) == 1
+):
     raise SystemExit(1)
 """
     )
@@ -2109,10 +2151,12 @@ def test_environment_lock_is_shared_and_acquired_before_environment_reads() -> N
     lock_directory = "/var/lib/ladle/locks"
     deployment_lock = f"{lock_directory}/deploy.lock"
     environment_lock = f"{lock_directory}/environment.lock"
+    transition_lock = f"{lock_directory}/transition.lock"
 
     assert lock_directory in provision
     assert deployment_lock in provision
     assert environment_lock in provision
+    assert transition_lock in provision
     assert "mode 0600" in provision
     assert environment_lock in initialize
     assert environment_lock in set_secret
@@ -2121,7 +2165,11 @@ def test_environment_lock_is_shared_and_acquired_before_environment_reads() -> N
     assert deployment_lock in OPERATIONS.read_text()
     assert deployment_lock in INSTALL_OPERATIONS.read_text()
     assert environment_lock in INSTALL_OPERATIONS.read_text()
+    assert transition_lock in INSTALL_OPERATIONS.read_text()
     assert "safe_directory /var/lib/ladle/locks 700" in OPERATIONS.read_text()
+    assert transition_lock in OPERATIONS.read_text()
+    assert transition_lock in HEALTH_SERVICE.read_text()
+    assert transition_lock in BACKUP_SERVICE.read_text()
     assert "/var/lock/ladle-" not in provision
     assert "/var/lock/ladle-" not in initialize
     assert "/var/lock/ladle-" not in set_secret
@@ -2498,8 +2546,10 @@ def test_vps_operations_create_validated_atomic_postgres_backups() -> None:
     assert "stat -c" in operations
     assert "mktemp" in operations
     assert "mv -f --" in operations
+    assert "remove_incomplete_backup_pairs" in operations
+    assert "retain_backup_pairs" in operations
     assert "-mtime \"+$backup_retention_days\"" in operations
-    assert "-delete" in operations
+    assert 'rm -f -- "$retained_dump" "$retained_checksum"' in operations
     assert "POSTGRES_PASSWORD" not in operations
     assert "LADLE_DATABASE_PASSWORD" not in operations
 
@@ -2510,6 +2560,11 @@ def test_vps_operations_create_validated_atomic_postgres_backups() -> None:
     final_move = operations.index('mv -f -- "$temporary_backup" "$backup_path"')
     digest = operations.index("sha256sum", validation)
     assert disk_check < dump < nonempty < validation < digest < final_move
+    backup = operations[operations.index("database_backup()") :]
+    assert backup.index("acquire_deployment_lock") < backup.index(
+        "remove_incomplete_backup_pairs"
+    )
+    assert backup.index("remove_incomplete_backup_pairs") < backup.index("pg_dump -Fc")
 
 
 def test_vps_health_covers_runtime_tls_backup_and_authoritative_revision() -> None:
@@ -2520,6 +2575,7 @@ def test_vps_health_covers_runtime_tls_backup_and_authoritative_revision() -> No
         "edge",
         "api",
         "worker",
+        "worker-egress",
         "beat",
         "postgres",
         "redis",
@@ -2542,6 +2598,88 @@ def test_vps_health_covers_runtime_tls_backup_and_authoritative_revision() -> No
     assert "STATUS=active" in operations
     assert "PHASE=complete" in operations
     assert ".ladle-revision" in operations
+    assert "beat_stability_observations=3" in operations
+    assert ".State.Restarting" in operations
+    assert ".RestartCount" in operations
+
+
+def test_operations_requires_healthy_worker_egress_container() -> None:
+    result = _run_operations_library(
+        """
+compose() { printf '%s\n' "$3"; }
+docker() {
+    for container_id do :; done
+    if [ "$container_id" = worker-egress ] &&
+        [ "$worker_egress_mode" = none ]; then
+        printf '%s\n' 'true|none'
+    else
+        printf '%s\n' 'true|healthy'
+    fi
+}
+beat_is_stable() { :; }
+health_failures=
+worker_egress_mode=healthy
+check_containers
+[ -z "$health_failures" ] || exit 1
+health_failures=
+worker_egress_mode=none
+check_containers
+printf '%s\n' "$health_failures"
+"""
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "worker-egress container"
+
+
+@pytest.mark.parametrize(
+    ("mode", "expected_success"),
+    (
+        ("stable", True),
+        ("identity_change", False),
+        ("restart", False),
+        ("exit", False),
+    ),
+)
+def test_operations_beat_stability_is_bounded(
+    tmp_path: Path,
+    mode: str,
+    expected_success: bool,
+) -> None:
+    counter = tmp_path / "beat-observations"
+    counter.write_text("0")
+    result = _run_operations_library(
+        """
+counter=$1
+mode=$2
+compose() {
+    count=$(cat "$counter")
+    count=$((count + 1))
+    printf '%s\n' "$count" >"$counter"
+    if [ "$mode" = identity_change ] && [ "$count" -ge 3 ]; then
+        printf '%s\n' eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+    else
+        printf '%s\n' dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+    fi
+}
+docker() {
+    count=$(cat "$counter")
+    case "$mode:$count" in
+        restart:2) printf '%s\n' 'true false 1' ;;
+        exit:2) printf '%s\n' 'false false 0' ;;
+        *) printf '%s\n' 'true false 0' ;;
+    esac
+}
+sleep() { :; }
+beat_is_stable
+""",
+        counter,
+        mode,
+    )
+
+    assert (result.returncode == 0) is expected_success, result.stderr
+    observations = int(counter.read_text())
+    assert 1 <= observations <= 4
 
 
 def test_vps_operations_expose_bounded_status_logs_health_and_backup() -> None:
@@ -2652,6 +2790,7 @@ def test_operations_transition_log_deduplicates_and_records_recovery(
 operations_state=$1
 operations_log=$2
 safe_regular_file() { [ -f "$1" ] && [ ! -L "$1" ]; }
+acquire_transition_lock() { :; }
 validate_runtime_paths() { runtime_paths_ready=true; }
 load_authoritative_release() { :; }
 check_containers() { :; }
@@ -2683,6 +2822,194 @@ health_check
     assert lines[1].endswith("health healthy: all checks passed")
     assert (state / "health.state").read_text() == "healthy\n"
     assert (state / "health.state").stat().st_mode & 0o777 == 0o600
+
+
+def test_operations_transition_log_is_serialized_and_append_first(
+    tmp_path: Path,
+) -> None:
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    _write_fake_flock(fake_bin / "flock")
+    (fake_bin / "date").write_text(
+        """#!/bin/sh
+if [ "${TRANSITION_DELAY:-}" = 1 ]; then
+    : >"$TRANSITION_MARKER"
+    sleep 1
+fi
+printf '%s\\n' "$TRANSITION_TIMESTAMP"
+"""
+    )
+    (fake_bin / "date").chmod(0o755)
+    state = tmp_path / "state"
+    state.mkdir()
+    log = tmp_path / "operations.log"
+    log.touch()
+    lock = tmp_path / "transition.lock"
+    lock.touch(mode=0o600)
+    marker = tmp_path / "first-date"
+    runner = tmp_path / "transition-runner.sh"
+    runner.write_text(
+        f"""#!/bin/sh
+set -eu
+. "{OPERATIONS}"
+PATH=$1:$PATH
+operations_state=$2
+operations_log=$3
+transition_lock=$4
+safe_regular_file() {{ [ -f "$1" ] && [ ! -L "$1" ]; }}
+log_transition health "$5" "$6"
+"""
+    )
+    runner.chmod(0o755)
+    first_env = {
+        **os.environ,
+        "TRANSITION_DELAY": "1",
+        "TRANSITION_MARKER": str(marker),
+        "TRANSITION_TIMESTAMP": "2026-07-28T00:00:01Z",
+    }
+    second_env = {
+        **os.environ,
+        "TRANSITION_DELAY": "0",
+        "TRANSITION_MARKER": str(marker),
+        "TRANSITION_TIMESTAMP": "2026-07-28T00:00:02Z",
+    }
+    first = subprocess.Popen(
+        [
+            str(runner),
+            str(fake_bin),
+            str(state),
+            str(log),
+            str(lock),
+            "failed",
+            "first failure",
+        ],
+        env=first_env,
+    )
+    for _ in range(300):
+        if marker.exists():
+            break
+        subprocess.run(["/bin/sleep", "0.01"], check=True)
+    assert marker.exists()
+    second = subprocess.Popen(
+        [
+            str(runner),
+            str(fake_bin),
+            str(state),
+            str(log),
+            str(lock),
+            "healthy",
+            "recovered",
+        ],
+        env=second_env,
+    )
+
+    assert first.wait(timeout=5) == 0
+    assert second.wait(timeout=5) == 0
+    transition_lines = [
+        line.split(" ", maxsplit=1)[1] for line in log.read_text().splitlines()
+    ]
+    assert transition_lines == [
+        "health failed: first failure",
+        "health healthy: recovered",
+    ]
+    assert (state / "health.state").read_text() == "healthy\n"
+
+
+def test_operations_transition_state_failure_retries_without_losing_log(
+    tmp_path: Path,
+) -> None:
+    state = tmp_path / "state"
+    state.mkdir()
+    log = tmp_path / "operations.log"
+    log.touch()
+    result = _run_operations_library(
+        """
+operations_state=$1
+operations_log=$2
+acquire_transition_lock() { :; }
+safe_regular_file() { [ -f "$1" ] && [ ! -L "$1" ]; }
+fail_state_write=true
+mv() {
+    if [ "$fail_state_write" = true ]; then
+        fail_state_write=false
+        return 1
+    fi
+    command mv "$@"
+}
+log_transition health failed "fixed failure" || :
+log_transition health failed "fixed failure"
+log_transition health failed "fixed failure"
+""",
+        state,
+        log,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert len(log.read_text().splitlines()) == 2
+    assert (state / "health.state").read_text() == "failed\n"
+
+
+def test_operations_transition_interruption_retries_without_losing_log(
+    tmp_path: Path,
+) -> None:
+    state = tmp_path / "state"
+    state.mkdir()
+    log = tmp_path / "operations.log"
+    log.touch()
+    marker = tmp_path / "state-write"
+    command = """
+. "$1"
+shift
+operations_state=$1
+operations_log=$2
+marker=$3
+acquire_transition_lock() { :; }
+safe_regular_file() { [ -f "$1" ] && [ ! -L "$1" ]; }
+mktemp() {
+    : >"$marker"
+    sleep 30
+    command mktemp "$@"
+}
+log_transition health failed "interrupted failure"
+"""
+    process = subprocess.Popen(
+        [
+            "/bin/sh",
+            "-c",
+            command,
+            "test",
+            str(OPERATIONS),
+            str(state),
+            str(log),
+            str(marker),
+        ],
+        start_new_session=True,
+    )
+    for _ in range(300):
+        if marker.exists():
+            break
+        subprocess.run(["/bin/sleep", "0.01"], check=True)
+    assert marker.exists()
+    os.killpg(process.pid, signal.SIGTERM)
+    assert process.wait(timeout=5) != 0
+    assert len(log.read_text().splitlines()) == 1
+    assert not (state / "health.state").exists()
+
+    retry = _run_operations_library(
+        """
+operations_state=$1
+operations_log=$2
+acquire_transition_lock() { :; }
+safe_regular_file() { [ -f "$1" ] && [ ! -L "$1" ]; }
+log_transition health failed "interrupted failure"
+log_transition health failed "interrupted failure"
+""",
+        state,
+        log,
+    )
+    assert retry.returncode == 0, retry.stderr
+    assert len(log.read_text().splitlines()) == 2
+    assert (state / "health.state").read_text() == "failed\n"
 
 
 def test_operations_deployment_lock_is_actually_contended(tmp_path: Path) -> None:
@@ -2780,6 +3107,7 @@ operations_log=$4
 runtime_paths_ready=true
 validate_runtime_paths() { runtime_paths_ready=true; }
 acquire_deployment_lock() { :; }
+safe_regular_file() { [ -f "$1" ] && [ ! -L "$1" ]; }
 load_authoritative_release() { :; }
 check_postgres() { health_failures=; }
 compose() {
@@ -2875,6 +3203,7 @@ operations_log=$3
 runtime_paths_ready=true
 validate_runtime_paths() { runtime_paths_ready=true; }
 acquire_deployment_lock() { :; }
+safe_regular_file() { [ -f "$1" ] && [ ! -L "$1" ]; }
 load_authoritative_release() { :; }
 check_postgres() { health_failures=; }
 compose() {
@@ -2911,6 +3240,161 @@ run_backup
     assert len(dumps) == len(checksums) == 1
     assert dumps[0].stat().st_mode & 0o777 == 0o600
     assert checksums[0].stat().st_mode & 0o777 == 0o600
+
+
+def test_backup_signal_after_first_publish_removes_filesystem_orphan(
+    tmp_path: Path,
+) -> None:
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+    marker = tmp_path / "published-dump"
+    command = """
+. "$1"
+shift
+backup_dir=$1
+marker=$2
+runtime_paths_ready=true
+validate_runtime_paths() { runtime_paths_ready=true; }
+acquire_deployment_lock() { :; }
+safe_regular_file() { [ -f "$1" ] && [ ! -L "$1" ]; }
+remove_incomplete_backup_pairs() { :; }
+load_authoritative_release() { :; }
+check_postgres() { health_failures=; }
+compose() {
+    case "$*" in
+        *"pg_dump -Fc"*) command printf '%s' archive ;;
+        *"pg_restore --list"*) cat >/dev/null ;;
+        *) return 1 ;;
+    esac
+}
+df() {
+    command printf '%s\n' \
+        "Filesystem 1024-blocks Used Available Capacity Mounted" \
+        "test 99999999 1 99999998 1% /"
+}
+sha256sum() { command printf '%064d  %s\n' 0 "$1"; }
+mv() {
+    command mv "$@"
+    for destination do :; done
+    case "${destination##*/}" in
+        ladle-*.dump)
+            : >"$marker"
+            sleep 30
+            ;;
+    esac
+}
+run_backup
+"""
+    process = subprocess.Popen(
+        [
+            "/bin/sh",
+            "-c",
+            command,
+            "test",
+            str(OPERATIONS),
+            str(backup_dir),
+            str(marker),
+        ],
+        start_new_session=True,
+    )
+    for _ in range(300):
+        if marker.exists():
+            break
+        subprocess.run(["/bin/sleep", "0.01"], check=True)
+    assert marker.exists()
+    os.killpg(process.pid, signal.SIGTERM)
+    assert process.wait(timeout=5) != 0
+    assert not list(backup_dir.glob("ladle-*.dump"))
+    assert not list(backup_dir.glob("ladle-*.dump.sha256"))
+    assert not list(backup_dir.glob(".ladle-*"))
+
+
+def test_backup_start_removes_incomplete_pairs_but_keeps_complete_pair(
+    tmp_path: Path,
+) -> None:
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+    orphan_dump = backup_dir / "ladle-20260728-000001-1.dump"
+    orphan_checksum = backup_dir / "ladle-20260728-000002-1.dump.sha256"
+    complete_dump = backup_dir / "ladle-20260728-000003-1.dump"
+    complete_checksum = Path(f"{complete_dump}.sha256")
+    for path in (orphan_dump, orphan_checksum, complete_dump, complete_checksum):
+        path.write_text(path.name)
+        path.chmod(0o600)
+
+    result = _run_operations_library(
+        """
+backup_dir=$1
+safe_regular_file() { [ -f "$1" ] && [ ! -L "$1" ]; }
+remove_incomplete_backup_pairs
+""",
+        backup_dir,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert not orphan_dump.exists()
+    assert not orphan_checksum.exists()
+    assert complete_dump.exists()
+    assert complete_checksum.exists()
+
+
+def test_backup_freshness_selects_older_valid_complete_pair(tmp_path: Path) -> None:
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+    older_dump = backup_dir / "ladle-20260728-000001-1.dump"
+    older_checksum = Path(f"{older_dump}.sha256")
+    newest_orphan = backup_dir / "ladle-20260728-000002-1.dump"
+    older_dump.write_text("validated archive")
+    older_checksum.write_text(f"{'0' * 64}  {older_dump.name}\n")
+    newest_orphan.write_text("orphan")
+    for path in (older_dump, older_checksum, newest_orphan):
+        path.chmod(0o600)
+
+    result = _run_operations_library(
+        """
+backup_dir=$1
+safe_regular_file() { [ -f "$1" ] && [ ! -L "$1" ]; }
+stat() {
+    case "$*" in
+        *000001*) printf '%s\n' 100 ;;
+        *) printf '%s\n' 200 ;;
+    esac
+}
+sha256sum() {
+    case "$*" in *000001*) return 0 ;; *) return 1 ;; esac
+}
+latest_backup_path
+""",
+        backup_dir,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == str(older_dump)
+
+
+def test_backup_retention_removes_complete_pair_together(tmp_path: Path) -> None:
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+    dump = backup_dir / "ladle-20260101-000001-1.dump"
+    checksum = Path(f"{dump}.sha256")
+    dump.write_text("old archive")
+    checksum.write_text(f"{'0' * 64}  {dump.name}\n")
+    dump.chmod(0o600)
+    checksum.chmod(0o600)
+
+    result = _run_operations_library(
+        """
+backup_dir=$1
+safe_regular_file() { [ -f "$1" ] && [ ! -L "$1" ]; }
+find() { printf '%s\n' "$1"; }
+retain_backup_pairs
+""",
+        backup_dir,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert not dump.exists()
+    assert not checksum.exists()
 
 
 @pytest.mark.parametrize(
@@ -3038,6 +3522,113 @@ transactional_install_operations "$2" "$3" "$4" "$5"
     assert "daemon-reload" in trace
     assert "enable ladle-health.timer ladle-backup.timer" in trace
     assert "start ladle-health.timer ladle-backup.timer" in trace
+
+
+def test_operations_installer_rejects_timer_query_error_before_live_swap(
+    tmp_path: Path,
+) -> None:
+    source, binary_target, unit_dir, targets, fake_bin, fake_state = (
+        _operations_installer_fixture(tmp_path, preexisting=True)
+    )
+    result = _run_installer_library(
+        """
+PATH=$1:$PATH
+transactional_install_operations "$2" "$3" "$4" "$5"
+""",
+        fake_bin,
+        source,
+        binary_target,
+        unit_dir,
+        str(os.getuid()),
+        env={
+            "FAIL_PHASE": "none",
+            "FAKE_STATE": str(fake_state),
+            "QUERY_FAILURE": "1",
+        },
+    )
+
+    assert result.returncode != 0
+    assert "Cannot safely snapshot prior Ladle timer state" in result.stderr
+    for target in targets:
+        assert target.read_text() == f"old:{target.name}\n"
+    assert not list(binary_target.parent.glob(".ladle-*"))
+    assert not list(unit_dir.glob(".ladle-*"))
+    trace = fake_state.read_text()
+    assert "daemon-reload" not in trace
+    assert "\nenable " not in f"\n{trace}"
+    assert "\nstart " not in f"\n{trace}"
+    assert "\ndisable " not in f"\n{trace}"
+
+
+def test_operations_installer_accepts_first_install_not_found_timer_state(
+    tmp_path: Path,
+) -> None:
+    source, binary_target, unit_dir, targets, fake_bin, fake_state = (
+        _operations_installer_fixture(tmp_path, preexisting=False)
+    )
+    result = _run_installer_library(
+        """
+PATH=$1:$PATH
+transactional_install_operations "$2" "$3" "$4" "$5"
+""",
+        fake_bin,
+        source,
+        binary_target,
+        unit_dir,
+        str(os.getuid()),
+        env={
+            "FAIL_PHASE": "none",
+            "FAKE_STATE": str(fake_state),
+            "TIMERS_NOT_FOUND": "1",
+        },
+    )
+
+    assert result.returncode == 0, result.stderr
+    trace = fake_state.read_text()
+    assert trace.count("is-enabled") == 2
+    assert "is-active" not in trace
+    for target in targets:
+        assert target.exists()
+        assert "new" in target.read_text()
+
+
+@pytest.mark.parametrize(
+    "rollback_failure",
+    ("disable", "reload", "enable", "start"),
+)
+def test_operations_installer_reports_timer_reconciliation_failure(
+    tmp_path: Path,
+    rollback_failure: str,
+) -> None:
+    source, binary_target, unit_dir, targets, fake_bin, fake_state = (
+        _operations_installer_fixture(tmp_path, preexisting=True)
+    )
+    result = _run_installer_library(
+        """
+PATH=$1:$PATH
+transactional_install_operations "$2" "$3" "$4" "$5"
+""",
+        fake_bin,
+        source,
+        binary_target,
+        unit_dir,
+        str(os.getuid()),
+        env={
+            "FAIL_PHASE": "start",
+            "FAKE_STATE": str(fake_state),
+            "PREVIOUS_TIMERS_ACTIVE": "1",
+            "ROLLBACK_FAILURE": rollback_failure,
+        },
+    )
+
+    assert result.returncode != 0
+    assert (
+        "rollback incomplete; timer state or loaded units require inspection"
+        in result.stderr
+    )
+    assert "prior state restored" not in result.stderr
+    for target in targets:
+        assert target.read_text() == f"old:{target.name}\n"
 
 
 @pytest.mark.parametrize("preexisting", (False, True))

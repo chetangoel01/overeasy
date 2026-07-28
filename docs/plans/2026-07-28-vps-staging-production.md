@@ -552,10 +552,12 @@ git commit -m "feat: monitor and back up VPS staging"
   runs every five minutes, while the persistent backup timer runs nightly.
 - Health validates that root-owned deployment state says `active`/`complete`
   and names the same immutable revision as `/opt/ladle/current`. It then checks
-  the Caddy and Nginx configurations, API readiness, Celery worker and Beat,
-  PostgreSQL, Redis, MinIO, public-certificate lifetime, and the freshness and
-  checksum of the latest backup. This exposes interrupted or mixed rollouts
-  instead of treating running containers as authoritative.
+  the Caddy and Nginx configurations, API readiness, Celery worker,
+  health-checked worker egress, PostgreSQL, Redis, MinIO, public-certificate
+  lifetime, and the freshness and checksum of the latest backup. Beat must keep
+  one exact 64-hex container identity through three bounded observations while
+  running, non-restarting, and at restart count zero. This exposes interrupted
+  or mixed rollouts instead of treating running containers as authoritative.
 - Backups use PostgreSQL's custom archive format through the stable `ladle`
   Compose project and the root-owned environment file path; credential values
   are never arguments or output. Each dump must be nonempty and pass
@@ -566,7 +568,11 @@ git commit -m "feat: monitor and back up VPS staging"
   and final output step propagates failure explicitly even when POSIX
   `errexit` is suppressed by a caller. A one-file publish failure removes its
   orphan; a completely published validated pair is retained but never reported
-  as successful when a later operational step fails.
+  as successful when a later operational step fails. Exit cleanup derives
+  publication from the filesystem, startup removes only metadata-safe
+  incomplete pairs under the deployment lock, freshness selects the newest
+  metadata-safe checksum-valid complete pair, and retention removes pairs
+  together. A newer orphan therefore cannot hide an older valid backup.
 - An on-demand or timer backup takes the same nonblocking root deployment lock
   at `/var/lib/ladle/locks/deploy.lock` used by `deploy.sh` before reading the
   authoritative release or running `pg_dump`. It fails clearly when a
@@ -574,18 +580,28 @@ git commit -m "feat: monitor and back up VPS staging"
   service rollout.
 - Host state, transition records, logs, and backups remain under
   `/var/lib/ladle`, `/var/log/ladle`, and `/var/backups/ladle`, outside release
-  checkouts. Staging alerts record only fixed, secret-free state transitions.
-  Production promotion still requires an external notification destination.
+  checkouts. A persistent root-only transition lock serializes health and
+  backup transitions. Each fixed, secret-free transition is appended before
+  its atomic dedupe-state update, so interruption may cause a safe duplicate
+  but cannot permanently suppress an unlogged transition. Production promotion
+  still requires an external notification destination.
 - `install-operations.sh` accepts a full revision, requires that exact
   root-owned, non-writable release and its immutable marker, stages and verifies
   the complete binary/unit set before swapping any target, and retains exact
   rollback copies until daemon reload and both timer activations succeed.
-  Swap, reload, enable, start, and handled-signal failures restore the prior
-  complete set and timer intent; a second signal is ignored during
-  reconciliation. If restoring any prior target fails, all remaining root-only
-  `.ladle-backup.*` recovery copies are preserved beside their exact targets,
-  staging cleanup is attempted independently, and the fixed diagnostic reports
-  an incomplete rollback without claiming that prior state was restored.
+  Before swapping, strict `systemctl` output-and-status snapshots accept only
+  known safe enablement and activity states; query, bus, masked, failed, and
+  unknown states abort without mutation, while an exact not-found enablement
+  state records a no-op active state without an invalid follow-up query. Swap,
+  reload, enable, start, and handled-signal failures restore the prior complete
+  set and exact timer intent; disable, reload, enable, or start reconciliation
+  failure returns a fixed inspection diagnostic instead of claiming
+  restoration. A second signal is ignored during reconciliation. If restoring
+  any prior target fails, all
+  remaining root-only `.ladle-backup.*` recovery copies are preserved beside
+  their exact targets, staging cleanup is attempted independently, and the
+  fixed diagnostic reports an incomplete rollback without claiming that prior
+  state was restored.
   First-install target-removal failure instead warns that mixed/new targets
   require root inspection, while a stage-only cleanup failure reports that
   targets were restored and only `.ladle-stage.*` artifacts may remain.
@@ -597,18 +613,21 @@ git commit -m "feat: monitor and back up VPS staging"
   deduplication and recovery, backup success plus 15 injected failure stages,
   installer first-install and upgrade failures at six transaction phases, and
   signal rollback, including restore failure, a repeated rollback signal, and a
-  post-commit cleanup signal. The focused profile contains 102 tests and the
-  complete deploy-unit set contains 139. POSIX `sh` and Dash parsing for every
-  VPS script, Ruff for the changed Python contract, and `git diff --check` also
-  pass. `systemd-analyze` is unavailable in the macOS workspace, so real unit
-  verification remains an explicit Ubuntu-side check before enabling timers;
-  installer tests use a command shim only to exercise rollback behavior and do
-  not represent local systemd verification.
+  post-commit cleanup signal. Additional executable cases cover strict timer
+  query/reconciliation failures, container and Beat stability, concurrent and
+  interrupted transition writes, publication signals, orphan recovery, valid
+  pair selection, and pairwise retention. The focused profile contains 120
+  tests and the complete deploy-unit set contains 157. POSIX `sh` and Dash
+  parsing for every VPS script, Ruff for the changed Python contract, and
+  `git diff --check` also pass. `systemd-analyze` is unavailable in the macOS
+  workspace, so real unit verification remains an explicit Ubuntu-side check
+  before enabling timers; installer tests use a command shim only to exercise
+  rollback behavior and do not represent local systemd verification.
 - Affected components are `deploy/vps/operations.sh`,
-  `install-operations.sh`, provisioning/deployment/secret scripts, the backup
-  unit, and `tests/unit/deploy/test_vps_profile.py`. No VPS, SSH, DNS,
-  credential, systemd, backup, or live service state was accessed or changed
-  at this checkpoint.
+  `install-operations.sh`, provisioning/deployment/secret scripts, both
+  operations units, and `tests/unit/deploy/test_vps_profile.py`. No VPS, SSH,
+  DNS, credential, systemd, backup, or live service state was accessed or
+  changed at this checkpoint.
 
 ### Task 6: Document deployment, recovery, and production promotion
 
