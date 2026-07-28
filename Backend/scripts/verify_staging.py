@@ -32,6 +32,11 @@ _SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
 }
+_STAGING_ACCESS_HEADER = "X-Ladle-Tunnel-Key"
+_INVALID_STAGING_ACCESS_KEY = "codex-invalid-staging-key"
+_INVALID_STAGING_SECRET_MESSAGE = (
+    "staging access key file must contain one visible ASCII value"
+)
 
 
 def verify(
@@ -49,7 +54,7 @@ def verify(
         raise VerificationFailed("staging URL must use HTTPS")
     checks: list[str] = []
     staging_headers = (
-        {"X-Ladle-Tunnel-Key": staging_access_key}
+        {_STAGING_ACCESS_HEADER: staging_access_key}
         if staging_access_key is not None
         else {}
     )
@@ -74,7 +79,7 @@ def verify(
             client.get(
                 f"{base_url}/health/live",
                 headers={
-                    "X-Ladle-Tunnel-Key": f"wrong-{staging_access_key}",
+                    _STAGING_ACCESS_HEADER: _INVALID_STAGING_ACCESS_KEY,
                 },
             ),
             404,
@@ -153,12 +158,17 @@ def verify(
         and attested_request_body is not None
     ):
         _validate_metadata_body(attested_request_body)
+        safe_attestation_headers = {
+            name: value
+            for name, value in attestation_headers.items()
+            if name.casefold() != _STAGING_ACCESS_HEADER.casefold()
+        }
         rejected = client.post(
             f"{base_url}/v1/imports",
             headers={
                 "Authorization": f"Bearer {access_token}",
                 "Content-Type": "application/json",
-                **attestation_headers,
+                **safe_attestation_headers,
                 **staging_headers,
             },
             content=attested_request_body,
@@ -224,9 +234,13 @@ def _headers(path: Path | None) -> dict[str, str] | None:
 def _secret(path: Path | None) -> str | None:
     if path is None:
         return None
-    value = path.read_text().strip()
-    if not value:
-        raise VerificationFailed("staging access key file is empty")
+    try:
+        raw_value = path.read_bytes().decode("ascii")
+    except UnicodeDecodeError:
+        raise VerificationFailed(_INVALID_STAGING_SECRET_MESSAGE) from None
+    value = raw_value.strip(" \t")
+    if not value or any(not 33 <= ord(character) <= 126 for character in value):
+        raise VerificationFailed(_INVALID_STAGING_SECRET_MESSAGE)
     return value
 
 

@@ -19,10 +19,12 @@ SECURITY_HEADERS = {
     "X-Frame-Options": "DENY",
 }
 STAGING_ACCESS_KEY = "stage-secret"
+INVALID_STAGING_ACCESS_KEY = "codex-invalid-staging-key"
 STAGING_REJECTIONS = [
     ("/health/live", None),
-    ("/health/live", f"wrong-{STAGING_ACCESS_KEY}"),
+    ("/health/live", INVALID_STAGING_ACCESS_KEY),
 ]
+INVALID_SECRET_MESSAGE = "staging access key file must contain one visible ASCII value"
 
 
 def staging_response(request: httpx.Request) -> httpx.Response:
@@ -55,10 +57,13 @@ def enforce_staging_access(
 ) -> httpx.Response | None:
     key = request.headers.get("X-Ladle-Tunnel-Key")
     if request.url.path == "/health/live" and key != STAGING_ACCESS_KEY:
-        assert key in {None, f"wrong-{STAGING_ACCESS_KEY}"}
+        assert request.headers.get_list("X-Ladle-Tunnel-Key") in (
+            [],
+            [INVALID_STAGING_ACCESS_KEY],
+        )
         rejected.append((request.url.path, key))
         return httpx.Response(404)
-    assert key == STAGING_ACCESS_KEY
+    assert request.headers.get_list("X-Ladle-Tunnel-Key") == [STAGING_ACCESS_KEY]
     return None
 
 
@@ -99,17 +104,54 @@ def test_staging_verifier_authenticates_checks_and_rejects_missing_key() -> None
 
 def test_secret_strips_surrounding_whitespace(tmp_path: Path) -> None:
     path = tmp_path / "staging-key"
-    path.write_text(" \n stage-secret\t")
+    path.write_text(" \tstage-secret\t ")
 
     assert staging_verifier._secret(path) == STAGING_ACCESS_KEY
 
 
 def test_secret_rejects_an_empty_file(tmp_path: Path) -> None:
     path = tmp_path / "staging-key"
-    path.write_text(" \n")
+    path.write_text(" \t")
 
-    with pytest.raises(VerificationFailed, match="empty"):
+    with pytest.raises(VerificationFailed, match=INVALID_SECRET_MESSAGE):
         staging_verifier._secret(path)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "stage\nsecret",
+        "stage\rsecret",
+        "stage secret",
+        "stage\tsecret",
+        "stage\x00secret",
+        "stage\x1fsecret",
+        "stage\x7fsecret",
+        "stâge-secret",
+    ],
+)
+def test_secret_rejects_unsafe_header_values_without_leaking_them(
+    tmp_path: Path,
+    value: str,
+) -> None:
+    path = tmp_path / "staging-key"
+    path.write_text(value)
+
+    with pytest.raises(VerificationFailed) as failure:
+        staging_verifier._secret(path)
+
+    assert str(failure.value) == INVALID_SECRET_MESSAGE
+    assert value not in str(failure.value)
+
+
+def test_secret_rejects_non_utf8_bytes_without_leaking_them(tmp_path: Path) -> None:
+    path = tmp_path / "staging-key"
+    path.write_bytes(b"stage-\xff-secret")
+
+    with pytest.raises(VerificationFailed) as failure:
+        staging_verifier._secret(path)
+
+    assert str(failure.value) == INVALID_SECRET_MESSAGE
 
 
 def test_cli_exposes_only_a_file_option_for_the_staging_key(
@@ -248,7 +290,7 @@ def test_staging_ssrf_probe_sends_the_exact_pre_attested_body() -> None:
             access_token="access",
             attestation_headers={
                 "X-App-Attest-Assertion": "signed",
-                "X-Ladle-Tunnel-Key": "wrong-stage-secret",
+                "x-ladle-tunnel-key": INVALID_STAGING_ACCESS_KEY,
             },
             attested_request_body=body,
             staging_access_key=STAGING_ACCESS_KEY,
