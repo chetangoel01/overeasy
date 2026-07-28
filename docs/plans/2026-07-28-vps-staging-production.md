@@ -562,11 +562,11 @@ git commit -m "feat: monitor and back up VPS staging"
   `pg_restore --list` before its mode-`0600` archive and SHA-256 sidecar are
   atomically named. The path refuses to start below 20 GiB free and retains 35
   days of archives. Every dump, validation, permission, exact 64-hex digest,
-  checksum, publish, sync, retention, metadata, transition, cleanup, and final
-  output step propagates failure explicitly even when POSIX `errexit` is
-  suppressed by a caller. A one-file publish failure removes its orphan; a
-  completely published validated pair is retained but never reported as
-  successful when a later operational step fails.
+  checksum, timestamp, publish, sync, retention, metadata, transition, cleanup,
+  and final output step propagates failure explicitly even when POSIX
+  `errexit` is suppressed by a caller. A one-file publish failure removes its
+  orphan; a completely published validated pair is retained but never reported
+  as successful when a later operational step fails.
 - An on-demand or timer backup takes the same nonblocking root deployment lock
   at `/var/lib/ladle/locks/deploy.lock` used by `deploy.sh` before reading the
   authoritative release or running `pg_dump`. It fails clearly when a
@@ -582,15 +582,21 @@ git commit -m "feat: monitor and back up VPS staging"
   rollback copies until daemon reload and both timer activations succeed.
   Swap, reload, enable, start, and handled-signal failures restore the prior
   complete set and timer intent; a second signal is ignored during
-  reconciliation. Successful timer start is the commit point, so a later
-  hidden rollback-file cleanup failure warns without falsely rolling back a
-  committed installation.
+  reconciliation. If restoring any prior target fails, all remaining root-only
+  `.ladle-backup.*` recovery copies are preserved beside their exact targets,
+  staging artifacts are still removed, and the fixed diagnostic reports an
+  incomplete rollback without claiming that prior state was restored.
+  Successful timer start is the commit point; signal handling remains active
+  through post-commit cleanup, and cleanup failure or interruption returns
+  committed success with a warning instead of falsely rolling back the live
+  installation.
 - Executable shell harnesses cover real lock contention, health transition
-  deduplication and recovery, backup success plus 14 injected failure stages,
+  deduplication and recovery, backup success plus 15 injected failure stages,
   installer first-install and upgrade failures at six transaction phases, and
-  signal rollback. The focused profile contains 96 tests and the complete
-  deploy-unit set contains 133. POSIX `sh` and Dash parsing for every VPS
-  script, Ruff for the changed Python contract, and `git diff --check` also
+  signal rollback, including restore failure, a repeated rollback signal, and a
+  post-commit cleanup signal. The focused profile contains 100 tests and the
+  complete deploy-unit set contains 137. POSIX `sh` and Dash parsing for every
+  VPS script, Ruff for the changed Python contract, and `git diff --check` also
   pass. `systemd-analyze` is unavailable in the macOS workspace, so real unit
   verification remains an explicit Ubuntu-side check before enabling timers;
   installer tests use a command shim only to exercise rollback behavior and do

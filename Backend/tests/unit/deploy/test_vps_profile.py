@@ -257,7 +257,7 @@ import time
 source, target = sys.argv[-2:]
 marker = os.environ["FAKE_STATE"] + ".swap"
 if (
-    os.environ.get("FAIL_PHASE") == "swap"
+    os.environ.get("FAIL_PHASE") in {"swap", "restore"}
     and ".ladle-stage." in os.path.basename(source)
     and os.path.basename(target) == "ladle-health.service"
     and not os.path.exists(marker)
@@ -271,6 +271,20 @@ if (
 ):
     open(os.environ["FAKE_STATE"] + ".signal", "w").close()
     time.sleep(30)
+if (
+    os.environ.get("FAIL_PHASE") == "restore"
+    and ".ladle-backup." in os.path.basename(source)
+    and os.path.basename(target) == "ladle-operations"
+):
+    raise SystemExit(1)
+if (
+    os.environ.get("PAUSE_ROLLBACK") == "1"
+    and ".ladle-backup." in os.path.basename(source)
+    and os.path.basename(target) == "ladle-operations"
+    and not os.path.exists(os.environ["FAKE_STATE"] + ".rollback")
+):
+    open(os.environ["FAKE_STATE"] + ".rollback", "w").close()
+    time.sleep(2)
 os.replace(source, target)
 """
     )
@@ -280,9 +294,15 @@ import os
 import subprocess
 import sys
 
-if os.environ.get("FAIL_PHASE") == "cleanup" and any(
+if os.environ.get("FAIL_PHASE") in {"cleanup", "commit_signal_cleanup"} and any(
     ".ladle-backup." in argument for argument in sys.argv[1:]
 ):
+    if os.environ.get("FAIL_PHASE") == "commit_signal_cleanup":
+        marker = os.environ["FAKE_STATE"] + ".committed-cleanup"
+        if not os.path.exists(marker):
+            open(marker, "w").close()
+            import time
+            time.sleep(30)
     raise SystemExit(1)
 raise SystemExit(subprocess.run(["/bin/rm", *sys.argv[1:]], check=False).returncode)
 """
@@ -2715,6 +2735,7 @@ acquire_deployment_lock
     ("failure", "published_pair"),
     (
         ("pg_dump", False),
+        ("date", False),
         ("empty_dump", False),
         ("pg_restore", False),
         ("chmod_dump", False),
@@ -2768,6 +2789,10 @@ df() {
     command printf '%s\n' \
         "Filesystem 1024-blocks Used Available Capacity Mounted" \
         "test 99999999 1 99999998 1% /"
+}
+date() {
+    [ "$failure" != date ] || return 1
+    command date "$@"
 }
 chmod() {
     case "$failure:$*" in
@@ -3087,3 +3112,153 @@ transactional_install_operations "$2" "$3" "$4" "$5"
     for target in targets:
         assert "new" in target.read_text()
     assert "start ladle-health.timer ladle-backup.timer" in fake_state.read_text()
+
+
+def test_operations_installer_preserves_recovery_copy_when_restore_fails(
+    tmp_path: Path,
+) -> None:
+    source, binary_target, unit_dir, targets, fake_bin, fake_state = (
+        _operations_installer_fixture(tmp_path, preexisting=True)
+    )
+    result = _run_installer_library(
+        """
+PATH=$1:$PATH
+transactional_install_operations "$2" "$3" "$4" "$5"
+""",
+        fake_bin,
+        source,
+        binary_target,
+        unit_dir,
+        str(os.getuid()),
+        env={"FAIL_PHASE": "restore", "FAKE_STATE": str(fake_state)},
+    )
+
+    assert result.returncode != 0
+    assert "rollback incomplete" in result.stderr
+    assert "root-only recovery files remain as .ladle-backup.*" in result.stderr
+    assert "prior state restored" not in result.stderr
+    assert "new-operations" in binary_target.read_text()
+    recovery = [
+        *binary_target.parent.glob(".ladle-backup.*"),
+        *unit_dir.glob(".ladle-backup.*"),
+    ]
+    assert recovery
+    assert all(path.stat().st_mode & 0o777 in {0o644, 0o755} for path in recovery)
+    assert not list(binary_target.parent.glob(".ladle-stage.*"))
+    assert not list(unit_dir.glob(".ladle-stage.*"))
+    assert any("old:ladle-operations" in path.read_text() for path in recovery)
+    assert all(target.exists() for target in targets)
+
+
+def test_operations_installer_committed_signal_exits_success_with_warning(
+    tmp_path: Path,
+) -> None:
+    source, binary_target, unit_dir, targets, fake_bin, fake_state = (
+        _operations_installer_fixture(tmp_path, preexisting=True)
+    )
+    command = """
+. "$1"
+shift
+PATH=$1:$PATH
+transactional_install_operations "$2" "$3" "$4" "$5"
+"""
+    process = subprocess.Popen(
+        [
+            "/bin/sh",
+            "-c",
+            command,
+            "test",
+            str(INSTALL_OPERATIONS),
+            str(fake_bin),
+            str(source),
+            str(binary_target),
+            str(unit_dir),
+            str(os.getuid()),
+        ],
+        env={
+            **os.environ,
+            "FAIL_PHASE": "commit_signal_cleanup",
+            "FAKE_STATE": str(fake_state),
+        },
+        start_new_session=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    cleanup_marker = Path(f"{fake_state}.committed-cleanup")
+    for _ in range(300):
+        if cleanup_marker.exists():
+            break
+        subprocess.run(["/bin/sleep", "0.01"], check=True)
+    assert cleanup_marker.exists()
+
+    os.killpg(process.pid, signal.SIGTERM)
+    _, stderr = process.communicate(timeout=10)
+    assert process.returncode == 0
+    assert "committed; stale rollback files require cleanup" in stderr
+    for target in targets:
+        assert "new" in target.read_text()
+    assert [
+        *binary_target.parent.glob(".ladle-backup.*"),
+        *unit_dir.glob(".ladle-backup.*"),
+    ]
+
+
+def test_operations_installer_ignores_second_signal_during_rollback(
+    tmp_path: Path,
+) -> None:
+    source, binary_target, unit_dir, targets, fake_bin, fake_state = (
+        _operations_installer_fixture(tmp_path, preexisting=True)
+    )
+    command = """
+. "$1"
+shift
+PATH=$1:$PATH
+transactional_install_operations "$2" "$3" "$4" "$5"
+"""
+    process = subprocess.Popen(
+        [
+            "/bin/sh",
+            "-c",
+            command,
+            "test",
+            str(INSTALL_OPERATIONS),
+            str(fake_bin),
+            str(source),
+            str(binary_target),
+            str(unit_dir),
+            str(os.getuid()),
+        ],
+        env={
+            **os.environ,
+            "FAIL_PHASE": "none",
+            "FAKE_STATE": str(fake_state),
+            "PAUSE_SWAP": "1",
+            "PAUSE_ROLLBACK": "1",
+        },
+        start_new_session=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    signal_marker = Path(f"{fake_state}.signal")
+    rollback_marker = Path(f"{fake_state}.rollback")
+    for _ in range(300):
+        if signal_marker.exists():
+            break
+        subprocess.run(["/bin/sleep", "0.01"], check=True)
+    assert signal_marker.exists()
+    os.killpg(process.pid, signal.SIGTERM)
+    for _ in range(300):
+        if rollback_marker.exists():
+            break
+        subprocess.run(["/bin/sleep", "0.01"], check=True)
+    assert rollback_marker.exists()
+
+    os.kill(process.pid, signal.SIGTERM)
+    _, stderr = process.communicate(timeout=10)
+    assert process.returncode != 0
+    assert "prior state restored" in stderr
+    assert "rollback incomplete" not in stderr
+    for target in targets:
+        assert target.read_text() == f"old:{target.name}\n"

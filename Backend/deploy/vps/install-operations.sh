@@ -51,24 +51,47 @@ cleanup_verification_directory() {
     rmdir "$verification_directory"
 }
 
-cleanup_transaction_artifacts() {
-    cleanup_result=0
+cleanup_transaction_stages() {
+    stage_cleanup_result=0
     for cleanup_path in \
         "$transaction_binary_stage" \
         "$transaction_health_service_stage" \
         "$transaction_health_timer_stage" \
         "$transaction_backup_service_stage" \
-        "$transaction_backup_timer_stage" \
+        "$transaction_backup_timer_stage"; do
+        if [ -n "$cleanup_path" ] && [ -e "$cleanup_path" ]; then
+            rm -f -- "$cleanup_path" || stage_cleanup_result=1
+        fi
+    done
+    [ "$stage_cleanup_result" -eq 0 ]
+}
+
+cleanup_transaction_recovery_files() {
+    recovery_cleanup_result=0
+    for cleanup_path in \
         "$transaction_binary_backup" \
         "$transaction_health_service_backup" \
         "$transaction_health_timer_backup" \
         "$transaction_backup_service_backup" \
         "$transaction_backup_timer_backup"; do
         if [ -n "$cleanup_path" ] && [ -e "$cleanup_path" ]; then
-            rm -f -- "$cleanup_path" || cleanup_result=1
+            rm -f -- "$cleanup_path" || recovery_cleanup_result=1
         fi
     done
-    [ "$cleanup_result" -eq 0 ]
+    [ "$recovery_cleanup_result" -eq 0 ]
+}
+
+cleanup_transaction_artifacts() {
+    transaction_cleanup_result=0
+    cleanup_transaction_stages || transaction_cleanup_result=1
+    cleanup_transaction_recovery_files || transaction_cleanup_result=1
+    [ "$transaction_cleanup_result" -eq 0 ]
+}
+
+report_incomplete_rollback() {
+    printf '%s\n' \
+        "Operations rollback incomplete; root-only recovery files remain as .ladle-backup.* beside their targets." \
+        >&2
 }
 
 restore_transaction_target() {
@@ -105,7 +128,12 @@ rollback_operations_install() {
         "$transaction_backup_timer_existed" \
         "$transaction_backup_timer_backup" \
         "$transaction_backup_timer_target" || rollback_result=1
-    cleanup_transaction_artifacts || rollback_result=1
+    cleanup_transaction_stages || rollback_result=1
+    if [ "$rollback_result" -ne 0 ]; then
+        report_incomplete_rollback
+        return 1
+    fi
+    cleanup_transaction_recovery_files || rollback_result=1
     [ "$rollback_result" -eq 0 ]
 }
 
@@ -128,11 +156,17 @@ restore_timer_state() {
 
 rollback_after_activation_failure() {
     activation_rollback_result=0
+    activation_files_restored=true
     systemctl disable --now ladle-health.timer ladle-backup.timer ||
         activation_rollback_result=1
-    rollback_operations_install || activation_rollback_result=1
+    if ! rollback_operations_install; then
+        activation_files_restored=false
+        activation_rollback_result=1
+    fi
     systemctl daemon-reload || activation_rollback_result=1
-    restore_timer_state || activation_rollback_result=1
+    if [ "$activation_files_restored" = true ]; then
+        restore_timer_state || activation_rollback_result=1
+    fi
     [ "$activation_rollback_result" -eq 0 ]
 }
 
@@ -163,6 +197,7 @@ abort_activation_transaction() {
 
 handle_transaction_signal() {
     handled_signal=$1
+    signal_rollback_result=0
     trap '' HUP INT TERM
     if [ "$transaction_committed" = true ]; then
         if ! cleanup_transaction_artifacts; then
@@ -174,13 +209,18 @@ handle_transaction_signal() {
     fi
     if [ "$transaction_live" = true ]; then
         if [ "$transaction_activation_touched" = true ]; then
-            rollback_after_activation_failure || true
+            rollback_after_activation_failure || signal_rollback_result=1
         else
-            rollback_operations_install || true
-            systemctl daemon-reload || true
+            rollback_operations_install || signal_rollback_result=1
+            systemctl daemon-reload || signal_rollback_result=1
         fi
     else
-        cleanup_transaction_artifacts || true
+        cleanup_transaction_artifacts || signal_rollback_result=1
+    fi
+    if [ "$signal_rollback_result" -ne 0 ]; then
+        printf 'Operations install interrupted by %s; rollback incomplete.\n' \
+            "$handled_signal" >&2
+        exit 1
     fi
     printf 'Operations install interrupted by %s; prior state restored.\n' \
         "$handled_signal" >&2
@@ -471,12 +511,12 @@ transactional_install_operations() {
     fi
     transaction_committed=true
     transaction_live=false
-    clear_transaction_traps
     if ! cleanup_transaction_artifacts; then
         printf '%s\n' \
             "Operations install committed; stale rollback files require cleanup." \
             >&2
     fi
+    clear_transaction_traps
     return 0
 }
 

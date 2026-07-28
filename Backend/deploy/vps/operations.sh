@@ -465,7 +465,7 @@ database_backup() {
         return 1
     }
 
-    backup_timestamp=$(date -u +%Y%m%d-%H%M%S)
+    backup_timestamp=$(date -u +%Y%m%d-%H%M%S) || return 1
     backup_name=ladle-$backup_timestamp-$$.dump
     backup_path=$backup_dir/$backup_name
     checksum_path=$backup_path.sha256
