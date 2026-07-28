@@ -1,0 +1,19 @@
+[Unit]
+Description=Ladle VPS health checks
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/usr/local/sbin/ladle-operations health
+TimeoutStartSec=2min
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/ladle/operations /var/log/ladle
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=true

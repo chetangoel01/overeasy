@@ -22,6 +22,12 @@ DEPLOY = PROFILE.parent / "deploy.sh"
 INITIALIZE_ENV = PROFILE.parent / "initialize-env.sh"
 SET_SECRET = PROFILE.parent / "set-secret.sh"
 DEPLOYMENT_LIB = PROFILE.parent / "deployment-lib.sh"
+OPERATIONS = PROFILE.parent / "operations.sh"
+INSTALL_OPERATIONS = PROFILE.parent / "install-operations.sh"
+HEALTH_SERVICE = PROFILE.parent / "ladle-health.service"
+HEALTH_TIMER = PROFILE.parent / "ladle-health.timer"
+BACKUP_SERVICE = PROFILE.parent / "ladle-backup.service"
+BACKUP_TIMER = PROFILE.parent / "ladle-backup.timer"
 PROGRESS_LOG = "/var/log/ladle/setup.log"
 
 EXPECTED_SERVICES = {
@@ -2181,3 +2187,166 @@ sleep() { :; }
             f"{mock_commands}\nwait_for_beat_stability {checks} {interval}\n"
         )
         assert result.returncode != 0, (checks, interval)
+
+
+def test_vps_operations_assets_are_posix_and_executable() -> None:
+    for script in (OPERATIONS, INSTALL_OPERATIONS):
+        assert script.is_file()
+        assert script.stat().st_mode & stat.S_IXUSR
+        text = script.read_text()
+        assert text.startswith("#!/bin/sh\nset -eu\numask 077\n")
+        assert "set -x" not in text
+        assert "/Users/" not in text
+        assert "Library/Application Support" not in text
+        for macos_command in ("launchctl", "osascript", "shasum", "stat -f"):
+            assert macos_command not in text
+
+
+def test_vps_operations_create_validated_atomic_postgres_backups() -> None:
+    operations = OPERATIONS.read_text()
+
+    assert "/var/backups/ladle" in operations
+    assert "20" in operations
+    assert "35" in operations
+    assert "df -Pk" in operations
+    assert "pg_dump -Fc" in operations
+    assert "pg_restore --list" in operations
+    assert "sha256sum" in operations
+    assert "chmod 0600" in operations
+    assert "stat -c" in operations
+    assert "mktemp" in operations
+    assert "mv -f --" in operations
+    assert "-mtime \"+$backup_retention_days\"" in operations
+    assert "-delete" in operations
+    assert "POSTGRES_PASSWORD" not in operations
+    assert "LADLE_DATABASE_PASSWORD" not in operations
+
+    disk_check = operations.index("df -Pk")
+    dump = operations.index("pg_dump -Fc")
+    nonempty = operations.index('[ ! -s "$temporary_backup" ]')
+    validation = operations.index("pg_restore --list")
+    final_move = operations.index('mv -f -- "$temporary_backup" "$backup_path"')
+    digest = operations.index("sha256sum", validation)
+    assert disk_check < dump < nonempty < validation < digest < final_move
+
+
+def test_vps_health_covers_runtime_tls_backup_and_authoritative_revision() -> None:
+    operations = OPERATIONS.read_text()
+
+    for service in (
+        "caddy",
+        "edge",
+        "api",
+        "worker",
+        "beat",
+        "postgres",
+        "redis",
+        "minio",
+    ):
+        assert service in operations
+    assert "caddy validate" in operations
+    assert "nginx -t" in operations
+    assert "/health/ready" in operations
+    assert "celery" in operations
+    assert "inspect ping" in operations
+    assert "pg_isready" in operations
+    assert "redis-cli ping" in operations
+    assert "/minio/health/live" in operations
+    assert "openssl s_client" in operations
+    assert "openssl x509 -checkend" in operations
+    assert "backup is stale" in operations
+    assert "/var/lib/ladle/deployment-state" in operations
+    assert "/opt/ladle/current" in operations
+    assert "STATUS=active" in operations
+    assert "PHASE=complete" in operations
+    assert ".ladle-revision" in operations
+
+
+def test_vps_operations_expose_bounded_status_logs_health_and_backup() -> None:
+    operations = OPERATIONS.read_text()
+
+    for command in ("status)", "logs)", "health)", "backup)"):
+        assert command in operations
+    assert "journalctl" in operations
+    assert "--no-pager" in operations
+    assert "-n \"$log_lines\"" in operations
+    assert "docker compose" in operations
+    assert "logs --no-color --tail \"$log_lines\"" in operations
+    assert "--env-file \"$env_file\"" in operations
+    assert "--project-name ladle" in operations
+    assert "/etc/ladle/ladle.env" in operations
+    assert "LADLE_" not in operations.split("journalctl", maxsplit=1)[-1]
+    assert "external notification" in operations
+
+
+def test_vps_operations_timers_have_expected_schedules() -> None:
+    health_timer = HEALTH_TIMER.read_text()
+    backup_timer = BACKUP_TIMER.read_text()
+
+    assert "OnBootSec=5min" in health_timer
+    assert "OnUnitActiveSec=5min" in health_timer
+    assert "Unit=ladle-health.service" in health_timer
+    assert "OnCalendar=" in backup_timer
+    assert "Persistent=true" in backup_timer
+    assert "Unit=ladle-backup.service" in backup_timer
+
+    for unit in (HEALTH_SERVICE, BACKUP_SERVICE):
+        text = unit.read_text()
+        assert "Type=oneshot" in text
+        assert "User=root" in text
+        assert "NoNewPrivileges=true" in text
+        assert "ProtectSystem=strict" in text
+        assert "PrivateTmp=true" in text
+    assert "ExecStart=/usr/local/sbin/ladle-operations health" in (
+        HEALTH_SERVICE.read_text()
+    )
+    assert "ExecStart=/usr/local/sbin/ladle-operations backup" in (
+        BACKUP_SERVICE.read_text()
+    )
+
+
+def test_operations_installer_validates_exact_release_before_atomic_install() -> None:
+    installer = INSTALL_OPERATIONS.read_text()
+
+    assert "/opt/ladle/releases/$revision" in installer
+    assert "/opt/ladle/current" not in installer
+    assert ".ladle-revision" in installer
+    assert "readlink -f" in installer
+    assert "stat -c" in installer
+    assert "! -user root -o -perm /022" in installer
+    assert "systemd-analyze verify" in installer
+    assert "mktemp" in installer
+    assert "install -o root -g root" in installer
+    assert "mv -f --" in installer
+    assert installer.index(
+        'atomic_install "$operations_source" /usr/local/sbin/ladle-operations 755'
+    ) < installer.index("systemd-analyze verify")
+    assert installer.index("systemd-analyze verify") < installer.index(
+        "systemctl daemon-reload"
+    )
+    assert "systemctl enable --now ladle-health.timer ladle-backup.timer" in installer
+    assert "/var/backups/ladle" in installer
+    assert "/var/lib/ladle/operations" in installer
+
+
+def test_operations_accept_the_immutable_revision_marker_from_push() -> None:
+    push = PUSH.read_text()
+    operations = OPERATIONS.read_text()
+    installer = INSTALL_OPERATIONS.read_text()
+
+    assert 'chmod 0444 "$incoming/.ladle-revision"' in push
+    assert 'safe_regular_file "$revision_marker" 444' in operations
+    assert '"0:444"' in installer
+
+
+def test_backup_refuses_to_race_the_deployment_transaction() -> None:
+    operations = OPERATIONS.read_text()
+    backup = operations[operations.index("database_backup()") :]
+
+    assert "/var/lock/ladle-deploy.lock" in operations
+    assert "flock -n" in operations
+    assert backup.index("acquire_deployment_lock") < backup.index(
+        "load_authoritative_release"
+    )
+    assert backup.index("acquire_deployment_lock") < backup.index("pg_dump -Fc")
+    assert "/var/lock/ladle-deploy.lock" in BACKUP_SERVICE.read_text()

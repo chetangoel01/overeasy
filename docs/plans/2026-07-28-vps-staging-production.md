@@ -543,6 +543,48 @@ git add Backend/deploy/vps Backend/tests/unit/deploy/test_vps_profile.py
 git commit -m "feat: monitor and back up VPS staging"
 ```
 
+**Task 5 implementation checkpoint (2026-07-28):**
+
+- The operations path gives an operator four bounded, on-demand commands:
+  `health`, `backup`, `status [LINES]`, and `logs [LINES]`. The health timer
+  runs every five minutes, while the persistent backup timer runs nightly.
+- Health validates that root-owned deployment state says `active`/`complete`
+  and names the same immutable revision as `/opt/ladle/current`. It then checks
+  the Caddy and Nginx configurations, API readiness, Celery worker and Beat,
+  PostgreSQL, Redis, MinIO, public-certificate lifetime, and the freshness and
+  checksum of the latest backup. This exposes interrupted or mixed rollouts
+  instead of treating running containers as authoritative.
+- Backups use PostgreSQL's custom archive format through the stable `ladle`
+  Compose project and the root-owned environment file path; credential values
+  are never arguments or output. Each dump must be nonempty and pass
+  `pg_restore --list` before its mode-`0600` archive and SHA-256 sidecar are
+  atomically named. The path refuses to start below 20 GiB free and retains 35
+  days of archives.
+- An on-demand or timer backup takes the same nonblocking root deployment lock
+  used by `deploy.sh` before reading the authoritative release or running
+  `pg_dump`. It fails clearly when a deployment owns the lock, so an archive
+  cannot race migrations or a mixed service rollout.
+- Host state, transition records, logs, and backups remain under
+  `/var/lib/ladle`, `/var/log/ladle`, and `/var/backups/ladle`, outside release
+  checkouts. Staging alerts record only fixed, secret-free state transitions.
+  Production promotion still requires an external notification destination.
+- `install-operations.sh` accepts a full revision, requires that exact
+  root-owned, non-writable release and its immutable marker, verifies the unit
+  sources after atomically staging their referenced executable but before
+  installing or enabling any unit, atomically installs the root-owned units,
+  and then reloads systemd and enables both timers.
+- A focused local run passes all 62 VPS profile/operations tests, and the full
+  deploy-unit set passes all 99 tests. POSIX `sh` and Dash parsing for every
+  VPS script, Ruff for the changed Python contract, and `git diff --check` also
+  pass. `systemd-analyze` is unavailable in the macOS workspace, so unit
+  verification remains an explicit Ubuntu-side check before enabling the
+  timers.
+- Affected components are `deploy/vps/operations.sh`,
+  `install-operations.sh`, the health/backup service and timer units, and
+  `tests/unit/deploy/test_vps_profile.py`. No VPS, SSH, DNS, credential,
+  systemd, backup, or live service state was accessed or changed at this
+  checkpoint.
+
 ### Task 6: Document deployment, recovery, and production promotion
 
 **Files:**
