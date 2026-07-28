@@ -306,6 +306,10 @@ returns, the on-disk policy and running daemon are synchronized. Executable
 fake-iptables and injected SSH callback tests cover first install, reruns,
 duplicate-hook recovery, failures on either side of hook installation,
 pre-transaction signals, in-transaction signals, and reload rollback.
+Rollback state is cleared only after the prior drop-in is restored
+successfully. If restoration fails, cleanup retains the backup path and
+pending state, reports the recovery failure, and leaves the active SSH
+session open for manual repair.
 
 **Step 4: Verify green**
 

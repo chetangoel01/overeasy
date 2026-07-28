@@ -847,6 +847,9 @@ configuration_pending=true
 reload_calls=0
 
 restore_previous() {
+    if [ "$mode" = restore-failure ]; then
+        return 1
+    fi
     printf '%s\\n' prior >"$disk_state"
     configuration_pending=false
 }
@@ -858,7 +861,8 @@ validate_disk() {
 }
 reload_daemon() {
     reload_calls=$((reload_calls + 1))
-    if [ "$mode" = failure ] && [ "$reload_calls" -eq 1 ]; then
+    if { [ "$mode" = failure ] || [ "$mode" = restore-failure ]; } &&
+        [ "$reload_calls" -eq 1 ]; then
         return 1
     fi
     cat "$disk_state" >"$daemon_state"
@@ -868,7 +872,7 @@ reload_daemon() {
 }
 cleanup() {
     if [ "$configuration_pending" = true ]; then
-        restore_previous
+        restore_previous || :
     fi
 }
 trap cleanup 0
@@ -924,6 +928,14 @@ printf '%s\\n' "$transaction_status" >"$result_state"
     assert failure_result.returncode == 0
     assert failure_status == "1"
     assert failure_disk == failure_daemon == "prior"
+
+    failed_restore, restore_disk, restore_daemon, restore_status = run(
+        "restore-failure"
+    )
+    assert failed_restore.returncode == 0
+    assert restore_status == "2"
+    assert restore_disk == "candidate"
+    assert restore_daemon == "prior"
 
 
 def test_ssh_hardening_requires_verified_key_access_before_auth_changes() -> None:
@@ -993,6 +1005,23 @@ def test_ssh_hardening_is_atomic_and_preserves_the_active_session() -> None:
     assert validation.index("ssh_reload_signal_pending=true") < validation.index(
         '"$ssh_reload_command"'
     )
+    restore = harden[
+        harden.index("restore_previous_dropin()") : harden.index(
+            "\nconfiguration_pending=true"
+        )
+    ]
+    assert 'mv -f -- "$dropin_previous" "$dropin" || return 1' in restore
+    assert 'rm -f -- "$dropin" || return 1' in restore
+    assert restore.index('mv -f -- "$dropin_previous" "$dropin"') < restore.index(
+        "dropin_previous="
+    )
+    assert restore.index('rm -f -- "$dropin"') < restore.index(
+        "configuration_pending=false"
+    )
+    cleanup = harden[harden.index("cleanup()") : harden.index("\ntrap cleanup 0")]
+    assert "if ! restore_previous_dropin; then" in cleanup
+    assert '"Preserved backup: ${dropin_previous:-none}"' in cleanup
+    assert '[ "$configuration_pending" = false ] &&' in cleanup
 
     unsafe = harden.lower()
     assert not re.search(r"\bsystemctl\s+(?:stop|restart)\s+ssh", unsafe)

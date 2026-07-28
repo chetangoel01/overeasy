@@ -78,12 +78,17 @@ configuration_pending=false
 
 cleanup() {
     if [ "$configuration_pending" = true ]; then
-        restore_previous_dropin
+        if ! restore_previous_dropin; then
+            printf '%s\n' \
+                "Automatic SSH rollback failed; keep session A open." \
+                "Preserved backup: ${dropin_previous:-none}" >&2
+        fi
     fi
     if [ -n "$dropin_candidate" ]; then
         rm -f -- "$dropin_candidate"
     fi
-    if [ -n "$dropin_previous" ]; then
+    if [ "$configuration_pending" = false ] &&
+        [ -n "$dropin_previous" ]; then
         rm -f -- "$dropin_previous"
     fi
 }
@@ -180,10 +185,10 @@ fi
 
 restore_previous_dropin() {
     if [ "$had_previous" = true ]; then
-        mv -f -- "$dropin_previous" "$dropin"
+        mv -f -- "$dropin_previous" "$dropin" || return 1
         dropin_previous=
     else
-        rm -f -- "$dropin"
+        rm -f -- "$dropin" || return 1
     fi
     configuration_pending=false
 }
@@ -193,7 +198,8 @@ mv -f -- "$dropin_candidate" "$dropin"
 dropin_candidate=
 
 if ! /usr/sbin/sshd -t; then
-    restore_previous_dropin
+    restore_previous_dropin ||
+        die "SSH configuration validation and rollback both failed; keep session A open."
     die "SSH configuration validation failed; the previous drop-in was restored."
 fi
 
@@ -225,7 +231,8 @@ validate_effective_contexts() {
 
 if ! validate_effective_contexts "$target_user" ||
     ! validate_effective_contexts root; then
-    restore_previous_dropin
+    restore_previous_dropin ||
+        die "SSH effective-policy validation and rollback both failed; keep session A open."
     die "SSH hardening is not effective; the previous drop-in was restored."
 fi
 
