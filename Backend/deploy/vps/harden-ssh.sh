@@ -229,15 +229,36 @@ if ! validate_effective_contexts "$target_user" ||
     die "SSH hardening is not effective; the previous drop-in was restored."
 fi
 
-if ! systemctl reload ssh; then
-    restore_previous_dropin
-    /usr/sbin/sshd -t ||
-        die "SSH reload failed and the restored configuration is invalid."
-    systemctl reload ssh ||
-        die "SSH reload failed after restoring the previous configuration."
-    die "SSH reload failed; the previous configuration was restored."
-fi
+reload_ssh_service() {
+    systemctl reload ssh
+}
 
-configuration_pending=false
+validate_ssh_configuration() {
+    /usr/sbin/sshd -t
+}
+
+commit_ssh_configuration() {
+    configuration_pending=false
+}
+
+reload_status=0
+reload_ssh_transaction \
+    reload_ssh_service \
+    restore_previous_dropin \
+    validate_ssh_configuration \
+    commit_ssh_configuration ||
+    reload_status=$?
+case "$reload_status" in
+    0) ;;
+    1) die "SSH reload failed; the previous policy was restored and reloaded." ;;
+    2)
+        die "SSH reload recovery failed; keep session A open and repair manually."
+        ;;
+    3)
+        die "SSH reload was interrupted after disk and daemon were synchronized."
+        ;;
+    *) die "SSH reload transaction returned an unexpected status." ;;
+esac
+
 printf '%s\n' \
     "SSH hardening is active. Keep session A open until one more key login succeeds."

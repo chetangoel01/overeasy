@@ -250,6 +250,7 @@ git commit -m "feat: add guarded VPS runtime profile"
 - Modify: `Backend/tests/unit/deploy/test_vps_profile.py`
 - Create: `Backend/deploy/vps/provision.sh`
 - Create: `Backend/deploy/vps/harden-ssh.sh`
+- Create: `Backend/deploy/vps/host-validation.sh`
 - Create: `Backend/deploy/vps/ladle-docker-user.rules`
 
 **Step 1: Write failing script-contract tests**
@@ -296,6 +297,16 @@ The firewall rule file must default-drop unsolicited host traffic and
 explicitly reject unexpected Docker-published ports while permitting return
 traffic for the application and worker.
 
+The implemented firewall update alternates between two owned chains. It
+fully prepares the inactive chain before installing its `DOCKER-USER` hook,
+then removes the previous hook, so an interrupted update retains at least one
+equivalent fail-closed policy. The SSH reload similarly defers termination
+signals only while it reloads or restores the drop-in; when the transaction
+returns, the on-disk policy and running daemon are synchronized. Executable
+fake-iptables and injected SSH callback tests cover first install, reruns,
+duplicate-hook recovery, failures on either side of hook installation,
+pre-transaction signals, in-transaction signals, and reload rollback.
+
 **Step 4: Verify green**
 
 Run:
@@ -305,11 +316,13 @@ cd Backend
 uv run pytest -q tests/unit/deploy/test_vps_profile.py
 sh -n deploy/vps/provision.sh
 sh -n deploy/vps/harden-ssh.sh
+sh -n deploy/vps/host-validation.sh
+sh -n deploy/vps/ladle-docker-user.rules
 git diff --check
 ```
 
-Run `shellcheck` on both scripts if installed. Expected: all available checks
-pass.
+Repeat the syntax checks with `dash -n`, and run `shellcheck` on all four
+scripts if installed. Expected: all available checks pass.
 
 **Step 5: Commit**
 

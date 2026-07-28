@@ -1,3 +1,5 @@
+import json
+import os
 import re
 import shutil
 import stat
@@ -88,6 +90,122 @@ def _run_validation(
         input=input_text,
         text=True,
     )
+
+
+def _write_fake_iptables(path: Path) -> None:
+    path.write_text(
+        """#!/usr/bin/env python3
+import json
+import os
+import sys
+from pathlib import Path
+
+state_path = Path(sys.argv[0]).with_suffix(".json")
+state = (
+    json.loads(state_path.read_text())
+    if state_path.exists()
+    else {"chains": {"FORWARD": []}, "failed": False}
+)
+args = sys.argv[1:]
+command = " ".join(args)
+if (
+    os.environ.get("FAKE_FAIL_PROGRAM") == Path(sys.argv[0]).name
+    and os.environ.get("FAKE_FAIL_MATCH", "") in command
+    and not state["failed"]
+):
+    state["failed"] = True
+    state_path.write_text(json.dumps(state))
+    raise SystemExit(1)
+
+chains = state["chains"]
+operation = args[0]
+chain = args[1]
+if operation == "-nL":
+    status = 0 if chain in chains else 1
+elif operation == "-N":
+    chains[chain] = []
+    status = 0
+elif operation == "-F":
+    chains[chain] = []
+    status = 0
+elif operation in {"-C", "-D", "-I"}:
+    jump = ["-j", args[-1]]
+    rules = chains.setdefault(chain, [])
+    if operation == "-C":
+        status = 0 if jump in rules else 1
+    elif operation == "-D":
+        if jump not in rules:
+            status = 1
+        else:
+            rules.remove(jump)
+            status = 0
+    else:
+        rules.insert(0, jump)
+        status = 0
+elif operation == "-A":
+    chains.setdefault(chain, []).append(args[2:])
+    status = 0
+else:
+    raise SystemExit(f"unsupported fake iptables command: {command}")
+
+state_path.write_text(json.dumps(state))
+raise SystemExit(status)
+"""
+    )
+    path.chmod(0o755)
+
+
+def _firewall_harness(tmp_path: Path) -> tuple[Path, Path, Path]:
+    tmp_path.mkdir(parents=True)
+    fake_ipv4 = tmp_path / "iptables-v4"
+    fake_ipv6 = tmp_path / "iptables-v6"
+    _write_fake_iptables(fake_ipv4)
+    _write_fake_iptables(fake_ipv6)
+    rendered = _run_validation(
+        "render_docker_firewall",
+        DOCKER_USER_RULES,
+        "ens4",
+        "ens6",
+    )
+    assert rendered.returncode == 0, rendered.stderr
+    script = tmp_path / "ladle-docker-user-firewall"
+    script.write_text(
+        rendered.stdout.replace("/usr/sbin/ip6tables", str(fake_ipv6)).replace(
+            "/usr/sbin/iptables", str(fake_ipv4)
+        )
+    )
+    script.chmod(0o755)
+    return script, fake_ipv4.with_suffix(".json"), fake_ipv6.with_suffix(".json")
+
+
+def _run_firewall(
+    script: Path,
+    *,
+    fail_program: str = "",
+    fail_match: str = "",
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [str(script)],
+        check=False,
+        capture_output=True,
+        env={
+            **os.environ,
+            "FAKE_FAIL_PROGRAM": fail_program,
+            "FAKE_FAIL_MATCH": fail_match,
+        },
+        text=True,
+    )
+
+
+def _firewall_state(path: Path) -> dict[str, Any]:
+    loaded = json.loads(path.read_text())
+    assert isinstance(loaded, dict)
+    return loaded
+
+
+def _docker_user_hooks(state: dict[str, Any]) -> list[str]:
+    chains = state["chains"]
+    return [rule[1] for rule in chains["DOCKER-USER"] if rule[0] == "-j"]
 
 
 def test_vps_profile_files_exist() -> None:
@@ -491,6 +609,63 @@ def test_docker_user_firewall_blocks_unexpected_public_container_ports() -> None
     assert "-F FORWARD" not in rules
 
 
+def test_docker_user_firewall_recovers_and_fails_closed(tmp_path: Path) -> None:
+    script, ipv4_path, ipv6_path = _firewall_harness(tmp_path / "normal")
+
+    assert _run_firewall(script).returncode == 0
+    first_ipv4 = _firewall_state(ipv4_path)
+    first_ipv6 = _firewall_state(ipv6_path)
+    assert _docker_user_hooks(first_ipv4) == ["LADLE_DOCKER_PUBLIC_A"]
+    assert _docker_user_hooks(first_ipv6) == ["LADLE_DOCKER_PUBLIC_A"]
+    assert any("ens4" in rule for rule in first_ipv4["chains"]["LADLE_DOCKER_PUBLIC_A"])
+    assert any("ens6" in rule for rule in first_ipv6["chains"]["LADLE_DOCKER_PUBLIC_A"])
+
+    assert _run_firewall(script).returncode == 0
+    second_ipv4 = _firewall_state(ipv4_path)
+    assert _docker_user_hooks(second_ipv4) == ["LADLE_DOCKER_PUBLIC_B"]
+
+    # Recover deterministically when an interrupted prior run left both
+    # equivalent owned hooks installed.
+    chains = second_ipv4["chains"]
+    chains["LADLE_DOCKER_PUBLIC_A"] = list(chains["LADLE_DOCKER_PUBLIC_B"])
+    chains["DOCKER-USER"].insert(0, ["-j", "LADLE_DOCKER_PUBLIC_A"])
+    ipv4_path.write_text(json.dumps(second_ipv4))
+    assert _run_firewall(script).returncode == 0
+    assert _docker_user_hooks(_firewall_state(ipv4_path)) == ["LADLE_DOCKER_PUBLIC_B"]
+
+    before_script, before_ipv4_path, _ = _firewall_harness(tmp_path / "before-hook")
+    assert _run_firewall(before_script).returncode == 0
+    failed_before = _run_firewall(
+        before_script,
+        fail_program="iptables-v4",
+        fail_match=(
+            "-A LADLE_DOCKER_PUBLIC_B -i ens4 -m conntrack --ctstate NEW -j REJECT"
+        ),
+    )
+    assert failed_before.returncode != 0
+    assert _docker_user_hooks(_firewall_state(before_ipv4_path)) == [
+        "LADLE_DOCKER_PUBLIC_A"
+    ]
+
+    after_script, after_ipv4_path, _ = _firewall_harness(tmp_path / "after-hook")
+    assert _run_firewall(after_script).returncode == 0
+    failed_after = _run_firewall(
+        after_script,
+        fail_program="iptables-v4",
+        fail_match="-D DOCKER-USER -j LADLE_DOCKER_PUBLIC_A",
+    )
+    assert failed_after.returncode != 0
+    after_state = _firewall_state(after_ipv4_path)
+    assert _docker_user_hooks(after_state) == [
+        "LADLE_DOCKER_PUBLIC_B",
+        "LADLE_DOCKER_PUBLIC_A",
+    ]
+    assert (
+        after_state["chains"]["LADLE_DOCKER_PUBLIC_A"]
+        == after_state["chains"]["LADLE_DOCKER_PUBLIC_B"]
+    )
+
+
 def test_split_public_interfaces_render_for_their_own_family() -> None:
     ipv4 = _run_validation(
         "public_interface_from_routes",
@@ -651,6 +826,106 @@ def test_openssh_reports_publickey_only_authentication(tmp_path: Path) -> None:
     )
 
 
+def test_ssh_reload_transaction_keeps_disk_and_daemon_consistent(
+    tmp_path: Path,
+) -> None:
+    harness = tmp_path / "reload-harness.sh"
+    harness.write_text(
+        """#!/bin/sh
+set -eu
+state_directory=$1
+mode=$2
+validation_library=$3
+. "$validation_library"
+
+disk_state=$state_directory/disk
+daemon_state=$state_directory/daemon
+result_state=$state_directory/result
+printf '%s\\n' candidate >"$disk_state"
+printf '%s\\n' prior >"$daemon_state"
+configuration_pending=true
+reload_calls=0
+
+restore_previous() {
+    printf '%s\\n' prior >"$disk_state"
+    configuration_pending=false
+}
+commit_candidate() {
+    configuration_pending=false
+}
+validate_disk() {
+    [ "$(cat "$disk_state")" = prior ]
+}
+reload_daemon() {
+    reload_calls=$((reload_calls + 1))
+    if [ "$mode" = failure ] && [ "$reload_calls" -eq 1 ]; then
+        return 1
+    fi
+    cat "$disk_state" >"$daemon_state"
+    if [ "$mode" = signal ] && [ "$reload_calls" -eq 1 ]; then
+        kill -TERM "$$"
+    fi
+}
+cleanup() {
+    if [ "$configuration_pending" = true ]; then
+        restore_previous
+    fi
+}
+trap cleanup 0
+trap 'exit 1' HUP INT TERM
+
+if [ "$mode" = before ]; then
+    kill -TERM "$$"
+fi
+transaction_status=0
+reload_ssh_transaction \
+    reload_daemon restore_previous validate_disk commit_candidate ||
+    transaction_status=$?
+printf '%s\\n' "$transaction_status" >"$result_state"
+"""
+    )
+    harness.chmod(0o755)
+
+    def run(mode: str) -> tuple[subprocess.CompletedProcess[str], str, str, str]:
+        state = tmp_path / mode
+        state.mkdir()
+        result = subprocess.run(
+            [str(harness), str(state), mode, str(HOST_VALIDATION)],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        transaction = (state / "result").read_text().strip()
+        return (
+            result,
+            (state / "disk").read_text().strip(),
+            (state / "daemon").read_text().strip(),
+            transaction,
+        )
+
+    before = tmp_path / "before"
+    before.mkdir()
+    interrupted_before = subprocess.run(
+        [str(harness), str(before), "before", str(HOST_VALIDATION)],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert interrupted_before.returncode != 0
+    assert (before / "disk").read_text().strip() == "prior"
+    assert (before / "daemon").read_text().strip() == "prior"
+
+    signal_result, signal_disk, signal_daemon, signal_status = run("signal")
+    assert signal_result.returncode == 0
+    assert signal_status == "3"
+    assert signal_disk == signal_daemon == "candidate"
+
+    failure_result, failure_disk, failure_daemon, failure_status = run("failure")
+    assert failure_result.returncode == 0
+    assert failure_status == "1"
+    assert failure_disk == failure_daemon == "prior"
+
+
 def test_ssh_hardening_requires_verified_key_access_before_auth_changes() -> None:
     harden = HARDEN_SSH.read_text()
     validation = HOST_VALIDATION.read_text()
@@ -713,6 +988,11 @@ def test_ssh_hardening_is_atomic_and_preserves_the_active_session() -> None:
     assert "separate session B" in harden
     assert "public-key" in harden
     assert "restore_previous_dropin" in harden
+    assert "reload_ssh_transaction" in harden
+    assert "ssh_reload_signal_pending=true" in validation
+    assert validation.index("ssh_reload_signal_pending=true") < validation.index(
+        '"$ssh_reload_command"'
+    )
 
     unsafe = harden.lower()
     assert not re.search(r"\bsystemctl\s+(?:stop|restart)\s+ssh", unsafe)

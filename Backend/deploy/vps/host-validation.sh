@@ -190,3 +190,38 @@ sshd_config_tree_has_no_match() {
         return 1
     _sshd_config_file_has_no_match "$ssh_config_root" "$ssh_main_config" 0
 }
+
+reload_ssh_transaction() {
+    ssh_reload_command=$1
+    ssh_restore_command=$2
+    ssh_validate_command=$3
+    ssh_commit_command=$4
+    ssh_reload_signal_pending=false
+    ssh_reload_status=0
+
+    # Defer termination until disk and daemon have reached the same policy.
+    trap 'ssh_reload_signal_pending=true' HUP INT TERM
+    if "$ssh_reload_command"; then
+        if "$ssh_commit_command"; then
+            :
+        elif "$ssh_restore_command" &&
+            "$ssh_validate_command" &&
+            "$ssh_reload_command"; then
+            ssh_reload_status=1
+        else
+            ssh_reload_status=2
+        fi
+    elif "$ssh_restore_command" &&
+        "$ssh_validate_command" &&
+        "$ssh_reload_command"; then
+        ssh_reload_status=1
+    else
+        ssh_reload_status=2
+    fi
+    trap 'exit 1' HUP INT TERM
+
+    if [ "$ssh_reload_signal_pending" = true ]; then
+        return 3
+    fi
+    return "$ssh_reload_status"
+}
