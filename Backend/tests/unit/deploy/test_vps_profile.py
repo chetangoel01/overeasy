@@ -158,6 +158,52 @@ def test_vps_profile_keeps_state_private_and_bounded() -> None:
     assert "max-file: 3" in profile_text
 
 
+def test_vps_profile_separates_raw_and_url_encoded_database_passwords() -> None:
+    services = _profile()["services"]
+    raw_password = services["postgres"]["environment"]["POSTGRES_PASSWORD"]
+    database_url = services["api"]["environment"]["LADLE_DATABASE_URL"]
+
+    assert raw_password == ("${LADLE_DATABASE_PASSWORD:?set LADLE_DATABASE_PASSWORD}")
+    assert (
+        "${LADLE_DATABASE_PASSWORD_URL_ENCODED:?"
+        "set LADLE_DATABASE_PASSWORD_URL_ENCODED}"
+    ) in database_url
+    assert "${LADLE_DATABASE_PASSWORD:?" not in database_url
+
+
+def test_vps_profile_bounds_redis_below_its_container_limit() -> None:
+    redis = _profile()["services"]["redis"]
+
+    assert redis["command"] == [
+        "redis-server",
+        "--appendonly",
+        "yes",
+        "--appendfsync",
+        "everysec",
+        "--save",
+        "60",
+        "1",
+        "--maxmemory",
+        "192mb",
+        "--maxmemory-policy",
+        "noeviction",
+        "--stop-writes-on-bgsave-error",
+        "yes",
+    ]
+    assert _memory_mib(redis["mem_limit"]) == 384
+
+
+def test_vps_profile_omits_media_tools_from_python_images() -> None:
+    services = _profile()["services"]
+    root_build = {
+        "context": ".",
+        "args": {"INSTALL_MEDIA_TOOLS": "false"},
+    }
+
+    for name in ("minio-init", "migrate", "api", "worker", "beat"):
+        assert services[name]["build"] == root_build
+
+
 def test_vps_profile_uses_named_state_and_a_fixed_internal_edge() -> None:
     profile = _profile()
     services = profile["services"]
@@ -200,6 +246,7 @@ def test_vps_profile_requires_secrets_without_embedding_them() -> None:
         "LADLE_PUBLIC_HOSTNAME",
         "LADLE_TUNNEL_ACCESS_KEY",
         "LADLE_DATABASE_PASSWORD",
+        "LADLE_DATABASE_PASSWORD_URL_ENCODED",
         "LADLE_JWT_SIGNING_SECRET",
         "LADLE_DATA_ENCRYPTION_KEY",
         "LADLE_METRICS_AUTH_TOKEN",

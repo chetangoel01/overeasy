@@ -4,11 +4,17 @@ x-bounded-logging: &bounded-logging
     max-size: 10m
     max-file: 3
 
+x-vps-runtime-build: &vps-runtime-build
+  context: .
+  args:
+    INSTALL_MEDIA_TOOLS: "false"
+
 x-vps-environment: &vps-environment
   LADLE_ENVIRONMENT: "development"
   LADLE_JWT_SIGNING_SECRET: ${LADLE_JWT_SIGNING_SECRET:?set LADLE_JWT_SIGNING_SECRET}
   LADLE_DATA_ENCRYPTION_KEY: ${LADLE_DATA_ENCRYPTION_KEY:?set LADLE_DATA_ENCRYPTION_KEY}
-  LADLE_DATABASE_URL: postgresql+psycopg://ladle:${LADLE_DATABASE_PASSWORD:?set LADLE_DATABASE_PASSWORD}@postgres:5432/ladle
+  # This must be the percent-encoded form of the raw POSTGRES_PASSWORD value.
+  LADLE_DATABASE_URL: postgresql+psycopg://ladle:${LADLE_DATABASE_PASSWORD_URL_ENCODED:?set LADLE_DATABASE_PASSWORD_URL_ENCODED}@postgres:5432/ladle
   LADLE_CELERY_ENABLED: "true"
   LADLE_CELERY_BROKER_URL: redis://redis:6379/0
   LADLE_CELERY_RESULT_BACKEND: redis://redis:6379/1
@@ -60,6 +66,21 @@ services:
 
   redis:
     restart: unless-stopped
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - everysec
+      - --save
+      - "60"
+      - "1"
+      - --maxmemory
+      - 192mb
+      - --maxmemory-policy
+      - noeviction
+      - --stop-writes-on-bgsave-error
+      - "yes"
     read_only: true
     tmpfs:
       - /tmp:size=32m,mode=1777
@@ -104,6 +125,7 @@ services:
         ipv4_address: 172.31.0.5
 
   minio-init:
+    build: *vps-runtime-build
     restart: "no"
     environment:
       LADLE_OBJECT_STORAGE_ENDPOINT_URL: http://minio:9000
@@ -192,6 +214,7 @@ services:
         ipv4_address: 172.31.0.3
 
   migrate:
+    build: *vps-runtime-build
     restart: "no"
     environment: *vps-environment
     pids_limit: 256
@@ -200,6 +223,7 @@ services:
     logging: *bounded-logging
 
   api:
+    build: *vps-runtime-build
     restart: unless-stopped
     environment: *vps-environment
     ports: !reset []
@@ -256,6 +280,7 @@ services:
         condition: service_healthy
 
   worker:
+    build: *vps-runtime-build
     restart: unless-stopped
     environment: *vps-environment
     network_mode: service:worker-egress
@@ -269,6 +294,7 @@ services:
         condition: service_healthy
 
   beat:
+    build: *vps-runtime-build
     restart: unless-stopped
     environment: *vps-environment
     pids_limit: 128
