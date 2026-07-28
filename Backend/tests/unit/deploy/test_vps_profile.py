@@ -1,8 +1,11 @@
 import re
+import shutil
 import stat
+import subprocess
 from pathlib import Path
 from typing import Any
 
+import pytest
 import yaml
 
 BACKEND = Path(__file__).parents[3]
@@ -11,6 +14,7 @@ CADDYFILE = PROFILE.parent / "Caddyfile"
 PROVISION = PROFILE.parent / "provision.sh"
 HARDEN_SSH = PROFILE.parent / "harden-ssh.sh"
 DOCKER_USER_RULES = PROFILE.parent / "ladle-docker-user.rules"
+HOST_VALIDATION = PROFILE.parent / "host-validation.sh"
 
 EXPECTED_SERVICES = {
     "postgres",
@@ -63,6 +67,27 @@ def _heredoc(text: str, marker: str) -> str:
     assert opener is not None
     body = text.split(opener, maxsplit=1)[1]
     return body.split(f"\n{marker}", maxsplit=1)[0]
+
+
+def _run_validation(
+    function: str,
+    *arguments: str | Path,
+    input_text: str | None = None,
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [
+            "/bin/sh",
+            "-c",
+            f'. "$1"; shift; {function} "$@"',
+            "test",
+            str(HOST_VALIDATION),
+            *(str(argument) for argument in arguments),
+        ],
+        check=False,
+        capture_output=True,
+        input=input_text,
+        text=True,
+    )
 
 
 def test_vps_profile_files_exist() -> None:
@@ -318,6 +343,32 @@ def test_vps_provisioning_uses_the_signed_official_docker_repository() -> None:
     assert "rm -rf /var/lib/docker" not in unsafe
 
 
+def test_docker_key_validation_rejects_an_appended_primary(tmp_path: Path) -> None:
+    trusted = "9DC858229FC7DD38854AE2D88D81803C0EBFCD88"
+    metadata = tmp_path / "docker-key.colons"
+    trusted_bundle = (
+        "pub:-:4096:1:8D81803C0EBFCD88:0:0:::::scESC::::::23::0:\n"
+        f"fpr:::::::::{trusted}:\n"
+        "sub:-:4096:1:AAAAAAAAAAAAAAAA:0:0:::::e::::::23:\n"
+        "fpr:::::::::AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA:\n"
+    )
+    metadata.write_text(trusted_bundle)
+    assert (
+        _run_validation("docker_key_metadata_is_trusted", metadata, trusted).returncode
+        == 0
+    )
+
+    metadata.write_text(
+        trusted_bundle
+        + "pub:-:4096:1:BBBBBBBBBBBBBBBB:0:0:::::sc::::::23::0:\n"
+        + "fpr:::::::::BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB:\n"
+    )
+    assert (
+        _run_validation("docker_key_metadata_is_trusted", metadata, trusted).returncode
+        != 0
+    )
+
+
 def test_vps_host_scripts_are_executable() -> None:
     for script in (PROVISION, HARDEN_SSH, DOCKER_USER_RULES):
         assert script.stat().st_mode & stat.S_IXUSR, script
@@ -339,7 +390,10 @@ def test_vps_provisioning_installs_persistent_host_firewalls_safely() -> None:
 
     ipv4 = _heredoc(provision, "LADLE_IPV4_RULES")
     ipv6 = _heredoc(provision, "LADLE_IPV6_RULES")
-    for rules in (ipv4, ipv6):
+    for rules, public_interface in (
+        (ipv4, "$ipv4_public_interface"),
+        (ipv6, "$ipv6_public_interface"),
+    ):
         assert ":INPUT DROP" in rules
         assert ":OUTPUT ACCEPT" in rules
         assert "-i lo -j ACCEPT" in rules
@@ -360,10 +414,11 @@ def test_vps_provisioning_installs_persistent_host_firewalls_safely() -> None:
         assert "--ctorigdstport 80" in rules
         assert "--ctorigdstport 443" in rules
         assert (
-            "-i $public_interface -p udp -m conntrack --ctstate NEW --ctorigdstport 443"
+            f"-i {public_interface} -p udp -m conntrack --ctstate NEW "
+            "--ctorigdstport 443"
         ) in rules
         docker_reject = rules.index(
-            "-i $public_interface -m conntrack --ctstate NEW -j REJECT"
+            f"-i {public_interface} -m conntrack --ctstate NEW -j REJECT"
         )
         docker_return = rules.index("-A LADLE_DOCKER_PUBLIC_A -j RETURN")
         assert docker_reject < docker_return
@@ -374,8 +429,8 @@ def test_vps_provisioning_installs_persistent_host_firewalls_safely() -> None:
     # Docker-owned chains and interrupt running containers.
     assert "apply_host_firewall /usr/sbin/iptables icmp" in provision
     assert "apply_host_firewall /usr/sbin/ip6tables ipv6-icmp" in provision
-    assert "iptables-restore" not in provision
-    assert "ip6tables-restore" not in provision
+    assert "/usr/sbin/iptables-restore --test" in provision
+    assert "/usr/sbin/ip6tables-restore --test" in provision
     assert "LADLE_HOST_INPUT_A" in provision
     assert "LADLE_HOST_INPUT_B" in provision
     assert '-F "$next_chain"' in provision
@@ -388,7 +443,12 @@ def test_vps_provisioning_installs_persistent_host_firewalls_safely() -> None:
     assert provision.rindex("LADLE_IPV6_RULES") < provision.index(
         "systemctl enable --now docker.service"
     )
-    assert provision.index("public_interface=$(") < provision.index("LADLE_IPV4_RULES")
+    assert provision.index("ipv4_public_interface=$(") < provision.index(
+        "LADLE_IPV4_RULES"
+    )
+    assert provision.index("ipv6_public_interface=$(") < provision.index(
+        "LADLE_IPV4_RULES"
+    )
     assert "Requires=netfilter-persistent.service" in provision
     assert "After=netfilter-persistent.service" in provision
     assert provision.index("Requires=netfilter-persistent.service") < provision.index(
@@ -400,14 +460,15 @@ def test_docker_user_firewall_blocks_unexpected_public_container_ports() -> None
     provision = PROVISION.read_text()
     rules = DOCKER_USER_RULES.read_text()
 
-    assert "@PUBLIC_INTERFACE@" in rules
+    assert "@PUBLIC_IPV4_INTERFACE@" in rules
+    assert "@PUBLIC_IPV6_INTERFACE@" in rules
     assert "/usr/local/sbin/ladle-docker-user-firewall" in provision
     assert "After=docker.service" in provision
     assert "ExecStart=/usr/local/sbin/ladle-docker-user-firewall" in provision
     assert "systemctl enable ladle-docker-user-firewall.service" in provision
     assert "systemctl restart ladle-docker-user-firewall.service" in provision
-    assert "apply_rules /usr/sbin/iptables" in rules
-    assert "apply_rules /usr/sbin/ip6tables" in rules
+    assert 'apply_rules /usr/sbin/iptables "$ipv4_public_interface"' in rules
+    assert 'apply_rules /usr/sbin/ip6tables "$ipv6_public_interface"' in rules
     assert "LADLE_DOCKER_PUBLIC_A" in rules
     assert "LADLE_DOCKER_PUBLIC_B" in rules
     assert '-I DOCKER-USER 1 -j "$next_chain"' in rules
@@ -430,24 +491,185 @@ def test_docker_user_firewall_blocks_unexpected_public_container_ports() -> None
     assert "-F FORWARD" not in rules
 
 
+def test_split_public_interfaces_render_for_their_own_family() -> None:
+    ipv4 = _run_validation(
+        "public_interface_from_routes",
+        input_text="default via 135.148.42.1 dev ens4 proto dhcp\n",
+    )
+    ipv6 = _run_validation(
+        "public_interface_from_routes",
+        input_text="default via fe80::1 dev ens6 proto ra metric 100\n",
+    )
+    assert ipv4.returncode == 0
+    assert ipv4.stdout.strip() == "ens4"
+    assert ipv6.returncode == 0
+    assert ipv6.stdout.strip() == "ens6"
+    assert (
+        _run_validation("public_interface_from_routes", input_text="").returncode != 0
+    )
+
+    rendered = _run_validation(
+        "render_docker_firewall",
+        DOCKER_USER_RULES,
+        "ens4",
+        "ens6",
+    )
+    assert rendered.returncode == 0
+    assert "ipv4_public_interface='ens4'" in rendered.stdout
+    assert "ipv6_public_interface='ens6'" in rendered.stdout
+    assert 'apply_rules /usr/sbin/iptables "$ipv4_public_interface"' in rendered.stdout
+    assert 'apply_rules /usr/sbin/ip6tables "$ipv6_public_interface"' in rendered.stdout
+
+
+def test_authorized_keys_are_parsed_by_openssh(tmp_path: Path) -> None:
+    ssh_keygen = shutil.which("ssh-keygen")
+    if ssh_keygen is None:
+        pytest.skip("ssh-keygen is unavailable")
+
+    private_key = tmp_path / "id_ed25519"
+    subprocess.run(
+        [ssh_keygen, "-q", "-t", "ed25519", "-N", "", "-f", str(private_key)],
+        check=True,
+    )
+    public_key = private_key.with_suffix(".pub").read_text().strip()
+    authorized_keys = tmp_path / "authorized_keys"
+
+    for valid_content in (
+        f"{public_key}\n",
+        f'restrict,from="192.0.2.10" {public_key}\n',
+    ):
+        authorized_keys.write_text(valid_content)
+        assert (
+            _run_validation("authorized_keys_has_valid_key", authorized_keys).returncode
+            == 0
+        )
+
+    authorized_keys.write_text("ssh-ed25519 A\n")
+    assert (
+        _run_validation("authorized_keys_has_valid_key", authorized_keys).returncode
+        != 0
+    )
+
+
+def test_ssh_marker_is_bound_to_the_target_user(tmp_path: Path) -> None:
+    marker = tmp_path / "verified"
+    marker.write_text("LADLE_SSH_KEY_LOGIN_VERIFIED_V2 user=ubuntu\n")
+
+    assert _run_validation("ssh_marker_matches_user", marker, "ubuntu").returncode == 0
+    assert _run_validation("ssh_marker_matches_user", marker, "deploy").returncode != 0
+
+
+def test_ssh_policy_validators_reject_auth_fallback_and_nested_match(
+    tmp_path: Path,
+) -> None:
+    hardened = "\n".join(
+        (
+            "permitrootlogin no",
+            "passwordauthentication no",
+            "kbdinteractiveauthentication no",
+            "pubkeyauthentication yes",
+            "authenticationmethods publickey",
+        )
+    )
+    assert (
+        _run_validation(
+            "effective_sshd_output_is_hardened", input_text=f"{hardened}\n"
+        ).returncode
+        == 0
+    )
+    fallback = hardened.replace(
+        "authenticationmethods publickey",
+        "authenticationmethods publickey,password",
+    )
+    assert (
+        _run_validation(
+            "effective_sshd_output_is_hardened", input_text=f"{fallback}\n"
+        ).returncode
+        != 0
+    )
+
+    include_dir = tmp_path / "sshd_config.d"
+    include_dir.mkdir()
+    main = tmp_path / "sshd_config"
+    included = include_dir / "cloud.conf"
+    main.write_text(f"Include {include_dir}/*.conf\nPasswordAuthentication no\n")
+    included.write_text("# Match User nobody\nUseDNS no\n")
+    assert _run_validation("sshd_config_tree_has_no_match", main).returncode == 0
+
+    nested = tmp_path / "nested.conf"
+    included.write_text(f"Include {nested}\n")
+    nested.write_text("Match User ubuntu\n    PasswordAuthentication yes\n")
+    assert _run_validation("sshd_config_tree_has_no_match", main).returncode != 0
+
+
+def test_openssh_reports_publickey_only_authentication(tmp_path: Path) -> None:
+    ssh_keygen = shutil.which("ssh-keygen")
+    sshd = shutil.which("sshd")
+    if ssh_keygen is None or sshd is None:
+        pytest.skip("ssh-keygen or sshd is unavailable")
+
+    host_key = tmp_path / "ssh_host_ed25519_key"
+    subprocess.run(
+        [ssh_keygen, "-q", "-t", "ed25519", "-N", "", "-f", str(host_key)],
+        check=True,
+    )
+    config = tmp_path / "sshd_config"
+    config.write_text(
+        "\n".join(
+            (
+                f"HostKey {host_key}",
+                "UsePAM no",
+                "PermitRootLogin no",
+                "PasswordAuthentication no",
+                "KbdInteractiveAuthentication no",
+                "PubkeyAuthentication yes",
+                "AuthenticationMethods publickey",
+                "",
+            )
+        )
+    )
+    effective = subprocess.run(
+        [
+            sshd,
+            "-T",
+            "-f",
+            str(config),
+            "-C",
+            "user=ubuntu,host=localhost,addr=198.51.100.10,laddr=192.0.2.10,lport=22",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert effective.returncode == 0, effective.stderr
+    assert (
+        _run_validation(
+            "effective_sshd_output_is_hardened",
+            input_text=effective.stdout,
+        ).returncode
+        == 0
+    )
+
+
 def test_ssh_hardening_requires_verified_key_access_before_auth_changes() -> None:
     harden = HARDEN_SSH.read_text()
+    validation = HOST_VALIDATION.read_text()
 
     assert harden.startswith("#!/bin/sh\nset -eu\numask 077\n")
     assert 'if [ "$(id -u)" -ne 0 ]; then' in harden
-    assert "LADLE_SSH_KEY_LOGIN_VERIFIED_V1" in harden
+    assert "LADLE_SSH_KEY_LOGIN_VERIFIED_V2 user=" in validation
     assert 'case "$marker_path" in' in harden
     assert '-f "$marker_path"' in harden
     assert '-L "$marker_path"' in harden
     assert 'readlink -f -- "$marker_path"' in harden
     assert 'stat -c "%u:%a" -- "$marker_path"' in harden
     assert '"0:600"' in harden
-    assert 'cmp -s -- "$marker_expected" "$marker_path"' in harden
+    assert 'ssh_marker_matches_user "$marker_path" "$target_user"' in harden
 
     assert "authorized_keys" in harden
-    assert "ssh-ed25519" in harden
+    assert "ssh-keygen" in validation
     assert 'if [ "$target_uid" -eq 0 ]; then' in harden
-    marker_gate = harden.index('cmp -s -- "$marker_expected" "$marker_path"')
+    marker_gate = harden.index('ssh_marker_matches_user "$marker_path" "$target_user"')
     key_gate = harden.index("authorized_keys", marker_gate)
     auth_change = harden.index("PasswordAuthentication no")
     assert marker_gate < key_gate < auth_change
@@ -455,12 +677,14 @@ def test_ssh_hardening_requires_verified_key_access_before_auth_changes() -> Non
 
 def test_ssh_hardening_is_atomic_and_preserves_the_active_session() -> None:
     harden = HARDEN_SSH.read_text()
+    validation = HOST_VALIDATION.read_text()
 
     for setting in (
         "PermitRootLogin no",
         "PasswordAuthentication no",
         "KbdInteractiveAuthentication no",
         "ChallengeResponseAuthentication no",
+        "AuthenticationMethods publickey",
     ):
         assert setting in harden
     assert "/etc/ssh/sshd_config.d/00-ladle-hardening.conf" in harden
@@ -471,10 +695,17 @@ def test_ssh_hardening_is_atomic_and_preserves_the_active_session() -> None:
         "passwordauthentication no",
         "kbdinteractiveauthentication no",
         "pubkeyauthentication yes",
+        "authenticationmethods publickey",
     ):
-        assert effective_setting in harden
-    assert 'validate_effective_configuration "$target_user"' in harden
-    assert "validate_effective_configuration root" in harden
+        assert effective_setting in validation
+    assert 'validate_effective_contexts "$target_user"' in harden
+    assert "validate_effective_contexts root" in harden
+    assert "SSH_CONNECTION" in harden
+    assert "--preserve-env=SSH_CONNECTION" in harden
+    assert "198.51.100.10" in harden
+    assert "2001:db8::10" in harden
+    assert "sshd_config_tree_has_no_match" in harden
+    assert "manual audit" in harden
     assert "systemctl reload ssh" in harden
     assert harden.index("/usr/sbin/sshd -t") < harden.index("systemctl reload ssh")
     assert harden.index("/usr/sbin/sshd -T") < harden.index("systemctl reload ssh")
@@ -488,3 +719,43 @@ def test_ssh_hardening_is_atomic_and_preserves_the_active_session() -> None:
     assert not re.search(r"^\s*(?:passwd|chpasswd)\b", unsafe, re.MULTILINE)
     assert "authorized_keys" in harden
     assert not re.search(r"\brm\b[^\n]*authorized_keys", unsafe)
+
+
+def test_vps_host_installs_sensitive_files_atomically_and_repairs_restarts() -> None:
+    provision = PROVISION.read_text()
+
+    for atomic_file in (
+        (
+            "docker_key_gpg",
+            'chmod 0644 "$docker_key_gpg"',
+            'gpg --batch --with-colons --show-keys \\\n    "$docker_key_gpg"',
+            'mv -f -- "$docker_key_gpg" /etc/apt/keyrings/docker.gpg',
+        ),
+        (
+            "ipv4_rules_tmp",
+            'chmod 0600 "$ipv4_rules_tmp"',
+            '/usr/sbin/iptables-restore --test <"$ipv4_rules_tmp"',
+            'mv -f -- "$ipv4_rules_tmp" /etc/iptables/rules.v4',
+        ),
+        (
+            "ipv6_rules_tmp",
+            'chmod 0600 "$ipv6_rules_tmp"',
+            '/usr/sbin/ip6tables-restore --test <"$ipv6_rules_tmp"',
+            'mv -f -- "$ipv6_rules_tmp" /etc/iptables/rules.v6',
+        ),
+    ):
+        variable, permissions, validation, rename = atomic_file
+        assert provision.index(permissions) < provision.index(validation)
+        rename_index = provision.index(rename)
+        assert provision.index(validation) < rename_index
+        assert provision.index(f"{variable}=", rename_index) > rename_index
+    assert not re.search(
+        r"install[^\n]*docker_key_gpg[^\n]*/etc/apt/keyrings/docker\.gpg",
+        provision,
+    )
+    assert not re.search(
+        r"install[^\n]*(?:ipv4|ipv6)_rules_tmp[^\n]*/etc/iptables/rules\.v[46]",
+        provision,
+    )
+    assert "PartOf=docker.service" in provision
+    assert "ExecStartPost=/usr/local/sbin/ladle-docker-user-firewall" in provision

@@ -2,7 +2,6 @@
 set -eu
 umask 077
 
-marker_content=LADLE_SSH_KEY_LOGIN_VERIFIED_V1
 dropin=/etc/ssh/sshd_config.d/00-ladle-hardening.conf
 
 die() {
@@ -18,7 +17,8 @@ SSH lockout prevention:
 3. In session B, create the marker as root with mode 0600 and exact content:
    printf '%s\\n' '$marker_content' | sudo tee ABSOLUTE_MARKER_PATH >/dev/null
    sudo chmod 0600 ABSOLUTE_MARKER_PATH
-4. Back in session A, run: sudo $0 ABSOLUTE_MARKER_PATH
+4. Back in session A, preserve its connection context and run:
+   sudo --preserve-env=SSH_CONNECTION $0 ABSOLUTE_MARKER_PATH
 The marker is an operator assertion; this script cannot infer session B's
 authentication method.
 EOF
@@ -27,6 +27,26 @@ EOF
 if [ "$(id -u)" -ne 0 ]; then
     die "Run harden-ssh.sh as root."
 fi
+
+script_directory=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+host_validation_source=$script_directory/host-validation.sh
+if [ ! -f "$host_validation_source" ] || [ -L "$host_validation_source" ]; then
+    die "Missing regular host validation library: $host_validation_source"
+fi
+. "$host_validation_source"
+
+target_user=${LADLE_SSH_USER:-${SUDO_USER:-ubuntu}}
+case "$target_user" in
+    "" | *[!A-Za-z0-9_.-]*) die "The SSH target user name is unsafe." ;;
+esac
+target_uid=$(id -u "$target_user" 2>/dev/null) ||
+    die "SSH target user does not exist: $target_user"
+if [ "$target_uid" -eq 0 ]; then
+    die "SSH hardening requires a non-root target user."
+fi
+marker_content=$(ssh_marker_content_for_user "$target_user") ||
+    die "Cannot construct the target-bound SSH verification marker."
+
 if [ "$#" -ne 1 ]; then
     print_gate_instructions
     die "Usage: sudo $0 /absolute/path/to/key-login-marker"
@@ -52,7 +72,6 @@ if [ "$marker_metadata" != "0:600" ]; then
     die "The verification marker must be owned by root with mode 0600."
 fi
 
-marker_expected=$(mktemp /run/ladle-ssh-marker-expected.XXXXXX)
 dropin_candidate=
 dropin_previous=
 configuration_pending=false
@@ -61,7 +80,6 @@ cleanup() {
     if [ "$configuration_pending" = true ]; then
         restore_previous_dropin
     fi
-    rm -f -- "$marker_expected"
     if [ -n "$dropin_candidate" ]; then
         rm -f -- "$dropin_candidate"
     fi
@@ -72,9 +90,8 @@ cleanup() {
 trap cleanup 0
 trap 'exit 1' HUP INT TERM
 
-printf '%s\n' "$marker_content" >"$marker_expected"
-if ! cmp -s -- "$marker_expected" "$marker_path"; then
-    die "The verification marker content is invalid."
+if ! ssh_marker_matches_user "$marker_path" "$target_user"; then
+    die "The verification marker is invalid for target user $target_user."
 fi
 marker_parent=$(dirname -- "$marker_path")
 marker_parent_metadata=$(stat -c "%u:%a" -- "$marker_parent") ||
@@ -84,15 +101,6 @@ case "$marker_parent_metadata" in
     *) die "The verification marker directory permissions are unsafe." ;;
 esac
 
-target_user=${LADLE_SSH_USER:-${SUDO_USER:-ubuntu}}
-case "$target_user" in
-    "" | *[!A-Za-z0-9_.-]*) die "The SSH target user name is unsafe." ;;
-esac
-target_uid=$(id -u "$target_user" 2>/dev/null) ||
-    die "SSH target user does not exist: $target_user"
-if [ "$target_uid" -eq 0 ]; then
-    die "SSH hardening requires a non-root target user."
-fi
 target_home=$(getent passwd "$target_user" | awk -F: 'NR == 1 { print $6 }')
 case "$target_home" in
     /*) ;;
@@ -119,22 +127,30 @@ case "$authorized_metadata" in
     "$target_uid:400" | "$target_uid:600") ;;
     *) die "authorized_keys must be target-owned with mode 0400 or 0600." ;;
 esac
-if ! awk '
-    /^[[:space:]]*#/ { next }
-    {
-        for (field = 1; field < NF; field++) {
-            if (
-                $field ~ /^(ssh-(ed25519|rsa)|ecdsa-sha2-nistp(256|384|521)|sk-(ssh-ed25519|ecdsa-sha2-nistp256)@openssh.com)$/ &&
-                $(field + 1) ~ /^[A-Za-z0-9+\/]+={0,3}$/
-            ) {
-                found = 1
-            }
-        }
-    }
-    END { exit !found }
-' "$authorized_keys"; then
+if ! authorized_keys_has_valid_key "$authorized_keys"; then
     die "authorized_keys contains no supported installed public key."
 fi
+
+if ! sshd_config_tree_has_no_match /etc/ssh/sshd_config; then
+    die "Active or unauditable SSH Match policy found; manual audit is required."
+fi
+
+set -f
+set -- ${SSH_CONNECTION:-}
+set +f
+if [ "$#" -ne 4 ]; then
+    die "SSH_CONNECTION is required to validate the active public session."
+fi
+ssh_client_address=$1
+ssh_client_port=$2
+ssh_server_address=$3
+ssh_server_port=$4
+case "$ssh_client_address:$ssh_server_address" in
+    *[!0-9A-Fa-f:.]*) die "SSH_CONNECTION contains unsafe addresses." ;;
+esac
+case "$ssh_client_port:$ssh_server_port" in
+    *[!0-9:]*) die "SSH_CONNECTION contains unsafe ports." ;;
+esac
 
 install -d -o root -g root -m 0755 /etc/ssh/sshd_config.d
 dropin_candidate=$(mktemp /etc/ssh/sshd_config.d/.ladle-hardening.XXXXXX)
@@ -144,6 +160,7 @@ PasswordAuthentication no
 KbdInteractiveAuthentication no
 ChallengeResponseAuthentication no
 PubkeyAuthentication yes
+AuthenticationMethods publickey
 LADLE_SSH_HARDENING
 chmod 0644 "$dropin_candidate"
 chown root:root "$dropin_candidate"
@@ -182,22 +199,32 @@ fi
 
 validate_effective_configuration() {
     connection_user=$1
-    connection_context="user=$connection_user,host=localhost,addr=127.0.0.1,laddr=127.0.0.1,lport=22"
+    connection_address=$2
+    local_address=$3
+    local_port=$4
+    connection_context="user=$connection_user,host=localhost,addr=$connection_address,laddr=$local_address,lport=$local_port"
     effective_configuration=$(
         /usr/sbin/sshd -T -C "$connection_context"
     ) || return 1
-    for required_setting in \
-        "permitrootlogin no" \
-        "passwordauthentication no" \
-        "kbdinteractiveauthentication no" \
-        "pubkeyauthentication yes"; do
-        printf '%s\n' "$effective_configuration" |
-            grep -Fx -- "$required_setting" >/dev/null || return 1
-    done
+    printf '%s\n' "$effective_configuration" |
+        effective_sshd_output_is_hardened
 }
 
-if ! validate_effective_configuration "$target_user" ||
-    ! validate_effective_configuration root; then
+validate_effective_contexts() {
+    context_user=$1
+    validate_effective_configuration \
+        "$context_user" \
+        "$ssh_client_address" \
+        "$ssh_server_address" \
+        "$ssh_server_port" &&
+        validate_effective_configuration \
+            "$context_user" "198.51.100.10" "192.0.2.10" 22 &&
+        validate_effective_configuration \
+            "$context_user" "2001:db8::10" "2001:db8::20" 22
+}
+
+if ! validate_effective_contexts "$target_user" ||
+    ! validate_effective_contexts root; then
     restore_previous_dropin
     die "SSH hardening is not effective; the previous drop-in was restored."
 fi

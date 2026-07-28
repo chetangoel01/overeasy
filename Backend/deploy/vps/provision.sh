@@ -11,6 +11,13 @@ if [ "$(id -u)" -ne 0 ]; then
     die "Run provision.sh as root."
 fi
 
+script_directory=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+host_validation_source=$script_directory/host-validation.sh
+if [ ! -f "$host_validation_source" ] || [ -L "$host_validation_source" ]; then
+    die "Missing regular host validation library: $host_validation_source"
+fi
+. "$host_validation_source"
+
 if [ ! -r /etc/os-release ]; then
     die "Cannot verify the operating system: /etc/os-release is unavailable."
 fi
@@ -37,6 +44,7 @@ deploy_group=$(id -gn "$deploy_user")
 
 docker_key_asc=
 docker_key_gpg=
+docker_key_metadata=
 docker_source_tmp=
 ipv4_rules_tmp=
 ipv6_rules_tmp=
@@ -48,6 +56,7 @@ cleanup() {
     for temporary_path in \
         "$docker_key_asc" \
         "$docker_key_gpg" \
+        "$docker_key_metadata" \
         "$docker_source_tmp" \
         "$ipv4_rules_tmp" \
         "$ipv6_rules_tmp" \
@@ -74,21 +83,29 @@ apt-get install -y \
 
 install -d -o root -g root -m 0755 /etc/apt/keyrings
 docker_key_asc=$(mktemp /tmp/ladle-docker-key.XXXXXX)
-docker_key_gpg=$(mktemp /tmp/ladle-docker-keyring.XXXXXX)
+docker_key_gpg=$(mktemp /etc/apt/keyrings/.docker.gpg.XXXXXX)
+docker_key_metadata=$(mktemp /tmp/ladle-docker-key-metadata.XXXXXX)
 curl --proto '=https' --tlsv1.2 -fsSL \
     https://download.docker.com/linux/ubuntu/gpg \
     -o "$docker_key_asc"
-docker_key_fingerprint=$(
-    gpg --batch --with-colons --show-keys "$docker_key_asc" |
-        awk -F: '$1 == "fpr" { print $10; exit }'
-)
-if [ "$docker_key_fingerprint" != \
-    "9DC858229FC7DD38854AE2D88D81803C0EBFCD88" ]; then
+docker_expected_fingerprint=9DC858229FC7DD38854AE2D88D81803C0EBFCD88
+gpg --batch --with-colons --show-keys \
+    "$docker_key_asc" >"$docker_key_metadata"
+if ! docker_key_metadata_is_trusted \
+    "$docker_key_metadata" "$docker_expected_fingerprint"; then
     die "The Docker repository signing key fingerprint is unexpected."
 fi
 gpg --batch --yes --dearmor --output "$docker_key_gpg" "$docker_key_asc"
-install -o root -g root -m 0644 \
-    "$docker_key_gpg" /etc/apt/keyrings/docker.gpg
+chmod 0644 "$docker_key_gpg"
+chown root:root "$docker_key_gpg"
+gpg --batch --with-colons --show-keys \
+    "$docker_key_gpg" >"$docker_key_metadata"
+if ! docker_key_metadata_is_trusted \
+    "$docker_key_metadata" "$docker_expected_fingerprint"; then
+    die "The dearmored Docker signing key is unexpected."
+fi
+mv -f -- "$docker_key_gpg" /etc/apt/keyrings/docker.gpg
+docker_key_gpg=
 
 docker_architecture=$(dpkg --print-architecture)
 case "$docker_architecture" in
@@ -123,19 +140,16 @@ install -d -o root -g root -m 0700 /var/backups/ladle
 install -d -o root -g root -m 0750 /var/lib/ladle
 install -d -o root -g root -m 0700 /etc/iptables
 
-public_interface=$(
-    /usr/sbin/ip -4 route show default |
-        awk '/default/ { for (i = 1; i <= NF; i++) if ($i == "dev") { print $(i + 1); exit } }'
-)
-if [ -z "$public_interface" ]; then
-    public_interface=$(
-        /usr/sbin/ip -6 route show default |
-            awk '/default/ { for (i = 1; i <= NF; i++) if ($i == "dev") { print $(i + 1); exit } }'
-    )
-fi
-case "$public_interface" in
-    "" | *[!A-Za-z0-9_.:-]*) die "Cannot safely detect the public interface." ;;
-esac
+ipv4_public_interface=$(
+    /usr/sbin/ip -4 route show default | public_interface_from_routes
+) || die "Cannot detect one trustworthy IPv4 public interface."
+ipv6_public_interface=$(
+    /usr/sbin/ip -6 route show default | public_interface_from_routes
+) || die "Cannot detect one trustworthy IPv6 public interface."
+public_interface_is_safe "$ipv4_public_interface" ||
+    die "The IPv4 public interface name is unsafe."
+public_interface_is_safe "$ipv6_public_interface" ||
+    die "The IPv6 public interface name is unsafe."
 
 ipv4_rules_tmp=$(mktemp /etc/iptables/.rules.v4.XXXXXX)
 cat >"$ipv4_rules_tmp" <<LADLE_IPV4_RULES
@@ -154,14 +168,18 @@ cat >"$ipv4_rules_tmp" <<LADLE_IPV4_RULES
 -A DOCKER-USER -j LADLE_DOCKER_PUBLIC_A
 -A DOCKER-USER -j RETURN
 -A LADLE_DOCKER_PUBLIC_A -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
--A LADLE_DOCKER_PUBLIC_A -i $public_interface -p tcp -m conntrack --ctstate NEW --ctorigdstport 80 -j ACCEPT
--A LADLE_DOCKER_PUBLIC_A -i $public_interface -p tcp -m conntrack --ctstate NEW --ctorigdstport 443 -j ACCEPT
--A LADLE_DOCKER_PUBLIC_A -i $public_interface -p udp -m conntrack --ctstate NEW --ctorigdstport 443 -j ACCEPT
--A LADLE_DOCKER_PUBLIC_A -i $public_interface -m conntrack --ctstate NEW -j REJECT
+-A LADLE_DOCKER_PUBLIC_A -i $ipv4_public_interface -p tcp -m conntrack --ctstate NEW --ctorigdstport 80 -j ACCEPT
+-A LADLE_DOCKER_PUBLIC_A -i $ipv4_public_interface -p tcp -m conntrack --ctstate NEW --ctorigdstport 443 -j ACCEPT
+-A LADLE_DOCKER_PUBLIC_A -i $ipv4_public_interface -p udp -m conntrack --ctstate NEW --ctorigdstport 443 -j ACCEPT
+-A LADLE_DOCKER_PUBLIC_A -i $ipv4_public_interface -m conntrack --ctstate NEW -j REJECT
 -A LADLE_DOCKER_PUBLIC_A -j RETURN
 COMMIT
 LADLE_IPV4_RULES
-install -o root -g root -m 0600 "$ipv4_rules_tmp" /etc/iptables/rules.v4
+chmod 0600 "$ipv4_rules_tmp"
+chown root:root "$ipv4_rules_tmp"
+/usr/sbin/iptables-restore --test <"$ipv4_rules_tmp"
+mv -f -- "$ipv4_rules_tmp" /etc/iptables/rules.v4
+ipv4_rules_tmp=
 
 ipv6_rules_tmp=$(mktemp /etc/iptables/.rules.v6.XXXXXX)
 cat >"$ipv6_rules_tmp" <<LADLE_IPV6_RULES
@@ -180,14 +198,18 @@ cat >"$ipv6_rules_tmp" <<LADLE_IPV6_RULES
 -A DOCKER-USER -j LADLE_DOCKER_PUBLIC_A
 -A DOCKER-USER -j RETURN
 -A LADLE_DOCKER_PUBLIC_A -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
--A LADLE_DOCKER_PUBLIC_A -i $public_interface -p tcp -m conntrack --ctstate NEW --ctorigdstport 80 -j ACCEPT
--A LADLE_DOCKER_PUBLIC_A -i $public_interface -p tcp -m conntrack --ctstate NEW --ctorigdstport 443 -j ACCEPT
--A LADLE_DOCKER_PUBLIC_A -i $public_interface -p udp -m conntrack --ctstate NEW --ctorigdstport 443 -j ACCEPT
--A LADLE_DOCKER_PUBLIC_A -i $public_interface -m conntrack --ctstate NEW -j REJECT
+-A LADLE_DOCKER_PUBLIC_A -i $ipv6_public_interface -p tcp -m conntrack --ctstate NEW --ctorigdstport 80 -j ACCEPT
+-A LADLE_DOCKER_PUBLIC_A -i $ipv6_public_interface -p tcp -m conntrack --ctstate NEW --ctorigdstport 443 -j ACCEPT
+-A LADLE_DOCKER_PUBLIC_A -i $ipv6_public_interface -p udp -m conntrack --ctstate NEW --ctorigdstport 443 -j ACCEPT
+-A LADLE_DOCKER_PUBLIC_A -i $ipv6_public_interface -m conntrack --ctstate NEW -j REJECT
 -A LADLE_DOCKER_PUBLIC_A -j RETURN
 COMMIT
 LADLE_IPV6_RULES
-install -o root -g root -m 0600 "$ipv6_rules_tmp" /etc/iptables/rules.v6
+chmod 0600 "$ipv6_rules_tmp"
+chown root:root "$ipv6_rules_tmp"
+/usr/sbin/ip6tables-restore --test <"$ipv6_rules_tmp"
+mv -f -- "$ipv6_rules_tmp" /etc/iptables/rules.v6
+ipv6_rules_tmp=
 
 apply_host_firewall() {
     firewall_command=$1
@@ -232,7 +254,6 @@ apply_host_firewall() {
 apply_host_firewall /usr/sbin/iptables icmp
 apply_host_firewall /usr/sbin/ip6tables ipv6-icmp
 
-script_directory=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 docker_firewall_source=$script_directory/ladle-docker-user.rules
 if [ ! -f "$docker_firewall_source" ] || [ -L "$docker_firewall_source" ]; then
     die "Missing regular Docker firewall source: $docker_firewall_source"
@@ -240,8 +261,11 @@ fi
 
 install -d -o root -g root -m 0755 /usr/local/sbin
 docker_firewall_tmp=$(mktemp /usr/local/sbin/.ladle-docker-user-firewall.XXXXXX)
-sed "s/@PUBLIC_INTERFACE@/$public_interface/g" \
-    "$docker_firewall_source" >"$docker_firewall_tmp"
+render_docker_firewall \
+    "$docker_firewall_source" \
+    "$ipv4_public_interface" \
+    "$ipv6_public_interface" >"$docker_firewall_tmp"
+sh -n "$docker_firewall_tmp"
 chmod 0755 "$docker_firewall_tmp"
 chown root:root "$docker_firewall_tmp"
 mv -f -- "$docker_firewall_tmp" /usr/local/sbin/ladle-docker-user-firewall
@@ -255,6 +279,7 @@ cat >"$docker_firewall_service_tmp" <<'LADLE_DOCKER_FIREWALL_SERVICE'
 Description=Ladle Docker public-ingress firewall
 Requires=docker.service
 After=docker.service
+PartOf=docker.service
 
 [Service]
 Type=oneshot
@@ -278,6 +303,9 @@ cat >"$docker_service_dropin_tmp" <<'LADLE_DOCKER_SERVICE_ORDERING'
 [Unit]
 Requires=netfilter-persistent.service
 After=netfilter-persistent.service
+
+[Service]
+ExecStartPost=/usr/local/sbin/ladle-docker-user-firewall
 LADLE_DOCKER_SERVICE_ORDERING
 chmod 0644 "$docker_service_dropin_tmp"
 chown root:root "$docker_service_dropin_tmp"

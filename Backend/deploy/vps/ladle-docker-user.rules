@@ -2,17 +2,19 @@
 set -eu
 umask 077
 
-public_interface='@PUBLIC_INTERFACE@'
-
-case "$public_interface" in
-    "" | *[!A-Za-z0-9_.:-]*)
-        printf '%s\n' "Invalid public interface: $public_interface" >&2
-        exit 1
-        ;;
-esac
+ipv4_public_interface='@PUBLIC_IPV4_INTERFACE@'
+ipv6_public_interface='@PUBLIC_IPV6_INTERFACE@'
 
 apply_rules() {
     firewall_command=$1
+    public_interface=$2
+
+    case "$public_interface" in
+        "" | [-.:_]* | *[!A-Za-z0-9_.:-]*)
+            printf '%s\n' "Invalid public interface: $public_interface" >&2
+            exit 1
+            ;;
+    esac
 
     if ! "$firewall_command" -nL DOCKER-USER >/dev/null 2>&1; then
         "$firewall_command" -N DOCKER-USER
@@ -60,5 +62,5 @@ apply_rules() {
     done
 }
 
-apply_rules /usr/sbin/iptables
-apply_rules /usr/sbin/ip6tables
+apply_rules /usr/sbin/iptables "$ipv4_public_interface"
+apply_rules /usr/sbin/ip6tables "$ipv6_public_interface"
