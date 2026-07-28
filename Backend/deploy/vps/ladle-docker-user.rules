@@ -1,0 +1,64 @@
+#!/bin/sh
+set -eu
+umask 077
+
+public_interface='@PUBLIC_INTERFACE@'
+
+case "$public_interface" in
+    "" | *[!A-Za-z0-9_.:-]*)
+        printf '%s\n' "Invalid public interface: $public_interface" >&2
+        exit 1
+        ;;
+esac
+
+apply_rules() {
+    firewall_command=$1
+
+    if ! "$firewall_command" -nL DOCKER-USER >/dev/null 2>&1; then
+        "$firewall_command" -N DOCKER-USER
+    fi
+    if ! "$firewall_command" -C FORWARD -j DOCKER-USER >/dev/null 2>&1; then
+        "$firewall_command" -I FORWARD 1 -j DOCKER-USER
+    fi
+    if "$firewall_command" -C DOCKER-USER \
+        -j LADLE_DOCKER_PUBLIC_A >/dev/null 2>&1; then
+        active_chain=LADLE_DOCKER_PUBLIC_A
+        next_chain=LADLE_DOCKER_PUBLIC_B
+    else
+        active_chain=LADLE_DOCKER_PUBLIC_B
+        next_chain=LADLE_DOCKER_PUBLIC_A
+    fi
+
+    while "$firewall_command" -C DOCKER-USER \
+        -j "$next_chain" >/dev/null 2>&1; do
+        "$firewall_command" -D DOCKER-USER -j "$next_chain"
+    done
+    if ! "$firewall_command" -nL "$next_chain" >/dev/null 2>&1; then
+        "$firewall_command" -N "$next_chain"
+    fi
+    "$firewall_command" -F "$next_chain"
+
+    "$firewall_command" -A "$next_chain" \
+        -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+    "$firewall_command" -A "$next_chain" \
+        -i "$public_interface" -p tcp -m conntrack --ctstate NEW \
+        --ctorigdstport 80 -j ACCEPT
+    "$firewall_command" -A "$next_chain" \
+        -i "$public_interface" -p tcp -m conntrack --ctstate NEW \
+        --ctorigdstport 443 -j ACCEPT
+    "$firewall_command" -A "$next_chain" \
+        -i "$public_interface" -p udp -m conntrack --ctstate NEW \
+        --ctorigdstport 443 -j ACCEPT
+    "$firewall_command" -A "$next_chain" \
+        -i "$public_interface" -m conntrack --ctstate NEW -j REJECT
+    "$firewall_command" -A "$next_chain" -j RETURN
+
+    "$firewall_command" -I DOCKER-USER 1 -j "$next_chain"
+    while "$firewall_command" -C DOCKER-USER \
+        -j "$active_chain" >/dev/null 2>&1; do
+        "$firewall_command" -D DOCKER-USER -j "$active_chain"
+    done
+}
+
+apply_rules /usr/sbin/iptables
+apply_rules /usr/sbin/ip6tables
