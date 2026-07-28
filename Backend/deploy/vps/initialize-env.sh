@@ -18,18 +18,7 @@ fi
 secret_group="ladle-secrets"
 env_file=/etc/ladle/ladle.env
 staging_key_file=/etc/ladle/staging-access-key
-required_keys="
-LADLE_PUBLIC_HOSTNAME
-LADLE_DATABASE_PASSWORD
-LADLE_DATABASE_PASSWORD_URL_ENCODED
-LADLE_WORKER_PROVIDER_MODE
-LADLE_JWT_SIGNING_SECRET
-LADLE_DATA_ENCRYPTION_KEY
-LADLE_METRICS_AUTH_TOKEN
-LADLE_OBJECT_STORAGE_ACCESS_KEY
-LADLE_OBJECT_STORAGE_SECRET_KEY
-LADLE_TUNNEL_ACCESS_KEY
-"
+environment_lock=/var/lock/ladle-environment.lock
 env_tmp=
 staging_tmp=
 initialization_phase=environment
@@ -51,6 +40,8 @@ cleanup() {
 trap cleanup 0
 trap 'exit 1' HUP INT TERM
 
+acquire_environment_lock "$environment_lock" 0 ||
+    die "Cannot acquire the staging environment lock."
 if ! getent group "$secret_group" >/dev/null 2>&1; then
     groupadd --system "$secret_group"
 fi
@@ -66,8 +57,6 @@ if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != root ]; then
 fi
 progress_init "$secret_group"
 progress "environment" "validating private staging environment"
-
-set -- $required_keys
 
 read_staging_key() {
     staging_read_file=$1
@@ -93,22 +82,10 @@ existing_tunnel_key=
 if [ -e "$env_file" ] || [ -L "$env_file" ]; then
     validate_env_metadata "$env_file" "$secret_group" ||
         die "Existing environment metadata is unsafe."
-    validate_required_env "$env_file" "$@" ||
+    validate_staging_environment "$env_file" ||
         die "Existing environment is incomplete or invalid."
     existing_tunnel_key=$(dotenv_value "$env_file" LADLE_TUNNEL_ACCESS_KEY) ||
         die "Existing tunnel key is invalid."
-    existing_hostname=$(dotenv_value "$env_file" LADLE_PUBLIC_HOSTNAME) ||
-        die "Existing public hostname is invalid."
-    validate_hostname "$existing_hostname" ||
-        die "Existing public hostname is invalid."
-    existing_database_password=$(
-        dotenv_value "$env_file" LADLE_DATABASE_PASSWORD
-    ) || die "Existing database password is invalid."
-    existing_encoded_password=$(
-        dotenv_value "$env_file" LADLE_DATABASE_PASSWORD_URL_ENCODED
-    ) || die "Existing encoded database password is invalid."
-    [ "$existing_database_password" = "$existing_encoded_password" ] ||
-        die "Database password values do not match."
 else
     LADLE_PUBLIC_HOSTNAME=${LADLE_PUBLIC_HOSTNAME:-api.ladle.app}
     validate_hostname "$LADLE_PUBLIC_HOSTNAME" ||
@@ -149,7 +126,7 @@ else
     } >"$env_tmp"
     chmod 0640 "$env_tmp"
     chown root:"$secret_group" "$env_tmp"
-    validate_required_env "$env_tmp" "$@" ||
+    validate_staging_environment "$env_tmp" ||
         die "Generated environment failed validation."
     mv -f -- "$env_tmp" "$env_file"
     env_tmp=
@@ -172,7 +149,7 @@ fi
 
 validate_env_metadata "$env_file" "$secret_group" ||
     die "Environment metadata validation failed."
-validate_required_env "$env_file" "$@" ||
+validate_staging_environment "$env_file" ||
     die "Environment validation failed."
 read_staging_key "$staging_key_file" ||
     die "Staging access key validation failed."

@@ -105,6 +105,254 @@ validate_env_metadata() {
     [ "$(stat -c '%u:%g:%a' -- "$metadata_file")" = "0:$expected_group_id:640" ]
 }
 
+file_uid_mode() {
+    metadata_target=$1
+    if stat -c '%u:%a' -- "$metadata_target" >/dev/null 2>&1; then
+        stat -c '%u:%a' -- "$metadata_target"
+    else
+        stat -f '%u:%Lp' -- "$metadata_target"
+    fi
+}
+
+release_directory_is_safe() {
+    safe_release=$1
+    safe_release_uid=$2
+    [ -d "$safe_release" ] && [ ! -L "$safe_release" ] || return 1
+    [ "$(readlink -f -- "$safe_release")" = "$safe_release" ] || return 1
+    [ "$(file_uid_mode "$safe_release")" = "$safe_release_uid:755" ] || return 1
+    for safe_release_script in \
+        Backend/deploy/vps/initialize-env.sh \
+        Backend/deploy/vps/deploy.sh \
+        Backend/deploy/vps/deployment-lib.sh; do
+        [ -f "$safe_release/$safe_release_script" ] &&
+            [ ! -L "$safe_release/$safe_release_script" ] || return 1
+        [ "$(file_uid_mode "$safe_release/$safe_release_script")" = \
+            "$safe_release_uid:755" ] || return 1
+    done
+    for safe_release_config in \
+        Backend/docker-compose.yml \
+        Backend/deploy/vps/docker-compose.yml; do
+        [ -f "$safe_release/$safe_release_config" ] &&
+            [ ! -L "$safe_release/$safe_release_config" ] || return 1
+        [ "$(file_uid_mode "$safe_release/$safe_release_config")" = \
+            "$safe_release_uid:644" ] || return 1
+    done
+}
+
+lock_file_is_safe() {
+    safe_lock=$1
+    safe_lock_uid=$2
+    [ -f "$safe_lock" ] && [ ! -L "$safe_lock" ] || return 1
+    [ "$(readlink -f -- "$safe_lock")" = "$safe_lock" ] || return 1
+    [ "$(file_uid_mode "$safe_lock")" = "$safe_lock_uid:600" ]
+}
+
+acquire_environment_lock() {
+    environment_lock_path=$1
+    environment_lock_uid=$2
+    lock_file_is_safe "$environment_lock_path" "$environment_lock_uid" ||
+        return 1
+    exec 8>"$environment_lock_path"
+    flock 8 || return 1
+    lock_file_is_safe "$environment_lock_path" "$environment_lock_uid"
+}
+
+acquire_deployment_lock() {
+    deployment_lock_path=$1
+    deployment_lock_uid=$2
+    lock_file_is_safe "$deployment_lock_path" "$deployment_lock_uid" ||
+        return 1
+    exec 9>"$deployment_lock_path"
+    flock -n 9 || return 1
+    lock_file_is_safe "$deployment_lock_path" "$deployment_lock_uid"
+}
+
+validate_staging_environment() {
+    staging_env_file=$1
+    validate_required_env "$staging_env_file" \
+        LADLE_PUBLIC_HOSTNAME \
+        LADLE_DATABASE_PASSWORD \
+        LADLE_DATABASE_PASSWORD_URL_ENCODED \
+        LADLE_WORKER_PROVIDER_MODE \
+        LADLE_JWT_SIGNING_SECRET \
+        LADLE_DATA_ENCRYPTION_KEY \
+        LADLE_METRICS_AUTH_TOKEN \
+        LADLE_OBJECT_STORAGE_ACCESS_KEY \
+        LADLE_OBJECT_STORAGE_SECRET_KEY \
+        LADLE_TUNNEL_ACCESS_KEY ||
+        return 1
+    staging_hostname=$(dotenv_value "$staging_env_file" LADLE_PUBLIC_HOSTNAME) ||
+        return 1
+    validate_hostname "$staging_hostname" || return 1
+    staging_database_password=$(
+        dotenv_value "$staging_env_file" LADLE_DATABASE_PASSWORD
+    ) || return 1
+    staging_encoded_password=$(
+        dotenv_value "$staging_env_file" LADLE_DATABASE_PASSWORD_URL_ENCODED
+    ) || return 1
+    [ "$staging_database_password" = "$staging_encoded_password" ] || return 1
+    staging_provider_mode=$(
+        dotenv_value "$staging_env_file" LADLE_WORKER_PROVIDER_MODE
+    ) || return 1
+    case "$staging_provider_mode" in
+        fake) ;;
+        live)
+            dotenv_value "$staging_env_file" LADLE_OPENROUTER_API_KEY \
+                >/dev/null || return 1
+            ;;
+        *) return 1 ;;
+    esac
+}
+
+write_provider_secret_candidate() {
+    provider_source=$1
+    provider_candidate=$2
+    provider_name=$3
+    provider_value=$4
+    validate_staging_environment "$provider_source" || return 1
+    validate_dotenv_value "$provider_value" || return 1
+    case "$provider_name" in
+        LADLE_OPENROUTER_API_KEY | \
+            LADLE_SUPADATA_API_KEY | \
+            LADLE_SOSCRIPTED_API_KEY)
+            ;;
+        *) return 1 ;;
+    esac
+    [ ! -e "$provider_candidate" ] || [ -f "$provider_candidate" ] || return 1
+    if [ "$provider_name" = LADLE_OPENROUTER_API_KEY ]; then
+        grep -v -E \
+            '^(LADLE_OPENROUTER_API_KEY|LADLE_WORKER_PROVIDER_MODE)=' \
+            "$provider_source" >"$provider_candidate" || true
+        printf '%s=%s\n' "$provider_name" "$provider_value" >>"$provider_candidate"
+        printf 'LADLE_WORKER_PROVIDER_MODE=live\n' >>"$provider_candidate"
+    else
+        grep -v -E "^${provider_name}=" \
+            "$provider_source" >"$provider_candidate" || true
+        printf '%s=%s\n' "$provider_name" "$provider_value" >>"$provider_candidate"
+    fi
+    validate_staging_environment "$provider_candidate"
+}
+
+write_deployment_state() {
+    state_directory=$1
+    state_status=$2
+    state_revision=$3
+    state_phase=$4
+    state_uid=$5
+    [ -d "$state_directory" ] && [ ! -L "$state_directory" ] || return 1
+    [ "$(readlink -f -- "$state_directory")" = "$state_directory" ] || return 1
+    [ "$(file_uid_mode "$state_directory")" = "$state_uid:750" ] || return 1
+    case "$state_status" in
+        deploying | failed | active) ;;
+        *) return 1 ;;
+    esac
+    validate_revision "$state_revision" || return 1
+    case "$state_phase" in
+        "" | *[!a-z0-9-]*) return 1 ;;
+    esac
+    deployment_state_tmp=$(mktemp "$state_directory/.deployment-state.XXXXXX") ||
+        return 1
+    if ! {
+        {
+            printf 'STATUS=%s\n' "$state_status"
+            printf 'REVISION=%s\n' "$state_revision"
+            printf 'PHASE=%s\n' "$state_phase"
+        } >"$deployment_state_tmp" &&
+            chmod 0644 "$deployment_state_tmp" &&
+            [ "$(file_uid_mode "$deployment_state_tmp")" = "$state_uid:644" ] &&
+            mv -f -- "$deployment_state_tmp" "$state_directory/deployment-state" &&
+            sync
+    }; then
+        rm -f -- "$deployment_state_tmp"
+        return 1
+    fi
+    deployment_state_tmp=
+}
+
+deployment_state_matches_current() {
+    active_state_file=$1
+    active_current=$2
+    active_state_uid=${3:-0}
+    [ -f "$active_state_file" ] && [ ! -L "$active_state_file" ] || return 1
+    [ "$(file_uid_mode "$active_state_file")" = "$active_state_uid:644" ] ||
+        return 1
+    [ -L "$active_current" ] || return 1
+    active_release=$(readlink -f -- "$active_current") || return 1
+    active_revision=${active_release##*/}
+    validate_revision "$active_revision" || return 1
+    LC_ALL=C awk -F= -v revision="$active_revision" '
+        $0 !~ /^(STATUS|REVISION|PHASE)=[a-z0-9-]+$/ {
+            invalid = 1
+        }
+        $1 == "STATUS" {
+            status_count++
+            status = $2
+        }
+        $1 == "REVISION" {
+            revision_count++
+            state_revision = $2
+        }
+        $1 == "PHASE" {
+            phase_count++
+            phase = $2
+        }
+        END {
+            if (invalid ||
+                NR != 3 ||
+                status_count != 1 ||
+                revision_count != 1 ||
+                phase_count != 1 ||
+                status != "active" ||
+                state_revision != revision ||
+                phase != "complete") {
+                exit 1
+            }
+        }
+    ' "$active_state_file"
+}
+
+rollout_worker_pair() {
+    compose rm -f -s worker || return 1
+    compose up -d --no-build --no-deps --wait --wait-timeout 120 \
+        worker-egress || return 1
+    compose up -d --no-build --no-deps --wait --wait-timeout 120 \
+        --force-recreate worker
+}
+
+wait_for_beat_stability() {
+    beat_checks=$1
+    beat_interval=$2
+    case "$beat_checks:$beat_interval" in
+        *[!0-9:]*) return 1 ;;
+    esac
+    [ "$beat_checks" -ge 3 ] && [ "$beat_checks" -le 20 ] || return 1
+    [ "$beat_interval" -ge 1 ] && [ "$beat_interval" -le 30 ] || return 1
+    beat_expected_id=$(compose ps --status running -q beat) || return 1
+    case "$beat_expected_id" in
+        "" | *[!0-9a-f]*) return 1 ;;
+    esac
+    [ "${#beat_expected_id}" -eq 64 ] || return 1
+    beat_observation=1
+    while [ "$beat_observation" -le "$beat_checks" ]; do
+        beat_current_id=$(compose ps --status running -q beat) || return 1
+        [ "$beat_current_id" = "$beat_expected_id" ] || return 1
+        beat_state=$(
+            docker inspect \
+                --format '{{.State.Running}} {{.State.Restarting}} {{.RestartCount}}' \
+                "$beat_expected_id"
+        ) || return 1
+        set -f
+        set -- $beat_state
+        set +f
+        [ "$#" -eq 3 ] || return 1
+        [ "$1" = true ] && [ "$2" = false ] && [ "$3" = 0 ] || return 1
+        if [ "$beat_observation" -lt "$beat_checks" ]; then
+            sleep "$beat_interval"
+        fi
+        beat_observation=$((beat_observation + 1))
+    done
+}
+
 revision_marker_matches() {
     marker_file=$1
     expected_revision=$2

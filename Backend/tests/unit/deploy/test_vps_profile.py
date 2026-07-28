@@ -119,6 +119,64 @@ def _run_deployment_library(
     )
 
 
+def _run_library_script(
+    script: str,
+    *arguments: str | Path,
+    env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [
+            "/bin/sh",
+            "-c",
+            f'. "$1"; shift; {script}',
+            "test",
+            str(DEPLOYMENT_LIB),
+            *(str(argument) for argument in arguments),
+        ],
+        check=False,
+        capture_output=True,
+        env={**os.environ, **(env or {})},
+        text=True,
+    )
+
+
+def _write_fake_flock(path: Path) -> None:
+    path.write_text(
+        """#!/usr/bin/env python3
+import fcntl
+import sys
+
+arguments = sys.argv[1:]
+nonblocking = arguments[0] == "-n"
+descriptor = int(arguments[-1])
+operation = fcntl.LOCK_EX | (fcntl.LOCK_NB if nonblocking else 0)
+try:
+    fcntl.flock(descriptor, operation)
+except BlockingIOError:
+    raise SystemExit(1)
+"""
+    )
+    path.chmod(0o755)
+
+
+def _staging_environment() -> str:
+    return "\n".join(
+        (
+            "LADLE_PUBLIC_HOSTNAME=api.ladle.app",
+            "LADLE_DATABASE_PASSWORD=abc123",
+            "LADLE_DATABASE_PASSWORD_URL_ENCODED=abc123",
+            "LADLE_WORKER_PROVIDER_MODE=fake",
+            "LADLE_JWT_SIGNING_SECRET=jwt123",
+            "LADLE_DATA_ENCRYPTION_KEY=data123",
+            "LADLE_METRICS_AUTH_TOKEN=metrics123",
+            "LADLE_OBJECT_STORAGE_ACCESS_KEY=access123",
+            "LADLE_OBJECT_STORAGE_SECRET_KEY=storage123",
+            "LADLE_TUNNEL_ACCESS_KEY=tunnel123",
+            "",
+        )
+    )
+
+
 def _write_fake_iptables(path: Path) -> None:
     path.write_text(
         """#!/usr/bin/env python3
@@ -1333,7 +1391,7 @@ def test_initialize_env_is_root_only_atomic_recoverable_and_complete() -> None:
         "LADLE_TUNNEL_ACCESS_KEY",
     ):
         assert variable in initialize
-    assert "validate_required_env" in initialize
+    assert "validate_staging_environment" in initialize
     assert "dotenv_value" in initialize
     assert "existing_tunnel_key" in initialize
     assert "printf '%s\\n' \"$tunnel_key\"" not in initialize
@@ -1396,12 +1454,12 @@ def test_set_secret_accepts_only_stdin_allowlisted_safe_values_atomically() -> N
     assert "chmod 0640" in script
     assert "chown root:" in script
     assert "mv -f --" in script
-    assert "LADLE_WORKER_PROVIDER_MODE=live" in script
+    assert "LADLE_WORKER_PROVIDER_MODE=live" in library
     assert script.index("LADLE_OPENROUTER_API_KEY") < script.index(
-        "LADLE_WORKER_PROVIDER_MODE=live"
+        "write_provider_secret_candidate"
     )
     assert "printf '%s\\n' \"$secret_value\"" not in script
-    assert 'printf \'%s=%s\\n\' "$secret_name" "$secret_value"' in script
+    assert 'printf \'%s=%s\\n\' "$provider_name" "$provider_value"' in library
     assert "cat /etc/ladle" not in script
     assert ". /etc/ladle" not in script
 
@@ -1488,12 +1546,12 @@ def test_deploy_validates_exact_release_and_stable_project_before_mutation() -> 
     assert "revision_marker_matches" in deploy
     assert "/etc/ladle/ladle.env" in deploy
     assert "validate_env_metadata" in deploy
-    assert "validate_required_env" in deploy
+    assert "validate_staging_environment" in deploy
     assert "COMPOSE_PROJECT_NAME=ladle" in deploy
     assert "--project-name ladle" in deploy
     assert '--project-directory "$backend_directory"' in deploy
     assert "config --quiet" in deploy
-    assert "flock -n" in deploy
+    assert "flock -n" in DEPLOYMENT_LIB.read_text()
     assert ". /etc/ladle" not in deploy
     assert "cat /etc/ladle" not in deploy
 
@@ -1502,14 +1560,13 @@ def test_deploy_validates_exact_release_and_stable_project_before_mutation() -> 
     build = deploy.index("build migrate minio-init", data)
     bucket = deploy.index("run --rm minio-init", build)
     migrate = deploy.index("run --rm migrate", bucket)
-    egress = deploy.index("worker-egress", migrate)
-    worker = deploy.index("force-recreate worker", egress)
-    api = deploy.index("--no-deps api", worker)
-    beat = deploy.index("--no-deps beat", api)
+    worker_pair = deploy.index("rollout_worker_pair", migrate)
+    api = deploy.index("--no-deps api", worker_pair)
+    beat = deploy.index("--force-recreate beat", api)
     edge = deploy.index("--no-deps edge", beat)
     caddy = deploy.index("--no-deps caddy", edge)
-    assert config < data < build < bucket < migrate < egress
-    assert egress < worker < api < beat < edge < caddy
+    assert config < data < build < bucket < migrate < worker_pair
+    assert worker_pair < api < beat < edge < caddy
 
 
 def test_deploy_waits_for_api_edge_worker_and_activates_last() -> None:
@@ -1593,6 +1650,7 @@ def test_release_scripts_stream_sanitized_progress_to_a_private_server_log() -> 
         "api-readiness",
         "edge-readiness",
         "worker-readiness",
+        "beat-readiness",
         "activation",
         "success",
     )
@@ -1623,3 +1681,432 @@ def test_release_scripts_stream_sanitized_progress_to_a_private_server_log() -> 
         'sudo -n "$release/Backend/deploy/vps/initialize-env.sh"'
     )
     assert remote_progress < remote_archive < remote_upload < remote_initialize
+
+
+def test_release_permission_boundary_requires_a_traversable_immutable_root(
+    tmp_path: Path,
+) -> None:
+    release = tmp_path / "release"
+    critical_paths = (
+        "Backend/deploy/vps/initialize-env.sh",
+        "Backend/deploy/vps/deploy.sh",
+        "Backend/deploy/vps/deployment-lib.sh",
+        "Backend/docker-compose.yml",
+        "Backend/deploy/vps/docker-compose.yml",
+    )
+    for relative_path in critical_paths:
+        target = release / relative_path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("#!/bin/sh\n")
+        target.chmod(0o755 if target.suffix == ".sh" else 0o644)
+
+    for unsafe_mode in (0o000, 0o700):
+        release.chmod(unsafe_mode)
+        result = _run_deployment_library(
+            "release_directory_is_safe",
+            release,
+            str(os.getuid()),
+        )
+        assert result.returncode != 0
+
+    release.chmod(0o755)
+    safe = _run_deployment_library(
+        "release_directory_is_safe",
+        release,
+        str(os.getuid()),
+    )
+    assert safe.returncode == 0, safe.stderr
+    push = PUSH.read_text()
+    assert push.index('sudo -n chmod 0755 "$incoming"') < push.index(
+        'release_root_is_safe "$incoming"'
+    )
+    remote_validator = push[push.index("release_root_is_safe()") :]
+    assert 'release_library="$root_release/Backend/deploy/vps/deployment-lib.sh"' in (
+        remote_validator
+    )
+    assert '. "$release_library"' in remote_validator
+    assert 'release_directory_is_safe "$root_release" 0' in remote_validator
+
+
+def test_environment_lock_serializes_initializers_and_deploy_mutation(
+    tmp_path: Path,
+) -> None:
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    _write_fake_flock(fake_bin / "flock")
+    lock = tmp_path / "environment.lock"
+    lock.touch(mode=0o600)
+    trace = tmp_path / "trace"
+    runner = tmp_path / "lock-runner.sh"
+    runner.write_text(
+        f"""#!/bin/sh
+set -eu
+. "{DEPLOYMENT_LIB}"
+acquire_environment_lock "$1" "$2"
+printf 'start-%s\\n' "$3" >>"$4"
+sleep 0.2
+printf 'end-%s\\n' "$3" >>"$4"
+"""
+    )
+    runner.chmod(0o755)
+    command_env = {**os.environ, "PATH": f"{fake_bin}:{os.environ['PATH']}"}
+
+    first = subprocess.Popen(
+        [str(runner), str(lock), str(os.getuid()), "initializer", str(trace)],
+        env=command_env,
+    )
+    second = subprocess.Popen(
+        [str(runner), str(lock), str(os.getuid()), "deploy", str(trace)],
+        env=command_env,
+    )
+    assert first.wait(timeout=5) == 0
+    assert second.wait(timeout=5) == 0
+
+    lines = trace.read_text().splitlines()
+    assert lines in (
+        ["start-initializer", "end-initializer", "start-deploy", "end-deploy"],
+        ["start-deploy", "end-deploy", "start-initializer", "end-initializer"],
+    )
+
+
+def test_concurrent_provider_updates_preserve_both_secrets(tmp_path: Path) -> None:
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    _write_fake_flock(fake_bin / "flock")
+    lock = tmp_path / "environment.lock"
+    lock.touch(mode=0o600)
+    environment = tmp_path / "ladle.env"
+    environment.write_text(_staging_environment())
+    updater = tmp_path / "update.sh"
+    updater.write_text(
+        f"""#!/bin/sh
+set -eu
+umask 077
+. "{DEPLOYMENT_LIB}"
+acquire_environment_lock "$1" "$2"
+candidate=$(mktemp "$3.candidate.XXXXXX")
+write_provider_secret_candidate "$3" "$candidate" "$4" "$5"
+sleep 0.1
+mv -f -- "$candidate" "$3"
+"""
+    )
+    updater.chmod(0o755)
+    command_env = {**os.environ, "PATH": f"{fake_bin}:{os.environ['PATH']}"}
+
+    first = subprocess.Popen(
+        [
+            str(updater),
+            str(lock),
+            str(os.getuid()),
+            str(environment),
+            "LADLE_SUPADATA_API_KEY",
+            "supadata-value",
+        ],
+        env=command_env,
+    )
+    second = subprocess.Popen(
+        [
+            str(updater),
+            str(lock),
+            str(os.getuid()),
+            str(environment),
+            "LADLE_SOSCRIPTED_API_KEY",
+            "soscripted-value",
+        ],
+        env=command_env,
+    )
+    assert first.wait(timeout=5) == 0
+    assert second.wait(timeout=5) == 0
+    final = environment.read_text()
+    assert "LADLE_SUPADATA_API_KEY=supadata-value\n" in final
+    assert "LADLE_SOSCRIPTED_API_KEY=soscripted-value\n" in final
+
+
+def test_staging_environment_validation_enforces_cross_field_invariants(
+    tmp_path: Path,
+) -> None:
+    environment = tmp_path / "ladle.env"
+    environment.write_text(_staging_environment())
+    assert (
+        _run_deployment_library("validate_staging_environment", environment).returncode
+        == 0
+    )
+
+    environment.write_text(
+        _staging_environment().replace(
+            "LADLE_DATABASE_PASSWORD_URL_ENCODED=abc123",
+            "LADLE_DATABASE_PASSWORD_URL_ENCODED=different",
+        )
+    )
+    assert (
+        _run_deployment_library("validate_staging_environment", environment).returncode
+        != 0
+    )
+
+    environment.write_text(
+        _staging_environment().replace(
+            "LADLE_WORKER_PROVIDER_MODE=fake",
+            "LADLE_WORKER_PROVIDER_MODE=live",
+        )
+    )
+    assert (
+        _run_deployment_library("validate_staging_environment", environment).returncode
+        != 0
+    )
+
+    candidate = tmp_path / "candidate.env"
+    environment.write_text(_staging_environment())
+    written = _run_deployment_library(
+        "write_provider_secret_candidate",
+        environment,
+        candidate,
+        "LADLE_OPENROUTER_API_KEY",
+        "openrouter-value",
+    )
+    assert written.returncode == 0, written.stderr
+    assert "LADLE_WORKER_PROVIDER_MODE=live\n" in candidate.read_text()
+    assert (
+        _run_deployment_library("validate_staging_environment", candidate).returncode
+        == 0
+    )
+
+
+def test_environment_lock_is_shared_and_acquired_before_environment_reads() -> None:
+    provision = PROVISION.read_text()
+    initialize = INITIALIZE_ENV.read_text()
+    set_secret = SET_SECRET.read_text()
+    deploy = DEPLOY.read_text()
+
+    assert "/var/lock/ladle-environment.lock" in provision
+    assert "mode 0600" in provision
+    assert "/var/lock/ladle-environment.lock" in initialize
+    assert "/var/lock/ladle-environment.lock" in set_secret
+    assert "/var/lock/ladle-environment.lock" in deploy
+    assert initialize.index("acquire_environment_lock") < initialize.index(
+        'if [ -e "$env_file" ]'
+    )
+    assert set_secret.index("acquire_environment_lock") < set_secret.index(
+        'validate_env_metadata "$env_file"'
+    )
+    assert deploy.index("acquire_deployment_lock") < deploy.index(
+        "acquire_environment_lock"
+    )
+    assert deploy.index("acquire_environment_lock") < deploy.index(
+        'validate_env_metadata "$env_file"'
+    )
+    assert deploy.index("acquire_environment_lock") < deploy.index(
+        "compose config --quiet"
+    )
+
+
+def test_deployment_state_flags_failure_without_changing_current(
+    tmp_path: Path,
+) -> None:
+    state_directory = tmp_path / "state"
+    state_directory.mkdir(mode=0o750)
+    releases = tmp_path / "releases"
+    releases.mkdir()
+    previous = releases / ("a" * 40)
+    candidate = releases / ("b" * 40)
+    previous.mkdir(mode=0o755)
+    candidate.mkdir(mode=0o755)
+    current = tmp_path / "current"
+    current.symlink_to(previous)
+    state_file = state_directory / "deployment-state"
+
+    deploying = _run_deployment_library(
+        "write_deployment_state",
+        state_directory,
+        "deploying",
+        candidate.name,
+        "migrations",
+        str(os.getuid()),
+    )
+    assert deploying.returncode == 0, deploying.stderr
+    failed = _run_deployment_library(
+        "write_deployment_state",
+        state_directory,
+        "failed",
+        candidate.name,
+        "migrations",
+        str(os.getuid()),
+    )
+    assert failed.returncode == 0, failed.stderr
+
+    assert current.resolve() == previous
+    assert state_file.stat().st_mode & 0o777 == 0o644
+    assert state_file.read_text() == (
+        f"STATUS=failed\nREVISION={candidate.name}\nPHASE=migrations\n"
+    )
+    authoritative = _run_deployment_library(
+        "deployment_state_matches_current",
+        state_file,
+        current,
+        str(os.getuid()),
+    )
+    assert authoritative.returncode != 0
+
+
+def test_deployment_state_becomes_active_only_after_activation(tmp_path: Path) -> None:
+    state_directory = tmp_path / "state"
+    state_directory.mkdir(mode=0o750)
+    release = tmp_path / ("c" * 40)
+    release.mkdir(mode=0o755)
+    current = tmp_path / "current"
+    state_file = state_directory / "deployment-state"
+
+    assert (
+        _run_deployment_library(
+            "write_deployment_state",
+            state_directory,
+            "deploying",
+            release.name,
+            "activation",
+            str(os.getuid()),
+        ).returncode
+        == 0
+    )
+    assert _run_deployment_library("activate_release", release, current).returncode == 0
+    assert (
+        _run_deployment_library(
+            "write_deployment_state",
+            state_directory,
+            "active",
+            release.name,
+            "complete",
+            str(os.getuid()),
+        ).returncode
+        == 0
+    )
+    authoritative = _run_deployment_library(
+        "deployment_state_matches_current",
+        state_file,
+        current,
+        str(os.getuid()),
+    )
+    assert authoritative.returncode == 0, authoritative.stderr
+    state_file.chmod(0o666)
+    unsafe = _run_deployment_library(
+        "deployment_state_matches_current",
+        state_file,
+        current,
+        str(os.getuid()),
+    )
+    assert unsafe.returncode != 0
+
+    deploy = DEPLOY.read_text()
+    assert deploy.index(
+        'write_deployment_state "$state_directory" deploying'
+    ) < deploy.index("compose up -d")
+    assert deploy.index(
+        'activate_release "$release" /opt/ladle/current'
+    ) < deploy.index('write_deployment_state "$state_directory" active')
+    assert 'write_deployment_state "$state_directory" failed' in deploy
+
+
+def test_worker_rollout_command_order_and_failure_are_executable(
+    tmp_path: Path,
+) -> None:
+    command_log = tmp_path / "commands"
+    success = _run_library_script(
+        """
+command_log=$1
+compose() { printf '%s\n' "$*" >>"$command_log"; }
+rollout_worker_pair
+""",
+        command_log,
+    )
+    assert success.returncode == 0, success.stderr
+    assert command_log.read_text().splitlines() == [
+        "rm -f -s worker",
+        "up -d --no-build --no-deps --wait --wait-timeout 120 worker-egress",
+        (
+            "up -d --no-build --no-deps --wait --wait-timeout 120 "
+            "--force-recreate worker"
+        ),
+    ]
+
+    command_log.write_text("")
+    failed = _run_library_script(
+        """
+command_log=$1
+compose() {
+    printf '%s\n' "$*" >>"$command_log"
+    case "$*" in *worker-egress) return 7 ;; esac
+}
+rollout_worker_pair
+""",
+        command_log,
+    )
+    assert failed.returncode != 0
+    assert command_log.read_text().splitlines() == [
+        "rm -f -s worker",
+        "up -d --no-build --no-deps --wait --wait-timeout 120 worker-egress",
+    ]
+
+
+def test_beat_stability_gate_accepts_stable_and_rejects_restart(
+    tmp_path: Path,
+) -> None:
+    stable_counter = tmp_path / "stable-counter"
+    stable_counter.write_text("0")
+    stable = _run_library_script(
+        """
+counter=$1
+compose() {
+    printf '%s\n' dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+}
+docker() { printf '%s\n' 'true false 0'; }
+sleep() { :; }
+wait_for_beat_stability 3 1
+""",
+        stable_counter,
+    )
+    assert stable.returncode == 0, stable.stderr
+
+    counter = tmp_path / "counter"
+    counter.write_text("0")
+    restarted = _run_library_script(
+        """
+counter=$1
+compose() {
+    printf '%s\n' dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+}
+docker() {
+    count=$(cat "$counter")
+    count=$((count + 1))
+    printf '%s\n' "$count" >"$counter"
+    if [ "$count" -ge 2 ]; then
+        printf '%s\n' 'true false 1'
+    else
+        printf '%s\n' 'true false 0'
+    fi
+}
+sleep() { :; }
+wait_for_beat_stability 3 1
+""",
+        counter,
+    )
+    assert restarted.returncode != 0
+    deploy = DEPLOY.read_text()
+    assert deploy.index("--force-recreate beat") < deploy.index(
+        "wait_for_beat_stability"
+    )
+    assert deploy.index("wait_for_beat_stability") < deploy.index(
+        'activate_release "$release" /opt/ladle/current'
+    )
+
+
+def test_beat_stability_gate_rejects_unbounded_settings() -> None:
+    mock_commands = """
+compose() {
+    printf '%s\n' dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+}
+docker() { printf '%s\n' 'true false 0'; }
+sleep() { :; }
+"""
+    for checks, interval in ((2, 2), (21, 2), (3, 0), (3, 31)):
+        result = _run_library_script(
+            f"{mock_commands}\nwait_for_beat_stability {checks} {interval}\n"
+        )
+        assert result.returncode != 0, (checks, interval)

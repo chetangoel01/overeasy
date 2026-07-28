@@ -33,6 +33,7 @@ fi
 
 release_root_is_safe() {
     root_release=$1
+    release_directory_is_safe "$root_release" 0 || return 1
     [ -d "$root_release" ] && [ ! -L "$root_release" ] || return 1
     [ "$(readlink -f -- "$root_release")" = "$root_release" ] || return 1
     [ "$(stat -c "%u:%a" -- "$root_release" | cut -d: -f1)" = 0 ] ||
@@ -71,38 +72,19 @@ done
 
 secret_group=ladle-secrets
 env_file=/etc/ladle/ladle.env
-validate_env_metadata "$env_file" "$secret_group" ||
-    die "The staging environment metadata is unsafe."
-validate_required_env "$env_file" \
-    LADLE_PUBLIC_HOSTNAME \
-    LADLE_DATABASE_PASSWORD \
-    LADLE_DATABASE_PASSWORD_URL_ENCODED \
-    LADLE_WORKER_PROVIDER_MODE \
-    LADLE_JWT_SIGNING_SECRET \
-    LADLE_DATA_ENCRYPTION_KEY \
-    LADLE_METRICS_AUTH_TOKEN \
-    LADLE_OBJECT_STORAGE_ACCESS_KEY \
-    LADLE_OBJECT_STORAGE_SECRET_KEY \
-    LADLE_TUNNEL_ACCESS_KEY ||
-    die "The staging environment is incomplete or invalid."
-
-provider_mode=$(dotenv_value "$env_file" LADLE_WORKER_PROVIDER_MODE) ||
-    die "Cannot read worker provider mode."
-case "$provider_mode" in
-    fake) ;;
-    live)
-        dotenv_value "$env_file" LADLE_OPENROUTER_API_KEY >/dev/null ||
-            die "Live provider mode requires an OpenRouter credential."
-        ;;
-    *) die "Worker provider mode must be fake or live." ;;
-esac
-
 progress_init "$secret_group"
 deployment_phase=lock
+state_directory=/var/lib/ladle
+state_started=false
 
 finish_deployment() {
     status=$?
     if [ "$status" -ne 0 ]; then
+        if [ "$state_started" = true ]; then
+            write_deployment_state "$state_directory" failed \
+                "$revision" "$deployment_phase" 0 ||
+                true
+        fi
         progress failure "$deployment_phase failed" || true
     fi
     trap - 0
@@ -111,15 +93,17 @@ finish_deployment() {
 trap finish_deployment 0
 trap 'exit 1' HUP INT TERM
 
-lock_file=/var/lock/ladle-deploy.lock
-if [ -L "$lock_file" ]; then
-    die "The deployment lock path is unsafe."
-fi
-if [ ! -e "$lock_file" ]; then
-    install -o root -g root -m 0600 /dev/null "$lock_file"
-fi
-exec 9>"$lock_file"
-flock -n 9 || die "Another Ladle deployment is running."
+deployment_lock=/var/lock/ladle-deploy.lock
+environment_lock=/var/lock/ladle-environment.lock
+acquire_deployment_lock "$deployment_lock" 0 ||
+    die "Another Ladle deployment is running or the lock is unsafe."
+acquire_environment_lock "$environment_lock" 0 ||
+    die "Cannot acquire the staging environment lock."
+
+validate_env_metadata "$env_file" "$secret_group" ||
+    die "The staging environment metadata is unsafe."
+validate_staging_environment "$env_file" ||
+    die "The staging environment is incomplete or invalid."
 
 compose() {
     COMPOSE_PROJECT_NAME=ladle docker compose \
@@ -137,6 +121,8 @@ case "$health_attempts" in
 esac
 [ "$health_attempts" -ge 1 ] && [ "$health_attempts" -le 120 ] ||
     die "LADLE_HEALTH_ATTEMPTS must be between 1 and 120."
+beat_stability_checks=${LADLE_BEAT_STABILITY_CHECKS:-5}
+beat_stability_interval=${LADLE_BEAT_STABILITY_INTERVAL_SECONDS:-2}
 
 wait_for_api_readiness() {
     readiness_attempt=1
@@ -182,47 +168,83 @@ progress "compose-validation" "validating exact release configuration"
 compose config --quiet
 
 deployment_phase=data-services
+write_deployment_state "$state_directory" deploying \
+    "$revision" "$deployment_phase" 0 ||
+    die "Cannot record deployment state."
+state_started=true
 progress "data-services" "starting private PostgreSQL Redis and object storage"
 compose up -d --wait --wait-timeout 120 postgres redis minio
 
 deployment_phase=image-build
+write_deployment_state \
+    "$state_directory" deploying "$revision" "$deployment_phase" 0 ||
+    die "Cannot update deployment state."
 progress "image-build" "building exact release images"
 compose build migrate minio-init api worker beat worker-egress edge
 
 deployment_phase=object-storage
+write_deployment_state \
+    "$state_directory" deploying "$revision" "$deployment_phase" 0 ||
+    die "Cannot update deployment state."
 progress "object-storage" "initializing the empty private bucket"
 compose run --rm minio-init
 
 deployment_phase=migrations
+write_deployment_state \
+    "$state_directory" deploying "$revision" "$deployment_phase" 0 ||
+    die "Cannot update deployment state."
 progress "migrations" "applying database migrations"
 compose run --rm migrate
 
 deployment_phase=service-rollout
+write_deployment_state \
+    "$state_directory" deploying "$revision" "$deployment_phase" 0 ||
+    die "Cannot update deployment state."
 progress "service-rollout" "replacing application services"
-compose up -d --no-build --no-deps --wait --wait-timeout 120 worker-egress
-compose up -d --no-build --no-deps --wait --wait-timeout 120 \
-    --force-recreate worker
+rollout_worker_pair || die "Worker namespace rollout failed."
 compose up -d --no-build --wait --wait-timeout 120 --no-deps api
-compose up -d --no-build --no-deps beat
+compose up -d --no-build --no-deps --force-recreate beat
 compose up -d --no-build --wait --wait-timeout 120 --no-deps edge
 compose up -d --no-build --wait --wait-timeout 120 --no-deps caddy
 
 deployment_phase=api-readiness
+write_deployment_state \
+    "$state_directory" deploying "$revision" "$deployment_phase" 0 ||
+    die "Cannot update deployment state."
 progress "api-readiness" "checking the local API readiness endpoint"
 wait_for_api_readiness || die "The API readiness gate timed out."
 
 deployment_phase=edge-readiness
+write_deployment_state \
+    "$state_directory" deploying "$revision" "$deployment_phase" 0 ||
+    die "Cannot update deployment state."
 progress "edge-readiness" "checking the internal edge request path"
 wait_for_edge_readiness || die "The edge readiness gate timed out."
 
 deployment_phase=worker-readiness
+write_deployment_state \
+    "$state_directory" deploying "$revision" "$deployment_phase" 0 ||
+    die "Cannot update deployment state."
 progress "worker-readiness" "checking the Celery worker response"
 wait_for_worker_ping || die "The Celery worker gate timed out."
 
+deployment_phase=beat-readiness
+write_deployment_state \
+    "$state_directory" deploying "$revision" "$deployment_phase" 0 ||
+    die "Cannot update deployment state."
+progress "beat-readiness" "checking Celery Beat stability"
+wait_for_beat_stability "$beat_stability_checks" "$beat_stability_interval" ||
+    die "The Celery Beat stability gate failed."
+
 deployment_phase=activation
+write_deployment_state \
+    "$state_directory" deploying "$revision" "$deployment_phase" 0 ||
+    die "Cannot update deployment state."
 progress "activation" "activating revision $revision"
 activate_release "$release" /opt/ladle/current ||
     die "The current release could not be activated."
 
 deployment_phase=success
+write_deployment_state "$state_directory" active "$revision" complete 0 ||
+    die "Cannot record active deployment state."
 progress "success" "revision $revision is active"

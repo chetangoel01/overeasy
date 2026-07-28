@@ -435,18 +435,37 @@ git commit -m "feat: deploy exact revisions to VPS"
 - `deploy.sh` uses the stable `ladle` Compose project, validates the immutable
   exact release and environment, then gates activation on data health, image
   build, bucket initialization, Alembic migration, service replacement, API
-  and edge readiness, and a bounded Celery ping. `/opt/ladle/current` changes
-  only after every gate succeeds.
+  and edge readiness, a bounded Celery ping, and a fresh Celery Beat container
+  remaining stable for a bounded observation window. `/opt/ladle/current`
+  changes only after every gate succeeds.
+- Provisioning creates separate root-owned mode-`0600` deployment and
+  environment lock files. Initialization, provider-secret updates, and the
+  complete deployment transaction share the environment lock, so no deploy
+  can read a partially rewritten environment. Deployment acquires its
+  nonblocking deployment lock before the blocking environment lock.
+- The worker rollout removes the namespace-sharing worker before replacing
+  `worker-egress`, waits for that donor container, and then force-recreates the
+  dependent worker. A donor failure stops the rollout before the dependent is
+  started.
+- `/var/lib/ladle/deployment-state` is atomically updated at mode `0644` before
+  service mutation and for each deployment phase. It is authoritative only
+  when it says `active`, names the same revision as `/opt/ladle/current`, and
+  has phase `complete`; failures remain explicitly visible without attempting
+  an unsafe database or symlink rollback.
 - Each server phase is streamed to the invoking terminal and written without
   command or secret content to the root-owned mode-`0640`
   `/var/log/ladle/setup.log`. A second SSH session can follow it with
   `sudo tail -F /var/log/ladle/setup.log`.
 - The provisioning script now keeps `/opt/ladle/releases` root-owned at mode
-  `0755`, so rerunning provisioning cannot weaken completed releases.
-- Local verification covers 42 VPS deployment tests, executable dirty/archive
-  and stdin-validation harnesses, POSIX and Dash parsing, Ruff, the complete
-  deploy-unit suite, and whitespace checks. ShellCheck was not installed in
-  the local workspace and remains an Ubuntu-side verification item.
+  `0755`, and upload normalizes a candidate to a traversable root-owned mode
+  `0755` before running the exact release's executable permission validator.
+  Rerunning provisioning cannot weaken completed releases.
+- Local verification covers 52 VPS deployment tests, including executable
+  permission-boundary, lock-serialization, concurrent secret-update,
+  deployment-state, namespace-sharing worker rollout, and Beat stability
+  harnesses, plus POSIX and Dash parsing, Ruff, the complete deploy-unit suite,
+  and whitespace checks. ShellCheck was not installed in the local workspace
+  and remains an Ubuntu-side verification item.
 - Resume with Task 5. No VPS, DNS, environment, credential, or live service
   state was changed while implementing this checkpoint.
 

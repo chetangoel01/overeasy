@@ -37,6 +37,7 @@ secret_value=$DOTENV_STDIN_VALUE
 
 secret_group=ladle-secrets
 env_file=/etc/ladle/ladle.env
+environment_lock=/var/lock/ladle-environment.lock
 env_tmp=
 secret_phase=secret-update
 
@@ -54,29 +55,28 @@ cleanup() {
 trap cleanup 0
 trap 'exit 1' HUP INT TERM
 
+acquire_environment_lock "$environment_lock" 0 ||
+    die "Cannot acquire the staging environment lock."
 validate_env_metadata "$env_file" "$secret_group" ||
     die "The staging environment metadata is unsafe."
-validate_env_file "$env_file" ||
+validate_staging_environment "$env_file" ||
     die "The staging environment is invalid."
 progress_init "$secret_group"
 progress "secret-update" "installing $secret_name"
 
 env_tmp=$(mktemp /etc/ladle/.ladle.env.XXXXXX)
-if [ "$secret_name" = LADLE_OPENROUTER_API_KEY ]; then
-    grep -v -E \
-        '^(LADLE_OPENROUTER_API_KEY|LADLE_WORKER_PROVIDER_MODE)=' \
-        "$env_file" >"$env_tmp" || true
-    printf '%s=%s\n' "$secret_name" "$secret_value" >>"$env_tmp"
-    printf 'LADLE_WORKER_PROVIDER_MODE=live\n' >>"$env_tmp"
-else
-    grep -v -E "^${secret_name}=" "$env_file" >"$env_tmp" || true
-    printf '%s=%s\n' "$secret_name" "$secret_value" >>"$env_tmp"
-fi
+write_provider_secret_candidate \
+    "$env_file" "$env_tmp" "$secret_name" "$secret_value" ||
+    die "Updated staging environment failed validation."
 chmod 0640 "$env_tmp"
 chown root:"$secret_group" "$env_tmp"
-validate_env_file "$env_tmp" ||
+validate_staging_environment "$env_tmp" ||
     die "Updated staging environment failed validation."
 mv -f -- "$env_tmp" "$env_file"
 env_tmp=
+validate_env_metadata "$env_file" "$secret_group" ||
+    die "Updated staging environment metadata is unsafe."
+validate_staging_environment "$env_file" ||
+    die "Updated staging environment failed final validation."
 
 progress "secret-ready" "$secret_name is installed"

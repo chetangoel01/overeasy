@@ -139,6 +139,22 @@ install -d -o root -g root -m 0700 /var/backups/ladle
 install -d -o root -g root -m 0750 /var/lib/ladle
 install -d -o root -g root -m 0700 /etc/iptables
 
+# Lock files remain root-owned at mode 0600 and are never replaced on reruns.
+for lock_file in \
+    /var/lock/ladle-deploy.lock \
+    /var/lock/ladle-environment.lock; do
+    if [ -L "$lock_file" ]; then
+        die "Refusing a symlink Ladle lock file."
+    fi
+    if [ -e "$lock_file" ]; then
+        [ -f "$lock_file" ] || die "Ladle lock path must be a regular file."
+    else
+        install -o root -g root -m 0600 /dev/null "$lock_file"
+    fi
+    chown root:root "$lock_file"
+    chmod 0600 "$lock_file"
+done
+
 ipv4_public_interface=$(
     /usr/sbin/ip -4 route show default | public_interface_from_routes
 ) || die "Cannot detect one trustworthy IPv4 public interface."

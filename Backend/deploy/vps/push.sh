@@ -192,7 +192,12 @@ release_root_is_safe() {
     root_release=$1
     [ -d "$root_release" ] && [ ! -L "$root_release" ] || return 1
     [ "$(readlink -f -- "$root_release")" = "$root_release" ] || return 1
-    [ "$(stat -c "%u" -- "$root_release")" = 0 ] || return 1
+    [ "$(stat -c "%u:%a" -- "$root_release")" = 0:755 ] || return 1
+    release_library="$root_release/Backend/deploy/vps/deployment-lib.sh"
+    [ -f "$release_library" ] && [ ! -L "$release_library" ] || return 1
+    [ "$(stat -c "%u:%a" -- "$release_library")" = 0:755 ] || return 1
+    . "$release_library"
+    release_directory_is_safe "$root_release" 0 || return 1
     if sudo -n find "$root_release" -xdev \
         \( ! -user root -o -perm /022 \) -print -quit |
         grep -q .; then
@@ -260,11 +265,13 @@ else
     [ -d "$incoming" ] && [ ! -L "$incoming" ] || exit 1
     sudo -n tar --extract --file "$root_archive" --directory "$incoming" \
         --no-same-owner --no-same-permissions
+    sudo -n chmod -R u=rwX,go=rX "$incoming"
     printf '%s\n' "$revision" |
         sudo -n tee "$incoming/.ladle-revision" >/dev/null
     sudo -n chmod 0444 "$incoming/.ladle-revision"
     sudo -n chown -R root:root "$incoming"
     sudo -n chmod -R go-w "$incoming"
+    sudo -n chmod 0755 "$incoming"
     release_root_is_safe "$incoming" || exit 1
     sudo -n mv -T -- "$incoming" "$release"
     incoming=
