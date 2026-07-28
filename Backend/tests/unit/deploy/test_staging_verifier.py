@@ -18,6 +18,11 @@ SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
 }
+STAGING_ACCESS_KEY = "stage-secret"
+STAGING_REJECTIONS = [
+    ("/health/live", None),
+    ("/health/live", f"wrong-{STAGING_ACCESS_KEY}"),
+]
 
 
 def staging_response(request: httpx.Request) -> httpx.Response:
@@ -44,6 +49,19 @@ def staging_response(request: httpx.Request) -> httpx.Response:
     raise AssertionError(request.url)
 
 
+def enforce_staging_access(
+    request: httpx.Request,
+    rejected: list[tuple[str, str | None]],
+) -> httpx.Response | None:
+    key = request.headers.get("X-Ladle-Tunnel-Key")
+    if request.url.path == "/health/live" and key != STAGING_ACCESS_KEY:
+        assert key in {None, f"wrong-{STAGING_ACCESS_KEY}"}
+        rejected.append((request.url.path, key))
+        return httpx.Response(404)
+    assert key == STAGING_ACCESS_KEY
+    return None
+
+
 def test_staging_verifier_checks_public_security_boundary() -> None:
     with httpx.Client(transport=httpx.MockTransport(staging_response)) as client:
         result = verify(base_url="https://staging.example", client=client)
@@ -60,26 +78,30 @@ def test_staging_verifier_checks_public_security_boundary() -> None:
 
 
 def test_staging_verifier_authenticates_checks_and_rejects_missing_key() -> None:
-    seen: list[str | None] = []
+    rejected: list[tuple[str, str | None]] = []
 
     def respond(request: httpx.Request) -> httpx.Response:
-        key = request.headers.get("X-Ladle-Tunnel-Key")
-        seen.append(key)
-        if key != "stage-secret":
-            return httpx.Response(404)
+        rejection = enforce_staging_access(request, rejected)
+        if rejection is not None:
+            return rejection
         return staging_response(request)
 
     with httpx.Client(transport=httpx.MockTransport(respond)) as client:
         result = verify(
             base_url="https://staging.example",
             client=client,
-            staging_access_key="stage-secret",
+            staging_access_key=STAGING_ACCESS_KEY,
         )
 
     assert "stagingAccess" in result.checks
-    assert None in seen
-    assert "wrong-stage-secret" in seen
-    assert "stage-secret" in seen
+    assert rejected == STAGING_REJECTIONS
+
+
+def test_secret_strips_surrounding_whitespace(tmp_path: Path) -> None:
+    path = tmp_path / "staging-key"
+    path.write_text(" \n stage-secret\t")
+
+    assert staging_verifier._secret(path) == STAGING_ACCESS_KEY
 
 
 def test_secret_rejects_an_empty_file(tmp_path: Path) -> None:
@@ -125,9 +147,13 @@ def test_staging_verifier_refuses_cleartext_target() -> None:
 
 def test_staging_rate_limit_probe_allows_attestation_rejection_until_429() -> None:
     attempts = 0
+    rejected: list[tuple[str, str | None]] = []
 
     def respond(request: httpx.Request) -> httpx.Response:
         nonlocal attempts
+        rejection = enforce_staging_access(request, rejected)
+        if rejection is not None:
+            return rejection
         if request.url.path == "/health/live":
             return httpx.Response(
                 200,
@@ -168,9 +194,11 @@ def test_staging_rate_limit_probe_allows_attestation_rejection_until_429() -> No
             client=client,
             maximum_body_bytes=1024,
             exercise_rate_limit=True,
+            staging_access_key=STAGING_ACCESS_KEY,
         )
 
     assert "rateLimiting" in result.checks
+    assert rejected == STAGING_REJECTIONS
 
 
 def test_staging_ssrf_probe_sends_the_exact_pre_attested_body() -> None:
@@ -178,8 +206,12 @@ def test_staging_ssrf_probe_sends_the_exact_pre_attested_body() -> None:
         b'{"jobID":"12345678-1234-4234-8234-123456789abc",'
         b'"sourceURL":"http://169.254.169.254/latest/meta-data"}'
     )
+    rejected: list[tuple[str, str | None]] = []
 
     def respond(request: httpx.Request) -> httpx.Response:
+        rejection = enforce_staging_access(request, rejected)
+        if rejection is not None:
+            return rejection
         if request.url.path == "/health/live":
             return httpx.Response(
                 200,
@@ -214,8 +246,13 @@ def test_staging_ssrf_probe_sends_the_exact_pre_attested_body() -> None:
             base_url="https://staging.example",
             client=client,
             access_token="access",
-            attestation_headers={"X-App-Attest-Assertion": "signed"},
+            attestation_headers={
+                "X-App-Attest-Assertion": "signed",
+                "X-Ladle-Tunnel-Key": "wrong-stage-secret",
+            },
             attested_request_body=body,
+            staging_access_key=STAGING_ACCESS_KEY,
         )
 
     assert "cloudMetadataSSRF" in result.checks
+    assert rejected == STAGING_REJECTIONS
