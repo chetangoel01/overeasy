@@ -418,6 +418,38 @@ git add Backend/deploy/vps Backend/tests/unit/deploy/test_vps_profile.py
 git commit -m "feat: deploy exact revisions to VPS"
 ```
 
+#### Task 4 implementation checkpoint
+
+- `push.sh` refuses any tracked or untracked change, archives the exact full
+  commit into a private local temporary file, preflights noninteractive remote
+  sudo, uploads through a random mode-`0700` remote directory, and installs a
+  root-owned, non-writable release without copying Git metadata, local
+  environments, private files, or caches.
+- `initialize-env.sh` creates the fresh staging environment and separate
+  staging-access-key file atomically at mode `0640`. It validates and repairs
+  an interrupted two-file initialization without sourcing or printing either
+  file. The default worker provider remains `fake`.
+- `set-secret.sh` accepts only allowlisted provider keys and exactly one safe
+  value on standard input. Installing `LADLE_OPENROUTER_API_KEY` changes the
+  provider mode to `live` in the same atomic rewrite.
+- `deploy.sh` uses the stable `ladle` Compose project, validates the immutable
+  exact release and environment, then gates activation on data health, image
+  build, bucket initialization, Alembic migration, service replacement, API
+  and edge readiness, and a bounded Celery ping. `/opt/ladle/current` changes
+  only after every gate succeeds.
+- Each server phase is streamed to the invoking terminal and written without
+  command or secret content to the root-owned mode-`0640`
+  `/var/log/ladle/setup.log`. A second SSH session can follow it with
+  `sudo tail -F /var/log/ladle/setup.log`.
+- The provisioning script now keeps `/opt/ladle/releases` root-owned at mode
+  `0755`, so rerunning provisioning cannot weaken completed releases.
+- Local verification covers 42 VPS deployment tests, executable dirty/archive
+  and stdin-validation harnesses, POSIX and Dash parsing, Ruff, the complete
+  deploy-unit suite, and whitespace checks. ShellCheck was not installed in
+  the local workspace and remains an Ubuntu-side verification item.
+- Resume with Task 5. No VPS, DNS, environment, credential, or live service
+  state was changed while implementing this checkpoint.
+
 ### Task 5: Add Linux health, backup, and systemd operations
 
 **Files:**

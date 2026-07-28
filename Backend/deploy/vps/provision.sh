@@ -40,7 +40,6 @@ deploy_uid=$(id -u "$deploy_user" 2>/dev/null) ||
 if [ "$deploy_uid" -eq 0 ]; then
     die "The deployment user must not be root."
 fi
-deploy_group=$(id -gn "$deploy_user")
 
 docker_key_asc=
 docker_key_gpg=
@@ -134,7 +133,7 @@ apt-get install -y \
     docker-compose-plugin
 
 install -d -o root -g root -m 0755 /opt/ladle
-install -d -o "$deploy_user" -g "$deploy_group" -m 0750 /opt/ladle/releases
+install -d -o root -g root -m 0755 /opt/ladle/releases
 install -d -o root -g root -m 0700 /etc/ladle
 install -d -o root -g root -m 0700 /var/backups/ladle
 install -d -o root -g root -m 0750 /var/lib/ladle

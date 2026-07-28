@@ -17,6 +17,12 @@ PROVISION = PROFILE.parent / "provision.sh"
 HARDEN_SSH = PROFILE.parent / "harden-ssh.sh"
 DOCKER_USER_RULES = PROFILE.parent / "ladle-docker-user.rules"
 HOST_VALIDATION = PROFILE.parent / "host-validation.sh"
+PUSH = PROFILE.parent / "push.sh"
+DEPLOY = PROFILE.parent / "deploy.sh"
+INITIALIZE_ENV = PROFILE.parent / "initialize-env.sh"
+SET_SECRET = PROFILE.parent / "set-secret.sh"
+DEPLOYMENT_LIB = PROFILE.parent / "deployment-lib.sh"
+PROGRESS_LOG = "/var/log/ladle/setup.log"
 
 EXPECTED_SERVICES = {
     "postgres",
@@ -83,6 +89,27 @@ def _run_validation(
             f'. "$1"; shift; {function} "$@"',
             "test",
             str(HOST_VALIDATION),
+            *(str(argument) for argument in arguments),
+        ],
+        check=False,
+        capture_output=True,
+        input=input_text,
+        text=True,
+    )
+
+
+def _run_deployment_library(
+    function: str,
+    *arguments: str | Path,
+    input_text: str | None = None,
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [
+            "/bin/sh",
+            "-c",
+            f'. "$1"; shift; {function} "$@"',
+            "test",
+            str(DEPLOYMENT_LIB),
             *(str(argument) for argument in arguments),
         ],
         check=False,
@@ -1033,6 +1060,7 @@ def test_ssh_hardening_is_atomic_and_preserves_the_active_session() -> None:
 def test_vps_host_installs_sensitive_files_atomically_and_repairs_restarts() -> None:
     provision = PROVISION.read_text()
 
+    assert "install -d -o root -g root -m 0755 /opt/ladle/releases" in provision
     for atomic_file in (
         (
             "docker_key_gpg",
@@ -1068,3 +1096,530 @@ def test_vps_host_installs_sensitive_files_atomically_and_repairs_restarts() -> 
     )
     assert "PartOf=docker.service" in provision
     assert "ExecStartPost=/usr/local/sbin/ladle-docker-user-firewall" in provision
+
+
+def test_vps_release_scripts_are_posix_executable_and_never_trace() -> None:
+    scripts = (PUSH, DEPLOY, INITIALIZE_ENV, SET_SECRET, DEPLOYMENT_LIB)
+
+    for script in scripts:
+        text = script.read_text()
+        assert text.startswith("#!/bin/sh\n"), script
+        assert re.search(r"^set -eu$", text, re.MULTILINE), script
+        assert "umask 077" in text, script
+        assert script.stat().st_mode & stat.S_IXUSR, script
+        assert "set -x" not in text, script
+
+
+def test_push_refuses_dirty_state_and_transfers_only_the_exact_archive() -> None:
+    push = PUSH.read_text()
+
+    assert "git status --porcelain --untracked-files=all" in push
+    assert "git rev-parse --verify HEAD^{commit}" in push
+    assert "git archive --format=tar" in push
+    assert "scp " in push
+    assert "/opt/ladle/releases/$revision" in push
+    assert ".ladle-revision" in push
+    assert "tar -tf" in push
+    assert "tar -tvf" in push
+    assert "readlink -f" in push
+    assert "mktemp -d /tmp/ladle-upload.XXXXXX" in push
+    assert 'remote_archive="$remote_directory/release.tar"' in push
+    assert 'stat -c "%u:%a" -- "$remote_directory"' in push
+    assert "mktemp -d /opt/ladle/releases/.incoming-" in push
+    assert "sudo -n mv -T --" in push
+    assert 'sudo -n "$release/Backend/deploy/vps/initialize-env.sh"' in push
+    assert 'sudo -n "$release/Backend/deploy/vps/deploy.sh" "$revision"' in push
+    assert "rsync" not in push
+    assert re.search(r"\bscp\s+-r\b", push) is None
+    assert "git push" not in push
+    assert "working tree" not in push.lower()
+
+    for forbidden in (
+        ".git",
+        ".env",
+        ".private",
+        "__pycache__",
+        ".pytest_cache",
+        ".mypy_cache",
+        ".ruff_cache",
+    ):
+        assert forbidden in push
+
+    cleanup = push[push.index("cleanup()") : push.index("\ntrap cleanup")]
+    assert 'rm -f -- "$archive"' in cleanup
+    assert "remote_prepared" in cleanup
+    assert "rm -f -- '$remote_archive'" in cleanup
+
+
+def test_push_makes_completed_releases_root_owned_and_immutable() -> None:
+    push = PUSH.read_text()
+    deploy = DEPLOY.read_text()
+
+    assert 'sudo -n chown root:root "$releases_directory"' in push
+    assert 'sudo -n chmod 0755 "$releases_directory"' in push
+    assert "sudo -n mktemp /opt/ladle/releases/.archive-" in push
+    assert "sudo -n mktemp -d /opt/ladle/releases/.incoming-" in push
+    assert 'sudo -n chown -R root:root "$incoming"' in push
+    assert 'sudo -n chmod -R go-w "$incoming"' in push
+    assert 'find "$root_release" -xdev' in push
+    assert "! -user root" in push
+    assert "-perm /022" in push
+    assert 'stat -c "%u:%a" -- "$root_release"' in deploy
+    assert 'find "$root_release" -xdev' in deploy
+    assert "release_root_is_safe" in deploy
+    for relative_path in (
+        "Backend/deploy/vps/initialize-env.sh",
+        "Backend/deploy/vps/deploy.sh",
+        "Backend/deploy/vps/deployment-lib.sh",
+        "Backend/docker-compose.yml",
+        "Backend/deploy/vps/docker-compose.yml",
+    ):
+        assert relative_path in push
+        assert relative_path in deploy
+
+
+def test_push_requires_noninteractive_sudo_before_remote_mutation() -> None:
+    push = PUSH.read_text()
+
+    preflight = push.index("sudo -n true")
+    remote_temp = push.index("mktemp -d /tmp/ladle-upload.XXXXXX")
+    upload = push.index('scp "$archive"')
+    assert preflight < remote_temp < upload
+    assert "Noninteractive sudo is required" in push
+    assert re.search(r"^\s*sudo\s+(?!-n\b)", push, re.MULTILINE) is None
+
+
+def test_push_dirty_refusal_happens_before_network_access(tmp_path: Path) -> None:
+    repository = tmp_path / "repository"
+    script_dir = repository / "Backend" / "deploy" / "vps"
+    script_dir.mkdir(parents=True)
+    copied_push = script_dir / "push.sh"
+    copied_push.write_bytes(PUSH.read_bytes())
+    copied_push.chmod(0o755)
+    subprocess.run(["git", "init", "-q", repository], check=True)
+    subprocess.run(["git", "-C", repository, "add", "."], check=True)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            repository,
+            "-c",
+            "user.name=Test",
+            "-c",
+            "user.email=test@example.com",
+            "commit",
+            "-qm",
+            "fixture",
+        ],
+        check=True,
+    )
+    (repository / "untracked-secret").write_text("not archived\n")
+
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    for command in ("scp", "ssh"):
+        fake = fake_bin / command
+        fake.write_text("#!/bin/sh\nexit 99\n")
+        fake.chmod(0o755)
+
+    result = subprocess.run(
+        [str(copied_push), "ubuntu@192.0.2.10"],
+        check=False,
+        capture_output=True,
+        env={**os.environ, "PATH": f"{fake_bin}:{os.environ['PATH']}"},
+        text=True,
+    )
+
+    assert result.returncode != 0
+    assert "dirty" in result.stderr.lower()
+    assert "untracked-secret" not in result.stdout + result.stderr
+    assert result.returncode != 99
+
+
+def test_push_archive_excludes_untracked_and_control_paths(tmp_path: Path) -> None:
+    repository = tmp_path / "repository"
+    script_dir = repository / "Backend" / "deploy" / "vps"
+    script_dir.mkdir(parents=True)
+    copied_push = script_dir / "push.sh"
+    copied_push.write_bytes(PUSH.read_bytes())
+    copied_push.chmod(0o755)
+    (repository / "tracked.txt").write_text("tracked\n")
+    subprocess.run(["git", "init", "-q", repository], check=True)
+    subprocess.run(["git", "-C", repository, "add", "."], check=True)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            repository,
+            "-c",
+            "user.name=Test",
+            "-c",
+            "user.email=test@example.com",
+            "commit",
+            "-qm",
+            "fixture",
+        ],
+        check=True,
+    )
+
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    uploaded = tmp_path / "uploaded.tar"
+    fake_scp = fake_bin / "scp"
+    fake_scp.write_text('#!/bin/sh\ncp -- "$1" "$LADLE_TEST_UPLOADED_ARCHIVE"\n')
+    fake_scp.chmod(0o755)
+    fake_ssh = fake_bin / "ssh"
+    fake_ssh.write_text(
+        """#!/bin/sh
+case "$*" in
+    *"mktemp -d /tmp/ladle-upload.XXXXXX"*)
+        printf '%s\n' "$LADLE_TEST_REMOTE_DIRECTORY"
+        ;;
+esac
+exit 0
+"""
+    )
+    fake_ssh.chmod(0o755)
+    remote_directory = "/tmp/ladle-upload.A1b2C3"
+
+    result = subprocess.run(
+        [str(copied_push), "ubuntu@192.0.2.10"],
+        check=False,
+        capture_output=True,
+        env={
+            **os.environ,
+            "PATH": f"{fake_bin}:{os.environ['PATH']}",
+            "LADLE_TEST_UPLOADED_ARCHIVE": str(uploaded),
+            "LADLE_TEST_REMOTE_DIRECTORY": remote_directory,
+        },
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    listing = subprocess.run(
+        ["tar", "-tf", uploaded],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.splitlines()
+    assert "tracked.txt" in listing
+    assert ".git/" not in listing
+
+
+def test_initialize_env_is_root_only_atomic_recoverable_and_complete() -> None:
+    initialize = INITIALIZE_ENV.read_text()
+
+    assert 'if [ "$(id -u)" -ne 0 ]; then' in initialize
+    assert 'secret_group="ladle-secrets"' in initialize
+    assert "groupadd --system" in initialize
+    assert "/etc/ladle/ladle.env" in initialize
+    assert "/etc/ladle/staging-access-key" in initialize
+    assert "mktemp /etc/ladle/.ladle.env." in initialize
+    assert "mktemp /etc/ladle/.staging-access-key." in initialize
+    assert initialize.count("chmod 0640") >= 2
+    assert initialize.count("chown root:") >= 2
+    assert initialize.count("mv -f --") >= 2
+    assert "openssl rand -hex" in initialize
+    assert "LADLE_PUBLIC_HOSTNAME=${LADLE_PUBLIC_HOSTNAME:-api.ladle.app}" in initialize
+    assert "LADLE_WORKER_PROVIDER_MODE=fake" in initialize
+    for variable in (
+        "LADLE_JWT_SIGNING_SECRET",
+        "LADLE_DATA_ENCRYPTION_KEY",
+        "LADLE_METRICS_AUTH_TOKEN",
+        "LADLE_DATABASE_PASSWORD",
+        "LADLE_DATABASE_PASSWORD_URL_ENCODED",
+        "LADLE_OBJECT_STORAGE_ACCESS_KEY",
+        "LADLE_OBJECT_STORAGE_SECRET_KEY",
+        "LADLE_TUNNEL_ACCESS_KEY",
+    ):
+        assert variable in initialize
+    assert "validate_required_env" in initialize
+    assert "dotenv_value" in initialize
+    assert "existing_tunnel_key" in initialize
+    assert "printf '%s\\n' \"$tunnel_key\"" not in initialize
+    assert "cat /etc/ladle" not in initialize
+    assert ". /etc/ladle" not in initialize
+
+
+def test_environment_library_validates_values_without_executing_them(
+    tmp_path: Path,
+) -> None:
+    valid = tmp_path / "valid.env"
+    valid.write_text(
+        "LADLE_PUBLIC_HOSTNAME=api.ladle.app\n"
+        "LADLE_WORKER_PROVIDER_MODE=fake\n"
+        "LADLE_TUNNEL_ACCESS_KEY=0123abcdef\n"
+    )
+    assert (
+        _run_deployment_library(
+            "validate_env_file",
+            valid,
+        ).returncode
+        == 0
+    )
+    value = _run_deployment_library(
+        "dotenv_value",
+        valid,
+        "LADLE_TUNNEL_ACCESS_KEY",
+    )
+    assert value.returncode == 0
+    assert value.stdout == "0123abcdef\n"
+
+    for unsafe_content in (
+        "LADLE_PUBLIC_HOSTNAME=$(touch /tmp/nope)\n",
+        "LADLE_PUBLIC_HOSTNAME=api.ladle.app\nBROKEN\n",
+        "LADLE_PUBLIC_HOSTNAME=first\nLADLE_PUBLIC_HOSTNAME=second\n",
+        "LADLE_PUBLIC_HOSTNAME=api.ladle.app\r\n",
+        "LADLE_PUBLIC_HOSTNAME=api ladle app\n",
+    ):
+        candidate = tmp_path / "unsafe.env"
+        candidate.write_text(unsafe_content)
+        assert _run_deployment_library("validate_env_file", candidate).returncode != 0
+
+
+def test_set_secret_accepts_only_stdin_allowlisted_safe_values_atomically() -> None:
+    script = SET_SECRET.read_text()
+    library = DEPLOYMENT_LIB.read_text()
+
+    assert 'if [ "$(id -u)" -ne 0 ]; then' in script
+    assert 'case "$secret_name" in' in script
+    for allowed in (
+        "LADLE_OPENROUTER_API_KEY",
+        "LADLE_SUPADATA_API_KEY",
+        "LADLE_SOSCRIPTED_API_KEY",
+    ):
+        assert allowed in script
+    assert "IFS= read -r DOTENV_STDIN_VALUE" in library
+    assert "IFS= read -r dotenv_extra_line" in library
+    assert "validate_dotenv_value" in library
+    assert "mktemp /etc/ladle/.ladle.env." in script
+    assert "chmod 0640" in script
+    assert "chown root:" in script
+    assert "mv -f --" in script
+    assert "LADLE_WORKER_PROVIDER_MODE=live" in script
+    assert script.index("LADLE_OPENROUTER_API_KEY") < script.index(
+        "LADLE_WORKER_PROVIDER_MODE=live"
+    )
+    assert "printf '%s\\n' \"$secret_value\"" not in script
+    assert 'printf \'%s=%s\\n\' "$secret_name" "$secret_value"' in script
+    assert "cat /etc/ladle" not in script
+    assert ". /etc/ladle" not in script
+
+
+def test_dotenv_value_validation_rejects_controls_and_shell_syntax() -> None:
+    for value in ("sk-or-v1-abc_123", "token.with:/@+-safe"):
+        assert _run_deployment_library("validate_dotenv_value", value).returncode == 0
+
+    for value in (
+        "",
+        "two words",
+        "value\nsecond",
+        "value\r",
+        "ümlaut",
+        "$(id)",
+        "quoted'value",
+        "value#comment",
+        "KEY=value",
+        "value\\escape",
+    ):
+        result = _run_deployment_library("validate_dotenv_value", value)
+        assert result.returncode != 0, repr(value)
+        if value:
+            assert value not in result.stdout + result.stderr
+
+
+def test_secret_stdin_reader_accepts_one_safe_value_without_echoing_it() -> None:
+    accepted = _run_deployment_library(
+        "read_dotenv_stdin_value",
+        input_text="sk-or-v1-safe_123\n",
+    )
+    assert accepted.returncode == 0
+    assert accepted.stdout == ""
+    assert accepted.stderr == ""
+
+    for unsafe_input in (
+        "",
+        "\n",
+        "first\nsecond\n",
+        "first\n\n",
+        "unsafe value\n",
+        "unsafe\r\n",
+        "ümlaut\n",
+    ):
+        rejected = _run_deployment_library(
+            "read_dotenv_stdin_value",
+            input_text=unsafe_input,
+        )
+        assert rejected.returncode != 0
+        if unsafe_input.strip():
+            assert unsafe_input.strip() not in rejected.stdout + rejected.stderr
+
+    set_secret = SET_SECRET.read_text()
+    assert "read_dotenv_stdin_value" in set_secret
+    assert "secret_value=$DOTENV_STDIN_VALUE" in set_secret
+
+
+def test_revision_validation_accepts_only_forty_lowercase_hex_characters() -> None:
+    accepted = _run_deployment_library("validate_revision", "a" * 40)
+    assert accepted.returncode == 0
+
+    for rejected in (
+        "a",
+        "a" * 39,
+        "a" * 41,
+        "a" * 64,
+        "A" * 40,
+        ("a" * 39) + "-",
+    ):
+        assert _run_deployment_library("validate_revision", rejected).returncode != 0, (
+            rejected
+        )
+
+
+def test_deploy_validates_exact_release_and_stable_project_before_mutation() -> None:
+    deploy = DEPLOY.read_text()
+
+    assert 'if [ "$(id -u)" -ne 0 ]; then' in deploy
+    assert 'validate_revision "$revision"' in deploy
+    assert 'release="/opt/ladle/releases/$revision"' in deploy
+    assert '[ ! -L "$root_release" ]' in deploy
+    assert 'readlink -f -- "$root_release"' in deploy
+    assert ".ladle-revision" in deploy
+    assert "revision_marker_matches" in deploy
+    assert "/etc/ladle/ladle.env" in deploy
+    assert "validate_env_metadata" in deploy
+    assert "validate_required_env" in deploy
+    assert "COMPOSE_PROJECT_NAME=ladle" in deploy
+    assert "--project-name ladle" in deploy
+    assert '--project-directory "$backend_directory"' in deploy
+    assert "config --quiet" in deploy
+    assert "flock -n" in deploy
+    assert ". /etc/ladle" not in deploy
+    assert "cat /etc/ladle" not in deploy
+
+    config = deploy.index("config --quiet")
+    data = deploy.index("up -d --wait --wait-timeout", config)
+    build = deploy.index("build migrate minio-init", data)
+    bucket = deploy.index("run --rm minio-init", build)
+    migrate = deploy.index("run --rm migrate", bucket)
+    egress = deploy.index("worker-egress", migrate)
+    worker = deploy.index("force-recreate worker", egress)
+    api = deploy.index("--no-deps api", worker)
+    beat = deploy.index("--no-deps beat", api)
+    edge = deploy.index("--no-deps edge", beat)
+    caddy = deploy.index("--no-deps caddy", edge)
+    assert config < data < build < bucket < migrate < egress
+    assert egress < worker < api < beat < edge < caddy
+
+
+def test_deploy_waits_for_api_edge_worker_and_activates_last() -> None:
+    deploy = DEPLOY.read_text()
+
+    assert "wait_for_api_readiness" in deploy
+    assert "http://127.0.0.1:4111/health/ready" in deploy
+    assert "wait_for_edge_readiness" in deploy
+    assert "http://edge:8082/health/ready" in deploy
+    assert "wait_for_worker_ping" in deploy
+    assert "inspect ping" in deploy
+    assert "--timeout=10" in deploy
+    assert "LADLE_HEALTH_ATTEMPTS" in deploy
+    assert "sleep 2" in deploy
+    assert 'activate_release "$release" /opt/ladle/current' in deploy
+
+    activation = deploy.index('activate_release "$release" /opt/ladle/current')
+    for gate in (
+        "wait_for_api_readiness",
+        "wait_for_edge_readiness",
+        "wait_for_worker_ping",
+    ):
+        assert deploy.rindex(gate) < activation
+    assert "deployment_phase" in deploy
+    assert 'progress failure "$deployment_phase failed"' in deploy
+
+
+def test_atomic_activation_preserves_current_until_called(tmp_path: Path) -> None:
+    releases = tmp_path / "releases"
+    releases.mkdir()
+    previous = releases / ("a" * 40)
+    candidate = releases / ("b" * 40)
+    previous.mkdir()
+    candidate.mkdir()
+    current = tmp_path / "current"
+    current.symlink_to(previous)
+
+    assert current.resolve() == previous
+    activated = _run_deployment_library("activate_release", candidate, current)
+    assert activated.returncode == 0, activated.stderr
+    assert current.is_symlink()
+    assert current.resolve() == candidate
+
+    invalid_current = tmp_path / "invalid-current"
+    invalid_current.write_text("do not replace\n")
+    rejected = _run_deployment_library(
+        "activate_release",
+        previous,
+        invalid_current,
+    )
+    assert rejected.returncode != 0
+    assert invalid_current.read_text() == "do not replace\n"
+
+
+def test_release_scripts_stream_sanitized_progress_to_a_private_server_log() -> None:
+    library = DEPLOYMENT_LIB.read_text()
+    push = PUSH.read_text()
+    initialize = INITIALIZE_ENV.read_text()
+    deploy = DEPLOY.read_text()
+
+    assert PROGRESS_LOG in library
+    assert "install -d -o root -g" in library
+    assert "install -o root -g" in library
+    assert "-m 0750" in library
+    assert "-m 0640" in library
+    assert 'printf "%s\\n" "$progress_line"' in library
+    assert 'printf "%s\\n" "$progress_line" >>"$progress_log"' in library
+    assert "validate_progress_text" in library
+    assert "tee " not in library
+
+    expected_order = (
+        "archive",
+        "upload",
+        "environment",
+        "compose-validation",
+        "data-services",
+        "image-build",
+        "object-storage",
+        "migrations",
+        "service-rollout",
+        "api-readiness",
+        "edge-readiness",
+        "worker-readiness",
+        "activation",
+        "success",
+    )
+    combined = "\n".join((push, initialize, deploy))
+    positions = [combined.index(f'progress "{phase}"') for phase in expected_order]
+    assert positions == sorted(positions)
+
+    for secret_path in (
+        "/etc/ladle/ladle.env",
+        "/etc/ladle/staging-access-key",
+    ):
+        assert not re.search(
+            rf"(?:cat|tee|sed\\s+-n|awk).*(?:{re.escape(secret_path)})",
+            combined,
+        )
+    assert "docker compose config" not in library
+    assert "setup.log" not in push
+    remote_release = push[push.index("#!/bin/sh", 10) :]
+    assert '"$release/Backend/deploy/vps/deployment-lib.sh"' in remote_release
+    remote_progress = remote_release.index('. "$1"')
+    remote_archive = remote_release.index(
+        'progress "archive" "exact revision archive verified"'
+    )
+    remote_upload = remote_release.index(
+        'progress "upload" "root-owned release installed"'
+    )
+    remote_initialize = remote_release.index(
+        'sudo -n "$release/Backend/deploy/vps/initialize-env.sh"'
+    )
+    assert remote_progress < remote_archive < remote_upload < remote_initialize
