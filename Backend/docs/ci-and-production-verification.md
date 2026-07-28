@@ -67,18 +67,26 @@ Run:
 ```bash
 cd Backend
 .venv/bin/python scripts/verify_staging.py https://staging-api.example \
+  --staging-access-key-file /secure/staging-access-key \
   --exercise-rate-limit
 ```
 
 The external probe verifies TLS, readiness, security headers, hidden
 documentation/metrics endpoints, typed authentication, application request
-limits, real 429/`Retry-After`, and response secret leakage. With a signed
-real-device token, assertion headers, and the exact JSON bytes used to create
-that assertion, it also attempts a cloud-metadata import URL and requires
-rejection:
+limits, real 429/`Retry-After`, and response secret leakage. When a staging
+access-key file is provided, every normal request carries
+`X-Ladle-Tunnel-Key`; separate liveness probes without the header and with a
+deliberately incorrect value must both return 404. The key is stripped of
+surrounding whitespace, an empty file is rejected, and the script intentionally
+has no option for passing the secret directly on the command line.
+
+With a signed real-device token, assertion headers, and the exact JSON bytes
+used to create that assertion, the probe also attempts a cloud-metadata import
+URL and requires rejection:
 
 ```bash
 .venv/bin/python scripts/verify_staging.py https://staging-api.example \
+  --staging-access-key-file /secure/staging-access-key \
   --access-token "$STAGING_ACCESS_TOKEN" \
   --attestation-headers /secure/metadata-assertion-headers.json \
   --attested-request-body /secure/metadata-request-body.json

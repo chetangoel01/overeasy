@@ -1,6 +1,10 @@
+import sys
+from pathlib import Path
+
 import httpx
 import pytest
 
+from scripts import verify_staging as staging_verifier
 from scripts.verify_staging import VerificationFailed, verify
 
 SECURITY_HEADERS = {
@@ -16,31 +20,32 @@ SECURITY_HEADERS = {
 }
 
 
-def test_staging_verifier_checks_public_security_boundary() -> None:
-    def respond(request: httpx.Request) -> httpx.Response:
-        if request.url.path == "/health/live":
-            return httpx.Response(
-                200,
-                json={"status": "live"},
-                headers=SECURITY_HEADERS,
-            )
-        if request.url.path == "/health/ready":
-            return httpx.Response(200, json={"status": "ready", "checks": {}})
-        if request.url.path in {"/openapi.json", "/docs", "/redoc", "/metrics"}:
-            return httpx.Response(404)
-        if request.url.path == "/v1/recipes/sync":
-            return httpx.Response(
-                401,
-                json={"error": {"code": "authenticationRequired"}},
-            )
-        if request.url.path == "/v1/auth/guest":
-            return httpx.Response(
-                413,
-                json={"error": {"code": "invalidRequest"}},
-            )
-        raise AssertionError(request.url)
+def staging_response(request: httpx.Request) -> httpx.Response:
+    if request.url.path == "/health/live":
+        return httpx.Response(
+            200,
+            json={"status": "live"},
+            headers=SECURITY_HEADERS,
+        )
+    if request.url.path == "/health/ready":
+        return httpx.Response(200, json={"status": "ready", "checks": {}})
+    if request.url.path in {"/openapi.json", "/docs", "/redoc", "/metrics"}:
+        return httpx.Response(404)
+    if request.url.path == "/v1/recipes/sync":
+        return httpx.Response(
+            401,
+            json={"error": {"code": "authenticationRequired"}},
+        )
+    if request.url.path == "/v1/auth/guest":
+        return httpx.Response(
+            413,
+            json={"error": {"code": "invalidRequest"}},
+        )
+    raise AssertionError(request.url)
 
-    with httpx.Client(transport=httpx.MockTransport(respond)) as client:
+
+def test_staging_verifier_checks_public_security_boundary() -> None:
+    with httpx.Client(transport=httpx.MockTransport(staging_response)) as client:
         result = verify(base_url="https://staging.example", client=client)
 
     assert set(result.checks) == {
@@ -52,6 +57,65 @@ def test_staging_verifier_checks_public_security_boundary() -> None:
         "secretLeakage",
         "securityHeaders",
     }
+
+
+def test_staging_verifier_authenticates_checks_and_rejects_missing_key() -> None:
+    seen: list[str | None] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        key = request.headers.get("X-Ladle-Tunnel-Key")
+        seen.append(key)
+        if key != "stage-secret":
+            return httpx.Response(404)
+        return staging_response(request)
+
+    with httpx.Client(transport=httpx.MockTransport(respond)) as client:
+        result = verify(
+            base_url="https://staging.example",
+            client=client,
+            staging_access_key="stage-secret",
+        )
+
+    assert "stagingAccess" in result.checks
+    assert None in seen
+    assert "wrong-stage-secret" in seen
+    assert "stage-secret" in seen
+
+
+def test_secret_rejects_an_empty_file(tmp_path: Path) -> None:
+    path = tmp_path / "staging-key"
+    path.write_text(" \n")
+
+    with pytest.raises(VerificationFailed, match="empty"):
+        staging_verifier._secret(path)
+
+
+def test_cli_exposes_only_a_file_option_for_the_staging_key(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(sys, "argv", ["verify_staging.py", "--help"])
+    with pytest.raises(SystemExit) as help_exit:
+        staging_verifier.main()
+
+    assert help_exit.value.code == 0
+    assert "--staging-access-key-file" in capsys.readouterr().out
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "verify_staging.py",
+            "https://staging.example",
+            "--staging-access-key",
+            "stage-secret",
+        ],
+    )
+    with pytest.raises(SystemExit) as key_exit:
+        staging_verifier.main()
+
+    assert key_exit.value.code == 2
+    assert "--staging-access-key" in capsys.readouterr().err
 
 
 def test_staging_verifier_refuses_cleartext_target() -> None:

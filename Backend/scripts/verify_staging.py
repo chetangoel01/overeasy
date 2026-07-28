@@ -43,12 +43,18 @@ def verify(
     access_token: str | None = None,
     attestation_headers: Mapping[str, str] | None = None,
     attested_request_body: bytes | None = None,
+    staging_access_key: str | None = None,
 ) -> VerificationResult:
     if urlsplit(base_url).scheme != "https":
         raise VerificationFailed("staging URL must use HTTPS")
     checks: list[str] = []
+    staging_headers = (
+        {"X-Ladle-Tunnel-Key": staging_access_key}
+        if staging_access_key is not None
+        else {}
+    )
 
-    live = client.get(f"{base_url}/health/live")
+    live = client.get(f"{base_url}/health/live", headers=staging_headers)
     _status(live, 200, "liveness")
     if live.json() != {"status": "live"}:
         raise VerificationFailed("liveness response is unexpected")
@@ -58,17 +64,38 @@ def verify(
     _no_secrets(live)
     checks.extend(("TLS", "securityHeaders", "secretLeakage"))
 
-    ready = client.get(f"{base_url}/health/ready")
+    if staging_access_key is not None:
+        _status(
+            client.get(f"{base_url}/health/live"),
+            404,
+            "missing staging access key",
+        )
+        _status(
+            client.get(
+                f"{base_url}/health/live",
+                headers={
+                    "X-Ladle-Tunnel-Key": f"wrong-{staging_access_key}",
+                },
+            ),
+            404,
+            "incorrect staging access key",
+        )
+        checks.append("stagingAccess")
+
+    ready = client.get(f"{base_url}/health/ready", headers=staging_headers)
     _status(ready, 200, "readiness")
     if ready.json().get("status") != "ready":
         raise VerificationFailed("readiness dependencies are not ready")
     checks.append("dependencies")
 
     for hidden in ("/openapi.json", "/docs", "/redoc", "/metrics"):
-        _status(client.get(f"{base_url}{hidden}"), 404, hidden)
+        _status(client.get(f"{base_url}{hidden}", headers=staging_headers), 404, hidden)
     checks.append("exposedEndpoints")
 
-    unauthorized = client.get(f"{base_url}/v1/recipes/sync")
+    unauthorized = client.get(
+        f"{base_url}/v1/recipes/sync",
+        headers=staging_headers,
+    )
     _status(unauthorized, 401, "authentication")
     _error_code(unauthorized, "authenticationRequired")
     checks.append("authentication")
@@ -76,7 +103,10 @@ def verify(
     oversized = client.post(
         f"{base_url}/v1/auth/guest",
         content=b"x" * (maximum_body_bytes + 1),
-        headers={"Content-Type": "application/json"},
+        headers={
+            **staging_headers,
+            "Content-Type": "application/json",
+        },
     )
     _status(oversized, 413, "requestTooLarge")
     _error_code(oversized, "invalidRequest")
@@ -86,7 +116,11 @@ def verify(
         limited: httpx.Response | None = None
         body = {"installationID": f"staging-rate-{uuid4()}", "attestation": None}
         for _ in range(100):
-            candidate = client.post(f"{base_url}/v1/auth/guest", json=body)
+            candidate = client.post(
+                f"{base_url}/v1/auth/guest",
+                json=body,
+                headers=staging_headers,
+            )
             if candidate.status_code == 429:
                 limited = candidate
                 break
@@ -125,6 +159,7 @@ def verify(
                 "Authorization": f"Bearer {access_token}",
                 "Content-Type": "application/json",
                 **attestation_headers,
+                **staging_headers,
             },
             content=attested_request_body,
         )
@@ -186,13 +221,23 @@ def _headers(path: Path | None) -> dict[str, str] | None:
     return value
 
 
+def _secret(path: Path | None) -> str | None:
+    if path is None:
+        return None
+    value = path.read_text().strip()
+    if not value:
+        raise VerificationFailed("staging access key file is empty")
+    return value
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(allow_abbrev=False)
     parser.add_argument("base_url")
     parser.add_argument("--exercise-rate-limit", action="store_true")
     parser.add_argument("--access-token")
     parser.add_argument("--attestation-headers", type=Path)
     parser.add_argument("--attested-request-body", type=Path)
+    parser.add_argument("--staging-access-key-file", type=Path)
     args = parser.parse_args()
     with httpx.Client(timeout=10, follow_redirects=False) as client:
         result = verify(
@@ -206,6 +251,7 @@ def main() -> None:
                 if args.attested_request_body is not None
                 else None
             ),
+            staging_access_key=_secret(args.staging_access_key_file),
         )
     print(json.dumps({"status": "passed", "checks": result.checks}))
 
