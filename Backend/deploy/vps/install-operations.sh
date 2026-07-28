@@ -88,9 +88,21 @@ cleanup_transaction_artifacts() {
     [ "$transaction_cleanup_result" -eq 0 ]
 }
 
-report_incomplete_rollback() {
+report_preserved_recovery_files() {
     printf '%s\n' \
         "Operations rollback incomplete; root-only recovery files remain as .ladle-backup.* beside their targets." \
+        >&2
+}
+
+report_uncertain_rollback_targets() {
+    printf '%s\n' \
+        "Operations rollback incomplete; mixed/new targets may remain and require root inspection." \
+        >&2
+}
+
+report_stale_transaction_stages() {
+    printf '%s\n' \
+        "Operations targets were restored; stale root-only .ladle-stage.* artifacts may remain beside their targets." \
         >&2
 }
 
@@ -106,35 +118,75 @@ restore_transaction_target() {
     fi
 }
 
+restore_transaction_entry() {
+    entry_existed=$1
+    entry_backup=$2
+    entry_target=$3
+    if restore_transaction_target \
+        "$entry_existed" "$entry_backup" "$entry_target"; then
+        return 0
+    fi
+    rollback_restore_result=1
+    if [ "$entry_existed" = true ] &&
+        [ -n "$entry_backup" ] &&
+        [ -f "$entry_backup" ]; then
+        rollback_recovery_files_preserved=true
+    else
+        rollback_targets_uncertain=true
+    fi
+}
+
 rollback_operations_install() {
-    rollback_result=0
-    restore_transaction_target \
+    rollback_restore_result=0
+    rollback_stage_cleanup_result=0
+    rollback_recovery_files_preserved=false
+    rollback_targets_uncertain=false
+    restore_transaction_entry \
         "$transaction_binary_existed" \
         "$transaction_binary_backup" \
-        "$transaction_binary_target" || rollback_result=1
-    restore_transaction_target \
+        "$transaction_binary_target"
+    restore_transaction_entry \
         "$transaction_health_service_existed" \
         "$transaction_health_service_backup" \
-        "$transaction_health_service_target" || rollback_result=1
-    restore_transaction_target \
+        "$transaction_health_service_target"
+    restore_transaction_entry \
         "$transaction_health_timer_existed" \
         "$transaction_health_timer_backup" \
-        "$transaction_health_timer_target" || rollback_result=1
-    restore_transaction_target \
+        "$transaction_health_timer_target"
+    restore_transaction_entry \
         "$transaction_backup_service_existed" \
         "$transaction_backup_service_backup" \
-        "$transaction_backup_service_target" || rollback_result=1
-    restore_transaction_target \
+        "$transaction_backup_service_target"
+    restore_transaction_entry \
         "$transaction_backup_timer_existed" \
         "$transaction_backup_timer_backup" \
-        "$transaction_backup_timer_target" || rollback_result=1
-    cleanup_transaction_stages || rollback_result=1
-    if [ "$rollback_result" -ne 0 ]; then
-        report_incomplete_rollback
+        "$transaction_backup_timer_target"
+    cleanup_transaction_stages || rollback_stage_cleanup_result=1
+    if [ "$rollback_restore_result" -ne 0 ]; then
+        if [ "$rollback_recovery_files_preserved" = true ]; then
+            report_preserved_recovery_files
+        fi
+        if [ "$rollback_targets_uncertain" = true ]; then
+            report_uncertain_rollback_targets
+        fi
+        if [ "$rollback_stage_cleanup_result" -ne 0 ]; then
+            printf '%s\n' \
+                "Stale root-only .ladle-stage.* artifacts may also remain beside operation targets." \
+                >&2
+        fi
         return 1
     fi
-    cleanup_transaction_recovery_files || rollback_result=1
-    [ "$rollback_result" -eq 0 ]
+    if [ "$rollback_stage_cleanup_result" -ne 0 ]; then
+        report_stale_transaction_stages
+        return 1
+    fi
+    if ! cleanup_transaction_recovery_files; then
+        printf '%s\n' \
+            "Operations targets were restored; stale root-only .ladle-backup.* files may remain beside their targets." \
+            >&2
+        return 1
+    fi
+    return 0
 }
 
 restore_timer_state() {

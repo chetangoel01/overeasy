@@ -257,7 +257,8 @@ import time
 source, target = sys.argv[-2:]
 marker = os.environ["FAKE_STATE"] + ".swap"
 if (
-    os.environ.get("FAIL_PHASE") in {"swap", "restore"}
+    os.environ.get("FAIL_PHASE")
+    in {"swap", "restore", "stage_cleanup", "remove_new_target"}
     and ".ladle-stage." in os.path.basename(source)
     and os.path.basename(target) == "ladle-health.service"
     and not os.path.exists(marker)
@@ -303,6 +304,15 @@ if os.environ.get("FAIL_PHASE") in {"cleanup", "commit_signal_cleanup"} and any(
             open(marker, "w").close()
             import time
             time.sleep(30)
+    raise SystemExit(1)
+if os.environ.get("FAIL_PHASE") == "stage_cleanup" and any(
+    ".ladle-stage." in argument for argument in sys.argv[1:]
+):
+    raise SystemExit(1)
+if (
+    os.environ.get("FAIL_PHASE") == "remove_new_target"
+    and os.path.basename(sys.argv[-1]) == "ladle-operations"
+):
     raise SystemExit(1)
 raise SystemExit(subprocess.run(["/bin/rm", *sys.argv[1:]], check=False).returncode)
 """
@@ -3148,6 +3158,71 @@ transactional_install_operations "$2" "$3" "$4" "$5"
     assert not list(unit_dir.glob(".ladle-stage.*"))
     assert any("old:ladle-operations" in path.read_text() for path in recovery)
     assert all(target.exists() for target in targets)
+
+
+def test_operations_installer_reports_stage_cleanup_after_targets_restore(
+    tmp_path: Path,
+) -> None:
+    source, binary_target, unit_dir, targets, fake_bin, fake_state = (
+        _operations_installer_fixture(tmp_path, preexisting=True)
+    )
+    result = _run_installer_library(
+        """
+PATH=$1:$PATH
+transactional_install_operations "$2" "$3" "$4" "$5"
+""",
+        fake_bin,
+        source,
+        binary_target,
+        unit_dir,
+        str(os.getuid()),
+        env={"FAIL_PHASE": "stage_cleanup", "FAKE_STATE": str(fake_state)},
+    )
+
+    assert result.returncode != 0
+    assert "targets were restored" in result.stderr
+    assert "stale root-only .ladle-stage.* artifacts may remain" in result.stderr
+    assert "recovery files remain as .ladle-backup.*" not in result.stderr
+    assert not [
+        *binary_target.parent.glob(".ladle-backup.*"),
+        *unit_dir.glob(".ladle-backup.*"),
+    ]
+    assert [
+        *binary_target.parent.glob(".ladle-stage.*"),
+        *unit_dir.glob(".ladle-stage.*"),
+    ]
+    for target in targets:
+        assert target.read_text() == f"old:{target.name}\n"
+
+
+def test_operations_installer_reports_first_install_target_removal_failure(
+    tmp_path: Path,
+) -> None:
+    source, binary_target, unit_dir, targets, fake_bin, fake_state = (
+        _operations_installer_fixture(tmp_path, preexisting=False)
+    )
+    result = _run_installer_library(
+        """
+PATH=$1:$PATH
+transactional_install_operations "$2" "$3" "$4" "$5"
+""",
+        fake_bin,
+        source,
+        binary_target,
+        unit_dir,
+        str(os.getuid()),
+        env={"FAIL_PHASE": "remove_new_target", "FAKE_STATE": str(fake_state)},
+    )
+
+    assert result.returncode != 0
+    assert "mixed/new targets may remain and require root inspection" in result.stderr
+    assert "recovery files remain as .ladle-backup.*" not in result.stderr
+    assert "new-operations" in binary_target.read_text()
+    assert not [
+        *binary_target.parent.glob(".ladle-backup.*"),
+        *unit_dir.glob(".ladle-backup.*"),
+    ]
+    assert all(not target.exists() for target in targets if target != binary_target)
 
 
 def test_operations_installer_committed_signal_exits_success_with_warning(

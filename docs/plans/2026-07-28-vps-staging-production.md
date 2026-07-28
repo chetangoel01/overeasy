@@ -584,8 +584,11 @@ git commit -m "feat: monitor and back up VPS staging"
   complete set and timer intent; a second signal is ignored during
   reconciliation. If restoring any prior target fails, all remaining root-only
   `.ladle-backup.*` recovery copies are preserved beside their exact targets,
-  staging artifacts are still removed, and the fixed diagnostic reports an
-  incomplete rollback without claiming that prior state was restored.
+  staging cleanup is attempted independently, and the fixed diagnostic reports
+  an incomplete rollback without claiming that prior state was restored.
+  First-install target-removal failure instead warns that mixed/new targets
+  require root inspection, while a stage-only cleanup failure reports that
+  targets were restored and only `.ladle-stage.*` artifacts may remain.
   Successful timer start is the commit point; signal handling remains active
   through post-commit cleanup, and cleanup failure or interruption returns
   committed success with a warning instead of falsely rolling back the live
@@ -594,8 +597,8 @@ git commit -m "feat: monitor and back up VPS staging"
   deduplication and recovery, backup success plus 15 injected failure stages,
   installer first-install and upgrade failures at six transaction phases, and
   signal rollback, including restore failure, a repeated rollback signal, and a
-  post-commit cleanup signal. The focused profile contains 100 tests and the
-  complete deploy-unit set contains 137. POSIX `sh` and Dash parsing for every
+  post-commit cleanup signal. The focused profile contains 102 tests and the
+  complete deploy-unit set contains 139. POSIX `sh` and Dash parsing for every
   VPS script, Ruff for the changed Python contract, and `git diff --check` also
   pass. `systemd-analyze` is unavailable in the macOS workspace, so real unit
   verification remains an explicit Ubuntu-side check before enabling timers;
