@@ -153,8 +153,52 @@ thumbnail budget failure before each production change. The focused final
 suite passed 331 tests covering the VPS profile, container hardening, audio,
 vision, provider chain, thumbnail SSRF controls, and retry/reparse behavior.
 Ruff passed for `ladle` and `tests`; mypy passed across 109 source files.
-Live deployment and import evidence is recorded after the verified release is
-activated.
+
+The verified backend release
+`99624eed5436a8278bc3da775b8f0e84facefdfa` was activated on 2026-07-29. All
+containers with health checks reported healthy, both guarded
+`/health/live` and `/health/ready` returned `200`, the host had 6.0 GiB
+available memory, and the root filesystem was 12% used. The active worker
+reported:
+
+```text
+LADLE_AUDIO_TRANSCRIPTION_ENABLED=true
+LADLE_FRAME_ANALYSIS_ENABLED=false
+LADLE_THUMBNAIL_ANALYSIS_ENABLED=true
+LADLE_SERVER_MEDIA_FALLBACK_ENABLED=false
+```
+
+The first cache-bypassing production proof was job
+`a6407d2a-17f1-4df3-9bcf-b04744c5bd81`. Its provider ledger contained
+completed `whisper/transcript`, `thumbnailVision/thumbnailVisual`, and
+`openrouter/recipeExtraction` attempts, with no frame-vision attempt. It
+produced a six-step stuffed-pepper candidate with the spoken turkey, onion,
+rice, corn, soy sauce, tarragon, ghost-pepper cheese, pecorino, and garnish
+details.
+
+The iOS re-import flow also needed to accept the server-assigned replacement
+candidate ID instead of requiring the client's temporary placeholder ID.
+That regression was added test-first. `swift test --package-path
+Packages/LadleCore` passed all 43 tests, and the focused
+`LadleTests/ReimportSafetyTests` simulator target passed.
+
+Finally, an iPhone 16 Pro simulator was built with the guarded VPS URL and its
+existing tunnel credential, then launched with a fresh backend session. The
+normal import first reproduced the old two-ingredient shared-cache result.
+Safe re-import job `0abb9fae-6a91-44f8-8c9d-71f2b58aa43c` bypassed that cache
+and completed in about 30 seconds. Its sanitized provider ledger was:
+
+```text
+whisper|transcript|completed
+thumbnailVision|thumbnailVisual|completed
+openrouter|recipeExtraction|completed
+```
+
+The simulator presented and accepted **Stuffed Bell Peppers** with 10
+ingredients, 6 steps, a 15-minute bake timer, and a 3-serving yield. This
+proved the shipping app, guarded gateway, transcript acquisition,
+thumbnail-only context, extraction, polling, candidate-ID adoption, and
+replacement acceptance path together. No multi-frame analysis ran.
 
 ## Operations and recovery
 
