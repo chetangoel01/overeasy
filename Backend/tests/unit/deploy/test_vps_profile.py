@@ -123,8 +123,11 @@ def test_vps_runbook_documents_staging_recovery_and_production_gates() -> None:
     initial_operations = lowered.split("after the first successful push", maxsplit=1)[
         1
     ].split("## retrieve the staging key", maxsplit=1)[0]
-    assert initial_operations.index("sudo ladle-operations backup") < (
-        initial_operations.index("sudo ladle-operations health")
+    assert "synchronously runs\n`ladle-backup.service`" in initial_operations
+    assert "requires a validated backup" in initial_operations
+    assert "health timer last" in initial_operations
+    assert initial_operations.index("sudo ladle-operations health") < (
+        initial_operations.index("sudo ladle-operations backup")
     )
 
     key_rotation = lowered.split("## ssh key rotation", maxsplit=1)[1].split(
@@ -566,7 +569,15 @@ if (
 if (
     command == "start"
     and os.environ.get("FAIL_PHASE") == "start"
-    and len(sys.argv[2:]) == 2
+    and "ladle-health.timer" in sys.argv[2:]
+    and not os.path.exists(state + ".activation-start")
+):
+    open(state + ".activation-start", "w").close()
+    raise SystemExit(1)
+if (
+    command == "start"
+    and os.environ.get("FAIL_PHASE") == "initial_backup"
+    and sys.argv[2:] == ["ladle-backup.service"]
 ):
     raise SystemExit(1)
 if (
@@ -2936,7 +2947,9 @@ def test_operations_installer_validates_exact_release_before_atomic_install() ->
         "if ! systemctl daemon-reload"
     )
     assert "systemctl enable ladle-health.timer ladle-backup.timer" in installer
-    assert "systemctl start ladle-health.timer ladle-backup.timer" in installer
+    assert "systemctl start ladle-backup.service" in installer
+    assert "systemctl start ladle-backup.timer" in installer
+    assert "systemctl start ladle-health.timer" in installer
     assert "systemctl disable --now ladle-health.timer ladle-backup.timer" in installer
     assert "/var/backups/ladle" in installer
     assert "/var/lib/ladle/operations" in installer
@@ -3759,7 +3772,61 @@ transactional_install_operations "$2" "$3" "$4" "$5"
     trace = fake_state.read_text()
     assert "daemon-reload" in trace
     assert "enable ladle-health.timer ladle-backup.timer" in trace
-    assert "start ladle-health.timer ladle-backup.timer" in trace
+    initial_backup = trace.index("start ladle-backup.service")
+    backup_timer = trace.index("start ladle-backup.timer")
+    health_timer = trace.index("start ladle-health.timer")
+    assert initial_backup < backup_timer < health_timer
+    assert "start ladle-health.timer ladle-backup.timer" not in trace
+
+
+@pytest.mark.parametrize("preexisting", (False, True))
+def test_operations_installer_rolls_back_when_initial_backup_fails(
+    tmp_path: Path,
+    preexisting: bool,
+) -> None:
+    source, binary_target, unit_dir, targets, fake_bin, fake_state = (
+        _operations_installer_fixture(tmp_path, preexisting=preexisting)
+    )
+    result = _run_installer_library(
+        """
+PATH=$1:$PATH
+transactional_install_operations "$2" "$3" "$4" "$5"
+""",
+        fake_bin,
+        source,
+        binary_target,
+        unit_dir,
+        str(os.getuid()),
+        env={
+            "FAIL_PHASE": "initial_backup",
+            "FAKE_STATE": str(fake_state),
+            "PREVIOUS_TIMERS_ACTIVE": "1" if preexisting else "0",
+            "TIMERS_NOT_FOUND": "0" if preexisting else "1",
+        },
+    )
+
+    assert result.returncode != 0
+    for target in targets:
+        if preexisting:
+            assert target.read_text() == f"old:{target.name}\n"
+        else:
+            assert not target.exists()
+    assert not list(binary_target.parent.glob(".ladle-*"))
+    assert not list(unit_dir.glob(".ladle-*"))
+    trace = fake_state.read_text()
+    activation_trace = trace.split(
+        "disable --now ladle-health.timer ladle-backup.timer",
+        maxsplit=1,
+    )[0]
+    assert "start ladle-backup.service" in activation_trace
+    assert "start ladle-backup.timer" not in activation_trace
+    assert "start ladle-health.timer" not in activation_trace
+    assert "disable --now ladle-health.timer ladle-backup.timer" in trace
+    if preexisting:
+        assert "enable ladle-health.timer" in trace
+        assert "enable ladle-backup.timer" in trace
+        assert "start ladle-health.timer" in trace
+        assert "start ladle-backup.timer" in trace
 
 
 def test_operations_installer_rejects_timer_query_error_before_live_swap(
@@ -3950,7 +4017,10 @@ transactional_install_operations "$2" "$3" "$4" "$5"
     assert "committed; stale rollback files require cleanup" in result.stderr
     for target in targets:
         assert "new" in target.read_text()
-    assert "start ladle-health.timer ladle-backup.timer" in fake_state.read_text()
+    trace = fake_state.read_text()
+    assert "start ladle-backup.service" in trace
+    assert "start ladle-backup.timer" in trace
+    assert "start ladle-health.timer" in trace
 
 
 def test_operations_installer_preserves_recovery_copy_when_restore_fails(

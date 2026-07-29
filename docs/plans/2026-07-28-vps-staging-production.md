@@ -591,7 +591,8 @@ git commit -m "feat: monitor and back up VPS staging"
 - `install-operations.sh` accepts a full revision, requires that exact
   root-owned, non-writable release and its immutable marker, stages and verifies
   the complete binary/unit set before swapping any target, and retains exact
-  rollback copies until daemon reload and both timer activations succeed.
+  rollback copies until daemon reload, a required synchronous validated backup,
+  and both timer activations succeed.
   Before swapping, strict `systemctl` output-and-status snapshots accept only
   known safe enablement and activity states; query, bus, masked, failed, and
   unknown states abort without mutation, while an exact not-found enablement
@@ -608,10 +609,13 @@ git commit -m "feat: monitor and back up VPS staging"
   First-install target-removal failure instead warns that mixed/new targets
   require root inspection, while a stage-only cleanup failure reports that
   targets were restored and only `.ladle-stage.*` artifacts may remain.
-  Successful timer start is the commit point; signal handling remains active
-  through post-commit cleanup, and cleanup failure or interruption returns
-  committed success with a warning instead of falsely rolling back the live
-  installation.
+  After enabling both timers, the installer synchronously requires
+  `ladle-backup.service` to finish successfully, then starts the backup timer,
+  and starts the health timer last so first-install health cannot precede a
+  validated backup. Successful health-timer start is the commit point; signal
+  handling remains active through post-commit cleanup, and cleanup failure or
+  interruption returns committed success with a warning instead of falsely
+  rolling back the live installation.
 - Executable shell harnesses cover real lock contention, health transition
   deduplication and recovery, backup success plus 15 injected failure stages,
   installer first-install and upgrade failures at six transaction phases, and
@@ -620,8 +624,9 @@ git commit -m "feat: monitor and back up VPS staging"
   query/reconciliation failures, container and Beat stability, concurrent and
   interrupted transition writes, publication signals, orphan recovery, valid
   pair selection, bounded hash ordering, deterministic publication-signal
-  cleanup, and pairwise retention. The focused profile contains 122 tests and
-  the complete deploy-unit set contains 159. POSIX `sh` and Dash
+  cleanup, pairwise retention, and first-backup activation rollback for both
+  first install and upgrade. The focused profile contains 125 tests and the
+  complete deploy-unit set contains 162. POSIX `sh` and Dash
   parsing for every VPS script, Ruff for the changed Python contract, and
   `git diff --check` also pass. `systemd-analyze` is unavailable in the macOS
   workspace, so real unit verification remains an explicit Ubuntu-side check

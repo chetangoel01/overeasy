@@ -268,19 +268,26 @@ validate real systemd unit syntax. The Ubuntu-side `systemd-analyze verify` is
 therefore mandatory before timers are enabled. The installer runs it against
 staged unit copies whose `ExecStart` points to the staged operations binary,
 before replacing live units or enabling either timer; any failure rolls the
-transaction back. Then confirm the timers and guarded deployment.
+transaction back. After enabling both timers, the installer synchronously runs
+`ladle-backup.service` and requires a validated backup before it starts the
+backup timer and then the health timer last. A failed first backup rolls the
+operations installation and prior timer intent back. Then confirm the timers
+and guarded deployment.
 
 **VPS**
 
 ```bash
 sudo systemctl list-timers ladle-health.timer ladle-backup.timer
 sudo ladle-operations status 80
-sudo ladle-operations backup
 sudo ladle-operations health
 ```
 
-The explicit first backup must succeed before the initial health check because
-backup freshness is part of health.
+The installer-created first backup satisfies the initial freshness check. To
+create an additional on-demand validated backup later, run:
+
+```bash
+sudo ladle-operations backup
+```
 
 ## Retrieve the staging key without printing it
 

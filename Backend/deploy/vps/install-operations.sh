@@ -645,7 +645,15 @@ transactional_install_operations() {
         abort_activation_transaction
         return 1
     fi
-    if ! systemctl start ladle-health.timer ladle-backup.timer; then
+    if ! systemctl start ladle-backup.service; then
+        abort_activation_transaction
+        return 1
+    fi
+    if ! systemctl start ladle-backup.timer; then
+        abort_activation_transaction
+        return 1
+    fi
+    if ! systemctl start ladle-health.timer; then
         abort_activation_transaction
         return 1
     fi
