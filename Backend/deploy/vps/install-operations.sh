@@ -40,6 +40,33 @@ target_metadata_is_safe() {
         "$metadata_uid:$metadata_mode" ]
 }
 
+installed_operations_state() {
+    installed_binary=$1
+    installed_unit_directory=$2
+    installed_uid=$3
+    installed_count=0
+    for installed_target in \
+        "$installed_binary:755" \
+        "$installed_unit_directory/ladle-health.service:644" \
+        "$installed_unit_directory/ladle-health.timer:644" \
+        "$installed_unit_directory/ladle-backup.service:644" \
+        "$installed_unit_directory/ladle-backup.timer:644"; do
+        installed_mode=${installed_target##*:}
+        installed_path=${installed_target%:*}
+        if [ -e "$installed_path" ] || [ -L "$installed_path" ]; then
+            target_metadata_is_safe \
+                "$installed_path" "$installed_uid" "$installed_mode" ||
+                return 1
+            installed_count=$((installed_count + 1))
+        fi
+    done
+    case "$installed_count" in
+        0) printf '%s\n' absent ;;
+        5) printf '%s\n' complete ;;
+        *) return 1 ;;
+    esac
+}
+
 cleanup_verification_directory() {
     verification_directory=$1
     [ -n "$verification_directory" ] || return 0
@@ -450,6 +477,11 @@ transactional_install_operations() {
     transaction_binary_target=$2
     transaction_unit_directory=$3
     transaction_uid=$4
+    transaction_mode=${5:-install}
+    case "$transaction_mode" in
+        install | refresh) ;;
+        *) return 1 ;;
+    esac
     transaction_health_service_target=$transaction_unit_directory/ladle-health.service
     transaction_health_timer_target=$transaction_unit_directory/ladle-health.timer
     transaction_backup_service_target=$transaction_unit_directory/ladle-backup.service
@@ -594,15 +626,17 @@ transactional_install_operations() {
         return 1
     }
 
-    transaction_health_enable_state=
-    transaction_backup_enable_state=
-    transaction_health_active_state=
-    transaction_backup_active_state=
-    if ! snapshot_timer_state; then
-        printf '%s\n' \
-            "Cannot safely snapshot prior Ladle timer state." >&2
-        abort_transaction_preflight
-        return 1
+    if [ "$transaction_mode" = install ]; then
+        transaction_health_enable_state=
+        transaction_backup_enable_state=
+        transaction_health_active_state=
+        transaction_backup_active_state=
+        if ! snapshot_timer_state; then
+            printf '%s\n' \
+                "Cannot safely snapshot prior Ladle timer state." >&2
+            abort_transaction_preflight
+            return 1
+        fi
     fi
 
     transaction_live=true
@@ -639,6 +673,17 @@ transactional_install_operations() {
     if ! systemctl daemon-reload; then
         abort_live_transaction
         return 1
+    fi
+    if [ "$transaction_mode" = refresh ]; then
+        transaction_committed=true
+        transaction_live=false
+        if ! cleanup_transaction_artifacts; then
+            printf '%s\n' \
+                "Operations refresh committed; stale rollback files require cleanup." \
+                >&2
+        fi
+        clear_transaction_traps
+        return 0
     fi
     transaction_activation_touched=true
     if ! systemctl enable ladle-health.timer ladle-backup.timer; then
@@ -688,12 +733,22 @@ install_operations_main() {
         printf '%s\n' "Run install-operations.sh as root." >&2
         return 1
     fi
-    if [ "$#" -ne 1 ]; then
-        printf '%s\n' "Usage: install-operations.sh FULL_GIT_COMMIT" >&2
+    if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
+        printf '%s\n' \
+            "Usage: install-operations.sh FULL_GIT_COMMIT [refresh]" >&2
         return 1
     fi
 
     revision=$1
+    install_mode=${2:-install}
+    case "$install_mode" in
+        install | refresh) ;;
+        *)
+            printf '%s\n' \
+                "Usage: install-operations.sh FULL_GIT_COMMIT [refresh]" >&2
+            return 1
+            ;;
+    esac
     if [ "${#revision}" -ne 40 ]; then
         printf '%s\n' "Revision must be a full lowercase Git commit." >&2
         return 1
@@ -751,6 +806,23 @@ install_operations_main() {
         fi
     done
 
+    if [ "$install_mode" = refresh ]; then
+        refresh_state=$(
+            installed_operations_state \
+                /usr/local/sbin/ladle-operations \
+                /etc/systemd/system 0
+        ) || {
+            printf '%s\n' \
+                "The installed operations set is partial or unsafe." >&2
+            return 1
+        }
+        if [ "$refresh_state" = absent ]; then
+            printf '%s\n' \
+                "Operations refresh skipped because no installed set exists."
+            return 0
+        fi
+    fi
+
     ensure_root_directory /var/backups/ladle 700
     ensure_root_directory /var/lib/ladle 750
     ensure_root_directory /var/lib/ladle/locks 700
@@ -799,9 +871,13 @@ install_operations_main() {
         "$script_directory" \
         /usr/local/sbin/ladle-operations \
         /etc/systemd/system \
-        0 ||
+        0 "$install_mode" ||
         return 1
-    printf '%s\n' "Ladle health and backup timers installed."
+    if [ "$install_mode" = refresh ]; then
+        printf '%s\n' "Ladle operations refreshed."
+    else
+        printf '%s\n' "Ladle health and backup timers installed."
+    fi
 }
 
 case ${0##*/} in

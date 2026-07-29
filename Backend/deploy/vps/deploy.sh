@@ -48,6 +48,12 @@ release_root_is_safe() {
         Backend/deploy/vps/deploy.sh \
         Backend/deploy/vps/deployment-lib.sh \
         Backend/deploy/vps/host-validation.sh \
+        Backend/deploy/vps/install-operations.sh \
+        Backend/deploy/vps/operations.sh \
+        Backend/deploy/vps/ladle-health.service \
+        Backend/deploy/vps/ladle-health.timer \
+        Backend/deploy/vps/ladle-backup.service \
+        Backend/deploy/vps/ladle-backup.timer \
         Backend/docker-compose.yml \
         Backend/deploy/vps/docker-compose.yml; do
         [ -f "$root_release/$critical_path" ] &&
@@ -55,7 +61,9 @@ release_root_is_safe() {
     done
     [ -x "$root_release/Backend/deploy/vps/initialize-env.sh" ] &&
         [ -x "$root_release/Backend/deploy/vps/deploy.sh" ] &&
-        [ -x "$root_release/Backend/deploy/vps/deployment-lib.sh" ]
+        [ -x "$root_release/Backend/deploy/vps/deployment-lib.sh" ] &&
+        [ -x "$root_release/Backend/deploy/vps/install-operations.sh" ] &&
+        [ -x "$root_release/Backend/deploy/vps/operations.sh" ]
 }
 
 release_root_is_safe "$release" ||
@@ -244,6 +252,14 @@ write_deployment_state \
 progress "beat-readiness" "checking Celery Beat stability"
 wait_for_beat_stability "$beat_stability_checks" "$beat_stability_interval" ||
     die "The Celery Beat stability gate failed."
+
+deployment_phase=operations-install
+write_deployment_state \
+    "$state_directory" deploying "$revision" "$deployment_phase" 0 ||
+    die "Cannot update deployment state."
+progress "operations-install" "refreshing transactional host operations"
+"$backend_directory/deploy/vps/install-operations.sh" "$revision" refresh ||
+    die "The host operations refresh failed."
 
 deployment_phase=activation
 progress "activation" "activating revision $revision"

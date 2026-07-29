@@ -222,6 +222,12 @@ release_root_is_safe() {
         Backend/deploy/vps/deploy.sh \
         Backend/deploy/vps/deployment-lib.sh \
         Backend/deploy/vps/host-validation.sh \
+        Backend/deploy/vps/install-operations.sh \
+        Backend/deploy/vps/operations.sh \
+        Backend/deploy/vps/ladle-health.service \
+        Backend/deploy/vps/ladle-health.timer \
+        Backend/deploy/vps/ladle-backup.service \
+        Backend/deploy/vps/ladle-backup.timer \
         Backend/docker-compose.yml \
         Backend/deploy/vps/docker-compose.yml; do
         [ -f "$root_release/$critical_path" ] &&
@@ -229,7 +235,9 @@ release_root_is_safe() {
     done
     [ -x "$root_release/Backend/deploy/vps/initialize-env.sh" ] &&
         [ -x "$root_release/Backend/deploy/vps/deploy.sh" ] &&
-        [ -x "$root_release/Backend/deploy/vps/deployment-lib.sh" ]
+        [ -x "$root_release/Backend/deploy/vps/deployment-lib.sh" ] &&
+        [ -x "$root_release/Backend/deploy/vps/install-operations.sh" ] &&
+        [ -x "$root_release/Backend/deploy/vps/operations.sh" ]
 }
 
 if [ -e "$release" ] || [ -L "$release" ]; then

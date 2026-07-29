@@ -230,6 +230,7 @@ def test_vps_runbook_documents_staging_recovery_and_production_gates() -> None:
     assert "status and log output are bounded" in prose
     assert "scheduled units enforce systemd timeouts" in prose
     assert "direct health and backup calls bypass those systemd timeouts" in prose
+    assert "every deployment runs the operations refresh step" in prose
 
     forbidden_credentials = (
         "secret-retrieve",
@@ -2125,6 +2126,12 @@ def test_push_makes_completed_releases_root_owned_and_immutable() -> None:
         "Backend/deploy/vps/deploy.sh",
         "Backend/deploy/vps/deployment-lib.sh",
         "Backend/deploy/vps/host-validation.sh",
+        "Backend/deploy/vps/install-operations.sh",
+        "Backend/deploy/vps/operations.sh",
+        "Backend/deploy/vps/ladle-health.service",
+        "Backend/deploy/vps/ladle-health.timer",
+        "Backend/deploy/vps/ladle-backup.service",
+        "Backend/deploy/vps/ladle-backup.timer",
         "Backend/docker-compose.yml",
         "Backend/deploy/vps/docker-compose.yml",
     ):
@@ -2133,6 +2140,12 @@ def test_push_makes_completed_releases_root_owned_and_immutable() -> None:
     assert deploy.index('. "$host_validation_source"') > deploy.index(
         'release_root_is_safe "$release"'
     )
+    for executable_path in (
+        "Backend/deploy/vps/install-operations.sh",
+        "Backend/deploy/vps/operations.sh",
+    ):
+        assert f'[ -x "$root_release/{executable_path}" ]' in push
+        assert f'[ -x "$root_release/{executable_path}" ]' in deploy
 
 
 def test_push_requires_noninteractive_sudo_before_remote_mutation() -> None:
@@ -2491,11 +2504,110 @@ def test_deploy_waits_for_api_edge_worker_and_activates_last() -> None:
         "wait_for_api_readiness",
         "wait_for_edge_readiness",
         "wait_for_worker_ping",
+        "wait_for_beat_stability",
     ):
         readiness = deploy.rindex(gate)
         assert edge_rollout < readiness < activation
+    operations_install = deploy.index("deployment_phase=operations-install")
+    installer = deploy.index(
+        '"$backend_directory/deploy/vps/install-operations.sh" "$revision" refresh'
+    )
+    assert readiness < operations_install < installer < activation
     assert "deployment_phase" in deploy
     assert 'progress failure "$deployment_phase failed"' in deploy
+
+
+@pytest.mark.parametrize(
+    ("installed_state", "expected_activation"),
+    (
+        ("absent", True),
+        ("complete_stale", True),
+        ("partial", False),
+        ("refresh_failure", False),
+    ),
+)
+def test_every_deploy_refreshes_operations_before_activation(
+    tmp_path: Path,
+    installed_state: str,
+    expected_activation: bool,
+) -> None:
+    deploy = DEPLOY.read_text()
+    deployment_tail = deploy[deploy.index("deployment_phase=operations-install") :]
+    backend = tmp_path / "Backend"
+    installer = backend / "deploy" / "vps" / "install-operations.sh"
+    installer.parent.mkdir(parents=True)
+    installer.write_text(
+        """#!/bin/sh
+set -eu
+printf '%s %s\n' "$1" "$2" >"$INSTALL_TRACE"
+case "$INSTALLED_STATE" in
+    absent) ;;
+    complete_stale)
+        printf '%s\n' "current operations without caddy" >"$INSTALLED_OPERATIONS"
+        ;;
+    partial | refresh_failure) exit 23 ;;
+esac
+"""
+    )
+    installer.chmod(0o755)
+    installed_operations = tmp_path / "installed-operations"
+    if installed_state != "absent":
+        installed_operations.write_text("stale operations requiring caddy\n")
+    install_trace = tmp_path / "install-trace"
+    activation_marker = tmp_path / "activated"
+    revision = "d" * 40
+    runner = f"""
+set -eu
+backend_directory=$1
+revision=$2
+release=$3
+state_directory=$4
+write_deployment_state() {{ :; }}
+progress() {{ :; }}
+die() {{ printf '%s\\n' "$*" >&2; exit 1; }}
+activate_deployment_revision() {{ : >"$ACTIVATION_MARKER"; }}
+{deployment_tail}
+"""
+
+    result = subprocess.run(
+        [
+            "/bin/sh",
+            "-c",
+            runner,
+            "test",
+            str(backend),
+            revision,
+            str(tmp_path),
+            "state",
+        ],
+        check=False,
+        capture_output=True,
+        env={
+            **os.environ,
+            "ACTIVATION_MARKER": str(activation_marker),
+            "INSTALLED_OPERATIONS": str(installed_operations),
+            "INSTALLED_STATE": installed_state,
+            "INSTALL_TRACE": str(install_trace),
+        },
+        text=True,
+    )
+
+    assert install_trace.read_text() == f"{revision} refresh\n"
+    if expected_activation:
+        assert result.returncode == 0, result.stderr
+        if installed_state == "absent":
+            assert not installed_operations.exists()
+        else:
+            assert installed_operations.read_text() == (
+                "current operations without caddy\n"
+            )
+        assert activation_marker.exists()
+    else:
+        assert result.returncode != 0
+        assert installed_operations.read_text() == (
+            "stale operations requiring caddy\n"
+        )
+        assert not activation_marker.exists()
 
 
 def test_atomic_activation_preserves_current_until_called(tmp_path: Path) -> None:
@@ -2555,6 +2667,7 @@ def test_release_scripts_stream_sanitized_progress_to_a_private_server_log() -> 
         "edge-readiness",
         "worker-readiness",
         "beat-readiness",
+        "operations-install",
         "activation",
         "success",
     )
@@ -4248,6 +4361,131 @@ transactional_install_operations "$2" "$3" "$4" "$5"
     health_timer = trace.index("start ladle-health.timer")
     assert initial_backup < backup_timer < health_timer
     assert "start ladle-health.timer ladle-backup.timer" not in trace
+
+
+def test_operations_refresh_classifies_absent_complete_and_unsafe_sets(
+    tmp_path: Path,
+) -> None:
+    unit_names = (
+        "ladle-health.service",
+        "ladle-health.timer",
+        "ladle-backup.service",
+        "ladle-backup.timer",
+    )
+
+    def classify(root: Path) -> subprocess.CompletedProcess[str]:
+        binary = root / "sbin" / "ladle-operations"
+        units = root / "systemd"
+        binary.parent.mkdir(parents=True, exist_ok=True)
+        units.mkdir(exist_ok=True)
+        return _run_installer_library(
+            """
+target_metadata_is_safe() {
+    [ -f "$1" ] && [ ! -L "$1" ] || return 1
+    case "$3" in
+        755) [ -x "$1" ] ;;
+        644) [ ! -x "$1" ] ;;
+        *) return 1 ;;
+    esac
+}
+installed_operations_state "$1" "$2" "$3"
+""",
+            binary,
+            units,
+            str(os.getuid()),
+        )
+
+    absent_root = tmp_path / "absent"
+    absent = classify(absent_root)
+    complete_root = tmp_path / "complete"
+    complete_binary = complete_root / "sbin" / "ladle-operations"
+    complete_binary.parent.mkdir(parents=True)
+    complete_binary.write_text("old\n")
+    complete_binary.chmod(0o755)
+    complete_units = complete_root / "systemd"
+    complete_units.mkdir()
+    for name in unit_names:
+        (complete_units / name).write_text("old\n")
+        (complete_units / name).chmod(0o644)
+    complete = classify(complete_root)
+    partial_root = tmp_path / "partial"
+    partial_binary = partial_root / "sbin" / "ladle-operations"
+    partial_binary.parent.mkdir(parents=True)
+    partial_binary.write_text("partial\n")
+    partial_binary.chmod(0o755)
+    partial = classify(partial_root)
+    unsafe_root = tmp_path / "unsafe"
+    unsafe_binary = unsafe_root / "sbin" / "ladle-operations"
+    unsafe_binary.parent.mkdir(parents=True)
+    unsafe_binary.write_text("unsafe\n")
+    unsafe_binary.chmod(0o644)
+    unsafe_units = unsafe_root / "systemd"
+    unsafe_units.mkdir()
+    for name in unit_names:
+        (unsafe_units / name).write_text("old\n")
+        (unsafe_units / name).chmod(0o644)
+    unsafe = classify(unsafe_root)
+
+    assert absent.returncode == 0
+    assert absent.stdout == "absent\n"
+    assert complete.returncode == 0
+    assert complete.stdout == "complete\n"
+    assert partial.returncode != 0
+    assert unsafe.returncode != 0
+
+
+def test_operations_refresh_replaces_files_without_touching_timer_state(
+    tmp_path: Path,
+) -> None:
+    source, binary_target, unit_dir, targets, fake_bin, fake_state = (
+        _operations_installer_fixture(tmp_path, preexisting=True)
+    )
+    result = _run_installer_library(
+        """
+PATH=$1:$PATH
+transactional_install_operations "$2" "$3" "$4" "$5" refresh
+""",
+        fake_bin,
+        source,
+        binary_target,
+        unit_dir,
+        str(os.getuid()),
+        env={"FAIL_PHASE": "none", "FAKE_STATE": str(fake_state)},
+    )
+
+    assert result.returncode == 0, result.stderr
+    for target in targets:
+        source_name = "operations.sh" if target == binary_target else target.name
+        assert target.read_text() == (source / source_name).read_text()
+    assert fake_state.read_text().splitlines() == ["daemon-reload"]
+
+
+def test_operations_refresh_rolls_back_files_when_reload_fails(
+    tmp_path: Path,
+) -> None:
+    source, binary_target, unit_dir, targets, fake_bin, fake_state = (
+        _operations_installer_fixture(tmp_path, preexisting=True)
+    )
+    result = _run_installer_library(
+        """
+PATH=$1:$PATH
+transactional_install_operations "$2" "$3" "$4" "$5" refresh
+""",
+        fake_bin,
+        source,
+        binary_target,
+        unit_dir,
+        str(os.getuid()),
+        env={"FAIL_PHASE": "daemon", "FAKE_STATE": str(fake_state)},
+    )
+
+    assert result.returncode != 0
+    for target in targets:
+        assert target.read_text() == f"old:{target.name}\n"
+    trace = fake_state.read_text()
+    assert "enable " not in trace
+    assert "start " not in trace
+    assert "disable " not in trace
 
 
 @pytest.mark.parametrize("preexisting", (False, True))

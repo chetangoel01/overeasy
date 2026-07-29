@@ -313,8 +313,15 @@ Git revision. Never stream secrets or environment values, and do not run
 diagnostics that dump `/etc/ladle/ladle.env`. Stop the tail with `Ctrl-C`;
 this does not stop deployment.
 
-After the first successful push, install the health and backup operations from
-that exact immutable release.
+Every deployment runs the operations refresh step from its exact immutable
+revision after application readiness and stability gates pass, but before that
+revision is activated. The step skips safely when no operations set is
+installed, rejects a partial or unsafe set, and atomically refreshes a complete
+set without starting services or changing timer state. Refresh failure keeps
+the previous authoritative release active.
+
+After the first successful push, install the health and backup operations once,
+outside the deployment lock.
 
 **Mac — from `Backend/`**
 
@@ -323,6 +330,8 @@ REVISION=$(git rev-parse --verify HEAD^{commit})
 ssh ubuntu@135.148.42.60 \
   "sudo /opt/ladle/releases/$REVISION/Backend/deploy/vps/install-operations.sh $REVISION"
 ```
+
+Every later deployment refreshes the installed operations automatically.
 
 `systemd-analyze` is unavailable in the macOS workspace, and local tests do not
 validate real systemd unit syntax. The Ubuntu-side `systemd-analyze verify` is
