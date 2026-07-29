@@ -329,6 +329,13 @@ activation is therefore safe: if activation fails, `current` still selects the
 previous release's operations; once activation succeeds, the same launcher
 selects the new release.
 
+The launcher passes the exact validated release to `operations.sh` as a fixed,
+non-secret pin. The script reads deployment state and resolves `current` once,
+then requires both to match that pin before deriving any Compose paths or
+starting health or backup work. This pinned release handoff fails closed if an
+activation races the launcher-to-script transition, including either temporary
+state/current write ordering.
+
 After the first successful push, install the health and backup operations once,
 outside the deployment lock.
 

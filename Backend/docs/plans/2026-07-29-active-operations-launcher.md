@@ -86,3 +86,22 @@ before activation because dispatch remains controlled by `current`.
    and `dash -n` for every changed shell script, and `git diff --check`.
 3. Commit the coherent verified change as
    `fix: bind VPS operations to active release`.
+
+### Task 5: Pin the validated launcher handoff
+
+**Files:**
+
+- Modify: `Backend/deploy/vps/operations-launcher.sh`
+- Modify: `Backend/deploy/vps/operations.sh`
+- Modify: `Backend/docs/deployment/vps.md`
+- Test: `Backend/tests/unit/deploy/test_vps_profile.py`
+
+**Steps:**
+
+1. Reproduce the bounded race between launcher validation and script execution.
+2. Export the exact validated release immediately before `exec`, overwriting
+   any inherited value.
+3. Require state revision and one resolved `current` value to match that pin
+   before deriving Compose paths or performing operations.
+4. Verify stable releases, invalid pins, both mixed activation write orders,
+   and the race before running the full profile.

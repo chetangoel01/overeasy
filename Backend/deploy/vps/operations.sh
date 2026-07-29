@@ -7,6 +7,7 @@ export PATH
 
 env_file=/etc/ladle/ladle.env
 current_release=/opt/ladle/current
+releases_directory=/opt/ladle/releases
 deployment_state=/var/lib/ladle/deployment-state
 operations_state=/var/lib/ladle/operations
 backup_dir=/var/backups/ladle
@@ -56,6 +57,13 @@ validate_revision() {
     esac
 }
 
+validate_expected_release() {
+    expected_release=${LADLE_OPERATIONS_EXPECTED_RELEASE:-}
+    expected_revision=${expected_release##*/}
+    validate_revision "$expected_revision" || return 1
+    [ "$expected_release" = "$releases_directory/$expected_revision" ]
+}
+
 validate_runtime_paths() {
     runtime_paths_ready=false
     safe_directory "$operations_state" 700 || {
@@ -103,6 +111,10 @@ validate_runtime_paths() {
 }
 
 load_authoritative_release() {
+    validate_expected_release || {
+        fail "Operations release handoff is invalid."
+        return 1
+    }
     safe_regular_file "$deployment_state" 644 || {
         fail "Deployment state metadata is unsafe."
         return 1
@@ -112,9 +124,10 @@ load_authoritative_release() {
         return 1
     }
 
-    status_line=$(sed -n '1p' "$deployment_state")
-    revision_line=$(sed -n '2p' "$deployment_state")
-    phase_line=$(sed -n '3p' "$deployment_state")
+    state_contents=$(cat "$deployment_state") || return 1
+    status_line=$(printf '%s\n' "$state_contents" | sed -n '1p')
+    revision_line=$(printf '%s\n' "$state_contents" | sed -n '2p')
+    phase_line=$(printf '%s\n' "$state_contents" | sed -n '3p')
     [ "$status_line" = "STATUS=active" ] || {
         fail "Deployment state is not active."
         return 1
@@ -129,6 +142,10 @@ load_authoritative_release() {
         fail "Deployment state has an invalid revision."
         return 1
     }
+    [ "$revision" = "$expected_revision" ] || {
+        fail "Deployment state does not match the operations handoff."
+        return 1
+    }
 
     [ -L "$current_release" ] || {
         fail "Current release is not an atomic symlink."
@@ -138,8 +155,8 @@ load_authoritative_release() {
         fail "Cannot resolve the current release."
         return 1
     }
-    [ "$resolved_release" = "/opt/ladle/releases/$revision" ] || {
-        fail "Deployment state and current release are mixed."
+    [ "$resolved_release" = "$expected_release" ] || {
+        fail "Current release does not match the operations handoff."
         return 1
     }
     safe_directory "$resolved_release" 755 || {
@@ -650,25 +667,23 @@ validate_log_lines() {
 }
 
 show_status() {
-    validate_runtime_paths
-    if load_authoritative_release; then
-        printf '%s\n' "deployment authority: active"
-        compose ps
-    else
+    if ! validate_runtime_paths || ! load_authoritative_release; then
         printf '%s\n' "deployment authority: invalid"
+        return 1
     fi
+    printf '%s\n' "deployment authority: active"
+    compose ps || return 1
     systemctl --no-pager --full --lines="$log_lines" status \
         ladle-health.timer ladle-backup.timer \
         ladle-health.service ladle-backup.service || true
 }
 
 show_logs() {
+    load_authoritative_release || return 1
     journalctl --no-pager -n "$log_lines" \
         -u ladle-health.service -u ladle-backup.service
-    if load_authoritative_release; then
-        compose logs --no-color --tail "$log_lines" \
-            edge api worker worker-egress beat postgres redis minio
-    fi
+    compose logs --no-color --tail "$log_lines" \
+        edge api worker worker-egress beat postgres redis minio
 }
 
 operations_main() {
@@ -676,6 +691,10 @@ operations_main() {
         printf '%s\n' "Run ladle-operations as root." >&2
         return 1
     fi
+    validate_expected_release || {
+        fail "Operations release handoff is invalid."
+        return 1
+    }
     command_name=${1:-}
     case "$command_name" in
         health)

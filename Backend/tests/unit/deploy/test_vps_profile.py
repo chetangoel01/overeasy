@@ -6,6 +6,7 @@ import shutil
 import signal
 import stat
 import subprocess
+import time
 from pathlib import Path
 from typing import Any
 
@@ -234,6 +235,7 @@ def test_vps_runbook_documents_staging_recovery_and_production_gates() -> None:
     assert "direct health and backup calls bypass those systemd timeouts" in prose
     assert "every deployment runs the operations refresh step" in prose
     assert "current symlink authorizes operations dispatch" in prose
+    assert "pinned release handoff fails closed" in prose
 
     forbidden_credentials = (
         "secret-retrieve",
@@ -423,6 +425,8 @@ def _write_test_operations_launcher(
     tmp_path: Path,
     current: Path,
     releases: Path,
+    *,
+    pause_before_exec: bool = False,
 ) -> Path:
     fake_bin = tmp_path / "launcher-bin"
     fake_bin.mkdir(exist_ok=True)
@@ -445,6 +449,21 @@ def _write_test_operations_launcher(
     for original, replacement in replacements.items():
         assert original in launcher_source
         launcher_source = launcher_source.replace(original, replacement, 1)
+    if pause_before_exec:
+        exec_line = '    exec "$operations_script" "$@"'
+        assert exec_line in launcher_source
+        launcher_source = launcher_source.replace(
+            exec_line,
+            '''    : >"$LAUNCHER_SELECTED"
+    pause_attempt=0
+    while [ ! -e "$LAUNCHER_RESUME" ]; do
+        pause_attempt=$((pause_attempt + 1))
+        [ "$pause_attempt" -le 500 ] || launcher_fail
+        sleep 0.01
+    done
+    exec "$operations_script" "$@"''',
+            1,
+        )
     launcher.write_text(launcher_source)
     launcher.chmod(0o755)
     return launcher
@@ -460,7 +479,9 @@ def _write_operations_release(
     operations.parent.mkdir(parents=True)
     operations.write_text(
         "#!/bin/sh\n"
-        f"printf '%s\\n' \"{label}:$*\" >>\"$LAUNCH_TRACE\"\n"
+        f"printf '%s\\n' "
+        f"\"{label}:${{LADLE_OPERATIONS_EXPECTED_RELEASE:-missing}}:$*\" "
+        ">>\"$LAUNCH_TRACE\"\n"
     )
     operations.chmod(0o755)
     marker = release / ".ladle-revision"
@@ -470,11 +491,80 @@ def _write_operations_release(
     return release, marker, operations
 
 
+def _write_guarded_operations_release(
+    releases: Path,
+    revision: str,
+    label: str,
+    current: Path,
+    deployment_state: Path,
+) -> tuple[Path, Path]:
+    release = releases / revision
+    operations = release / "Backend" / "deploy" / "vps" / "operations.sh"
+    operations.parent.mkdir(parents=True)
+    operations_source = OPERATIONS.read_text().rsplit(
+        "\ncase ${0##*/} in",
+        maxsplit=1,
+    )[0]
+    operations_source = operations_source.replace(
+        '"/opt/ladle/releases/$revision"',
+        '"$releases_directory/$revision"',
+    )
+    operations.write_text(
+        f"""{operations_source}
+current_release={shlex.quote(str(current))}
+deployment_state={shlex.quote(str(deployment_state))}
+releases_directory={shlex.quote(str(releases))}
+safe_regular_file() {{ [ -f "$1" ] && [ ! -L "$1" ]; }}
+safe_directory() {{ [ -d "$1" ] && [ ! -L "$1" ]; }}
+validate_runtime_paths() {{ runtime_paths_ready=true; }}
+id() {{ printf '%s\\n' 0; }}
+systemctl() {{ :; }}
+journalctl() {{ :; }}
+compose() {{
+    printf '%s\\n' "{label}:$backend_directory:$*" >>"$MUTATION_TRACE"
+}}
+operations_main "$@"
+"""
+    )
+    operations.chmod(0o755)
+    marker = release / ".ladle-revision"
+    marker.write_text(f"{revision}\n")
+    marker.chmod(0o444)
+    (release / "Backend" / "docker-compose.yml").write_text("services: {}\n")
+    (release / "Backend" / "deploy" / "vps" / "docker-compose.yml").write_text(
+        "services: {}\n"
+    )
+    release.chmod(0o755)
+    return release, operations
+
+
+def _write_active_deployment_state(path: Path, revision: str) -> None:
+    replacement = path.with_name(f"{path.name}.next")
+    replacement.write_text(
+        f"STATUS=active\nREVISION={revision}\nPHASE=complete\n"
+    )
+    replacement.chmod(0o644)
+    os.replace(replacement, path)
+
+
+def _activate_test_release(
+    current: Path,
+    deployment_state: Path,
+    release: Path,
+) -> None:
+    revision = release.name
+    _write_active_deployment_state(deployment_state, revision)
+    replacement = current.with_name(f"{current.name}.next")
+    replacement.symlink_to(release)
+    os.replace(replacement, current)
+
+
 def _run_launcher(
     launcher: Path,
     trace: Path,
     *arguments: str,
     wrong_owner_paths: tuple[Path, ...] = (),
+    env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [str(launcher), *arguments],
@@ -484,7 +574,31 @@ def _run_launcher(
             **os.environ,
             "LAUNCH_TRACE": str(trace),
             "WRONG_OWNER_PATHS": os.pathsep.join(map(str, wrong_owner_paths)),
+            **(env or {}),
         },
+        text=True,
+    )
+
+
+def _run_release_operations(
+    operations: Path,
+    mutation_trace: Path,
+    *arguments: str,
+    expected_release: str | None,
+) -> subprocess.CompletedProcess[str]:
+    environment = {
+        key: value
+        for key, value in os.environ.items()
+        if key != "LADLE_OPERATIONS_EXPECTED_RELEASE"
+    }
+    environment["MUTATION_TRACE"] = str(mutation_trace)
+    if expected_release is not None:
+        environment["LADLE_OPERATIONS_EXPECTED_RELEASE"] = expected_release
+    return subprocess.run(
+        [str(operations), *arguments],
+        check=False,
+        capture_output=True,
+        env=environment,
         text=True,
     )
 
@@ -3412,7 +3526,7 @@ def test_vps_operations_create_validated_atomic_postgres_backups() -> None:
     assert backup.index("remove_incomplete_backup_pairs") < backup.index("pg_dump -Fc")
 
 
-def test_operations_launcher_dispatches_active_release_with_original_arguments(
+def test_operations_launcher_overwrites_pin_and_forwards_original_arguments(
     tmp_path: Path,
 ) -> None:
     releases = tmp_path / "releases"
@@ -3424,10 +3538,16 @@ def test_operations_launcher_dispatches_active_release_with_original_arguments(
     launcher = _write_test_operations_launcher(tmp_path, current, releases)
     trace = tmp_path / "launch.trace"
 
-    result = _run_launcher(launcher, trace, "status", "37")
+    result = _run_launcher(
+        launcher,
+        trace,
+        "status",
+        "37",
+        env={"LADLE_OPERATIONS_EXPECTED_RELEASE": "/spoofed/release"},
+    )
 
     assert result.returncode == 0, result.stderr
-    assert trace.read_text() == "active:status 37\n"
+    assert trace.read_text() == f"active:{active}:status 37\n"
 
 
 def test_operations_launcher_follows_current_after_activation(tmp_path: Path) -> None:
@@ -3455,7 +3575,222 @@ def test_operations_launcher_follows_current_after_activation(tmp_path: Path) ->
 
     assert old_result.returncode == 0, old_result.stderr
     assert new_result.returncode == 0, new_result.stderr
-    assert trace.read_text().splitlines() == ["old:health", "new:backup"]
+    assert trace.read_text().splitlines() == [
+        f"old:{old_release}:health",
+        f"new:{new_release}:backup",
+    ]
+
+
+def test_operations_handoff_dispatches_stable_old_and_new_releases(
+    tmp_path: Path,
+) -> None:
+    releases = tmp_path / "releases"
+    releases.mkdir()
+    current = tmp_path / "current"
+    deployment_state = tmp_path / "deployment-state"
+    old_release, _ = _write_guarded_operations_release(
+        releases,
+        "a" * 40,
+        "old",
+        current,
+        deployment_state,
+    )
+    new_release, _ = _write_guarded_operations_release(
+        releases,
+        "b" * 40,
+        "new",
+        current,
+        deployment_state,
+    )
+    current.symlink_to(old_release)
+    _write_active_deployment_state(deployment_state, old_release.name)
+    launcher = _write_test_operations_launcher(tmp_path, current, releases)
+    mutation_trace = tmp_path / "mutation.trace"
+    launcher_env = {"MUTATION_TRACE": str(mutation_trace)}
+
+    old_result = _run_launcher(
+        launcher,
+        tmp_path / "launch.trace",
+        "status",
+        "37",
+        env=launcher_env,
+    )
+    _activate_test_release(current, deployment_state, new_release)
+    new_result = _run_launcher(
+        launcher,
+        tmp_path / "launch.trace",
+        "status",
+        "41",
+        env=launcher_env,
+    )
+
+    assert old_result.returncode == 0, old_result.stderr
+    assert new_result.returncode == 0, new_result.stderr
+    assert mutation_trace.read_text().splitlines() == [
+        f"old:{old_release}/Backend:ps",
+        f"new:{new_release}/Backend:ps",
+    ]
+
+
+@pytest.mark.parametrize(
+    "pin_case",
+    ("missing", "malformed", "spoofed"),
+)
+def test_operations_executable_rejects_untrusted_release_pin(
+    tmp_path: Path,
+    pin_case: str,
+) -> None:
+    releases = tmp_path / "releases"
+    releases.mkdir()
+    current = tmp_path / "current"
+    deployment_state = tmp_path / "deployment-state"
+    old_release, old_operations = _write_guarded_operations_release(
+        releases,
+        "a" * 40,
+        "old",
+        current,
+        deployment_state,
+    )
+    new_release, _ = _write_guarded_operations_release(
+        releases,
+        "b" * 40,
+        "new",
+        current,
+        deployment_state,
+    )
+    current.symlink_to(old_release)
+    _write_active_deployment_state(deployment_state, old_release.name)
+    expected_release = {
+        "missing": None,
+        "malformed": "/not/an/immutable/release",
+        "spoofed": str(new_release),
+    }[pin_case]
+    mutation_trace = tmp_path / "mutation.trace"
+
+    result = _run_release_operations(
+        old_operations,
+        mutation_trace,
+        "status",
+        expected_release=expected_release,
+    )
+
+    assert result.returncode != 0
+    assert not mutation_trace.exists()
+
+
+@pytest.mark.parametrize(
+    "mixed_state",
+    ("new_state_old_current", "old_state_new_current"),
+)
+def test_operations_pin_rejects_both_activation_write_order_mismatches(
+    tmp_path: Path,
+    mixed_state: str,
+) -> None:
+    releases = tmp_path / "releases"
+    releases.mkdir()
+    current = tmp_path / "current"
+    deployment_state = tmp_path / "deployment-state"
+    old_release, old_operations = _write_guarded_operations_release(
+        releases,
+        "a" * 40,
+        "old",
+        current,
+        deployment_state,
+    )
+    new_release, _ = _write_guarded_operations_release(
+        releases,
+        "b" * 40,
+        "new",
+        current,
+        deployment_state,
+    )
+    current.symlink_to(old_release)
+    if mixed_state == "new_state_old_current":
+        _write_active_deployment_state(deployment_state, new_release.name)
+    else:
+        _write_active_deployment_state(deployment_state, old_release.name)
+        replacement = current.with_name("current.next")
+        replacement.symlink_to(new_release)
+        os.replace(replacement, current)
+    mutation_trace = tmp_path / "mutation.trace"
+
+    result = _run_release_operations(
+        old_operations,
+        mutation_trace,
+        "status",
+        expected_release=str(old_release),
+    )
+
+    assert result.returncode != 0
+    assert not mutation_trace.exists()
+
+
+def test_operations_handoff_fails_closed_when_activation_wins_exec_race(
+    tmp_path: Path,
+) -> None:
+    releases = tmp_path / "releases"
+    releases.mkdir()
+    current = tmp_path / "current"
+    deployment_state = tmp_path / "deployment-state"
+    old_release, _ = _write_guarded_operations_release(
+        releases,
+        "a" * 40,
+        "old",
+        current,
+        deployment_state,
+    )
+    new_release, _ = _write_guarded_operations_release(
+        releases,
+        "b" * 40,
+        "new",
+        current,
+        deployment_state,
+    )
+    current.symlink_to(old_release)
+    _write_active_deployment_state(deployment_state, old_release.name)
+    launcher = _write_test_operations_launcher(
+        tmp_path,
+        current,
+        releases,
+        pause_before_exec=True,
+    )
+    selected = tmp_path / "launcher-selected"
+    resume = tmp_path / "launcher-resume"
+    mutation_trace = tmp_path / "mutation.trace"
+    environment = {
+        **os.environ,
+        "LAUNCHER_SELECTED": str(selected),
+        "LAUNCHER_RESUME": str(resume),
+        "LAUNCH_TRACE": str(tmp_path / "launch.trace"),
+        "MUTATION_TRACE": str(mutation_trace),
+        "WRONG_OWNER_PATHS": "",
+    }
+    process = subprocess.Popen(
+        [str(launcher), "status"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=environment,
+        text=True,
+    )
+    try:
+        deadline = time.monotonic() + 5
+        while (
+            not selected.exists()
+            and process.poll() is None
+            and time.monotonic() < deadline
+        ):
+            time.sleep(0.01)
+        assert selected.exists(), "launcher did not reach the bounded race gate"
+        _activate_test_release(current, deployment_state, new_release)
+        resume.touch()
+        _, stderr = process.communicate(timeout=10)
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.communicate(timeout=5)
+
+    assert process.returncode != 0, stderr
+    assert not mutation_trace.exists()
 
 
 @pytest.mark.parametrize(
@@ -4787,7 +5122,10 @@ activate_release "$1" "$2"
     assert after_failure.returncode == 0, after_failure.stderr
     assert successful_activation.returncode == 0, successful_activation.stderr
     assert after_success.returncode == 0, after_success.stderr
-    assert trace.read_text().splitlines() == ["old:health", "new:backup"]
+    assert trace.read_text().splitlines() == [
+        f"old:{old_release}:health",
+        f"new:{new_release}:backup",
+    ]
     assert fake_state.read_text().splitlines() == ["daemon-reload"]
     for installed_unit in unit_dir.iterdir():
         unit_text = installed_unit.read_text()

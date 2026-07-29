@@ -75,6 +75,8 @@ launch_active_operations() {
         launcher_fail
     [ "$(stat -c '%u:%a' -- "$operations_script")" = "$trusted_uid:755" ] ||
         launcher_fail
+    LADLE_OPERATIONS_EXPECTED_RELEASE=$active_release
+    export LADLE_OPERATIONS_EXPECTED_RELEASE
     exec "$operations_script" "$@"
 }
 
