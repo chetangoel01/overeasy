@@ -30,6 +30,9 @@ HEALTH_TIMER = PROFILE.parent / "ladle-health.timer"
 BACKUP_SERVICE = PROFILE.parent / "ladle-backup.service"
 BACKUP_TIMER = PROFILE.parent / "ladle-backup.timer"
 PROGRESS_LOG = "/var/log/ladle/setup.log"
+RUNBOOK = BACKEND / "docs" / "deployment" / "vps.md"
+BACKEND_README = BACKEND / "README.md"
+ROOT_README = BACKEND.parent / "README.md"
 
 EXPECTED_SERVICES = {
     "postgres",
@@ -44,6 +47,75 @@ EXPECTED_SERVICES = {
     "worker",
     "beat",
 }
+
+
+def test_vps_runbook_documents_staging_recovery_and_production_gates() -> None:
+    assert RUNBOOK.exists(), "missing VPS runbook"
+    runbook = RUNBOOK.read_text()
+    lowered = runbook.casefold()
+
+    for required in (
+        "vps-8b0be574.vps.ovh.us",
+        "135.148.42.60",
+        "2604:2dc0:121::64f",
+        "ubuntu 26.04",
+        "fresh empty",
+        "one-time password",
+        "ovh kvm",
+        "host-key fingerprint",
+        "ssh-keygen",
+        "ssh-copy-id",
+        "preferredauthentications=publickey",
+        "passwordauthentication=no",
+        "api.ladle.app a    135.148.42.60",
+        "api.ladle.app aaaa 2604:2dc0:121::64f",
+        "standard input",
+        "set-secret.sh ladle_openrouter_api_key",
+        "./deploy/vps/push.sh ubuntu@135.148.42.60",
+        "sudo ladle-operations status",
+        "sudo ladle-operations logs",
+        "sudo ladle-operations backup",
+        "sudo tail -f /var/log/ladle/setup.log",
+        "pg_restore",
+        "postgres:16",
+        "rollback",
+        "key rotation",
+        "systemd-analyze verify",
+        "ladle_environment=development",
+        "external postgresql restore",
+        "off-host object state",
+        "tls-credentialed postgresql and redis",
+        "apple sign-in",
+        "google sign-in",
+        "app attest",
+        "tracing",
+        "real-device",
+        "remove the staging gate",
+    ):
+        assert required in lowered
+
+    assert "ovh snapshots are not database-aware backups" in lowered
+    assert "--staging-access-key-file" in runbook
+    assert '< "$PROVIDER_SECRET_FILE"' in runbook
+    assert '> "$STAGING_KEY_FILE"' in runbook
+    assert "never prints the key" in lowered
+    assert "fixed, sanitized phases" in lowered
+    assert "never stream secrets or environment values" in lowered
+    assert "keep the staging gate" in lowered
+
+    forbidden_credentials = (
+        "secret-retrieve",
+        "BEGIN OPENSSH PRIVATE KEY",
+        "BEGIN PRIVATE KEY",
+        "AKIA",
+        "sk-",
+    )
+    assert not any(marker in runbook for marker in forbidden_credentials)
+    assert re.search(r"\b[0-9a-f]{48,}\b", lowered) is None
+
+    expected_link = "docs/deployment/vps.md"
+    assert expected_link in BACKEND_README.read_text()
+    assert "Backend/docs/deployment/vps.md" in ROOT_README.read_text()
 
 
 class ComposeLoader(yaml.SafeLoader):
@@ -2548,7 +2620,7 @@ def test_vps_operations_create_validated_atomic_postgres_backups() -> None:
     assert "mv -f --" in operations
     assert "remove_incomplete_backup_pairs" in operations
     assert "retain_backup_pairs" in operations
-    assert "-mtime \"+$backup_retention_days\"" in operations
+    assert '-mtime "+$backup_retention_days"' in operations
     assert 'rm -f -- "$retained_dump" "$retained_checksum"' in operations
     assert "POSTGRES_PASSWORD" not in operations
     assert "LADLE_DATABASE_PASSWORD" not in operations
@@ -2689,10 +2761,10 @@ def test_vps_operations_expose_bounded_status_logs_health_and_backup() -> None:
         assert command in operations
     assert "journalctl" in operations
     assert "--no-pager" in operations
-    assert "-n \"$log_lines\"" in operations
+    assert '-n "$log_lines"' in operations
     assert "docker compose" in operations
-    assert "logs --no-color --tail \"$log_lines\"" in operations
-    assert "--env-file \"$env_file\"" in operations
+    assert 'logs --no-color --tail "$log_lines"' in operations
+    assert '--env-file "$env_file"' in operations
     assert "--project-name ladle" in operations
     assert "/etc/ladle/ladle.env" in operations
     assert "LADLE_" not in operations.split("journalctl", maxsplit=1)[-1]

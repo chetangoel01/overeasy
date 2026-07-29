@@ -37,6 +37,9 @@ Prometheus-format bounded-label counters are available at `/metrics`. Run
 
 For the private Mac mini staging deployment, see
 [`docs/deployment/mac-mini.md`](docs/deployment/mac-mini.md).
+For the guarded Ubuntu VPS staging path, including live setup feedback,
+recovery drills, and production blockers, see
+[`docs/deployment/vps.md`](docs/deployment/vps.md).
 
 Apple and Google sign-in remain disabled in local development until their
 provider settings are supplied. Production refuses to start without both

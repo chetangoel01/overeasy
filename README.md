@@ -122,6 +122,11 @@ the complete path map, HTTP API and payload examples, provider configuration,
 iOS connection steps, PostgreSQL relationships, table definitions, migration
 commands, and troubleshooting.
 
+The guarded OVH staging server has a separate
+[VPS deployment and recovery runbook](Backend/docs/deployment/vps.md) covering
+SSH bootstrap, live setup feedback, DNS, backups, restore drills, rollback,
+and production-promotion blockers.
+
 ## Test
 
 Run the domain package:
