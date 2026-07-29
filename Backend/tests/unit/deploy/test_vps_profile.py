@@ -91,6 +91,10 @@ def test_vps_runbook_documents_staging_recovery_and_production_gates() -> None:
         "tracing",
         "real-device",
         "remove the staging gate",
+        (
+            "./deploy/vps/push.sh ubuntu@135.148.42.60 "
+            "vps-8b0be574.vps.ovh.us"
+        ),
     ):
         assert required in lowered
 
@@ -1676,7 +1680,9 @@ def test_push_refuses_dirty_state_and_transfers_only_the_exact_archive() -> None
     assert 'stat -c "%u:%a" -- "$remote_directory"' in push
     assert "mktemp -d /opt/ladle/releases/.incoming-" in push
     assert "sudo -n mv -T --" in push
-    assert 'sudo -n "$release/Backend/deploy/vps/initialize-env.sh"' in push
+    assert "sudo -n /usr/bin/env" in push
+    assert 'LADLE_PUBLIC_HOSTNAME="$public_hostname"' in push
+    assert '"$release/Backend/deploy/vps/initialize-env.sh"' in push
     assert 'sudo -n "$release/Backend/deploy/vps/deploy.sh" "$revision"' in push
     assert "rsync" not in push
     assert re.search(r"\bscp\s+-r\b", push) is None
@@ -1698,6 +1704,26 @@ def test_push_refuses_dirty_state_and_transfers_only_the_exact_archive() -> None
     assert 'rm -f -- "$archive"' in cleanup
     assert "remote_prepared" in cleanup
     assert "rm -f -- '$remote_archive'" in cleanup
+
+
+def test_push_forwards_a_validated_first_deployment_hostname() -> None:
+    push = PUSH.read_text()
+
+    assert "Usage: push.sh SSH_USER@HOST [PUBLIC_HOSTNAME]" in push
+    assert "public_hostname=${2:-api.ladle.app}" in push
+    assert "The public hostname is unsafe." in push
+    assert (
+        '"$revision" "$remote_directory" "$remote_archive" "$public_hostname"'
+        in push
+    )
+    assert "public_hostname=$4" in push
+    assert 'LADLE_PUBLIC_HOSTNAME="$public_hostname"' in push
+    assert (
+        'sudo -n /usr/bin/env \\\n'
+        '    LADLE_PUBLIC_HOSTNAME="$public_hostname" \\\n'
+        '    "$release/Backend/deploy/vps/initialize-env.sh"'
+        in push
+    )
 
 
 def test_push_makes_completed_releases_root_owned_and_immutable() -> None:
@@ -2169,7 +2195,8 @@ def test_release_scripts_stream_sanitized_progress_to_a_private_server_log() -> 
         'progress "upload" "root-owned release installed"'
     )
     remote_initialize = remote_release.index(
-        'sudo -n "$release/Backend/deploy/vps/initialize-env.sh"'
+        'sudo -n /usr/bin/env \\\n'
+        '    LADLE_PUBLIC_HOSTNAME="$public_hostname"'
     )
     assert remote_progress < remote_archive < remote_upload < remote_initialize
 

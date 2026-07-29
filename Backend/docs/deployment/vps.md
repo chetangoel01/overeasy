@@ -260,7 +260,8 @@ password login are rejected. Keep OVH KVM available as the recovery console.
 
 ## DNS and first deployment
 
-Create these DNS records with a short initial TTL:
+Create these DNS records with a short initial TTL only after `ladle.app` is
+under the account owner's DNS control:
 
 ```text
 api.ladle.app A    135.148.42.60
@@ -269,14 +270,18 @@ api.ladle.app AAAA 2604:2dc0:121::64f
 
 Check authoritative and public A/AAAA resolution before treating TLS as ready.
 The deployment script requires a clean Git checkout and deploys exactly the
-full commit at `HEAD`.
+full commit at `HEAD`. At the first VPS deployment, `ladle.app` was still
+parked on Dan.com/GoDaddy nameservers. Until its DNS is controlled, use the
+OVH hostname, whose A and AAAA records already resolve to this VPS. This
+temporary hostname is for guarded staging only; changing it later requires a
+planned environment rotation and redeploy.
 
 **Mac — from `Backend/`**
 
 ```bash
 test -z "$(git status --porcelain --untracked-files=all)"
 ssh ubuntu@135.148.42.60 'sudo -n true'
-./deploy/vps/push.sh ubuntu@135.148.42.60
+./deploy/vps/push.sh ubuntu@135.148.42.60 vps-8b0be574.vps.ovh.us
 ```
 
 ### Live setup feedback

@@ -15,10 +15,11 @@ die() {
     exit 1
 }
 
-if [ "$#" -ne 1 ]; then
-    die "Usage: push.sh SSH_USER@HOST"
+if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
+    die "Usage: push.sh SSH_USER@HOST [PUBLIC_HOSTNAME]"
 fi
 ssh_target=$1
+public_hostname=${2:-api.ladle.app}
 case "$ssh_target" in
     "" | -* | *[!A-Za-z0-9_.@:-]* | *@*@* | @* | *@)
         die "The SSH target is unsafe."
@@ -28,6 +29,13 @@ case "$ssh_target" in
     *@*) ;;
     *) die "The SSH target must include an explicit user." ;;
 esac
+case "$public_hostname" in
+    "" | *[!A-Za-z0-9.-]* | .* | *..* | *.)
+        die "The public hostname is unsafe."
+        ;;
+esac
+[ "${#public_hostname}" -le 253 ] ||
+    die "The public hostname is unsafe."
 
 script_directory=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 repository=$(git -C "$script_directory" rev-parse --show-toplevel) ||
@@ -127,7 +135,8 @@ remote_prepared=true
 scp "$archive" "$ssh_target:$remote_archive"
 
 ssh "$ssh_target" sh -s -- \
-    "$revision" "$remote_directory" "$remote_archive" <<'LADLE_REMOTE_RELEASE'
+    "$revision" "$remote_directory" "$remote_archive" "$public_hostname" \
+    <<'LADLE_REMOTE_RELEASE'
 #!/bin/sh
 set -eu
 umask 077
@@ -135,6 +144,7 @@ umask 077
 revision=$1
 remote_directory=$2
 remote_archive=$3
+public_hostname=$4
 case "$revision" in
     "" | *[!0-9a-f]*) exit 1 ;;
 esac
@@ -148,6 +158,10 @@ case "$remote_token" in
     "" | *[!A-Za-z0-9]*) exit 1 ;;
 esac
 [ "$remote_archive" = "$remote_directory/release.tar" ] || exit 1
+case "$public_hostname" in
+    "" | *[!A-Za-z0-9.-]* | .* | *..* | *.) exit 1 ;;
+esac
+[ "${#public_hostname}" -le 253 ] || exit 1
 
 releases_directory=/opt/ladle/releases
 release="/opt/ladle/releases/$revision"
@@ -290,7 +304,9 @@ progress "archive" "exact revision archive verified"
 progress "upload" "root-owned release installed"
 LADLE_REMOTE_PROGRESS
 
-sudo -n "$release/Backend/deploy/vps/initialize-env.sh"
+sudo -n /usr/bin/env \
+    LADLE_PUBLIC_HOSTNAME="$public_hostname" \
+    "$release/Backend/deploy/vps/initialize-env.sh"
 sudo -n "$release/Backend/deploy/vps/deploy.sh" "$revision"
 LADLE_REMOTE_RELEASE
 
