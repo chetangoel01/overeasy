@@ -343,7 +343,13 @@ regular file. Deployment preflights that metadata before any Compose or
 deployment-state mutation, then revalidates after taking the late exclusive
 lock to close the activation TOCTOU window. The launcher takes a blocking
 shared authority lock before it resolves `current` and holds that lock across
-the selected operation.
+the selected operation. Both paths pin the lock's device, inode, owner, and
+mode: they snapshot the pathname, open fd 7 read-only, acquire the lock, and
+require the snapshot, the Linux `/proc/self/fd/7` target, and the post-lock
+pathname to match. Missing procfs metadata or even a safe root-owned `0600`
+inode replacement fails closed. The lock directory remains root-only, but the
+identity checks are an explicit defense rather than an assumption about that
+directory.
 Deployments take the matching exclusive authority lock only after readiness,
 immediately before operations refresh and activation, so a launcher started
 during activation waits and then selects the final active release; an

@@ -118,7 +118,7 @@ acquire_deployment_lock "$deployment_lock" 0 ||
     die "Another Ladle deployment is running or the lock is unsafe."
 acquire_environment_lock "$environment_lock" 0 ||
     die "Cannot acquire the staging environment lock."
-lock_file_is_safe "$authority_lock" 0 ||
+authority_lock_identity=$(lock_file_identity "$authority_lock" 0) ||
     die "Authority lock metadata is unsafe before deployment."
 
 platform_network_is_valid || die "$PLATFORM_NETWORK_ERROR"
@@ -258,7 +258,7 @@ progress "beat-readiness" "checking Celery Beat stability"
 wait_for_beat_stability "$beat_stability_checks" "$beat_stability_interval" ||
     die "The Celery Beat stability gate failed."
 
-acquire_authority_lock "$authority_lock" 0 ||
+acquire_authority_lock "$authority_lock" 0 "$authority_lock_identity" ||
     die "Cannot acquire the operations authority lock."
 
 deployment_phase=operations-install

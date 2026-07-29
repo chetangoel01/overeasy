@@ -25,18 +25,51 @@ trusted_directory() {
     [ $((0$trusted_mode & 022)) -eq 0 ]
 }
 
-trusted_authority_lock() {
+authority_identity_is_trusted() {
+    trusted_identity=$1
+    case "$trusted_identity" in
+        "" | *[!0-9:]*) return 1 ;;
+    esac
+    trusted_identity_ifs=$IFS
+    IFS=:
+    set -- $trusted_identity
+    IFS=$trusted_identity_ifs
+    [ "$#" -eq 4 ] || return 1
+    [ -n "$1" ] && [ -n "$2" ] || return 1
+    [ "$3" = "$trusted_uid" ] && [ "$4" = 600 ]
+}
+
+trusted_authority_lock_identity() {
     [ -f "$authority_lock" ] && [ ! -L "$authority_lock" ] || return 1
     [ "$(readlink -f -- "$authority_lock")" = "$authority_lock" ] ||
         return 1
-    [ "$(stat -c '%u:%a' -- "$authority_lock")" = "$trusted_uid:600" ]
+    trusted_lock_identity=$(
+        stat -c '%d:%i:%u:%a' -- "$authority_lock"
+    ) || return 1
+    authority_identity_is_trusted "$trusted_lock_identity" || return 1
+    printf '%s\n' "$trusted_lock_identity"
+}
+
+opened_authority_lock_identity() {
+    stat -Lc '%d:%i:%u:%a' -- /proc/self/fd/7
 }
 
 acquire_operations_authority_lock() {
-    trusted_authority_lock || launcher_fail
+    expected_authority_lock_identity=$(
+        trusted_authority_lock_identity
+    ) || launcher_fail
     exec 7<"$authority_lock" || launcher_fail
     flock -s 7 || launcher_fail
-    trusted_authority_lock || launcher_fail
+    opened_authority_identity=$(opened_authority_lock_identity) ||
+        launcher_fail
+    authority_identity_is_trusted "$opened_authority_identity" ||
+        launcher_fail
+    current_authority_lock_identity=$(
+        trusted_authority_lock_identity
+    ) || launcher_fail
+    [ "$expected_authority_lock_identity" = "$opened_authority_identity" ] &&
+        [ "$expected_authority_lock_identity" = \
+            "$current_authority_lock_identity" ] || launcher_fail
 }
 
 trusted_release_tree() {

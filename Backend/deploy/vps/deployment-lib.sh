@@ -114,6 +114,30 @@ file_uid_mode() {
     fi
 }
 
+file_identity() {
+    identity_target=$1
+    if stat -c '%d:%i:%u:%a' -- "$identity_target" >/dev/null 2>&1; then
+        stat -c '%d:%i:%u:%a' -- "$identity_target"
+    else
+        stat -f '%d:%i:%u:%Lp' -- "$identity_target"
+    fi
+}
+
+lock_identity_is_safe() {
+    safe_identity=$1
+    safe_identity_uid=$2
+    case "$safe_identity" in
+        "" | *[!0-9:]*) return 1 ;;
+    esac
+    saved_ifs=$IFS
+    IFS=:
+    set -- $safe_identity
+    IFS=$saved_ifs
+    [ "$#" -eq 4 ] || return 1
+    [ -n "$1" ] && [ -n "$2" ] || return 1
+    [ "$3" = "$safe_identity_uid" ] && [ "$4" = 600 ]
+}
+
 release_directory_is_safe() {
     safe_release=$1
     safe_release_uid=$2
@@ -140,11 +164,22 @@ release_directory_is_safe() {
 }
 
 lock_file_is_safe() {
-    safe_lock=$1
-    safe_lock_uid=$2
-    [ -f "$safe_lock" ] && [ ! -L "$safe_lock" ] || return 1
-    [ "$(readlink -f -- "$safe_lock")" = "$safe_lock" ] || return 1
-    [ "$(file_uid_mode "$safe_lock")" = "$safe_lock_uid:600" ]
+    lock_file_identity "$1" "$2" >/dev/null
+}
+
+lock_file_identity() {
+    identity_lock=$1
+    identity_lock_uid=$2
+    [ -f "$identity_lock" ] && [ ! -L "$identity_lock" ] || return 1
+    [ "$(readlink -f -- "$identity_lock")" = "$identity_lock" ] ||
+        return 1
+    identity_value=$(file_identity "$identity_lock") || return 1
+    lock_identity_is_safe "$identity_value" "$identity_lock_uid" || return 1
+    printf '%s\n' "$identity_value"
+}
+
+opened_authority_lock_identity() {
+    stat -Lc '%d:%i:%u:%a' -- /proc/self/fd/7
 }
 
 acquire_environment_lock() {
@@ -170,11 +205,26 @@ acquire_deployment_lock() {
 acquire_authority_lock() {
     authority_lock_path=$1
     authority_lock_uid=$2
-    lock_file_is_safe "$authority_lock_path" "$authority_lock_uid" ||
+    expected_authority_lock_identity=$3
+    lock_identity_is_safe \
+        "$expected_authority_lock_identity" "$authority_lock_uid" ||
         return 1
-    exec 7>"$authority_lock_path"
+    current_authority_lock_identity=$(
+        lock_file_identity "$authority_lock_path" "$authority_lock_uid"
+    ) || return 1
+    [ "$current_authority_lock_identity" = \
+        "$expected_authority_lock_identity" ] || return 1
+    exec 7<"$authority_lock_path" || return 1
     flock 7 || return 1
-    lock_file_is_safe "$authority_lock_path" "$authority_lock_uid"
+    opened_authority_identity=$(opened_authority_lock_identity) || return 1
+    lock_identity_is_safe "$opened_authority_identity" "$authority_lock_uid" ||
+        return 1
+    current_authority_lock_identity=$(
+        lock_file_identity "$authority_lock_path" "$authority_lock_uid"
+    ) || return 1
+    [ "$expected_authority_lock_identity" = "$opened_authority_identity" ] &&
+        [ "$expected_authority_lock_identity" = \
+            "$current_authority_lock_identity" ]
 }
 
 validate_staging_environment() {

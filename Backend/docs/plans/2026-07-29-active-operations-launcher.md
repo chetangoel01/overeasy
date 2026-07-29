@@ -182,3 +182,33 @@ before activation because dispatch remains controlled by `current`.
    revalidation immediately before operations refresh and activation.
 3. Exercise missing, symlinked, wrong-owner, wrong-mode, valid, and
    post-preflight-swap paths with mutation tracing.
+
+### Task 10: Pin authority-lock identity across acquisition
+
+**Files:**
+
+- Modify: `Backend/deploy/vps/deployment-lib.sh`
+- Modify: `Backend/deploy/vps/deploy.sh`
+- Modify: `Backend/deploy/vps/operations-launcher.sh`
+- Modify: `Backend/docs/deployment/vps.md`
+- Test: `Backend/tests/unit/deploy/test_vps_profile.py`
+
+**Behavior and decisions:**
+
+1. Snapshot and validate the authority pathname's device, inode, owner, and
+   mode during deployment preflight without opening it.
+2. Open fd 7 read-only, acquire the requested shared or exclusive lock, and
+   require the snapshot to equal both the Linux `/proc/self/fd/7` target and
+   the post-lock pathname identity.
+3. Fail closed if procfs identity is unavailable or if a root-owned `0600`
+   replacement inode appears at any acquisition seam. Keep fd 7 independent
+   from the fd 9 deployment transaction and preserve their existing order.
+
+**Verification:**
+
+- Deterministic replacements before and after launcher open are rejected.
+- Deployment rejects replacement after preflight, including while a launcher
+  still holds the old inode, and never reaches operations refresh or
+  activation.
+- Stable acquisition preserves lock contents; unsafe metadata and the
+  existing post-preflight mode-change race remain rejected.

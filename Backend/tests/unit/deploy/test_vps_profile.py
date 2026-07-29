@@ -242,6 +242,7 @@ def test_vps_runbook_documents_staging_recovery_and_production_gates() -> None:
     assert "separate deployment lock" in prose
     assert "fresh provisioning creates authority.lock" in prose
     assert "before any compose or deployment-state mutation" in prose
+    assert "device, inode, owner, and mode" in prose
     assert "two-minute health service timeout" in prose
     gateway_plan = " ".join(
         (
@@ -428,16 +429,34 @@ import stat
 import sys
 
 target = sys.argv[-1]
-metadata = os.lstat(target)
+if target == "/proc/self/fd/7":
+    if os.environ.get("FAIL_AUTHORITY_FD_STAT") == "1":
+        raise SystemExit(1)
+    metadata = os.fstat(7)
+else:
+    metadata = os.lstat(target)
 uid = metadata.st_uid
 wrong_owner_paths = os.environ.get("WRONG_OWNER_PATHS", "").split(os.pathsep)
 if target in wrong_owner_paths:
     uid += 1
 mode = stat.S_IMODE(metadata.st_mode)
-if sys.argv[2] == "%u:%a":
+format_string = next(
+    argument for argument in sys.argv[1:] if argument.startswith("%")
+)
+if format_string == "%u:%a":
     print(f"{uid}:{mode:o}")
+elif format_string == "%d:%i:%u:%a":
+    print(f"{metadata.st_dev}:{metadata.st_ino}:{uid}:{mode:o}")
 else:
     raise SystemExit("unsupported stat format")
+replacement = os.environ.get("AUTHORITY_REPLACEMENT_BEFORE_OPEN")
+authority_lock = os.environ.get("AUTHORITY_LOCK_PATH")
+if (
+    target == authority_lock
+    and replacement
+    and os.path.exists(replacement)
+):
+    os.replace(replacement, target)
 """
     )
     path.chmod(0o755)
@@ -784,6 +803,7 @@ def _write_fake_flock(path: Path) -> None:
     path.write_text(
         """#!/usr/bin/env python3
 import fcntl
+import os
 import sys
 
 arguments = sys.argv[1:]
@@ -796,6 +816,10 @@ try:
     fcntl.flock(descriptor, operation)
 except BlockingIOError:
     raise SystemExit(1)
+replacement = os.environ.get("AUTHORITY_REPLACEMENT_AFTER_OPEN")
+authority_lock = os.environ.get("AUTHORITY_LOCK_PATH")
+if descriptor == 7 and replacement and os.path.exists(replacement):
+    os.replace(replacement, authority_lock)
 """
     )
     path.chmod(0o755)
@@ -2892,7 +2916,8 @@ def _run_deploy_authority_flow(
     *,
     authority_state: str,
     swap_after_readiness: bool = False,
-) -> tuple[subprocess.CompletedProcess[str], Path]:
+    replace_after_readiness: bool = False,
+) -> tuple[subprocess.CompletedProcess[str], Path, Path]:
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
     _write_fake_flock(fake_bin / "flock")
@@ -2917,6 +2942,10 @@ def _run_deploy_authority_flow(
         wrong_owner_paths = str(authority_lock)
     elif authority_state == "wrong_mode":
         authority_lock.chmod(0o640)
+    authority_replacement = tmp_path / "authority-replacement.lock"
+    if replace_after_readiness:
+        authority_replacement.write_text("replacement-sentinel\n")
+        authority_replacement.chmod(0o600)
 
     backend = tmp_path / "Backend"
     installer = backend / "deploy" / "vps" / "install-operations.sh"
@@ -2954,8 +2983,8 @@ printf '%s\n' operations-refresh >>"$DEPLOY_TRACE"
             'acquire_environment_lock "$environment_lock" "$TEST_UID"',
         ),
         (
-            'lock_file_is_safe "$authority_lock" 0',
-            'lock_file_is_safe "$authority_lock" "$TEST_UID"',
+            'lock_file_identity "$authority_lock" 0',
+            'lock_file_identity "$authority_lock" "$TEST_UID"',
         ),
         (
             'acquire_authority_lock "$authority_lock" 0',
@@ -2992,6 +3021,8 @@ wait_for_worker_ping() {{ :; }}
 wait_for_beat_stability() {{
     [ "$SWAP_AFTER_READINESS" != 1 ] ||
         chmod 0640 "$TEST_AUTHORITY_LOCK"
+    [ "$REPLACE_AFTER_READINESS" != 1 ] ||
+        mv "$TEST_AUTHORITY_REPLACEMENT" "$TEST_AUTHORITY_LOCK"
 }}
 sleep() {{ :; }}
 activate_deployment_revision() {{
@@ -3018,7 +3049,11 @@ activate_deployment_revision() {{
             **os.environ,
             "DEPLOY_TRACE": str(trace),
             "SWAP_AFTER_READINESS": "1" if swap_after_readiness else "0",
+            "REPLACE_AFTER_READINESS": (
+                "1" if replace_after_readiness else "0"
+            ),
             "TEST_AUTHORITY_LOCK": str(authority_lock),
+            "TEST_AUTHORITY_REPLACEMENT": str(authority_replacement),
             "TEST_DEPLOYMENT_LOCK": str(deployment_lock),
             "TEST_ENVIRONMENT_LOCK": str(environment_lock),
             "TEST_UID": str(os.getuid()),
@@ -3027,7 +3062,7 @@ activate_deployment_revision() {{
         text=True,
         timeout=10,
     )
-    return result, trace
+    return result, trace, authority_lock
 
 
 @pytest.mark.parametrize(
@@ -3038,7 +3073,7 @@ def test_deploy_rejects_unsafe_authority_before_any_mutation(
     tmp_path: Path,
     authority_state: str,
 ) -> None:
-    result, trace = _run_deploy_authority_flow(
+    result, trace, _ = _run_deploy_authority_flow(
         tmp_path,
         authority_state=authority_state,
     )
@@ -3049,7 +3084,7 @@ def test_deploy_rejects_unsafe_authority_before_any_mutation(
 
 
 def test_deploy_authority_preflight_allows_valid_lock(tmp_path: Path) -> None:
-    result, trace = _run_deploy_authority_flow(
+    result, trace, _ = _run_deploy_authority_flow(
         tmp_path,
         authority_state="valid",
     )
@@ -3062,7 +3097,7 @@ def test_deploy_authority_preflight_allows_valid_lock(tmp_path: Path) -> None:
 def test_deploy_late_authority_acquire_rejects_post_preflight_swap(
     tmp_path: Path,
 ) -> None:
-    result, trace = _run_deploy_authority_flow(
+    result, trace, _ = _run_deploy_authority_flow(
         tmp_path,
         authority_state="valid",
         swap_after_readiness=True,
@@ -3073,6 +3108,23 @@ def test_deploy_late_authority_acquire_rejects_post_preflight_swap(
     assert trace.exists()
     assert "operations-refresh" not in trace.read_text().splitlines()
     assert "activation" not in trace.read_text().splitlines()
+
+
+def test_deploy_rejects_safe_authority_inode_replacement_after_preflight(
+    tmp_path: Path,
+) -> None:
+    result, trace, authority_lock = _run_deploy_authority_flow(
+        tmp_path,
+        authority_state="valid",
+        replace_after_readiness=True,
+    )
+
+    assert result.returncode != 0
+    assert "Cannot acquire the operations authority lock." in result.stderr
+    assert trace.exists()
+    assert "operations-refresh" not in trace.read_text().splitlines()
+    assert "activation" not in trace.read_text().splitlines()
+    assert authority_lock.read_text() == "replacement-sentinel\n"
 
 
 @pytest.mark.parametrize(
@@ -3552,11 +3604,13 @@ def test_deployment_authority_lock_rejects_unsafe_metadata(
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
     _write_fake_flock(fake_bin / "flock")
+    _write_launcher_stat(fake_bin / "stat")
 
     result = _run_library_script(
         """
 PATH=$1:$PATH
-acquire_authority_lock "$2" "$3"
+expected_identity=$(lock_file_identity "$2" "$3") || exit 1
+acquire_authority_lock "$2" "$3" "$expected_identity"
 """,
         fake_bin,
         lock_path,
@@ -3564,6 +3618,32 @@ acquire_authority_lock "$2" "$3"
     )
 
     assert (result.returncode == 0) is expected_success, result.stderr
+
+
+def test_deployment_authority_lock_pins_stable_identity_without_truncation(
+    tmp_path: Path,
+) -> None:
+    lock_path = tmp_path / "authority.lock"
+    lock_path.write_text("lock-sentinel\n")
+    lock_path.chmod(0o600)
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    _write_fake_flock(fake_bin / "flock")
+    _write_launcher_stat(fake_bin / "stat")
+
+    result = _run_library_script(
+        """
+PATH=$1:$PATH
+expected_identity=$(lock_file_identity "$2" "$3") || exit 1
+acquire_authority_lock "$2" "$3" "$expected_identity"
+""",
+        fake_bin,
+        lock_path,
+        str(os.getuid()),
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert lock_path.read_text() == "lock-sentinel\n"
 
 
 def test_persistent_lock_contract_rejects_a_volatile_symlink_alias(
@@ -4125,6 +4205,84 @@ def test_operations_launcher_shared_lock_open_does_not_truncate(
 
 
 @pytest.mark.parametrize(
+    "replacement_timing",
+    ("before_open", "after_open"),
+)
+def test_operations_launcher_rejects_authority_inode_replacement(
+    tmp_path: Path,
+    replacement_timing: str,
+) -> None:
+    releases = tmp_path / "releases"
+    releases.mkdir()
+    release, _, _ = _write_operations_release(
+        releases,
+        "a" * 40,
+        "active",
+    )
+    current = tmp_path / "current"
+    current.symlink_to(release)
+    authority_lock = tmp_path / "authority.lock"
+    authority_lock.write_text("original\n")
+    authority_lock.chmod(0o600)
+    replacement = tmp_path / "authority-replacement.lock"
+    replacement.write_text("replacement\n")
+    replacement.chmod(0o600)
+    launcher = _write_test_operations_launcher(
+        tmp_path,
+        current,
+        releases,
+        authority_lock=authority_lock,
+        create_authority_lock=False,
+    )
+    trace = tmp_path / "launch.trace"
+    trigger = {
+        f"AUTHORITY_REPLACEMENT_{replacement_timing.upper()}": str(replacement)
+    }
+
+    result = _run_launcher(
+        launcher,
+        trace,
+        "health",
+        env={
+            "AUTHORITY_LOCK_PATH": str(authority_lock),
+            **trigger,
+        },
+    )
+
+    assert result.returncode != 0
+    assert result.stderr == "Cannot run active Ladle operations.\n"
+    assert not trace.exists()
+    assert authority_lock.read_text() == "replacement\n"
+
+
+def test_operations_launcher_fails_closed_without_open_fd_identity(
+    tmp_path: Path,
+) -> None:
+    releases = tmp_path / "releases"
+    releases.mkdir()
+    release, _, _ = _write_operations_release(
+        releases,
+        "a" * 40,
+        "active",
+    )
+    current = tmp_path / "current"
+    current.symlink_to(release)
+    launcher = _write_test_operations_launcher(tmp_path, current, releases)
+    trace = tmp_path / "launch.trace"
+
+    result = _run_launcher(
+        launcher,
+        trace,
+        "health",
+        env={"FAIL_AUTHORITY_FD_STAT": "1"},
+    )
+
+    assert result.returncode != 0
+    assert result.stderr == "Cannot run active Ladle operations.\n"
+    assert not trace.exists()
+
+
+@pytest.mark.parametrize(
     "unsafe_lock",
     (
         "missing",
@@ -4307,6 +4465,92 @@ with lock.open("r+") as descriptor:
         f"legacy:{old_release}",
         f"new:{new_release}:backup",
     ]
+
+
+def test_deploy_rejects_replaced_path_while_launcher_holds_old_authority(
+    tmp_path: Path,
+) -> None:
+    releases = tmp_path / "releases"
+    releases.mkdir()
+    release, _, operations = _write_operations_release(
+        releases,
+        "a" * 40,
+        "active",
+    )
+    current = tmp_path / "current"
+    current.symlink_to(release)
+    authority_lock = tmp_path / "authority.lock"
+    launcher = _write_test_operations_launcher(
+        tmp_path,
+        current,
+        releases,
+        authority_lock=authority_lock,
+    )
+    expected_metadata = authority_lock.stat()
+    expected_identity = (
+        f"{expected_metadata.st_dev}:{expected_metadata.st_ino}:"
+        f"{expected_metadata.st_uid}:600"
+    )
+    launcher_holding = tmp_path / "launcher-holding"
+    launcher_release = tmp_path / "launcher-release"
+    activation = tmp_path / "activation"
+    operations.write_text(
+        """#!/bin/sh
+: >"$LAUNCHER_HOLDING"
+attempt=0
+while [ ! -e "$LAUNCHER_RELEASE" ]; do
+    attempt=$((attempt + 1))
+    [ "$attempt" -le 500 ] || exit 1
+    sleep 0.01
+done
+"""
+    )
+    operations.chmod(0o755)
+    launcher_process = subprocess.Popen(
+        [str(launcher), "health"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env={
+            **os.environ,
+            "LAUNCH_TRACE": str(tmp_path / "launch.trace"),
+            "LAUNCHER_HOLDING": str(launcher_holding),
+            "LAUNCHER_RELEASE": str(launcher_release),
+            "WRONG_OWNER_PATHS": "",
+        },
+        text=True,
+    )
+    try:
+        _wait_for_path(launcher_holding, process=launcher_process)
+        replacement = tmp_path / "authority-replacement.lock"
+        replacement.write_text("replacement\n")
+        replacement.chmod(0o600)
+        os.replace(replacement, authority_lock)
+        fake_bin = tmp_path / "launcher-bin"
+
+        result = _run_library_script(
+            """
+PATH=$1:$PATH
+acquire_authority_lock "$2" "$3" "$4" &&
+    : >"$5"
+""",
+            fake_bin,
+            authority_lock,
+            str(os.getuid()),
+            expected_identity,
+            activation,
+            env={
+                "AUTHORITY_LOCK_PATH": str(authority_lock),
+                "WRONG_OWNER_PATHS": "",
+            },
+        )
+    finally:
+        launcher_release.touch(exist_ok=True)
+        _, launcher_stderr = launcher_process.communicate(timeout=5)
+        assert launcher_process.returncode == 0, launcher_stderr
+
+    assert result.returncode != 0
+    assert not activation.exists()
+    assert authority_lock.read_text() == "replacement\n"
 
 
 def test_operations_launcher_waits_for_exclusive_authority_before_selection(
