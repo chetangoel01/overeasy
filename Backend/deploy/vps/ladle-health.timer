@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Ladle VPS health checks every five minutes
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=5min
+AccuracySec=30s
+Unit=ladle-health.service
+
+[Install]
+WantedBy=timers.target
