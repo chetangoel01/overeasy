@@ -113,7 +113,9 @@ apt list --upgradable
 sudo sshd -T
 ```
 
-Transfer only the committed bootstrap inputs from a clean checkout.
+Transfer only the committed bootstrap inputs from a clean checkout. Store them
+in a persistent owner-only per-revision bootstrap directory under the Ubuntu
+account's home so an approved reboot cannot remove the hardener.
 
 **Mac — from `Backend/`**
 
@@ -123,10 +125,26 @@ Transfer only the committed bootstrap inputs from a clean checkout.
   BOOTSTRAP_STATUS=$(git status --porcelain --untracked-files=all)
   test -z "$BOOTSTRAP_STATUS"
   BOOTSTRAP_REVISION=$(git rev-parse --verify HEAD^{commit})
-  BOOTSTRAP_DIR="/tmp/ladle-vps-bootstrap-$BOOTSTRAP_REVISION"
+  BOOTSTRAP_DIR="/home/ubuntu/.ladle-vps-bootstrap-$BOOTSTRAP_REVISION"
   printf 'Bootstrap revision: %s\n' "$BOOTSTRAP_REVISION"
-  ssh ubuntu@135.148.42.60 \
-    "test ! -e '$BOOTSTRAP_DIR' && install -d -m 0700 '$BOOTSTRAP_DIR'"
+  ssh ubuntu@135.148.42.60 sh -s -- "$BOOTSTRAP_DIR" <<'LADLE_BOOTSTRAP_DIR'
+set -eu
+directory=$1
+case "$directory" in
+  /home/ubuntu/.ladle-vps-bootstrap-*) ;;
+  *) exit 1 ;;
+esac
+revision=${directory#/home/ubuntu/.ladle-vps-bootstrap-}
+case "$revision" in
+  '' | *[!0-9a-f]*) exit 1 ;;
+esac
+[ "${#revision}" -eq 40 ]
+if [ -e "$directory" ] || [ -L "$directory" ]; then
+  exit 1
+fi
+install -d -m 0700 "$directory"
+[ "$(stat -c '%u:%a' -- "$directory")" = "$(id -u):700" ]
+LADLE_BOOTSTRAP_DIR
   scp \
     deploy/vps/provision.sh \
     deploy/vps/harden-ssh.sh \
@@ -140,7 +158,7 @@ Transfer only the committed bootstrap inputs from a clean checkout.
 
 ```bash
 BOOTSTRAP_REVISION="<FULL_COMMIT_PRINTED_ABOVE>"
-BOOTSTRAP_DIR="/tmp/ladle-vps-bootstrap-$BOOTSTRAP_REVISION"
+BOOTSTRAP_DIR="/home/ubuntu/.ladle-vps-bootstrap-$BOOTSTRAP_REVISION"
 sudo "$BOOTSTRAP_DIR/provision.sh"
 ```
 
@@ -186,7 +204,7 @@ connection context.
 
 ```bash
 BOOTSTRAP_REVISION="<FULL_COMMIT_PRINTED_ABOVE>"
-BOOTSTRAP_DIR="/tmp/ladle-vps-bootstrap-$BOOTSTRAP_REVISION"
+BOOTSTRAP_DIR="/home/ubuntu/.ladle-vps-bootstrap-$BOOTSTRAP_REVISION"
 sudo --preserve-env=SSH_CONNECTION \
   "$BOOTSTRAP_DIR/harden-ssh.sh" \
   /run/ladle-key-login-marker
@@ -558,6 +576,51 @@ cp -p ~/.ssh/authorized_keys ~/.ssh/authorized_keys.before-key-rotation
 ssh-keygen -lf ~/.ssh/authorized_keys
 ${EDITOR:-vi} ~/.ssh/authorized_keys
 chmod 0600 ~/.ssh/authorized_keys
+```
+
+After saving the reduced authorized-key file, keep both recovery sessions open.
+Prove rejection with only the old identity: `-F /dev/null` bypasses the new
+`~/.ssh/config`, `IdentityAgent=none` bypasses the agent, and
+`IdentitiesOnly=yes` prevents fallback keys. A nonzero SSH result alone is not
+proof because a network or host-key error has the same generic exit status.
+Require the explicit public-key authentication rejection, then prove the
+ordinary/default path still succeeds with the configured new identity.
+
+**Mac**
+
+```bash
+(
+  set -eu
+  umask 077
+  OLD_SSH_KEY="$HOME/.ssh/ladle-ovh-staging"
+  OLD_KEY_CHECK=$(mktemp /tmp/ladle-old-key-check.XXXXXX)
+  cleanup_old_key_check() {
+    rm -f -- "$OLD_KEY_CHECK"
+  }
+  trap cleanup_old_key_check 0
+  trap 'exit 1' HUP INT TERM
+  if LC_ALL=C ssh \
+    -F /dev/null \
+    -o IdentityAgent=none \
+    -o IdentitiesOnly=yes \
+    -o PreferredAuthentications=publickey \
+    -o PasswordAuthentication=no \
+    -o KbdInteractiveAuthentication=no \
+    -i "$OLD_SSH_KEY" \
+    ubuntu@135.148.42.60 true \
+    >/dev/null 2>"$OLD_KEY_CHECK"; then
+    printf '%s\n' "Old SSH key is still accepted; keep both recovery sessions open." >&2
+    exit 1
+  fi
+  if ! grep -Fq 'Permission denied (publickey)' "$OLD_KEY_CHECK"; then
+    printf '%s\n' \
+      "Old-key check did not reach authentication rejection." \
+      "Do not treat it as cryptographic proof; keep both recovery sessions open." \
+      "Verify reachability and the host-key fingerprint, then retry." >&2
+    exit 1
+  fi
+) &&
+ssh ubuntu@135.148.42.60 true
 ```
 
 Never copy a private key to the server.

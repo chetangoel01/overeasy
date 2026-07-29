@@ -136,6 +136,21 @@ def test_vps_runbook_documents_staging_recovery_and_production_gates() -> None:
     ordinary_login = key_rotation.index("ssh ubuntu@135.148.42.60")
     old_key_removal = key_rotation.index("${editor:-vi} ~/.ssh/authorized_keys")
     assert new_default_identity < ordinary_login < old_key_removal
+    isolated_old_key = key_rotation.index("-f /dev/null", old_key_removal)
+    ordinary_new_key = key_rotation.index(
+        "ssh ubuntu@135.148.42.60 true", isolated_old_key
+    )
+    assert old_key_removal < isolated_old_key < ordinary_new_key
+    for required in (
+        "identityagent=none",
+        "identitiesonly=yes",
+        "preferredauthentications=publickey",
+        "passwordauthentication=no",
+        "permission denied (publickey)",
+        "do not treat it as cryptographic proof",
+        "keep both recovery sessions open",
+    ):
+        assert required in key_rotation
 
     restore_drill = lowered.split(
         "## empty-server postgresql 16 restore drill", maxsplit=1
@@ -162,10 +177,15 @@ def test_vps_runbook_documents_staging_recovery_and_production_gates() -> None:
         "git rev-parse --verify head^{commit}",
         "bootstrap_revision",
         "bootstrap_dir",
+        "persistent owner-only per-revision bootstrap directory",
+        "/home/ubuntu/.ladle-vps-bootstrap-$bootstrap_revision",
+        "stat -c '%u:%a'",
     ):
         assert required in bootstrap
     assert bootstrap.index("git status --porcelain") < bootstrap.index("scp")
     assert bootstrap.index("git rev-parse") < bootstrap.index("scp")
+    assert "/tmp/ladle-vps-bootstrap" not in lowered
+    assert lowered.count("/home/ubuntu/.ladle-vps-bootstrap-$bootstrap_revision") >= 3
 
     assert "all commands are bounded" not in lowered
     assert "status and log output are bounded" in prose
