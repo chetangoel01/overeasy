@@ -75,6 +75,7 @@ and supported content types stay consistent.
 - Runtime settings and provider construction.
 - Thumbnail download/validation and thumbnail-only observation.
 - Acquisition-chain context assembly and diagnostics.
+- Bounded provider-metric labels for thumbnail analysis.
 - VPS profile, acquisition, vision, and runtime tests.
 - VPS verification documentation.
 

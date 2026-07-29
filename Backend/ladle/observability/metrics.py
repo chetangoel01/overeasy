@@ -11,6 +11,7 @@ _PROVIDERS = frozenset(
         "free",
         "whisper",
         "vision",
+        "thumbnailVision",
         "supadata",
         "soscripted",
         "serverFallback",
