@@ -6,15 +6,16 @@ Deploy the Ladle backend to a fresh OVH Ubuntu 26.04 VPS with empty application
 state, guarded public HTTPS access, key-only SSH, host firewalling, health
 monitoring, and validated PostgreSQL backups.
 
-Staging is active at:
+Staging was initially activated at:
 
 ```text
 https://vps-8b0be574.vps.ovh.us
 ```
 
-The active immutable release is
-`f3e3bb25df07be55214bb721d857614b2b4f0937`. The deployment state reports
-`STATUS=active` and `PHASE=complete`.
+The initial immutable release was
+`f3e3bb25df07be55214bb721d857614b2b4f0937`. It has since been superseded by
+the shared-gateway release recorded in
+`2026-07-29-shared-vps-gateway.md`.
 
 ## Host and access
 

@@ -115,6 +115,100 @@ Read-only checks on 2026-07-29 confirmed:
 
 ## Migration evidence
 
-Pending the verified live cutover. No password, private key, staging key,
-environment-file content, opaque gateway generation, signed URL, or provider
-response body belongs in this record.
+The live migration completed on 2026-07-29. The active immutable release is:
+
+```text
+c0af22f1a2e349013d58f98ff09609efad8b22e0
+```
+
+Deployment state reported `STATUS=active`, that exact revision, and
+`PHASE=complete`.
+
+### Listener handoff and rollback
+
+- The first detached release was deployed only after the exact shared-network
+  contract and authority lock were created and validated.
+- The detached Ladle edge became healthy on `platform-edge` while the
+  orphaned legacy `ladle-caddy-1` continued serving.
+- Gateway `prepare` validated the installed Compose and Caddy configuration
+  without taking the public ports.
+- Gateway `activate` completed successfully. Final manager status reported
+  `prepared=yes`, `active=yes`, a running healthy current gateway, and a
+  stopped legacy listener.
+- `ladle-caddy-1` remains stopped and preserved with its original
+  `ladle:caddy` identity for the initial rollback window. Automatic and
+  explicit recovery paths were covered by the local deployment profile; no
+  live rollback was needed.
+
+### Public and private boundaries
+
+- The public listener set is exactly TCP 22, 80, and 443 plus UDP 443 on IPv4
+  and IPv6.
+- `platform-gateway-gateway-1` is the only running container with host-published
+  application ports.
+- PostgreSQL, Redis, MinIO, API, edge, workers, and Beat have only internal
+  container ports or no ports.
+- `platform-edge` contains exactly `platform-gateway:gateway` and
+  `ladle:edge`. No Ladle data or worker service is attached.
+- The active gateway is the `platform-gateway:gateway` service and reports
+  healthy.
+
+### TLS and request policy
+
+- Direct IPv4 and IPv6 probes validated TLS.
+- Missing staging credentials returned `404` over both address families.
+- HSTS with the two-year policy was present over both address families.
+- A TLS connection for the configured Ladle name with a different HTTP host
+  returned `421`, enforcing the Host/SNI boundary.
+- An unknown SNI value was rejected during TLS negotiation.
+- The complete authorized external verifier passed:
+
+```text
+TLS
+securityHeaders
+secretLeakage
+stagingAccess
+dependencies
+exposedEndpoints
+authentication
+requestTooLarge
+```
+
+### Operations and backups
+
+- `sudo ladle-operations health` reported `health healthy`.
+- A real `ladle-health.service` run passed inside its production systemd
+  sandbox with `Result=success` and exit status zero.
+- `ladle-operations status` displayed the shared gateway and Ladle application
+  as separate ownership domains.
+- `ladle-health.timer` and `ladle-backup.timer` are active.
+- The latest backup remained
+  `ladle-20260729-035600-47540.dump`; its SHA-256 sidecar validated.
+
+### Repository verification
+
+- Shared-gateway management, lock, activation, recovery, and operations changes
+  passed their red-green regression cycles.
+- The final shared-gateway deployment profile passed 279 tests.
+- The final complete deployment test directory passed 316 tests.
+- The exact pinned Caddy `2.11.4` configuration validated, and its adapted JSON
+  set `strict_sni_host` on the imported-route TLS server.
+- Gateway Compose rendering, POSIX `sh` and `dash` syntax, Ruff, whitespace,
+  and secret-addition checks passed.
+- Independent spec and quality reviews approved the gateway manager, Ladle
+  operations integration, and Host/SNI hardening.
+
+### Follow-ups
+
+- Keep `ladle-caddy-1` stopped but preserved through the initial staging soak,
+  then remove the legacy container and Ladle-owned Caddy volumes in a separate
+  verified cleanup.
+- Add future subdomains through validated route fragments and unique HTTP-edge
+  aliases only; do not attach databases, queues, object stores, APIs, or
+  workers to `platform-edge`.
+- Before production, add independent encrypted off-host backups, production
+  identity/App Attest controls, tracing, managed TLS data services, and the
+  remaining readiness items in the staging record.
+
+No password, private key, staging key, environment-file content, opaque gateway
+generation, signed URL, or provider response body is recorded here.
