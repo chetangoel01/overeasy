@@ -28,6 +28,7 @@ checksum_path=
 backend_directory=
 base_compose=
 vps_compose=
+gateway_manager=
 runtime_paths_ready=false
 authoritative_release_loaded=false
 
@@ -198,12 +199,17 @@ load_authoritative_release() {
     backend_directory=$resolved_release/Backend
     base_compose=$backend_directory/docker-compose.yml
     vps_compose=$backend_directory/deploy/vps/docker-compose.yml
+    gateway_manager=$backend_directory/deploy/vps/gateway/manage.sh
     safe_regular_file "$base_compose" 644 || {
         fail "The active base Compose file is unsafe."
         return 1
     }
     safe_regular_file "$vps_compose" 644 || {
         fail "The active VPS Compose file is unsafe."
+        return 1
+    }
+    safe_regular_file "$gateway_manager" 755 || {
+        fail "The shared gateway manager is unsafe."
         return 1
     }
     authoritative_release_loaded=true
@@ -398,6 +404,30 @@ check_minio() {
     fi
 }
 
+gateway_status() {
+    "$gateway_manager" status
+}
+
+check_gateway() {
+    gateway_status_output=$(gateway_status 2>/dev/null) || {
+        append_failure "shared gateway"
+        return
+    }
+    expected_gateway_status=$(
+        printf '%s\n' \
+            prepared=yes \
+            active=yes \
+            gateway=running \
+            gateway_health=healthy \
+            gateway_current=yes \
+            legacy=stopped \
+            legacy_health=none
+    )
+    if [ "$gateway_status_output" != "$expected_gateway_status" ]; then
+        append_failure "shared gateway"
+    fi
+}
+
 public_hostname() {
     hostname_value=$(
         awk -F= '
@@ -503,6 +533,7 @@ health_check() {
     check_postgres
     check_redis
     check_minio
+    check_gateway
     check_certificate
     check_backup_freshness
 
@@ -699,6 +730,9 @@ show_status() {
         return 1
     fi
     printf '%s\n' "deployment authority: active"
+    printf '%s\n' "shared gateway:"
+    gateway_status || return 1
+    printf '%s\n' "Ladle application:"
     compose ps || return 1
     if systemctl --no-pager --full --lines="$log_lines" status \
         ladle-health.timer ladle-backup.timer \

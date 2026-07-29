@@ -694,6 +694,19 @@ operations_main "$@"
     (release / "Backend" / "deploy" / "vps" / "docker-compose.yml").write_text(
         "services: {}\n"
     )
+    gateway_manager = (
+        release / "Backend" / "deploy" / "vps" / "gateway" / "manage.sh"
+    )
+    gateway_manager.parent.mkdir()
+    gateway_manager.write_text(
+        """#!/bin/sh
+printf '%s\\n' \
+    prepared=yes active=yes gateway=running \
+    gateway_health=healthy gateway_current=yes legacy=stopped \
+    legacy_health=none
+"""
+    )
+    gateway_manager.chmod(0o755)
     release.chmod(0o755)
     return release, operations
 
@@ -5210,6 +5223,125 @@ def test_vps_health_covers_runtime_tls_backup_and_authoritative_revision() -> No
     assert ".RestartCount" in operations
 
 
+def test_operations_monitor_shared_gateway_through_trusted_release_manager(
+    tmp_path: Path,
+) -> None:
+    calls = tmp_path / "gateway-calls"
+    manager = tmp_path / "manage.sh"
+    manager.write_text(
+        f"""#!/bin/sh
+printf '%s\\n' "$*" >>{shlex.quote(str(calls))}
+printf '%s\\n' \
+    prepared=yes active=yes gateway=running \
+    gateway_health=healthy gateway_current=yes legacy=stopped \
+    legacy_health=none
+"""
+    )
+    manager.chmod(0o755)
+    healthy = _run_operations_library(
+        """
+gateway_manager=$1
+health_failures=
+check_gateway
+printf '%s\n' "$health_failures"
+""",
+        manager,
+    )
+    manager.write_text(
+        f"""#!/bin/sh
+printf '%s\\n' "$*" >>{shlex.quote(str(calls))}
+printf '%s\\n' \
+    prepared=yes active=no gateway=running \
+    gateway_health=healthy gateway_current=no legacy=stopped \
+    legacy_health=none
+"""
+    )
+    stale = _run_operations_library(
+        """
+gateway_manager=$1
+health_failures=
+check_gateway
+printf '%s\n' "$health_failures"
+""",
+        manager,
+    )
+
+    assert healthy.returncode == 0, healthy.stderr
+    assert healthy.stdout == "\n"
+    assert stale.returncode == 0, stale.stderr
+    assert stale.stdout == "shared gateway\n"
+    assert calls.read_text().splitlines() == ["status", "status"]
+
+    operations = OPERATIONS.read_text()
+    assert 'gateway_manager=$backend_directory/deploy/vps/gateway/manage.sh' in (
+        operations
+    )
+    assert 'safe_regular_file "$gateway_manager" 755' in operations
+
+
+def test_operations_reject_untrusted_gateway_manager_before_status(
+    tmp_path: Path,
+) -> None:
+    releases = tmp_path / "releases"
+    releases.mkdir()
+    current = tmp_path / "current"
+    deployment_state = tmp_path / "deployment-state"
+    release, operations = _write_guarded_operations_release(
+        releases,
+        "a" * 40,
+        "active",
+        current,
+        deployment_state,
+    )
+    current.symlink_to(release)
+    _write_active_deployment_state(deployment_state, release.name)
+    gateway_manager = (
+        release / "Backend" / "deploy" / "vps" / "gateway" / "manage.sh"
+    )
+    outside_manager = tmp_path / "outside-manager"
+    outside_manager.write_text("#!/bin/sh\nprintf executed >>\"$EXECUTION_TRACE\"\n")
+    outside_manager.chmod(0o755)
+    gateway_manager.unlink()
+    gateway_manager.symlink_to(outside_manager)
+    mutation_trace = tmp_path / "mutation.trace"
+    execution_trace = tmp_path / "execution.trace"
+
+    result = subprocess.run(
+        [str(operations), "status"],
+        check=False,
+        capture_output=True,
+        env={
+            **os.environ,
+            "LADLE_OPERATIONS_EXPECTED_RELEASE": str(release),
+            "MUTATION_TRACE": str(mutation_trace),
+            "EXECUTION_TRACE": str(execution_trace),
+        },
+        text=True,
+    )
+
+    assert result.returncode != 0
+    assert "shared gateway manager" in result.stderr.lower()
+    assert not execution_trace.exists()
+    assert not mutation_trace.exists()
+
+
+def test_operations_status_separates_gateway_without_claiming_its_logs() -> None:
+    operations = OPERATIONS.read_text()
+    status = operations[
+        operations.index("show_status()") : operations.index("show_logs()")
+    ]
+    logs = operations[
+        operations.index("show_logs()") : operations.index("operations_main()")
+    ]
+
+    assert '"shared gateway:"' in status
+    assert status.index("gateway_status") < status.index("compose ps")
+    assert '"Ladle application:"' in status
+    assert "gateway_status" not in logs
+    assert "platform-gateway" not in logs
+    assert "caddy" not in logs
+
+
 def test_operations_never_request_the_removed_ladle_caddy_service(
     tmp_path: Path,
 ) -> None:
@@ -5233,6 +5365,7 @@ check_worker() { :; }
 check_postgres() { :; }
 check_redis() { :; }
 check_minio() { :; }
+check_gateway() { :; }
 check_certificate() { :; }
 check_backup_freshness() { :; }
 check_caddy() {
@@ -5616,6 +5749,7 @@ check_worker() { :; }
 check_postgres() { :; }
 check_redis() { :; }
 check_minio() { :; }
+check_gateway() { :; }
 check_certificate() { :; }
 check_backup_freshness() { :; }
 health_mode=failed
