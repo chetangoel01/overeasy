@@ -141,46 +141,6 @@ services:
     cpus: 0.5
     logging: *bounded-logging
 
-  caddy:
-    image: caddy:2.11.4-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648
-    restart: unless-stopped
-    environment:
-      LADLE_PUBLIC_HOSTNAME: ${LADLE_PUBLIC_HOSTNAME:?set LADLE_PUBLIC_HOSTNAME}
-      LADLE_TUNNEL_ACCESS_KEY: ${LADLE_TUNNEL_ACCESS_KEY:?set LADLE_TUNNEL_ACCESS_KEY}
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
-    read_only: true
-    tmpfs:
-      - /tmp:size=64m,mode=1777
-    cap_drop:
-      - "ALL"
-    cap_add:
-      - NET_BIND_SERVICE
-    security_opt:
-      - "no-new-privileges:true"
-    pids_limit: 128
-    mem_limit: 256m
-    cpus: 0.5
-    logging: *bounded-logging
-    volumes:
-      - ./deploy/vps/Caddyfile:/etc/caddy/Caddyfile:ro
-      - ladle-caddy-data:/data
-      - ladle-caddy-config:/config
-    healthcheck:
-      test: ["CMD", "caddy", "validate", "--config", "/etc/caddy/Caddyfile"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-    depends_on:
-      edge:
-        condition: service_healthy
-    networks:
-      public: {}
-      edge:
-        ipv4_address: 172.31.0.2
-
   edge:
     build:
       context: ./deploy/mac-mini
@@ -212,6 +172,9 @@ services:
     networks:
       edge:
         ipv4_address: 172.31.0.3
+      platform:
+        aliases:
+          - ladle-edge
 
   migrate:
     build: *vps-runtime-build
@@ -306,14 +269,14 @@ volumes:
   ladle-postgres:
   ladle-redis:
   ladle-minio:
-  ladle-caddy-data:
-  ladle-caddy-config:
 
 networks:
   default: {}
-  public: {}
   edge:
     internal: true
     ipam:
       config:
         - subnet: 172.31.0.0/24
+  platform:
+    external: true
+    name: platform-edge

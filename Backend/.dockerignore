@@ -17,7 +17,6 @@ deploy/*
 !deploy/object-storage-lifecycle.json
 !deploy/vps/
 deploy/vps/*
-!deploy/vps/Caddyfile
 load
 docker-compose*
 !deploy/vps/docker-compose.yml

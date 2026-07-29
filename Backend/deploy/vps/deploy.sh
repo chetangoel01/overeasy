@@ -164,6 +164,9 @@ wait_for_worker_ping() {
     return 1
 }
 
+docker network inspect platform-edge >/dev/null 2>&1 ||
+    die "The shared platform-edge Docker network is unavailable."
+
 deployment_phase=compose-validation
 progress "compose-validation" "validating exact release configuration"
 compose config --quiet
@@ -206,7 +209,6 @@ rollout_worker_pair || die "Worker namespace rollout failed."
 compose up -d --no-build --wait --wait-timeout 120 --no-deps api
 compose up -d --no-build --no-deps --force-recreate beat
 compose up -d --no-build --wait --wait-timeout 120 --no-deps edge
-compose up -d --no-build --wait --wait-timeout 120 --no-deps caddy
 
 deployment_phase=api-readiness
 write_deployment_state \

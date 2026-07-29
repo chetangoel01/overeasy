@@ -13,7 +13,6 @@ import yaml
 
 BACKEND = Path(__file__).parents[3]
 PROFILE = BACKEND / "deploy" / "vps" / "docker-compose.yml"
-CADDYFILE = PROFILE.parent / "Caddyfile"
 GATEWAY = PROFILE.parent / "gateway"
 GATEWAY_PROFILE = GATEWAY / "docker-compose.yml"
 GATEWAY_CADDYFILE = GATEWAY / "Caddyfile"
@@ -43,7 +42,6 @@ EXPECTED_SERVICES = {
     "redis",
     "minio",
     "minio-init",
-    "caddy",
     "edge",
     "migrate",
     "api",
@@ -800,7 +798,6 @@ def _docker_user_hooks(state: dict[str, Any]) -> list[str]:
 
 def test_vps_profile_files_exist() -> None:
     assert PROFILE.is_file()
-    assert CADDYFILE.is_file()
 
 
 def test_gateway_assets_exist() -> None:
@@ -893,52 +890,21 @@ def test_gateway_caddy_imports_routes_and_preserves_ladle_access_controls() -> N
     assert "respond 404" in route
 
 
-def test_vps_profile_exposes_only_the_guarded_tls_edge() -> None:
+def test_vps_profile_publishes_no_host_ports() -> None:
     profile_text = PROFILE.read_text()
     services = _profile()["services"]
 
     assert set(services) == EXPECTED_SERVICES
-    assert services["caddy"]["ports"] == [
-        "80:80",
-        "443:443",
-        "443:443/udp",
-    ]
     for name, service in services.items():
-        if name != "caddy":
-            assert service.get("ports", []) == [], name
+        assert service.get("ports", []) == [], name
     for name in ("api", "minio", "edge"):
         assert services[name]["ports"] == []
     assert profile_text.count("ports: !reset []") >= 3
 
 
-def test_caddy_requires_the_key_except_for_signed_object_paths() -> None:
-    caddy = CADDYFILE.read_text()
-
-    assert "api.ladle.app" not in caddy
-    assert "{$LADLE_PUBLIC_HOSTNAME}" in caddy
-    assert "@private path /ladle-private/*" in caddy
-    assert ("@authorized header X-Ladle-Tunnel-Key {$LADLE_TUNNEL_ACCESS_KEY}") in caddy
-    assert "reverse_proxy @private edge:8082" in caddy
-    assert "reverse_proxy @authorized edge:8082" in caddy
-    assert "respond 404" in caddy
-    assert (
-        'header Strict-Transport-Security "max-age=63072000; '
-        'includeSubDomains; preload"'
-    ) in caddy
-    assert caddy.index("header Strict-Transport-Security") < caddy.index(
-        "@private path"
-    )
-    assert caddy.index("@private path") < caddy.index("@authorized header")
-    assert caddy.index("@authorized header") < caddy.index("respond 404")
-    assert caddy.count("header_up Host {http.request.host}") == 2
-    assert "X-Forwarded-For and X-Forwarded-Proto" in caddy
-
-
 def test_vps_profile_uses_pinned_reusable_edge_images() -> None:
     services = _profile()["services"]
-    caddy_image = services["caddy"]["image"]
 
-    assert re.fullmatch(r"caddy:[^@]+@sha256:[0-9a-f]{64}", caddy_image)
     assert services["edge"]["build"] == {
         "context": "./deploy/mac-mini",
         "dockerfile": "edge.Dockerfile",
@@ -989,7 +955,7 @@ def test_vps_profile_keeps_state_private_and_bounded() -> None:
         sum(_memory_mib(service["mem_limit"]) for service in services.values())
         <= 7 * 1024
     )
-    for name in ("postgres", "redis", "minio", "caddy", "edge", "worker-egress"):
+    for name in ("postgres", "redis", "minio", "edge", "worker-egress"):
         assert services[name]["read_only"] is True
         assert "ALL" in services[name]["cap_drop"]
         assert "no-new-privileges:true" in services[name]["security_opt"]
@@ -1046,7 +1012,7 @@ def test_vps_profile_omits_media_tools_from_python_images() -> None:
         assert services[name]["build"] == root_build
 
 
-def test_vps_profile_uses_named_state_and_a_fixed_internal_edge() -> None:
+def test_vps_profile_uses_named_state_and_fixed_private_edge_addresses() -> None:
     profile = _profile()
     services = profile["services"]
 
@@ -1054,25 +1020,17 @@ def test_vps_profile_uses_named_state_and_a_fixed_internal_edge() -> None:
         "ladle-postgres",
         "ladle-redis",
         "ladle-minio",
-        "ladle-caddy-data",
-        "ladle-caddy-config",
     }
     assert services["postgres"]["volumes"] == [
         "ladle-postgres:/var/lib/postgresql/data"
     ]
     assert services["redis"]["volumes"] == ["ladle-redis:/data"]
     assert services["minio"]["volumes"] == ["ladle-minio:/data"]
-    assert services["caddy"]["volumes"] == [
-        "./deploy/vps/Caddyfile:/etc/caddy/Caddyfile:ro",
-        "ladle-caddy-data:/data",
-        "ladle-caddy-config:/config",
-    ]
 
     edge = profile["networks"]["edge"]
     assert edge["internal"] is True
     assert edge["ipam"]["config"] == [{"subnet": "172.31.0.0/24"}]
     expected_addresses = {
-        "caddy": "172.31.0.2",
         "edge": "172.31.0.3",
         "api": "172.31.0.4",
         "minio": "172.31.0.5",
@@ -1081,12 +1039,28 @@ def test_vps_profile_uses_named_state_and_a_fixed_internal_edge() -> None:
         assert services[name]["networks"]["edge"]["ipv4_address"] == address
 
 
+def test_only_ladle_edge_joins_the_shared_platform_network() -> None:
+    profile = _profile()
+    services = profile["services"]
+
+    assert profile["networks"]["platform"] == {
+        "external": True,
+        "name": "platform-edge",
+    }
+    assert services["edge"]["networks"] == {
+        "edge": {"ipv4_address": "172.31.0.3"},
+        "platform": {"aliases": ["ladle-edge"]},
+    }
+    for name, service in services.items():
+        if name != "edge":
+            assert "platform" not in service.get("networks", {}), name
+
+
 def test_vps_profile_requires_secrets_without_embedding_them() -> None:
     profile = PROFILE.read_text()
 
+    assert "${LADLE_PUBLIC_HOSTNAME}" in profile
     for variable in (
-        "LADLE_PUBLIC_HOSTNAME",
-        "LADLE_TUNNEL_ACCESS_KEY",
         "LADLE_DATABASE_PASSWORD",
         "LADLE_DATABASE_PASSWORD_URL_ENCODED",
         "LADLE_JWT_SIGNING_SECRET",
@@ -1110,7 +1084,7 @@ def test_docker_context_includes_only_vps_runtime_assets() -> None:
 
     assert "!deploy/vps/" in dockerignore
     assert "!deploy/vps/docker-compose.yml" in dockerignore
-    assert "!deploy/vps/Caddyfile" in dockerignore
+    assert "!deploy/vps/Caddyfile" not in dockerignore
     assert dockerignore.index("docker-compose*") < dockerignore.index(
         "!deploy/vps/docker-compose.yml"
     )
@@ -1146,6 +1120,25 @@ def test_vps_provisioning_uses_the_signed_official_docker_repository() -> None:
     assert not re.search(r"curl[^\n]*\|\s*(?:ba)?sh", unsafe)
     assert "docker system prune" not in unsafe
     assert "rm -rf /var/lib/docker" not in unsafe
+
+
+def test_vps_provisioning_idempotently_creates_the_shared_platform_network() -> None:
+    provision = PROVISION.read_text()
+
+    docker_ready = provision.index("systemctl enable --now docker.service")
+    inspect = provision.index("docker network inspect platform-edge")
+    create = provision.index("docker network create platform-edge")
+
+    assert docker_ready < inspect < create
+    assert (
+        "if ! docker network inspect platform-edge >/dev/null 2>&1; then"
+        in provision
+    )
+    assert (
+        "docker network create platform-edge >/dev/null ||\n"
+        '        die "Cannot create the shared platform-edge Docker network."'
+        in provision
+    )
 
 
 def test_docker_key_validation_rejects_an_appended_primary(tmp_path: Path) -> None:
@@ -2179,6 +2172,7 @@ def test_deploy_validates_exact_release_and_stable_project_before_mutation() -> 
     assert ". /etc/ladle" not in deploy
     assert "cat /etc/ladle" not in deploy
 
+    network_gate = deploy.index("docker network inspect platform-edge")
     config = deploy.index("config --quiet")
     data = deploy.index("up -d --wait --wait-timeout", config)
     build = deploy.index("build migrate minio-init", data)
@@ -2188,9 +2182,10 @@ def test_deploy_validates_exact_release_and_stable_project_before_mutation() -> 
     api = deploy.index("--no-deps api", worker_pair)
     beat = deploy.index("--force-recreate beat", api)
     edge = deploy.index("--no-deps edge", beat)
-    caddy = deploy.index("--no-deps caddy", edge)
-    assert config < data < build < bucket < migrate < worker_pair
-    assert worker_pair < api < beat < edge < caddy
+    assert network_gate < config < data < build < bucket < migrate < worker_pair
+    assert worker_pair < api < beat < edge
+    assert "The shared platform-edge Docker network is unavailable." in deploy
+    assert "caddy" not in deploy
 
 
 def test_deploy_waits_for_api_edge_worker_and_activates_last() -> None:
@@ -2207,13 +2202,17 @@ def test_deploy_waits_for_api_edge_worker_and_activates_last() -> None:
     assert "sleep 2" in deploy
     assert "activate_deployment_revision" in deploy
 
+    edge_rollout = deploy.index(
+        "compose up -d --no-build --wait --wait-timeout 120 --no-deps edge"
+    )
     activation = deploy.index("activate_deployment_revision")
     for gate in (
         "wait_for_api_readiness",
         "wait_for_edge_readiness",
         "wait_for_worker_ping",
     ):
-        assert deploy.rindex(gate) < activation
+        readiness = deploy.rindex(gate)
+        assert edge_rollout < readiness < activation
     assert "deployment_phase" in deploy
     assert 'progress failure "$deployment_phase failed"' in deploy
 
