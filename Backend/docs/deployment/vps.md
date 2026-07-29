@@ -284,8 +284,11 @@ planned environment rotation and redeploy.
 The shared Caddy gateway is the VPS TLS boundary and emits the two-year HSTS
 policy for every HTTPS response, including staging-gate rejections. Nginx and
 the API retain the remaining security headers on authorized responses. Ladle
-operations check Ladle-owned containers and public certificate expiry without
-asking the Ladle Compose project for the separately owned gateway container.
+operations check Ladle-owned containers and public certificate expiry
+separately from the gateway. The gateway check delegates to the exact active
+release's read-only manager status action, which verifies its own fixed paths,
+locks, container identity, health, and prepared generation. It never asks the
+Ladle Compose project to own or manage Caddy.
 
 **Mac — from `Backend/`**
 
@@ -479,6 +482,44 @@ mode from fake to live. Redeploy the same clean revision, follow sanitized
 progress, and rerun guarded verification before revoking an old provider key.
 Supadata and SoScripted use their matching allowlisted key names.
 
+## Shared gateway lifecycle
+
+Only the `platform-gateway` Compose project publishes TCP 80 and 443 and UDP
+443. Its fixed assets live at `/opt/platform/gateway`, its root-only
+environment lives at `/etc/platform/gateway.env`, and it reaches each
+backend's uniquely named HTTP edge over `platform-edge`. Databases, queues,
+object stores, APIs, and workers must not join this network.
+
+Run gateway actions through the exact active release:
+
+**VPS**
+
+```bash
+sudo /opt/ladle/current/Backend/deploy/vps/gateway/manage.sh prepare
+sudo /opt/ladle/current/Backend/deploy/vps/gateway/manage.sh activate
+sudo /opt/ladle/current/Backend/deploy/vps/gateway/manage.sh status
+```
+
+`prepare` validates and atomically installs a complete revision without taking
+the public listeners. `activate` performs the listener handoff and restores a
+verified listener automatically if replacement fails. Keep the stopped
+`ladle-caddy-1` container through the first migration verification window. To
+return to that preserved listener:
+
+```bash
+sudo /opt/ladle/current/Backend/deploy/vps/gateway/manage.sh rollback
+```
+
+Do not inspect or print the gateway environment. Manager status reports only
+bounded state names and never the staging key or opaque gateway generation.
+
+For another backend, add one validated route fragment, give its HTTP edge a
+globally unique alias, and join only that edge to `platform-edge`. Keep the
+backend in its own Compose project with separate secrets, private networks,
+volumes, health checks, resource limits, and backups. Prepare, activate, and
+verify the complete gateway revision; do not publish another app-owned port 80
+or 443 listener.
+
 ## Routine status, logs, and backup
 
 Status and log output are bounded by the requested line count. Scheduled units
@@ -496,6 +537,10 @@ sudo ladle-operations health
 sudo ladle-operations backup
 sudo journalctl --no-pager -u ladle-health.service -u ladle-backup.service -n 80
 ```
+
+`status` presents the shared gateway and Ladle application as separate
+ownership domains. `logs` remains Ladle-only and does not claim or mix in
+gateway logs.
 
 The nightly timer writes a custom-format PostgreSQL archive and SHA-256
 sidecar under `/var/backups/ladle`, validates it with `pg_restore --list`, and

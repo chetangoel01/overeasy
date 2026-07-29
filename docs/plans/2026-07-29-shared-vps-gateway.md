@@ -379,19 +379,24 @@ Run read-only SSH checks for `sudo ladle-operations health`, current Compose
 services, deployment revision, `platform-edge`, and public listeners. Record
 the legacy Caddy container ID for rollback without printing secrets.
 
-**Step 2: Prepare the gateway**
+**Step 2: Bootstrap the first detached release and prepare the gateway**
 
-Create `platform-edge` explicitly on the existing VPS. From the
-gateway-preparation revision, run:
+Create and validate the exact `platform-edge` contract and the root-owned
+mode-`0600` authority lock explicitly on the existing legacy VPS. These are
+the two prerequisites that the detached deploy validates before it can
+activate its release. Push the exact detached Git revision; its edge joins
+`platform-edge` as `ladle-edge`, while Compose preserves the orphaned legacy
+Caddy listener.
+
+Then run from that exact active release:
 
 ```bash
 sudo /opt/ladle/current/Backend/deploy/vps/gateway/manage.sh prepare
 ```
 
-Expected: assets and secret metadata validate; the gateway is prepared but does
-not yet own public ports, and the authority lock is installed safely. Only
-after that succeeds, push the exact detached Git revision. The new Ladle edge
-is connected as `ladle-edge`, and the legacy Caddy still serves staging.
+Expected: assets, network, lock, and secret metadata validate; the gateway is
+prepared but does not yet own public ports, `ladle-edge` is reachable, and the
+legacy Caddy still serves staging.
 
 **Step 3: Activate with automatic rollback**
 

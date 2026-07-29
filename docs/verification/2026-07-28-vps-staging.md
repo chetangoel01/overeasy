@@ -123,6 +123,9 @@ volume, and its container was removed afterward.
 
 ## Remaining staging and production work
 
+- The app-owned Caddy topology recorded above is the pre-migration baseline.
+  The shared gateway migration and its verification evidence are recorded in
+  `2026-07-29-shared-vps-gateway.md`.
 - Gain DNS control of the intended application domain, create verified A/AAAA
   records, and perform a planned hostname/environment rotation.
 - Install the live extraction provider credential through the allowlisted

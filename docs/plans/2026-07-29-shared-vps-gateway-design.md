@@ -83,17 +83,19 @@ bounded privileges and without public host mappings.
 
 ## Migration and Rollback
 
-The gateway files, external network, volumes, and Ladle route are created and
-validated before changing the live listener. During the handoff:
+The shared network and authority lock are created and validated before the
+first detached Ladle deploy. That deploy connects `ladle-edge` to the shared
+network while Compose preserves the orphaned legacy Caddy listener. The
+gateway files, volumes, and Ladle route are then prepared and validated before
+changing the live listener. During the handoff:
 
-1. Stop only Ladle's current Caddy container.
+1. Stop only Ladle's preserved legacy Caddy container.
 2. Start the shared gateway on the same public ports.
 3. Verify TLS, staging access, security headers, IPv4 and IPv6, application
    health, and public listeners.
-4. Deploy the Ladle revision that no longer owns Caddy.
 
 If the shared gateway does not pass its immediate checks, stop it and restart
-the existing Ladle Caddy container. The app and data containers are not
+the preserved Ladle Caddy container. The app and data containers are not
 recreated during the listener handoff.
 
 ### Management contract
