@@ -66,6 +66,8 @@ and supported content types stay consistent.
 - Thumbnail analysis records one provider-usage attempt only when a valid
   thumbnail is actually sent to the vision provider.
 - The VPS continues to perform zero multi-frame vision calls.
+- Re-importing an existing recipe bypasses shared extraction cache even
+  without correction notes, ensuring the newly enabled evidence path runs.
 
 ## Affected components
 
