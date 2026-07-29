@@ -339,8 +339,11 @@ or backup lock acquisition; an invalid handoff cannot clean, remove, or create
 backup files.
 
 Fresh provisioning creates `authority.lock` as a canonical root-owned `0600`
-regular file. The launcher takes a blocking shared authority lock before it
-resolves `current` and holds that lock across the selected operation.
+regular file. Deployment preflights that metadata before any Compose or
+deployment-state mutation, then revalidates after taking the late exclusive
+lock to close the activation TOCTOU window. The launcher takes a blocking
+shared authority lock before it resolves `current` and holds that lock across
+the selected operation.
 Deployments take the matching exclusive authority lock only after readiness,
 immediately before operations refresh and activation, so a launcher started
 during activation waits and then selects the final active release; an

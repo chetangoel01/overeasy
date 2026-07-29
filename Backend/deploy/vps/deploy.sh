@@ -118,6 +118,8 @@ acquire_deployment_lock "$deployment_lock" 0 ||
     die "Another Ladle deployment is running or the lock is unsafe."
 acquire_environment_lock "$environment_lock" 0 ||
     die "Cannot acquire the staging environment lock."
+lock_file_is_safe "$authority_lock" 0 ||
+    die "Authority lock metadata is unsafe before deployment."
 
 platform_network_is_valid || die "$PLATFORM_NETWORK_ERROR"
 

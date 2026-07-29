@@ -241,6 +241,7 @@ def test_vps_runbook_documents_staging_recovery_and_production_gates() -> None:
     assert "blocking shared authority lock" in prose
     assert "separate deployment lock" in prose
     assert "fresh provisioning creates authority.lock" in prose
+    assert "before any compose or deployment-state mutation" in prose
     assert "two-minute health service timeout" in prose
     gateway_plan = " ".join(
         (
@@ -2884,6 +2885,194 @@ def test_deploy_waits_for_api_edge_worker_and_activates_last() -> None:
     assert readiness < operations_install < installer < activation
     assert "deployment_phase" in deploy
     assert 'progress failure "$deployment_phase failed"' in deploy
+
+
+def _run_deploy_authority_flow(
+    tmp_path: Path,
+    *,
+    authority_state: str,
+    swap_after_readiness: bool = False,
+) -> tuple[subprocess.CompletedProcess[str], Path]:
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    _write_fake_flock(fake_bin / "flock")
+    _write_launcher_stat(fake_bin / "stat")
+    deployment_lock = tmp_path / "deploy.lock"
+    environment_lock = tmp_path / "environment.lock"
+    authority_lock = tmp_path / "authority.lock"
+    for lock in (deployment_lock, environment_lock):
+        lock.touch()
+        lock.chmod(0o600)
+    if authority_state != "missing":
+        authority_lock.touch()
+        authority_lock.chmod(0o600)
+    wrong_owner_paths = ""
+    if authority_state == "symlink":
+        authority_lock.unlink()
+        target = tmp_path / "authority-target.lock"
+        target.touch()
+        target.chmod(0o600)
+        authority_lock.symlink_to(target)
+    elif authority_state == "wrong_owner":
+        wrong_owner_paths = str(authority_lock)
+    elif authority_state == "wrong_mode":
+        authority_lock.chmod(0o640)
+
+    backend = tmp_path / "Backend"
+    installer = backend / "deploy" / "vps" / "install-operations.sh"
+    installer.parent.mkdir(parents=True)
+    installer.write_text(
+        """#!/bin/sh
+printf '%s\n' operations-refresh >>"$DEPLOY_TRACE"
+"""
+    )
+    installer.chmod(0o755)
+    trace = tmp_path / "deploy.trace"
+    deploy_flow = DEPLOY.read_text()
+    deploy_flow = deploy_flow[
+        deploy_flow.index("deployment_lock=/var/lib/ladle/locks/deploy.lock") :
+    ]
+    for original, replacement in (
+        (
+            "deployment_lock=/var/lib/ladle/locks/deploy.lock",
+            'deployment_lock="$TEST_DEPLOYMENT_LOCK"',
+        ),
+        (
+            "authority_lock=/var/lib/ladle/locks/authority.lock",
+            'authority_lock="$TEST_AUTHORITY_LOCK"',
+        ),
+        (
+            "environment_lock=/var/lib/ladle/locks/environment.lock",
+            'environment_lock="$TEST_ENVIRONMENT_LOCK"',
+        ),
+        (
+            'acquire_deployment_lock "$deployment_lock" 0',
+            'acquire_deployment_lock "$deployment_lock" "$TEST_UID"',
+        ),
+        (
+            'acquire_environment_lock "$environment_lock" 0',
+            'acquire_environment_lock "$environment_lock" "$TEST_UID"',
+        ),
+        (
+            'lock_file_is_safe "$authority_lock" 0',
+            'lock_file_is_safe "$authority_lock" "$TEST_UID"',
+        ),
+        (
+            'acquire_authority_lock "$authority_lock" 0',
+            'acquire_authority_lock "$authority_lock" "$TEST_UID"',
+        ),
+    ):
+        deploy_flow = deploy_flow.replace(original, replacement, 1)
+    runner = f"""
+. "$1"
+PATH=$2:$PATH
+backend_directory=$3
+base_compose=$backend_directory/docker-compose.yml
+vps_compose=$backend_directory/deploy/vps/docker-compose.yml
+revision={'d' * 40}
+release=$4
+state_directory=$5
+secret_group=ladle-secrets
+env_file=$6
+deployment_phase=lock
+platform_network_is_valid() {{ :; }}
+validate_env_metadata() {{ :; }}
+validate_staging_environment() {{ :; }}
+progress() {{ :; }}
+write_deployment_state() {{
+    printf '%s\\n' "state:$2" >>"$DEPLOY_TRACE"
+}}
+docker() {{ printf '%s\\n' "compose:$*" >>"$DEPLOY_TRACE"; }}
+rollout_worker_pair() {{
+    printf '%s\\n' service:workers >>"$DEPLOY_TRACE"
+}}
+wait_for_api_readiness() {{ :; }}
+wait_for_edge_readiness() {{ :; }}
+wait_for_worker_ping() {{ :; }}
+wait_for_beat_stability() {{
+    [ "$SWAP_AFTER_READINESS" != 1 ] ||
+        chmod 0640 "$TEST_AUTHORITY_LOCK"
+}}
+sleep() {{ :; }}
+activate_deployment_revision() {{
+    printf '%s\\n' activation >>"$DEPLOY_TRACE"
+}}
+{deploy_flow}
+"""
+    result = subprocess.run(
+        [
+            "/bin/sh",
+            "-c",
+            runner,
+            "test",
+            str(DEPLOYMENT_LIB),
+            str(fake_bin),
+            str(backend),
+            str(tmp_path / "release"),
+            str(tmp_path / "state"),
+            str(tmp_path / "ladle.env"),
+        ],
+        check=False,
+        capture_output=True,
+        env={
+            **os.environ,
+            "DEPLOY_TRACE": str(trace),
+            "SWAP_AFTER_READINESS": "1" if swap_after_readiness else "0",
+            "TEST_AUTHORITY_LOCK": str(authority_lock),
+            "TEST_DEPLOYMENT_LOCK": str(deployment_lock),
+            "TEST_ENVIRONMENT_LOCK": str(environment_lock),
+            "TEST_UID": str(os.getuid()),
+            "WRONG_OWNER_PATHS": wrong_owner_paths,
+        },
+        text=True,
+        timeout=10,
+    )
+    return result, trace
+
+
+@pytest.mark.parametrize(
+    "authority_state",
+    ("missing", "symlink", "wrong_owner", "wrong_mode"),
+)
+def test_deploy_rejects_unsafe_authority_before_any_mutation(
+    tmp_path: Path,
+    authority_state: str,
+) -> None:
+    result, trace = _run_deploy_authority_flow(
+        tmp_path,
+        authority_state=authority_state,
+    )
+
+    assert result.returncode != 0
+    assert "Authority lock metadata is unsafe before deployment." in result.stderr
+    assert not trace.exists()
+
+
+def test_deploy_authority_preflight_allows_valid_lock(tmp_path: Path) -> None:
+    result, trace = _run_deploy_authority_flow(
+        tmp_path,
+        authority_state="valid",
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "operations-refresh" in trace.read_text().splitlines()
+    assert "activation" in trace.read_text().splitlines()
+
+
+def test_deploy_late_authority_acquire_rejects_post_preflight_swap(
+    tmp_path: Path,
+) -> None:
+    result, trace = _run_deploy_authority_flow(
+        tmp_path,
+        authority_state="valid",
+        swap_after_readiness=True,
+    )
+
+    assert result.returncode != 0
+    assert "Cannot acquire the operations authority lock." in result.stderr
+    assert trace.exists()
+    assert "operations-refresh" not in trace.read_text().splitlines()
+    assert "activation" not in trace.read_text().splitlines()
 
 
 @pytest.mark.parametrize(

@@ -165,3 +165,20 @@ before activation because dispatch remains controlled by `current`.
 3. Keep backup/deploy mutual exclusion on the independent `deploy.lock` fd 9.
 4. Prove the lock order cannot deadlock and document the existing-VPS gateway
    preparation prerequisite.
+
+### Task 9: Preflight authority metadata before deployment mutation
+
+**Files:**
+
+- Modify: `Backend/deploy/vps/deploy.sh`
+- Modify: `Backend/docs/deployment/vps.md`
+- Test: `Backend/tests/unit/deploy/test_vps_profile.py`
+
+**Steps:**
+
+1. Validate `authority.lock` read-only after the persistent deployment and
+   environment locks are acquired, before Compose or deployment-state changes.
+2. Retain the late blocking exclusive authority acquisition and metadata
+   revalidation immediately before operations refresh and activation.
+3. Exercise missing, symlinked, wrong-owner, wrong-mode, valid, and
+   post-preflight-swap paths with mutation tracing.
