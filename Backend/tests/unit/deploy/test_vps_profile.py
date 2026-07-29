@@ -20,6 +20,7 @@ GATEWAY = PROFILE.parent / "gateway"
 GATEWAY_PROFILE = GATEWAY / "docker-compose.yml"
 GATEWAY_CADDYFILE = GATEWAY / "Caddyfile"
 GATEWAY_LADLE_ROUTE = GATEWAY / "routes" / "ladle.caddy"
+GATEWAY_MANAGE = GATEWAY / "manage.sh"
 PROVISION = PROFILE.parent / "provision.sh"
 HARDEN_SSH = PROFILE.parent / "harden-ssh.sh"
 DOCKER_USER_RULES = PROFILE.parent / "ladle-docker-user.rules"
@@ -7041,3 +7042,863 @@ transactional_install_operations "$2" "$3" "$4" "$5"
     assert "rollback incomplete" not in stderr
     for target in targets:
         assert target.read_text() == f"old:{target.name}\n"
+
+
+GATEWAY_TEST_REVISION = "a" * 40
+GATEWAY_TEST_HOSTNAME = "staging.example.test"
+GATEWAY_TEST_SECRET = "gatewaySecret123"
+LEGACY_CADDY_NAME = "ladle-caddy-1"
+SHARED_GATEWAY_NAME = "platform-gateway-gateway-1"
+
+
+def _write_gateway_fake_docker(path: Path) -> None:
+    path.write_text(
+        """#!/usr/bin/env python3
+import json
+import os
+import signal
+import sys
+import time
+
+state_path = os.environ["FAKE_DOCKER_STATE"]
+trace_path = os.environ["FAKE_DOCKER_TRACE"]
+with open(state_path) as source:
+    state = json.load(source)
+arguments = sys.argv[1:]
+with open(trace_path, "a") as trace:
+    trace.write(json.dumps(arguments) + "\\n")
+
+def save():
+    temporary = state_path + ".next"
+    with open(temporary, "w") as target:
+        json.dump(state, target)
+    os.replace(temporary, state_path)
+
+def container(target):
+    if target in state.get("containers", {}):
+        return state["containers"][target]
+    for candidate in state.get("containers", {}).values():
+        if candidate.get("id") == target:
+            return candidate
+    raise SystemExit(1)
+
+if arguments[:1] == ["version"]:
+    if state.get("docker_unavailable"):
+        raise SystemExit(1)
+    print("29.0.0")
+elif arguments[:2] == ["network", "inspect"]:
+    network = state.get("network")
+    if network is None:
+        raise SystemExit(1)
+    template = arguments[arguments.index("--format") + 1]
+    if ".Driver" in template:
+        print(network["driver"])
+        print(network["scope"])
+        print(str(network["internal"]).lower())
+        print(len(network["subnets"]))
+        for subnet in network["subnets"]:
+            print(subnet)
+        print(network["label"])
+    elif ".Containers" in template:
+        for name in network["containers"]:
+            print(state["containers"][name]["id"])
+    else:
+        raise SystemExit("unsupported network inspect format")
+elif arguments[:2] == ["network", "create"]:
+    expected = [
+        "network", "create", "--driver", "bridge",
+        "--subnet", "172.30.0.0/24",
+        "--label", "com.ladle.platform.network=shared-edge-v1",
+        "platform-edge",
+    ]
+    if arguments != expected:
+        raise SystemExit("unsafe network create")
+    state["network_create_calls"] = state.get("network_create_calls", 0) + 1
+    mode = state.get("network_create_mode", "success")
+    if mode in {"success", "race"}:
+        state["network"] = {
+            "driver": "bridge",
+            "scope": "local",
+            "internal": False,
+            "subnets": ["172.30.0.0/24"],
+            "label": "shared-edge-v1",
+            "containers": [],
+        }
+    save()
+    if mode == "success":
+        print("platform-edge")
+    else:
+        raise SystemExit(1)
+elif arguments[:1] == ["inspect"]:
+    target = arguments[-1]
+    item = container(target)
+    template = arguments[arguments.index("--format") + 1]
+    if ".Aliases" in template:
+        for alias in item.get("aliases", []):
+            print(alias)
+    elif (
+        "com.docker.compose.project" in template
+        and ".State.Running" not in template
+    ):
+        print(item["project"])
+        print(item["service"])
+    elif "PortBindings" in template:
+        health = item.get("health", "none")
+        ports = item.get("ports", [])
+        print(
+            f'{str(item["running"]).lower()}|{health}|'
+            f'{",".join(str(port) for port in ports)}'
+        )
+    elif ".State.Running" in template:
+        print(
+            f'{item["project"]}|{item["service"]}|'
+            f'{str(item["running"]).lower()}|{item.get("health", "none")}'
+        )
+    else:
+        raise SystemExit("unsupported container inspect format")
+elif arguments[:1] == ["run"]:
+    expected_tail = [
+        "--rm", "--network", "platform-edge", "--entrypoint", "wget",
+        state["gateway_image"], "-q", "-T", "5", "-O", "/dev/null",
+        "http://ladle-edge:8082/health/ready",
+    ]
+    if arguments[1:] != expected_tail:
+        raise SystemExit("unsafe readiness probe")
+    if state.get("probe_failure"):
+        raise SystemExit(1)
+elif arguments[:1] == ["stop"]:
+    target = arguments[-1]
+    item = container(target)
+    item["running"] = False
+    save()
+    if target == "ladle-caddy-1" and state.get("signal_during_stop"):
+        os.kill(os.getppid(), signal.SIGTERM)
+        time.sleep(0.2)
+        raise SystemExit(1)
+    print(target)
+elif arguments[:1] == ["start"]:
+    target = arguments[-1]
+    item = container(target)
+    if target == "ladle-caddy-1" and state.get("legacy_start_failure"):
+        raise SystemExit(1)
+    item["running"] = True
+    if target == "platform-gateway-gateway-1":
+        item["health"] = "healthy"
+    save()
+    print(target)
+elif arguments[:1] == ["compose"]:
+    compose_file = arguments[arguments.index("-f") + 1]
+    command_index = arguments.index("-f") + 2
+    command = arguments[command_index:]
+    if not compose_file.endswith("/docker-compose.yml"):
+        raise SystemExit("unsafe compose file")
+    if command == ["config", "--quiet"]:
+        if state.get("config_failure"):
+            raise SystemExit(1)
+    elif command == [
+        "run", "--rm", "--no-deps", "gateway", "caddy", "validate",
+        "--config", "/etc/caddy/Caddyfile",
+    ]:
+        if state.get("caddy_validation_failure"):
+            raise SystemExit(1)
+    elif command == [
+        "up", "-d", "--wait", "--wait-timeout", "120", "gateway"
+    ]:
+        shared = state["containers"].setdefault(
+            "platform-gateway-gateway-1",
+            {
+                "id": "g" * 64,
+                "project": "platform-gateway",
+                "service": "gateway",
+                "running": True,
+                "health": "healthy",
+                "ports": [80, 443, 443],
+                "aliases": [],
+            },
+        )
+        shared["running"] = True
+        shared["health"] = (
+            "unhealthy" if state.get("gateway_health_failure") else "healthy"
+        )
+        save()
+        if state.get("signal_during_up"):
+            os.kill(os.getppid(), signal.SIGTERM)
+            time.sleep(0.2)
+            raise SystemExit(1)
+        if state.get("gateway_up_failure"):
+            raise SystemExit(1)
+    elif command == ["down", "--timeout", "20"]:
+        shared = state["containers"].get("platform-gateway-gateway-1")
+        if shared:
+            shared["running"] = False
+            shared["health"] = "none"
+            save()
+    else:
+        raise SystemExit(f"unsupported compose command: {command!r}")
+else:
+    raise SystemExit(f"unsupported docker command: {arguments!r}")
+"""
+    )
+    path.chmod(0o755)
+
+
+def _gateway_default_state(
+    *,
+    network: dict[str, object] | bool | None = True,
+    include_edge: bool = True,
+    include_legacy: bool = True,
+    include_gateway: bool = False,
+) -> dict[str, object]:
+    containers: dict[str, object] = {}
+    network_containers: list[str] = []
+    if include_edge:
+        containers["ladle-edge-container"] = {
+            "id": "e" * 64,
+            "project": "ladle",
+            "service": "edge",
+            "running": True,
+            "health": "healthy",
+            "ports": [],
+            "aliases": ["ladle-edge"],
+        }
+        network_containers.append("ladle-edge-container")
+    if include_legacy:
+        containers[LEGACY_CADDY_NAME] = {
+            "id": "c" * 64,
+            "project": "ladle",
+            "service": "caddy",
+            "running": True,
+            "health": "healthy",
+            "ports": [80, 443, 443],
+            "aliases": [],
+        }
+    if include_gateway:
+        containers[SHARED_GATEWAY_NAME] = {
+            "id": "g" * 64,
+            "project": "platform-gateway",
+            "service": "gateway",
+            "running": False,
+            "health": "none",
+            "ports": [80, 443, 443],
+            "aliases": [],
+        }
+    if network is True:
+        network = {
+            "driver": "bridge",
+            "scope": "local",
+            "internal": False,
+            "subnets": ["172.30.0.0/24"],
+            "label": "shared-edge-v1",
+            "containers": network_containers,
+        }
+    return {
+        "network": network,
+        "network_create_mode": "success",
+        "containers": containers,
+        "gateway_image": (
+            "caddy:2.11.4-alpine@sha256:"
+            "5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648"
+        ),
+    }
+
+
+def _gateway_harness(
+    tmp_path: Path,
+    *,
+    state: dict[str, object] | None = None,
+) -> dict[str, Path | dict[str, object]]:
+    assert GATEWAY_MANAGE.exists(), "missing shared gateway manager"
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_docker = fake_bin / "docker"
+    _write_gateway_fake_docker(fake_docker)
+    fake_getent = fake_bin / "getent"
+    fake_getent.write_text(
+        f"""#!/bin/sh
+[ "$1:$2" = "group:ladle-secrets" ] || exit 1
+printf '%s\\n' 'ladle-secrets:x:{os.getgid()}:'
+"""
+    )
+    fake_getent.chmod(0o755)
+
+    filesystem = tmp_path / "system"
+    releases = filesystem / "opt" / "ladle" / "releases"
+    release = releases / GATEWAY_TEST_REVISION
+    release_backend = release / "Backend"
+    shutil.copytree(BACKEND / "deploy", release_backend / "deploy")
+    marker = release / ".ladle-revision"
+    marker.write_text(f"{GATEWAY_TEST_REVISION}\n")
+    marker.chmod(0o444)
+
+    live_platform = filesystem / "opt" / "platform"
+    platform_env_dir = filesystem / "etc" / "platform"
+    app_env = filesystem / "etc" / "ladle" / "ladle.env"
+    authority_lock = filesystem / "var" / "lib" / "ladle" / "locks" / (
+        "authority.lock"
+    )
+    app_env.parent.mkdir(parents=True)
+    app_env.write_text(
+        "\n".join(
+            (
+                f"LADLE_PUBLIC_HOSTNAME={GATEWAY_TEST_HOSTNAME}",
+                "UNRELATED_VALUE=preserved",
+                f"LADLE_TUNNEL_ACCESS_KEY={GATEWAY_TEST_SECRET}",
+                "",
+            )
+        )
+    )
+    app_env.chmod(0o640)
+    authority_lock.parent.mkdir(parents=True)
+    authority_lock.parent.chmod(0o700)
+
+    manager = release_backend / "deploy" / "vps" / "gateway" / "manage.sh"
+    rendered = manager.read_text()
+    replacements = {
+        "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin": (
+            f"PATH={fake_bin}:/usr/local/sbin:/usr/local/bin:"
+            "/usr/sbin:/usr/bin:/sbin:/bin"
+        ),
+        "/opt/ladle/releases": str(releases),
+        "/opt/platform": str(live_platform),
+        "/etc/platform": str(platform_env_dir),
+        "/etc/ladle/ladle.env": str(app_env),
+        "/var/lib/ladle/locks": str(authority_lock.parent),
+        "root_uid=0": f"root_uid={os.getuid()}",
+        "root_gid=0": f"root_gid={os.getgid()}",
+    }
+    for original, replacement in replacements.items():
+        rendered = rendered.replace(original, replacement)
+    manager.write_text(rendered)
+    manager.chmod(0o755)
+
+    state_file = tmp_path / "docker-state.json"
+    state_file.write_text(
+        json.dumps(state if state is not None else _gateway_default_state())
+    )
+    trace = tmp_path / "docker-trace.jsonl"
+    return {
+        "manager": manager,
+        "release": release,
+        "gateway_source": manager.parent,
+        "live_gateway": live_platform / "gateway",
+        "gateway_env": platform_env_dir / "gateway.env",
+        "app_env": app_env,
+        "authority_lock": authority_lock,
+        "state_file": state_file,
+        "trace": trace,
+        "fake_bin": fake_bin,
+    }
+
+
+def _run_gateway_manager(
+    harness: dict[str, Path | dict[str, object]],
+    command: str,
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [str(harness["manager"]), command],
+        check=False,
+        capture_output=True,
+        env={
+            **os.environ,
+            "FAKE_DOCKER_STATE": str(harness["state_file"]),
+            "FAKE_DOCKER_TRACE": str(harness["trace"]),
+        },
+        text=True,
+        timeout=10,
+    )
+
+
+def _gateway_state(
+    harness: dict[str, Path | dict[str, object]],
+) -> dict[str, Any]:
+    loaded = json.loads(Path(harness["state_file"]).read_text())
+    assert isinstance(loaded, dict)
+    return loaded
+
+
+def _gateway_trace(
+    harness: dict[str, Path | dict[str, object]],
+) -> list[list[str]]:
+    trace = Path(harness["trace"])
+    if not trace.exists():
+        return []
+    return [json.loads(line) for line in trace.read_text().splitlines()]
+
+
+def _prepare_gateway(
+    harness: dict[str, Path | dict[str, object]],
+) -> subprocess.CompletedProcess[str]:
+    result = _run_gateway_manager(harness, "prepare")
+    assert result.returncode == 0, result.stderr
+    return result
+
+
+def test_gateway_management_entrypoint_is_root_only_and_requires_one_command(
+    tmp_path: Path,
+) -> None:
+    assert GATEWAY_MANAGE.exists()
+    assert GATEWAY_MANAGE.stat().st_mode & stat.S_IXUSR
+    harness = _gateway_harness(tmp_path)
+    manager = Path(harness["manager"])
+
+    nonroot_text = manager.read_text().replace(
+        f"root_uid={os.getuid()}",
+        f"root_uid={os.getuid() + 1}",
+        1,
+    )
+    manager.write_text(nonroot_text)
+    nonroot = _run_gateway_manager(harness, "status")
+    assert nonroot.returncode != 0
+    assert "root" in nonroot.stderr.casefold()
+
+    manager.write_text(
+        nonroot_text.replace(
+            f"root_uid={os.getuid() + 1}",
+            f"root_uid={os.getuid()}",
+            1,
+        )
+    )
+    missing = subprocess.run(
+        [str(manager)],
+        check=False,
+        capture_output=True,
+        env={
+            **os.environ,
+            "FAKE_DOCKER_STATE": str(harness["state_file"]),
+            "FAKE_DOCKER_TRACE": str(harness["trace"]),
+        },
+        text=True,
+    )
+    invalid = _run_gateway_manager(harness, "destroy")
+    assert missing.returncode != 0
+    assert invalid.returncode != 0
+    assert "prepare|activate|rollback|status" in missing.stderr
+    assert "prepare|activate|rollback|status" in invalid.stderr
+
+
+@pytest.mark.parametrize("shell", ("/bin/sh", "/bin/dash"))
+def test_gateway_management_is_posix_shell_syntax(shell: str) -> None:
+    if not Path(shell).exists():
+        pytest.skip(f"{shell} is unavailable")
+    result = subprocess.run(
+        [shell, "-n", str(GATEWAY_MANAGE)],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_gateway_management_prepare_extracts_only_required_values_atomically(
+    tmp_path: Path,
+) -> None:
+    harness = _gateway_harness(tmp_path)
+
+    result = _prepare_gateway(harness)
+
+    gateway_env = Path(harness["gateway_env"])
+    assert gateway_env.read_text() == (
+        f"LADLE_PUBLIC_HOSTNAME={GATEWAY_TEST_HOSTNAME}\n"
+        f"LADLE_TUNNEL_ACCESS_KEY={GATEWAY_TEST_SECRET}\n"
+    )
+    assert stat.S_IMODE(gateway_env.stat().st_mode) == 0o600
+    assert gateway_env.stat().st_uid == os.getuid()
+    assert Path(harness["authority_lock"]).exists()
+    assert stat.S_IMODE(Path(harness["authority_lock"]).stat().st_mode) == 0o600
+    assert GATEWAY_TEST_SECRET not in result.stdout
+    assert GATEWAY_TEST_SECRET not in result.stderr
+    serialized_trace = json.dumps(_gateway_trace(harness))
+    assert GATEWAY_TEST_SECRET not in serialized_trace
+    assert not list(gateway_env.parent.glob(".gateway.env.*"))
+
+    commands = _gateway_trace(harness)
+    assert any(command[-2:] == ["config", "--quiet"] for command in commands)
+    assert any(
+        command[-5:]
+        == [
+            "gateway",
+            "caddy",
+            "validate",
+            "--config",
+            "/etc/caddy/Caddyfile",
+            ][-5:]
+        for command in commands
+    )
+    forbidden = {"stop", "start", "up", "80:80", "443:443"}
+    assert all(not forbidden.intersection(command) for command in commands)
+
+
+@pytest.mark.parametrize(
+    "unsafe_source",
+    ("wrong-marker", "mutable-route", "symlink-asset", "symlink-entrypoint"),
+)
+def test_gateway_management_prepare_requires_exact_immutable_release(
+    tmp_path: Path,
+    unsafe_source: str,
+) -> None:
+    harness = _gateway_harness(tmp_path)
+    source = Path(harness["gateway_source"])
+    if unsafe_source == "wrong-marker":
+        marker = Path(harness["release"]) / ".ladle-revision"
+        marker.chmod(0o644)
+        marker.write_text(f"{'b' * 40}\n")
+        marker.chmod(0o444)
+    elif unsafe_source == "mutable-route":
+        (source / "routes" / "ladle.caddy").chmod(0o666)
+    elif unsafe_source == "symlink-asset":
+        route = source / "routes" / "ladle.caddy"
+        route.unlink()
+        route.symlink_to(GATEWAY_LADLE_ROUTE)
+    else:
+        manager = Path(harness["manager"])
+        actual = manager.with_name("manage-real.sh")
+        manager.rename(actual)
+        manager.symlink_to(actual)
+
+    result = _run_gateway_manager(harness, "prepare")
+
+    assert result.returncode != 0
+    assert not Path(harness["gateway_env"]).exists()
+    assert not Path(harness["live_gateway"]).exists()
+
+
+@pytest.mark.parametrize(
+    "unsafe_environment",
+    ("symlink", "wrong-mode", "duplicate", "shell-syntax", "bad-hostname"),
+)
+def test_gateway_management_prepare_rejects_unsafe_app_environment(
+    tmp_path: Path,
+    unsafe_environment: str,
+) -> None:
+    harness = _gateway_harness(tmp_path)
+    app_env = Path(harness["app_env"])
+    if unsafe_environment == "symlink":
+        actual = app_env.with_name("actual.env")
+        app_env.rename(actual)
+        app_env.symlink_to(actual)
+    elif unsafe_environment == "wrong-mode":
+        app_env.chmod(0o644)
+    elif unsafe_environment == "duplicate":
+        with app_env.open("a") as target:
+            target.write(f"LADLE_PUBLIC_HOSTNAME={GATEWAY_TEST_HOSTNAME}\n")
+    elif unsafe_environment == "shell-syntax":
+        app_env.write_text(
+            "LADLE_PUBLIC_HOSTNAME=$(touch /tmp/gateway-owned)\n"
+            f"LADLE_TUNNEL_ACCESS_KEY={GATEWAY_TEST_SECRET}\n"
+        )
+    else:
+        app_env.write_text(
+            "LADLE_PUBLIC_HOSTNAME=bad host\n"
+            f"LADLE_TUNNEL_ACCESS_KEY={GATEWAY_TEST_SECRET}\n"
+        )
+    if unsafe_environment not in {"symlink", "wrong-mode"}:
+        app_env.chmod(0o640)
+
+    result = _run_gateway_manager(harness, "prepare")
+
+    assert result.returncode != 0
+    assert GATEWAY_TEST_SECRET not in result.stdout
+    assert GATEWAY_TEST_SECRET not in result.stderr
+    assert not Path(harness["gateway_env"]).exists()
+    assert not Path("/tmp/gateway-owned").exists()
+
+
+def test_gateway_management_prepare_is_idempotent_and_preserves_future_routes(
+    tmp_path: Path,
+) -> None:
+    harness = _gateway_harness(
+        tmp_path,
+        state=_gateway_default_state(network=None),
+    )
+    state = _gateway_state(harness)
+    state["network_create_mode"] = "success"
+    Path(harness["state_file"]).write_text(json.dumps(state))
+
+    first = _prepare_gateway(harness)
+    future_route = Path(harness["live_gateway"]) / "routes" / "future.caddy"
+    future_route.write_text("future.example.test { respond 204 }\n")
+    future_route.chmod(0o644)
+    second = _prepare_gateway(harness)
+
+    assert first.stdout == second.stdout
+    assert future_route.read_text() == "future.example.test { respond 204 }\n"
+    assert _gateway_state(harness)["network_create_calls"] == 1
+
+
+def test_gateway_management_prepare_rejects_unsafe_live_paths(
+    tmp_path: Path,
+) -> None:
+    harness = _gateway_harness(tmp_path)
+    live_gateway = Path(harness["live_gateway"])
+    live_gateway.parent.mkdir(parents=True)
+    actual = live_gateway.with_name("gateway-actual")
+    actual.mkdir()
+    live_gateway.symlink_to(actual)
+
+    result = _run_gateway_manager(harness, "prepare")
+
+    assert result.returncode != 0
+    assert not Path(harness["gateway_env"]).exists()
+
+
+def test_gateway_management_prepare_rejects_unsafe_future_route(
+    tmp_path: Path,
+) -> None:
+    harness = _gateway_harness(tmp_path)
+    _prepare_gateway(harness)
+    routes = Path(harness["live_gateway"]) / "routes"
+    unsafe_target = routes.parent / "unsafe-target.caddy"
+    unsafe_target.write_text("unsafe.example.test { respond 204 }\n")
+    (routes / "future.caddy").symlink_to(unsafe_target)
+
+    result = _run_gateway_manager(harness, "prepare")
+
+    assert result.returncode != 0
+    assert (routes / "future.caddy").is_symlink()
+
+
+@pytest.mark.parametrize("unsafe_state", ("symlink", "wrong-mode"))
+def test_gateway_management_prepare_rejects_unsafe_existing_gateway_environment(
+    tmp_path: Path,
+    unsafe_state: str,
+) -> None:
+    harness = _gateway_harness(tmp_path)
+    gateway_env = Path(harness["gateway_env"])
+    gateway_env.parent.mkdir(parents=True)
+    gateway_env.parent.chmod(0o700)
+    actual = gateway_env
+    if unsafe_state == "symlink":
+        actual = gateway_env.with_name("gateway-actual.env")
+    actual.write_text(
+        f"LADLE_PUBLIC_HOSTNAME={GATEWAY_TEST_HOSTNAME}\n"
+        f"LADLE_TUNNEL_ACCESS_KEY={GATEWAY_TEST_SECRET}\n"
+    )
+    actual.chmod(0o644 if unsafe_state == "wrong-mode" else 0o600)
+    if unsafe_state == "symlink":
+        gateway_env.symlink_to(actual)
+
+    result = _run_gateway_manager(harness, "prepare")
+
+    assert result.returncode != 0
+    if unsafe_state == "symlink":
+        assert gateway_env.is_symlink()
+    else:
+        assert stat.S_IMODE(gateway_env.stat().st_mode) == 0o644
+
+
+def test_gateway_management_prepare_rejects_malformed_existing_network(
+    tmp_path: Path,
+) -> None:
+    malformed = _valid_platform_network()
+    malformed["subnets"] = ["172.29.0.0/24"]
+    harness = _gateway_harness(
+        tmp_path,
+        state=_gateway_default_state(network=malformed),
+    )
+
+    result = _run_gateway_manager(harness, "prepare")
+
+    assert result.returncode != 0
+    assert _gateway_state(harness).get("network_create_calls", 0) == 0
+
+
+@pytest.mark.parametrize("failure", ("config_failure", "caddy_validation_failure"))
+def test_gateway_management_prepare_fails_closed_on_config_validation(
+    tmp_path: Path,
+    failure: str,
+) -> None:
+    state = _gateway_default_state()
+    state[failure] = True
+    harness = _gateway_harness(tmp_path, state=state)
+
+    result = _run_gateway_manager(harness, "prepare")
+
+    assert result.returncode != 0
+    commands = _gateway_trace(harness)
+    assert not any("stop" in command or "up" in command for command in commands)
+
+
+@pytest.mark.parametrize("edge_state", ("missing", "foreign", "unreachable"))
+def test_gateway_management_activate_rejects_untrusted_or_unreachable_edge(
+    tmp_path: Path,
+    edge_state: str,
+) -> None:
+    state = _gateway_default_state(include_edge=edge_state != "missing")
+    if edge_state == "unreachable":
+        state["probe_failure"] = True
+    harness = _gateway_harness(tmp_path, state=state)
+    _prepare_gateway(harness)
+    if edge_state == "foreign":
+        prepared_state = _gateway_state(harness)
+        prepared_state["containers"]["ladle-edge-container"]["project"] = "foreign"
+        Path(harness["state_file"]).write_text(json.dumps(prepared_state))
+
+    result = _run_gateway_manager(harness, "activate")
+
+    assert result.returncode != 0
+    current = _gateway_state(harness)
+    assert current["containers"][LEGACY_CADDY_NAME]["running"] is True
+    assert SHARED_GATEWAY_NAME not in current["containers"]
+
+
+def test_gateway_management_activate_rejects_foreign_legacy_container(
+    tmp_path: Path,
+) -> None:
+    state = _gateway_default_state()
+    state["containers"][LEGACY_CADDY_NAME]["service"] = "api"
+    harness = _gateway_harness(tmp_path, state=state)
+    _prepare_gateway(harness)
+
+    result = _run_gateway_manager(harness, "activate")
+
+    assert result.returncode != 0
+    assert _gateway_state(harness)["containers"][LEGACY_CADDY_NAME]["running"]
+
+
+def test_gateway_management_activate_swaps_only_listener_containers(
+    tmp_path: Path,
+) -> None:
+    harness = _gateway_harness(tmp_path)
+    _prepare_gateway(harness)
+    before = _gateway_state(harness)["containers"]["ladle-edge-container"].copy()
+
+    result = _run_gateway_manager(harness, "activate")
+
+    assert result.returncode == 0, result.stderr
+    state = _gateway_state(harness)
+    assert state["containers"][LEGACY_CADDY_NAME]["running"] is False
+    shared = state["containers"][SHARED_GATEWAY_NAME]
+    assert shared["running"] is True
+    assert shared["health"] == "healthy"
+    assert shared["ports"] == [80, 443, 443]
+    assert state["containers"]["ladle-edge-container"] == before
+    commands = _gateway_trace(harness)
+    stopped = [command[-1] for command in commands if command[:1] == ["stop"]]
+    assert stopped == [LEGACY_CADDY_NAME]
+    assert not any(
+        service in json.dumps(commands)
+        for service in ("postgres", "redis", "minio", "api", "worker", "beat")
+    )
+    assert GATEWAY_TEST_SECRET not in json.dumps(commands)
+    assert GATEWAY_TEST_SECRET not in result.stdout + result.stderr
+
+
+@pytest.mark.parametrize("failure", ("gateway_up_failure", "gateway_health_failure"))
+def test_gateway_management_activate_failure_restores_legacy_listener(
+    tmp_path: Path,
+    failure: str,
+) -> None:
+    state = _gateway_default_state()
+    state[failure] = True
+    harness = _gateway_harness(tmp_path, state=state)
+    _prepare_gateway(harness)
+
+    result = _run_gateway_manager(harness, "activate")
+
+    assert result.returncode != 0
+    current = _gateway_state(harness)
+    assert current["containers"][LEGACY_CADDY_NAME]["running"] is True
+    shared = current["containers"].get(SHARED_GATEWAY_NAME)
+    assert shared is None or shared["running"] is False
+    trace = _gateway_trace(harness)
+    assert any(command[-2:] == ["--timeout", "20"] for command in trace)
+    assert ["start", LEGACY_CADDY_NAME] in trace
+
+
+@pytest.mark.parametrize(
+    "signal_point",
+    ("signal_during_stop", "signal_during_up"),
+)
+def test_gateway_management_activate_signal_restores_legacy_listener(
+    tmp_path: Path,
+    signal_point: str,
+) -> None:
+    state = _gateway_default_state()
+    state[signal_point] = True
+    harness = _gateway_harness(tmp_path, state=state)
+    _prepare_gateway(harness)
+
+    result = _run_gateway_manager(harness, "activate")
+
+    assert result.returncode != 0
+    current = _gateway_state(harness)
+    assert current["containers"][LEGACY_CADDY_NAME]["running"] is True
+    shared = current["containers"].get(SHARED_GATEWAY_NAME)
+    assert shared is None or shared["running"] is False
+
+
+def test_gateway_management_rollback_restores_preserved_legacy_listener(
+    tmp_path: Path,
+) -> None:
+    harness = _gateway_harness(tmp_path)
+    _prepare_gateway(harness)
+    activated = _run_gateway_manager(harness, "activate")
+    assert activated.returncode == 0, activated.stderr
+
+    result = _run_gateway_manager(harness, "rollback")
+
+    assert result.returncode == 0, result.stderr
+    state = _gateway_state(harness)
+    assert state["containers"][SHARED_GATEWAY_NAME]["running"] is False
+    assert state["containers"][LEGACY_CADDY_NAME]["running"] is True
+    trace = _gateway_trace(harness)
+    shared_stop = trace.index(["stop", "--time", "30", SHARED_GATEWAY_NAME])
+    legacy_start = trace.index(["start", LEGACY_CADDY_NAME], shared_stop)
+    assert shared_stop < legacy_start
+
+
+def test_gateway_management_rollback_failure_restores_shared_listener(
+    tmp_path: Path,
+) -> None:
+    harness = _gateway_harness(tmp_path)
+    _prepare_gateway(harness)
+    activated = _run_gateway_manager(harness, "activate")
+    assert activated.returncode == 0, activated.stderr
+    state = _gateway_state(harness)
+    state["legacy_start_failure"] = True
+    Path(harness["state_file"]).write_text(json.dumps(state))
+
+    result = _run_gateway_manager(harness, "rollback")
+
+    assert result.returncode != 0
+    current = _gateway_state(harness)
+    assert current["containers"][LEGACY_CADDY_NAME]["running"] is False
+    assert current["containers"][SHARED_GATEWAY_NAME]["running"] is True
+    assert current["containers"][SHARED_GATEWAY_NAME]["health"] == "healthy"
+
+
+def test_gateway_management_status_is_read_only_and_rejects_inconsistency(
+    tmp_path: Path,
+) -> None:
+    harness = _gateway_harness(tmp_path)
+    _prepare_gateway(harness)
+    activated = _run_gateway_manager(harness, "activate")
+    assert activated.returncode == 0, activated.stderr
+    trace_before = _gateway_trace(harness)
+
+    active = _run_gateway_manager(harness, "status")
+
+    assert active.returncode == 0, active.stderr
+    assert active.stdout.splitlines() == [
+        "prepared=yes",
+        "active=yes",
+        "gateway=running",
+        "gateway_health=healthy",
+        "legacy=stopped",
+        "legacy_health=none",
+    ]
+    assert GATEWAY_TEST_SECRET not in active.stdout + active.stderr
+    status_trace = _gateway_trace(harness)[len(trace_before) :]
+    assert all(
+        not {"start", "stop", "up", "down", "run", "create"}.intersection(
+            command
+        )
+        for command in status_trace
+    )
+
+    state = _gateway_state(harness)
+    state["containers"][LEGACY_CADDY_NAME]["running"] = True
+    Path(harness["state_file"]).write_text(json.dumps(state))
+    inconsistent = _run_gateway_manager(harness, "status")
+    assert inconsistent.returncode != 0
+    assert "prepared=yes" in inconsistent.stdout

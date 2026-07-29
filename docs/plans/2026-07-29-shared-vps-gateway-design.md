@@ -91,6 +91,31 @@ If the shared gateway does not pass its immediate checks, stop it and restart
 the existing Ladle Caddy container. The app and data containers are not
 recreated during the listener handoff.
 
+### Management contract
+
+The root-only gateway manager runs from one immutable, root-owned
+`/opt/ladle/releases/<full-revision>` tree and accepts only `prepare`,
+`activate`, `rollback`, or `status`.
+
+- `prepare` validates the exact release marker and source metadata, safely
+  creates the operations authority lock when it is absent, extracts only the
+  Ladle hostname and staging access key without sourcing the app environment,
+  and atomically installs root-owned assets under `/opt/platform/gateway`.
+  Existing unrelated route files are preserved. Compose and pinned-Caddy
+  validation run without publishing ports or stopping a container.
+- `activate` revalidates the installed files, secret metadata, shared-network
+  contract, unique `ladle-edge` ownership, backend readiness, and exact legacy
+  Caddy identity before stopping only `ladle-caddy-1`. Any failure or signal
+  after that stop takes down the attempted shared gateway and waits for the
+  preserved legacy listener to become healthy again.
+- `rollback` stops only the validated shared gateway, then waits for the
+  preserved legacy listener. If that restart fails, it attempts to restore and
+  verify the shared listener so the public ports are not deliberately left
+  down.
+- `status` is read-only. It reports preparation, active-listener state, and
+  both container health states without parsing or displaying secret values,
+  and fails for foreign or contradictory listener ownership.
+
 ## Failure Handling
 
 - Invalid gateway configuration blocks activation.
@@ -113,4 +138,3 @@ recreated during the listener handoff.
 - Re-run the external staging verifier over IPv4 and IPv6.
 - Confirm Ladle health and backup timers remain active and the latest backup
   checksum remains valid.
-
