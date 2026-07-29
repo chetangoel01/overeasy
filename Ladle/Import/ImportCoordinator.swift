@@ -591,11 +591,7 @@ final class ImportCoordinator {
             return
         case let .ready(recipe):
             if job.currentRecipeID != nil {
-                guard recipe.id == job.candidateRecipeID else {
-                    state = .persistenceFailed
-                    return
-                }
-                job = try job.awaitingReview(candidate: recipe)
+                job = try job.awaitingRemoteReview(candidate: recipe)
                 try repository.save(job)
                 completedRecipe = recipe
                 state = .completed(recipeID: recipe.id)
@@ -619,11 +615,7 @@ final class ImportCoordinator {
             await didCompleteRemoteImport()
         case let .needsReview(recipe):
             if job.currentRecipeID != nil {
-                guard recipe.id == job.candidateRecipeID else {
-                    state = .persistenceFailed
-                    return
-                }
-                job = try job.awaitingReview(candidate: recipe)
+                job = try job.awaitingRemoteReview(candidate: recipe)
                 try repository.save(job)
                 completedRecipe = recipe
                 state = .needsReview(recipeID: recipe.id)

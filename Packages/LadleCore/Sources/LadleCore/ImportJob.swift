@@ -131,6 +131,19 @@ public struct ImportJob: Codable, Hashable, Identifiable, Sendable {
         return copy
     }
 
+    public func awaitingRemoteReview(
+        candidate: Recipe,
+        at date: Date = .now
+    ) throws -> Self {
+        var copy = try completingRemoteReimport(
+            as: .needsReview,
+            recipeID: candidate.id,
+            at: date
+        )
+        copy.reviewCandidate = candidate
+        return copy
+    }
+
     public var reviewRecipeID: UUID? {
         guard case .needsReview = status else {
             return nil

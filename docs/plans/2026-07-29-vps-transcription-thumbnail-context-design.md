@@ -81,6 +81,8 @@ and supported content types stay consistent.
 - Thumbnail download/validation and thumbnail-only observation.
 - Acquisition-chain context assembly and diagnostics.
 - Bounded provider-metric labels for thumbnail analysis.
+- Re-import state adopts the backend's replacement-candidate ID instead of
+  rejecting it when it differs from the client's temporary placeholder.
 - VPS profile, acquisition, vision, and runtime tests.
 - VPS verification documentation.
 

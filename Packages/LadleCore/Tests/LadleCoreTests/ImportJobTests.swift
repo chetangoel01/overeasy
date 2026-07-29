@@ -109,4 +109,28 @@ struct ImportJobTests {
         #expect(job.reviewRecipeID == currentRecipeID)
         #expect(job.reviewCandidate == candidate)
     }
+
+    @Test
+    func remoteReimportAdoptsServerAssignedCandidate() throws {
+        let currentRecipeID = UUID()
+        let localPlaceholderID = UUID()
+        let candidate = Recipe(
+            title: "Server candidate",
+            source: .tiktok,
+            originalURL: sourceURL,
+            servings: 2
+        )
+        let job = ImportJob.reimporting(
+            sourceURL: sourceURL,
+            currentRecipeID: currentRecipeID,
+            candidateRecipeID: localPlaceholderID
+        )
+
+        let updated = try job.awaitingRemoteReview(candidate: candidate)
+
+        #expect(updated.status == .needsReview)
+        #expect(updated.currentRecipeID == currentRecipeID)
+        #expect(updated.candidateRecipeID == candidate.id)
+        #expect(updated.reviewCandidate == candidate)
+    }
 }
