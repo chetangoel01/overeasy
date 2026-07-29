@@ -5,6 +5,7 @@ but process time, so it runs before any billed provider is touched.
 """
 
 import html
+import http.cookiejar
 import json
 import logging
 import math
@@ -12,9 +13,11 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
+from urllib.request import Request
 
 import httpx
 
@@ -82,6 +85,16 @@ _WHITESPACE = re.compile(r"\s+")
 _SEGMENT_CHARACTER_TARGET = 400
 _MAX_SEGMENTS = 400
 _MAX_SUBTITLE_BYTES = 4 * 1024 * 1024
+_MEDIA_HEADER_NAMES = frozenset(
+    {
+        "accept",
+        "accept-language",
+        "origin",
+        "referer",
+        "sec-fetch-mode",
+        "user-agent",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -96,7 +109,9 @@ class YtDlpMedia:
     metadata: MediaMetadata
     canonical_url: str | None = None
     media_url: str | None = None
+    media_headers: dict[str, str] = field(default_factory=dict, repr=False)
     audio_url: str | None = None
+    audio_headers: dict[str, str] = field(default_factory=dict, repr=False)
     video_url: str | None = None
     manual_languages: list[str] = field(default_factory=list)
     generated_languages: list[str] = field(default_factory=list)
@@ -179,23 +194,29 @@ class YtDlpClient:
         return self._binary is not None
 
     def metadata(self, url: str) -> YtDlpMedia:
-        payload = self._json(
-            self._command(
-                "--no-playlist",
-                "--skip-download",
-                "--dump-single-json",
-                "--no-warnings",
-                "--socket-timeout",
-                "20",
-                "--retries",
-                "2",
-                "--extractor-retries",
-                "2",
-                url,
-            ),
-            timeout=self._metadata_timeout,
-        )
-        return _media_from_payload(payload)
+        with tempfile.TemporaryDirectory(prefix="ladle-ytdlp-") as folder:
+            cookies_file = self._cookies_file or str(Path(folder) / "cookies.txt")
+            payload = self._json(
+                self._command(
+                    "--no-playlist",
+                    "--skip-download",
+                    "--dump-single-json",
+                    "--no-warnings",
+                    "--socket-timeout",
+                    "20",
+                    "--retries",
+                    "2",
+                    "--extractor-retries",
+                    "2",
+                    url,
+                    cookies_file=cookies_file,
+                ),
+                timeout=self._metadata_timeout,
+            )
+            return _media_from_payload(
+                payload,
+                cookies=_load_cookies(cookies_file),
+            )
 
     def subtitles(self, url: str, *, track: SubtitleTrack) -> list[TextEvidence]:
         """Fetch the provider-returned VTT through the pinned HTTP client.
@@ -237,13 +258,17 @@ class YtDlpClient:
             raise ProviderUnavailable("yt-dlp is not installed")
         return self._binary
 
-    def _command(self, *arguments: str) -> list[str]:
+    def _command(
+        self,
+        *arguments: str,
+        cookies_file: str | None = None,
+    ) -> list[str]:
         # Ignore user/system configuration and proxy environment variables.
         # Infrastructure egress policy remains the backstop for requests the
         # extractor makes to allowlisted social platforms.
         command = [self._require_binary(), "--no-config", "--proxy", ""]
-        if self._cookies_file is not None:
-            command.extend(("--cookies", self._cookies_file))
+        if cookies_file is not None:
+            command.extend(("--cookies", cookies_file))
         command.extend(arguments)
         return command
 
@@ -265,7 +290,11 @@ def _tail(value: str | None, limit: int = 400) -> str:
     return text[-limit:] or "yt-dlp failed without detail"
 
 
-def _media_from_payload(payload: dict[str, Any]) -> YtDlpMedia:
+def _media_from_payload(
+    payload: dict[str, Any],
+    *,
+    cookies: http.cookiejar.CookieJar | None = None,
+) -> YtDlpMedia:
     title = _text(payload.get("title") or payload.get("fulltitle"))
     description = _text(payload.get("description"))
     creator = _text(
@@ -273,6 +302,9 @@ def _media_from_payload(payload: dict[str, Any]) -> YtDlpMedia:
     )
     canonical = _text(payload.get("webpage_url") or payload.get("original_url"))
     duration = payload.get("duration")
+    media = _media_format(payload)
+    audio = _audio_format(payload)
+    video = _video_format(payload)
     return YtDlpMedia(
         metadata=MediaMetadata(
             title=title or None,
@@ -284,9 +316,11 @@ def _media_from_payload(payload: dict[str, Any]) -> YtDlpMedia:
             else None,
         ),
         canonical_url=canonical or None,
-        media_url=_media_url(payload),
-        audio_url=_audio_url(payload),
-        video_url=_video_url(payload),
+        media_url=_https_url(media) if media is not None else None,
+        media_headers=_request_headers(media, cookies=cookies),
+        audio_url=_https_url(audio) if audio is not None else None,
+        audio_headers=_request_headers(audio, cookies=cookies),
+        video_url=_https_url(video) if video is not None else None,
         manual_languages=_languages(payload.get("subtitles")),
         generated_languages=_languages(payload.get("automatic_captions")),
         manual_subtitle_urls=_subtitle_urls(payload.get("subtitles")),
@@ -322,7 +356,7 @@ def _subtitle_urls(value: Any) -> dict[str, str]:
     return result
 
 
-def _media_url(payload: dict[str, Any]) -> str | None:
+def _media_format(payload: dict[str, Any]) -> dict[str, Any] | None:
     formats = _formats(payload)
     candidates = [
         value
@@ -333,10 +367,10 @@ def _media_url(payload: dict[str, Any]) -> str | None:
     ]
     if not candidates:
         return None
-    return _https_url(_best_video(candidates))
+    return _best_video(candidates)
 
 
-def _audio_url(payload: dict[str, Any]) -> str | None:
+def _audio_format(payload: dict[str, Any]) -> dict[str, Any] | None:
     candidates = [
         value
         for value in _formats(payload)
@@ -351,10 +385,10 @@ def _audio_url(payload: dict[str, Any]) -> str | None:
         audio_only or candidates,
         key=lambda value: _metric(value.get("abr") or value.get("tbr")),
     )
-    return _https_url(selected)
+    return selected
 
 
-def _video_url(payload: dict[str, Any]) -> str | None:
+def _video_format(payload: dict[str, Any]) -> dict[str, Any] | None:
     candidates = [
         value
         for value in _formats(payload)
@@ -365,7 +399,39 @@ def _video_url(payload: dict[str, Any]) -> str | None:
     video_only = [
         value for value in candidates if value.get("acodec") in (None, "none")
     ]
-    return _https_url(_best_video(video_only or candidates))
+    return _best_video(video_only or candidates)
+
+
+def _load_cookies(path: str) -> http.cookiejar.CookieJar | None:
+    cookies = http.cookiejar.MozillaCookieJar(path)
+    try:
+        cookies.load(ignore_discard=True, ignore_expires=True)
+    except (FileNotFoundError, http.cookiejar.LoadError, OSError):
+        return None
+    return cookies
+
+
+def _request_headers(
+    media: dict[str, Any] | None,
+    *,
+    cookies: http.cookiejar.CookieJar | None,
+) -> dict[str, str]:
+    if media is None:
+        return {}
+    raw = media.get("http_headers")
+    headers = {
+        str(name): value
+        for name, value in (raw.items() if isinstance(raw, dict) else ())
+        if str(name).casefold() in _MEDIA_HEADER_NAMES and isinstance(value, str)
+    }
+    url = _https_url(media)
+    if cookies is not None and url is not None:
+        request = Request(url)
+        cookies.add_cookie_header(request)
+        cookie = request.get_header("Cookie")
+        if cookie:
+            headers["Cookie"] = cookie
+    return headers
 
 
 def _formats(payload: dict[str, Any]) -> list[dict[str, Any]]:

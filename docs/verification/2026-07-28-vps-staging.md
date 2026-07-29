@@ -81,14 +81,124 @@ outside the repository in a mode-`0600` file and was never printed.
 ## Application state and services
 
 - `LADLE_ENVIRONMENT=development`
-- Worker provider mode remains `fake`; no paid provider credential is
-  installed.
+- The initial worker provider mode was `fake`; the live-provider activation
+  below supersedes that initial state.
 - PostgreSQL and MinIO started empty.
 - Alembic migrations reached revision `0012`.
 - Live database counts were `users=0` and `recipes=0`.
 - PostgreSQL, Redis, MinIO, API, worker egress, worker, Beat, Nginx, and Caddy
   were running; all services with health checks reported healthy.
 - API, edge, Celery worker, and Beat deployment gates passed before activation.
+
+## Live extraction activation
+
+On 2026-07-29, an existing owner-only OpenRouter credential was installed
+through the allowlisted standard-input setter. The credential value was never
+printed, written to the repository, or passed as a command argument. The
+setter atomically changed `LADLE_WORKER_PROVIDER_MODE` from `fake` to `live`.
+
+The exact active revision
+`c0af22f1a2e349013d58f98ff09609efad8b22e0` was redeployed. Its Compose,
+storage, migration, API, edge, worker, Beat, operations-refresh, and activation
+gates all passed. The replacement worker reported:
+
+```text
+worker_provider_mode=live
+extraction_provider=openrouter
+openrouter_model=google/gemini-3.6-flash
+openrouter_key_present=yes
+```
+
+Direct operations health reported `health healthy`, and the complete external
+staging verifier passed TLS, security headers, secret-leak checks, staging
+access, dependencies, hidden endpoints, authentication, and request-size
+handling.
+
+A disposable guest then completed a real TikTok import through the public
+staging API. OpenRouter recorded a completed `recipeExtraction` attempt and
+produced **Creamy Garlic-Lemon Chickpeas** with 12 ingredients and 5 steps.
+The extraction cache recorded prompt `recipe-2026-07-27-v8` and model
+`google/gemini-3.6-flash`, proving the result did not use
+`fake-recipe-v1` / `fake-extractor`. The terminal state was `needsReview`, as
+expected for evidence requiring user review. The disposable account and its
+data were permanently deleted after verification.
+
+Supadata and SoScripted credentials remain absent. The verified TikTok journey
+succeeded through the free acquisition path plus OpenRouter extraction; paid
+acquisition fallbacks remain unverified.
+
+## Transcript acquisition correction
+
+The first live user import after activation exposed a staging-profile gap.
+TikTok job `ca9be246-8cf7-493f-b17b-96a7a6d13b61` completed extraction, but
+the free TikTok caption page was unavailable and the VPS still had audio
+transcription disabled. The resulting **Stuffed bell peppers** recipe contained
+only two ingredients and two untimed steps. Its review evidence explicitly
+said the steps were inferred because no transcript or video observations were
+available.
+
+The follow-up implementation:
+
+- installs the Dockerfile's pinned `ffmpeg` package on VPS Python images;
+- enables the existing OpenRouter Whisper audio-transcription rung;
+- keeps multi-frame analysis and server-media fallback disabled;
+- adds a separately controlled, best-effort single-thumbnail observation;
+- reuses the safely downloaded thumbnail for recipe-card storage;
+- lets missing thumbnails, vision-provider failures, and thumbnail budget
+  exhaustion degrade to transcript-only extraction.
+
+The test-first implementation observed the old VPS flags, missing thumbnail
+asset API, missing thumbnail observer, missing orchestration dependency, and
+thumbnail budget failure before each production change. The focused final
+suite passed 331 tests covering the VPS profile, container hardening, audio,
+vision, provider chain, thumbnail SSRF controls, and retry/reparse behavior.
+Ruff passed for `ladle` and `tests`; mypy passed across 109 source files.
+
+The verified backend release
+`99624eed5436a8278bc3da775b8f0e84facefdfa` was activated on 2026-07-29. All
+containers with health checks reported healthy, both guarded
+`/health/live` and `/health/ready` returned `200`, the host had 6.0 GiB
+available memory, and the root filesystem was 12% used. The active worker
+reported:
+
+```text
+LADLE_AUDIO_TRANSCRIPTION_ENABLED=true
+LADLE_FRAME_ANALYSIS_ENABLED=false
+LADLE_THUMBNAIL_ANALYSIS_ENABLED=true
+LADLE_SERVER_MEDIA_FALLBACK_ENABLED=false
+```
+
+The first cache-bypassing production proof was job
+`a6407d2a-17f1-4df3-9bcf-b04744c5bd81`. Its provider ledger contained
+completed `whisper/transcript`, `thumbnailVision/thumbnailVisual`, and
+`openrouter/recipeExtraction` attempts, with no frame-vision attempt. It
+produced a six-step stuffed-pepper candidate with the spoken turkey, onion,
+rice, corn, soy sauce, tarragon, ghost-pepper cheese, pecorino, and garnish
+details.
+
+The iOS re-import flow also needed to accept the server-assigned replacement
+candidate ID instead of requiring the client's temporary placeholder ID.
+That regression was added test-first. `swift test --package-path
+Packages/LadleCore` passed all 43 tests, and the focused
+`LadleTests/ReimportSafetyTests` simulator target passed.
+
+Finally, an iPhone 16 Pro simulator was built with the guarded VPS URL and its
+existing tunnel credential, then launched with a fresh backend session. The
+normal import first reproduced the old two-ingredient shared-cache result.
+Safe re-import job `0abb9fae-6a91-44f8-8c9d-71f2b58aa43c` bypassed that cache
+and completed in about 30 seconds. Its sanitized provider ledger was:
+
+```text
+whisper|transcript|completed
+thumbnailVision|thumbnailVisual|completed
+openrouter|recipeExtraction|completed
+```
+
+The simulator presented and accepted **Stuffed Bell Peppers** with 10
+ingredients, 6 steps, a 15-minute bake timer, and a 3-serving yield. This
+proved the shipping app, guarded gateway, transcript acquisition,
+thumbnail-only context, extraction, polling, candidate-ID adoption, and
+replacement acceptance path together. No multi-frame analysis ran.
 
 ## Operations and recovery
 
@@ -129,8 +239,6 @@ volume, and its container was removed afterward.
   `2026-07-29-shared-vps-gateway.md`.
 - Gain DNS control of the intended application domain, create verified A/AAAA
   records, and perform a planned hostname/environment rotation.
-- Install the live extraction provider credential through the allowlisted
-  standard-input setter before running paid YouTube/TikTok/Instagram journeys.
 - Add a passphrase to the dedicated local SSH identity before production.
 - Complete real-device guest bootstrap, refresh, import, thumbnail, sync, and
   account-deletion journeys.

@@ -123,6 +123,38 @@ final class ReimportSafetyTests: XCTestCase {
         XCTAssertNotNil(repository.importJobs.first?.candidateRecipeID)
     }
 
+    func testReimportAdoptsServerAssignedCandidateID() async throws {
+        let current = PreviewFixtures.recipes[1]
+        let serverCandidateID = UUID()
+        let repository = ReimportTestRepository(recipes: [current])
+        let coordinator = ImportCoordinator(
+            repository: repository,
+            service: CandidateImportService(
+                result: .needsReview,
+                candidateID: serverCandidateID
+            ),
+            accountSession: AccountSession(
+                store: ReimportTestPreferenceStore()
+            ),
+            clock: ReimportImmediateClock()
+        )
+
+        await coordinator.reimport(recipe: current)
+
+        XCTAssertEqual(
+            coordinator.state,
+            .needsReview(recipeID: serverCandidateID)
+        )
+        XCTAssertEqual(
+            repository.importJobs.first?.candidateRecipeID,
+            serverCandidateID
+        )
+        XCTAssertEqual(
+            repository.importJobs.first?.reviewCandidate?.id,
+            serverCandidateID
+        )
+    }
+
     func testAcceptingReviewedCandidateReplacesCurrentRecipe() async throws {
         let current = PreviewFixtures.recipes[1]
         let repository = ReimportTestRepository(recipes: [current])
@@ -350,6 +382,12 @@ private struct CandidateImportService: ImportService {
     }
 
     let result: Result
+    let candidateID: UUID?
+
+    init(result: Result, candidateID: UUID? = nil) {
+        self.result = result
+        self.candidateID = candidateID
+    }
 
     func submit(
         _ job: ImportJob,
@@ -397,7 +435,7 @@ private struct CandidateImportService: ImportService {
         needsReview: Bool
     ) -> Recipe {
         Recipe(
-            id: job.candidateRecipeID ?? job.id,
+            id: candidateID ?? job.candidateRecipeID ?? job.id,
             title: "Re-imported Lemon Orzo",
             source: job.source,
             originalURL: job.sourceURL,

@@ -7,7 +7,7 @@ x-bounded-logging: &bounded-logging
 x-vps-runtime-build: &vps-runtime-build
   context: .
   args:
-    INSTALL_MEDIA_TOOLS: "false"
+    INSTALL_MEDIA_TOOLS: "true"
 
 x-vps-environment: &vps-environment
   LADLE_ENVIRONMENT: "development"
@@ -32,8 +32,9 @@ x-vps-environment: &vps-environment
   LADLE_OBJECT_STORAGE_ADDRESSING_STYLE: path
   LADLE_OBJECT_STORAGE_ACCESS_KEY: ${LADLE_OBJECT_STORAGE_ACCESS_KEY:?set LADLE_OBJECT_STORAGE_ACCESS_KEY}
   LADLE_OBJECT_STORAGE_SECRET_KEY: ${LADLE_OBJECT_STORAGE_SECRET_KEY:?set LADLE_OBJECT_STORAGE_SECRET_KEY}
-  LADLE_AUDIO_TRANSCRIPTION_ENABLED: "false"
+  LADLE_AUDIO_TRANSCRIPTION_ENABLED: "true"
   LADLE_FRAME_ANALYSIS_ENABLED: "false"
+  LADLE_THUMBNAIL_ANALYSIS_ENABLED: "true"
   LADLE_SERVER_MEDIA_FALLBACK_ENABLED: "false"
 
 services:

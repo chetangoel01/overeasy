@@ -1505,8 +1505,9 @@ def test_vps_profile_keeps_state_private_and_bounded() -> None:
         "https://${LADLE_PUBLIC_HOSTNAME}"
     )
     assert environment["LADLE_OBJECT_STORAGE_ADDRESSING_STYLE"] == "path"
-    assert environment["LADLE_AUDIO_TRANSCRIPTION_ENABLED"] == "false"
+    assert environment["LADLE_AUDIO_TRANSCRIPTION_ENABLED"] == "true"
     assert environment["LADLE_FRAME_ANALYSIS_ENABLED"] == "false"
+    assert environment["LADLE_THUMBNAIL_ANALYSIS_ENABLED"] == "true"
     assert environment["LADLE_SERVER_MEDIA_FALLBACK_ENABLED"] == "false"
     assert environment["LADLE_RATE_LIMIT_TRUSTED_PROXY_CIDRS"] == ("172.31.0.3/32")
 
@@ -1574,11 +1575,11 @@ def test_vps_profile_bounds_redis_below_its_container_limit() -> None:
     assert _memory_mib(redis["mem_limit"]) == 384
 
 
-def test_vps_profile_omits_media_tools_from_python_images() -> None:
+def test_vps_profile_installs_media_tools_in_python_images() -> None:
     services = _profile()["services"]
     root_build = {
         "context": ".",
-        "args": {"INSTALL_MEDIA_TOOLS": "false"},
+        "args": {"INSTALL_MEDIA_TOOLS": "true"},
     }
 
     for name in ("minio-init", "migrate", "api", "worker", "beat"):

@@ -79,12 +79,51 @@ def test_acquired_thumbnail_skips_oembed_and_is_copied_safely() -> None:
         source_revision="1",
     )
 
-    key = fetcher.fetch(
+    asset = fetcher.download(
         source,
         candidate_url="https://images.example/recipe.jpg",
     )
 
-    assert key is not None
+    assert asset is not None
+    assert asset.data == b"thumbnail-bytes"
+    assert asset.content_type == "image/jpeg"
+    assert asset.extension == ".jpg"
     assert len(requests) == 1
     assert requests[0].url.host == "93.184.216.34"
+
+    key = fetcher.store(source, asset)
+
+    assert key is not None
     assert storage.puts[0][1:] == (b"thumbnail-bytes", "image/jpeg")
+
+
+def test_fetch_downloads_and_stores_for_backward_compatibility() -> None:
+    def respond(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(
+            200,
+            content=b"thumbnail-bytes",
+            headers={"content-type": "image/webp"},
+        )
+
+    storage = RecordingStorage()
+    fetcher = OEmbedThumbnailFetcher(
+        http=httpx.Client(transport=httpx.MockTransport(respond)),
+        dns=FakeDNS({"images.example": ["93.184.216.34"]}),
+        storage=storage,  # type: ignore[arg-type]
+    )
+    source = SourceVideoDescriptor(
+        source_video_id=uuid4(),
+        platform="instagram",
+        platform_video_id="reel-2",
+        canonical_url="https://www.instagram.com/reel/reel-2",
+        source_revision="1",
+    )
+
+    key = fetcher.fetch(
+        source,
+        candidate_url="https://images.example/recipe.webp",
+    )
+
+    assert key is not None
+    assert storage.puts[0][1:] == (b"thumbnail-bytes", "image/webp")

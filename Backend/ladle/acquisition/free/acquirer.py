@@ -53,6 +53,7 @@ class FreeContext:
     visual_observations: list[VisualEvidence] = field(default_factory=list)
     media_url: str | None = None
     audio_url: str | None = None
+    audio_headers: dict[str, str] = field(default_factory=dict, repr=False)
     video_url: str | None = None
     diagnostics: list[str] = field(default_factory=list)
 
@@ -168,6 +169,9 @@ class FreeAcquirer:
         context.metadata = media.metadata
         context.media_url = media.media_url
         context.audio_url = media.audio_url or media.media_url
+        context.audio_headers = (
+            media.audio_headers if media.audio_url else media.media_headers
+        )
         context.video_url = media.video_url or media.media_url
         context.diagnostics.append("freeMetadataUsed")
 

@@ -1,7 +1,8 @@
 """Watching the video is the last evidence a silent recipe has."""
 
+import json
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import httpx
 import pytest
@@ -60,6 +61,86 @@ def reply(text: str) -> object:
         return httpx.Response(200, json={"choices": [{"message": {"content": text}}]})
 
     return handler
+
+
+class RecordingUsage:
+    def __init__(self) -> None:
+        self.started_calls: list[dict[str, object]] = []
+        self.completed_calls: list[dict[str, object]] = []
+        self.failed_calls: list[dict[str, object]] = []
+
+    def existing_external_job_id(
+        self,
+        *,
+        job_id: UUID,
+        idempotency_key: str,
+    ) -> str | None:
+        del job_id, idempotency_key
+        return None
+
+    def started(self, **values: object) -> None:
+        self.started_calls.append(values)
+
+    def completed(self, **values: object) -> None:
+        self.completed_calls.append(values)
+
+    def failed(self, **values: object) -> None:
+        self.failed_calls.append(values)
+
+
+def test_thumbnail_becomes_one_untimed_observation() -> None:
+    requests: list[dict[str, object]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content)
+        requests.append(payload)
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "content": (
+                                '[{"frame": 0, "text": '
+                                '"Three stuffed peppers topped with cheese."}]'
+                            )
+                        }
+                    }
+                ]
+            },
+        )
+
+    usage = RecordingUsage()
+    result = observer(handler, usage=usage).observe_thumbnail(
+        b"\xff\xd8\xffthumbnail",
+        content_type="image/jpeg",
+        job_id=uuid4(),
+        source_revision="rev-1",
+    )
+
+    content = requests[0]["messages"][0]["content"]  # type: ignore[index]
+    assert isinstance(content, list)
+    assert "thumbnail" in content[0]["text"].casefold()
+    assert "video frames" not in content[0]["text"].casefold()
+    assert [item["type"] for item in content].count("image_url") == 1
+    assert result.observations[0].timestamp_seconds is None
+    assert (
+        result.observations[0].provenance
+        == "thumbnail-vision:google/gemini-2.5-flash"
+    )
+    assert usage.started_calls[0]["provider"] == "thumbnailVision"
+    assert usage.started_calls[0]["operation"] == "thumbnailVisual"
+    assert usage.completed_calls
+
+
+def test_empty_thumbnail_observation_is_unavailable() -> None:
+    with pytest.raises(VisualAnalysisUnavailable):
+        observer(reply("[]")).observe_thumbnail(
+            b"\xff\xd8\xffthumbnail",
+            content_type="image/jpeg",
+            job_id=uuid4(),
+            source_revision="rev-1",
+        )
 
 
 def test_frames_become_timestamped_observations(tmp_path: Path) -> None:

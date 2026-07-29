@@ -170,7 +170,9 @@ class AdmissionService:
             status="parsing",
             stage="admitted",
             retry_count=0,
-            bypass_cache=bool(correction_notes or pasted_text),
+            bypass_cache=bool(
+                correction_notes or pasted_text or current_recipe_id
+            ),
             correction_notes_encrypted=self._encrypt(correction_notes),
             pasted_text_encrypted=self._encrypt(pasted_text),
             current_recipe_id=current_recipe_id,

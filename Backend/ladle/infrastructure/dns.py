@@ -175,11 +175,12 @@ class PinnedHTTPClient:
         current = str(
             httpx.URL(url) if params is None else httpx.URL(url, params=params)
         )
+        current_headers = dict(headers or {})
         for redirect_count in range(self._maximum_redirects + 1):
             target = validate_external_target(current, dns=self._dns)
             response = self._request_pinned(
                 target,
-                headers=headers,
+                headers=current_headers,
                 max_bytes=max_bytes,
             )
             if not response.is_redirect:
@@ -187,7 +188,14 @@ class PinnedHTTPClient:
             location = response.headers.get("location")
             if location is None or redirect_count == self._maximum_redirects:
                 raise UnsafeNetworkTarget("invalid or excessive redirects")
-            current = urljoin(current, location)
+            destination = urljoin(current, location)
+            if urlsplit(destination).hostname != target.hostname:
+                current_headers = {
+                    name: value
+                    for name, value in current_headers.items()
+                    if name.casefold() not in {"authorization", "cookie"}
+                }
+            current = destination
         raise UnsafeNetworkTarget("excessive redirects")
 
     def _request_pinned(

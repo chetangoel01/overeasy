@@ -198,6 +198,7 @@ def test_reimport_submission_attaches_to_current_recipe(
     )
     recipe_id = uuid4()
     job_id = uuid4()
+    job_without_notes_id = uuid4()
 
     with TestClient(app) as client:
         guest = client.post(
@@ -230,8 +231,20 @@ def test_reimport_submission_attaches_to_current_recipe(
             },
             headers=headers,
         )
+        submitted_without_notes = client.post(
+            "/v1/imports",
+            json={
+                "jobID": str(job_without_notes_id),
+                "sourceURL": "https://youtu.be/reimport-api-without-notes",
+                "allowDuplicate": True,
+                "idempotencyKey": str(job_without_notes_id),
+                "currentRecipeID": str(recipe_id),
+            },
+            headers=headers,
+        )
 
     assert submitted.status_code == 202
+    assert submitted_without_notes.status_code == 202
     with Session(engine) as database:
         stored = database.get(ImportJob, job_id)
         assert stored is not None
@@ -240,7 +253,12 @@ def test_reimport_submission_attaches_to_current_recipe(
         assert stored.bypass_cache is True
         assert stored.correction_notes_encrypted is not None
         assert b"Keep the lemon bright." not in stored.correction_notes_encrypted
-    assert dispatcher.calls == [job_id]
+        stored_without_notes = database.get(ImportJob, job_without_notes_id)
+        assert stored_without_notes is not None
+        assert stored_without_notes.current_recipe_id == recipe_id
+        assert stored_without_notes.bypass_cache is True
+        assert stored_without_notes.correction_notes_encrypted is None
+    assert dispatcher.calls == [job_id, job_without_notes_id]
     engine.dispose()
 
 

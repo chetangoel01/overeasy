@@ -8,6 +8,8 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from alembic import command
+from ladle.acquisition.errors import VisualAnalysisUnavailable
+from ladle.acquisition.models import VisualEvidence, VisualResult
 from ladle.cache.claims import ExtractionClaimService
 from ladle.cache.service import ExtractionCacheService
 from ladle.contracts.recipes import RecipeReviewStatus, RecipeSource
@@ -24,6 +26,7 @@ from ladle.imports.admission import AdmissionService
 from ladle.imports.orchestrator import ImportOrchestrator, ProcessOutcome
 from ladle.imports.reservations import ReservationService
 from ladle.imports.source_identity import SourceIdentityParser
+from ladle.imports.thumbnails import ThumbnailAsset
 from ladle.imports.transitions import ImportRetryService, ImportTransitionService
 from ladle.recipes.template_clone import RecipeTemplate, RecipeTemplateCloner
 from ladle.usage.limits import UsageLimitExceeded
@@ -42,11 +45,64 @@ class FrozenClock:
         return self.value
 
 
+@dataclass
+class FakeThumbnailFetcher:
+    asset: ThumbnailAsset | None
+    downloads: int = 0
+    stores: int = 0
+
+    def download(
+        self,
+        source: object,
+        *,
+        candidate_url: str | None = None,
+    ) -> ThumbnailAsset | None:
+        del source, candidate_url
+        self.downloads += 1
+        return self.asset
+
+    def store(self, source: object, asset: ThumbnailAsset) -> str:
+        del source, asset
+        self.stores += 1
+        return "thumbnails/retry/thumb.jpg"
+
+
+@dataclass
+class FakeThumbnailObserver:
+    failure: Exception | None = None
+    calls: int = 0
+
+    def observe_thumbnail(
+        self,
+        image: bytes,
+        *,
+        content_type: str,
+        job_id: object,
+        source_revision: str,
+    ) -> VisualResult:
+        del image, content_type, job_id, source_revision
+        self.calls += 1
+        if self.failure is not None:
+            raise self.failure
+        return VisualResult(
+            observations=[
+                VisualEvidence(
+                    text="Three peppers filled with rice and topped with cheese.",
+                    provenance="thumbnail-vision:test",
+                )
+            ],
+            billed_units=1,
+            external_job_id="thumbnail-test",
+        )
+
+
 def services(
     database_url: str,
     clock: FrozenClock,
     *,
     template: RecipeTemplate,
+    thumbnails: FakeThumbnailFetcher | None = None,
+    thumbnail_observer: FakeThumbnailObserver | None = None,
 ) -> tuple[
     sessionmaker[Session],
     ImportOrchestrator,
@@ -76,6 +132,8 @@ def services(
             acquirer=acquirer,
             extractor=extractor,
             clock=clock,
+            thumbnails=thumbnails,  # type: ignore[arg-type]
+            thumbnail_observer=thumbnail_observer,
             private_text=cipher,
             private_completion=cloner,
             transitions=ImportTransitionService(
@@ -106,11 +164,22 @@ def test_correction_reparse_replaces_unchanged_recipe_without_poisoning_cache(
         }
     )
     template = RecipeTemplate.from_recipe(recipe)
-    sessions, orchestrator, retry, _, extractor = services(
+    thumbnails = FakeThumbnailFetcher(
+        ThumbnailAsset(
+            data=b"thumbnail-bytes",
+            content_type="image/jpeg",
+            extension=".jpg",
+        )
+    )
+    thumbnail_observer = FakeThumbnailObserver()
+    sessions, orchestrator, retry, acquirer, extractor = services(
         clean_postgres_url,
         clock,
         template=template,
+        thumbnails=thumbnails,
+        thumbnail_observer=thumbnail_observer,
     )
+    acquirer.thumbnail_url = "https://images.example/retry.jpg"
     with sessions.begin() as database:
         source_id = uuid4()
         database.add(
@@ -126,6 +195,12 @@ def test_correction_reparse_replaces_unchanged_recipe_without_poisoning_cache(
         job_id = seed_import(database, source_id=source_id, suffix="retry")
 
     assert orchestrator.process(job_id) == ProcessOutcome.COMPLETED
+    assert extractor.calls[-1].visual_observations[0].provenance == (
+        "thumbnail-vision:test"
+    )
+    assert "thumbnailAnalysisUsed" in extractor.calls[-1].diagnostics
+    assert thumbnails.downloads == 1
+    assert thumbnails.stores == 1
     with sessions() as database:
         original_job = database.get(ImportJob, job_id)
         assert original_job is not None
@@ -147,6 +222,11 @@ def test_correction_reparse_replaces_unchanged_recipe_without_poisoning_cache(
 
     extractor.template = template.model_copy(update={"title": "Corrected Lemon Orzo"})
     assert orchestrator.process(job_id) == ProcessOutcome.PRIVATE_COMPLETED
+    assert extractor.calls[-1].visual_observations[0].provenance == (
+        "thumbnail-vision:test"
+    )
+    assert thumbnails.downloads == 2
+    assert thumbnails.stores == 1
 
     with sessions() as database:
         completed = database.get(ImportJob, job_id)
@@ -160,6 +240,63 @@ def test_correction_reparse_replaces_unchanged_recipe_without_poisoning_cache(
         assert completed.correction_notes_encrypted is None
         assert completed.pasted_text_encrypted is None
         assert database.scalar(select(func.count()).select_from(ExtractionCache)) == 1
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    "thumbnail_failure",
+    [
+        VisualAnalysisUnavailable(),
+        UsageLimitExceeded("thumbnail budget exhausted"),
+    ],
+)
+def test_thumbnail_analysis_failure_continues_with_transcript(
+    clean_postgres_url: str,
+    thumbnail_failure: Exception,
+) -> None:
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    clock = FrozenClock(datetime(2026, 7, 23, 21, 0, tzinfo=UTC))
+    template = RecipeTemplate.from_recipe(manual_recipe(uuid4()))
+    thumbnails = FakeThumbnailFetcher(
+        ThumbnailAsset(
+            data=b"thumbnail-bytes",
+            content_type="image/jpeg",
+            extension=".jpg",
+        )
+    )
+    observer = FakeThumbnailObserver(failure=thumbnail_failure)
+    sessions, orchestrator, _, acquirer, extractor = services(
+        clean_postgres_url,
+        clock,
+        template=template,
+        thumbnails=thumbnails,
+        thumbnail_observer=observer,
+    )
+    acquirer.thumbnail_url = "https://images.example/unavailable.jpg"
+    with sessions.begin() as database:
+        source_id = uuid4()
+        database.add(
+            SourceVideo(
+                id=source_id,
+                platform="youtube",
+                platform_video_id="thumbnail-failure",
+                canonical_url=(
+                    "https://www.youtube.com/watch?v=thumbnail-failure"
+                ),
+                source_revision="1",
+                source_metadata={},
+            )
+        )
+        job_id = seed_import(
+            database,
+            source_id=source_id,
+            suffix="thumbnail-failure",
+        )
+
+    assert orchestrator.process(job_id) == ProcessOutcome.COMPLETED
+    assert extractor.calls[-1].transcript
+    assert extractor.calls[-1].visual_observations == []
+    assert "thumbnailAnalysisUnavailable" in extractor.calls[-1].diagnostics
 
 
 @pytest.mark.integration

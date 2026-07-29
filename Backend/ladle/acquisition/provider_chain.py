@@ -1,5 +1,5 @@
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from time import perf_counter
 from typing import Protocol, TypeVar
 from uuid import UUID
@@ -62,6 +62,7 @@ class AudioTranscriber(Protocol):
         *,
         job_id: UUID,
         media_url: str | None = None,
+        media_headers: Mapping[str, str] | None = None,
         duration_seconds: float | None = None,
     ) -> TranscriptResult: ...
 
@@ -192,6 +193,7 @@ class ProviderChain:
                 job_id=job_id,
                 metadata=metadata,
                 media_url=free.audio_url or free.media_url,
+                media_headers=free.audio_headers,
                 diagnostics=diagnostics,
             )
             if transcript is not None:
@@ -328,6 +330,7 @@ class ProviderChain:
         job_id: UUID,
         metadata: MediaMetadata,
         media_url: str | None,
+        media_headers: Mapping[str, str] | None,
         diagnostics: list[str],
     ) -> TranscriptResult | None:
         if self._audio is None:
@@ -339,6 +342,7 @@ class ProviderChain:
                     source,
                     job_id=job_id,
                     media_url=media_url,
+                    media_headers=media_headers,
                     duration_seconds=metadata.duration_seconds,
                 ),
             )

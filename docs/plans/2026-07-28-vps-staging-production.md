@@ -212,6 +212,10 @@ Expected: failure because the VPS profile does not exist.
   `https://${LADLE_PUBLIC_HOSTNAME}`.
 - Keep audio, frame analysis, and server-media fallback off for the first
   staging rollout.
+- Follow-up on 2026-07-29 supersedes only the audio part of that first-rollout
+  constraint: install the pinned media tools and enable Whisper
+  transcription, keep multi-frame and server-media fallback disabled, and
+  allow a separately controlled single-thumbnail observation.
 - Keep the worker inside the existing egress sidecar.
 - Add only the VPS Compose file and Caddyfile to `.dockerignore` exceptions
   needed by their build contexts.

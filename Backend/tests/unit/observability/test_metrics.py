@@ -10,6 +10,7 @@ def test_product_metrics_use_only_bounded_labels_and_render_prometheus_text() ->
     metrics.record_cache("follower")
     metrics.record_provider("supadata", "success")
     metrics.record_provider("soscripted", "fallback")
+    metrics.record_provider_cost("thumbnailVision", 1)
     metrics.record_job("ready", "youtube")
     metrics.record_sync("success")
     metrics.record_http("GET", "/v1/recipes/sync", 200, duration_seconds=0.12)
@@ -20,6 +21,10 @@ def test_product_metrics_use_only_bounded_labels_and_render_prometheus_text() ->
     assert 'ladle_cache_total{disposition="hit"} 1' in rendered
     assert 'ladle_cache_total{disposition="follower"} 1' in rendered
     assert 'ladle_provider_total{outcome="success",provider="supadata"} 1' in rendered
+    assert (
+        'ladle_provider_billed_units_total{provider="thumbnailVision"} 1'
+        in rendered
+    )
     assert 'ladle_import_jobs_total{source="youtube",status="ready"} 1' in rendered
     assert 'ladle_sync_total{outcome="success"} 1' in rendered
     assert (

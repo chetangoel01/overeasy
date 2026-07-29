@@ -15,6 +15,7 @@ from ladle.acquisition.models import (
     AcquiredVideoContext,
     SourceVideoDescriptor,
     TextEvidence,
+    VisualResult,
 )
 from ladle.acquisition.protocol import VideoAcquirer
 from ladle.cache.claims import ClaimLease
@@ -25,7 +26,7 @@ from ladle.crypto.private_text import PrivateTextCipher
 from ladle.db.models import ImportJob, SourceVideo
 from ladle.extraction.claude import ExtractionUnavailable
 from ladle.extraction.protocol import RecipeExtractor
-from ladle.imports.thumbnails import OEmbedThumbnailFetcher
+from ladle.imports.thumbnails import OEmbedThumbnailFetcher, ThumbnailAsset
 from ladle.imports.transitions import ImportTransitionService
 from ladle.observability.metrics import MetricsRegistry
 from ladle.observability.structured_logging import log_context
@@ -49,6 +50,17 @@ class ClaimHeartbeat(Protocol):
     def monitor(self, claim: ClaimLease) -> AbstractContextManager[None]: ...
 
 
+class ThumbnailObserver(Protocol):
+    def observe_thumbnail(
+        self,
+        image: bytes,
+        *,
+        content_type: str,
+        job_id: UUID,
+        source_revision: str,
+    ) -> VisualResult: ...
+
+
 class ImportOrchestrator:
     def __init__(
         self,
@@ -63,6 +75,7 @@ class ImportOrchestrator:
         transitions: ImportTransitionService | None = None,
         metrics: MetricsRegistry | None = None,
         thumbnails: OEmbedThumbnailFetcher | None = None,
+        thumbnail_observer: ThumbnailObserver | None = None,
         heartbeat: ClaimHeartbeat | None = None,
     ) -> None:
         self._sessions = session_factory
@@ -75,6 +88,7 @@ class ImportOrchestrator:
         self._transitions = transitions
         self._metrics = metrics
         self._thumbnails = thumbnails
+        self._thumbnail_observer = thumbnail_observer
         self._heartbeat = heartbeat
 
     def process(self, job_id: UUID) -> ProcessOutcome:
@@ -235,15 +249,52 @@ class ImportOrchestrator:
                             generated=False,
                         )
                     )
+                thumbnail_asset: ThumbnailAsset | None = None
+                with log_context(stage="thumbnailContext"):
+                    if self._thumbnails is not None:
+                        thumbnail_asset = self._thumbnails.download(
+                            descriptor,
+                            candidate_url=context.thumbnail_url,
+                        )
+                    if self._thumbnail_observer is not None:
+                        if thumbnail_asset is None:
+                            context.diagnostics.append(
+                                "thumbnailAnalysisUnavailable"
+                            )
+                        else:
+                            try:
+                                thumbnail = (
+                                    self._thumbnail_observer.observe_thumbnail(
+                                        thumbnail_asset.data,
+                                        content_type=thumbnail_asset.content_type,
+                                        job_id=job_id,
+                                        source_revision=descriptor.source_revision,
+                                    )
+                                )
+                            except (ProviderUnavailable, UsageLimitExceeded):
+                                context.diagnostics.append(
+                                    "thumbnailAnalysisUnavailable"
+                                )
+                            else:
+                                context.visual_observations.extend(
+                                    thumbnail.observations
+                                )
+                                context.diagnostics.append(
+                                    "thumbnailAnalysisUsed"
+                                )
                 with log_context(stage="extraction"):
                     template = self._extractor.extract(context, job_id=job_id)
                 with log_context(stage="thumbnail"):
                     thumbnail_key = (
-                        self._thumbnails.fetch(
+                        self._thumbnails.store(
                             descriptor,
-                            candidate_url=context.thumbnail_url,
+                            thumbnail_asset,
                         )
-                        if self._thumbnails is not None and not bypass_cache
+                        if (
+                            self._thumbnails is not None
+                            and thumbnail_asset is not None
+                            and not bypass_cache
+                        )
                         else None
                     )
                     thumbnail_remote_url = (

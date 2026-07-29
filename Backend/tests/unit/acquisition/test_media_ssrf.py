@@ -74,6 +74,10 @@ def test_provider_returned_public_media_is_pinned_and_bounded(
     downloaded = source.media(
         descriptor,
         media_url="https://media.example/video.mp4",
+        media_headers={
+            "Cookie": "tt_chain_token=public",
+            "Referer": "https://www.tiktok.com/@cook/video/1",
+        },
         work_dir=tmp_path,
     )
 
@@ -81,3 +85,7 @@ def test_provider_returned_public_media_is_pinned_and_bounded(
     assert downloaded.read_bytes() == b"public-media"
     assert requests[0].url.host == "93.184.216.34"
     assert requests[0].headers["host"] == "media.example"
+    assert requests[0].headers["cookie"] == "tt_chain_token=public"
+    assert requests[0].headers["referer"] == (
+        "https://www.tiktok.com/@cook/video/1"
+    )
