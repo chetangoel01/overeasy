@@ -180,6 +180,10 @@ class Settings(BaseSettings):
     # only ever shown. Cheaper than the visual provider it precedes, and it
     # reuses the media transcription already downloaded.
     frame_analysis_enabled: bool = True
+    # One still image can clarify the dish without sampling the video. This is
+    # deliberately independent from frame analysis so deployments can enable
+    # thumbnail context without activating multi-frame processing.
+    thumbnail_analysis_enabled: bool = False
     # Same model as extraction, so a frame is read with the same understanding
     # of what a recipe needs. It is 5x the input and 3x the output price of
     # gemini-2.5-flash, which takes eight frames from roughly $0.002 to

@@ -127,6 +127,35 @@ Supadata and SoScripted credentials remain absent. The verified TikTok journey
 succeeded through the free acquisition path plus OpenRouter extraction; paid
 acquisition fallbacks remain unverified.
 
+## Transcript acquisition correction
+
+The first live user import after activation exposed a staging-profile gap.
+TikTok job `ca9be246-8cf7-493f-b17b-96a7a6d13b61` completed extraction, but
+the free TikTok caption page was unavailable and the VPS still had audio
+transcription disabled. The resulting **Stuffed bell peppers** recipe contained
+only two ingredients and two untimed steps. Its review evidence explicitly
+said the steps were inferred because no transcript or video observations were
+available.
+
+The follow-up implementation:
+
+- installs the Dockerfile's pinned `ffmpeg` package on VPS Python images;
+- enables the existing OpenRouter Whisper audio-transcription rung;
+- keeps multi-frame analysis and server-media fallback disabled;
+- adds a separately controlled, best-effort single-thumbnail observation;
+- reuses the safely downloaded thumbnail for recipe-card storage;
+- lets missing thumbnails, vision-provider failures, and thumbnail budget
+  exhaustion degrade to transcript-only extraction.
+
+The test-first implementation observed the old VPS flags, missing thumbnail
+asset API, missing thumbnail observer, missing orchestration dependency, and
+thumbnail budget failure before each production change. The focused final
+suite passed 331 tests covering the VPS profile, container hardening, audio,
+vision, provider chain, thumbnail SSRF controls, and retry/reparse behavior.
+Ruff passed for `ladle` and `tests`; mypy passed across 109 source files.
+Live deployment and import evidence is recorded after the verified release is
+activated.
+
 ## Operations and recovery
 
 The Ubuntu-side installer validated the systemd units before installing them.

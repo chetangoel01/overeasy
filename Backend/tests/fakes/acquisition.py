@@ -14,6 +14,7 @@ class FakeAcquirer:
     public_checks: list[UUID] = field(default_factory=list)
     failure: Exception | None = None
     is_public: bool = True
+    thumbnail_url: str | None = None
 
     def check_public(
         self,
@@ -43,6 +44,7 @@ class FakeAcquirer:
             title="Lemon Orzo",
             description="A fast one-pot recipe.",
             creator_name="Ladle Test Kitchen",
+            thumbnail_url=self.thumbnail_url,
             language="en",
             transcript=[
                 TextEvidence(

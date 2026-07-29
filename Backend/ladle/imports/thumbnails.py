@@ -1,4 +1,5 @@
 import logging
+from dataclasses import dataclass
 from uuid import uuid4
 
 import httpx
@@ -23,6 +24,13 @@ _ALLOWED_CONTENT_TYPES = {
     "image/png": ".png",
     "image/webp": ".webp",
 }
+
+
+@dataclass(frozen=True)
+class ThumbnailAsset:
+    data: bytes
+    content_type: str
+    extension: str
 
 
 class OEmbedThumbnailFetcher:
@@ -52,6 +60,15 @@ class OEmbedThumbnailFetcher:
         *,
         candidate_url: str | None = None,
     ) -> str | None:
+        asset = self.download(source, candidate_url=candidate_url)
+        return self.store(source, asset) if asset is not None else None
+
+    def download(
+        self,
+        source: SourceVideoDescriptor,
+        *,
+        candidate_url: str | None = None,
+    ) -> ThumbnailAsset | None:
         try:
             thumbnail_url = self._resolve_thumbnail_url(
                 source,
@@ -59,7 +76,25 @@ class OEmbedThumbnailFetcher:
             )
             if thumbnail_url is None:
                 return None
-            return self._copy_to_storage(source, thumbnail_url)
+            response = self._http.get(
+                thumbnail_url,
+                max_bytes=_MAX_THUMBNAIL_BYTES,
+            )
+            response.raise_for_status()
+            content_type = (
+                response.headers.get("content-type", "image/jpeg")
+                .split(";")[0]
+                .strip()
+                .lower()
+            )
+            extension = _ALLOWED_CONTENT_TYPES.get(content_type)
+            if extension is None or len(response.content) > _MAX_THUMBNAIL_BYTES:
+                return None
+            return ThumbnailAsset(
+                data=response.content,
+                content_type=content_type,
+                extension=extension,
+            )
         except Exception:
             logger.warning(
                 "thumbnail fetch failed for source %s",
@@ -67,6 +102,30 @@ class OEmbedThumbnailFetcher:
                 exc_info=True,
             )
             return None
+
+    def store(
+        self,
+        source: SourceVideoDescriptor,
+        asset: ThumbnailAsset,
+    ) -> str | None:
+        key = (
+            f"thumbnails/{source.source_video_id}/"
+            f"{uuid4().hex}{asset.extension}"
+        )
+        try:
+            self._storage.put(
+                key,
+                asset.data,
+                content_type=asset.content_type,
+            )
+        except Exception:
+            logger.warning(
+                "thumbnail storage failed for source %s",
+                source.source_video_id,
+                exc_info=True,
+            )
+            return None
+        return key
 
     def _resolve_thumbnail_url(
         self,
@@ -91,26 +150,3 @@ class OEmbedThumbnailFetcher:
         ):
             return None
         return thumbnail_url
-
-    def _copy_to_storage(
-        self,
-        source: SourceVideoDescriptor,
-        thumbnail_url: str,
-    ) -> str | None:
-        response = self._http.get(
-            thumbnail_url,
-            max_bytes=_MAX_THUMBNAIL_BYTES,
-        )
-        response.raise_for_status()
-        content_type = (
-            response.headers.get("content-type", "image/jpeg")
-            .split(";")[0]
-            .strip()
-            .lower()
-        )
-        extension = _ALLOWED_CONTENT_TYPES.get(content_type)
-        if extension is None or len(response.content) > _MAX_THUMBNAIL_BYTES:
-            return None
-        key = f"thumbnails/{source.source_video_id}/{uuid4().hex}{extension}"
-        self._storage.put(key, response.content, content_type=content_type)
-        return key
