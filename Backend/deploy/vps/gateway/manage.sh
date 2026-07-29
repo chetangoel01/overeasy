@@ -152,9 +152,14 @@ if ! LC_ALL=C awk -v expected="$revision" '
 ' "$release/.ladle-revision"; then
     fail "The release revision marker does not match."
 fi
-if find "$release" -xdev \
-    \( ! -user "$root_uid" -o -perm -020 -o -perm -002 \) \
-    -print -quit | grep -q .; then
+if ! unsafe_release_path=$(
+    find "$release" -xdev \
+        \( ! -user "$root_uid" -o -perm -020 -o -perm -002 \) \
+        -print -quit
+); then
+    fail "The exact release metadata traversal failed."
+fi
+if [ -n "$unsafe_release_path" ]; then
     fail "The exact release is mutable or has a foreign owner."
 fi
 
@@ -166,6 +171,23 @@ safe_file "$host_validation_library" 644 ||
     fail "The host validation library metadata is unsafe."
 . "$deployment_library"
 . "$host_validation_library"
+
+opened_lock_identity() {
+    opened_descriptor=$1
+    case "$opened_descriptor" in
+        "" | *[!0-9]*) return 1 ;;
+    esac
+    if [ -e "/proc/self/fd/$opened_descriptor" ]; then
+        stat -Lc '%d:%i:%u:%a' -- "/proc/self/fd/$opened_descriptor"
+    else
+        stat -f '%d:%i:%u:%Lp' -- "/dev/fd/$opened_descriptor"
+    fi
+}
+
+# The trusted deployment helper calls this after flocking descriptor 7.
+opened_authority_lock_identity() {
+    opened_lock_identity 7
+}
 
 docker version --format '{{.Server.Version}}' >/dev/null 2>&1 ||
     fail "Docker is unavailable."
@@ -232,6 +254,31 @@ ensure_authority_lock() {
             "$authority_lock" || return 1
     fi
     validate_authority_lock
+}
+
+acquire_exclusive_authority() {
+    exclusive_authority_identity=$(
+        lock_file_identity "$authority_lock" "$root_uid"
+    ) || return 1
+    acquire_authority_lock \
+        "$authority_lock" "$root_uid" "$exclusive_authority_identity"
+}
+
+acquire_shared_authority() {
+    shared_authority_identity=$(
+        lock_file_identity "$authority_lock" "$root_uid"
+    ) || return 1
+    lock_identity_is_safe "$shared_authority_identity" "$root_uid" ||
+        return 1
+    exec 6<"$authority_lock" || return 1
+    flock -s 6 || return 1
+    opened_shared_identity=$(opened_lock_identity 6) || return 1
+    lock_identity_is_safe "$opened_shared_identity" "$root_uid" || return 1
+    current_shared_identity=$(
+        lock_file_identity "$authority_lock" "$root_uid"
+    ) || return 1
+    [ "$shared_authority_identity" = "$opened_shared_identity" ] &&
+        [ "$shared_authority_identity" = "$current_shared_identity" ]
 }
 
 validate_live_assets() {
@@ -311,10 +358,12 @@ validate_gateway_configuration() {
 }
 
 prepare_gateway() {
-    validate_app_environment ||
-        fail "The Ladle application environment is unsafe or invalid."
     ensure_authority_lock ||
         fail "The authority lock is missing or unsafe."
+    acquire_exclusive_authority ||
+        fail "Cannot acquire the exclusive gateway authority lock."
+    validate_app_environment ||
+        fail "The Ladle application environment is unsafe or invalid."
     safe_directory "${live_platform%/*}" 755 ||
         fail "The /opt directory metadata is unsafe."
     safe_directory "${gateway_env_directory%/*}" 755 ||
@@ -501,6 +550,33 @@ probe_ladle_edge() {
         http://ladle-edge:8082/health/ready
 }
 
+restore_shared_listener_safely() {
+    container_identity_is_expected "$legacy_container" ladle caddy ||
+        return 1
+    if [ "$INSPECT_RUNNING" = true ]; then
+        docker stop --time 30 "$legacy_container" >/dev/null 2>&1 ||
+            return 1
+        legacy_listener_is_stopped || return 1
+    fi
+
+    inspect_container "$gateway_container" || return 1
+    if [ "$INSPECT_PRESENT" = true ]; then
+        [ "$INSPECT_PROJECT:$INSPECT_SERVICE" = \
+            "$gateway_project:gateway" ] || return 1
+        if [ "$INSPECT_RUNNING" = true ]; then
+            gateway_listener_is_ready && return 0
+            docker stop --time 30 "$gateway_container" >/dev/null 2>&1 ||
+                return 1
+            gateway_listener_is_stopped || return 1
+        fi
+        docker start "$gateway_container" >/dev/null 2>&1 || return 1
+    else
+        gateway_compose up -d --wait --wait-timeout 120 gateway \
+            >/dev/null 2>&1 || return 1
+    fi
+    wait_for_gateway_listener
+}
+
 activation_recovery_required=false
 
 recover_failed_activation() {
@@ -514,9 +590,15 @@ recover_failed_activation() {
             recovery_failed=true
         wait_for_legacy_listener || recovery_failed=true
         if [ "$recovery_failed" = true ]; then
-            printf '%s\n' \
-                "Gateway activation failed and legacy recovery is incomplete." \
-                >&2
+            if restore_shared_listener_safely; then
+                printf '%s\n' \
+                    "Gateway activation failed; the shared gateway was restored." \
+                    >&2
+            else
+                printf '%s\n' \
+                    "Both-listeners risk: activation recovery could not restore a verified public listener." \
+                    >&2
+            fi
         else
             printf '%s\n' \
                 "Gateway activation failed; the legacy listener was restored." \
@@ -527,6 +609,8 @@ recover_failed_activation() {
 }
 
 activate_gateway() {
+    acquire_exclusive_authority ||
+        fail "Cannot acquire the exclusive gateway authority lock."
     validate_prepared_gateway || return 1
     validate_ladle_edge ||
         fail "The ladle-edge network identity is missing or unsafe."
@@ -575,14 +659,13 @@ recover_failed_rollback() {
     status=$?
     trap - 0 HUP INT TERM
     if [ "$rollback_recovery_required" = true ]; then
-        if docker start "$gateway_container" >/dev/null 2>&1 &&
-            wait_for_gateway_listener; then
+        if restore_shared_listener_safely; then
             printf '%s\n' \
                 "Legacy rollback failed; the shared gateway was restored." \
                 >&2
         else
             printf '%s\n' \
-                "Legacy rollback failed and shared gateway recovery is incomplete." \
+                "Both-listeners risk: rollback could not restore a verified public listener." \
                 >&2
         fi
     fi
@@ -590,6 +673,8 @@ recover_failed_rollback() {
 }
 
 rollback_gateway() {
+    acquire_exclusive_authority ||
+        fail "Cannot acquire the exclusive gateway authority lock."
     validate_prepared_gateway || return 1
     container_identity_is_expected \
         "$gateway_container" "$gateway_project" gateway ||
@@ -624,6 +709,8 @@ rollback_gateway() {
 }
 
 status_gateway() {
+    acquire_shared_authority ||
+        fail "Cannot acquire the shared gateway authority lock."
     prepared=no
     active=no
     gateway_state=absent

@@ -7181,8 +7181,18 @@ elif arguments[:1] == ["start"]:
     item = container(target)
     if target == "ladle-caddy-1" and state.get("legacy_start_failure"):
         raise SystemExit(1)
+    if (
+        target == "platform-gateway-gateway-1"
+        and state.get("gateway_restore_failure")
+    ):
+        raise SystemExit(1)
     item["running"] = True
-    if target == "platform-gateway-gateway-1":
+    if (
+        target == "ladle-caddy-1"
+        and state.get("legacy_health_failure")
+    ):
+        item["health"] = "unhealthy"
+    elif target == "platform-gateway-gateway-1":
         item["health"] = "healthy"
     save()
     print(target)
@@ -7237,6 +7247,66 @@ elif arguments[:1] == ["compose"]:
         raise SystemExit(f"unsupported compose command: {command!r}")
 else:
     raise SystemExit(f"unsupported docker command: {arguments!r}")
+"""
+    )
+    path.chmod(0o755)
+
+
+def _write_gateway_fake_flock(path: Path) -> None:
+    path.write_text(
+        """#!/usr/bin/env python3
+import fcntl
+import os
+import sys
+
+arguments = sys.argv[1:]
+shared = arguments[:1] == ["-s"]
+descriptor = int(arguments[-1])
+mode = "shared" if shared else "exclusive"
+trace_path = os.environ["FAKE_FLOCK_TRACE"]
+with open(trace_path, "a") as trace:
+    trace.write(f"attempt {mode} {descriptor}\\n")
+replacement = os.environ.get("FAKE_REPLACE_AUTHORITY_ON_FLOCK")
+if replacement:
+    temporary = replacement + ".replacement"
+    with open(temporary, "w") as target:
+        target.write("replacement\\n")
+    os.chmod(temporary, 0o600)
+    os.replace(temporary, replacement)
+fcntl.flock(
+    descriptor,
+    fcntl.LOCK_SH if shared else fcntl.LOCK_EX,
+)
+with open(trace_path, "a") as trace:
+    trace.write(f"acquired {mode} {descriptor}\\n")
+"""
+    )
+    path.chmod(0o755)
+
+
+def _write_gateway_fake_stat(path: Path) -> None:
+    helper = path.with_name("stat-open-fd")
+    helper.write_text(
+        """#!/usr/bin/env python3
+import os
+import stat
+import sys
+
+metadata = os.fstat(int(sys.argv[1].rsplit("/", maxsplit=1)[1]))
+print(
+    f"{metadata.st_dev}:{metadata.st_ino}:"
+    f"{metadata.st_uid}:{stat.S_IMODE(metadata.st_mode):o}"
+)
+"""
+    )
+    helper.chmod(0o755)
+    path.write_text(
+        f"""#!/bin/sh
+for stat_target do :; done
+case "$stat_target" in
+    /dev/fd/*) exec {shlex.quote(str(helper))} "$stat_target" ;;
+    *) exec /usr/bin/stat "$@" ;;
+esac
 """
     )
     path.chmod(0o755)
@@ -7312,6 +7382,19 @@ def _gateway_harness(
     fake_bin.mkdir()
     fake_docker = fake_bin / "docker"
     _write_gateway_fake_docker(fake_docker)
+    _write_gateway_fake_flock(fake_bin / "flock")
+    _write_gateway_fake_stat(fake_bin / "stat")
+    fake_find = fake_bin / "find"
+    fake_find.write_text(
+        """#!/bin/sh
+[ "${FAKE_FIND_FAILURE:-0}" != 1 ] || exit 71
+exec /usr/bin/find "$@"
+"""
+    )
+    fake_find.chmod(0o755)
+    fake_sleep = fake_bin / "sleep"
+    fake_sleep.write_text("#!/bin/sh\nexit 0\n")
+    fake_sleep.chmod(0o755)
     fake_getent = fake_bin / "getent"
     fake_getent.write_text(
         f"""#!/bin/sh
@@ -7376,6 +7459,8 @@ printf '%s\\n' 'ladle-secrets:x:{os.getgid()}:'
         json.dumps(state if state is not None else _gateway_default_state())
     )
     trace = tmp_path / "docker-trace.jsonl"
+    flock_trace = tmp_path / "flock.trace"
+    flock_trace.touch()
     return {
         "manager": manager,
         "release": release,
@@ -7386,6 +7471,7 @@ printf '%s\\n' 'ladle-secrets:x:{os.getgid()}:'
         "authority_lock": authority_lock,
         "state_file": state_file,
         "trace": trace,
+        "flock_trace": flock_trace,
         "fake_bin": fake_bin,
     }
 
@@ -7393,6 +7479,8 @@ printf '%s\\n' 'ladle-secrets:x:{os.getgid()}:'
 def _run_gateway_manager(
     harness: dict[str, Path | dict[str, object]],
     command: str,
+    *,
+    extra_env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [str(harness["manager"]), command],
@@ -7402,10 +7490,83 @@ def _run_gateway_manager(
             **os.environ,
             "FAKE_DOCKER_STATE": str(harness["state_file"]),
             "FAKE_DOCKER_TRACE": str(harness["trace"]),
+            "FAKE_FLOCK_TRACE": str(harness["flock_trace"]),
+            **(extra_env or {}),
         },
         text=True,
         timeout=10,
     )
+
+
+def _popen_gateway_manager(
+    harness: dict[str, Path | dict[str, object]],
+    command: str,
+) -> subprocess.Popen[str]:
+    return subprocess.Popen(
+        [str(harness["manager"]), command],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env={
+            **os.environ,
+            "FAKE_DOCKER_STATE": str(harness["state_file"]),
+            "FAKE_DOCKER_TRACE": str(harness["trace"]),
+            "FAKE_FLOCK_TRACE": str(harness["flock_trace"]),
+        },
+        text=True,
+    )
+
+
+def _start_gateway_lock_holder(
+    lock: Path,
+    *,
+    shared: bool,
+) -> subprocess.Popen[str]:
+    holder = subprocess.Popen(
+        [
+            sys.executable,
+            "-u",
+            "-c",
+            """
+import fcntl
+import sys
+
+with open(sys.argv[1]) as lock:
+    fcntl.flock(
+        lock.fileno(),
+        fcntl.LOCK_SH if sys.argv[2] == "shared" else fcntl.LOCK_EX,
+    )
+    print("locked", flush=True)
+    sys.stdin.read()
+""",
+            str(lock),
+            "shared" if shared else "exclusive",
+        ],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    assert holder.stdout is not None
+    assert holder.stdout.readline() == "locked\n"
+    return holder
+
+
+def _release_gateway_lock_holder(holder: subprocess.Popen[str]) -> None:
+    assert holder.stdin is not None
+    holder.stdin.close()
+    assert holder.wait(timeout=5) == 0
+
+
+def _wait_for_gateway_flock_trace(
+    trace: Path,
+    start: int,
+    expected: str,
+) -> bool:
+    for _ in range(200):
+        if expected in trace.read_text().splitlines()[start:]:
+            return True
+        time.sleep(0.01)
+    return False
 
 
 def _gateway_state(
@@ -7562,6 +7723,23 @@ def test_gateway_management_prepare_requires_exact_immutable_release(
     assert not Path(harness["live_gateway"]).exists()
 
 
+def test_gateway_management_prepare_rejects_release_traversal_failure(
+    tmp_path: Path,
+) -> None:
+    harness = _gateway_harness(tmp_path)
+
+    result = _run_gateway_manager(
+        harness,
+        "prepare",
+        extra_env={"FAKE_FIND_FAILURE": "1"},
+    )
+
+    assert result.returncode != 0
+    assert "travers" in result.stderr.casefold()
+    assert not Path(harness["gateway_env"]).exists()
+    assert not Path(harness["live_gateway"]).exists()
+
+
 @pytest.mark.parametrize(
     "unsafe_environment",
     ("symlink", "wrong-mode", "duplicate", "shell-syntax", "bad-hostname"),
@@ -7623,6 +7801,163 @@ def test_gateway_management_prepare_is_idempotent_and_preserves_future_routes(
     assert first.stdout == second.stdout
     assert future_route.read_text() == "future.example.test { respond 204 }\n"
     assert _gateway_state(harness)["network_create_calls"] == 1
+
+
+def test_gateway_management_prepare_waits_for_shared_authority_holder(
+    tmp_path: Path,
+) -> None:
+    harness = _gateway_harness(tmp_path)
+    _prepare_gateway(harness)
+    authority_lock = Path(harness["authority_lock"])
+    flock_trace = Path(harness["flock_trace"])
+    flock_start = len(flock_trace.read_text().splitlines())
+    holder = _start_gateway_lock_holder(authority_lock, shared=True)
+    process = _popen_gateway_manager(harness, "prepare")
+    try:
+        attempted = _wait_for_gateway_flock_trace(
+            flock_trace,
+            flock_start,
+            "attempt exclusive 7",
+        )
+        blocked = process.poll() is None
+        app_env = Path(harness["app_env"])
+        app_env.write_text(
+            app_env.read_text().replace(
+                GATEWAY_TEST_HOSTNAME,
+                "final.example.test",
+            )
+        )
+    finally:
+        _release_gateway_lock_holder(holder)
+    stdout, stderr = process.communicate(timeout=10)
+
+    assert attempted
+    assert blocked
+    assert process.returncode == 0, stderr
+    assert stdout == "Gateway prepared.\n"
+    assert (
+        "LADLE_PUBLIC_HOSTNAME=final.example.test\n"
+        in Path(harness["gateway_env"]).read_text()
+    )
+
+
+@pytest.mark.parametrize("action", ("activate", "rollback"))
+def test_gateway_management_handoff_waits_for_deploy_exclusive_authority(
+    tmp_path: Path,
+    action: str,
+) -> None:
+    harness = _gateway_harness(tmp_path)
+    _prepare_gateway(harness)
+    if action == "rollback":
+        activated = _run_gateway_manager(harness, "activate")
+        assert activated.returncode == 0, activated.stderr
+    trace_start = len(_gateway_trace(harness))
+    flock_trace = Path(harness["flock_trace"])
+    flock_start = len(flock_trace.read_text().splitlines())
+    holder = _start_gateway_lock_holder(
+        Path(harness["authority_lock"]),
+        shared=False,
+    )
+    process = _popen_gateway_manager(harness, action)
+    try:
+        attempted = _wait_for_gateway_flock_trace(
+            flock_trace,
+            flock_start,
+            "attempt exclusive 7",
+        )
+        blocked = process.poll() is None
+        waiting_commands = _gateway_trace(harness)[trace_start:]
+    finally:
+        _release_gateway_lock_holder(holder)
+    _, stderr = process.communicate(timeout=10)
+
+    assert attempted
+    assert blocked
+    assert all(
+        not {"start", "stop", "up", "down"}.intersection(command)
+        for command in waiting_commands
+    )
+    assert process.returncode == 0, stderr
+
+
+def test_gateway_management_rejects_authority_inode_replacement_on_acquire(
+    tmp_path: Path,
+) -> None:
+    harness = _gateway_harness(tmp_path)
+    _prepare_gateway(harness)
+    trace_start = len(_gateway_trace(harness))
+
+    result = _run_gateway_manager(
+        harness,
+        "prepare",
+        extra_env={
+            "FAKE_REPLACE_AUTHORITY_ON_FLOCK": str(
+                harness["authority_lock"]
+            )
+        },
+    )
+
+    assert result.returncode != 0
+    assert "authority" in result.stderr.casefold()
+    commands = _gateway_trace(harness)[trace_start:]
+    assert all(
+        not {"start", "stop", "up", "down", "run", "create"}.intersection(
+            command
+        )
+        for command in commands
+    )
+
+
+def test_gateway_management_status_shares_authority_lock_without_mutation(
+    tmp_path: Path,
+) -> None:
+    harness = _gateway_harness(tmp_path)
+    _prepare_gateway(harness)
+    trace_start = len(_gateway_trace(harness))
+    flock_trace = Path(harness["flock_trace"])
+    flock_start = len(flock_trace.read_text().splitlines())
+    shared_holder = _start_gateway_lock_holder(
+        Path(harness["authority_lock"]),
+        shared=True,
+    )
+    status = _popen_gateway_manager(harness, "status")
+    try:
+        _, shared_stderr = status.communicate(timeout=2)
+    finally:
+        _release_gateway_lock_holder(shared_holder)
+
+    assert status.returncode == 0, shared_stderr
+    assert flock_trace.read_text().splitlines()[flock_start:] == [
+        "attempt shared 6",
+        "acquired shared 6",
+    ]
+    status_commands = _gateway_trace(harness)[trace_start:]
+    assert all(
+        not {"start", "stop", "up", "down", "run", "create"}.intersection(
+            command
+        )
+        for command in status_commands
+    )
+
+    exclusive_holder = _start_gateway_lock_holder(
+        Path(harness["authority_lock"]),
+        shared=False,
+    )
+    flock_start = len(flock_trace.read_text().splitlines())
+    blocked_status = _popen_gateway_manager(harness, "status")
+    try:
+        attempted = _wait_for_gateway_flock_trace(
+            flock_trace,
+            flock_start,
+            "attempt shared 6",
+        )
+        blocked = blocked_status.poll() is None
+    finally:
+        _release_gateway_lock_holder(exclusive_holder)
+    _, exclusive_stderr = blocked_status.communicate(timeout=10)
+    assert attempted
+    assert blocked
+    assert blocked_status.returncode == 0, exclusive_stderr
 
 
 def test_gateway_management_prepare_rejects_unsafe_live_paths(
@@ -7805,6 +8140,31 @@ def test_gateway_management_activate_failure_restores_legacy_listener(
     assert ["start", LEGACY_CADDY_NAME] in trace
 
 
+def test_gateway_management_activation_recovery_avoids_unhealthy_legacy_ports(
+    tmp_path: Path,
+) -> None:
+    state = _gateway_default_state()
+    state["gateway_up_failure"] = True
+    state["legacy_health_failure"] = True
+    harness = _gateway_harness(tmp_path, state=state)
+    _prepare_gateway(harness)
+
+    result = _run_gateway_manager(harness, "activate")
+
+    assert result.returncode != 0
+    current = _gateway_state(harness)
+    assert current["containers"][LEGACY_CADDY_NAME]["running"] is False
+    assert current["containers"][SHARED_GATEWAY_NAME]["running"] is True
+    trace = _gateway_trace(harness)
+    legacy_start = trace.index(["start", LEGACY_CADDY_NAME])
+    legacy_stop = trace.index(
+        ["stop", "--time", "30", LEGACY_CADDY_NAME],
+        legacy_start,
+    )
+    shared_start = trace.index(["start", SHARED_GATEWAY_NAME], legacy_stop)
+    assert legacy_start < legacy_stop < shared_start
+
+
 @pytest.mark.parametrize(
     "signal_point",
     ("signal_during_stop", "signal_during_up"),
@@ -7865,6 +8225,59 @@ def test_gateway_management_rollback_failure_restores_shared_listener(
     assert current["containers"][LEGACY_CADDY_NAME]["running"] is False
     assert current["containers"][SHARED_GATEWAY_NAME]["running"] is True
     assert current["containers"][SHARED_GATEWAY_NAME]["health"] == "healthy"
+
+
+def test_gateway_management_rollback_stops_unhealthy_legacy_before_shared(
+    tmp_path: Path,
+) -> None:
+    harness = _gateway_harness(tmp_path)
+    _prepare_gateway(harness)
+    activated = _run_gateway_manager(harness, "activate")
+    assert activated.returncode == 0, activated.stderr
+    state = _gateway_state(harness)
+    state["legacy_health_failure"] = True
+    Path(harness["state_file"]).write_text(json.dumps(state))
+    trace_start = len(_gateway_trace(harness))
+
+    result = _run_gateway_manager(harness, "rollback")
+
+    assert result.returncode != 0
+    current = _gateway_state(harness)
+    assert current["containers"][LEGACY_CADDY_NAME]["running"] is False
+    assert current["containers"][SHARED_GATEWAY_NAME]["running"] is True
+    recovery = _gateway_trace(harness)[trace_start:]
+    legacy_start = recovery.index(["start", LEGACY_CADDY_NAME])
+    legacy_stop = recovery.index(
+        ["stop", "--time", "30", LEGACY_CADDY_NAME],
+        legacy_start,
+    )
+    shared_start = recovery.index(
+        ["start", SHARED_GATEWAY_NAME],
+        legacy_stop,
+    )
+    assert legacy_start < legacy_stop < shared_start
+    assert "shared gateway was restored" in result.stderr.casefold()
+
+
+def test_gateway_management_reports_listener_risk_when_shared_restore_fails(
+    tmp_path: Path,
+) -> None:
+    harness = _gateway_harness(tmp_path)
+    _prepare_gateway(harness)
+    activated = _run_gateway_manager(harness, "activate")
+    assert activated.returncode == 0, activated.stderr
+    state = _gateway_state(harness)
+    state["legacy_health_failure"] = True
+    state["gateway_restore_failure"] = True
+    Path(harness["state_file"]).write_text(json.dumps(state))
+
+    result = _run_gateway_manager(harness, "rollback")
+
+    assert result.returncode != 0
+    assert "both-listeners risk" in result.stderr.casefold()
+    current = _gateway_state(harness)
+    assert current["containers"][LEGACY_CADDY_NAME]["running"] is False
+    assert current["containers"][SHARED_GATEWAY_NAME]["running"] is False
 
 
 def test_gateway_management_status_is_read_only_and_rejects_inconsistency(

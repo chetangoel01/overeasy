@@ -101,20 +101,27 @@ The root-only gateway manager runs from one immutable, root-owned
   creates the operations authority lock when it is absent, extracts only the
   Ladle hostname and staging access key without sourcing the app environment,
   and atomically installs root-owned assets under `/opt/platform/gateway`.
+  It pins the lock's device and inode, takes the blocking exclusive authority
+  lock before reading mutable inputs, and holds it through installation.
   Existing unrelated route files are preserved. Compose and pinned-Caddy
   validation run without publishing ports or stopping a container.
 - `activate` revalidates the installed files, secret metadata, shared-network
   contract, unique `ladle-edge` ownership, backend readiness, and exact legacy
-  Caddy identity before stopping only `ladle-caddy-1`. Any failure or signal
-  after that stop takes down the attempted shared gateway and waits for the
-  preserved legacy listener to become healthy again.
+  Caddy identity while holding the same exclusive authority lock before
+  stopping only `ladle-caddy-1`. Any failure or signal after that stop takes
+  down the attempted shared gateway and waits for the preserved legacy
+  listener to become healthy again.
 - `rollback` stops only the validated shared gateway, then waits for the
-  preserved legacy listener. If that restart fails, it attempts to restore and
-  verify the shared listener so the public ports are not deliberately left
-  down.
-- `status` is read-only. It reports preparation, active-listener state, and
-  both container health states without parsing or displaying secret values,
-  and fails for foreign or contradictory listener ownership.
+  preserved legacy listener under the exclusive authority lock. If the legacy
+  container starts but remains unhealthy, it is stopped before the shared
+  gateway is restarted. A failed shared recovery reports the unresolved
+  listener risk explicitly.
+- `status` takes a blocking shared authority lock using a separate descriptor
+  and revalidates its pinned identity, so concurrent readers remain compatible
+  while deployments and handoffs stay exclusive. It is otherwise read-only:
+  it reports preparation, active-listener state, and both container health
+  states without parsing or displaying secret values, and fails for foreign
+  or contradictory listener ownership.
 
 ## Failure Handling
 
