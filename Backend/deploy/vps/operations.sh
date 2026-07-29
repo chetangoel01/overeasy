@@ -6,6 +6,9 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export PATH
 
 env_file=/etc/ladle/ladle.env
+gateway_directory=/opt/platform/gateway
+gateway_env_file=/etc/platform/gateway.env
+gateway_compose_file=/opt/platform/gateway/docker-compose.yml
 current_release=/opt/ladle/current
 releases_directory=/opt/ladle/releases
 deployment_state=/var/lib/ladle/deployment-state
@@ -208,6 +211,14 @@ load_authoritative_release() {
         fail "The active VPS Compose file is unsafe."
         return 1
     }
+    resolved_gateway_manager=$(readlink -f -- "$gateway_manager") || {
+        fail "The shared gateway manager is unsafe."
+        return 1
+    }
+    [ "$resolved_gateway_manager" = "$gateway_manager" ] || {
+        fail "The shared gateway manager is unsafe."
+        return 1
+    }
     safe_regular_file "$gateway_manager" 755 || {
         fail "The shared gateway manager is unsafe."
         return 1
@@ -222,6 +233,15 @@ compose() {
         --env-file "$env_file" \
         -f "$base_compose" \
         -f "$vps_compose" \
+        "$@"
+}
+
+gateway_compose() {
+    docker compose \
+        --project-name platform-gateway \
+        --project-directory "$gateway_directory" \
+        --env-file "$gateway_env_file" \
+        -f "$gateway_compose_file" \
         "$@"
 }
 
@@ -424,6 +444,15 @@ check_gateway() {
             legacy_health=none
     )
     if [ "$gateway_status_output" != "$expected_gateway_status" ]; then
+        append_failure "shared gateway"
+        return
+    fi
+    if ! gateway_compose config --quiet >/dev/null 2>&1; then
+        append_failure "shared gateway"
+        return
+    fi
+    if ! gateway_compose exec -T gateway caddy validate \
+        --config /etc/caddy/Caddyfile >/dev/null 2>&1; then
         append_failure "shared gateway"
     fi
 }

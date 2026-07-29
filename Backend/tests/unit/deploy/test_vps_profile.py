@@ -667,6 +667,7 @@ journalctl() {{ :; }}
 compose() {{
     printf '%s\\n' "{label}:$backend_directory:$*" >>"$MUTATION_TRACE"
 }}
+gateway_compose() {{ :; }}
 gate_state_read() {{
     [ -n "${{STATE_READ_SELECTED:-}}" ] || return 0
     [ ! -e "$STATE_READ_SELECTED" ] || return 0
@@ -5202,7 +5203,9 @@ def test_vps_health_covers_runtime_tls_backup_and_authoritative_revision() -> No
         "minio",
     ):
         assert service in operations
-    assert "caddy" not in operations
+    assert "container_is_ready caddy" not in operations
+    assert "compose exec -T caddy" not in operations
+    assert "gateway_compose exec -T gateway caddy validate" in operations
     assert "nginx -t" in operations
     assert "/health/ready" in operations
     assert "celery" in operations
@@ -5227,6 +5230,7 @@ def test_operations_monitor_shared_gateway_through_trusted_release_manager(
     tmp_path: Path,
 ) -> None:
     calls = tmp_path / "gateway-calls"
+    compose_calls = tmp_path / "gateway-compose-calls"
     manager = tmp_path / "manage.sh"
     manager.write_text(
         f"""#!/bin/sh
@@ -5241,11 +5245,18 @@ printf '%s\\n' \
     healthy = _run_operations_library(
         """
 gateway_manager=$1
+compose_calls=$2
+docker() {
+    printf '%s\n' "$*" >>"$compose_calls"
+    printf '%s\n' "unexpected gateway output"
+    printf '%s\n' "unexpected gateway error" >&2
+}
 health_failures=
 check_gateway
 printf '%s\n' "$health_failures"
 """,
         manager,
+        compose_calls,
     )
     manager.write_text(
         f"""#!/bin/sh
@@ -5259,18 +5270,67 @@ printf '%s\\n' \
     stale = _run_operations_library(
         """
 gateway_manager=$1
+compose_calls=$2
+docker() {
+    printf '%s\n' "$*" >>"$compose_calls"
+}
 health_failures=
 check_gateway
 printf '%s\n' "$health_failures"
 """,
         manager,
+        compose_calls,
+    )
+    manager.write_text(
+        f"""#!/bin/sh
+printf '%s\\n' "$*" >>{shlex.quote(str(calls))}
+printf '%s\\n' \
+    prepared=yes active=yes gateway=running \
+    gateway_health=healthy gateway_current=yes legacy=stopped \
+    legacy_health=none
+"""
+    )
+    invalid_configuration = _run_operations_library(
+        """
+gateway_manager=$1
+compose_calls=$2
+docker() {
+    printf '%s\n' "$*" >>"$compose_calls"
+    printf '%s\n' "unexpected gateway output"
+    printf '%s\n' "unexpected gateway error" >&2
+    case "$*" in *" config --quiet") return 9 ;; esac
+}
+health_failures=
+check_gateway
+printf '%s\n' "$health_failures"
+""",
+        manager,
+        compose_calls,
     )
 
     assert healthy.returncode == 0, healthy.stderr
     assert healthy.stdout == "\n"
+    assert healthy.stderr == ""
     assert stale.returncode == 0, stale.stderr
     assert stale.stdout == "shared gateway\n"
-    assert calls.read_text().splitlines() == ["status", "status"]
+    assert invalid_configuration.returncode == 0, invalid_configuration.stderr
+    assert invalid_configuration.stdout == "shared gateway\n"
+    assert invalid_configuration.stderr == ""
+    assert calls.read_text().splitlines() == ["status", "status", "status"]
+    compose_prefix = (
+        "compose --project-name platform-gateway "
+        "--project-directory /opt/platform/gateway "
+        "--env-file /etc/platform/gateway.env "
+        "-f /opt/platform/gateway/docker-compose.yml"
+    )
+    assert compose_calls.read_text().splitlines() == [
+        f"{compose_prefix} config --quiet",
+        (
+            f"{compose_prefix} exec -T gateway caddy validate "
+            "--config /etc/caddy/Caddyfile"
+        ),
+        f"{compose_prefix} config --quiet",
+    ]
 
     operations = OPERATIONS.read_text()
     assert 'gateway_manager=$backend_directory/deploy/vps/gateway/manage.sh' in (
@@ -5303,6 +5363,64 @@ def test_operations_reject_untrusted_gateway_manager_before_status(
     outside_manager.chmod(0o755)
     gateway_manager.unlink()
     gateway_manager.symlink_to(outside_manager)
+    mutation_trace = tmp_path / "mutation.trace"
+    execution_trace = tmp_path / "execution.trace"
+
+    result = subprocess.run(
+        [str(operations), "status"],
+        check=False,
+        capture_output=True,
+        env={
+            **os.environ,
+            "LADLE_OPERATIONS_EXPECTED_RELEASE": str(release),
+            "MUTATION_TRACE": str(mutation_trace),
+            "EXECUTION_TRACE": str(execution_trace),
+        },
+        text=True,
+    )
+
+    assert result.returncode != 0
+    assert "shared gateway manager" in result.stderr.lower()
+    assert not execution_trace.exists()
+    assert not mutation_trace.exists()
+
+
+def test_operations_reject_gateway_manager_with_symlinked_parent(
+    tmp_path: Path,
+) -> None:
+    releases = tmp_path / "releases"
+    releases.mkdir()
+    current = tmp_path / "current"
+    deployment_state = tmp_path / "deployment-state"
+    release, operations = _write_guarded_operations_release(
+        releases,
+        "a" * 40,
+        "active",
+        current,
+        deployment_state,
+    )
+    current.symlink_to(release)
+    _write_active_deployment_state(deployment_state, release.name)
+    gateway_directory = (
+        release / "Backend" / "deploy" / "vps" / "gateway"
+    )
+    gateway_manager = gateway_directory / "manage.sh"
+    gateway_manager.unlink()
+    gateway_directory.rmdir()
+    outside_gateway = tmp_path / "outside-gateway"
+    outside_gateway.mkdir()
+    outside_manager = outside_gateway / "manage.sh"
+    outside_manager.write_text(
+        """#!/bin/sh
+printf executed >>"$EXECUTION_TRACE"
+printf '%s\\n' \
+    prepared=yes active=yes gateway=running \
+    gateway_health=healthy gateway_current=yes legacy=stopped \
+    legacy_health=none
+"""
+    )
+    outside_manager.chmod(0o755)
+    gateway_directory.symlink_to(outside_gateway, target_is_directory=True)
     mutation_trace = tmp_path / "mutation.trace"
     execution_trace = tmp_path / "execution.trace"
 
