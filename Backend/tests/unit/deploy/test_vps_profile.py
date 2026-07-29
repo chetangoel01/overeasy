@@ -796,6 +796,149 @@ def _docker_user_hooks(state: dict[str, Any]) -> list[str]:
     return [rule[1] for rule in chains["DOCKER-USER"] if rule[0] == "-j"]
 
 
+def _valid_platform_network(
+    containers: list[dict[str, object]] | None = None,
+) -> dict[str, object]:
+    return {
+        "driver": "bridge",
+        "scope": "local",
+        "internal": False,
+        "subnets": ["172.30.0.0/24"],
+        "label": "shared-edge-v1",
+        "containers": containers or [],
+    }
+
+
+def _write_fake_platform_docker(path: Path) -> None:
+    path.write_text(
+        """#!/usr/bin/env python3
+import json
+import os
+import sys
+
+state_path = os.environ["FAKE_DOCKER_STATE"]
+with open(state_path) as source:
+    state = json.load(source)
+arguments = sys.argv[1:]
+
+def save():
+    with open(state_path, "w") as target:
+        json.dump(state, target)
+
+if arguments[:2] == ["network", "inspect"]:
+    network = state.get("network")
+    if network is None:
+        raise SystemExit(1)
+    template = arguments[arguments.index("--format") + 1]
+    if ".Driver" in template:
+        print(network["driver"])
+        print(network["scope"])
+        print(str(network["internal"]).lower())
+        print(len(network["subnets"]))
+        for subnet in network["subnets"]:
+            print(subnet)
+        print(network["label"])
+    elif ".Containers" in template:
+        for container in network["containers"]:
+            print(container["id"])
+    else:
+        raise SystemExit("unsupported network format")
+elif arguments[:2] == ["network", "create"]:
+    expected = [
+        "network",
+        "create",
+        "--driver",
+        "bridge",
+        "--subnet",
+        "172.30.0.0/24",
+        "--label",
+        "com.ladle.platform.network=shared-edge-v1",
+        "platform-edge",
+    ]
+    if arguments != expected:
+        raise SystemExit("unexpected create contract")
+    state["create_calls"] = state.get("create_calls", 0) + 1
+    mode = state["create_mode"]
+    if mode in {"success", "race_valid"}:
+        state["network"] = {
+            "driver": "bridge",
+            "scope": "local",
+            "internal": False,
+            "subnets": ["172.30.0.0/24"],
+            "label": "shared-edge-v1",
+            "containers": [],
+        }
+    elif mode == "fail_invalid":
+        state["network"] = {
+            "driver": "bridge",
+            "scope": "local",
+            "internal": False,
+            "subnets": ["172.29.0.0/24"],
+            "label": "foreign",
+            "containers": [],
+        }
+    save()
+    if mode == "success":
+        print("platform-edge")
+    else:
+        raise SystemExit(1)
+elif arguments[0] == "inspect":
+    network = state.get("network")
+    container_id = arguments[-1]
+    container = next(
+        item for item in network["containers"] if item["id"] == container_id
+    )
+    template = arguments[arguments.index("--format") + 1]
+    if ".Aliases" in template:
+        for alias in container["aliases"]:
+            print(alias)
+    elif "com.docker.compose.project" in template:
+        print(container["project"])
+        print(container["service"])
+    else:
+        raise SystemExit("unsupported container format")
+else:
+    raise SystemExit("unsupported docker command")
+"""
+    )
+    path.chmod(0o755)
+
+
+def _run_platform_network_function(
+    tmp_path: Path,
+    function: str,
+    state: dict[str, object],
+) -> tuple[subprocess.CompletedProcess[str], dict[str, object]]:
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    _write_fake_platform_docker(fake_bin / "docker")
+    state_path = tmp_path / "docker-state.json"
+    state_path.write_text(json.dumps(state))
+    result = subprocess.run(
+        [
+            "/bin/sh",
+            "-c",
+            '. "$1"; shift; '
+            f'{function} || {{ printf "%s\\n" "$PLATFORM_NETWORK_ERROR" >&2; '
+            "exit 1; }",
+            "test",
+            str(HOST_VALIDATION),
+        ],
+        check=False,
+        capture_output=True,
+        env={
+            **os.environ,
+            "FAKE_DOCKER_STATE": str(state_path),
+            "PATH": f"{fake_bin}:{os.environ['PATH']}",
+        },
+        text=True,
+    )
+    loaded = json.loads(state_path.read_text())
+    assert isinstance(loaded, dict)
+    return result, loaded
+
+
 def test_vps_profile_files_exist() -> None:
     assert PROFILE.is_file()
 
@@ -1122,23 +1265,158 @@ def test_vps_provisioning_uses_the_signed_official_docker_repository() -> None:
     assert "rm -rf /var/lib/docker" not in unsafe
 
 
-def test_vps_provisioning_idempotently_creates_the_shared_platform_network() -> None:
+def test_vps_scripts_use_the_shared_platform_network_contract_before_mutation() -> None:
     provision = PROVISION.read_text()
+    deploy = DEPLOY.read_text()
 
     docker_ready = provision.index("systemctl enable --now docker.service")
-    inspect = provision.index("docker network inspect platform-edge")
-    create = provision.index("docker network create platform-edge")
+    ensure = provision.index("ensure_platform_network")
+    network_gate = deploy.index("platform_network_is_valid")
+    environment_validation = deploy.index("validate_env_metadata")
+    compose_validation = deploy.index("compose config --quiet")
+    first_service_mutation = deploy.index("compose up -d")
 
-    assert docker_ready < inspect < create
-    assert (
-        "if ! docker network inspect platform-edge >/dev/null 2>&1; then"
-        in provision
+    assert docker_ready < ensure
+    assert network_gate < environment_validation
+    assert network_gate < compose_validation < first_service_mutation
+    assert 'die "$PLATFORM_NETWORK_ERROR"' in provision
+    assert 'die "$PLATFORM_NETWORK_ERROR"' in deploy
+
+
+@pytest.mark.parametrize(
+    "network",
+    (
+        {**_valid_platform_network(), "driver": "overlay"},
+        {**_valid_platform_network(), "scope": "swarm"},
+        {**_valid_platform_network(), "internal": True},
+        {**_valid_platform_network(), "subnets": ["172.29.0.0/24"]},
+        {
+            **_valid_platform_network(),
+            "subnets": ["172.30.0.0/24", "172.29.0.0/24"],
+        },
+        {**_valid_platform_network(), "label": "foreign"},
+    ),
+)
+def test_platform_network_validation_rejects_malformed_contracts(
+    tmp_path: Path,
+    network: dict[str, object],
+) -> None:
+    result, _ = _run_platform_network_function(
+        tmp_path,
+        "platform_network_is_valid",
+        {"network": network},
     )
-    assert (
-        "docker network create platform-edge >/dev/null ||\n"
-        '        die "Cannot create the shared platform-edge Docker network."'
-        in provision
+
+    assert result.returncode != 0
+    assert "required local bridge contract" in result.stderr
+
+
+def test_platform_network_validation_accepts_empty_and_owned_aliases(
+    tmp_path: Path,
+) -> None:
+    empty, _ = _run_platform_network_function(
+        tmp_path / "empty",
+        "platform_network_is_valid",
+        {"network": _valid_platform_network()},
     )
+    owned, _ = _run_platform_network_function(
+        tmp_path / "owned",
+        "platform_network_is_valid",
+        {
+            "network": _valid_platform_network(
+                [
+                    {
+                        "id": "a" * 64,
+                        "aliases": ["ladle-edge"],
+                        "project": "ladle",
+                        "service": "edge",
+                    }
+                ]
+            )
+        },
+    )
+
+    assert empty.returncode == 0, empty.stderr
+    assert owned.returncode == 0, owned.stderr
+
+
+def test_platform_network_validation_rejects_missing_and_foreign_aliases(
+    tmp_path: Path,
+) -> None:
+    missing, _ = _run_platform_network_function(
+        tmp_path / "missing",
+        "platform_network_is_valid",
+        {"network": None},
+    )
+    foreign, _ = _run_platform_network_function(
+        tmp_path / "foreign",
+        "platform_network_is_valid",
+        {
+            "network": _valid_platform_network(
+                [
+                    {
+                        "id": "b" * 64,
+                        "aliases": ["ladle-edge"],
+                        "project": "foreign",
+                        "service": "edge",
+                    }
+                ]
+            )
+        },
+    )
+
+    assert missing.returncode != 0
+    assert "missing or unreadable" in missing.stderr
+    assert foreign.returncode != 0
+    assert "foreign container" in foreign.stderr
+
+
+@pytest.mark.parametrize(
+    ("create_mode", "expected_success"),
+    (
+        ("success", True),
+        ("race_valid", True),
+        ("fail_invalid", False),
+        ("fail_missing", False),
+    ),
+)
+def test_platform_network_creation_handles_success_races_and_real_failures(
+    tmp_path: Path,
+    create_mode: str,
+    expected_success: bool,
+) -> None:
+    result, state = _run_platform_network_function(
+        tmp_path,
+        "ensure_platform_network",
+        {
+            "network": None,
+            "create_mode": create_mode,
+            "create_calls": 0,
+        },
+    )
+
+    assert (result.returncode == 0) is expected_success, result.stderr
+    assert state["create_calls"] == 1
+
+
+def test_platform_network_creation_rejects_wrong_existing_network_without_mutation(
+    tmp_path: Path,
+) -> None:
+    result, state = _run_platform_network_function(
+        tmp_path,
+        "ensure_platform_network",
+        {
+            "network": {
+                **_valid_platform_network(),
+                "subnets": ["172.29.0.0/24"],
+            },
+            "create_mode": "success",
+            "create_calls": 0,
+        },
+    )
+
+    assert result.returncode != 0
+    assert state["create_calls"] == 0
 
 
 def test_docker_key_validation_rejects_an_appended_primary(tmp_path: Path) -> None:
@@ -1846,11 +2124,15 @@ def test_push_makes_completed_releases_root_owned_and_immutable() -> None:
         "Backend/deploy/vps/initialize-env.sh",
         "Backend/deploy/vps/deploy.sh",
         "Backend/deploy/vps/deployment-lib.sh",
+        "Backend/deploy/vps/host-validation.sh",
         "Backend/docker-compose.yml",
         "Backend/deploy/vps/docker-compose.yml",
     ):
         assert relative_path in push
         assert relative_path in deploy
+    assert deploy.index('. "$host_validation_source"') > deploy.index(
+        'release_root_is_safe "$release"'
+    )
 
 
 def test_push_requires_noninteractive_sudo_before_remote_mutation() -> None:
@@ -2172,7 +2454,7 @@ def test_deploy_validates_exact_release_and_stable_project_before_mutation() -> 
     assert ". /etc/ladle" not in deploy
     assert "cat /etc/ladle" not in deploy
 
-    network_gate = deploy.index("docker network inspect platform-edge")
+    network_gate = deploy.index("platform_network_is_valid")
     config = deploy.index("config --quiet")
     data = deploy.index("up -d --wait --wait-timeout", config)
     build = deploy.index("build migrate minio-init", data)
@@ -2184,7 +2466,6 @@ def test_deploy_validates_exact_release_and_stable_project_before_mutation() -> 
     edge = deploy.index("--no-deps edge", beat)
     assert network_gate < config < data < build < bucket < migrate < worker_pair
     assert worker_pair < api < beat < edge
-    assert "The shared platform-edge Docker network is unavailable." in deploy
     assert "caddy" not in deploy
 
 
@@ -2924,7 +3205,6 @@ def test_vps_health_covers_runtime_tls_backup_and_authoritative_revision() -> No
     operations = OPERATIONS.read_text()
 
     for service in (
-        "caddy",
         "edge",
         "api",
         "worker",
@@ -2935,7 +3215,7 @@ def test_vps_health_covers_runtime_tls_backup_and_authoritative_revision() -> No
         "minio",
     ):
         assert service in operations
-    assert "caddy validate" in operations
+    assert "caddy" not in operations
     assert "nginx -t" in operations
     assert "/health/ready" in operations
     assert "celery" in operations
@@ -2954,6 +3234,47 @@ def test_vps_health_covers_runtime_tls_backup_and_authoritative_revision() -> No
     assert "beat_stability_observations=3" in operations
     assert ".State.Restarting" in operations
     assert ".RestartCount" in operations
+
+
+def test_operations_never_request_the_removed_ladle_caddy_service(
+    tmp_path: Path,
+) -> None:
+    calls = tmp_path / "compose-calls"
+    result = _run_operations_library(
+        """
+calls=$1
+compose() {
+    printf '%s\n' "$*" >>"$calls"
+    case "$1 $2" in
+        "ps -q") printf '%s\n' "$3" ;;
+    esac
+}
+docker() { printf '%s\n' 'true|healthy'; }
+beat_is_stable() { :; }
+validate_runtime_paths() { runtime_paths_ready=true; }
+load_authoritative_release() { :; }
+check_nginx() { :; }
+check_api() { :; }
+check_worker() { :; }
+check_postgres() { :; }
+check_redis() { :; }
+check_minio() { :; }
+check_certificate() { :; }
+check_backup_freshness() { :; }
+check_caddy() {
+    printf '%s\n' "legacy caddy health call" >>"$calls"
+}
+log_transition() { :; }
+journalctl() { :; }
+health_check
+log_lines=20
+show_logs
+! grep -F caddy "$calls"
+""",
+        calls,
+    )
+
+    assert result.returncode == 0, result.stderr
 
 
 def test_operations_requires_healthy_worker_egress_container() -> None:
@@ -3149,7 +3470,6 @@ acquire_transition_lock() { :; }
 validate_runtime_paths() { runtime_paths_ready=true; }
 load_authoritative_release() { :; }
 check_containers() { :; }
-check_caddy() { :; }
 check_nginx() { :; }
 check_api() {
     [ "$health_mode" = healthy ] || append_failure "API readiness"

@@ -301,7 +301,7 @@ beat_is_stable() {
 
 check_containers() {
     for runtime_service in \
-        caddy edge api worker beat postgres redis minio; do
+        edge api worker beat postgres redis minio; do
         if ! container_is_ready "$runtime_service"; then
             append_failure "$runtime_service container"
         fi
@@ -311,13 +311,6 @@ check_containers() {
     fi
     if ! beat_is_stable; then
         append_failure "beat stability"
-    fi
-}
-
-check_caddy() {
-    if ! compose exec -T caddy caddy validate \
-        --config /etc/caddy/Caddyfile >/dev/null 2>&1; then
-        append_failure "Caddy"
     fi
 }
 
@@ -462,7 +455,6 @@ health_check() {
         health_failures="deployment authority"
     else
         check_containers
-        check_caddy
         check_nginx
         check_api
         check_worker
@@ -675,7 +667,7 @@ show_logs() {
         -u ladle-health.service -u ladle-backup.service
     if load_authoritative_release; then
         compose logs --no-color --tail "$log_lines" \
-            caddy edge api worker worker-egress beat postgres redis minio
+            edge api worker worker-egress beat postgres redis minio
     fi
 }
 

@@ -47,6 +47,7 @@ release_root_is_safe() {
         Backend/deploy/vps/initialize-env.sh \
         Backend/deploy/vps/deploy.sh \
         Backend/deploy/vps/deployment-lib.sh \
+        Backend/deploy/vps/host-validation.sh \
         Backend/docker-compose.yml \
         Backend/deploy/vps/docker-compose.yml; do
         [ -f "$root_release/$critical_path" ] &&
@@ -61,6 +62,12 @@ release_root_is_safe "$release" ||
     die "The exact release is missing, mutable, or unsafe."
 revision_marker_matches "$release/.ladle-revision" "$revision" ||
     die "The release revision marker does not match."
+
+host_validation_source=$script_directory/host-validation.sh
+if [ ! -f "$host_validation_source" ] || [ -L "$host_validation_source" ]; then
+    die "Missing host validation library."
+fi
+. "$host_validation_source"
 
 backend_directory=$release/Backend
 base_compose=$backend_directory/docker-compose.yml
@@ -100,6 +107,8 @@ acquire_deployment_lock "$deployment_lock" 0 ||
     die "Another Ladle deployment is running or the lock is unsafe."
 acquire_environment_lock "$environment_lock" 0 ||
     die "Cannot acquire the staging environment lock."
+
+platform_network_is_valid || die "$PLATFORM_NETWORK_ERROR"
 
 validate_env_metadata "$env_file" "$secret_group" ||
     die "The staging environment metadata is unsafe."
@@ -163,9 +172,6 @@ wait_for_worker_ping() {
     done
     return 1
 }
-
-docker network inspect platform-edge >/dev/null 2>&1 ||
-    die "The shared platform-edge Docker network is unavailable."
 
 deployment_phase=compose-validation
 progress "compose-validation" "validating exact release configuration"

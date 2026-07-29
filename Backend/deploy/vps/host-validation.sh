@@ -93,6 +93,105 @@ render_docker_firewall() {
         "$firewall_template"
 }
 
+PLATFORM_NETWORK_ERROR=
+PLATFORM_NETWORK_STATUS=
+
+platform_network_fail() {
+    PLATFORM_NETWORK_STATUS=$1
+    PLATFORM_NETWORK_ERROR=$2
+    return 1
+}
+
+platform_network_is_valid() {
+    PLATFORM_NETWORK_ERROR=
+    PLATFORM_NETWORK_STATUS=
+    platform_contract=$(
+        docker network inspect --format \
+            '{{printf "%s\n%s\n%t\n%d\n" .Driver .Scope .Internal (len .IPAM.Config)}}{{range .IPAM.Config}}{{printf "%s\n" .Subnet}}{{end}}{{index .Labels "com.ladle.platform.network"}}' \
+            platform-edge 2>/dev/null
+    ) || {
+        platform_network_fail missing \
+            "The shared platform-edge Docker network is missing or unreadable."
+        return 1
+    }
+    expected_platform_contract=$(
+        printf '%s\n' \
+            bridge local false 1 172.30.0.0/24 shared-edge-v1
+    )
+    if [ "$platform_contract" != "$expected_platform_contract" ]; then
+        platform_network_fail invalid \
+            "The shared platform-edge Docker network violates the required local bridge contract."
+        return 1
+    fi
+
+    platform_container_ids=$(
+        docker network inspect --format \
+            '{{range $id, $_ := .Containers}}{{printf "%s\n" $id}}{{end}}' \
+            platform-edge 2>/dev/null
+    ) || {
+        platform_network_fail invalid \
+            "The shared platform-edge Docker network endpoints are unreadable."
+        return 1
+    }
+    set -f
+    set -- $platform_container_ids
+    set +f
+    for platform_container_id do
+        case "$platform_container_id" in
+            *[!0-9a-f]*) platform_container_id=invalid ;;
+        esac
+        if [ "${#platform_container_id}" -ne 64 ]; then
+            platform_network_fail invalid \
+                "The shared platform-edge Docker network has an unsafe endpoint identity."
+            return 1
+        fi
+        platform_aliases=$(
+            docker inspect --format \
+                '{{with index .NetworkSettings.Networks "platform-edge"}}{{range .Aliases}}{{printf "%s\n" .}}{{end}}{{end}}' \
+                "$platform_container_id" 2>/dev/null
+        ) || {
+            platform_network_fail invalid \
+                "A shared platform-edge Docker network endpoint is unreadable."
+            return 1
+        }
+        if printf '%s\n' "$platform_aliases" |
+            grep -Fx ladle-edge >/dev/null; then
+            platform_alias_owner=$(
+                docker inspect --format \
+                    '{{index .Config.Labels "com.docker.compose.project"}}{{printf "\n"}}{{index .Config.Labels "com.docker.compose.service"}}' \
+                    "$platform_container_id" 2>/dev/null
+            ) || {
+                platform_network_fail invalid \
+                    "The ladle-edge alias owner labels are unreadable."
+                return 1
+            }
+            expected_platform_alias_owner=$(printf '%s\n' ladle edge)
+            if [ "$platform_alias_owner" != "$expected_platform_alias_owner" ]; then
+                platform_network_fail invalid \
+                    "The ladle-edge alias is advertised by a foreign container."
+                return 1
+            fi
+        fi
+    done
+}
+
+ensure_platform_network() {
+    if platform_network_is_valid; then
+        return 0
+    fi
+    [ "$PLATFORM_NETWORK_STATUS" = missing ] || return 1
+    if docker network create \
+        --driver bridge \
+        --subnet 172.30.0.0/24 \
+        --label com.ladle.platform.network=shared-edge-v1 \
+        platform-edge >/dev/null; then
+        platform_network_is_valid
+        return
+    fi
+    # A concurrent provisioner may have created the exact network first.
+    platform_network_is_valid
+}
+
 authorized_keys_has_valid_key() {
     /usr/bin/ssh-keygen -l -f "$1" >/dev/null 2>&1
 }

@@ -333,10 +333,7 @@ docker_service_dropin_tmp=
 systemctl enable netfilter-persistent.service
 systemctl daemon-reload
 systemctl enable --now docker.service
-if ! docker network inspect platform-edge >/dev/null 2>&1; then
-    docker network create platform-edge >/dev/null ||
-        die "Cannot create the shared platform-edge Docker network."
-fi
+ensure_platform_network || die "$PLATFORM_NETWORK_ERROR"
 systemctl enable ladle-docker-user-firewall.service
 systemctl restart ladle-docker-user-firewall.service
 

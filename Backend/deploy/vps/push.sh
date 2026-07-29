@@ -221,6 +221,7 @@ release_root_is_safe() {
         Backend/deploy/vps/initialize-env.sh \
         Backend/deploy/vps/deploy.sh \
         Backend/deploy/vps/deployment-lib.sh \
+        Backend/deploy/vps/host-validation.sh \
         Backend/docker-compose.yml \
         Backend/deploy/vps/docker-compose.yml; do
         [ -f "$root_release/$critical_path" ] &&
