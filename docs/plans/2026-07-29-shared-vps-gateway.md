@@ -21,21 +21,7 @@
 **Step 1: Write the failing topology tests**
 
 Add constants for the gateway directory, Compose file, main Caddyfile, and
-Ladle route. Replace the app-owned Caddy assertions with tests that require:
-
-```python
-assert "caddy" not in _profile()["services"]
-assert all(service.get("ports", []) == [] for service in _profile()["services"].values())
-assert _profile()["services"]["edge"]["networks"]["platform"]["aliases"] == [
-    "ladle-edge"
-]
-assert _profile()["networks"]["platform"] == {
-    "external": True,
-    "name": "platform-edge",
-}
-```
-
-Add a gateway loader and assert:
+Ladle route. Add a gateway loader and assert:
 
 ```python
 gateway = yaml.safe_load(GATEWAY_PROFILE.read_text())
@@ -66,8 +52,7 @@ cd Backend
 .venv/bin/pytest tests/unit/deploy/test_vps_profile.py -q
 ```
 
-Expected: FAIL because the gateway assets do not exist and Ladle still owns
-Caddy.
+Expected: FAIL because the gateway assets do not exist.
 
 **Step 3: Add the minimal gateway assets**
 
@@ -95,8 +80,7 @@ cd Backend
   -k 'gateway or caddy_requires' -q
 ```
 
-Expected: gateway asset tests PASS; Ladle topology assertions remain red until
-Task 2.
+Expected: PASS.
 
 **Step 5: Commit**
 
@@ -104,7 +88,7 @@ Task 2.
 git add Backend/tests/unit/deploy/test_vps_profile.py \
   Backend/deploy/vps/gateway
 git diff --check
-git commit -m "test: specify shared VPS gateway"
+git commit -m "feat: add shared VPS gateway assets"
 ```
 
 ### Task 2: Detach public ingress from Ladle
@@ -118,6 +102,23 @@ git commit -m "test: specify shared VPS gateway"
 - Modify: `Backend/tests/unit/deploy/test_vps_profile.py`
 
 **Step 1: Keep the new Ladle lifecycle assertions red**
+
+Replace the app-owned Caddy assertions with tests that require:
+
+```python
+assert "caddy" not in _profile()["services"]
+assert all(
+    service.get("ports", []) == []
+    for service in _profile()["services"].values()
+)
+assert _profile()["services"]["edge"]["networks"]["platform"]["aliases"] == [
+    "ladle-edge"
+]
+assert _profile()["networks"]["platform"] == {
+    "external": True,
+    "name": "platform-edge",
+}
+```
 
 Require the deployment script to roll out only the app services and never run
 `compose ... caddy`. Require it to check that `platform-edge` exists before
@@ -428,4 +429,3 @@ git add docs/verification/2026-07-29-shared-vps-gateway.md
 git diff --check
 git commit -m "docs: verify shared VPS gateway"
 ```
-
