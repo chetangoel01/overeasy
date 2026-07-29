@@ -1449,6 +1449,20 @@ def test_gateway_caddy_imports_routes_and_preserves_ladle_access_controls() -> N
     assert "respond 404" in route
 
 
+def test_gateway_caddy_requires_http_host_to_match_tls_sni() -> None:
+    caddy = GATEWAY_CADDYFILE.read_text()
+    strict_sni_host = """{
+\tservers {
+\t\tstrict_sni_host on
+\t}
+}"""
+
+    assert strict_sni_host in caddy
+    assert caddy.index(strict_sni_host) < caddy.index(
+        "import /etc/caddy/routes/*.caddy"
+    )
+
+
 def test_vps_profile_publishes_no_host_ports() -> None:
     profile_text = PROFILE.read_text()
     services = _profile()["services"]
