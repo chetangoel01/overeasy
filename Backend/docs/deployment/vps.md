@@ -490,6 +490,10 @@ environment lives at `/etc/platform/gateway.env`, and it reaches each
 backend's uniquely named HTTP edge over `platform-edge`. Databases, queues,
 object stores, APIs, and workers must not join this network.
 
+The HTTPS listener enforces equality between the TLS SNI name and the HTTP
+host. Unknown SNI values fail TLS, while host spoofing over a connection for a
+configured name is rejected before application routing.
+
 Run gateway actions through the exact active release:
 
 **VPS**

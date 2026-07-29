@@ -77,6 +77,10 @@ The Ladle staging access key moves to a root-readable gateway environment file
 because the gateway enforces that policy. It is never placed in a release,
 shell output, or documentation. Other app secrets remain owned by their app.
 
+The TLS server requires every HTTPS request's HTTP host to match its TLS SNI.
+Unknown SNI values fail the TLS handshake, and a host-spoofed request on a
+known TLS connection is rejected before it can select an application route.
+
 Only HTTP edge containers join the shared network. Databases, queues, object
 stores, APIs, and workers never join it. Docker services continue to run with
 bounded privileges and without public host mappings.
