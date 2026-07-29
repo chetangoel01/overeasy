@@ -415,26 +415,17 @@ backup_pair_is_valid() {
 }
 
 latest_backup_path() {
-    latest_complete_backup=
-    latest_complete_mtime=-1
-    for candidate_backup in "$backup_dir"/ladle-*.dump; do
-        if [ ! -e "$candidate_backup" ] && [ ! -L "$candidate_backup" ]; then
-            continue
-        fi
+    find "$backup_dir" -maxdepth 1 -type f -name 'ladle-*.dump' \
+        -printf '%T@ %p\n' |
+        LC_ALL=C sort -rn |
+        while read -r candidate_mtime candidate_backup; do
+        [ -n "$candidate_mtime" ] && [ -n "$candidate_backup" ] || continue
         candidate_checksum=$candidate_backup.sha256
         backup_pair_is_valid "$candidate_backup" "$candidate_checksum" ||
             continue
-        candidate_mtime=$(stat -c '%Y' -- "$candidate_backup") || continue
-        case "$candidate_mtime" in
-            "" | *[!0-9]*) continue ;;
-        esac
-        if [ "$candidate_mtime" -gt "$latest_complete_mtime" ]; then
-            latest_complete_backup=$candidate_backup
-            latest_complete_mtime=$candidate_mtime
-        fi
+        printf '%s\n' "$candidate_backup"
+        break
     done
-    [ -n "$latest_complete_backup" ] || return 0
-    printf '%s\n' "$latest_complete_backup"
 }
 
 check_backup_freshness() {
@@ -462,12 +453,6 @@ check_backup_freshness() {
         [ "$backup_age_seconds" -gt $((backup_max_age_hours * 3600)) ]; then
         append_failure "backup is stale"
         return
-    fi
-    if ! (
-        cd "$backup_dir"
-        sha256sum -c --status "$(basename -- "$latest_checksum")"
-    ); then
-        append_failure "backup checksum"
     fi
 }
 

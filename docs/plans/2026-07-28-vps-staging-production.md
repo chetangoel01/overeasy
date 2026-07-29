@@ -572,7 +572,10 @@ git commit -m "feat: monitor and back up VPS staging"
   publication from the filesystem, startup removes only metadata-safe
   incomplete pairs under the deployment lock, freshness selects the newest
   metadata-safe checksum-valid complete pair, and retention removes pairs
-  together. A newer orphan therefore cannot hide an older valid backup.
+  together. Candidates are ordered newest-first and hashing stops at the first
+  valid pair without rehashing the winner, keeping the health check inside its
+  two-minute service budget. A newer orphan therefore cannot hide an older
+  valid backup.
 - An on-demand or timer backup takes the same nonblocking root deployment lock
   at `/var/lib/ladle/locks/deploy.lock` used by `deploy.sh` before reading the
   authoritative release or running `pg_dump`. It fails clearly when a
@@ -616,8 +619,9 @@ git commit -m "feat: monitor and back up VPS staging"
   post-commit cleanup signal. Additional executable cases cover strict timer
   query/reconciliation failures, container and Beat stability, concurrent and
   interrupted transition writes, publication signals, orphan recovery, valid
-  pair selection, and pairwise retention. The focused profile contains 120
-  tests and the complete deploy-unit set contains 157. POSIX `sh` and Dash
+  pair selection, bounded hash ordering, deterministic publication-signal
+  cleanup, and pairwise retention. The focused profile contains 122 tests and
+  the complete deploy-unit set contains 159. POSIX `sh` and Dash
   parsing for every VPS script, Ruff for the changed Python contract, and
   `git diff --check` also pass. `systemd-analyze` is unavailable in the macOS
   workspace, so real unit verification remains an explicit Ubuntu-side check

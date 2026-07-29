@@ -3247,12 +3247,9 @@ def test_backup_signal_after_first_publish_removes_filesystem_orphan(
 ) -> None:
     backup_dir = tmp_path / "backups"
     backup_dir.mkdir()
-    marker = tmp_path / "published-dump"
-    command = """
-. "$1"
-shift
+    result = _run_operations_library(
+        """
 backup_dir=$1
-marker=$2
 runtime_paths_ready=true
 validate_runtime_paths() { runtime_paths_ready=true; }
 acquire_deployment_lock() { :; }
@@ -3278,32 +3275,16 @@ mv() {
     for destination do :; done
     case "${destination##*/}" in
         ladle-*.dump)
-            : >"$marker"
-            sleep 30
+            kill -TERM $$
             ;;
     esac
 }
 run_backup
-"""
-    process = subprocess.Popen(
-        [
-            "/bin/sh",
-            "-c",
-            command,
-            "test",
-            str(OPERATIONS),
-            str(backup_dir),
-            str(marker),
-        ],
-        start_new_session=True,
+""",
+        backup_dir,
     )
-    for _ in range(300):
-        if marker.exists():
-            break
-        subprocess.run(["/bin/sleep", "0.01"], check=True)
-    assert marker.exists()
-    os.killpg(process.pid, signal.SIGTERM)
-    assert process.wait(timeout=5) != 0
+
+    assert result.returncode != 0
     assert not list(backup_dir.glob("ladle-*.dump"))
     assert not list(backup_dir.glob("ladle-*.dump.sha256"))
     assert not list(backup_dir.glob(".ladle-*"))
@@ -3354,6 +3335,11 @@ def test_backup_freshness_selects_older_valid_complete_pair(tmp_path: Path) -> N
         """
 backup_dir=$1
 safe_regular_file() { [ -f "$1" ] && [ ! -L "$1" ]; }
+find() {
+    printf '%s\n' \
+        "200.0 $backup_dir/ladle-20260728-000002-1.dump" \
+        "100.0 $backup_dir/ladle-20260728-000001-1.dump"
+}
 stat() {
     case "$*" in
         *000001*) printf '%s\n' 100 ;;
@@ -3370,6 +3356,67 @@ latest_backup_path
 
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == str(older_dump)
+
+
+@pytest.mark.parametrize(
+    ("invalid_newest", "expected_hashes"),
+    (
+        (False, (35,)),
+        (True, (35, 34)),
+    ),
+)
+def test_backup_freshness_hashes_only_until_newest_valid_pair(
+    tmp_path: Path,
+    invalid_newest: bool,
+    expected_hashes: tuple[int, ...],
+) -> None:
+    backup_dir = tmp_path / "backups"
+    backup_dir.mkdir()
+    for index in range(1, 36):
+        dump = backup_dir / f"ladle-20260728-000001-{index}.dump"
+        checksum = Path(f"{dump}.sha256")
+        dump.write_text(f"archive {index}\n")
+        checksum.write_text(f"{'0' * 64}  {dump.name}\n")
+        dump.chmod(0o600)
+        checksum.chmod(0o600)
+    hash_log = tmp_path / "hashes"
+    result = _run_operations_library(
+        """
+backup_dir=$1
+hash_log=$2
+invalid_newest=$3
+safe_regular_file() { [ -f "$1" ] && [ ! -L "$1" ]; }
+find() {
+    candidate_index=35
+    while [ "$candidate_index" -ge 1 ]; do
+        printf '%s.0 %s/ladle-20260728-000001-%s.dump\n' \
+            "$candidate_index" "$backup_dir" "$candidate_index"
+        candidate_index=$((candidate_index - 1))
+    done
+}
+date() { printf '%s\n' 1000; }
+stat() { printf '%s\n' 999; }
+sha256sum() {
+    for checksum_argument do :; done
+    checksum_name=${checksum_argument##*/}
+    checksum_index=${checksum_name##*-}
+    checksum_index=${checksum_index%%.*}
+    printf '%s\n' "$checksum_index" >>"$hash_log"
+    if [ "$invalid_newest" = true ] && [ "$checksum_index" -eq 35 ]; then
+        return 1
+    fi
+}
+health_failures=
+check_backup_freshness
+[ -z "$health_failures" ]
+""",
+        backup_dir,
+        hash_log,
+        str(invalid_newest).lower(),
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert tuple(map(int, hash_log.read_text().splitlines())) == expected_hashes
 
 
 def test_backup_retention_removes_complete_pair_together(tmp_path: Path) -> None:
