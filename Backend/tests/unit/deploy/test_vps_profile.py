@@ -236,6 +236,7 @@ def test_vps_runbook_documents_staging_recovery_and_production_gates() -> None:
     assert "every deployment runs the operations refresh step" in prose
     assert "current symlink authorizes operations dispatch" in prose
     assert "pinned release handoff fails closed" in prose
+    assert "before transition logging or backup lock acquisition" in prose
 
     forbidden_credentials = (
         "secret-retrieve",
@@ -518,10 +519,54 @@ safe_regular_file() {{ [ -f "$1" ] && [ ! -L "$1" ]; }}
 safe_directory() {{ [ -d "$1" ] && [ ! -L "$1" ]; }}
 validate_runtime_paths() {{ runtime_paths_ready=true; }}
 id() {{ printf '%s\\n' 0; }}
-systemctl() {{ :; }}
+trace_mutation() {{ printf '%s\\n' "$*" >>"$MUTATION_TRACE"; }}
+log_transition() {{ trace_mutation "log:$*"; }}
+acquire_deployment_lock() {{
+    trace_mutation lock-open
+    trace_mutation lock-acquire
+}}
+remove_incomplete_backup_pairs() {{ trace_mutation remove-incomplete; }}
+cleanup_backup() {{ trace_mutation cleanup; }}
+rm() {{ trace_mutation "rm:$*"; return 1; }}
+mktemp() {{ trace_mutation "mktemp:$*"; return 1; }}
+mv() {{ trace_mutation "mv:$*"; return 1; }}
+check_containers() {{
+    trace_mutation health-check
+    [ "${{HEALTH_FAIL_AFTER_AUTHORITY:-0}}" != 1 ] ||
+        append_failure "forced health failure"
+}}
+check_nginx() {{ :; }}
+check_api() {{ :; }}
+check_worker() {{ :; }}
+check_postgres() {{
+    trace_mutation backup-health-check
+    [ "${{BACKUP_FAIL_AFTER_AUTHORITY:-0}}" != 1 ] ||
+        append_failure "forced backup failure"
+}}
+check_redis() {{ :; }}
+check_minio() {{ :; }}
+check_certificate() {{ :; }}
+check_backup_freshness() {{ :; }}
+systemctl() {{ return "${{SYSTEMCTL_STATUS:-0}}"; }}
 journalctl() {{ :; }}
 compose() {{
     printf '%s\\n' "{label}:$backend_directory:$*" >>"$MUTATION_TRACE"
+}}
+gate_state_read() {{
+    [ -n "${{STATE_READ_SELECTED:-}}" ] || return 0
+    [ ! -e "$STATE_READ_SELECTED" ] || return 0
+    : >"$STATE_READ_SELECTED"
+    gate_attempt=0
+    while [ ! -e "$STATE_READ_RESUME" ]; do
+        gate_attempt=$((gate_attempt + 1))
+        [ "$gate_attempt" -le 500 ] || return 1
+        sleep 0.01
+    done
+}}
+wc() {{ command wc "$@"; gate_state_read; }}
+cat() {{
+    command cat "$@"
+    [ "${{1:-}}" != "$deployment_state" ] || gate_state_read
 }}
 operations_main "$@"
 """
@@ -3682,9 +3727,11 @@ def test_operations_executable_rejects_untrusted_release_pin(
     "mixed_state",
     ("new_state_old_current", "old_state_new_current"),
 )
+@pytest.mark.parametrize("operation", ("health", "backup"))
 def test_operations_pin_rejects_both_activation_write_order_mismatches(
     tmp_path: Path,
     mixed_state: str,
+    operation: str,
 ) -> None:
     releases = tmp_path / "releases"
     releases.mkdir()
@@ -3717,7 +3764,7 @@ def test_operations_pin_rejects_both_activation_write_order_mismatches(
     result = _run_release_operations(
         old_operations,
         mutation_trace,
-        "status",
+        operation,
         expected_release=str(old_release),
     )
 
@@ -3725,8 +3772,10 @@ def test_operations_pin_rejects_both_activation_write_order_mismatches(
     assert not mutation_trace.exists()
 
 
+@pytest.mark.parametrize("operation", ("health", "backup"))
 def test_operations_handoff_fails_closed_when_activation_wins_exec_race(
     tmp_path: Path,
+    operation: str,
 ) -> None:
     releases = tmp_path / "releases"
     releases.mkdir()
@@ -3766,7 +3815,7 @@ def test_operations_handoff_fails_closed_when_activation_wins_exec_race(
         "WRONG_OWNER_PATHS": "",
     }
     process = subprocess.Popen(
-        [str(launcher), "status"],
+        [str(launcher), operation],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         env=environment,
@@ -3791,6 +3840,199 @@ def test_operations_handoff_fails_closed_when_activation_wins_exec_race(
 
     assert process.returncode != 0, stderr
     assert not mutation_trace.exists()
+
+
+def test_operations_authority_uses_one_deployment_state_snapshot(
+    tmp_path: Path,
+) -> None:
+    releases = tmp_path / "releases"
+    releases.mkdir()
+    current = tmp_path / "current"
+    deployment_state = tmp_path / "deployment-state"
+    old_release, old_operations = _write_guarded_operations_release(
+        releases,
+        "a" * 40,
+        "old",
+        current,
+        deployment_state,
+    )
+    new_release, _ = _write_guarded_operations_release(
+        releases,
+        "b" * 40,
+        "new",
+        current,
+        deployment_state,
+    )
+    current.symlink_to(old_release)
+    _write_active_deployment_state(deployment_state, old_release.name)
+    selected = tmp_path / "state-read-selected"
+    resume = tmp_path / "state-read-resume"
+    mutation_trace = tmp_path / "mutation.trace"
+    environment = {
+        **os.environ,
+        "LADLE_OPERATIONS_EXPECTED_RELEASE": str(old_release),
+        "MUTATION_TRACE": str(mutation_trace),
+        "STATE_READ_SELECTED": str(selected),
+        "STATE_READ_RESUME": str(resume),
+    }
+    process = subprocess.Popen(
+        [str(old_operations), "status"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=environment,
+        text=True,
+    )
+    try:
+        deadline = time.monotonic() + 5
+        while (
+            not selected.exists()
+            and process.poll() is None
+            and time.monotonic() < deadline
+        ):
+            time.sleep(0.01)
+        assert selected.exists(), "state read did not reach the bounded gate"
+        _write_active_deployment_state(deployment_state, new_release.name)
+        resume.touch()
+        _, stderr = process.communicate(timeout=10)
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.communicate(timeout=5)
+
+    assert process.returncode == 0, stderr
+    assert mutation_trace.read_text().splitlines() == [
+        f"old:{old_release}/Backend:ps"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("operation", "failure_env", "expected_trace"),
+    (
+        (
+            "health",
+            {"HEALTH_FAIL_AFTER_AUTHORITY": "1"},
+            (
+                "health-check",
+                "backup-health-check",
+                "log:health failed forced health failure",
+            ),
+        ),
+        (
+            "backup",
+            {"BACKUP_FAIL_AFTER_AUTHORITY": "1"},
+            (
+                "lock-open",
+                "lock-acquire",
+                "remove-incomplete",
+                "backup-health-check",
+                "cleanup",
+                "log:backup failed database backup did not complete",
+            ),
+        ),
+    ),
+)
+def test_operations_preserve_post_authority_failure_cleanup_and_logging(
+    tmp_path: Path,
+    operation: str,
+    failure_env: dict[str, str],
+    expected_trace: tuple[str, ...],
+) -> None:
+    releases = tmp_path / "releases"
+    releases.mkdir()
+    current = tmp_path / "current"
+    deployment_state = tmp_path / "deployment-state"
+    release, operations = _write_guarded_operations_release(
+        releases,
+        "a" * 40,
+        "active",
+        current,
+        deployment_state,
+    )
+    current.symlink_to(release)
+    _write_active_deployment_state(deployment_state, release.name)
+    mutation_trace = tmp_path / "mutation.trace"
+    environment = {
+        **os.environ,
+        **failure_env,
+        "LADLE_OPERATIONS_EXPECTED_RELEASE": str(release),
+        "MUTATION_TRACE": str(mutation_trace),
+    }
+
+    result = subprocess.run(
+        [str(operations), operation],
+        check=False,
+        capture_output=True,
+        env=environment,
+        text=True,
+    )
+
+    assert result.returncode != 0
+    assert tuple(mutation_trace.read_text().splitlines()) == expected_trace
+
+
+@pytest.mark.parametrize(
+    ("systemctl_status", "expected_status"),
+    ((0, 0), (3, 0), (1, 1), (4, 4)),
+)
+def test_operations_status_only_tolerates_inactive_systemd_units(
+    tmp_path: Path,
+    systemctl_status: int,
+    expected_status: int,
+) -> None:
+    releases = tmp_path / "releases"
+    releases.mkdir()
+    current = tmp_path / "current"
+    deployment_state = tmp_path / "deployment-state"
+    release, operations = _write_guarded_operations_release(
+        releases,
+        "a" * 40,
+        "active",
+        current,
+        deployment_state,
+    )
+    current.symlink_to(release)
+    _write_active_deployment_state(deployment_state, release.name)
+    mutation_trace = tmp_path / "mutation.trace"
+
+    result = subprocess.run(
+        [str(operations), "status"],
+        check=False,
+        capture_output=True,
+        env={
+            **os.environ,
+            "LADLE_OPERATIONS_EXPECTED_RELEASE": str(release),
+            "MUTATION_TRACE": str(mutation_trace),
+            "SYSTEMCTL_STATUS": str(systemctl_status),
+        },
+        text=True,
+    )
+
+    assert result.returncode == expected_status, result.stderr
+
+
+@pytest.mark.parametrize(
+    ("journal_status", "compose_status"),
+    ((1, 0), (0, 1)),
+)
+def test_operations_logs_propagate_journal_and_compose_errors(
+    journal_status: int,
+    compose_status: int,
+) -> None:
+    result = _run_operations_library(
+        """
+log_lines=20
+load_authoritative_release() { :; }
+journalctl() { return "$JOURNAL_STATUS"; }
+compose() { return "$COMPOSE_STATUS"; }
+show_logs
+""",
+        env={
+            "JOURNAL_STATUS": str(journal_status),
+            "COMPOSE_STATUS": str(compose_status),
+        },
+    )
+
+    assert result.returncode != 0
 
 
 @pytest.mark.parametrize(
@@ -4126,9 +4368,10 @@ def test_backup_refuses_to_race_the_deployment_transaction() -> None:
     lock_path = "/var/lib/ladle/locks/deploy.lock"
     assert lock_path in operations
     assert "flock -n" in operations
-    assert backup.index("acquire_deployment_lock") < backup.index(
-        "load_authoritative_release"
-    )
+    authority = backup.index("load_authoritative_release")
+    lock = backup.index("acquire_deployment_lock")
+    removal = backup.index("remove_incomplete_backup_pairs")
+    assert authority < lock < removal
     assert backup.index("acquire_deployment_lock") < backup.index("pg_dump -Fc")
     assert lock_path in BACKUP_SERVICE.read_text()
     assert "/var/lock/ladle-deploy.lock" not in operations

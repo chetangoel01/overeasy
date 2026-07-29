@@ -334,7 +334,9 @@ non-secret pin. The script reads deployment state and resolves `current` once,
 then requires both to match that pin before deriving any Compose paths or
 starting health or backup work. This pinned release handoff fails closed if an
 activation races the launcher-to-script transition, including either temporary
-state/current write ordering.
+state/current write ordering. Authority must validate before transition logging
+or backup lock acquisition; an invalid handoff cannot clean, remove, or create
+backup files.
 
 After the first successful push, install the health and backup operations once,
 outside the deployment lock.

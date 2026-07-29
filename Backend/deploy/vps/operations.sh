@@ -28,6 +28,7 @@ backend_directory=
 base_compose=
 vps_compose=
 runtime_paths_ready=false
+authoritative_release_loaded=false
 
 fail() {
     printf '%s\n' "$*" >&2
@@ -111,6 +112,7 @@ validate_runtime_paths() {
 }
 
 load_authoritative_release() {
+    authoritative_release_loaded=false
     validate_expected_release || {
         fail "Operations release handoff is invalid."
         return 1
@@ -119,15 +121,30 @@ load_authoritative_release() {
         fail "Deployment state metadata is unsafe."
         return 1
     }
-    [ "$(wc -l <"$deployment_state" | tr -d ' ')" = 3 ] || {
+    state_sentinel=__LADLE_STATE_SNAPSHOT_END__
+    state_snapshot=$(
+        cat "$deployment_state" &&
+            printf '%s' "$state_sentinel"
+    ) || {
+        fail "Cannot read deployment state."
+        return 1
+    }
+    case "$state_snapshot" in
+        *"$state_sentinel") ;;
+        *)
+            fail "Cannot read deployment state."
+            return 1
+            ;;
+    esac
+    state_contents=${state_snapshot%"$state_sentinel"}
+    [ "$(printf '%s' "$state_contents" | wc -l | tr -d ' ')" = 3 ] || {
         fail "Deployment state has an invalid shape."
         return 1
     }
 
-    state_contents=$(cat "$deployment_state") || return 1
-    status_line=$(printf '%s\n' "$state_contents" | sed -n '1p')
-    revision_line=$(printf '%s\n' "$state_contents" | sed -n '2p')
-    phase_line=$(printf '%s\n' "$state_contents" | sed -n '3p')
+    status_line=$(printf '%s' "$state_contents" | sed -n '1p')
+    revision_line=$(printf '%s' "$state_contents" | sed -n '2p')
+    phase_line=$(printf '%s' "$state_contents" | sed -n '3p')
     [ "$status_line" = "STATUS=active" ] || {
         fail "Deployment state is not active."
         return 1
@@ -184,6 +201,7 @@ load_authoritative_release() {
         fail "The active VPS Compose file is unsafe."
         return 1
     }
+    authoritative_release_loaded=true
 }
 
 compose() {
@@ -468,24 +486,23 @@ check_backup_freshness() {
 
 health_check() {
     health_failures=
+    authoritative_release_loaded=false
     if ! validate_runtime_paths || ! load_authoritative_release; then
-        health_failures="deployment authority"
-    else
-        check_containers
-        check_nginx
-        check_api
-        check_worker
-        check_postgres
-        check_redis
-        check_minio
-        check_certificate
-        check_backup_freshness
+        printf '%s\n' "health failed: deployment authority" >&2
+        return 1
     fi
+    check_containers
+    check_nginx
+    check_api
+    check_worker
+    check_postgres
+    check_redis
+    check_minio
+    check_certificate
+    check_backup_freshness
 
     if [ -n "$health_failures" ]; then
-        if [ "$runtime_paths_ready" = true ]; then
-            log_transition health failed "$health_failures" || true
-        fi
+        log_transition health failed "$health_failures" || true
         printf 'health failed: %s\n' "$health_failures" >&2
         return 1
     fi
@@ -577,10 +594,11 @@ database_backup() {
     temporary_checksum=
     backup_path=
     checksum_path=
+    authoritative_release_loaded=false
     validate_runtime_paths || return 1
+    load_authoritative_release || return 1
     acquire_deployment_lock || return 1
     remove_incomplete_backup_pairs || return 1
-    load_authoritative_release || return 1
     health_failures=
     check_postgres
     [ -z "$health_failures" ] || return 1
@@ -648,6 +666,10 @@ run_backup() {
     if database_backup; then
         return 0
     fi
+    if [ "$authoritative_release_loaded" != true ]; then
+        printf '%s\n' "backup failed" >&2
+        return 1
+    fi
     if cleanup_backup; then
         trap - 0 HUP INT TERM || true
     fi
@@ -673,17 +695,23 @@ show_status() {
     fi
     printf '%s\n' "deployment authority: active"
     compose ps || return 1
-    systemctl --no-pager --full --lines="$log_lines" status \
+    if systemctl --no-pager --full --lines="$log_lines" status \
         ladle-health.timer ladle-backup.timer \
-        ladle-health.service ladle-backup.service || true
+        ladle-health.service ladle-backup.service; then
+        return 0
+    else
+        systemctl_status=$?
+    fi
+    [ "$systemctl_status" -eq 3 ] && return 0
+    return "$systemctl_status"
 }
 
 show_logs() {
     load_authoritative_release || return 1
     journalctl --no-pager -n "$log_lines" \
-        -u ladle-health.service -u ladle-backup.service
+        -u ladle-health.service -u ladle-backup.service || return 1
     compose logs --no-color --tail "$log_lines" \
-        edge api worker worker-egress beat postgres redis minio
+        edge api worker worker-egress beat postgres redis minio || return 1
 }
 
 operations_main() {

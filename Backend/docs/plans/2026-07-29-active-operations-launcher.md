@@ -105,3 +105,21 @@ before activation because dispatch remains controlled by `current`.
    before deriving Compose paths or performing operations.
 4. Verify stable releases, invalid pins, both mixed activation write orders,
    and the race before running the full profile.
+
+### Task 6: Gate operations mutations on loaded authority
+
+**Files:**
+
+- Modify: `Backend/deploy/vps/operations.sh`
+- Modify: `Backend/docs/deployment/vps.md`
+- Test: `Backend/tests/unit/deploy/test_vps_profile.py`
+
+**Steps:**
+
+1. Trace health, backup, logging, lock, cleanup, and file operations through
+   both mixed activation states and the bounded launcher race.
+2. Load a single deployment-state snapshot and fully validate the pinned
+   release before any health or backup mutation.
+3. Preserve transition logging and backup cleanup only after authority loads.
+4. Treat inactive one-shot systemd units as expected while propagating other
+   status, journal, and Compose errors.
