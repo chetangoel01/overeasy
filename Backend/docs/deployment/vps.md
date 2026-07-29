@@ -276,6 +276,10 @@ OVH hostname, whose A and AAAA records already resolve to this VPS. This
 temporary hostname is for guarded staging only; changing it later requires a
 planned environment rotation and redeploy.
 
+Caddy is the VPS TLS boundary and emits the two-year HSTS policy for every
+HTTPS response, including staging-gate rejections. Nginx and the API retain the
+remaining security headers on authorized responses.
+
 **Mac — from `Backend/`**
 
 ```bash

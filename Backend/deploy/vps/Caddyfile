@@ -1,5 +1,7 @@
 {$LADLE_PUBLIC_HOSTNAME} {
 	route {
+		header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+
 		@private path /ladle-private/*
 		reverse_proxy @private edge:8082 {
 			header_up Host {http.request.host}

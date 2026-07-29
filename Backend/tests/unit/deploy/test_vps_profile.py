@@ -821,6 +821,13 @@ def test_caddy_requires_the_key_except_for_signed_object_paths() -> None:
     assert "reverse_proxy @private edge:8082" in caddy
     assert "reverse_proxy @authorized edge:8082" in caddy
     assert "respond 404" in caddy
+    assert (
+        'header Strict-Transport-Security "max-age=63072000; '
+        'includeSubDomains; preload"'
+    ) in caddy
+    assert caddy.index("header Strict-Transport-Security") < caddy.index(
+        "@private path"
+    )
     assert caddy.index("@private path") < caddy.index("@authorized header")
     assert caddy.index("@authorized header") < caddy.index("respond 404")
     assert caddy.count("header_up Host {http.request.host}") == 2
