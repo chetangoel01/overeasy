@@ -521,7 +521,9 @@ empty PostgreSQL service instead of changing the live database.
 
 Key rotation overlaps old and new access:
 
-1. Generate a new dedicated Ed25519 key on the Mac.
+1. Record the exact SHA-256 fingerprint of the intended old public key, then
+   generate the new dedicated Ed25519 key and record its fingerprint before
+   changing server authorization.
 2. From the still-working old-key session, install only the new public key.
 3. Prove a second key-only login using the new identity and compare public-key
    fingerprints.
@@ -534,8 +536,33 @@ Key rotation overlaps old and new access:
 **Mac**
 
 ```bash
+set -eu
+set -o pipefail
+OLD_SSH_KEY="$HOME/.ssh/ladle-ovh-staging"
 NEW_SSH_KEY="$HOME/.ssh/ladle-ovh-staging-next"
+public_key_fingerprint() {
+  ssh-keygen -lf "$1" -E sha256 |
+    awk '
+      NR == 1 &&
+        $2 ~ /^SHA256:[A-Za-z0-9+\/]+$/ &&
+        length($2) == 50 {
+          fingerprint = $2
+          next
+        }
+      { invalid = 1 }
+      END {
+        if (invalid || NR != 1 || fingerprint == "") {
+          exit 1
+        }
+        print fingerprint
+      }
+    '
+}
+OLD_KEY_FINGERPRINT=$(public_key_fingerprint "$OLD_SSH_KEY.pub")
 ssh-keygen -t ed25519 -a 64 -f "$NEW_SSH_KEY" -C ladle-vps-staging-next
+NEW_KEY_FINGERPRINT=$(public_key_fingerprint "$NEW_SSH_KEY.pub")
+printf 'Old key fingerprint: %s\nNew key fingerprint: %s\n' \
+  "$OLD_KEY_FINGERPRINT" "$NEW_KEY_FINGERPRINT"
 ssh-copy-id -i "$NEW_SSH_KEY.pub" ubuntu@135.148.42.60
 ssh -i "$NEW_SSH_KEY" -o IdentitiesOnly=yes \
   -o PreferredAuthentications=publickey \
@@ -579,44 +606,63 @@ chmod 0600 ~/.ssh/authorized_keys
 ```
 
 After saving the reduced authorized-key file, keep both recovery sessions open.
-Prove rejection with only the old identity: `-F /dev/null` bypasses the new
-`~/.ssh/config`, `IdentityAgent=none` bypasses the agent, and
-`IdentitiesOnly=yes` prevents fallback keys. A nonzero SSH result alone is not
-proof because a network or host-key error has the same generic exit status.
-Require the explicit public-key authentication rejection, then prove the
-ordinary/default path still succeeds with the configured new identity.
+Use the already-proven ordinary/default connection to derive every exact
+SHA-256 fingerprint still present in the server's `authorized_keys`. Fail if
+the recorded old fingerprint remains or the recorded new fingerprint is not
+present exactly once. This verifies the server key set directly; a failed
+old-key login is not accepted as proof because local signing and generic
+connection errors are ambiguous. Then separately prove the ordinary/default
+new-key path still succeeds.
 
 **Mac**
 
 ```bash
 (
   set -eu
+  set -o pipefail
   umask 077
-  OLD_SSH_KEY="$HOME/.ssh/ladle-ovh-staging"
-  OLD_KEY_CHECK=$(mktemp /tmp/ladle-old-key-check.XXXXXX)
-  cleanup_old_key_check() {
-    rm -f -- "$OLD_KEY_CHECK"
+  : "${OLD_KEY_FINGERPRINT:?Record the old key fingerprint first.}"
+  : "${NEW_KEY_FINGERPRINT:?Record the new key fingerprint first.}"
+  AUTHORIZED_KEY_FINGERPRINTS=$(
+    mktemp /tmp/ladle-authorized-key-fingerprints.XXXXXX
+  )
+  cleanup_authorized_key_fingerprints() {
+    rm -f -- "$AUTHORIZED_KEY_FINGERPRINTS"
   }
-  trap cleanup_old_key_check 0
+  trap cleanup_authorized_key_fingerprints 0
   trap 'exit 1' HUP INT TERM
-  if LC_ALL=C ssh \
-    -F /dev/null \
-    -o IdentityAgent=none \
-    -o IdentitiesOnly=yes \
-    -o PreferredAuthentications=publickey \
-    -o PasswordAuthentication=no \
-    -o KbdInteractiveAuthentication=no \
-    -i "$OLD_SSH_KEY" \
-    ubuntu@135.148.42.60 true \
-    >/dev/null 2>"$OLD_KEY_CHECK"; then
-    printf '%s\n' "Old SSH key is still accepted; keep both recovery sessions open." >&2
+  ssh ubuntu@135.148.42.60 \
+    'ssh-keygen -lf ~/.ssh/authorized_keys -E sha256' |
+    awk '
+      NF >= 2 &&
+        $2 ~ /^SHA256:[A-Za-z0-9+\/]+$/ &&
+        length($2) == 50 {
+          print $2
+          count += 1
+          next
+        }
+      { invalid = 1 }
+      END {
+        if (invalid || count == 0) {
+          exit 1
+        }
+      }
+    ' > "$AUTHORIZED_KEY_FINGERPRINTS"
+  test -s "$AUTHORIZED_KEY_FINGERPRINTS"
+  OLD_FINGERPRINT_COUNT=$(
+    grep -Fxc -- "$OLD_KEY_FINGERPRINT" "$AUTHORIZED_KEY_FINGERPRINTS" || true
+  )
+  NEW_FINGERPRINT_COUNT=$(
+    grep -Fxc -- "$NEW_KEY_FINGERPRINT" "$AUTHORIZED_KEY_FINGERPRINTS" || true
+  )
+  if [ "$OLD_FINGERPRINT_COUNT" -ne 0 ]; then
+    printf '%s\n' \
+      "Old fingerprint remains authorized; keep both recovery sessions open." >&2
     exit 1
   fi
-  if ! grep -Fq 'Permission denied (publickey)' "$OLD_KEY_CHECK"; then
+  if [ "$NEW_FINGERPRINT_COUNT" -ne 1 ]; then
     printf '%s\n' \
-      "Old-key check did not reach authentication rejection." \
-      "Do not treat it as cryptographic proof; keep both recovery sessions open." \
-      "Verify reachability and the host-key fingerprint, then retry." >&2
+      "New fingerprint is absent or duplicated; keep both recovery sessions open." >&2
     exit 1
   fi
 ) &&

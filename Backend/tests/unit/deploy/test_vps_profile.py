@@ -136,21 +136,32 @@ def test_vps_runbook_documents_staging_recovery_and_production_gates() -> None:
     ordinary_login = key_rotation.index("ssh ubuntu@135.148.42.60")
     old_key_removal = key_rotation.index("${editor:-vi} ~/.ssh/authorized_keys")
     assert new_default_identity < ordinary_login < old_key_removal
-    isolated_old_key = key_rotation.index("-f /dev/null", old_key_removal)
-    ordinary_new_key = key_rotation.index(
-        "ssh ubuntu@135.148.42.60 true", isolated_old_key
+    server_fingerprints = key_rotation.index(
+        "ssh-keygen -lf ~/.ssh/authorized_keys -e sha256", old_key_removal
     )
-    assert old_key_removal < isolated_old_key < ordinary_new_key
+    ordinary_new_key = key_rotation.index(
+        "ssh ubuntu@135.148.42.60 true", server_fingerprints
+    )
+    assert old_key_removal < server_fingerprints < ordinary_new_key
     for required in (
-        "identityagent=none",
-        "identitiesonly=yes",
-        "preferredauthentications=publickey",
-        "passwordauthentication=no",
-        "permission denied (publickey)",
-        "do not treat it as cryptographic proof",
+        'ssh-keygen -lf "$1" -e sha256',
+        'public_key_fingerprint "$old_ssh_key.pub"',
+        'public_key_fingerprint "$new_ssh_key.pub"',
+        "old_key_fingerprint",
+        "new_key_fingerprint",
+        "authorized_key_fingerprints",
+        "cleanup_authorized_key_fingerprints",
+        "trap cleanup_authorized_key_fingerprints 0",
+        "trap 'exit 1' hup int term",
+        'test -s "$authorized_key_fingerprints"',
+        "grep -fxc --",
+        "old fingerprint remains authorized",
+        "new fingerprint is absent or duplicated",
         "keep both recovery sessions open",
     ):
         assert required in key_rotation
+    assert "-f /dev/null" not in key_rotation
+    assert "permission denied (publickey)" not in key_rotation
 
     restore_drill = lowered.split(
         "## empty-server postgresql 16 restore drill", maxsplit=1
