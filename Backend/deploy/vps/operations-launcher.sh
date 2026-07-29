@@ -7,6 +7,7 @@ export PATH
 
 current_release=/opt/ladle/current
 releases_directory=/opt/ladle/releases
+deployment_lock=/var/lib/ladle/locks/deploy.lock
 trusted_uid=0
 
 launcher_fail() {
@@ -22,6 +23,20 @@ trusted_directory() {
     [ "${trusted_metadata%%:*}" = "$trusted_uid" ] || return 1
     trusted_mode=${trusted_metadata##*:}
     [ $((0$trusted_mode & 022)) -eq 0 ]
+}
+
+trusted_deployment_lock() {
+    [ -f "$deployment_lock" ] && [ ! -L "$deployment_lock" ] || return 1
+    [ "$(readlink -f -- "$deployment_lock")" = "$deployment_lock" ] ||
+        return 1
+    [ "$(stat -c '%u:%a' -- "$deployment_lock")" = "$trusted_uid:600" ]
+}
+
+acquire_operations_authority_lock() {
+    trusted_deployment_lock || launcher_fail
+    exec 9<"$deployment_lock" || launcher_fail
+    flock -s 9 || launcher_fail
+    trusted_deployment_lock || launcher_fail
 }
 
 trusted_release_tree() {
@@ -45,6 +60,7 @@ launch_active_operations() {
     [ "${current_release%/*}" = "$ladle_directory" ] || launcher_fail
     trusted_directory "$ladle_directory" || launcher_fail
     trusted_directory "$releases_directory" || launcher_fail
+    acquire_operations_authority_lock
     [ -L "$current_release" ] || launcher_fail
     current_metadata=$(stat -c '%u:%a' -- "$current_release") ||
         launcher_fail

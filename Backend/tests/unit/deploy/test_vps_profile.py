@@ -6,6 +6,7 @@ import shutil
 import signal
 import stat
 import subprocess
+import sys
 import time
 from pathlib import Path
 from typing import Any
@@ -237,6 +238,8 @@ def test_vps_runbook_documents_staging_recovery_and_production_gates() -> None:
     assert "current symlink authorizes operations dispatch" in prose
     assert "pinned release handoff fails closed" in prose
     assert "before transition logging or backup lock acquisition" in prose
+    assert "blocking shared deployment lock" in prose
+    assert "two-minute health service timeout" in prose
 
     forbidden_credentials = (
         "secret-retrieve",
@@ -361,6 +364,7 @@ def _run_operations_library(
     script: str,
     *arguments: str | Path,
     env: dict[str, str] | None = None,
+    timeout: float | None = None,
 ) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [
@@ -375,6 +379,7 @@ def _run_operations_library(
         capture_output=True,
         env={**os.environ, **(env or {})},
         text=True,
+        timeout=timeout,
     )
 
 
@@ -427,11 +432,20 @@ def _write_test_operations_launcher(
     current: Path,
     releases: Path,
     *,
+    deployment_lock: Path | None = None,
+    create_deployment_lock: bool = True,
+    mark_before_current_selection: bool = False,
     pause_before_exec: bool = False,
 ) -> Path:
     fake_bin = tmp_path / "launcher-bin"
     fake_bin.mkdir(exist_ok=True)
     _write_launcher_stat(fake_bin / "stat")
+    _write_fake_flock(fake_bin / "flock")
+    if deployment_lock is None:
+        deployment_lock = tmp_path / "deploy.lock"
+    if create_deployment_lock:
+        deployment_lock.touch()
+        deployment_lock.chmod(0o600)
     launcher = tmp_path / "ladle-operations"
     launcher_source = OPERATIONS_LAUNCHER.read_text()
     replacements = {
@@ -445,11 +459,51 @@ def _write_test_operations_launcher(
         "releases_directory=/opt/ladle/releases": (
             f"releases_directory={shlex.quote(str(releases))}"
         ),
+        "deployment_lock=/var/lib/ladle/locks/deploy.lock": (
+            f"deployment_lock={shlex.quote(str(deployment_lock))}"
+        ),
         "trusted_uid=0": f"trusted_uid={os.getuid()}",
     }
     for original, replacement in replacements.items():
-        assert original in launcher_source
-        launcher_source = launcher_source.replace(original, replacement, 1)
+        if original in launcher_source:
+            launcher_source = launcher_source.replace(original, replacement, 1)
+        elif original.startswith("deployment_lock="):
+            launcher_source = launcher_source.replace(
+                "trusted_uid=0",
+                f"trusted_uid=0\n{replacement}",
+                1,
+            )
+        else:
+            raise AssertionError(f"missing launcher setting: {original}")
+    if mark_before_current_selection:
+        launch_line = "launch_active_operations() {"
+        assert launch_line in launcher_source
+        launcher_source = launcher_source.replace(
+            launch_line,
+            """launch_active_operations() {
+    : >"$LAUNCHER_STARTED"
+    launcher_start_attempt=0
+    while [ ! -e "$LAUNCHER_CONTINUE" ]; do
+        launcher_start_attempt=$((launcher_start_attempt + 1))
+        [ "$launcher_start_attempt" -le 500 ] || launcher_fail
+        sleep 0.01
+    done""",
+            1,
+        )
+        selection_line = '    [ -L "$current_release" ] || launcher_fail'
+        assert selection_line in launcher_source
+        launcher_source = launcher_source.replace(
+            selection_line,
+            f"""    : >"$LAUNCHER_SELECTING"
+    launcher_selection_attempt=0
+    while [ ! -e "$LAUNCHER_SELECTION_RESUME" ]; do
+        launcher_selection_attempt=$((launcher_selection_attempt + 1))
+        [ "$launcher_selection_attempt" -le 500 ] || launcher_fail
+        sleep 0.01
+    done
+{selection_line}""",
+            1,
+        )
     if pause_before_exec:
         exec_line = '    exec "$operations_script" "$@"'
         assert exec_line in launcher_source
@@ -625,6 +679,22 @@ def _run_launcher(
     )
 
 
+def _wait_for_path(
+    path: Path,
+    *,
+    process: subprocess.Popen[str] | None = None,
+    timeout: float = 5,
+) -> None:
+    deadline = time.monotonic() + timeout
+    while (
+        not path.exists()
+        and (process is None or process.poll() is None)
+        and time.monotonic() < deadline
+    ):
+        time.sleep(0.01)
+    assert path.exists(), f"timed out waiting for {path}"
+
+
 def _run_release_operations(
     operations: Path,
     mutation_trace: Path,
@@ -676,9 +746,11 @@ import fcntl
 import sys
 
 arguments = sys.argv[1:]
-nonblocking = arguments[0] == "-n"
+nonblocking = "-n" in arguments
+shared = "-s" in arguments
 descriptor = int(arguments[-1])
-operation = fcntl.LOCK_EX | (fcntl.LOCK_NB if nonblocking else 0)
+operation = fcntl.LOCK_SH if shared else fcntl.LOCK_EX
+operation |= fcntl.LOCK_NB if nonblocking else 0
 try:
     fcntl.flock(descriptor, operation)
 except BlockingIOError:
@@ -3626,6 +3698,335 @@ def test_operations_launcher_follows_current_after_activation(tmp_path: Path) ->
     ]
 
 
+def test_operations_launcher_shared_lock_open_does_not_truncate(
+    tmp_path: Path,
+) -> None:
+    releases = tmp_path / "releases"
+    releases.mkdir()
+    release, _, _ = _write_operations_release(
+        releases,
+        "a" * 40,
+        "active",
+    )
+    current = tmp_path / "current"
+    current.symlink_to(release)
+    deployment_lock = tmp_path / "deploy.lock"
+    deployment_lock.write_text("lock-sentinel\n")
+    deployment_lock.chmod(0o600)
+    launcher = _write_test_operations_launcher(
+        tmp_path,
+        current,
+        releases,
+        deployment_lock=deployment_lock,
+        create_deployment_lock=False,
+    )
+
+    result = _run_launcher(
+        launcher,
+        tmp_path / "launch.trace",
+        "status",
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert deployment_lock.read_text() == "lock-sentinel\n"
+
+
+@pytest.mark.parametrize(
+    "unsafe_lock",
+    (
+        "missing",
+        "symlink",
+        "wrong_owner",
+        "wrong_mode",
+        "canonical_mismatch",
+    ),
+)
+def test_operations_launcher_rejects_unsafe_deployment_lock_before_dispatch(
+    tmp_path: Path,
+    unsafe_lock: str,
+) -> None:
+    releases = tmp_path / "releases"
+    releases.mkdir()
+    release, _, _ = _write_operations_release(
+        releases,
+        "a" * 40,
+        "active",
+    )
+    current = tmp_path / "current"
+    current.symlink_to(release)
+    deployment_lock = tmp_path / "deploy.lock"
+    actual_lock = deployment_lock
+    wrong_owner_paths: tuple[Path, ...] = ()
+    if unsafe_lock == "canonical_mismatch":
+        canonical_directory = tmp_path / "canonical-locks"
+        canonical_directory.mkdir()
+        alias_directory = tmp_path / "lock-alias"
+        alias_directory.symlink_to(canonical_directory, target_is_directory=True)
+        deployment_lock = alias_directory / "deploy.lock"
+        actual_lock = canonical_directory / "deploy.lock"
+    if unsafe_lock != "missing":
+        actual_lock.touch()
+        actual_lock.chmod(0o600)
+    if unsafe_lock == "symlink":
+        actual_lock.unlink()
+        target = tmp_path / "lock-target"
+        target.touch()
+        target.chmod(0o600)
+        actual_lock.symlink_to(target)
+    elif unsafe_lock == "wrong_owner":
+        wrong_owner_paths = (deployment_lock,)
+    elif unsafe_lock == "wrong_mode":
+        actual_lock.chmod(0o640)
+    launcher = _write_test_operations_launcher(
+        tmp_path,
+        current,
+        releases,
+        deployment_lock=deployment_lock,
+        create_deployment_lock=False,
+    )
+    trace = tmp_path / "launch.trace"
+
+    result = _run_launcher(
+        launcher,
+        trace,
+        "health",
+        wrong_owner_paths=wrong_owner_paths,
+    )
+
+    assert result.returncode != 0
+    assert result.stderr == "Cannot run active Ladle operations.\n"
+    assert not trace.exists()
+
+
+def test_operations_launcher_holds_authority_for_legacy_release_until_exit(
+    tmp_path: Path,
+) -> None:
+    releases = tmp_path / "releases"
+    releases.mkdir()
+    old_release, _, old_operations = _write_operations_release(
+        releases,
+        "a" * 40,
+        "old",
+    )
+    new_release, _, _ = _write_operations_release(
+        releases,
+        "b" * 40,
+        "new",
+    )
+    current = tmp_path / "current"
+    current.symlink_to(old_release)
+    deployment_lock = tmp_path / "deploy.lock"
+    launcher = _write_test_operations_launcher(
+        tmp_path,
+        current,
+        releases,
+        deployment_lock=deployment_lock,
+    )
+    legacy_started = tmp_path / "legacy-started"
+    legacy_observe = tmp_path / "legacy-observe"
+    activation_attempted = tmp_path / "activation-attempted"
+    activation_acquired = tmp_path / "activation-acquired"
+    trace = tmp_path / "launch.trace"
+    old_operations.write_text(
+        """#!/bin/sh
+: >"$LEGACY_STARTED"
+attempt=0
+while [ ! -e "$LEGACY_OBSERVE" ]; do
+    attempt=$((attempt + 1))
+    [ "$attempt" -le 500 ] || exit 1
+    sleep 0.01
+done
+observed=$(readlink -f -- "$CURRENT_PATH") || exit 1
+printf '%s\n' "legacy:$observed" >>"$LAUNCH_TRACE"
+"""
+    )
+    old_operations.chmod(0o755)
+    environment = {
+        **os.environ,
+        "LAUNCH_TRACE": str(trace),
+        "WRONG_OWNER_PATHS": "",
+        "LEGACY_STARTED": str(legacy_started),
+        "LEGACY_OBSERVE": str(legacy_observe),
+        "CURRENT_PATH": str(current),
+    }
+    launcher_process = subprocess.Popen(
+        [str(launcher), "health"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=environment,
+        text=True,
+    )
+    activation_process: subprocess.Popen[str] | None = None
+    try:
+        _wait_for_path(legacy_started, process=launcher_process)
+        activation_process = subprocess.Popen(
+            [
+                sys.executable,
+                "-c",
+                """
+import fcntl
+import os
+import pathlib
+import sys
+
+lock, current, release, attempted, acquired = map(pathlib.Path, sys.argv[1:])
+with lock.open("r+") as descriptor:
+    attempted.touch()
+    fcntl.flock(descriptor, fcntl.LOCK_EX)
+    replacement = current.with_name(f"{current.name}.next")
+    replacement.symlink_to(release)
+    os.replace(replacement, current)
+    acquired.touch()
+""",
+                str(deployment_lock),
+                str(current),
+                str(new_release),
+                str(activation_attempted),
+                str(activation_acquired),
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        _wait_for_path(activation_attempted, process=activation_process)
+        with pytest.raises(subprocess.TimeoutExpired):
+            activation_process.communicate(timeout=0.2)
+        assert not activation_acquired.exists()
+        assert current.resolve() == old_release
+        legacy_observe.touch()
+        _, launcher_stderr = launcher_process.communicate(timeout=10)
+        assert launcher_process.returncode == 0, launcher_stderr
+        _, activation_stderr = activation_process.communicate(timeout=10)
+        assert activation_process.returncode == 0, activation_stderr
+    finally:
+        legacy_observe.touch(exist_ok=True)
+        if launcher_process.poll() is None:
+            launcher_process.kill()
+            launcher_process.communicate(timeout=5)
+        if activation_process is not None and activation_process.poll() is None:
+            activation_process.kill()
+            activation_process.communicate(timeout=5)
+
+    subsequent = _run_launcher(launcher, trace, "backup")
+
+    assert subsequent.returncode == 0, subsequent.stderr
+    assert trace.read_text().splitlines() == [
+        f"legacy:{old_release}",
+        f"new:{new_release}:backup",
+    ]
+
+
+def test_operations_launcher_waits_for_exclusive_deployment_before_selection(
+    tmp_path: Path,
+) -> None:
+    releases = tmp_path / "releases"
+    releases.mkdir()
+    old_release, _, _ = _write_operations_release(
+        releases,
+        "a" * 40,
+        "old",
+    )
+    new_release, _, _ = _write_operations_release(
+        releases,
+        "b" * 40,
+        "new",
+    )
+    current = tmp_path / "current"
+    current.symlink_to(old_release)
+    deployment_lock = tmp_path / "deploy.lock"
+    launcher = _write_test_operations_launcher(
+        tmp_path,
+        current,
+        releases,
+        deployment_lock=deployment_lock,
+        mark_before_current_selection=True,
+    )
+    deployment_held = tmp_path / "deployment-held"
+    deployment_release = tmp_path / "deployment-release"
+    launcher_started = tmp_path / "launcher-started"
+    launcher_continue = tmp_path / "launcher-continue"
+    launcher_selecting = tmp_path / "launcher-selecting"
+    launcher_selection_resume = tmp_path / "launcher-selection-resume"
+    trace = tmp_path / "launch.trace"
+    deployment_process = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            """
+import fcntl
+import os
+import pathlib
+import sys
+import time
+
+lock, current, release, held, resume = map(pathlib.Path, sys.argv[1:])
+with lock.open("r+") as descriptor:
+    fcntl.flock(descriptor, fcntl.LOCK_EX)
+    held.touch()
+    deadline = time.monotonic() + 10
+    while not resume.exists() and time.monotonic() < deadline:
+        time.sleep(0.01)
+    if not resume.exists():
+        raise SystemExit("timed out waiting to finish deployment")
+    replacement = current.with_name(f"{current.name}.next")
+    replacement.symlink_to(release)
+    os.replace(replacement, current)
+""",
+            str(deployment_lock),
+            str(current),
+            str(new_release),
+            str(deployment_held),
+            str(deployment_release),
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    launcher_process: subprocess.Popen[str] | None = None
+    try:
+        _wait_for_path(deployment_held, process=deployment_process)
+        launcher_process = subprocess.Popen(
+            [str(launcher), "health"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env={
+                **os.environ,
+                "LAUNCH_TRACE": str(trace),
+                "LAUNCHER_STARTED": str(launcher_started),
+                "LAUNCHER_CONTINUE": str(launcher_continue),
+                "LAUNCHER_SELECTING": str(launcher_selecting),
+                "LAUNCHER_SELECTION_RESUME": str(launcher_selection_resume),
+                "WRONG_OWNER_PATHS": "",
+            },
+            text=True,
+        )
+        _wait_for_path(launcher_started, process=launcher_process)
+        launcher_continue.touch()
+        with pytest.raises(subprocess.TimeoutExpired):
+            launcher_process.communicate(timeout=0.2)
+        assert not launcher_selecting.exists()
+        assert not trace.exists()
+        deployment_release.touch()
+        _, deployment_stderr = deployment_process.communicate(timeout=10)
+        assert deployment_process.returncode == 0, deployment_stderr
+        _wait_for_path(launcher_selecting, process=launcher_process)
+        launcher_selection_resume.touch()
+        _, launcher_stderr = launcher_process.communicate(timeout=10)
+        assert launcher_process.returncode == 0, launcher_stderr
+    finally:
+        deployment_release.touch(exist_ok=True)
+        launcher_continue.touch(exist_ok=True)
+        launcher_selection_resume.touch(exist_ok=True)
+        if deployment_process.poll() is None:
+            deployment_process.kill()
+            deployment_process.communicate(timeout=5)
+        if launcher_process is not None and launcher_process.poll() is None:
+            launcher_process.kill()
+            launcher_process.communicate(timeout=5)
+
+    assert trace.read_text() == f"new:{new_release}:health\n"
+
+
 def test_operations_handoff_dispatches_stable_old_and_new_releases(
     tmp_path: Path,
 ) -> None:
@@ -4376,6 +4777,160 @@ def test_backup_refuses_to_race_the_deployment_transaction() -> None:
     assert lock_path in BACKUP_SERVICE.read_text()
     assert "/var/lock/ladle-deploy.lock" not in operations
     assert "/var/lock/ladle-deploy.lock" not in BACKUP_SERVICE.read_text()
+
+
+def test_launcher_shared_lock_is_read_only_for_health_service_sandbox() -> None:
+    launcher = OPERATIONS_LAUNCHER.read_text()
+    health_service = HEALTH_SERVICE.read_text()
+
+    assert 'exec 9<"$deployment_lock"' in launcher
+    assert 'exec 9<>"$deployment_lock"' not in launcher
+    assert "flock -s 9" in launcher
+    assert "/var/lib/ladle/locks/deploy.lock" not in health_service
+    assert "TimeoutStartSec=2min" in health_service
+
+
+def test_backup_replaces_inherited_shared_lock_without_self_deadlock(
+    tmp_path: Path,
+) -> None:
+    deployment_lock = tmp_path / "deploy.lock"
+    deployment_lock.touch()
+    deployment_lock.chmod(0o600)
+    fake_flock = tmp_path / "flock"
+    _write_fake_flock(fake_flock)
+
+    result = _run_operations_library(
+        """
+deployment_lock=$1
+fake_flock=$2
+safe_regular_file() { [ -f "$1" ] && [ ! -L "$1" ]; }
+flock() { "$fake_flock" "$@"; }
+exec 9<"$deployment_lock"
+"$fake_flock" -s 9
+acquire_deployment_lock
+""",
+        deployment_lock,
+        fake_flock,
+        timeout=5,
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_backup_fails_fast_when_deployment_wins_released_shared_lock(
+    tmp_path: Path,
+) -> None:
+    deployment_lock = tmp_path / "deploy.lock"
+    deployment_lock.touch()
+    deployment_lock.chmod(0o600)
+    fake_flock = tmp_path / "flock"
+    _write_fake_flock(fake_flock)
+    backup_shared = tmp_path / "backup-shared"
+    backup_continue = tmp_path / "backup-continue"
+    backup_exclusive_attempt = tmp_path / "backup-exclusive-attempt"
+    deployment_attempted = tmp_path / "deployment-attempted"
+    deployment_acquired = tmp_path / "deployment-acquired"
+    deployment_release = tmp_path / "deployment-release"
+    backup_process = subprocess.Popen(
+        [
+            "/bin/sh",
+            "-c",
+            """. "$1"; shift
+deployment_lock=$1
+fake_flock=$2
+safe_regular_file() { [ -f "$1" ] && [ ! -L "$1" ]; }
+flock() {
+    if [ "${1:-}" = -n ]; then
+        : >"$BACKUP_EXCLUSIVE_ATTEMPT"
+        attempt=0
+        while [ ! -e "$DEPLOYMENT_ACQUIRED" ]; do
+            attempt=$((attempt + 1))
+            [ "$attempt" -le 500 ] || return 1
+            sleep 0.01
+        done
+    fi
+    "$fake_flock" "$@"
+}
+exec 9<"$deployment_lock"
+"$fake_flock" -s 9
+: >"$BACKUP_SHARED"
+attempt=0
+while [ ! -e "$BACKUP_CONTINUE" ]; do
+    attempt=$((attempt + 1))
+    [ "$attempt" -le 500 ] || exit 1
+    sleep 0.01
+done
+acquire_deployment_lock
+""",
+            "test",
+            str(OPERATIONS),
+            str(deployment_lock),
+            str(fake_flock),
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env={
+            **os.environ,
+            "BACKUP_SHARED": str(backup_shared),
+            "BACKUP_CONTINUE": str(backup_continue),
+            "BACKUP_EXCLUSIVE_ATTEMPT": str(backup_exclusive_attempt),
+            "DEPLOYMENT_ACQUIRED": str(deployment_acquired),
+        },
+        text=True,
+    )
+    deployment_process: subprocess.Popen[str] | None = None
+    try:
+        _wait_for_path(backup_shared, process=backup_process)
+        deployment_process = subprocess.Popen(
+            [
+                sys.executable,
+                "-c",
+                """
+import fcntl
+import pathlib
+import sys
+import time
+
+lock, attempted, acquired, resume = map(pathlib.Path, sys.argv[1:])
+with lock.open("r+") as descriptor:
+    attempted.touch()
+    fcntl.flock(descriptor, fcntl.LOCK_EX)
+    acquired.touch()
+    deadline = time.monotonic() + 10
+    while not resume.exists() and time.monotonic() < deadline:
+        time.sleep(0.01)
+    if not resume.exists():
+        raise SystemExit("timed out holding deployment lock")
+""",
+                str(deployment_lock),
+                str(deployment_attempted),
+                str(deployment_acquired),
+                str(deployment_release),
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        _wait_for_path(deployment_attempted, process=deployment_process)
+        with pytest.raises(subprocess.TimeoutExpired):
+            deployment_process.communicate(timeout=0.2)
+        backup_continue.touch()
+        _wait_for_path(backup_exclusive_attempt, process=backup_process)
+        _wait_for_path(deployment_acquired, process=deployment_process)
+        _, backup_stderr = backup_process.communicate(timeout=5)
+        assert backup_process.returncode != 0
+        assert (
+            "A deployment is running; backup was not started." in backup_stderr
+        )
+    finally:
+        backup_continue.touch(exist_ok=True)
+        deployment_release.touch(exist_ok=True)
+        if backup_process.poll() is None:
+            backup_process.kill()
+            backup_process.communicate(timeout=5)
+        if deployment_process is not None and deployment_process.poll() is None:
+            deployment_process.kill()
+            deployment_process.communicate(timeout=5)
 
 
 def test_operations_transition_log_deduplicates_and_records_recovery(

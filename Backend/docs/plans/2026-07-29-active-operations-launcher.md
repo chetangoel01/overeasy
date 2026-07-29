@@ -123,3 +123,22 @@ before activation because dispatch remains controlled by `current`.
 3. Preserve transition logging and backup cleanup only after authority loads.
 4. Treat inactive one-shot systemd units as expected while propagating other
    status, journal, and Compose errors.
+
+### Task 7: Lock authority selection across legacy cutover
+
+**Files:**
+
+- Modify: `Backend/deploy/vps/operations-launcher.sh`
+- Modify: `Backend/docs/deployment/vps.md`
+- Test: `Backend/tests/unit/deploy/test_vps_profile.py`
+
+**Steps:**
+
+1. Validate and open the canonical root-owned deployment lock without
+   truncation, then take a blocking shared lock before resolving `current`.
+2. Preserve the shared descriptor across `exec` so legacy operations cannot
+   observe activation changes after dispatch.
+3. Prove backup replaces the inherited descriptor before its nonblocking
+   exclusive acquisition, including self-deadlock and competing-deploy cases.
+4. Exercise unsafe lock metadata, launcher/deployment ordering, and the legacy
+   upgrade path with bounded real-process regressions.
