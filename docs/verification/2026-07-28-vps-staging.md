@@ -81,14 +81,51 @@ outside the repository in a mode-`0600` file and was never printed.
 ## Application state and services
 
 - `LADLE_ENVIRONMENT=development`
-- Worker provider mode remains `fake`; no paid provider credential is
-  installed.
+- The initial worker provider mode was `fake`; the live-provider activation
+  below supersedes that initial state.
 - PostgreSQL and MinIO started empty.
 - Alembic migrations reached revision `0012`.
 - Live database counts were `users=0` and `recipes=0`.
 - PostgreSQL, Redis, MinIO, API, worker egress, worker, Beat, Nginx, and Caddy
   were running; all services with health checks reported healthy.
 - API, edge, Celery worker, and Beat deployment gates passed before activation.
+
+## Live extraction activation
+
+On 2026-07-29, an existing owner-only OpenRouter credential was installed
+through the allowlisted standard-input setter. The credential value was never
+printed, written to the repository, or passed as a command argument. The
+setter atomically changed `LADLE_WORKER_PROVIDER_MODE` from `fake` to `live`.
+
+The exact active revision
+`c0af22f1a2e349013d58f98ff09609efad8b22e0` was redeployed. Its Compose,
+storage, migration, API, edge, worker, Beat, operations-refresh, and activation
+gates all passed. The replacement worker reported:
+
+```text
+worker_provider_mode=live
+extraction_provider=openrouter
+openrouter_model=google/gemini-3.6-flash
+openrouter_key_present=yes
+```
+
+Direct operations health reported `health healthy`, and the complete external
+staging verifier passed TLS, security headers, secret-leak checks, staging
+access, dependencies, hidden endpoints, authentication, and request-size
+handling.
+
+A disposable guest then completed a real TikTok import through the public
+staging API. OpenRouter recorded a completed `recipeExtraction` attempt and
+produced **Creamy Garlic-Lemon Chickpeas** with 12 ingredients and 5 steps.
+The extraction cache recorded prompt `recipe-2026-07-27-v8` and model
+`google/gemini-3.6-flash`, proving the result did not use
+`fake-recipe-v1` / `fake-extractor`. The terminal state was `needsReview`, as
+expected for evidence requiring user review. The disposable account and its
+data were permanently deleted after verification.
+
+Supadata and SoScripted credentials remain absent. The verified TikTok journey
+succeeded through the free acquisition path plus OpenRouter extraction; paid
+acquisition fallbacks remain unverified.
 
 ## Operations and recovery
 
@@ -129,8 +166,6 @@ volume, and its container was removed afterward.
   `2026-07-29-shared-vps-gateway.md`.
 - Gain DNS control of the intended application domain, create verified A/AAAA
   records, and perform a planned hostname/environment rotation.
-- Install the live extraction provider credential through the allowlisted
-  standard-input setter before running paid YouTube/TikTok/Instagram journeys.
 - Add a passphrase to the dedicated local SSH identity before production.
 - Complete real-device guest bootstrap, refresh, import, thumbnail, sync, and
   account-deletion journeys.
