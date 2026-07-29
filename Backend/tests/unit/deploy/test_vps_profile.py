@@ -7450,6 +7450,30 @@ def _gateway_harness(
     _write_gateway_fake_docker(fake_docker)
     _write_gateway_fake_flock(fake_bin / "flock")
     _write_gateway_fake_stat(fake_bin / "stat")
+    fake_od = fake_bin / "od"
+    fake_od.write_text(
+        f"""#!/bin/sh
+[ "${{FAKE_OD_FAILURE:-0}}" != 1 ] || exit 71
+exec {shlex.quote(shutil.which("od") or "/usr/bin/od")} "$@"
+"""
+    )
+    fake_od.chmod(0o755)
+    fake_mv = fake_bin / "mv"
+    fake_mv.write_text(
+        f"""#!/bin/sh
+for move_target do :; done
+if [ "${{FAKE_GATEWAY_ENV_INSTALL_FAILURE:-0}}" = 1 ] &&
+    [ "$move_target" = "$FAKE_GATEWAY_ENV" ]; then
+    exit 72
+fi
+if [ -n "${{FAKE_ASSET_MOVE_FAILURE_TARGET:-}}" ] &&
+    [ "$move_target" = "$FAKE_ASSET_MOVE_FAILURE_TARGET" ]; then
+    exit 73
+fi
+exec {shlex.quote(shutil.which("mv") or "/bin/mv")} "$@"
+"""
+    )
+    fake_mv.chmod(0o755)
     fake_find = fake_bin / "find"
     fake_find.write_text(
         """#!/bin/sh
@@ -7647,6 +7671,7 @@ def _run_gateway_manager(
             "FAKE_DOCKER_TRACE": str(harness["trace"]),
             "FAKE_FLOCK_TRACE": str(harness["flock_trace"]),
             "FAKE_AUTHORITY_LOCK": str(harness["authority_lock"]),
+            "FAKE_GATEWAY_ENV": str(harness["gateway_env"]),
             "FAKE_AUTHORITY_RACE": str(harness["authority_race"]),
             "FAKE_AUTHORITY_INSTALL_LOG": str(
                 harness["authority_install_log"]
@@ -7672,6 +7697,7 @@ def _popen_gateway_manager(
             "FAKE_DOCKER_TRACE": str(harness["trace"]),
             "FAKE_FLOCK_TRACE": str(harness["flock_trace"]),
             "FAKE_AUTHORITY_LOCK": str(harness["authority_lock"]),
+            "FAKE_GATEWAY_ENV": str(harness["gateway_env"]),
             "FAKE_AUTHORITY_RACE": str(harness["authority_race"]),
             "FAKE_AUTHORITY_INSTALL_LOG": str(
                 harness["authority_install_log"]
@@ -7898,6 +7924,99 @@ def test_gateway_management_prepare_writes_fresh_opaque_generation(
     assert first_generation not in first.stdout + first.stderr
     assert second_generation not in second.stdout + second.stderr
     assert stat.S_IMODE(Path(harness["gateway_env"]).stat().st_mode) == 0o600
+
+
+@pytest.mark.parametrize(
+    "failure_env",
+    ("FAKE_OD_FAILURE", "FAKE_GATEWAY_ENV_INSTALL_FAILURE"),
+)
+def test_gateway_management_prepare_env_failure_changes_no_live_asset(
+    tmp_path: Path,
+    failure_env: str,
+) -> None:
+    harness = _gateway_harness(tmp_path)
+    _prepare_gateway(harness)
+    activated = _run_gateway_manager(harness, "activate")
+    assert activated.returncode == 0, activated.stderr
+    live_gateway = Path(harness["live_gateway"])
+    live_assets = (
+        live_gateway / "docker-compose.yml",
+        live_gateway / "Caddyfile",
+        live_gateway / "routes" / "ladle.caddy",
+    )
+    before_assets = {asset: asset.read_text() for asset in live_assets}
+    before_environment = Path(harness["gateway_env"]).read_text()
+    before_generation = _gateway_environment(harness)[
+        "LADLE_GATEWAY_GENERATION"
+    ]
+    source_route = Path(harness["gateway_source"]) / "routes" / "ladle.caddy"
+    original_source_route = source_route.read_text()
+    source_route.write_text(
+        original_source_route.replace(
+            "respond 404",
+            "header X-Prepared-Revision changed\n    respond 404",
+        )
+    )
+
+    result = _run_gateway_manager(
+        harness,
+        "prepare",
+        extra_env={failure_env: "1"},
+    )
+
+    assert result.returncode != 0
+    assert {asset: asset.read_text() for asset in live_assets} == before_assets
+    assert Path(harness["gateway_env"]).read_text() == before_environment
+    assert not list(Path(harness["gateway_env"]).parent.glob(".gateway.env.*"))
+    assert GATEWAY_TEST_SECRET not in result.stdout + result.stderr
+    assert before_generation not in result.stdout + result.stderr
+    assert GATEWAY_TEST_SECRET not in json.dumps(_gateway_trace(harness))
+
+    status = _run_gateway_manager(harness, "status")
+    assert status.returncode != 0
+    assert "gateway_current=yes" in status.stdout
+    assert before_generation not in status.stdout + status.stderr
+
+
+def test_gateway_management_later_asset_failure_marks_runtime_stale(
+    tmp_path: Path,
+) -> None:
+    harness = _gateway_harness(tmp_path)
+    _prepare_gateway(harness)
+    activated = _run_gateway_manager(harness, "activate")
+    assert activated.returncode == 0, activated.stderr
+    old_generation = _gateway_environment(harness)[
+        "LADLE_GATEWAY_GENERATION"
+    ]
+    live_route = Path(harness["live_gateway"]) / "routes" / "ladle.caddy"
+    old_route = live_route.read_text()
+    source_route = Path(harness["gateway_source"]) / "routes" / "ladle.caddy"
+    source_route.write_text(
+        source_route.read_text().replace(
+            "respond 404",
+            "header X-Prepared-Revision changed\n    respond 404",
+        )
+    )
+
+    result = _run_gateway_manager(
+        harness,
+        "prepare",
+        extra_env={"FAKE_ASSET_MOVE_FAILURE_TARGET": str(live_route)},
+    )
+
+    assert result.returncode != 0
+    prepared_generation = _gateway_environment(harness)[
+        "LADLE_GATEWAY_GENERATION"
+    ]
+    assert prepared_generation != old_generation
+    assert live_route.read_text() == old_route
+    status = _run_gateway_manager(harness, "status")
+    assert status.returncode != 0
+    assert "gateway_current=no" in status.stdout
+    assert GATEWAY_TEST_SECRET not in result.stdout + result.stderr
+    assert GATEWAY_TEST_SECRET not in status.stdout + status.stderr
+    assert prepared_generation not in result.stdout + result.stderr
+    assert prepared_generation not in status.stdout + status.stderr
 
 
 def test_gateway_management_concurrent_first_prepare_keeps_one_authority_inode(

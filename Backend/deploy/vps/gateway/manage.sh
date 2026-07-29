@@ -408,6 +408,8 @@ prepare_gateway() {
     ensure_directory "$gateway_env_directory" 700 ||
         fail "The gateway environment directory is unsafe."
 
+    install_gateway_environment ||
+        fail "Cannot install the gateway environment safely."
     atomic_install "$script_directory/docker-compose.yml" \
         "$live_gateway/docker-compose.yml" 644 ||
         fail "Cannot install the gateway Compose file safely."
@@ -417,8 +419,6 @@ prepare_gateway() {
     atomic_install "$script_directory/routes/ladle.caddy" \
         "$live_routes/ladle.caddy" 644 ||
         fail "Cannot install the Ladle gateway route safely."
-    install_gateway_environment ||
-        fail "Cannot install the gateway environment safely."
     validate_live_assets && validate_gateway_environment ||
         fail "The installed gateway assets are unsafe."
     ensure_platform_network || fail "$PLATFORM_NETWORK_ERROR"
@@ -771,16 +771,22 @@ status_gateway() {
     gateway_health=none
     legacy_state=absent
     legacy_health=none
+    partial_preparation=no
+    prepared_generation_available=no
 
-    if validate_live_assets && validate_gateway_environment_metadata; then
-        prepared=yes
+    if validate_gateway_environment_metadata; then
+        prepared_generation_available=yes
         gateway_current=no
+    fi
+    if validate_live_assets &&
+        [ "$prepared_generation_available" = yes ]; then
+        prepared=yes
         validate_authority_lock ||
             fail "The prepared authority lock is unsafe."
         platform_network_is_valid || fail "$PLATFORM_NETWORK_ERROR"
     elif [ -e "$live_gateway" ] || [ -L "$live_gateway" ] ||
         [ -e "$gateway_env" ] || [ -L "$gateway_env" ]; then
-        fail "The gateway is only partially prepared or has unsafe metadata."
+        partial_preparation=yes
     fi
 
     inspect_container "$gateway_container" ||
@@ -793,7 +799,7 @@ status_gateway() {
             gateway_state=running
             if gateway_listener_is_ready; then
                 gateway_health=healthy
-                if [ "$prepared" = yes ] &&
+                if [ "$prepared_generation_available" = yes ] &&
                     gateway_runtime_generation &&
                     [ "$runtime_gateway_generation" = \
                         "$gateway_generation" ]; then
@@ -821,6 +827,15 @@ status_gateway() {
         else
             legacy_state=stopped
         fi
+    fi
+
+    if [ "$partial_preparation" = yes ]; then
+        printf 'prepared=%s\nactive=%s\ngateway=%s\n' \
+            "$prepared" "$active" "$gateway_state"
+        printf 'gateway_health=%s\ngateway_current=%s\nlegacy=%s\n' \
+            "$gateway_health" "$gateway_current" "$legacy_state"
+        printf 'legacy_health=%s\n' "$legacy_health"
+        fail "The gateway is only partially prepared or has unsafe metadata."
     fi
 
     if [ "$prepared:$gateway_state:$gateway_health:$legacy_state" = \

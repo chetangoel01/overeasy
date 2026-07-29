@@ -59,18 +59,21 @@ share the existing listener-restoration primitive when a transition fails.
 
 1. Generate a fresh fixed-format random revision during each prepare and add it
    to the atomically installed root-only gateway environment.
-2. Validate the revision format without logging its value.
-3. Propagate the revision through Compose environment and a dedicated label.
-4. Inspect the label with container state and require a healthy, correctly
+2. Validate and commit that environment before mutating any live gateway asset,
+   so an early failure changes nothing and a later failure invalidates the old
+   runtime without attempting an unsafe environment-only rollback.
+3. Validate the revision format without logging its value.
+4. Propagate the revision through Compose environment and a dedicated label.
+5. Inspect the label with container state and require a healthy, correctly
    bound, current-revision container for activation success and active status.
-5. Replace the early activation success with bounded
+6. Replace the early activation success with bounded
    `up --force-recreate --no-deps` for only `gateway`.
-6. On failure, retain an already healthy shared listener when available;
+7. On failure, retain an already healthy shared listener when available;
    otherwise stop/remove the failed replacement and start and verify exact
    legacy, falling back through the shared restoration primitive if needed.
-7. Arm rollback recovery before legacy start regardless of initial shared
+8. Arm rollback recovery before legacy start regardless of initial shared
    running state.
-8. Run focused tests until all new and existing gateway tests pass.
+9. Run focused tests until all new and existing gateway tests pass.
 
 ### Task 4: Verify and checkpoint
 

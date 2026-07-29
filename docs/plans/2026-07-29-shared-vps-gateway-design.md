@@ -107,9 +107,13 @@ The root-only gateway manager runs from one immutable, root-owned
   and a `077` umask, then validates and pins the winning inode without replacing
   it when first-time prepares race. It extracts only the Ladle hostname and
   staging access key without sourcing the app environment, generates a fresh
-  opaque prepared revision, and atomically installs root-owned assets under
-  `/opt/platform/gateway`. It takes the blocking exclusive authority lock
-  before reading mutable inputs and holds it through installation.
+  opaque prepared revision, and atomically commits the root-only environment
+  before mutating any live Compose, Caddy, or route asset. An environment commit
+  failure therefore leaves the previous live revision intact; any later asset
+  failure leaves the new revision in place so status marks the old runtime
+  stale. It atomically installs root-owned assets under
+  `/opt/platform/gateway`, taking the blocking exclusive authority lock before
+  reading mutable inputs and holding it through installation.
   Existing unrelated route files are preserved. Compose and pinned-Caddy
   validation run without publishing ports or stopping a container.
 - `activate` revalidates the installed files, secret metadata, shared-network
