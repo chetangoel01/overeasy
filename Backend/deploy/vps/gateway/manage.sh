@@ -21,6 +21,7 @@ gateway_project=platform-gateway
 gateway_container=platform-gateway-gateway-1
 legacy_container=ladle-caddy-1
 gateway_image="caddy:2.11.4-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648"
+gateway_generation=
 temporary_file=
 
 usage() {
@@ -211,7 +212,14 @@ validate_app_environment() {
     validate_dotenv_value "$gateway_access_key"
 }
 
-validate_gateway_environment() {
+validate_gateway_generation() {
+    case "$1" in
+        *[!0-9a-f]*) return 1 ;;
+    esac
+    [ "${#1}" -eq 32 ]
+}
+
+load_prepared_gateway_generation() {
     safe_file "$gateway_env" 600 || return 1
     validate_env_file "$gateway_env" || return 1
     gateway_environment_keys=$(
@@ -219,11 +227,20 @@ validate_gateway_environment() {
     ) || return 1
     expected_gateway_environment_keys=$(
         printf '%s\n' \
+            LADLE_GATEWAY_GENERATION \
             LADLE_PUBLIC_HOSTNAME \
             LADLE_TUNNEL_ACCESS_KEY
     )
     [ "$gateway_environment_keys" = "$expected_gateway_environment_keys" ] ||
         return 1
+    gateway_generation=$(
+        dotenv_value "$gateway_env" LADLE_GATEWAY_GENERATION
+    ) || return 1
+    validate_gateway_generation "$gateway_generation"
+}
+
+validate_gateway_environment() {
+    load_prepared_gateway_generation || return 1
     gateway_hostname=$(dotenv_value "$gateway_env" LADLE_PUBLIC_HOSTNAME) ||
         return 1
     validate_hostname "$gateway_hostname" || return 1
@@ -234,7 +251,7 @@ validate_gateway_environment() {
 }
 
 validate_gateway_environment_metadata() {
-    safe_file "$gateway_env" 600
+    load_prepared_gateway_generation
 }
 
 validate_authority_lock() {
@@ -338,7 +355,12 @@ install_gateway_environment() {
     temporary_file=$(
         mktemp "$gateway_env_directory/.gateway.env.XXXXXX"
     ) || return 1
+    gateway_generation=$(
+        LC_ALL=C od -An -N16 -tx1 /dev/urandom | tr -d ' \n'
+    ) || return 1
+    validate_gateway_generation "$gateway_generation" || return 1
     {
+        printf 'LADLE_GATEWAY_GENERATION=%s\n' "$gateway_generation"
         printf 'LADLE_PUBLIC_HOSTNAME=%s\n' "$gateway_hostname"
         printf 'LADLE_TUNNEL_ACCESS_KEY=%s\n' "$gateway_access_key"
     } >"$temporary_file"
@@ -476,6 +498,21 @@ gateway_listener_is_ready() {
         "true|healthy|80,443,443" ]
 }
 
+gateway_runtime_generation() {
+    runtime_gateway_generation=$(
+        docker inspect --format \
+            '{{index .Config.Labels "com.ladle.gateway.generation"}}' \
+            "$gateway_container" 2>/dev/null
+    ) || return 1
+    validate_gateway_generation "$runtime_gateway_generation"
+}
+
+gateway_listener_is_current() {
+    gateway_listener_is_ready || return 1
+    gateway_runtime_generation || return 1
+    [ "$runtime_gateway_generation" = "$gateway_generation" ]
+}
+
 legacy_listener_is_running() {
     container_identity_is_expected "$legacy_container" ladle caddy ||
         return 1
@@ -592,14 +629,18 @@ recover_failed_activation() {
     status=$?
     trap - 0 HUP INT TERM
     if [ "$activation_recovery_required" = true ]; then
-        recovery_failed=false
-        gateway_compose down --timeout 20 >/dev/null 2>&1 ||
-            recovery_failed=true
-        docker start "$legacy_container" >/dev/null 2>&1 ||
-            recovery_failed=true
-        wait_for_legacy_listener || recovery_failed=true
-        if [ "$recovery_failed" = true ]; then
-            if restore_shared_listener_safely; then
+        if gateway_listener_is_ready && legacy_listener_is_stopped; then
+            printf '%s\n' \
+                "Gateway activation failed; a verified shared gateway remains active." \
+                >&2
+        else
+            gateway_compose down --timeout 20 >/dev/null 2>&1 || :
+            if docker start "$legacy_container" >/dev/null 2>&1 &&
+                wait_for_legacy_listener; then
+                printf '%s\n' \
+                    "Gateway activation failed; the legacy listener was restored." \
+                    >&2
+            elif restore_shared_listener_safely; then
                 printf '%s\n' \
                     "Gateway activation failed; the shared gateway was restored." \
                     >&2
@@ -608,10 +649,6 @@ recover_failed_activation() {
                     "Both-listeners risk: activation recovery could not restore a verified public listener." \
                     >&2
             fi
-        else
-            printf '%s\n' \
-                "Gateway activation failed; the legacy listener was restored." \
-                >&2
         fi
     fi
     exit "$status"
@@ -630,31 +667,38 @@ activate_gateway() {
 
     inspect_container "$gateway_container" ||
         fail "The shared gateway container state is unreadable."
+    shared_was_running=false
     if [ "$INSPECT_PRESENT" = true ]; then
         [ "$INSPECT_PROJECT:$INSPECT_SERVICE" = \
             "$gateway_project:gateway" ] ||
             fail "A foreign shared gateway container exists."
-        if gateway_listener_is_ready; then
+        if [ "$INSPECT_RUNNING" = true ]; then
+            gateway_listener_is_ready ||
+                fail "The shared gateway is running but unhealthy."
             legacy_listener_is_stopped ||
                 fail "Both public listener containers are active."
-            printf '%s\n' "Shared gateway is active."
-            return 0
+            shared_was_running=true
+        else
+            legacy_listener_is_running ||
+                fail "The exact running legacy Caddy container is unavailable."
         fi
-        [ "$INSPECT_RUNNING" = false ] ||
-            fail "The shared gateway is running but unhealthy."
+    else
+        legacy_listener_is_running ||
+            fail "The exact running legacy Caddy container is unavailable."
     fi
-    legacy_listener_is_running ||
-        fail "The exact running legacy Caddy container is unavailable."
 
     trap recover_failed_activation 0
     trap 'exit 1' HUP INT TERM
     activation_recovery_required=true
-    docker stop --time 30 "$legacy_container" >/dev/null
-    legacy_listener_is_stopped ||
-        fail "The legacy listener did not stop."
-    gateway_compose up -d --wait --wait-timeout 120 gateway
-    gateway_listener_is_ready ||
-        fail "The shared gateway did not become healthy."
+    if [ "$shared_was_running" = false ]; then
+        docker stop --time 30 "$legacy_container" >/dev/null
+        legacy_listener_is_stopped ||
+            fail "The legacy listener did not stop."
+    fi
+    gateway_compose up -d --wait --wait-timeout 120 \
+        --force-recreate --no-deps gateway
+    gateway_listener_is_current ||
+        fail "The shared gateway did not apply the prepared revision."
     legacy_listener_is_stopped ||
         fail "The legacy listener restarted unexpectedly."
     activation_recovery_required=false
@@ -702,8 +746,8 @@ rollback_gateway() {
 
     trap recover_failed_rollback 0
     trap 'exit 1' HUP INT TERM
+    rollback_recovery_required=true
     if [ "$shared_was_running" = true ]; then
-        rollback_recovery_required=true
         docker stop --time 30 "$gateway_container" >/dev/null
         gateway_listener_is_stopped ||
             fail "The shared gateway did not stop."
@@ -722,6 +766,7 @@ status_gateway() {
         fail "Cannot acquire the shared gateway authority lock."
     prepared=no
     active=no
+    gateway_current=unknown
     gateway_state=absent
     gateway_health=none
     legacy_state=absent
@@ -729,6 +774,7 @@ status_gateway() {
 
     if validate_live_assets && validate_gateway_environment_metadata; then
         prepared=yes
+        gateway_current=no
         validate_authority_lock ||
             fail "The prepared authority lock is unsafe."
         platform_network_is_valid || fail "$PLATFORM_NETWORK_ERROR"
@@ -747,6 +793,12 @@ status_gateway() {
             gateway_state=running
             if gateway_listener_is_ready; then
                 gateway_health=healthy
+                if [ "$prepared" = yes ] &&
+                    gateway_runtime_generation &&
+                    [ "$runtime_gateway_generation" = \
+                        "$gateway_generation" ]; then
+                    gateway_current=yes
+                fi
             else
                 inspect_container "$gateway_container" || return 1
                 gateway_health=$INSPECT_HEALTH
@@ -773,22 +825,33 @@ status_gateway() {
 
     if [ "$prepared:$gateway_state:$gateway_health:$legacy_state" = \
         "yes:running:healthy:stopped" ]; then
-        active=yes
+        if [ "$gateway_current" = yes ]; then
+            active=yes
+        else
+            printf 'prepared=%s\nactive=%s\ngateway=%s\n' \
+                "$prepared" "$active" "$gateway_state"
+            printf 'gateway_health=%s\ngateway_current=%s\nlegacy=%s\n' \
+                "$gateway_health" "$gateway_current" "$legacy_state"
+            printf 'legacy_health=%s\n' "$legacy_health"
+            fail "The running gateway revision is stale."
+        fi
     elif [ "$gateway_state:$legacy_state" = "absent:running" ] ||
         [ "$gateway_state:$legacy_state" = "stopped:running" ]; then
         active=no
     else
         printf 'prepared=%s\nactive=%s\ngateway=%s\n' \
             "$prepared" "$active" "$gateway_state"
-        printf 'gateway_health=%s\nlegacy=%s\nlegacy_health=%s\n' \
-            "$gateway_health" "$legacy_state" "$legacy_health"
+        printf 'gateway_health=%s\ngateway_current=%s\nlegacy=%s\n' \
+            "$gateway_health" "$gateway_current" "$legacy_state"
+        printf 'legacy_health=%s\n' "$legacy_health"
         fail "The gateway listener state is inconsistent."
     fi
 
     printf 'prepared=%s\nactive=%s\ngateway=%s\n' \
         "$prepared" "$active" "$gateway_state"
-    printf 'gateway_health=%s\nlegacy=%s\nlegacy_health=%s\n' \
-        "$gateway_health" "$legacy_state" "$legacy_health"
+    printf 'gateway_health=%s\ngateway_current=%s\nlegacy=%s\n' \
+        "$gateway_health" "$gateway_current" "$legacy_state"
+    printf 'legacy_health=%s\n' "$legacy_health"
 }
 
 case "$action" in

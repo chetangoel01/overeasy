@@ -1389,15 +1389,23 @@ def test_gateway_profile_exposes_only_a_hardened_shared_tls_edge() -> None:
 
 def test_gateway_profile_requires_ladle_values_without_embedding_secrets() -> None:
     profile_text = GATEWAY_PROFILE.read_text()
-    environment = _gateway_profile()["services"]["gateway"]["environment"]
+    gateway = _gateway_profile()["services"]["gateway"]
 
-    assert environment == {
+    assert gateway["environment"] == {
+        "LADLE_GATEWAY_GENERATION": (
+            "${LADLE_GATEWAY_GENERATION:?set LADLE_GATEWAY_GENERATION}"
+        ),
         "LADLE_PUBLIC_HOSTNAME": (
             "${LADLE_PUBLIC_HOSTNAME:?set LADLE_PUBLIC_HOSTNAME}"
         ),
         "LADLE_TUNNEL_ACCESS_KEY": (
             "${LADLE_TUNNEL_ACCESS_KEY:?set LADLE_TUNNEL_ACCESS_KEY}"
         ),
+    }
+    assert gateway["labels"] == {
+        "com.ladle.gateway.generation": (
+            "${LADLE_GATEWAY_GENERATION:?set LADLE_GATEWAY_GENERATION}"
+        )
     }
     assert "api.ladle.app" not in profile_text
     assert "tunnel123" not in profile_text
@@ -7136,6 +7144,8 @@ elif arguments[:1] == ["inspect"]:
     if ".Aliases" in template:
         for alias in item.get("aliases", []):
             print(alias)
+    elif "com.ladle.gateway.generation" in template:
+        print(item.get("generation", ""))
     elif (
         "com.docker.compose.project" in template
         and ".State.Running" not in template
@@ -7150,10 +7160,11 @@ elif arguments[:1] == ["inspect"]:
             f'{",".join(str(port) for port in ports)}'
         )
     elif ".State.Running" in template:
-        print(
+        record = (
             f'{item["project"]}|{item["service"]}|'
             f'{str(item["running"]).lower()}|{item.get("health", "none")}'
         )
+        print(record)
     else:
         raise SystemExit("unsupported container inspect format")
 elif arguments[:1] == ["run"]:
@@ -7211,9 +7222,48 @@ elif arguments[:1] == ["compose"]:
     ]:
         if state.get("caddy_validation_failure"):
             raise SystemExit(1)
-    elif command == [
-        "up", "-d", "--wait", "--wait-timeout", "120", "gateway"
-    ]:
+    elif command in (
+        ["up", "-d", "--wait", "--wait-timeout", "120", "gateway"],
+        [
+            "up", "-d", "--wait", "--wait-timeout", "120",
+            "--force-recreate", "--no-deps", "gateway",
+        ],
+    ):
+        env_file = arguments[arguments.index("--env-file") + 1]
+        with open(env_file) as source:
+            environment = dict(
+                line.rstrip("\\n").split("=", 1)
+                for line in source
+                if line.strip()
+            )
+        routes_directory = os.path.join(
+            os.path.dirname(compose_file),
+            "routes",
+        )
+        route_snapshot = {
+            route: open(
+                os.path.join(routes_directory, route),
+                encoding="utf-8",
+            ).read()
+            for route in sorted(os.listdir(routes_directory))
+        }
+        force_recreate = "--force-recreate" in command
+        previous = state["containers"].get(
+            "platform-gateway-gateway-1"
+        )
+        sequence = state.get("gateway_container_sequence", 0)
+        if previous is None or force_recreate:
+            sequence += 1
+            state["gateway_container_sequence"] = sequence
+            state["containers"]["platform-gateway-gateway-1"] = {
+                "id": f"{sequence:064x}",
+                "project": "platform-gateway",
+                "service": "gateway",
+                "running": True,
+                "health": "healthy",
+                "ports": [80, 443, 443],
+                "aliases": [],
+            }
         shared = state["containers"].setdefault(
             "platform-gateway-gateway-1",
             {
@@ -7226,16 +7276,28 @@ elif arguments[:1] == ["compose"]:
                 "aliases": [],
             },
         )
+        shared["generation"] = environment.get(
+            "LADLE_GATEWAY_GENERATION",
+            "",
+        )
+        shared["hostname"] = environment["LADLE_PUBLIC_HOSTNAME"]
+        shared["access_key"] = environment["LADLE_TUNNEL_ACCESS_KEY"]
+        shared["routes"] = route_snapshot
         shared["running"] = True
         shared["health"] = (
             "unhealthy" if state.get("gateway_health_failure") else "healthy"
         )
+        if force_recreate and state.get("gateway_replacement_failure"):
+            shared["running"] = False
+            shared["health"] = "none"
         save()
         if state.get("signal_during_up"):
             os.kill(os.getppid(), signal.SIGTERM)
             time.sleep(0.2)
             raise SystemExit(1)
-        if state.get("gateway_up_failure"):
+        if state.get("gateway_up_failure") or (
+            force_recreate and state.get("gateway_replacement_failure")
+        ):
             raise SystemExit(1)
     elif command == ["down", "--timeout", "20"]:
         shared = state["containers"].get("platform-gateway-gateway-1")
@@ -7243,6 +7305,8 @@ elif arguments[:1] == ["compose"]:
             shared["running"] = False
             shared["health"] = "none"
             save()
+        if state.get("gateway_down_failure"):
+            raise SystemExit(1)
     else:
         raise SystemExit(f"unsupported compose command: {command!r}")
 else:
@@ -7690,6 +7754,15 @@ def _gateway_trace(
     return [json.loads(line) for line in trace.read_text().splitlines()]
 
 
+def _gateway_environment(
+    harness: dict[str, Path | dict[str, object]],
+) -> dict[str, str]:
+    return dict(
+        line.split("=", maxsplit=1)
+        for line in Path(harness["gateway_env"]).read_text().splitlines()
+    )
+
+
 def _prepare_gateway(
     harness: dict[str, Path | dict[str, object]],
 ) -> subprocess.CompletedProcess[str]:
@@ -7762,10 +7835,18 @@ def test_gateway_management_prepare_extracts_only_required_values_atomically(
     result = _prepare_gateway(harness)
 
     gateway_env = Path(harness["gateway_env"])
-    assert gateway_env.read_text() == (
-        f"LADLE_PUBLIC_HOSTNAME={GATEWAY_TEST_HOSTNAME}\n"
-        f"LADLE_TUNNEL_ACCESS_KEY={GATEWAY_TEST_SECRET}\n"
+    environment = _gateway_environment(harness)
+    assert environment["LADLE_PUBLIC_HOSTNAME"] == GATEWAY_TEST_HOSTNAME
+    assert environment["LADLE_TUNNEL_ACCESS_KEY"] == GATEWAY_TEST_SECRET
+    assert re.fullmatch(
+        r"[0-9a-f]{32}",
+        environment["LADLE_GATEWAY_GENERATION"],
     )
+    assert list(environment) == [
+        "LADLE_GATEWAY_GENERATION",
+        "LADLE_PUBLIC_HOSTNAME",
+        "LADLE_TUNNEL_ACCESS_KEY",
+    ]
     assert stat.S_IMODE(gateway_env.stat().st_mode) == 0o600
     assert gateway_env.stat().st_uid == os.getuid()
     assert Path(harness["authority_lock"]).exists()
@@ -7791,6 +7872,32 @@ def test_gateway_management_prepare_extracts_only_required_values_atomically(
     )
     forbidden = {"stop", "start", "up", "80:80", "443:443"}
     assert all(not forbidden.intersection(command) for command in commands)
+
+
+def test_gateway_management_prepare_writes_fresh_opaque_generation(
+    tmp_path: Path,
+) -> None:
+    harness = _gateway_harness(tmp_path)
+
+    first = _run_gateway_manager(harness, "prepare")
+    first_generation = _gateway_environment(harness).get(
+        "LADLE_GATEWAY_GENERATION"
+    )
+    second = _run_gateway_manager(harness, "prepare")
+    second_generation = _gateway_environment(harness).get(
+        "LADLE_GATEWAY_GENERATION"
+    )
+
+    assert first.returncode == 0, first.stderr
+    assert second.returncode == 0, second.stderr
+    assert first_generation is not None
+    assert second_generation is not None
+    assert re.fullmatch(r"[0-9a-f]{32}", first_generation)
+    assert re.fullmatch(r"[0-9a-f]{32}", second_generation)
+    assert first_generation != second_generation
+    assert first_generation not in first.stdout + first.stderr
+    assert second_generation not in second.stdout + second.stderr
+    assert stat.S_IMODE(Path(harness["gateway_env"]).stat().st_mode) == 0o600
 
 
 def test_gateway_management_concurrent_first_prepare_keeps_one_authority_inode(
@@ -8286,8 +8393,135 @@ def test_gateway_management_activate_swaps_only_listener_containers(
     assert GATEWAY_TEST_SECRET not in result.stdout + result.stderr
 
 
+def test_gateway_management_activate_applies_new_route_to_new_generation(
+    tmp_path: Path,
+) -> None:
+    harness = _gateway_harness(tmp_path)
+    _prepare_gateway(harness)
+    activated = _run_gateway_manager(harness, "activate")
+    assert activated.returncode == 0, activated.stderr
+    previous = _gateway_state(harness)["containers"][
+        SHARED_GATEWAY_NAME
+    ].copy()
+    future_route = Path(harness["live_gateway"]) / "routes" / "future.caddy"
+    future_route.write_text("future.example.test { respond 204 }\n")
+    _prepare_gateway(harness)
+    prepared_generation = _gateway_environment(harness)[
+        "LADLE_GATEWAY_GENERATION"
+    ]
+
+    result = _run_gateway_manager(harness, "activate")
+
+    assert result.returncode == 0, result.stderr
+    shared = _gateway_state(harness)["containers"][SHARED_GATEWAY_NAME]
+    assert shared["id"] != previous["id"]
+    assert shared["generation"] == prepared_generation
+    assert shared["generation"] != previous["generation"]
+    assert shared["routes"]["future.caddy"] == future_route.read_text()
+    assert shared["running"] is True
+    assert shared["health"] == "healthy"
+    assert any(
+        command[-3:] == ["--force-recreate", "--no-deps", "gateway"]
+        for command in _gateway_trace(harness)
+    )
+
+
+def test_gateway_management_activate_applies_rotated_environment_without_leak(
+    tmp_path: Path,
+) -> None:
+    rotated_hostname = "rotated.example.test"
+    rotated_key = "rotatedGatewaySecret456"
+    harness = _gateway_harness(tmp_path)
+    _prepare_gateway(harness)
+    activated = _run_gateway_manager(harness, "activate")
+    assert activated.returncode == 0, activated.stderr
+    previous = _gateway_state(harness)["containers"][
+        SHARED_GATEWAY_NAME
+    ].copy()
+    Path(harness["app_env"]).write_text(
+        "\n".join(
+            (
+                f"LADLE_PUBLIC_HOSTNAME={rotated_hostname}",
+                "UNRELATED_VALUE=preserved",
+                f"LADLE_TUNNEL_ACCESS_KEY={rotated_key}",
+                "",
+            )
+        )
+    )
+    _prepare_gateway(harness)
+    prepared_generation = _gateway_environment(harness)[
+        "LADLE_GATEWAY_GENERATION"
+    ]
+
+    result = _run_gateway_manager(harness, "activate")
+
+    assert result.returncode == 0, result.stderr
+    shared = _gateway_state(harness)["containers"][SHARED_GATEWAY_NAME]
+    assert shared["id"] != previous["id"]
+    assert shared["generation"] == prepared_generation
+    assert shared["hostname"] == rotated_hostname
+    assert shared["access_key"] == rotated_key
+    serialized_trace = json.dumps(_gateway_trace(harness))
+    assert rotated_key not in serialized_trace
+    assert prepared_generation not in serialized_trace
+    assert rotated_key not in result.stdout + result.stderr
+    assert prepared_generation not in result.stdout + result.stderr
+
+
+def test_gateway_management_active_replacement_failure_restores_listener(
+    tmp_path: Path,
+) -> None:
+    harness = _gateway_harness(tmp_path)
+    _prepare_gateway(harness)
+    activated = _run_gateway_manager(harness, "activate")
+    assert activated.returncode == 0, activated.stderr
+    _prepare_gateway(harness)
+    state = _gateway_state(harness)
+    state["gateway_replacement_failure"] = True
+    Path(harness["state_file"]).write_text(json.dumps(state))
+
+    result = _run_gateway_manager(harness, "activate")
+
+    assert result.returncode != 0
+    current = _gateway_state(harness)
+    shared = current["containers"][SHARED_GATEWAY_NAME]
+    legacy = current["containers"][LEGACY_CADDY_NAME]
+    serving = [
+        listener
+        for listener in (shared, legacy)
+        if listener["running"] and listener["health"] == "healthy"
+    ]
+    assert len(serving) == 1
+    assert not (shared["running"] and legacy["running"])
+    assert "restored" in result.stderr.casefold()
+
+
+def test_gateway_management_recovery_keeps_verified_legacy_after_down_error(
+    tmp_path: Path,
+) -> None:
+    harness = _gateway_harness(tmp_path)
+    _prepare_gateway(harness)
+    activated = _run_gateway_manager(harness, "activate")
+    assert activated.returncode == 0, activated.stderr
+    _prepare_gateway(harness)
+    state = _gateway_state(harness)
+    state["gateway_replacement_failure"] = True
+    state["gateway_down_failure"] = True
+    state["gateway_restore_failure"] = True
+    Path(harness["state_file"]).write_text(json.dumps(state))
+
+    result = _run_gateway_manager(harness, "activate")
+
+    assert result.returncode != 0
+    current = _gateway_state(harness)
+    assert current["containers"][LEGACY_CADDY_NAME]["running"] is True
+    assert current["containers"][LEGACY_CADDY_NAME]["health"] == "healthy"
+    assert current["containers"][SHARED_GATEWAY_NAME]["running"] is False
+    assert "legacy listener was restored" in result.stderr.casefold()
+
+
 @pytest.mark.parametrize("failure", ("gateway_up_failure", "gateway_health_failure"))
-def test_gateway_management_activate_failure_restores_legacy_listener(
+def test_gateway_management_activate_failure_restores_verified_listener(
     tmp_path: Path,
     failure: str,
 ) -> None:
@@ -8300,12 +8534,23 @@ def test_gateway_management_activate_failure_restores_legacy_listener(
 
     assert result.returncode != 0
     current = _gateway_state(harness)
-    assert current["containers"][LEGACY_CADDY_NAME]["running"] is True
-    shared = current["containers"].get(SHARED_GATEWAY_NAME)
-    assert shared is None or shared["running"] is False
+    legacy = current["containers"][LEGACY_CADDY_NAME]
+    shared = current["containers"][SHARED_GATEWAY_NAME]
+    serving = [
+        listener
+        for listener in (shared, legacy)
+        if listener["running"] and listener["health"] == "healthy"
+    ]
+    assert len(serving) == 1
+    assert not (shared["running"] and legacy["running"])
     trace = _gateway_trace(harness)
-    assert any(command[-2:] == ["--timeout", "20"] for command in trace)
-    assert ["start", LEGACY_CADDY_NAME] in trace
+    if failure == "gateway_up_failure":
+        assert serving == [shared]
+        assert ["start", LEGACY_CADDY_NAME] not in trace
+    else:
+        assert serving == [legacy]
+        assert any(command[-2:] == ["--timeout", "20"] for command in trace)
+        assert ["start", LEGACY_CADDY_NAME] in trace
 
 
 def test_gateway_management_activation_recovery_avoids_unhealthy_legacy_ports(
@@ -8324,13 +8569,8 @@ def test_gateway_management_activation_recovery_avoids_unhealthy_legacy_ports(
     assert current["containers"][LEGACY_CADDY_NAME]["running"] is False
     assert current["containers"][SHARED_GATEWAY_NAME]["running"] is True
     trace = _gateway_trace(harness)
-    legacy_start = trace.index(["start", LEGACY_CADDY_NAME])
-    legacy_stop = trace.index(
-        ["stop", "--time", "30", LEGACY_CADDY_NAME],
-        legacy_start,
-    )
-    shared_start = trace.index(["start", SHARED_GATEWAY_NAME], legacy_stop)
-    assert legacy_start < legacy_stop < shared_start
+    assert ["start", LEGACY_CADDY_NAME] not in trace
+    assert "verified shared gateway remains active" in result.stderr.casefold()
 
 
 @pytest.mark.parametrize(
@@ -8350,9 +8590,19 @@ def test_gateway_management_activate_signal_restores_legacy_listener(
 
     assert result.returncode != 0
     current = _gateway_state(harness)
-    assert current["containers"][LEGACY_CADDY_NAME]["running"] is True
+    legacy = current["containers"][LEGACY_CADDY_NAME]
     shared = current["containers"].get(SHARED_GATEWAY_NAME)
-    assert shared is None or shared["running"] is False
+    listeners = (legacy,) if shared is None else (legacy, shared)
+    serving = [
+        listener
+        for listener in listeners
+        if listener["running"] and listener["health"] == "healthy"
+    ]
+    assert len(serving) == 1
+    if signal_point == "signal_during_stop":
+        assert serving == [legacy]
+    else:
+        assert serving == [shared]
 
 
 def test_gateway_management_rollback_restores_preserved_legacy_listener(
@@ -8448,6 +8698,70 @@ def test_gateway_management_reports_listener_risk_when_shared_restore_fails(
     assert current["containers"][SHARED_GATEWAY_NAME]["running"] is False
 
 
+def test_gateway_management_stopped_rollback_recovers_unhealthy_legacy(
+    tmp_path: Path,
+) -> None:
+    state = _gateway_default_state(include_gateway=True)
+    state["containers"][LEGACY_CADDY_NAME]["running"] = False
+    state["legacy_health_failure"] = True
+    harness = _gateway_harness(tmp_path, state=state)
+    _prepare_gateway(harness)
+
+    result = _run_gateway_manager(harness, "rollback")
+
+    assert result.returncode != 0
+    current = _gateway_state(harness)
+    assert current["containers"][LEGACY_CADDY_NAME]["running"] is False
+    assert current["containers"][SHARED_GATEWAY_NAME]["running"] is True
+    assert current["containers"][SHARED_GATEWAY_NAME]["health"] == "healthy"
+    assert "shared gateway was restored" in result.stderr.casefold()
+
+
+def test_gateway_management_stopped_rollback_reports_shared_fallback_risk(
+    tmp_path: Path,
+) -> None:
+    state = _gateway_default_state(include_gateway=True)
+    state["containers"][LEGACY_CADDY_NAME]["running"] = False
+    state["legacy_health_failure"] = True
+    state["gateway_restore_failure"] = True
+    harness = _gateway_harness(tmp_path, state=state)
+    _prepare_gateway(harness)
+
+    result = _run_gateway_manager(harness, "rollback")
+
+    assert result.returncode != 0
+    assert "both-listeners risk" in result.stderr.casefold()
+    current = _gateway_state(harness)
+    assert current["containers"][LEGACY_CADDY_NAME]["running"] is False
+    assert current["containers"][SHARED_GATEWAY_NAME]["running"] is False
+
+
+def test_gateway_management_status_rejects_stale_runtime_generation(
+    tmp_path: Path,
+) -> None:
+    harness = _gateway_harness(tmp_path)
+    _prepare_gateway(harness)
+    activated = _run_gateway_manager(harness, "activate")
+    assert activated.returncode == 0, activated.stderr
+    runtime_generation = _gateway_state(harness)["containers"][
+        SHARED_GATEWAY_NAME
+    ]["generation"]
+    _prepare_gateway(harness)
+    prepared_generation = _gateway_environment(harness)[
+        "LADLE_GATEWAY_GENERATION"
+    ]
+    assert prepared_generation != runtime_generation
+
+    result = _run_gateway_manager(harness, "status")
+
+    assert result.returncode != 0
+    assert "gateway_current=no" in result.stdout
+    assert "stale" in result.stderr.casefold()
+    assert prepared_generation not in result.stdout + result.stderr
+    assert runtime_generation not in result.stdout + result.stderr
+    assert GATEWAY_TEST_SECRET not in result.stdout + result.stderr
+
+
 def test_gateway_management_status_is_read_only_and_rejects_inconsistency(
     tmp_path: Path,
 ) -> None:
@@ -8465,6 +8779,7 @@ def test_gateway_management_status_is_read_only_and_rejects_inconsistency(
         "active=yes",
         "gateway=running",
         "gateway_health=healthy",
+        "gateway_current=yes",
         "legacy=stopped",
         "legacy_health=none",
     ]

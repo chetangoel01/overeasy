@@ -31,6 +31,11 @@ deploying or removing Ladle must not control ingress for unrelated apps.
 - A pinned Caddy container owns the public HTTP and HTTPS ports.
 - Root-owned gateway configuration and environment files live outside app
   releases.
+- Every validated preparation writes a fresh opaque deployment generation into
+  the root-only gateway environment. Compose propagates that non-secret value
+  to the gateway environment and labels the resulting container so management
+  can compare prepared and running revisions without inspecting or hashing a
+  secret.
 - Caddy certificate and runtime data use gateway-owned named volumes.
 - A bounded logging policy, resource limits, a read-only root filesystem, and
   a configuration health check match the existing hardened deployment.
@@ -101,34 +106,39 @@ The root-only gateway manager runs from one immutable, root-owned
   absent operations authority lock atomically with POSIX noclobber semantics
   and a `077` umask, then validates and pins the winning inode without replacing
   it when first-time prepares race. It extracts only the Ladle hostname and
-  staging access key without sourcing the app environment and atomically
-  installs root-owned assets under `/opt/platform/gateway`. It takes the
-  blocking exclusive authority lock before reading mutable inputs and holds it
-  through installation.
+  staging access key without sourcing the app environment, generates a fresh
+  opaque prepared revision, and atomically installs root-owned assets under
+  `/opt/platform/gateway`. It takes the blocking exclusive authority lock
+  before reading mutable inputs and holds it through installation.
   Existing unrelated route files are preserved. Compose and pinned-Caddy
   validation run without publishing ports or stopping a container.
 - `activate` revalidates the installed files, secret metadata, shared-network
   contract, unique `ladle-edge` ownership, backend readiness, and exact legacy
-  Caddy identity while holding the same exclusive authority lock before
-  stopping only `ladle-caddy-1`. Any failure or signal after that stop takes
-  down the attempted shared gateway and waits for the preserved legacy
-  listener to become healthy again.
+  Caddy identity while holding the same exclusive authority lock. It always
+  force-recreates only the gateway service so mounted configuration and rotated
+  environment values enter a new container, then accepts success only when the
+  healthy container's opaque revision matches the prepared revision. Recovery
+  retains a verified shared listener when Compose left one serving; otherwise
+  it stops the failed replacement and restores the exact legacy listener.
 - `rollback` stops only the validated shared gateway, then waits for the
-  preserved legacy listener under the exclusive authority lock. If the legacy
-  container starts but remains unhealthy, it is stopped before the shared
-  gateway is restarted. A failed shared recovery reports the unresolved
+  preserved legacy listener under the exclusive authority lock. Recovery is
+  armed before starting legacy even when both listeners began stopped. If the
+  legacy container starts but remains unhealthy, it is stopped before the
+  shared gateway is restarted. A failed shared recovery reports the unresolved
   listener risk explicitly.
 - `status` takes a blocking shared authority lock using a separate descriptor
   and revalidates its pinned identity, so concurrent readers remain compatible
   while deployments and handoffs stay exclusive. It is otherwise read-only:
-  it reports preparation, active-listener state, and both container health
-  states without parsing or displaying secret values, and fails for foreign
-  or contradictory listener ownership.
+  it reports preparation, active-listener state, runtime-revision currency, and
+  both container health states without parsing or displaying secret values or
+  the opaque revision. It fails for a stale runtime revision, foreign
+  ownership, or contradictory listener ownership.
 
 ## Failure Handling
 
 - Invalid gateway configuration blocks activation.
-- A failed route reload leaves the last valid Caddy configuration running.
+- A failed active-gateway replacement retains a verified serving shared
+  container when possible or restores the exact legacy listener.
 - A failed port handoff triggers the documented rollback.
 - Ladle health checks distinguish shared-gateway availability from application
   health.

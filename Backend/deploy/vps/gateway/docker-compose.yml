@@ -3,8 +3,11 @@ services:
     image: caddy:2.11.4-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648
     restart: unless-stopped
     environment:
+      LADLE_GATEWAY_GENERATION: ${LADLE_GATEWAY_GENERATION:?set LADLE_GATEWAY_GENERATION}
       LADLE_PUBLIC_HOSTNAME: ${LADLE_PUBLIC_HOSTNAME:?set LADLE_PUBLIC_HOSTNAME}
       LADLE_TUNNEL_ACCESS_KEY: ${LADLE_TUNNEL_ACCESS_KEY:?set LADLE_TUNNEL_ACCESS_KEY}
+    labels:
+      com.ladle.gateway.generation: ${LADLE_GATEWAY_GENERATION:?set LADLE_GATEWAY_GENERATION}
     ports:
       - "80:80"
       - "443:443"
