@@ -14,6 +14,10 @@ import yaml
 BACKEND = Path(__file__).parents[3]
 PROFILE = BACKEND / "deploy" / "vps" / "docker-compose.yml"
 CADDYFILE = PROFILE.parent / "Caddyfile"
+GATEWAY = PROFILE.parent / "gateway"
+GATEWAY_PROFILE = GATEWAY / "docker-compose.yml"
+GATEWAY_CADDYFILE = GATEWAY / "Caddyfile"
+GATEWAY_LADLE_ROUTE = GATEWAY / "routes" / "ladle.caddy"
 PROVISION = PROFILE.parent / "provision.sh"
 HARDEN_SSH = PROFILE.parent / "harden-ssh.sh"
 DOCKER_USER_RULES = PROFILE.parent / "ladle-docker-user.rules"
@@ -281,6 +285,12 @@ ComposeLoader.add_constructor("!reset", _construct_reset)
 
 def _profile() -> dict[str, Any]:
     loaded = yaml.load(PROFILE.read_text(), Loader=ComposeLoader)
+    assert isinstance(loaded, dict)
+    return loaded
+
+
+def _gateway_profile() -> dict[str, Any]:
+    loaded = yaml.load(GATEWAY_PROFILE.read_text(), Loader=ComposeLoader)
     assert isinstance(loaded, dict)
     return loaded
 
@@ -791,6 +801,96 @@ def _docker_user_hooks(state: dict[str, Any]) -> list[str]:
 def test_vps_profile_files_exist() -> None:
     assert PROFILE.is_file()
     assert CADDYFILE.is_file()
+
+
+def test_gateway_assets_exist() -> None:
+    assert GATEWAY_PROFILE.is_file()
+    assert GATEWAY_CADDYFILE.is_file()
+    assert GATEWAY_LADLE_ROUTE.is_file()
+
+
+def test_gateway_profile_exposes_only_a_hardened_shared_tls_edge() -> None:
+    profile_text = GATEWAY_PROFILE.read_text()
+    profile = _gateway_profile()
+
+    assert set(profile["services"]) == {"gateway"}
+    gateway = profile["services"]["gateway"]
+    assert gateway["ports"] == ["80:80", "443:443", "443:443/udp"]
+    assert re.fullmatch(
+        r"caddy:[^@]+@sha256:[0-9a-f]{64}",
+        gateway["image"],
+    )
+    assert gateway["networks"] == ["platform-edge"]
+    assert profile["networks"] == {"platform-edge": {"external": True}}
+    assert gateway["logging"] == {
+        "driver": "json-file",
+        "options": {"max-size": "10m", "max-file": 3},
+    }
+    assert gateway["cpus"] > 0
+    assert _memory_mib(gateway["mem_limit"]) > 0
+    assert gateway["pids_limit"] > 0
+    assert gateway["read_only"] is True
+    assert gateway["cap_drop"] == ["ALL"]
+    assert gateway["cap_add"] == ["NET_BIND_SERVICE"]
+    assert gateway["security_opt"] == ["no-new-privileges:true"]
+    assert gateway["volumes"] == [
+        "./Caddyfile:/etc/caddy/Caddyfile:ro",
+        "./routes:/etc/caddy/routes:ro",
+        "gateway-caddy-data:/data",
+        "gateway-caddy-config:/config",
+    ]
+    assert set(profile["volumes"]) == {
+        "gateway-caddy-data",
+        "gateway-caddy-config",
+    }
+    assert gateway["healthcheck"]["test"] == [
+        "CMD",
+        "caddy",
+        "validate",
+        "--config",
+        "/etc/caddy/Caddyfile",
+    ]
+    assert "privileged: true" not in profile_text
+
+
+def test_gateway_profile_requires_ladle_values_without_embedding_secrets() -> None:
+    profile_text = GATEWAY_PROFILE.read_text()
+    environment = _gateway_profile()["services"]["gateway"]["environment"]
+
+    assert environment == {
+        "LADLE_PUBLIC_HOSTNAME": (
+            "${LADLE_PUBLIC_HOSTNAME:?set LADLE_PUBLIC_HOSTNAME}"
+        ),
+        "LADLE_TUNNEL_ACCESS_KEY": (
+            "${LADLE_TUNNEL_ACCESS_KEY:?set LADLE_TUNNEL_ACCESS_KEY}"
+        ),
+    }
+    assert "api.ladle.app" not in profile_text
+    assert "tunnel123" not in profile_text
+
+
+def test_gateway_caddy_imports_routes_and_preserves_ladle_access_controls() -> None:
+    caddy = GATEWAY_CADDYFILE.read_text()
+    route = GATEWAY_LADLE_ROUTE.read_text()
+
+    assert "import /etc/caddy/routes/*.caddy" in caddy
+    assert "{$LADLE_PUBLIC_HOSTNAME}" in route
+    assert "@private path /ladle-private/*" in route
+    assert "@authorized header X-Ladle-Tunnel-Key {$LADLE_TUNNEL_ACCESS_KEY}" in route
+    assert "reverse_proxy @private ladle-edge:8082" in route
+    assert "reverse_proxy @authorized ladle-edge:8082" in route
+    assert "edge:8082" not in route.replace("ladle-edge:8082", "")
+    assert (
+        'header Strict-Transport-Security "max-age=63072000; '
+        'includeSubDomains; preload"'
+    ) in route
+    assert route.index("header Strict-Transport-Security") < route.index(
+        "@private path"
+    )
+    assert route.index("@private path") < route.index("@authorized header")
+    assert route.index("@authorized header") < route.index("respond 404")
+    assert route.count("header_up Host {http.request.host}") == 2
+    assert "respond 404" in route
 
 
 def test_vps_profile_exposes_only_the_guarded_tls_edge() -> None:
