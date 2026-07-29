@@ -97,7 +97,7 @@ def test_vps_runbook_documents_staging_recovery_and_production_gates() -> None:
     assert "ovh snapshots are not database-aware backups" in lowered
     assert "--staging-access-key-file" in runbook
     assert '< "$PROVIDER_SECRET_FILE"' in runbook
-    assert '> "$STAGING_KEY_FILE"' in runbook
+    assert '> "$STAGING_KEY_TEMP"' in runbook
     assert "never prints the key" in lowered
     assert "fixed, sanitized phases" in lowered
     assert "never stream secrets or environment values" in lowered
@@ -115,6 +115,62 @@ def test_vps_runbook_documents_staging_recovery_and_production_gates() -> None:
     ) in prose
     assert "then prove a separate key-only session b" in prose
     assert lowered.count("preferredauthentications=password") >= 2
+    assert "remove exactly its single trailing cr/lf" in prose
+    assert "staging_key_temp" in lowered
+    assert "perl -0pe" in lowered
+    assert r"s/\r?\n\z//" in runbook
+
+    initial_operations = lowered.split("after the first successful push", maxsplit=1)[
+        1
+    ].split("## retrieve the staging key", maxsplit=1)[0]
+    assert initial_operations.index("sudo ladle-operations backup") < (
+        initial_operations.index("sudo ladle-operations health")
+    )
+
+    key_rotation = lowered.split("## ssh key rotation", maxsplit=1)[1].split(
+        "## production promotion blockers", maxsplit=1
+    )[0]
+    new_default_identity = key_rotation.index(
+        "identityfile ~/.ssh/ladle-ovh-staging-next"
+    )
+    ordinary_login = key_rotation.index("ssh ubuntu@135.148.42.60")
+    old_key_removal = key_rotation.index("${editor:-vi} ~/.ssh/authorized_keys")
+    assert new_default_identity < ordinary_login < old_key_removal
+
+    restore_drill = lowered.split(
+        "## empty-server postgresql 16 restore drill", maxsplit=1
+    )[1].split("## deterministic rollback", maxsplit=1)[0]
+    for required in (
+        "sudo sh -eu -s",
+        "created=false",
+        "trap cleanup 0",
+        "trap 'exit 1' hup int term",
+        "refusing stale ladle-restore-drill container",
+        'while [ "$attempt" -le 60 ]',
+        "--no-owner --no-privileges",
+    ):
+        assert required in restore_drill
+    stale_guard = restore_drill.index('if docker container inspect "$container"')
+    assert restore_drill.index("trap cleanup") < stale_guard
+    assert stale_guard < restore_drill.index("docker run")
+
+    bootstrap = lowered.split(
+        "transfer only the committed bootstrap inputs", maxsplit=1
+    )[1].split("if ubuntu reports that a reboot is required", maxsplit=1)[0]
+    for required in (
+        "git status --porcelain --untracked-files=all",
+        "git rev-parse --verify head^{commit}",
+        "bootstrap_revision",
+        "bootstrap_dir",
+    ):
+        assert required in bootstrap
+    assert bootstrap.index("git status --porcelain") < bootstrap.index("scp")
+    assert bootstrap.index("git rev-parse") < bootstrap.index("scp")
+
+    assert "all commands are bounded" not in lowered
+    assert "status and log output are bounded" in prose
+    assert "scheduled units enforce systemd timeouts" in prose
+    assert "direct health and backup calls bypass those systemd timeouts" in prose
 
     forbidden_credentials = (
         "secret-retrieve",

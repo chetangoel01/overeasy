@@ -118,19 +118,30 @@ Transfer only the committed bootstrap inputs from a clean checkout.
 **Mac — from `Backend/`**
 
 ```bash
-ssh ubuntu@135.148.42.60 'install -d -m 0700 /tmp/ladle-vps-bootstrap'
-scp \
-  deploy/vps/provision.sh \
-  deploy/vps/harden-ssh.sh \
-  deploy/vps/host-validation.sh \
-  deploy/vps/ladle-docker-user.rules \
-  ubuntu@135.148.42.60:/tmp/ladle-vps-bootstrap/
+(
+  set -eu
+  BOOTSTRAP_STATUS=$(git status --porcelain --untracked-files=all)
+  test -z "$BOOTSTRAP_STATUS"
+  BOOTSTRAP_REVISION=$(git rev-parse --verify HEAD^{commit})
+  BOOTSTRAP_DIR="/tmp/ladle-vps-bootstrap-$BOOTSTRAP_REVISION"
+  printf 'Bootstrap revision: %s\n' "$BOOTSTRAP_REVISION"
+  ssh ubuntu@135.148.42.60 \
+    "test ! -e '$BOOTSTRAP_DIR' && install -d -m 0700 '$BOOTSTRAP_DIR'"
+  scp \
+    deploy/vps/provision.sh \
+    deploy/vps/harden-ssh.sh \
+    deploy/vps/host-validation.sh \
+    deploy/vps/ladle-docker-user.rules \
+    "ubuntu@135.148.42.60:$BOOTSTRAP_DIR/"
+)
 ```
 
 **VPS — session A**
 
 ```bash
-sudo /tmp/ladle-vps-bootstrap/provision.sh
+BOOTSTRAP_REVISION="<FULL_COMMIT_PRINTED_ABOVE>"
+BOOTSTRAP_DIR="/tmp/ladle-vps-bootstrap-$BOOTSTRAP_REVISION"
+sudo "$BOOTSTRAP_DIR/provision.sh"
 ```
 
 If Ubuntu reports that a reboot is required, run `sudo reboot`; this closes
@@ -174,8 +185,10 @@ connection context.
 **VPS — session A**
 
 ```bash
+BOOTSTRAP_REVISION="<FULL_COMMIT_PRINTED_ABOVE>"
+BOOTSTRAP_DIR="/tmp/ladle-vps-bootstrap-$BOOTSTRAP_REVISION"
 sudo --preserve-env=SSH_CONNECTION \
-  /tmp/ladle-vps-bootstrap/harden-ssh.sh \
+  "$BOOTSTRAP_DIR/harden-ssh.sh" \
   /run/ladle-key-login-marker
 ```
 
@@ -244,25 +257,51 @@ transaction back. Then confirm the timers and guarded deployment.
 ```bash
 sudo systemctl list-timers ladle-health.timer ladle-backup.timer
 sudo ladle-operations status 80
+sudo ladle-operations backup
 sudo ladle-operations health
 ```
 
+The explicit first backup must succeed before the initial health check because
+backup freshness is part of health.
+
 ## Retrieve the staging key without printing it
 
-Capture the root-readable staging key directly into an owner-only local file.
-The redirection happens on the Mac, so the command never prints the key in the
-terminal.
+Capture the root-readable staging key directly into an owner-only temporary
+file. The server stores one line ending; remove exactly its single trailing
+CR/LF so `verify_staging.py` receives only the secret bytes. Reject an empty,
+unterminated, or multiline value. The redirection happens on the Mac, so the
+command never prints the key in the terminal.
 
 **Mac**
 
 ```bash
-umask 077
 STAGING_KEY_FILE="$HOME/.config/ladle/vps-staging-access-key"
-install -d -m 0700 "$(dirname "$STAGING_KEY_FILE")"
-ssh ubuntu@135.148.42.60 \
-  'sudo cat /etc/ladle/staging-access-key' > "$STAGING_KEY_FILE"
-chmod 0600 "$STAGING_KEY_FILE"
-test -s "$STAGING_KEY_FILE"
+(
+  set -eu
+  set -o pipefail
+  umask 077
+  install -d -m 0700 "$(dirname "$STAGING_KEY_FILE")"
+  STAGING_KEY_TEMP=$(mktemp "$STAGING_KEY_FILE.XXXXXX")
+  cleanup_staging_key() {
+    if [ -n "${STAGING_KEY_TEMP:-}" ]; then
+      rm -f -- "$STAGING_KEY_TEMP"
+    fi
+  }
+  trap cleanup_staging_key 0
+  trap 'exit 1' HUP INT TERM
+  ssh ubuntu@135.148.42.60 \
+    'sudo cat /etc/ladle/staging-access-key' |
+    perl -0pe '
+      s/\r?\n\z// or die "staging key lacks its terminator\n";
+      die "staging key contains an embedded newline\n" if /[\r\n]/;
+      die "staging key is empty\n" unless length;
+    ' > "$STAGING_KEY_TEMP"
+  chmod 0600 "$STAGING_KEY_TEMP"
+  test -s "$STAGING_KEY_TEMP"
+  mv -f -- "$STAGING_KEY_TEMP" "$STAGING_KEY_FILE"
+  STAGING_KEY_TEMP=
+  trap - 0 HUP INT TERM
+)
 ```
 
 Run the non-destructive guarded staging verifier.
@@ -303,7 +342,11 @@ Supadata and SoScripted use their matching allowlisted key names.
 
 ## Routine status, logs, and backup
 
-All commands are bounded and run as root on the VPS:
+Status and log output are bounded by the requested line count. Scheduled units
+enforce systemd timeouts: two minutes for health and 30 minutes for backup.
+Direct health and backup calls bypass those systemd timeouts and may run until
+their underlying Docker or database commands finish. Run these as root on the
+VPS:
 
 **VPS**
 
@@ -335,31 +378,86 @@ volume. Replace `<BACKUP_FILE>` with the filename reported by
 
 ```bash
 BACKUP="/var/backups/ladle/<BACKUP_FILE>"
-sudo sh -c \
-  'cd /var/backups/ladle && sha256sum --check --strict "$(basename "$1").sha256"' \
-  sh "$BACKUP"
+sudo sh -eu -s -- "$BACKUP" <<'LADLE_RESTORE'
+backup=$1
+container=ladle-restore-drill
+run_marker="$(date -u +%Y%m%dT%H%M%SZ)-$$"
+created=false
 
-sudo docker run --detach --name ladle-restore-drill \
+cleanup() {
+  status=$?
+  trap - 0 HUP INT TERM
+  if [ "$created" = true ] &&
+    docker container inspect "$container" >/dev/null 2>&1; then
+    live_marker=$(
+      docker container inspect \
+        --format '{{ index .Config.Labels "com.ladle.restore-drill" }}' \
+        "$container" 2>/dev/null || true
+    )
+    if [ "$live_marker" = "$run_marker" ]; then
+      if ! docker rm --force --volumes "$container" >/dev/null; then
+        printf '%s\n' "Restore-drill container cleanup failed." >&2
+        status=1
+      fi
+    else
+      printf '%s\n' "Restore-drill container ownership changed; refusing cleanup." >&2
+      status=1
+    fi
+  fi
+  exit "$status"
+}
+trap cleanup 0
+trap 'exit 1' HUP INT TERM
+
+backup_directory=$(dirname -- "$backup")
+backup_name=$(basename -- "$backup")
+[ "$backup_directory" = /var/backups/ladle ]
+case "$backup_name" in
+  ladle-*.dump) ;;
+  *) printf '%s\n' "Invalid restore archive name." >&2; exit 1 ;;
+esac
+[ -f "$backup" ] && [ ! -L "$backup" ]
+[ -f "$backup.sha256" ] && [ ! -L "$backup.sha256" ]
+
+if docker container inspect "$container" >/dev/null 2>&1; then
+  printf '%s\n' "Refusing stale ladle-restore-drill container; inspect or remove it first." >&2
+  exit 1
+fi
+
+cd /var/backups/ladle
+sha256sum --check --strict "$backup_name.sha256"
+
+created=true
+docker run --detach --name "$container" \
+  --label "com.ladle.restore-drill=$run_marker" \
   --network none \
   --tmpfs /var/lib/postgresql/data:rw,nosuid,nodev,size=2g \
   --env POSTGRES_HOST_AUTH_METHOD=trust \
-  postgres:16
-for attempt in $(seq 1 60)
-do
-  sudo docker exec ladle-restore-drill pg_isready --username postgres && break
+  postgres:16 >/dev/null
+
+attempt=1
+ready=false
+while [ "$attempt" -le 60 ]; do
+  if docker exec "$container" pg_isready --username postgres >/dev/null 2>&1; then
+    ready=true
+    break
+  fi
+  attempt=$((attempt + 1))
   sleep 1
 done
-sudo docker exec ladle-restore-drill pg_isready --username postgres
-sudo sh -c \
-  'docker exec -i ladle-restore-drill pg_restore --list < "$1" >/dev/null' \
-  sh "$BACKUP"
-sudo sh -c \
-  'docker exec -i ladle-restore-drill pg_restore --exit-on-error --no-owner --no-privileges --username postgres --dbname postgres < "$1"' \
-  sh "$BACKUP"
-sudo docker exec ladle-restore-drill \
+[ "$ready" = true ] || {
+  printf '%s\n' "Restore-drill PostgreSQL readiness timed out." >&2
+  exit 1
+}
+
+docker exec -i "$container" pg_restore --list < "$backup" >/dev/null
+docker exec -i "$container" \
+  pg_restore --exit-on-error --no-owner --no-privileges \
+  --username postgres --dbname postgres < "$backup"
+docker exec "$container" \
   psql --username postgres --dbname postgres --tuples-only --command \
   'SELECT version_num FROM alembic_version; SELECT count(*) FROM users; SELECT count(*) FROM recipes;'
-sudo docker rm --force --volumes ladle-restore-drill
+LADLE_RESTORE
 ```
 
 Record the archive filename, verified digest, schema revision, expected row
@@ -409,8 +507,10 @@ Key rotation overlaps old and new access:
 2. From the still-working old-key session, install only the new public key.
 3. Prove a second key-only login using the new identity and compare public-key
    fingerprints.
-4. Remove the old public key from `~ubuntu/.ssh/authorized_keys`.
-5. Prove the old key fails and the new key succeeds before closing recovery
+4. Update the normal SSH host entry to the new identity and prove an ordinary
+   login selects it.
+5. Remove the old public key from `~ubuntu/.ssh/authorized_keys`.
+6. Prove the old key fails and the new default succeeds before closing recovery
    sessions.
 
 **Mac**
@@ -423,6 +523,28 @@ ssh -i "$NEW_SSH_KEY" -o IdentitiesOnly=yes \
   -o PreferredAuthentications=publickey \
   -o PasswordAuthentication=no \
   ubuntu@135.148.42.60
+```
+
+Keep both old and new sessions open. Edit the existing local host entry so its
+default identity is the new key:
+
+```text
+Host 135.148.42.60 vps-8b0be574.vps.ovh.us
+    User ubuntu
+    IdentityFile ~/.ssh/ladle-ovh-staging-next
+    IdentitiesOnly yes
+```
+
+Confirm the effective configuration and an ordinary/default login before
+removing the old authorized key.
+
+**Mac**
+
+```bash
+${EDITOR:-vi} "$HOME/.ssh/config"
+ssh -G ubuntu@135.148.42.60 |
+  awk '$1 == "identityfile" { print $2 }'
+ssh ubuntu@135.148.42.60
 ```
 
 Use `ssh-keygen -lf ~ubuntu/.ssh/authorized_keys` on the VPS to identify public
