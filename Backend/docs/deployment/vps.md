@@ -133,9 +133,32 @@ scp \
 sudo /tmp/ladle-vps-bootstrap/provision.sh
 ```
 
-Reboot if Ubuntu reports that it is required, then repeat the key-only
-second-session check. In session B, create the hardener's root-owned assertion
-marker without exposing any credential.
+If Ubuntu reports that a reboot is required, run `sudo reboot`; this closes
+both SSH sessions. After any reboot, reopen and retain a fresh
+password-authenticated session A:
+
+**Mac — fresh retained session A**
+
+```bash
+ssh -o PreferredAuthentications=password \
+  -o PubkeyAuthentication=no \
+  ubuntu@135.148.42.60
+```
+
+Then prove a separate key-only session B before hardening:
+
+**Mac — fresh key-only session B**
+
+```bash
+ssh -o IdentitiesOnly=yes \
+  -o PreferredAuthentications=publickey \
+  -o PasswordAuthentication=no \
+  ubuntu@135.148.42.60
+```
+
+If no reboot was needed, keep the existing session A open and retain the
+already-proven key-only session B. In session B, create the hardener's
+root-owned assertion marker without exposing any credential.
 
 **VPS — key-only session B**
 

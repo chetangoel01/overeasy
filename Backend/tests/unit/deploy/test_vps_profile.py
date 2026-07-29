@@ -110,6 +110,11 @@ def test_vps_runbook_documents_staging_recovery_and_production_gates() -> None:
     assert "systemd-analyze is unavailable in the macos workspace" in prose
     assert "local tests do not validate real systemd unit syntax" in prose
     assert "ubuntu-side systemd-analyze verify" in prose
+    assert (
+        "after any reboot, reopen and retain a fresh password-authenticated session a"
+    ) in prose
+    assert "then prove a separate key-only session b" in prose
+    assert lowered.count("preferredauthentications=password") >= 2
 
     forbidden_credentials = (
         "secret-retrieve",
