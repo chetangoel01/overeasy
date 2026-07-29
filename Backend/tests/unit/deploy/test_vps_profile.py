@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import shlex
 import shutil
 import signal
 import stat
@@ -27,6 +28,7 @@ INITIALIZE_ENV = PROFILE.parent / "initialize-env.sh"
 SET_SECRET = PROFILE.parent / "set-secret.sh"
 DEPLOYMENT_LIB = PROFILE.parent / "deployment-lib.sh"
 OPERATIONS = PROFILE.parent / "operations.sh"
+OPERATIONS_LAUNCHER = PROFILE.parent / "operations-launcher.sh"
 INSTALL_OPERATIONS = PROFILE.parent / "install-operations.sh"
 HEALTH_SERVICE = PROFILE.parent / "ladle-health.service"
 HEALTH_TIMER = PROFILE.parent / "ladle-health.timer"
@@ -231,6 +233,7 @@ def test_vps_runbook_documents_staging_recovery_and_production_gates() -> None:
     assert "scheduled units enforce systemd timeouts" in prose
     assert "direct health and backup calls bypass those systemd timeouts" in prose
     assert "every deployment runs the operations refresh step" in prose
+    assert "current symlink authorizes operations dispatch" in prose
 
     forbidden_credentials = (
         "secret-retrieve",
@@ -389,6 +392,99 @@ def _run_installer_library(
         check=False,
         capture_output=True,
         env={**os.environ, **(env or {})},
+        text=True,
+    )
+
+
+def _write_launcher_stat(path: Path) -> None:
+    path.write_text(
+        """#!/usr/bin/env python3
+import os
+import stat
+import sys
+
+target = sys.argv[-1]
+metadata = os.lstat(target)
+uid = metadata.st_uid
+wrong_owner_paths = os.environ.get("WRONG_OWNER_PATHS", "").split(os.pathsep)
+if target in wrong_owner_paths:
+    uid += 1
+mode = stat.S_IMODE(metadata.st_mode)
+if sys.argv[2] == "%u:%a":
+    print(f"{uid}:{mode:o}")
+else:
+    raise SystemExit("unsupported stat format")
+"""
+    )
+    path.chmod(0o755)
+
+
+def _write_test_operations_launcher(
+    tmp_path: Path,
+    current: Path,
+    releases: Path,
+) -> Path:
+    fake_bin = tmp_path / "launcher-bin"
+    fake_bin.mkdir(exist_ok=True)
+    _write_launcher_stat(fake_bin / "stat")
+    launcher = tmp_path / "ladle-operations"
+    launcher_source = OPERATIONS_LAUNCHER.read_text()
+    replacements = {
+        "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin": (
+            f"PATH={shlex.quote(str(fake_bin))}:"
+            "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+        ),
+        "current_release=/opt/ladle/current": (
+            f"current_release={shlex.quote(str(current))}"
+        ),
+        "releases_directory=/opt/ladle/releases": (
+            f"releases_directory={shlex.quote(str(releases))}"
+        ),
+        "trusted_uid=0": f"trusted_uid={os.getuid()}",
+    }
+    for original, replacement in replacements.items():
+        assert original in launcher_source
+        launcher_source = launcher_source.replace(original, replacement, 1)
+    launcher.write_text(launcher_source)
+    launcher.chmod(0o755)
+    return launcher
+
+
+def _write_operations_release(
+    releases: Path,
+    revision: str,
+    label: str,
+) -> tuple[Path, Path, Path]:
+    release = releases / revision
+    operations = release / "Backend" / "deploy" / "vps" / "operations.sh"
+    operations.parent.mkdir(parents=True)
+    operations.write_text(
+        "#!/bin/sh\n"
+        f"printf '%s\\n' \"{label}:$*\" >>\"$LAUNCH_TRACE\"\n"
+    )
+    operations.chmod(0o755)
+    marker = release / ".ladle-revision"
+    marker.write_text(f"{revision}\n")
+    marker.chmod(0o444)
+    release.chmod(0o755)
+    return release, marker, operations
+
+
+def _run_launcher(
+    launcher: Path,
+    trace: Path,
+    *arguments: str,
+    wrong_owner_paths: tuple[Path, ...] = (),
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [str(launcher), *arguments],
+        check=False,
+        capture_output=True,
+        env={
+            **os.environ,
+            "LAUNCH_TRACE": str(trace),
+            "WRONG_OWNER_PATHS": os.pathsep.join(map(str, wrong_owner_paths)),
+        },
         text=True,
     )
 
@@ -630,8 +726,8 @@ def _operations_installer_fixture(
 ) -> tuple[Path, Path, Path, tuple[Path, ...], Path, Path]:
     source = tmp_path / "source"
     source.mkdir()
-    binary_source = source / "operations.sh"
-    binary_source.write_text("#!/bin/sh\nprintf '%s\\n' new-operations\n")
+    binary_source = source / "operations-launcher.sh"
+    binary_source.write_text("#!/bin/sh\nprintf '%s\\n' new-launcher\n")
     binary_source.chmod(0o755)
     unit_names = (
         "ladle-health.service",
@@ -2127,6 +2223,7 @@ def test_push_makes_completed_releases_root_owned_and_immutable() -> None:
         "Backend/deploy/vps/deployment-lib.sh",
         "Backend/deploy/vps/host-validation.sh",
         "Backend/deploy/vps/install-operations.sh",
+        "Backend/deploy/vps/operations-launcher.sh",
         "Backend/deploy/vps/operations.sh",
         "Backend/deploy/vps/ladle-health.service",
         "Backend/deploy/vps/ladle-health.timer",
@@ -2142,6 +2239,7 @@ def test_push_makes_completed_releases_root_owned_and_immutable() -> None:
     )
     for executable_path in (
         "Backend/deploy/vps/install-operations.sh",
+        "Backend/deploy/vps/operations-launcher.sh",
         "Backend/deploy/vps/operations.sh",
     ):
         assert f'[ -x "$root_release/{executable_path}" ]' in push
@@ -3314,6 +3412,135 @@ def test_vps_operations_create_validated_atomic_postgres_backups() -> None:
     assert backup.index("remove_incomplete_backup_pairs") < backup.index("pg_dump -Fc")
 
 
+def test_operations_launcher_dispatches_active_release_with_original_arguments(
+    tmp_path: Path,
+) -> None:
+    releases = tmp_path / "releases"
+    releases.mkdir()
+    revision = "a" * 40
+    active, _, _ = _write_operations_release(releases, revision, "active")
+    current = tmp_path / "current"
+    current.symlink_to(active)
+    launcher = _write_test_operations_launcher(tmp_path, current, releases)
+    trace = tmp_path / "launch.trace"
+
+    result = _run_launcher(launcher, trace, "status", "37")
+
+    assert result.returncode == 0, result.stderr
+    assert trace.read_text() == "active:status 37\n"
+
+
+def test_operations_launcher_follows_current_after_activation(tmp_path: Path) -> None:
+    releases = tmp_path / "releases"
+    releases.mkdir()
+    old_release, _, _ = _write_operations_release(
+        releases,
+        "a" * 40,
+        "old",
+    )
+    new_release, _, _ = _write_operations_release(
+        releases,
+        "b" * 40,
+        "new",
+    )
+    current = tmp_path / "current"
+    current.symlink_to(old_release)
+    launcher = _write_test_operations_launcher(tmp_path, current, releases)
+    trace = tmp_path / "launch.trace"
+
+    old_result = _run_launcher(launcher, trace, "health")
+    current.unlink()
+    current.symlink_to(new_release)
+    new_result = _run_launcher(launcher, trace, "backup")
+
+    assert old_result.returncode == 0, old_result.stderr
+    assert new_result.returncode == 0, new_result.stderr
+    assert trace.read_text().splitlines() == ["old:health", "new:backup"]
+
+
+@pytest.mark.parametrize(
+    "unsafe_state",
+    (
+        "current_regular",
+        "outside_releases",
+        "malformed_revision",
+        "mutable_release",
+        "wrong_owner_release",
+        "mutable_marker",
+        "wrong_owner_marker",
+        "mutable_script",
+        "wrong_owner_script",
+        "symlinked_script",
+        "marker_mismatch",
+    ),
+)
+def test_operations_launcher_fails_closed_for_untrusted_active_release(
+    tmp_path: Path,
+    unsafe_state: str,
+) -> None:
+    releases = tmp_path / "releases"
+    releases.mkdir()
+    revision = "a" * 40
+    release, marker, operations = _write_operations_release(
+        releases,
+        revision,
+        "active",
+    )
+    current = tmp_path / "current"
+    current.symlink_to(release)
+    wrong_owner_paths: tuple[Path, ...] = ()
+    if unsafe_state == "current_regular":
+        current.unlink()
+        current.write_text("not a link\n")
+    elif unsafe_state == "outside_releases":
+        outside = tmp_path / "outside" / revision
+        outside.mkdir(parents=True)
+        current.unlink()
+        current.symlink_to(outside)
+    elif unsafe_state == "malformed_revision":
+        malformed, _, _ = _write_operations_release(
+            releases,
+            "not-a-revision",
+            "malformed",
+        )
+        current.unlink()
+        current.symlink_to(malformed)
+    elif unsafe_state == "mutable_release":
+        release.chmod(0o775)
+    elif unsafe_state == "wrong_owner_release":
+        wrong_owner_paths = (release,)
+    elif unsafe_state == "mutable_marker":
+        marker.chmod(0o664)
+    elif unsafe_state == "wrong_owner_marker":
+        wrong_owner_paths = (marker,)
+    elif unsafe_state == "mutable_script":
+        operations.chmod(0o775)
+    elif unsafe_state == "wrong_owner_script":
+        wrong_owner_paths = (operations,)
+    elif unsafe_state == "symlinked_script":
+        operations.unlink()
+        operations.symlink_to("/bin/sh")
+    elif unsafe_state == "marker_mismatch":
+        marker.chmod(0o644)
+        marker.write_text(f"{'b' * 40}\n")
+        marker.chmod(0o444)
+    launcher = _write_test_operations_launcher(tmp_path, current, releases)
+    trace = tmp_path / "launch.trace"
+
+    result = _run_launcher(
+        launcher,
+        trace,
+        "health",
+        wrong_owner_paths=wrong_owner_paths,
+    )
+
+    assert result.returncode != 0
+    assert result.stdout == ""
+    assert result.stderr == "Cannot run active Ladle operations.\n"
+    assert not trace.exists()
+    assert revision not in result.stderr
+
+
 def test_vps_health_covers_runtime_tls_backup_and_authoritative_revision() -> None:
     operations = OPERATIONS.read_text()
 
@@ -3527,6 +3754,13 @@ def test_operations_installer_validates_exact_release_before_atomic_install() ->
     assert "mv -f --" in installer
     assert "transactional_install_operations" in installer
     assert "rollback_operations_install" in installer
+    assert (
+        '"$transaction_source_directory/operations-launcher.sh"' in installer
+    )
+    assert (
+        "operations_launcher_source="
+        "$script_directory/operations-launcher.sh"
+    ) in installer
     transaction = installer[installer.index("transactional_install_operations()") :]
     assert transaction.index("verify_staged_units") < transaction.index(
         "if ! systemctl daemon-reload"
@@ -4244,8 +4478,8 @@ def test_operations_installer_rolls_back_every_failure(
 ) -> None:
     source = tmp_path / "source"
     source.mkdir()
-    binary_source = source / "operations.sh"
-    binary_source.write_text("#!/bin/sh\nprintf '%s\\n' new-operations\n")
+    binary_source = source / "operations-launcher.sh"
+    binary_source.write_text("#!/bin/sh\nprintf '%s\\n' new-launcher\n")
     binary_source.chmod(0o755)
     unit_names = (
         "ladle-health.service",
@@ -4313,8 +4547,8 @@ def test_operations_installer_commits_the_whole_file_set_together(
 ) -> None:
     source = tmp_path / "source"
     source.mkdir()
-    binary_source = source / "operations.sh"
-    binary_source.write_text("#!/bin/sh\nprintf '%s\\n' new-operations\n")
+    binary_source = source / "operations-launcher.sh"
+    binary_source.write_text("#!/bin/sh\nprintf '%s\\n' new-launcher\n")
     binary_source.chmod(0o755)
     unit_names = (
         "ladle-health.service",
@@ -4455,7 +4689,9 @@ transactional_install_operations "$2" "$3" "$4" "$5" refresh
 
     assert result.returncode == 0, result.stderr
     for target in targets:
-        source_name = "operations.sh" if target == binary_target else target.name
+        source_name = (
+            "operations-launcher.sh" if target == binary_target else target.name
+        )
         assert target.read_text() == (source / source_name).read_text()
     assert fake_state.read_text().splitlines() == ["daemon-reload"]
 
@@ -4486,6 +4722,81 @@ transactional_install_operations "$2" "$3" "$4" "$5" refresh
     assert "enable " not in trace
     assert "start " not in trace
     assert "disable " not in trace
+
+
+def test_refreshed_launcher_stays_bound_to_current_across_failed_activation(
+    tmp_path: Path,
+) -> None:
+    releases = tmp_path / "releases"
+    releases.mkdir()
+    old_release, _, _ = _write_operations_release(
+        releases,
+        "a" * 40,
+        "old",
+    )
+    new_release, _, _ = _write_operations_release(
+        releases,
+        "b" * 40,
+        "new",
+    )
+    current = tmp_path / "current"
+    current.symlink_to(old_release)
+    test_launcher = _write_test_operations_launcher(tmp_path, current, releases)
+    install_root = tmp_path / "install"
+    install_root.mkdir()
+    source, binary_target, unit_dir, _, fake_bin, fake_state = (
+        _operations_installer_fixture(install_root, preexisting=True)
+    )
+    launcher_source = source / "operations-launcher.sh"
+    launcher_source.write_text(test_launcher.read_text())
+    launcher_source.chmod(0o755)
+    for unit_source in (HEALTH_SERVICE, HEALTH_TIMER, BACKUP_SERVICE, BACKUP_TIMER):
+        shutil.copyfile(unit_source, source / unit_source.name)
+
+    refresh = _run_installer_library(
+        """
+PATH=$1:$PATH
+transactional_install_operations "$2" "$3" "$4" "$5" refresh
+""",
+        fake_bin,
+        source,
+        binary_target,
+        unit_dir,
+        str(os.getuid()),
+        env={"FAIL_PHASE": "none", "FAKE_STATE": str(fake_state)},
+    )
+    failed_activation = _run_library_script(
+        """
+mv() { return 1; }
+activate_release "$1" "$2"
+""",
+        new_release,
+        current,
+    )
+    trace = tmp_path / "launch.trace"
+    after_failure = _run_launcher(binary_target, trace, "health")
+    successful_activation = _run_deployment_library(
+        "activate_release",
+        new_release,
+        current,
+    )
+    after_success = _run_launcher(binary_target, trace, "backup")
+
+    assert refresh.returncode == 0, refresh.stderr
+    assert failed_activation.returncode != 0
+    assert after_failure.returncode == 0, after_failure.stderr
+    assert successful_activation.returncode == 0, successful_activation.stderr
+    assert after_success.returncode == 0, after_success.stderr
+    assert trace.read_text().splitlines() == ["old:health", "new:backup"]
+    assert fake_state.read_text().splitlines() == ["daemon-reload"]
+    for installed_unit in unit_dir.iterdir():
+        unit_text = installed_unit.read_text()
+        assert "/usr/local/sbin/ladle-operations" in unit_text or (
+            installed_unit.suffix == ".timer"
+        )
+        assert "/opt/ladle/releases/" not in unit_text
+        assert "a" * 40 not in unit_text
+        assert "b" * 40 not in unit_text
 
 
 @pytest.mark.parametrize("preexisting", (False, True))
@@ -4755,7 +5066,7 @@ transactional_install_operations "$2" "$3" "$4" "$5"
     assert "rollback incomplete" in result.stderr
     assert "root-only recovery files remain as .ladle-backup.*" in result.stderr
     assert "prior state restored" not in result.stderr
-    assert "new-operations" in binary_target.read_text()
+    assert "new-launcher" in binary_target.read_text()
     recovery = [
         *binary_target.parent.glob(".ladle-backup.*"),
         *unit_dir.glob(".ladle-backup.*"),
@@ -4825,7 +5136,7 @@ transactional_install_operations "$2" "$3" "$4" "$5"
     assert result.returncode != 0
     assert "mixed/new targets may remain and require root inspection" in result.stderr
     assert "recovery files remain as .ladle-backup.*" not in result.stderr
-    assert "new-operations" in binary_target.read_text()
+    assert "new-launcher" in binary_target.read_text()
     assert not [
         *binary_target.parent.glob(".ladle-backup.*"),
         *unit_dir.glob(".ladle-backup.*"),

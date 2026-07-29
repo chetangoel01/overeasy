@@ -320,6 +320,15 @@ installed, rejects a partial or unsafe set, and atomically refreshes a complete
 set without starting services or changing timer state. Refresh failure keeps
 the previous authoritative release active.
 
+The `/opt/ladle/current` symlink authorizes operations dispatch. The stable
+`/usr/local/sbin/ladle-operations` launcher validates that `current` resolves
+to an exact immutable, root-owned release with a matching revision marker,
+then executes that release's `Backend/deploy/vps/operations.sh`. Systemd units
+remain version-neutral and invoke only the stable launcher. A refresh before
+activation is therefore safe: if activation fails, `current` still selects the
+previous release's operations; once activation succeeds, the same launcher
+selects the new release.
+
 After the first successful push, install the health and backup operations once,
 outside the deployment lock.
 

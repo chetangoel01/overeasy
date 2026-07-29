@@ -511,7 +511,7 @@ transactional_install_operations() {
 
     transaction_binary_stage=$(
         stage_transaction_target \
-            "$transaction_source_directory/operations.sh" \
+            "$transaction_source_directory/operations-launcher.sh" \
             "$transaction_binary_target" 755 "$transaction_uid"
     ) || {
         abort_transaction_preflight
@@ -787,8 +787,10 @@ install_operations_main() {
         return 1
     fi
 
+    operations_launcher_source=$script_directory/operations-launcher.sh
     operations_source=$script_directory/operations.sh
     for executable_source in \
+        "$operations_launcher_source" \
         "$operations_source" \
         "$script_directory/install-operations.sh"; do
         if [ ! -f "$executable_source" ] || [ -L "$executable_source" ] ||

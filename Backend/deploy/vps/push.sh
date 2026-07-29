@@ -223,6 +223,7 @@ release_root_is_safe() {
         Backend/deploy/vps/deployment-lib.sh \
         Backend/deploy/vps/host-validation.sh \
         Backend/deploy/vps/install-operations.sh \
+        Backend/deploy/vps/operations-launcher.sh \
         Backend/deploy/vps/operations.sh \
         Backend/deploy/vps/ladle-health.service \
         Backend/deploy/vps/ladle-health.timer \
@@ -237,6 +238,7 @@ release_root_is_safe() {
         [ -x "$root_release/Backend/deploy/vps/deploy.sh" ] &&
         [ -x "$root_release/Backend/deploy/vps/deployment-lib.sh" ] &&
         [ -x "$root_release/Backend/deploy/vps/install-operations.sh" ] &&
+        [ -x "$root_release/Backend/deploy/vps/operations-launcher.sh" ] &&
         [ -x "$root_release/Backend/deploy/vps/operations.sh" ]
 }
 
