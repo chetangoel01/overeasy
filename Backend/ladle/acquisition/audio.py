@@ -15,7 +15,7 @@ import logging
 import shutil
 import subprocess
 import tempfile
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from decimal import Decimal
 from pathlib import Path
 from time import sleep
@@ -71,6 +71,7 @@ class AudioSource(Protocol):
         source: SourceVideoDescriptor,
         *,
         media_url: str | None,
+        media_headers: Mapping[str, str] | None = None,
         work_dir: Path,
     ) -> Path | None: ...
 
@@ -108,12 +109,17 @@ class MediaAudioSource:
         source: SourceVideoDescriptor,
         *,
         media_url: str | None,
+        media_headers: Mapping[str, str] | None = None,
         work_dir: Path,
     ) -> Path | None:
         """Whatever carries the sound, which is all transcription needs."""
 
         if media_url:
-            downloaded = self._download(media_url, work_dir)
+            downloaded = self._download(
+                media_url,
+                work_dir,
+                headers=media_headers,
+            )
             if downloaded is not None:
                 return downloaded
         return None
@@ -123,6 +129,7 @@ class MediaAudioSource:
         source: SourceVideoDescriptor,
         *,
         media_url: str | None,
+        media_headers: Mapping[str, str] | None = None,
         work_dir: Path,
     ) -> Path | None:
         """A file with pictures in it, for anything that samples frames.
@@ -133,7 +140,11 @@ class MediaAudioSource:
         """
 
         if media_url:
-            downloaded = self._download(media_url, work_dir)
+            downloaded = self._download(
+                media_url,
+                work_dir,
+                headers=media_headers,
+            )
             if downloaded is not None:
                 return downloaded
         return None
@@ -143,19 +154,35 @@ class MediaAudioSource:
         source: SourceVideoDescriptor,
         *,
         media_url: str | None,
+        media_headers: Mapping[str, str] | None = None,
         work_dir: Path,
     ) -> Path | None:
         if self._ffmpeg is None:
             return None
-        downloaded = self.media(source, media_url=media_url, work_dir=work_dir)
+        downloaded = self.media(
+            source,
+            media_url=media_url,
+            media_headers=media_headers,
+            work_dir=work_dir,
+        )
         if downloaded is None:
             return None
         return self._to_mp3(downloaded, work_dir)
 
-    def _download(self, url: str, work_dir: Path) -> Path | None:
+    def _download(
+        self,
+        url: str,
+        work_dir: Path,
+        *,
+        headers: Mapping[str, str] | None,
+    ) -> Path | None:
         target = work_dir / "source-media"
         try:
-            response = self._http.get(url, max_bytes=self._max_media_bytes)
+            response = self._http.get(
+                url,
+                headers=headers,
+                max_bytes=self._max_media_bytes,
+            )
             response.raise_for_status()
             target.write_bytes(response.content)
         except (httpx.HTTPError, UnsafeNetworkTarget) as error:
@@ -478,6 +505,7 @@ class AudioTranscriptProvider:
         *,
         job_id: UUID,
         media_url: str | None = None,
+        media_headers: Mapping[str, str] | None = None,
         duration_seconds: float | None = None,
     ) -> TranscriptResult:
         if (
@@ -486,12 +514,13 @@ class AudioTranscriptProvider:
         ):
             raise TranscriptUnavailable(
                 f"video is {duration_seconds:.0f}s, above the transcription cap"
-            )
+        )
         with tempfile.TemporaryDirectory(prefix="ladle-audio-") as folder:
             work_dir = Path(folder)
             audio = self._audio_source.audio(
                 source,
                 media_url=media_url,
+                media_headers=media_headers,
                 work_dir=work_dir,
             )
             if audio is None:

@@ -39,6 +39,11 @@ media audio, followed by any configured transcript-provider fallbacks.
 `LADLE_FRAME_ANALYSIS_ENABLED` remains `false`, so enabling the media tools
 does not activate frame sampling.
 
+Some public media CDNs require the short-lived cookie jar and request headers
+created during yt-dlp metadata discovery. Those values remain in memory only
+and are forwarded through the same bounded, DNS-pinned media downloader.
+Credential headers are removed if a download redirects to a different host.
+
 ### Thumbnail-only context
 
 Thumbnail analysis will have its own configuration switch rather than reusing

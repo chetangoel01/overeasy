@@ -2,6 +2,7 @@ import json
 import subprocess
 from collections.abc import Sequence
 from dataclasses import dataclass
+from pathlib import Path
 
 import httpx
 import pytest
@@ -50,6 +51,18 @@ class Runner:
         if isinstance(value, Exception):
             raise value
         return value
+
+
+class CookieRunner(Runner):
+    def __call__(
+        self, command: list[str], *, timeout: float
+    ) -> subprocess.CompletedProcess[str]:
+        cookie_path = Path(command[command.index("--cookies") + 1])
+        cookie_path.write_text(
+            "# Netscape HTTP Cookie File\n"
+            ".media.example\tTRUE\t/\tTRUE\t2147483647\ttt_chain_token\tpublic\n"
+        )
+        return super().__call__(command, timeout=timeout)
 
 
 @dataclass
@@ -241,6 +254,35 @@ def test_provider_subtitle_and_media_urls_are_extracted_for_pinned_fetching() ->
     assert media.video_url == "https://media.example/video.mp4"
     assert client.subtitles("ignored", track=track)
     assert requests[0].url.host == "93.184.216.34"
+
+
+def test_metadata_preserves_ephemeral_headers_needed_for_media_download() -> None:
+    payload = {
+        "formats": [
+            {
+                "url": "https://media.example/video.mp4",
+                "vcodec": "h264",
+                "acodec": "aac",
+                "tbr": 595,
+                "http_headers": {
+                    "User-Agent": "yt-dlp browser",
+                    "Referer": "https://www.tiktok.com/@cook/video/1",
+                },
+            }
+        ]
+    }
+    runner = CookieRunner(completed(json.dumps(payload)))
+
+    media = YtDlpClient(binary="yt-dlp", runner=runner).metadata(
+        "https://www.tiktok.com/@cook/video/1"
+    )
+
+    assert media.audio_headers == {
+        "User-Agent": "yt-dlp browser",
+        "Referer": "https://www.tiktok.com/@cook/video/1",
+        "Cookie": "tt_chain_token=public",
+    }
+    assert "--cookies" in runner.commands[0]
 
 
 def test_private_provider_subtitle_url_is_rejected_before_request() -> None:

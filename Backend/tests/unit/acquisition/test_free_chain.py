@@ -1,5 +1,6 @@
 """The free rung must actually displace paid calls, not merely precede them."""
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from decimal import Decimal
 from uuid import UUID, uuid4
@@ -246,6 +247,7 @@ def test_free_transcript_skips_every_paid_transcript_rung() -> None:
 class Audio:
     result: TranscriptResult | Exception
     calls: list[tuple[str | None, float | None]] = field(default_factory=list)
+    headers: list[Mapping[str, str] | None] = field(default_factory=list)
 
     def transcript(
         self,
@@ -253,10 +255,12 @@ class Audio:
         *,
         job_id: UUID,
         media_url: str | None = None,
+        media_headers: Mapping[str, str] | None = None,
         duration_seconds: float | None = None,
     ) -> TranscriptResult:
         del source, job_id
         self.calls.append((media_url, duration_seconds))
+        self.headers.append(media_headers)
         if isinstance(self.result, Exception):
             raise self.result
         return self.result
@@ -431,6 +435,7 @@ def test_audio_transcription_runs_before_the_transcript_providers() -> None:
                 duration_seconds=22.3,
             ),
             audio_url="https://cdn.example/audio-only.m4a",
+            audio_headers={"Cookie": "tt_chain_token=public"},
             diagnostics=["instagramEmbedUsed"],
         )
     )
@@ -440,6 +445,7 @@ def test_audio_transcription_runs_before_the_transcript_providers() -> None:
 
     # Whisper answered, so neither Supadata transcript rung nor SoScripted ran.
     assert audio.calls == [("https://cdn.example/audio-only.m4a", 22.3)]
+    assert audio.headers == [{"Cookie": "tt_chain_token=public"}]
     assert primary.calls == []
     assert fallback.calls == 0
     assert context.transcript[0].provenance == "whisper:openai/whisper-large-v3"

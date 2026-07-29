@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from decimal import Decimal
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -319,9 +320,10 @@ class Silent:
         source: SourceVideoDescriptor,
         *,
         media_url: str | None,
+        media_headers: Mapping[str, str] | None = None,
         work_dir: Path,
     ) -> Path | None:
-        del source, media_url, work_dir
+        del source, media_url, media_headers, work_dir
         return None
 
 
@@ -329,16 +331,19 @@ class Recording:
     def __init__(self, audio_path: Path) -> None:
         self.audio_path = audio_path
         self.media_urls: list[str | None] = []
+        self.media_headers: list[Mapping[str, str] | None] = []
 
     def audio(
         self,
         source: SourceVideoDescriptor,
         *,
         media_url: str | None,
+        media_headers: Mapping[str, str] | None = None,
         work_dir: Path,
     ) -> Path | None:
         del source, work_dir
         self.media_urls.append(media_url)
+        self.media_headers.append(media_headers)
         return self.audio_path
 
 
@@ -390,7 +395,9 @@ def test_media_url_is_passed_through_to_the_audio_source(tmp_path: Path) -> None
         source(),
         job_id=uuid4(),
         media_url="https://cdn.instagram.com/reel.mp4",
+        media_headers={"Cookie": "session=public"},
         duration_seconds=57.2,
     )
 
     assert recorder.media_urls == ["https://cdn.instagram.com/reel.mp4"]
+    assert recorder.media_headers == [{"Cookie": "session=public"}]

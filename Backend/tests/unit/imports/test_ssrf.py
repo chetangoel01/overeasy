@@ -118,6 +118,43 @@ def test_external_fetch_revalidates_redirects_and_rejects_mixed_dns() -> None:
     assert len(requests) == 1
 
 
+def test_external_fetch_drops_credentials_on_cross_host_redirect() -> None:
+    requests: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if request.headers["host"] == "media.example":
+            return httpx.Response(
+                302,
+                headers={"location": "https://cdn.example/asset"},
+            )
+        return httpx.Response(200, content=b"media")
+
+    client = PinnedHTTPClient(
+        dns=FakeDNS(
+            {
+                "media.example": ["93.184.216.34"],
+                "cdn.example": ["93.184.216.35"],
+            }
+        ),
+        client=httpx.Client(transport=httpx.MockTransport(respond)),
+    )
+
+    client.get(
+        "https://media.example/video",
+        headers={
+            "Authorization": "Bearer short-lived",
+            "Cookie": "tt_chain_token=public",
+        },
+        max_bytes=1024,
+    )
+
+    assert requests[0].headers["authorization"] == "Bearer short-lived"
+    assert requests[0].headers["cookie"] == "tt_chain_token=public"
+    assert "authorization" not in requests[1].headers
+    assert "cookie" not in requests[1].headers
+
+
 def test_external_fetch_rejects_response_over_its_byte_limit() -> None:
     client = PinnedHTTPClient(
         dns=FakeDNS({"assets.example": ["93.184.216.34"]}),
