@@ -240,6 +240,24 @@ def test_vps_runbook_documents_staging_recovery_and_production_gates() -> None:
     assert "Backend/docs/deployment/vps.md" in ROOT_README.read_text()
 
 
+def test_vps_runbook_configures_assigned_ovh_ipv6_before_provisioning() -> None:
+    runbook = RUNBOOK.read_text()
+    ipv6_setup = runbook.index("51-ladle-ipv6.yaml")
+    provision = runbook.index('sudo "$BOOTSTRAP_DIR/provision.sh"')
+
+    assert "2604:2dc0:121::64f/128" in runbook
+    assert "2604:2dc0:121::1" in runbook
+    assert "sudo netplan generate" in runbook
+    assert "sudo netplan apply" in runbook
+    assert "ping -6 -c 2 2606:4700:4700::1111" in runbook
+    assert "while ip -6 address show dev ens3 | grep -q tentative" in runbook
+    assert "dadfailed" in runbook
+    assert runbook.index("grep -q tentative") < runbook.index(
+        "ping -6 -c 2 2606:4700:4700::1111"
+    )
+    assert ipv6_setup < provision
+
+
 class ComposeLoader(yaml.SafeLoader):
     pass
 

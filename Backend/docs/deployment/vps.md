@@ -113,6 +113,51 @@ apt list --upgradable
 sudo sshd -T
 ```
 
+The installed image requests DHCPv6 and router advertisements, but this OVH
+VPS requires its assigned `/128` address and gateway to be configured
+statically. Confirm that the OVH dashboard still shows
+`2604:2dc0:121::64f` with gateway `2604:2dc0:121::1`, keep KVM open, and add a
+separate Netplan override before provisioning:
+
+**VPS**
+
+```bash
+sudo install -o root -g root -m 0600 /dev/stdin \
+  /etc/netplan/51-ladle-ipv6.yaml <<'LADLE_IPV6'
+network:
+  version: 2
+  ethernets:
+    ens3:
+      dhcp6: false
+      accept-ra: false
+      addresses:
+        - 2604:2dc0:121::64f/128
+      routes:
+        - to: 2604:2dc0:121::1/128
+          scope: link
+        - to: ::/0
+          via: 2604:2dc0:121::1
+LADLE_IPV6
+sudo netplan generate
+sudo netplan apply
+attempt=0
+while ip -6 address show dev ens3 | grep -q tentative; do
+  attempt=$((attempt + 1))
+  [ "$attempt" -lt 30 ] || {
+    printf '%s\n' "IPv6 duplicate-address detection did not complete." >&2
+    exit 1
+  }
+  sleep 1
+done
+if ip -6 address show dev ens3 | grep -q dadfailed; then
+  printf '%s\n' "The assigned IPv6 address failed duplicate-address detection." >&2
+  exit 1
+fi
+ip -6 address show dev ens3
+ip -6 route show default
+ping -6 -c 2 2606:4700:4700::1111
+```
+
 Transfer only the committed bootstrap inputs from a clean checkout. Store them
 in a persistent owner-only per-revision bootstrap directory under the Ubuntu
 account's home so an approved reboot cannot remove the hardener.
