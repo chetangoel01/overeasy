@@ -238,8 +238,23 @@ def test_vps_runbook_documents_staging_recovery_and_production_gates() -> None:
     assert "current symlink authorizes operations dispatch" in prose
     assert "pinned release handoff fails closed" in prose
     assert "before transition logging or backup lock acquisition" in prose
-    assert "blocking shared deployment lock" in prose
+    assert "blocking shared authority lock" in prose
+    assert "separate deployment lock" in prose
+    assert "fresh provisioning creates authority.lock" in prose
     assert "two-minute health service timeout" in prose
+    gateway_plan = " ".join(
+        (
+            BACKEND.parent / "docs/plans/2026-07-29-shared-vps-gateway.md"
+        )
+        .read_text()
+        .casefold()
+        .replace("`", "")
+        .split()
+    )
+    assert (
+        "gateway prepare creates and validates "
+        "/var/lib/ladle/locks/authority.lock before pushing the detached release"
+    ) in gateway_plan
 
     forbidden_credentials = (
         "secret-retrieve",
@@ -432,6 +447,8 @@ def _write_test_operations_launcher(
     current: Path,
     releases: Path,
     *,
+    authority_lock: Path | None = None,
+    create_authority_lock: bool = True,
     deployment_lock: Path | None = None,
     create_deployment_lock: bool = True,
     mark_before_current_selection: bool = False,
@@ -441,6 +458,11 @@ def _write_test_operations_launcher(
     fake_bin.mkdir(exist_ok=True)
     _write_launcher_stat(fake_bin / "stat")
     _write_fake_flock(fake_bin / "flock")
+    if authority_lock is None:
+        authority_lock = tmp_path / "authority.lock"
+    if create_authority_lock:
+        authority_lock.touch()
+        authority_lock.chmod(0o600)
     if deployment_lock is None:
         deployment_lock = tmp_path / "deploy.lock"
     if create_deployment_lock:
@@ -459,6 +481,9 @@ def _write_test_operations_launcher(
         "releases_directory=/opt/ladle/releases": (
             f"releases_directory={shlex.quote(str(releases))}"
         ),
+        "authority_lock=/var/lib/ladle/locks/authority.lock": (
+            f"authority_lock={shlex.quote(str(authority_lock))}"
+        ),
         "deployment_lock=/var/lib/ladle/locks/deploy.lock": (
             f"deployment_lock={shlex.quote(str(deployment_lock))}"
         ),
@@ -467,7 +492,7 @@ def _write_test_operations_launcher(
     for original, replacement in replacements.items():
         if original in launcher_source:
             launcher_source = launcher_source.replace(original, replacement, 1)
-        elif original.startswith("deployment_lock="):
+        elif original.startswith(("authority_lock=", "deployment_lock=")):
             launcher_source = launcher_source.replace(
                 "trusted_uid=0",
                 f"trusted_uid=0\n{replacement}",
@@ -480,14 +505,29 @@ def _write_test_operations_launcher(
         assert launch_line in launcher_source
         launcher_source = launcher_source.replace(
             launch_line,
-            """launch_active_operations() {
+            '''launch_active_operations() {
     : >"$LAUNCHER_STARTED"
     launcher_start_attempt=0
     while [ ! -e "$LAUNCHER_CONTINUE" ]; do
         launcher_start_attempt=$((launcher_start_attempt + 1))
         [ "$launcher_start_attempt" -le 500 ] || launcher_fail
         sleep 0.01
-    done""",
+    done
+    : >"$LAUNCHER_CONTINUED"''',
+            1,
+        )
+        lock_line = "    acquire_operations_authority_lock"
+        assert lock_line in launcher_source
+        launcher_source = launcher_source.replace(
+            lock_line,
+            f"""    : >"$LAUNCHER_PRELOCK"
+    launcher_prelock_attempt=0
+    while [ ! -e "$LAUNCHER_PRELOCK_CONTINUE" ]; do
+        launcher_prelock_attempt=$((launcher_prelock_attempt + 1))
+        [ "$launcher_prelock_attempt" -le 500 ] || launcher_fail
+        sleep 0.01
+    done
+{lock_line}""",
             1,
         )
         selection_line = '    [ -L "$current_release" ] || launcher_fail'
@@ -2891,9 +2931,11 @@ backend_directory=$1
 revision=$2
 release=$3
 state_directory=$4
+authority_lock=/var/lib/ladle/locks/authority.lock
 write_deployment_state() {{ :; }}
 progress() {{ :; }}
 die() {{ printf '%s\\n' "$*" >&2; exit 1; }}
+acquire_authority_lock() {{ :; }}
 activate_deployment_revision() {{ : >"$ACTIVATION_MARKER"; }}
 {deployment_tail}
 """
@@ -3226,26 +3268,33 @@ def test_environment_lock_is_shared_and_acquired_before_environment_reads() -> N
 
     lock_directory = "/var/lib/ladle/locks"
     deployment_lock = f"{lock_directory}/deploy.lock"
+    authority_lock = f"{lock_directory}/authority.lock"
     environment_lock = f"{lock_directory}/environment.lock"
     transition_lock = f"{lock_directory}/transition.lock"
 
     assert lock_directory in provision
     assert deployment_lock in provision
+    assert authority_lock in provision
     assert environment_lock in provision
     assert transition_lock in provision
     assert "mode 0600" in provision
     assert environment_lock in initialize
     assert environment_lock in set_secret
     assert deployment_lock in deploy
+    assert authority_lock in deploy
     assert environment_lock in deploy
     assert deployment_lock in OPERATIONS.read_text()
+    assert authority_lock in OPERATIONS.read_text()
     assert deployment_lock in INSTALL_OPERATIONS.read_text()
+    assert authority_lock in INSTALL_OPERATIONS.read_text()
     assert environment_lock in INSTALL_OPERATIONS.read_text()
     assert transition_lock in INSTALL_OPERATIONS.read_text()
     assert "safe_directory /var/lib/ladle/locks 700" in OPERATIONS.read_text()
     assert transition_lock in OPERATIONS.read_text()
     assert transition_lock in HEALTH_SERVICE.read_text()
     assert transition_lock in BACKUP_SERVICE.read_text()
+    assert authority_lock in OPERATIONS_LAUNCHER.read_text()
+    assert deployment_lock not in OPERATIONS_LAUNCHER.read_text()
     assert "/var/lock/ladle-" not in provision
     assert "/var/lock/ladle-" not in initialize
     assert "/var/lock/ladle-" not in set_secret
@@ -3265,6 +3314,67 @@ def test_environment_lock_is_shared_and_acquired_before_environment_reads() -> N
     assert deploy.index("acquire_environment_lock") < deploy.index(
         "compose config --quiet"
     )
+    readiness = deploy.rindex("wait_for_beat_stability")
+    authority = deploy.index("acquire_authority_lock", readiness)
+    refresh = deploy.index("deployment_phase=operations-install")
+    activation = deploy.index("deployment_phase=activation")
+    assert readiness < authority < refresh < activation
+
+
+@pytest.mark.parametrize(
+    ("lock_state", "expected_success"),
+    (
+        ("safe", True),
+        ("missing", False),
+        ("symlink", False),
+        ("wrong_owner", False),
+        ("wrong_mode", False),
+        ("canonical_mismatch", False),
+    ),
+)
+def test_deployment_authority_lock_rejects_unsafe_metadata(
+    tmp_path: Path,
+    lock_state: str,
+    expected_success: bool,
+) -> None:
+    lock_path = tmp_path / "authority.lock"
+    actual_lock = lock_path
+    expected_uid = os.getuid()
+    if lock_state == "canonical_mismatch":
+        canonical_directory = tmp_path / "canonical"
+        canonical_directory.mkdir()
+        alias_directory = tmp_path / "alias"
+        alias_directory.symlink_to(canonical_directory, target_is_directory=True)
+        lock_path = alias_directory / "authority.lock"
+        actual_lock = canonical_directory / "authority.lock"
+    if lock_state != "missing":
+        actual_lock.touch()
+        actual_lock.chmod(0o600)
+    if lock_state == "symlink":
+        actual_lock.unlink()
+        target = tmp_path / "target.lock"
+        target.touch()
+        target.chmod(0o600)
+        actual_lock.symlink_to(target)
+    elif lock_state == "wrong_owner":
+        expected_uid += 1
+    elif lock_state == "wrong_mode":
+        actual_lock.chmod(0o640)
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    _write_fake_flock(fake_bin / "flock")
+
+    result = _run_library_script(
+        """
+PATH=$1:$PATH
+acquire_authority_lock "$2" "$3"
+""",
+        fake_bin,
+        lock_path,
+        str(expected_uid),
+    )
+
+    assert (result.returncode == 0) is expected_success, result.stderr
 
 
 def test_persistent_lock_contract_rejects_a_volatile_symlink_alias(
@@ -3698,6 +3808,100 @@ def test_operations_launcher_follows_current_after_activation(tmp_path: Path) ->
     ]
 
 
+@pytest.mark.parametrize("contender", ("backup", "deployment"))
+def test_health_authority_reader_does_not_block_deploy_lock(
+    tmp_path: Path,
+    contender: str,
+) -> None:
+    releases = tmp_path / "releases"
+    releases.mkdir()
+    release, _, operations = _write_operations_release(
+        releases,
+        "a" * 40,
+        "active",
+    )
+    current = tmp_path / "current"
+    current.symlink_to(release)
+    authority_lock = tmp_path / "authority.lock"
+    deployment_lock = tmp_path / "deploy.lock"
+    launcher = _write_test_operations_launcher(
+        tmp_path,
+        current,
+        releases,
+        authority_lock=authority_lock,
+        deployment_lock=deployment_lock,
+    )
+    reader_started = tmp_path / "reader-started"
+    reader_release = tmp_path / "reader-release"
+    operations.write_text(
+        """#!/bin/sh
+: >"$READER_STARTED"
+attempt=0
+while [ ! -e "$READER_RELEASE" ]; do
+    attempt=$((attempt + 1))
+    [ "$attempt" -le 500 ] || exit 1
+    sleep 0.01
+done
+"""
+    )
+    operations.chmod(0o755)
+    reader_process = subprocess.Popen(
+        [str(launcher), "health"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env={
+            **os.environ,
+            "READER_STARTED": str(reader_started),
+            "READER_RELEASE": str(reader_release),
+            "WRONG_OWNER_PATHS": "",
+        },
+        text=True,
+    )
+    try:
+        _wait_for_path(reader_started, process=reader_process)
+        if contender == "backup":
+            fake_flock = tmp_path / "launcher-bin" / "flock"
+            result = _run_operations_library(
+                """
+deployment_lock=$1
+fake_flock=$2
+safe_regular_file() { [ -f "$1" ] && [ ! -L "$1" ]; }
+flock() { "$fake_flock" "$@"; }
+acquire_deployment_lock
+""",
+                deployment_lock,
+                fake_flock,
+                timeout=5,
+            )
+        else:
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-c",
+                    """
+import fcntl
+import pathlib
+import sys
+
+with pathlib.Path(sys.argv[1]).open("r+") as descriptor:
+    fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+""",
+                    str(deployment_lock),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+    finally:
+        reader_release.touch(exist_ok=True)
+        if reader_process.poll() is None:
+            _, reader_stderr = reader_process.communicate(timeout=5)
+            assert reader_process.returncode == 0, reader_stderr
+
+    assert result.returncode == 0, result.stderr
+
+
 def test_operations_launcher_shared_lock_open_does_not_truncate(
     tmp_path: Path,
 ) -> None:
@@ -3710,15 +3914,15 @@ def test_operations_launcher_shared_lock_open_does_not_truncate(
     )
     current = tmp_path / "current"
     current.symlink_to(release)
-    deployment_lock = tmp_path / "deploy.lock"
-    deployment_lock.write_text("lock-sentinel\n")
-    deployment_lock.chmod(0o600)
+    authority_lock = tmp_path / "authority.lock"
+    authority_lock.write_text("lock-sentinel\n")
+    authority_lock.chmod(0o600)
     launcher = _write_test_operations_launcher(
         tmp_path,
         current,
         releases,
-        deployment_lock=deployment_lock,
-        create_deployment_lock=False,
+        authority_lock=authority_lock,
+        create_authority_lock=False,
     )
 
     result = _run_launcher(
@@ -3728,7 +3932,7 @@ def test_operations_launcher_shared_lock_open_does_not_truncate(
     )
 
     assert result.returncode == 0, result.stderr
-    assert deployment_lock.read_text() == "lock-sentinel\n"
+    assert authority_lock.read_text() == "lock-sentinel\n"
 
 
 @pytest.mark.parametrize(
@@ -3741,7 +3945,7 @@ def test_operations_launcher_shared_lock_open_does_not_truncate(
         "canonical_mismatch",
     ),
 )
-def test_operations_launcher_rejects_unsafe_deployment_lock_before_dispatch(
+def test_operations_launcher_rejects_unsafe_authority_lock_before_dispatch(
     tmp_path: Path,
     unsafe_lock: str,
 ) -> None:
@@ -3754,16 +3958,16 @@ def test_operations_launcher_rejects_unsafe_deployment_lock_before_dispatch(
     )
     current = tmp_path / "current"
     current.symlink_to(release)
-    deployment_lock = tmp_path / "deploy.lock"
-    actual_lock = deployment_lock
+    authority_lock = tmp_path / "authority.lock"
+    actual_lock = authority_lock
     wrong_owner_paths: tuple[Path, ...] = ()
     if unsafe_lock == "canonical_mismatch":
         canonical_directory = tmp_path / "canonical-locks"
         canonical_directory.mkdir()
         alias_directory = tmp_path / "lock-alias"
         alias_directory.symlink_to(canonical_directory, target_is_directory=True)
-        deployment_lock = alias_directory / "deploy.lock"
-        actual_lock = canonical_directory / "deploy.lock"
+        authority_lock = alias_directory / "authority.lock"
+        actual_lock = canonical_directory / "authority.lock"
     if unsafe_lock != "missing":
         actual_lock.touch()
         actual_lock.chmod(0o600)
@@ -3774,15 +3978,15 @@ def test_operations_launcher_rejects_unsafe_deployment_lock_before_dispatch(
         target.chmod(0o600)
         actual_lock.symlink_to(target)
     elif unsafe_lock == "wrong_owner":
-        wrong_owner_paths = (deployment_lock,)
+        wrong_owner_paths = (authority_lock,)
     elif unsafe_lock == "wrong_mode":
         actual_lock.chmod(0o640)
     launcher = _write_test_operations_launcher(
         tmp_path,
         current,
         releases,
-        deployment_lock=deployment_lock,
-        create_deployment_lock=False,
+        authority_lock=authority_lock,
+        create_authority_lock=False,
     )
     trace = tmp_path / "launch.trace"
 
@@ -3815,12 +4019,12 @@ def test_operations_launcher_holds_authority_for_legacy_release_until_exit(
     )
     current = tmp_path / "current"
     current.symlink_to(old_release)
-    deployment_lock = tmp_path / "deploy.lock"
+    authority_lock = tmp_path / "authority.lock"
     launcher = _write_test_operations_launcher(
         tmp_path,
         current,
         releases,
-        deployment_lock=deployment_lock,
+        authority_lock=authority_lock,
     )
     legacy_started = tmp_path / "legacy-started"
     legacy_observe = tmp_path / "legacy-observe"
@@ -3878,7 +4082,7 @@ with lock.open("r+") as descriptor:
     os.replace(replacement, current)
     acquired.touch()
 """,
-                str(deployment_lock),
+                str(authority_lock),
                 str(current),
                 str(new_release),
                 str(activation_attempted),
@@ -3916,7 +4120,7 @@ with lock.open("r+") as descriptor:
     ]
 
 
-def test_operations_launcher_waits_for_exclusive_deployment_before_selection(
+def test_operations_launcher_waits_for_exclusive_authority_before_selection(
     tmp_path: Path,
 ) -> None:
     releases = tmp_path / "releases"
@@ -3933,18 +4137,21 @@ def test_operations_launcher_waits_for_exclusive_deployment_before_selection(
     )
     current = tmp_path / "current"
     current.symlink_to(old_release)
-    deployment_lock = tmp_path / "deploy.lock"
+    authority_lock = tmp_path / "authority.lock"
     launcher = _write_test_operations_launcher(
         tmp_path,
         current,
         releases,
-        deployment_lock=deployment_lock,
+        authority_lock=authority_lock,
         mark_before_current_selection=True,
     )
     deployment_held = tmp_path / "deployment-held"
     deployment_release = tmp_path / "deployment-release"
     launcher_started = tmp_path / "launcher-started"
     launcher_continue = tmp_path / "launcher-continue"
+    launcher_continued = tmp_path / "launcher-continued"
+    launcher_prelock = tmp_path / "launcher-prelock"
+    launcher_prelock_continue = tmp_path / "launcher-prelock-continue"
     launcher_selecting = tmp_path / "launcher-selecting"
     launcher_selection_resume = tmp_path / "launcher-selection-resume"
     trace = tmp_path / "launch.trace"
@@ -3972,7 +4179,7 @@ with lock.open("r+") as descriptor:
     replacement.symlink_to(release)
     os.replace(replacement, current)
 """,
-            str(deployment_lock),
+            str(authority_lock),
             str(current),
             str(new_release),
             str(deployment_held),
@@ -3994,6 +4201,9 @@ with lock.open("r+") as descriptor:
                 "LAUNCH_TRACE": str(trace),
                 "LAUNCHER_STARTED": str(launcher_started),
                 "LAUNCHER_CONTINUE": str(launcher_continue),
+                "LAUNCHER_CONTINUED": str(launcher_continued),
+                "LAUNCHER_PRELOCK": str(launcher_prelock),
+                "LAUNCHER_PRELOCK_CONTINUE": str(launcher_prelock_continue),
                 "LAUNCHER_SELECTING": str(launcher_selecting),
                 "LAUNCHER_SELECTION_RESUME": str(launcher_selection_resume),
                 "WRONG_OWNER_PATHS": "",
@@ -4002,8 +4212,11 @@ with lock.open("r+") as descriptor:
         )
         _wait_for_path(launcher_started, process=launcher_process)
         launcher_continue.touch()
+        _wait_for_path(launcher_continued, process=launcher_process)
+        _wait_for_path(launcher_prelock, process=launcher_process)
+        launcher_prelock_continue.touch()
         with pytest.raises(subprocess.TimeoutExpired):
-            launcher_process.communicate(timeout=0.2)
+            launcher_process.communicate(timeout=1)
         assert not launcher_selecting.exists()
         assert not trace.exists()
         deployment_release.touch()
@@ -4016,6 +4229,7 @@ with lock.open("r+") as descriptor:
     finally:
         deployment_release.touch(exist_ok=True)
         launcher_continue.touch(exist_ok=True)
+        launcher_prelock_continue.touch(exist_ok=True)
         launcher_selection_resume.touch(exist_ok=True)
         if deployment_process.poll() is None:
             deployment_process.kill()
@@ -4783,16 +4997,22 @@ def test_launcher_shared_lock_is_read_only_for_health_service_sandbox() -> None:
     launcher = OPERATIONS_LAUNCHER.read_text()
     health_service = HEALTH_SERVICE.read_text()
 
-    assert 'exec 9<"$deployment_lock"' in launcher
-    assert 'exec 9<>"$deployment_lock"' not in launcher
-    assert "flock -s 9" in launcher
+    assert "/var/lib/ladle/locks/authority.lock" in launcher
+    assert "/var/lib/ladle/locks/deploy.lock" not in launcher
+    assert 'exec 7<"$authority_lock"' in launcher
+    assert 'exec 7<>"$authority_lock"' not in launcher
+    assert "flock -s 7" in launcher
     assert "/var/lib/ladle/locks/deploy.lock" not in health_service
+    assert "/var/lib/ladle/locks/authority.lock" not in health_service
     assert "TimeoutStartSec=2min" in health_service
 
 
-def test_backup_replaces_inherited_shared_lock_without_self_deadlock(
+def test_backup_uses_deploy_fd_with_inherited_authority_reader(
     tmp_path: Path,
 ) -> None:
+    authority_lock = tmp_path / "authority.lock"
+    authority_lock.touch()
+    authority_lock.chmod(0o600)
     deployment_lock = tmp_path / "deploy.lock"
     deployment_lock.touch()
     deployment_lock.chmod(0o600)
@@ -4801,14 +5021,16 @@ def test_backup_replaces_inherited_shared_lock_without_self_deadlock(
 
     result = _run_operations_library(
         """
-deployment_lock=$1
-fake_flock=$2
+authority_lock=$1
+deployment_lock=$2
+fake_flock=$3
 safe_regular_file() { [ -f "$1" ] && [ ! -L "$1" ]; }
 flock() { "$fake_flock" "$@"; }
-exec 9<"$deployment_lock"
-"$fake_flock" -s 9
+exec 7<"$authority_lock"
+"$fake_flock" -s 7
 acquire_deployment_lock
 """,
+        authority_lock,
         deployment_lock,
         fake_flock,
         timeout=5,
@@ -4817,9 +5039,12 @@ acquire_deployment_lock
     assert result.returncode == 0, result.stderr
 
 
-def test_backup_fails_fast_when_deployment_wins_released_shared_lock(
+def test_backup_fails_fast_and_releases_authority_for_waiting_deployment(
     tmp_path: Path,
 ) -> None:
+    authority_lock = tmp_path / "authority.lock"
+    authority_lock.touch()
+    authority_lock.chmod(0o600)
     deployment_lock = tmp_path / "deploy.lock"
     deployment_lock.touch()
     deployment_lock.chmod(0o600)
@@ -4827,32 +5052,23 @@ def test_backup_fails_fast_when_deployment_wins_released_shared_lock(
     _write_fake_flock(fake_flock)
     backup_shared = tmp_path / "backup-shared"
     backup_continue = tmp_path / "backup-continue"
-    backup_exclusive_attempt = tmp_path / "backup-exclusive-attempt"
-    deployment_attempted = tmp_path / "deployment-attempted"
-    deployment_acquired = tmp_path / "deployment-acquired"
-    deployment_release = tmp_path / "deployment-release"
+    deploy_lock_acquired = tmp_path / "deploy-lock-acquired"
+    authority_attempted = tmp_path / "authority-attempted"
+    authority_acquired = tmp_path / "authority-acquired"
     backup_process = subprocess.Popen(
         [
             "/bin/sh",
             "-c",
             """. "$1"; shift
-deployment_lock=$1
-fake_flock=$2
+authority_lock=$1
+deployment_lock=$2
+fake_flock=$3
 safe_regular_file() { [ -f "$1" ] && [ ! -L "$1" ]; }
 flock() {
-    if [ "${1:-}" = -n ]; then
-        : >"$BACKUP_EXCLUSIVE_ATTEMPT"
-        attempt=0
-        while [ ! -e "$DEPLOYMENT_ACQUIRED" ]; do
-            attempt=$((attempt + 1))
-            [ "$attempt" -le 500 ] || return 1
-            sleep 0.01
-        done
-    fi
     "$fake_flock" "$@"
 }
-exec 9<"$deployment_lock"
-"$fake_flock" -s 9
+exec 7<"$authority_lock"
+"$fake_flock" -s 7
 : >"$BACKUP_SHARED"
 attempt=0
 while [ ! -e "$BACKUP_CONTINUE" ]; do
@@ -4864,6 +5080,7 @@ acquire_deployment_lock
 """,
             "test",
             str(OPERATIONS),
+            str(authority_lock),
             str(deployment_lock),
             str(fake_flock),
         ],
@@ -4873,8 +5090,6 @@ acquire_deployment_lock
             **os.environ,
             "BACKUP_SHARED": str(backup_shared),
             "BACKUP_CONTINUE": str(backup_continue),
-            "BACKUP_EXCLUSIVE_ATTEMPT": str(backup_exclusive_attempt),
-            "DEPLOYMENT_ACQUIRED": str(deployment_acquired),
         },
         text=True,
     )
@@ -4889,42 +5104,43 @@ acquire_deployment_lock
 import fcntl
 import pathlib
 import sys
-import time
 
-lock, attempted, acquired, resume = map(pathlib.Path, sys.argv[1:])
-with lock.open("r+") as descriptor:
-    attempted.touch()
-    fcntl.flock(descriptor, fcntl.LOCK_EX)
-    acquired.touch()
-    deadline = time.monotonic() + 10
-    while not resume.exists() and time.monotonic() < deadline:
-        time.sleep(0.01)
-    if not resume.exists():
-        raise SystemExit("timed out holding deployment lock")
+deploy_lock, authority_lock, deploy_acquired, attempted, acquired = map(
+    pathlib.Path, sys.argv[1:]
+)
+with deploy_lock.open("r+") as deploy_descriptor:
+    fcntl.flock(deploy_descriptor, fcntl.LOCK_EX)
+    deploy_acquired.touch()
+    with authority_lock.open("r+") as authority_descriptor:
+        attempted.touch()
+        fcntl.flock(authority_descriptor, fcntl.LOCK_EX)
+        acquired.touch()
 """,
                 str(deployment_lock),
-                str(deployment_attempted),
-                str(deployment_acquired),
-                str(deployment_release),
+                str(authority_lock),
+                str(deploy_lock_acquired),
+                str(authority_attempted),
+                str(authority_acquired),
             ],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
         )
-        _wait_for_path(deployment_attempted, process=deployment_process)
+        _wait_for_path(deploy_lock_acquired, process=deployment_process)
+        _wait_for_path(authority_attempted, process=deployment_process)
         with pytest.raises(subprocess.TimeoutExpired):
             deployment_process.communicate(timeout=0.2)
         backup_continue.touch()
-        _wait_for_path(backup_exclusive_attempt, process=backup_process)
-        _wait_for_path(deployment_acquired, process=deployment_process)
         _, backup_stderr = backup_process.communicate(timeout=5)
         assert backup_process.returncode != 0
         assert (
             "A deployment is running; backup was not started." in backup_stderr
         )
+        _, deployment_stderr = deployment_process.communicate(timeout=5)
+        assert deployment_process.returncode == 0, deployment_stderr
+        assert authority_acquired.exists()
     finally:
         backup_continue.touch(exist_ok=True)
-        deployment_release.touch(exist_ok=True)
         if backup_process.poll() is None:
             backup_process.kill()
             backup_process.communicate(timeout=5)

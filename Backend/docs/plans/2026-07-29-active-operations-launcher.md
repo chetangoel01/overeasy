@@ -142,3 +142,26 @@ before activation because dispatch remains controlled by `current`.
    exclusive acquisition, including self-deadlock and competing-deploy cases.
 4. Exercise unsafe lock metadata, launcher/deployment ordering, and the legacy
    upgrade path with bounded real-process regressions.
+
+### Task 8: Separate authority and deployment exclusion
+
+**Files:**
+
+- Modify: `Backend/deploy/vps/provision.sh`
+- Modify: `Backend/deploy/vps/install-operations.sh`
+- Modify: `Backend/deploy/vps/deployment-lib.sh`
+- Modify: `Backend/deploy/vps/deploy.sh`
+- Modify: `Backend/deploy/vps/operations-launcher.sh`
+- Modify: `Backend/deploy/vps/operations.sh`
+- Modify: `Backend/docs/deployment/vps.md`
+- Modify: `docs/plans/2026-07-29-shared-vps-gateway.md`
+- Test: `Backend/tests/unit/deploy/test_vps_profile.py`
+
+**Steps:**
+
+1. Provision and validate a dedicated root-owned `authority.lock`.
+2. Hold shared authority on launcher fd 7 and exclusive authority across only
+   the operations-refresh/activation boundary.
+3. Keep backup/deploy mutual exclusion on the independent `deploy.lock` fd 9.
+4. Prove the lock order cannot deadlock and document the existing-VPS gateway
+   preparation prerequisite.

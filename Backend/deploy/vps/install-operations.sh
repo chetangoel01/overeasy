@@ -832,6 +832,7 @@ install_operations_main() {
     ensure_root_directory /usr/local/sbin 755
     ensure_root_directory /etc/systemd/system 755
     for required_lock in \
+        /var/lib/ladle/locks/authority.lock \
         /var/lib/ladle/locks/deploy.lock \
         /var/lib/ladle/locks/environment.lock \
         /var/lib/ladle/locks/transition.lock; do

@@ -338,16 +338,22 @@ state/current write ordering. Authority must validate before transition logging
 or backup lock acquisition; an invalid handoff cannot clean, remove, or create
 backup files.
 
-The launcher takes a blocking shared deployment lock before it resolves
-`current` and holds that lock across the selected operation. Deployments take
-the matching exclusive lock, so a launcher started during activation waits and
-then selects the final active release; an already-selected legacy operation also
-cannot observe a mid-run activation. The read-only shared descriptor does not
-broaden the health unit sandbox or truncate the persistent lock file. If a long
-deployment exhausts the existing two-minute health service timeout, systemd
-stops the waiting launcher before dispatch, so it cannot mutate operations
-state; the next timer run retries normally. Backup replaces the inherited
-shared descriptor before its existing fail-fast exclusive lock attempt.
+Fresh provisioning creates `authority.lock` as a canonical root-owned `0600`
+regular file. The launcher takes a blocking shared authority lock before it
+resolves `current` and holds that lock across the selected operation.
+Deployments take the matching exclusive authority lock only after readiness,
+immediately before operations refresh and activation, so a launcher started
+during activation waits and then selects the final active release; an
+already-selected legacy operation also cannot observe a mid-run activation.
+The separate deployment lock remains the deploy-versus-backup exclusion
+boundary, so ordinary health readers do not block either contender. The
+read-only shared descriptor does not broaden the health unit sandbox or
+truncate the persistent lock file. If a long deployment exhausts the existing
+two-minute health service timeout, systemd stops the waiting launcher before
+dispatch, so it cannot mutate operations state; the next timer run retries
+normally. A backup holding shared authority still attempts the deployment lock
+nonblocking, fails fast behind a deploy, and releases authority so activation
+can continue.
 
 After the first successful push, install the health and backup operations once,
 outside the deployment lock.

@@ -12,6 +12,7 @@ deployment_state=/var/lib/ladle/deployment-state
 operations_state=/var/lib/ladle/operations
 backup_dir=/var/backups/ladle
 operations_log=/var/log/ladle/operations.log
+authority_lock=/var/lib/ladle/locks/authority.lock
 deployment_lock=/var/lib/ladle/locks/deploy.lock
 transition_lock=/var/lib/ladle/locks/transition.lock
 backup_retention_days=35
@@ -73,6 +74,10 @@ validate_runtime_paths() {
     }
     safe_directory /var/lib/ladle/locks 700 || {
         fail "Operations lock directory metadata is unsafe."
+        return 1
+    }
+    safe_regular_file "$authority_lock" 600 || {
+        fail "Authority lock metadata is unsafe."
         return 1
     }
     safe_regular_file "$transition_lock" 600 || {

@@ -228,7 +228,11 @@ Expected: FAIL because `manage.sh` is absent.
 `prepare` installs the gateway assets, securely derives the two required
 gateway variables from the existing Ladle environment, creates
 `platform-edge`, and validates both Compose and Caddy without taking the
-public ports.
+public ports. Gateway `prepare` creates and validates
+`/var/lib/ladle/locks/authority.lock` before pushing the detached release; it
+must be a canonical root-owned `0600` regular file. This upgrade prerequisite
+lets the detached release install its stable launcher without a missing-lock
+window on the existing VPS.
 
 `activate` verifies that `ladle-edge` is reachable, stops the known legacy
 `ladle-caddy-1` container, starts the `platform-gateway` project, and confirms
@@ -377,16 +381,17 @@ the legacy Caddy container ID for rollback without printing secrets.
 
 **Step 2: Prepare the gateway**
 
-Create `platform-edge` explicitly on the existing VPS, push the exact new Git
-revision, and run:
+Create `platform-edge` explicitly on the existing VPS. From the
+gateway-preparation revision, run:
 
 ```bash
 sudo /opt/ladle/current/Backend/deploy/vps/gateway/manage.sh prepare
 ```
 
 Expected: assets and secret metadata validate; the gateway is prepared but does
-not yet own public ports. The new Ladle edge is connected as `ladle-edge`, and
-the legacy Caddy still serves staging.
+not yet own public ports, and the authority lock is installed safely. Only
+after that succeeds, push the exact detached Git revision. The new Ladle edge
+is connected as `ladle-edge`, and the legacy Caddy still serves staging.
 
 **Step 3: Activate with automatic rollback**
 

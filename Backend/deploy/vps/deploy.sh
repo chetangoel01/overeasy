@@ -112,6 +112,7 @@ trap finish_deployment 0
 trap 'exit 1' HUP INT TERM
 
 deployment_lock=/var/lib/ladle/locks/deploy.lock
+authority_lock=/var/lib/ladle/locks/authority.lock
 environment_lock=/var/lib/ladle/locks/environment.lock
 acquire_deployment_lock "$deployment_lock" 0 ||
     die "Another Ladle deployment is running or the lock is unsafe."
@@ -254,6 +255,9 @@ write_deployment_state \
 progress "beat-readiness" "checking Celery Beat stability"
 wait_for_beat_stability "$beat_stability_checks" "$beat_stability_interval" ||
     die "The Celery Beat stability gate failed."
+
+acquire_authority_lock "$authority_lock" 0 ||
+    die "Cannot acquire the operations authority lock."
 
 deployment_phase=operations-install
 write_deployment_state \

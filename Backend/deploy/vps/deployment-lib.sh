@@ -167,6 +167,16 @@ acquire_deployment_lock() {
     lock_file_is_safe "$deployment_lock_path" "$deployment_lock_uid"
 }
 
+acquire_authority_lock() {
+    authority_lock_path=$1
+    authority_lock_uid=$2
+    lock_file_is_safe "$authority_lock_path" "$authority_lock_uid" ||
+        return 1
+    exec 7>"$authority_lock_path"
+    flock 7 || return 1
+    lock_file_is_safe "$authority_lock_path" "$authority_lock_uid"
+}
+
 validate_staging_environment() {
     staging_env_file=$1
     validate_required_env "$staging_env_file" \
