@@ -25,9 +25,10 @@ fail-closed script.
 ## Establish SSH access
 
 The account owner opens the OVH one-time password link personally. Type that
-password privately only at the SSH password prompt needed to bootstrap a
-dedicated public key. Never put it in the repository, chat, shell history,
-environment, clipboard automation, or command arguments.
+password privately only at SSH password prompts used to bootstrap a dedicated
+public key and retain lockout-recovery session A. Never put it in the
+repository, chat, shell history, environment, clipboard automation, or command
+arguments.
 
 Create a dedicated key with a passphrase.
 
@@ -59,6 +60,18 @@ for the one-time password without placing it in the command.
 ssh-copy-id -i "$SSH_KEY.pub" ubuntu@135.148.42.60
 ```
 
+Open an explicit password-authenticated recovery session after key
+installation. Keep this password-authenticated session A open until hardening
+and a post-hardening key-only login both succeed.
+
+**Mac — retained session A**
+
+```bash
+ssh -o PreferredAuthentications=password \
+  -o PubkeyAuthentication=no \
+  ubuntu@135.148.42.60
+```
+
 Add a local SSH configuration entry for this address and the VPS hostname so
 repository scripts use the dedicated identity:
 
@@ -69,8 +82,8 @@ Host 135.148.42.60 vps-8b0be574.vps.ovh.us
     IdentitiesOnly yes
 ```
 
-Keep the password-authenticated session A open. Prove key-only access in a new
-session B before provisioning or SSH hardening.
+With session A still open, prove key-only access in a new session B before
+provisioning or SSH hardening.
 
 **Mac — new session B**
 
@@ -196,10 +209,12 @@ ssh ubuntu@135.148.42.60 \
   "sudo /opt/ladle/releases/$REVISION/Backend/deploy/vps/install-operations.sh $REVISION"
 ```
 
-On Ubuntu, the installer runs `systemd-analyze verify` against staged unit
-copies whose `ExecStart` points to the staged operations binary. Verification
-happens before it replaces live units or enables either timer; any failure
-rolls the transaction back. Then confirm the timers and guarded deployment.
+`systemd-analyze` is unavailable in the macOS workspace, and local tests do not
+validate real systemd unit syntax. The Ubuntu-side `systemd-analyze verify` is
+therefore mandatory before timers are enabled. The installer runs it against
+staged unit copies whose `ExecStart` points to the staged operations binary,
+before replacing live units or enabling either timer; any failure rolls the
+transaction back. Then confirm the timers and guarded deployment.
 
 **VPS**
 
@@ -316,7 +331,7 @@ sudo sh -c \
   'docker exec -i ladle-restore-drill pg_restore --list < "$1" >/dev/null' \
   sh "$BACKUP"
 sudo sh -c \
-  'docker exec -i ladle-restore-drill pg_restore --exit-on-error --username postgres --dbname postgres < "$1"' \
+  'docker exec -i ladle-restore-drill pg_restore --exit-on-error --no-owner --no-privileges --username postgres --dbname postgres < "$1"' \
   sh "$BACKUP"
 sudo docker exec ladle-restore-drill \
   psql --username postgres --dbname postgres --tuples-only --command \

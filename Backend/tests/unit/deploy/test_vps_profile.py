@@ -102,6 +102,14 @@ def test_vps_runbook_documents_staging_recovery_and_production_gates() -> None:
     assert "fixed, sanitized phases" in lowered
     assert "never stream secrets or environment values" in lowered
     assert "keep the staging gate" in lowered
+    assert "preferredauthentications=password" in lowered
+    assert "pubkeyauthentication=no" in lowered
+    assert "keep this password-authenticated session a open" in lowered
+    assert "pg_restore --exit-on-error --no-owner --no-privileges" in lowered
+    prose = " ".join(lowered.replace("`", "").split())
+    assert "systemd-analyze is unavailable in the macos workspace" in prose
+    assert "local tests do not validate real systemd unit syntax" in prose
+    assert "ubuntu-side systemd-analyze verify" in prose
 
     forbidden_credentials = (
         "secret-retrieve",
