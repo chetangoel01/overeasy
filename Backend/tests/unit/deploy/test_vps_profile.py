@@ -143,6 +143,25 @@ def test_vps_runbook_documents_staging_recovery_and_production_gates() -> None:
         "ssh ubuntu@135.148.42.60 true", server_fingerprints
     )
     assert old_key_removal < server_fingerprints < ordinary_new_key
+    post_removal = key_rotation[old_key_removal:]
+    for required in (
+        "self-contained",
+        "separate terminal",
+        'old_ssh_key="$home/.ssh/ladle-ovh-staging"',
+        'new_ssh_key="$home/.ssh/ladle-ovh-staging-next"',
+        'old_key_fingerprint=$(public_key_fingerprint "$old_ssh_key.pub")',
+        'new_key_fingerprint=$(public_key_fingerprint "$new_ssh_key.pub")',
+    ):
+        assert required in post_removal
+    assert post_removal.index("old_ssh_key=") < post_removal.index(
+        "ssh-keygen -lf ~/.ssh/authorized_keys"
+    )
+    assert post_removal.index("new_ssh_key=") < post_removal.index(
+        "ssh-keygen -lf ~/.ssh/authorized_keys"
+    )
+    assert key_rotation.count("(\n  set -eu\n  set -o pipefail") >= 2
+    assert ': "${old_key_fingerprint:?' not in key_rotation
+    assert ': "${new_key_fingerprint:?' not in key_rotation
     for required in (
         'ssh-keygen -lf "$1" -e sha256',
         'public_key_fingerprint "$old_ssh_key.pub"',

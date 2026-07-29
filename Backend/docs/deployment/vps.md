@@ -536,38 +536,40 @@ Key rotation overlaps old and new access:
 **Mac**
 
 ```bash
-set -eu
-set -o pipefail
-OLD_SSH_KEY="$HOME/.ssh/ladle-ovh-staging"
-NEW_SSH_KEY="$HOME/.ssh/ladle-ovh-staging-next"
-public_key_fingerprint() {
-  ssh-keygen -lf "$1" -E sha256 |
-    awk '
-      NR == 1 &&
-        $2 ~ /^SHA256:[A-Za-z0-9+\/]+$/ &&
-        length($2) == 50 {
-          fingerprint = $2
-          next
+(
+  set -eu
+  set -o pipefail
+  OLD_SSH_KEY="$HOME/.ssh/ladle-ovh-staging"
+  NEW_SSH_KEY="$HOME/.ssh/ladle-ovh-staging-next"
+  public_key_fingerprint() {
+    ssh-keygen -lf "$1" -E sha256 |
+      awk '
+        NR == 1 &&
+          $2 ~ /^SHA256:[A-Za-z0-9+\/]+$/ &&
+          length($2) == 50 {
+            fingerprint = $2
+            next
+          }
+        { invalid = 1 }
+        END {
+          if (invalid || NR != 1 || fingerprint == "") {
+            exit 1
+          }
+          print fingerprint
         }
-      { invalid = 1 }
-      END {
-        if (invalid || NR != 1 || fingerprint == "") {
-          exit 1
-        }
-        print fingerprint
-      }
-    '
-}
-OLD_KEY_FINGERPRINT=$(public_key_fingerprint "$OLD_SSH_KEY.pub")
-ssh-keygen -t ed25519 -a 64 -f "$NEW_SSH_KEY" -C ladle-vps-staging-next
-NEW_KEY_FINGERPRINT=$(public_key_fingerprint "$NEW_SSH_KEY.pub")
-printf 'Old key fingerprint: %s\nNew key fingerprint: %s\n' \
-  "$OLD_KEY_FINGERPRINT" "$NEW_KEY_FINGERPRINT"
-ssh-copy-id -i "$NEW_SSH_KEY.pub" ubuntu@135.148.42.60
-ssh -i "$NEW_SSH_KEY" -o IdentitiesOnly=yes \
-  -o PreferredAuthentications=publickey \
-  -o PasswordAuthentication=no \
-  ubuntu@135.148.42.60
+      '
+  }
+  OLD_KEY_FINGERPRINT=$(public_key_fingerprint "$OLD_SSH_KEY.pub")
+  ssh-keygen -t ed25519 -a 64 -f "$NEW_SSH_KEY" -C ladle-vps-staging-next
+  NEW_KEY_FINGERPRINT=$(public_key_fingerprint "$NEW_SSH_KEY.pub")
+  printf 'Old key fingerprint: %s\nNew key fingerprint: %s\n' \
+    "$OLD_KEY_FINGERPRINT" "$NEW_KEY_FINGERPRINT"
+  ssh-copy-id -i "$NEW_SSH_KEY.pub" ubuntu@135.148.42.60
+  ssh -i "$NEW_SSH_KEY" -o IdentitiesOnly=yes \
+    -o PreferredAuthentications=publickey \
+    -o PasswordAuthentication=no \
+    ubuntu@135.148.42.60
+)
 ```
 
 Keep both old and new sessions open. Edit the existing local host entry so its
@@ -606,13 +608,14 @@ chmod 0600 ~/.ssh/authorized_keys
 ```
 
 After saving the reduced authorized-key file, keep both recovery sessions open.
-Use the already-proven ordinary/default connection to derive every exact
-SHA-256 fingerprint still present in the server's `authorized_keys`. Fail if
-the recorded old fingerprint remains or the recorded new fingerprint is not
-present exactly once. This verifies the server key set directly; a failed
-old-key login is not accepted as proof because local signing and generic
-connection errors are ambiguous. Then separately prove the ordinary/default
-new-key path still succeeds.
+The next block is self-contained and may run in a separate terminal: it
+recomputes and validates both intended local public-key fingerprints, then uses
+the already-proven ordinary/default connection to derive every exact SHA-256
+fingerprint still present in the server's `authorized_keys`. Fail if the old
+fingerprint remains or the new fingerprint is not present exactly once. This
+verifies the server key set directly; a failed old-key login is not accepted as
+proof because local signing and generic connection errors are ambiguous. Then
+separately prove the ordinary/default new-key path still succeeds.
 
 **Mac**
 
@@ -621,8 +624,28 @@ new-key path still succeeds.
   set -eu
   set -o pipefail
   umask 077
-  : "${OLD_KEY_FINGERPRINT:?Record the old key fingerprint first.}"
-  : "${NEW_KEY_FINGERPRINT:?Record the new key fingerprint first.}"
+  OLD_SSH_KEY="$HOME/.ssh/ladle-ovh-staging"
+  NEW_SSH_KEY="$HOME/.ssh/ladle-ovh-staging-next"
+  public_key_fingerprint() {
+    ssh-keygen -lf "$1" -E sha256 |
+      awk '
+        NR == 1 &&
+          $2 ~ /^SHA256:[A-Za-z0-9+\/]+$/ &&
+          length($2) == 50 {
+            fingerprint = $2
+            next
+          }
+        { invalid = 1 }
+        END {
+          if (invalid || NR != 1 || fingerprint == "") {
+            exit 1
+          }
+          print fingerprint
+        }
+      '
+  }
+  OLD_KEY_FINGERPRINT=$(public_key_fingerprint "$OLD_SSH_KEY.pub")
+  NEW_KEY_FINGERPRINT=$(public_key_fingerprint "$NEW_SSH_KEY.pub")
   AUTHORIZED_KEY_FINGERPRINTS=$(
     mktemp /tmp/ladle-authorized-key-fingerprints.XXXXXX
   )
