@@ -239,8 +239,15 @@ validate_gateway_environment_metadata() {
 
 validate_authority_lock() {
     safe_directory "$locks_directory" 700 || return 1
+    safe_file "$authority_lock" 600 || return 1
     lock_file_is_safe "$authority_lock" "$root_uid"
 }
+
+create_authority_lock_exclusively() (
+    set -C
+    umask 077
+    : >"$authority_lock"
+)
 
 ensure_authority_lock() {
     safe_directory "$locks_directory" 700 || return 1
@@ -250,8 +257,10 @@ ensure_authority_lock() {
     if [ -e "$authority_lock" ]; then
         [ -f "$authority_lock" ] || return 1
     else
-        install -o "$root_uid" -g "$root_gid" -m 0600 /dev/null \
-            "$authority_lock" || return 1
+        if ! create_authority_lock_exclusively 2>/dev/null; then
+            [ -e "$authority_lock" ] || [ -L "$authority_lock" ] ||
+                return 1
+        fi
     fi
     validate_authority_lock
 }

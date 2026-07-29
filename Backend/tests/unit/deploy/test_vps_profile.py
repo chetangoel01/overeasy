@@ -7263,9 +7263,10 @@ arguments = sys.argv[1:]
 shared = arguments[:1] == ["-s"]
 descriptor = int(arguments[-1])
 mode = "shared" if shared else "exclusive"
+inode = os.fstat(descriptor).st_ino
 trace_path = os.environ["FAKE_FLOCK_TRACE"]
 with open(trace_path, "a") as trace:
-    trace.write(f"attempt {mode} {descriptor}\\n")
+    trace.write(f"attempt {mode} {descriptor} inode={inode}\\n")
 replacement = os.environ.get("FAKE_REPLACE_AUTHORITY_ON_FLOCK")
 if replacement:
     temporary = replacement + ".replacement"
@@ -7278,7 +7279,7 @@ fcntl.flock(
     fcntl.LOCK_SH if shared else fcntl.LOCK_EX,
 )
 with open(trace_path, "a") as trace:
-    trace.write(f"acquired {mode} {descriptor}\\n")
+    trace.write(f"acquired {mode} {descriptor} inode={inode}\\n")
 """
     )
     path.chmod(0o755)
@@ -7376,6 +7377,7 @@ def _gateway_harness(
     tmp_path: Path,
     *,
     state: dict[str, object] | None = None,
+    authority_hook: str | None = None,
 ) -> dict[str, Path | dict[str, object]]:
     assert GATEWAY_MANAGE.exists(), "missing shared gateway manager"
     fake_bin = tmp_path / "bin"
@@ -7433,6 +7435,78 @@ printf '%s\\n' 'ladle-secrets:x:{os.getgid()}:'
     app_env.chmod(0o640)
     authority_lock.parent.mkdir(parents=True)
     authority_lock.parent.chmod(0o700)
+    authority_race = tmp_path / "authority-race"
+    authority_race.mkdir()
+    authority_install_log = authority_race / "install-inodes"
+    authority_winner_inode = authority_race / "winner-inode"
+    attacker_target = authority_race / "attacker-target"
+    attacker_target.write_text("attacker\n")
+    attacker_target.chmod(0o600)
+
+    authority_hook_script = fake_bin / "authority-creation-hook"
+    if authority_hook == "concurrent":
+        barrier = authority_race / "barrier"
+        barrier.mkdir()
+        authority_hook_script.write_text(
+            f"""#!/bin/sh
+: >{shlex.quote(str(barrier))}/ready.$$
+while :; do
+    set -- {shlex.quote(str(barrier))}/ready.*
+    [ "$#" -ge 2 ] && [ -e "$2" ] && break
+    /bin/sleep 0.01
+done
+"""
+        )
+        fake_install = fake_bin / "install"
+        fake_install.write_text(
+            """#!/bin/sh
+for install_target do :; done
+if [ "$install_target" != "$FAKE_AUTHORITY_LOCK" ]; then
+    exec /usr/bin/install "$@"
+fi
+if /bin/mkdir "$FAKE_AUTHORITY_RACE/first" 2>/dev/null; then
+    /usr/bin/install "$@"
+    /usr/bin/stat -f '%i' "$install_target" >>"$FAKE_AUTHORITY_INSTALL_LOG"
+    : >"$FAKE_AUTHORITY_RACE/first-done"
+    while [ ! -e "$FAKE_AUTHORITY_RACE/second-done" ]; do
+        /bin/sleep 0.01
+    done
+else
+    while [ ! -e "$FAKE_AUTHORITY_RACE/first-done" ]; do
+        /bin/sleep 0.01
+    done
+    /usr/bin/install "$@"
+    /usr/bin/stat -f '%i' "$install_target" >>"$FAKE_AUTHORITY_INSTALL_LOG"
+    : >"$FAKE_AUTHORITY_RACE/second-done"
+fi
+"""
+        )
+        fake_install.chmod(0o755)
+    elif authority_hook == "symlink-winner":
+        authority_hook_script.write_text(
+            f"""#!/bin/sh
+ln -s {shlex.quote(str(attacker_target))} "$1"
+"""
+        )
+    elif authority_hook == "wrong-mode-winner":
+        authority_hook_script.write_text(
+            """#!/bin/sh
+: >"$1"
+chmod 0644 "$1"
+"""
+        )
+    elif authority_hook == "safe-interrupted-winner":
+        authority_hook_script.write_text(
+            f"""#!/bin/sh
+: >"$1"
+chmod 0600 "$1"
+/usr/bin/stat -f '%i' "$1" >{shlex.quote(str(authority_winner_inode))}
+"""
+        )
+    else:
+        assert authority_hook is None
+    if authority_hook is not None:
+        authority_hook_script.chmod(0o755)
 
     manager = release_backend / "deploy" / "vps" / "gateway" / "manage.sh"
     rendered = manager.read_text()
@@ -7451,6 +7525,20 @@ printf '%s\\n' 'ladle-secrets:x:{os.getgid()}:'
     }
     for original, replacement in replacements.items():
         rendered = rendered.replace(original, replacement)
+    if authority_hook is not None:
+        absence_branch = (
+            '    if [ -e "$authority_lock" ]; then\n'
+            '        [ -f "$authority_lock" ] || return 1\n'
+            "    else\n"
+        )
+        assert absence_branch in rendered
+        rendered = rendered.replace(
+            absence_branch,
+            absence_branch
+            + f"        {shlex.quote(str(authority_hook_script))} "
+            '"$authority_lock"\n',
+            1,
+        )
     manager.write_text(rendered)
     manager.chmod(0o755)
 
@@ -7472,6 +7560,9 @@ printf '%s\\n' 'ladle-secrets:x:{os.getgid()}:'
         "state_file": state_file,
         "trace": trace,
         "flock_trace": flock_trace,
+        "authority_race": authority_race,
+        "authority_install_log": authority_install_log,
+        "authority_winner_inode": authority_winner_inode,
         "fake_bin": fake_bin,
     }
 
@@ -7491,6 +7582,11 @@ def _run_gateway_manager(
             "FAKE_DOCKER_STATE": str(harness["state_file"]),
             "FAKE_DOCKER_TRACE": str(harness["trace"]),
             "FAKE_FLOCK_TRACE": str(harness["flock_trace"]),
+            "FAKE_AUTHORITY_LOCK": str(harness["authority_lock"]),
+            "FAKE_AUTHORITY_RACE": str(harness["authority_race"]),
+            "FAKE_AUTHORITY_INSTALL_LOG": str(
+                harness["authority_install_log"]
+            ),
             **(extra_env or {}),
         },
         text=True,
@@ -7511,6 +7607,11 @@ def _popen_gateway_manager(
             "FAKE_DOCKER_STATE": str(harness["state_file"]),
             "FAKE_DOCKER_TRACE": str(harness["trace"]),
             "FAKE_FLOCK_TRACE": str(harness["flock_trace"]),
+            "FAKE_AUTHORITY_LOCK": str(harness["authority_lock"]),
+            "FAKE_AUTHORITY_RACE": str(harness["authority_race"]),
+            "FAKE_AUTHORITY_INSTALL_LOG": str(
+                harness["authority_install_log"]
+            ),
         },
         text=True,
     )
@@ -7563,7 +7664,10 @@ def _wait_for_gateway_flock_trace(
     expected: str,
 ) -> bool:
     for _ in range(200):
-        if expected in trace.read_text().splitlines()[start:]:
+        if any(
+            expected in line
+            for line in trace.read_text().splitlines()[start:]
+        ):
             return True
         time.sleep(0.01)
     return False
@@ -7687,6 +7791,67 @@ def test_gateway_management_prepare_extracts_only_required_values_atomically(
     )
     forbidden = {"stop", "start", "up", "80:80", "443:443"}
     assert all(not forbidden.intersection(command) for command in commands)
+
+
+def test_gateway_management_concurrent_first_prepare_keeps_one_authority_inode(
+    tmp_path: Path,
+) -> None:
+    harness = _gateway_harness(tmp_path, authority_hook="concurrent")
+    first = _popen_gateway_manager(harness, "prepare")
+    second = _popen_gateway_manager(harness, "prepare")
+
+    first_stdout, first_stderr = first.communicate(timeout=15)
+    second_stdout, second_stderr = second.communicate(timeout=15)
+
+    assert first.returncode == 0, first_stderr
+    assert second.returncode == 0, second_stderr
+    assert first_stdout == "Gateway prepared.\n"
+    assert second_stdout == "Gateway prepared.\n"
+    authority_lock = Path(harness["authority_lock"])
+    assert authority_lock.is_file()
+    assert not authority_lock.is_symlink()
+    assert stat.S_IMODE(authority_lock.stat().st_mode) == 0o600
+    acquired_inodes = {
+        int(line.rsplit("inode=", maxsplit=1)[1])
+        for line in Path(harness["flock_trace"]).read_text().splitlines()
+        if line.startswith("acquired exclusive 7 inode=")
+    }
+    assert acquired_inodes == {authority_lock.stat().st_ino}
+    assert not Path(harness["authority_install_log"]).exists()
+
+
+@pytest.mark.parametrize(
+    ("authority_hook", "expected_success"),
+    (
+        ("safe-interrupted-winner", True),
+        ("symlink-winner", False),
+        ("wrong-mode-winner", False),
+    ),
+)
+def test_gateway_management_first_prepare_validates_race_winner(
+    tmp_path: Path,
+    authority_hook: str,
+    expected_success: bool,
+) -> None:
+    harness = _gateway_harness(tmp_path, authority_hook=authority_hook)
+
+    result = _run_gateway_manager(harness, "prepare")
+
+    assert (result.returncode == 0) is expected_success
+    authority_lock = Path(harness["authority_lock"])
+    if expected_success:
+        winner_inode = int(
+            Path(harness["authority_winner_inode"]).read_text()
+        )
+        assert authority_lock.stat().st_ino == winner_inode
+        assert stat.S_IMODE(authority_lock.stat().st_mode) == 0o600
+        assert Path(harness["gateway_env"]).exists()
+    else:
+        assert not Path(harness["gateway_env"]).exists()
+        if authority_hook == "symlink-winner":
+            assert authority_lock.is_symlink()
+        else:
+            assert stat.S_IMODE(authority_lock.stat().st_mode) == 0o644
 
 
 @pytest.mark.parametrize(
@@ -7927,10 +8092,13 @@ def test_gateway_management_status_shares_authority_lock_without_mutation(
         _release_gateway_lock_holder(shared_holder)
 
     assert status.returncode == 0, shared_stderr
-    assert flock_trace.read_text().splitlines()[flock_start:] == [
-        "attempt shared 6",
-        "acquired shared 6",
-    ]
+    shared_flock = flock_trace.read_text().splitlines()[flock_start:]
+    assert len(shared_flock) == 2
+    assert shared_flock[0].startswith("attempt shared 6 inode=")
+    assert shared_flock[1].startswith("acquired shared 6 inode=")
+    assert shared_flock[0].split("inode=", maxsplit=1)[1] == (
+        shared_flock[1].split("inode=", maxsplit=1)[1]
+    )
     status_commands = _gateway_trace(harness)[trace_start:]
     assert all(
         not {"start", "stop", "up", "down", "run", "create"}.intersection(

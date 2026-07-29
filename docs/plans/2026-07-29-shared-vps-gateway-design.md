@@ -97,12 +97,14 @@ The root-only gateway manager runs from one immutable, root-owned
 `/opt/ladle/releases/<full-revision>` tree and accepts only `prepare`,
 `activate`, `rollback`, or `status`.
 
-- `prepare` validates the exact release marker and source metadata, safely
-  creates the operations authority lock when it is absent, extracts only the
-  Ladle hostname and staging access key without sourcing the app environment,
-  and atomically installs root-owned assets under `/opt/platform/gateway`.
-  It pins the lock's device and inode, takes the blocking exclusive authority
-  lock before reading mutable inputs, and holds it through installation.
+- `prepare` validates the exact release marker and source metadata, creates an
+  absent operations authority lock atomically with POSIX noclobber semantics
+  and a `077` umask, then validates and pins the winning inode without replacing
+  it when first-time prepares race. It extracts only the Ladle hostname and
+  staging access key without sourcing the app environment and atomically
+  installs root-owned assets under `/opt/platform/gateway`. It takes the
+  blocking exclusive authority lock before reading mutable inputs and holds it
+  through installation.
   Existing unrelated route files are preserved. Compose and pinned-Caddy
   validation run without publishing ports or stopping a container.
 - `activate` revalidates the installed files, secret metadata, shared-network
