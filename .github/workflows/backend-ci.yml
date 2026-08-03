@@ -155,7 +155,7 @@ jobs:
           path: |
             ladle-worker-egress-${{ github.sha }}.spdx.json
             ladle-mac-edge-${{ github.sha }}.spdx.json
-      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         with:
           registry: ghcr.io
