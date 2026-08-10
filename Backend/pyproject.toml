@@ -6,7 +6,7 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "alembic>=1.16,<2",
     "anthropic>=0.117,<0.118",
-    "boto3>=1.40,<2",
+    "boto3>=1.43.66,<2",
     "cbor2>=5.7,<6",
     "celery[redis]>=5.6.3,<5.7",
     "cryptography>=50,<51",
