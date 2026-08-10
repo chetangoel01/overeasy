@@ -174,6 +174,9 @@ server configuration.
   been persisted.
 - Share Extension envelopes are atomic, idempotent, and retained for retry
   when reconciliation cannot persist them.
+- Share Extension imports accept URL attachments, plain text, and an extension
+  item's attributed text. The backend canonicalizes the direct and share-link
+  forms emitted by Instagram, TikTok, and YouTube.
 
 See [the Ladle v1 verification record](docs/verification/2026-07-23-ladle-v1.md)
 for the command results and screen-by-screen visual review.

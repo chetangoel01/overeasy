@@ -54,6 +54,12 @@ class FakeRedirectResolver:
             "https://www.instagram.com/reel/C9_recipe-ID/",
         ),
         (
+            "https://www.instagram.com/share/reel/C9_recipe-ID/?igsh=test",
+            SourcePlatform.INSTAGRAM,
+            "C9_recipe-ID",
+            "https://www.instagram.com/reel/C9_recipe-ID/",
+        ),
+        (
             "https://instagram.com/p/C9_post-ID/",
             SourcePlatform.INSTAGRAM,
             "C9_post-ID",
@@ -86,6 +92,20 @@ def test_tiktok_short_link_uses_safe_redirect_resolver() -> None:
 
     assert identity.platform_video_id == "7481234567890123456"
     assert resolver.calls == ["https://vm.tiktok.com/ZMshort/"]
+
+
+def test_tiktok_web_share_link_uses_safe_redirect_resolver() -> None:
+    resolver = FakeRedirectResolver(
+        destination="https://www.tiktok.com/@chef/video/7481234567890123456",
+        calls=[],
+    )
+
+    identity = SourceIdentityParser(redirect_resolver=resolver).parse(
+        "https://www.tiktok.com/t/ZTshort/"
+    )
+
+    assert identity.platform_video_id == "7481234567890123456"
+    assert resolver.calls == ["https://www.tiktok.com/t/ZTshort/"]
 
 
 @pytest.mark.parametrize(
