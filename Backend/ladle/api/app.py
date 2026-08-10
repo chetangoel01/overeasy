@@ -293,10 +293,11 @@ def create_app(
     application.state.private_text = private_text
     apple_client: httpx.Client | None = None
     if apple_credentials is None and configured.apple_enabled:
+        apple_private_key = configured.apple_private_key_value
         if (
             configured.apple_team_id is None
             or configured.apple_key_id is None
-            or configured.apple_private_key is None
+            or apple_private_key is None
         ):
             raise RuntimeError("Apple sign-in credentials are incomplete")
         apple_client = httpx.Client(
@@ -320,7 +321,7 @@ def create_app(
                 http=apple_client,
                 team_id=configured.apple_team_id,
                 key_id=configured.apple_key_id,
-                private_key=configured.apple_private_key.get_secret_value(),
+                private_key=apple_private_key,
                 client_id=configured.apple_bundle_id,
                 token_url=str(configured.apple_token_url),
                 clock=runtime_clock,

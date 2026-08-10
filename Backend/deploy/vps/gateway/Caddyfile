@@ -1,7 +1,0 @@
-{
-	servers {
-		strict_sni_host on
-	}
-}
-
-import /etc/caddy/routes/*.caddy

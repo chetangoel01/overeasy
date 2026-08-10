@@ -1,6 +1,7 @@
 import json
 import re
 from decimal import Decimal
+from pathlib import Path
 from typing import Literal, Self
 from urllib.parse import parse_qs, urlsplit
 
@@ -233,6 +234,7 @@ class Settings(BaseSettings):
     apple_team_id: str | None = None
     apple_key_id: str | None = None
     apple_private_key: SecretStr | None = None
+    apple_private_key_file: Path | None = None
     apple_jwks_url: AnyHttpUrl = AnyHttpUrl("https://appleid.apple.com/auth/keys")
     apple_token_url: AnyHttpUrl = AnyHttpUrl("https://appleid.apple.com/auth/token")
     apple_timeout_seconds: float = Field(default=10, gt=0)
@@ -252,6 +254,17 @@ class Settings(BaseSettings):
         if self.app_attest_app_id_prefix is None or self.app_attest_bundle_id is None:
             return None
         return f"{self.app_attest_app_id_prefix}.{self.app_attest_bundle_id}"
+
+    @property
+    def apple_private_key_value(self) -> str | None:
+        if self.apple_private_key is not None:
+            return self.apple_private_key.get_secret_value().strip()
+        if self.apple_private_key_file is None:
+            return None
+        try:
+            return self.apple_private_key_file.read_text().strip()
+        except OSError as error:
+            raise ValueError("Apple private-key file cannot be read") from error
 
     @model_validator(mode="after")
     def normalize_blank_provider_keys(self) -> Self:
@@ -385,25 +398,38 @@ class Settings(BaseSettings):
             "rate_limit_redis_url",
             "metrics_redis_url",
         ):
-            self._require_tls_url(field_name, getattr(self, field_name), {"rediss"})
+            self._require_private_or_tls_url(
+                field_name,
+                getattr(self, field_name),
+                private_scheme="redis",
+                private_hosts={"redis"},
+                tls_schemes={"rediss"},
+            )
             self._require_url_password(field_name, getattr(self, field_name))
         database = urlsplit(self.database_url)
         ssl_mode = parse_qs(database.query).get("sslmode", [])
-        if database.scheme != "postgresql+psycopg" or not {
+        database_is_private = database.hostname == "postgres"
+        database_uses_tls = {
             "require",
             "verify-ca",
             "verify-full",
-        }.intersection(ssl_mode):
+        }.intersection(ssl_mode)
+        if database.scheme != "postgresql+psycopg" or (
+            not database_is_private and not database_uses_tls
+        ):
             raise ValueError(
-                "production database_url must use psycopg with TLS sslmode"
+                "production database_url must use psycopg and either the private "
+                "postgres service or TLS sslmode"
             )
         self._require_url_password("database_url", self.database_url)
         if not self.object_storage_enabled:
             raise ValueError("production requires object storage")
-        self._require_tls_url(
+        self._require_private_or_tls_url(
             "object_storage_endpoint_url",
             str(self.object_storage_endpoint_url),
-            {"https"},
+            private_scheme="http",
+            private_hosts={"minio"},
+            tls_schemes={"https"},
         )
         if self.object_storage_public_endpoint_url is not None:
             self._require_tls_url(
@@ -450,13 +476,12 @@ class Settings(BaseSettings):
             )
         if not self.structured_logging_enabled:
             raise ValueError("production requires structured logging")
-        if not self.tracing_enabled or self.tracing_otlp_endpoint is None:
-            raise ValueError("production requires distributed tracing")
-        self._require_tls_url(
-            "tracing_otlp_endpoint",
-            str(self.tracing_otlp_endpoint),
-            {"https"},
-        )
+        if self.tracing_enabled and self.tracing_otlp_endpoint is not None:
+            self._require_tls_url(
+                "tracing_otlp_endpoint",
+                str(self.tracing_otlp_endpoint),
+                {"https"},
+            )
         extraction_key = (
             "openrouter_api_key"
             if self.extraction_provider == "openrouter"
@@ -481,11 +506,7 @@ class Settings(BaseSettings):
             self._require_tls_url(field_name, str(getattr(self, field_name)), {"https"})
         if not self.apple_enabled:
             raise ValueError("production requires the shipped Apple sign-in provider")
-        apple_private_key = (
-            self.apple_private_key.get_secret_value().strip()
-            if self.apple_private_key is not None
-            else ""
-        )
+        apple_private_key = self.apple_private_key_value or ""
         if (
             self.apple_team_id is None
             or self.apple_key_id is None
@@ -530,6 +551,24 @@ class Settings(BaseSettings):
                 f"production {field_name} must use a TLS scheme: "
                 f"{', '.join(sorted(schemes))}"
             )
+
+    @classmethod
+    def _require_private_or_tls_url(
+        cls,
+        field_name: str,
+        value: str,
+        *,
+        private_scheme: str,
+        private_hosts: set[str],
+        tls_schemes: set[str],
+    ) -> None:
+        parsed = urlsplit(value)
+        if (
+            parsed.scheme.casefold() == private_scheme
+            and parsed.hostname in private_hosts
+        ):
+            return
+        cls._require_tls_url(field_name, value, tls_schemes)
 
     @classmethod
     def _require_url_password(cls, field_name: str, value: str) -> None:

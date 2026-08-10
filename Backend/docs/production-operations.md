@@ -1,66 +1,23 @@
-# Production data-service operations
+# Production data operations
 
-## Purpose
+Ladle uses one PostgreSQL container and one durable Redis container on its VPS.
+This is enough for roughly 100 users and keeps recovery understandable.
 
-Define recoverable PostgreSQL and Redis service contracts, prove restoration,
-and give operators deterministic incident procedures.
+PostgreSQL is the source of truth. Redis uses AOF with `appendfsync everysec`,
+but the transactional import outbox can redispatch committed jobs after Redis
+loss. Neither service publishes a host port.
 
-## Required service configuration
+`deploy/vps/manage.sh backup` creates a custom-format PostgreSQL dump, a MinIO
+archive, and a SHA-256 manifest every night. Keep 14 local copies and copy them
+to a second failure domain. The host-provider snapshot is useful but does not
+replace the application-level dump.
 
-`deploy/operations/production-data-services.json` is a release gate, not a
-suggestion. Production provisioning must supply evidence for every field:
+At least quarterly, restore a selected dump into an isolated PostgreSQL 16
+container, run integrity and representative API reads, record the result, and
+remove the temporary database. CI's `scripts/restore_drill.py` continuously
+checks basic dump/restore compatibility.
 
-- PostgreSQL 16+, multi-AZ, encrypted daily backups retained 35 days,
-  cross-region backup copies, and continuous PITR with at least a seven-day
-  window.
-- PostgreSQL RPO at most five minutes and RTO at most 60 minutes.
-- A successful isolated restore drill no more than 90 days old.
-- Redis 7+, multi-AZ automatic failover, AOF with `appendfsync everysec`,
-  hourly snapshots, `noeviction`, and refusal to accept writes when persistence
-  fails.
-
-The local Redis service uses the same AOF, snapshot, no-eviction, and
-stop-on-persistence-error settings. Celery publishes persistent messages.
-If Redis still loses queued messages, PostgreSQL's transactional outbox and
-abandoned-job sweep redispatch committed imports; Redis is never the sole
-record that work exists.
-
-## Backup and restore
-
-Backups must be encrypted with a production-only managed key, access-logged,
-and restoreable into an isolated account/network. Never test a restore over the
-live database.
-
-`scripts/restore_drill.py` starts two real PostgreSQL 16 servers, seeds the
-source, streams a custom-format `pg_dump` into an empty target with
-`pg_restore --exit-on-error`, and compares ordered row checksums and server
-versions. CI runs the same drill. The quarterly managed-service drill adds:
-
-1. Restore the selected automated backup or PITR timestamp into isolation.
-2. Run migrations only if the restored revision is older than the deployed
-   application.
-3. Verify row counts, representative checksums, foreign keys, account deletion
-   absence, and object references.
-4. Run read-only API acceptance checks against the restored endpoint.
-5. Record actual RPO/RTO, backup identifier, operator, result, and cleanup.
-6. Destroy the isolated restore after evidence is retained.
-
-## Runbooks
-
-- `runbooks/provider-outage.md`
-- `runbooks/redis-loss.md`
-- `runbooks/database-failover.md`
-- `runbooks/secret-rotation.md`
-- `runbooks/runaway-spending.md`
-- `runbooks/stuck-migration.md`
-- `runbooks/worker-rollback.md`
-- `runbooks/account-deletion.md`
-
-## Verification
-
-- Manifest tests enforce the backup/PITR and Redis contract.
-- Worker tests require persistent Celery delivery.
-- The automated real restore drill proves dump/restore compatibility and data
-  equality.
-- A managed-provider restore and failover remain staging deployment gates; the
-  local drill cannot prove a provider control plane or cross-region copy.
+Use the focused runbooks under `docs/runbooks/` for provider, Redis, migration,
+secret, spending, worker, and account-deletion failures. Add managed database
+failover or point-in-time recovery only if measured usage or a stricter recovery
+objective makes the additional service worthwhile.

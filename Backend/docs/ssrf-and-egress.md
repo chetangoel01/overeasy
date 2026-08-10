@@ -24,35 +24,23 @@ social URL. It ignores local configuration and proxy environment variables.
 It no longer downloads provider-returned subtitles or media; those bytes go
 through the pinned client. Runtime `httpx` clients set `trust_env=False`.
 
-## Infrastructure backstop
+## Deployment boundary
 
-`deploy/kubernetes/worker-egress-network-policy.yaml` is a default-deny worker
-policy. It permits DNS, explicitly labelled PostgreSQL/Redis/object-storage
-pods, and public TCP/443 while excluding private, loopback, link-local,
-multicast, reserved, documentation, benchmarking, metadata, and
-IPv4-mapped-IPv6 ranges.
+The VPS worker shares Ladle's private Compose network with PostgreSQL, Redis,
+and MinIO and has ordinary public HTTPS access. There is no privileged firewall
+sidecar. Security for user-controlled URLs stays in the application-level
+pinned resolver described above, which is easier to test and maintain on one
+host. The host firewall blocks all container origins from public access; shared
+Caddy is the only web ingress.
 
-Before applying it, deployment manifests must use the documented worker and
-dependency labels. Managed private dependencies outside the cluster require
-explicit single-service CIDR rules; do not broaden the public rule. Platforms
-without Kubernetes NetworkPolicy must reproduce the same rules in their
-security group, firewall, or egress gateway. Deployment verification must
-prove metadata and task-credential endpoints are unreachable from a worker.
-
-The Mac mini profile uses `worker-egress`, a dedicated network namespace and
-firewall sidecar. The capability-free UID-10001 worker can resolve Docker DNS,
-reach only the resolved PostgreSQL/Redis addresses on their exact ports, and
-use public TCP/443. It rejects the same non-global IPv4 ranges as the
-Kubernetes policy, rejects every other port, and denies IPv6. The sidecar is
-read-only, drops every capability before adding only `NET_ADMIN`, and contains
-no application credentials.
+If Ladle later moves to a multi-tenant cluster, add a platform-native egress
+policy there rather than carrying a home-grown network namespace forward.
 
 ## Verification
 
 Unit tests cover mixed DNS answers, DNS rebinding, every redirect, literal
 metadata endpoints, IPv4-mapped IPv6, nonstandard schemes and ports,
 provider-returned subtitle/media/thumbnail URLs, byte bounds, and pinned
-address/Host/SNI behavior. The exact staging worker still requires a live
-egress probe before this control is considered deployed. The Mac profile probe
-must show successful dependency/public-HTTPS counters and explicit rejection
-counters for metadata, private addresses, and public non-HTTPS traffic.
+address/Host/SNI behavior. The deployed worker should still be probed with
+representative metadata, private-address, redirect, and public-HTTPS cases
+before a release is promoted.

@@ -3,13 +3,14 @@
 		header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
 
 		@private path /ladle-private/*
-		reverse_proxy @private ladle-edge:8082 {
+		reverse_proxy @private ladle-minio:9000 {
 			header_up Host {http.request.host}
 		}
 
 		@authorized header X-Ladle-Tunnel-Key {$LADLE_TUNNEL_ACCESS_KEY}
-		reverse_proxy @authorized ladle-edge:8082 {
+		reverse_proxy @authorized ladle-api:4111 {
 			header_up Host {http.request.host}
+			header_up X-Ladle-Tunnel-Key ""
 		}
 
 		# Caddy sets X-Forwarded-For and X-Forwarded-Proto for both proxies.

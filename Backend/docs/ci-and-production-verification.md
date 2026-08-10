@@ -16,8 +16,9 @@ The image job builds the exact Dockerfile for Linux amd64, scans both OS and
 Python packages for fixable high/critical findings, and retains an SPDX JSON
 SBOM. A main-branch release is rebuilt with BuildKit SBOM and maximum
 provenance attestations, rescanned by immutable digest, and keylessly signed
-only after the scan passes. Deployment consumes the signed digest, never a
-mutable tag.
+only after the scan passes. The single-host VPS currently builds the exact Git
+archive it receives; the published image remains available when moving builds
+off the host becomes worthwhile.
 
 The same job also builds and scans the Mac mini worker-egress and ingress
 images from pinned base digests. Both final auxiliary images must have zero
@@ -100,10 +101,10 @@ Attest, including a valid `jobID` and
 `"sourceURL":"http://169.254.169.254/latest/meta-data"`. Reformatting the file
 after signing invalidates the assertion by design.
 
-The script complements, but cannot replace, the staging network-policy canary,
-managed backup/PITR restore, Apple production credentials, and real-device App
-Attest matrix. Store every run's hostname, image digest, migration revision,
-time, and result in `docs/verification`.
+The script complements, but cannot replace, a real backup restore, Apple and
+Google production credentials, and the real-device App Attest matrix. Store
+every run's hostname, image digest, migration revision, time, and result in
+`docs/verification`.
 
 ## Real-device App Attest gate
 

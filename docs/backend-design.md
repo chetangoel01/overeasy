@@ -10,7 +10,8 @@ source of truth — the backend serializes to it, not the other way around.
 **In scope (v1):**
 - Import pipeline: social-video URL → fetched media/caption → transcript →
   structured recipe with per-field uncertainty → nutrition estimate.
-- Auth: Sign in with Apple + anonymous guest identity, guest→account merge.
+- Auth: Sign in with Apple, Google OAuth, anonymous guest identity, and
+  guest→account merge.
 - Recipe storage + simple sync (client stays offline-first with SwiftData).
 - Re-import from source, correction-notes re-parse, pasted-text fallback.
 
@@ -23,15 +24,17 @@ push-based sync, web app. Timers/notifications/HealthKit stay fully on-device.
 |---|---|---|
 | API | **Python 3.12 + FastAPI** | The ingestion ecosystem (yt-dlp, faster-whisper) is Python-native; async fits the polling API; matches the digest project you already run |
 | DB | **Postgres 16** | Relational core + `jsonb` for uncertainties; one DB for jobs and recipes |
-| Queue/worker | **Redis + arq** (or Celery if preferred) | Import jobs are long-running (fetch + ASR + LLM); API must return immediately |
+| Queue/worker | **Redis + Celery** | Import jobs are long-running (fetch + ASR + LLM); API must return immediately |
 | Media fetch | **yt-dlp** | One tool covers YouTube/TikTok/Instagram; also yields caption/description metadata |
 | ASR | **faster-whisper** (local, `small`/`medium`) with an API fallback | Cheap, private; recipe videos are short |
 | Extraction LLM | **Claude `claude-opus-4-8`**, structured outputs via `client.messages.parse` | Schema-guaranteed JSON; adaptive thinking; see §7 |
 | Object storage | S3-compatible (Cloudflare R2 / MinIO locally) | Thumbnails must be copied — CDN URLs from social platforms expire |
-| Deploy | Single box/container to start (Fly.io / Railway / a VPS) | v1 traffic is one user; don't build for scale yet |
+| Deploy | One VPS with Compose and shared Caddy | Five persistent services comfortably cover the first ~100 users |
 
-Everything runs as two processes: `api` (FastAPI) and `worker` (arq), sharing
-Postgres + Redis. No microservices.
+The application remains two processes: `api` and `worker`, sharing PostgreSQL,
+Redis, and MinIO. They run with those data services in one Compose project;
+shared Caddy is the only public listener. No microservices or private platform
+control plane.
 
 ## 3. Architecture
 
@@ -198,11 +201,15 @@ LLM only for quantity normalization.
   the JWS against Apple's JWKS (`iss`, `aud` = bundle ID, `exp`), upserts the
   user on `apple_sub`, returns tokens. Access token short-lived (1h) +
   refresh token; both in Keychain.
+- **Google OAuth:** the native Google SDK obtains an ID token for the Web/server
+  OAuth client audience; the backend verifies Google's signature and audience,
+  then performs the same guest-account merge.
 - **Merge:** on first sign-in from a guest device, reassign the guest's
   recipes/jobs to the account — this is the "keep your 10 recipes" promise the
   welcome screen makes.
 
-No passwords, no email flows in v1 — Apple only, which matches the current UI.
+No passwords or email flows. Every production deployment configures both
+identity providers already visible in the current UI.
 
 ## 10. Sync
 

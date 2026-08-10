@@ -267,6 +267,53 @@ def test_production_requires_shipped_account_provider_configuration(
         )
 
 
+def test_production_accepts_apple_private_key_file(tmp_path: Path) -> None:
+    private_key = tmp_path / "AuthKey.p8"
+    private_key.write_text(GOOD_SECRET)
+    values = {
+        **PRODUCTION_RUNTIME,
+        "apple_private_key": None,
+        "apple_private_key_file": str(private_key),
+    }
+
+    settings = Settings(
+        environment="production",
+        jwt_signing_secret=GOOD_SECRET,
+        data_encryption_key=GOOD_SECRET,
+        **values,
+        _env_file=None,
+    )
+
+    assert settings.apple_private_key_value == GOOD_SECRET
+
+
+def test_production_accepts_passworded_single_host_data_services() -> None:
+    password = "single-host-password-that-is-long-enough"
+    values = {
+        **PRODUCTION_RUNTIME,
+        "database_url": f"postgresql+psycopg://ladle:{password}@postgres/ladle",
+        "celery_broker_url": f"redis://:{password}@redis:6379/0",
+        "celery_result_backend": f"redis://:{password}@redis:6379/1",
+        "rate_limit_redis_url": f"redis://:{password}@redis:6379/2",
+        "metrics_redis_url": f"redis://:{password}@redis:6379/3",
+        "object_storage_endpoint_url": "http://minio:9000",
+        "object_storage_public_endpoint_url": "https://api.example.test",
+        "tracing_enabled": False,
+        "tracing_otlp_endpoint": None,
+    }
+
+    settings = Settings(
+        environment="production",
+        jwt_signing_secret=GOOD_SECRET,
+        data_encryption_key=GOOD_SECRET,
+        **values,
+        _env_file=None,
+    )
+
+    assert settings.database_url.endswith("@postgres/ladle")
+    assert settings.tracing_enabled is False
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [
@@ -277,7 +324,6 @@ def test_production_requires_shipped_account_provider_configuration(
         ("rate_limit_redis_url", "redis://redis.example.test:6379/2"),
         ("metrics_redis_url", "redis://redis.example.test:6379/3"),
         ("metrics_auth_token", None),
-        ("tracing_enabled", False),
         ("tracing_otlp_endpoint", "http://telemetry.example.test/v1/traces"),
         (
             "database_url",

@@ -37,13 +37,14 @@ Prometheus-format bounded-label counters are available at `/metrics`. Run
 
 For the private Mac mini staging deployment, see
 [`docs/deployment/mac-mini.md`](docs/deployment/mac-mini.md).
-For the guarded Ubuntu VPS staging path, including live setup feedback,
-recovery drills, and production blockers, see
+For the right-sized single-host production deployment, including OAuth,
+backups, shared Caddy routing, and rollback, see
 [`docs/deployment/vps.md`](docs/deployment/vps.md).
 
 Apple and Google sign-in remain disabled in local development until their
 provider settings are supplied. Production refuses to start without both
-shipped identity providers; Apple requires its team ID, key ID, private key,
-and the `com.ladle.ios` bundle ID, while Google requires its server OAuth client
-ID. Provider credentials and optional browser cookies belong only on the
-worker, never in the repository or iOS application.
+shipped identity providers. Apple uses a read-only mounted private-key file
+plus its team ID, key ID, and `com.ladle.ios` bundle ID; Google requires its
+server OAuth client ID. Provider credentials and optional browser cookies
+belong only in host-managed secrets, never in the repository or iOS
+application.
