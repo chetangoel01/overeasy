@@ -293,6 +293,11 @@ The first response is normally `parsing`. Poll until it becomes `ready`,
 Important behavior:
 
 - `jobID` is client-generated and is also the recommended idempotency key.
+- Accepted social links include YouTube watch, Shorts, and `youtu.be` URLs;
+  direct TikTok video URLs and TikTok `/t/` or `vm.tiktok.com` share links;
+  and Instagram `/reel/`, `/p/`, and `/share/` equivalents. Share redirects
+  are resolved through the backend's DNS-pinned social-host allowlist before
+  canonicalization.
 - A repeated `(userID, idempotencyKey)` returns the original job.
 - `allowDuplicate: false` returns `duplicateRecipe` when that user already
   owns the source recipe.

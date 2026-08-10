@@ -32,6 +32,25 @@ final class ShareURLExtractorTests: XCTestCase {
         )
     }
 
+    func testExtractsURLFromItemAttributedContentText() async {
+        let item = NSExtensionItem()
+        item.attributedContentText = NSAttributedString(
+            string:
+                "Try this recipe: https://www.instagram.com/share/reel/C9_recipe-ID/"
+        )
+
+        let extracted = await ShareURLExtractor()
+            .firstSupportedURL(in: [item])
+
+        XCTAssertEqual(
+            extracted,
+            URL(
+                string:
+                    "https://www.instagram.com/share/reel/C9_recipe-ID/"
+            )
+        )
+    }
+
     func testSearchesMultipleAttachmentsForFirstSupportedURL() async {
         let unsupported = NSItemProvider(
             item: Data([0x01]) as NSSecureCoding,

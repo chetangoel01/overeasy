@@ -6,32 +6,35 @@ struct ShareURLExtractor {
     func firstSupportedURL(
         in extensionItems: [NSExtensionItem]
     ) async -> URL? {
-        let providers = extensionItems.flatMap {
-            $0.attachments ?? []
-        }
-
-        for provider in providers {
-            if provider.hasItemConformingToTypeIdentifier(
-                UTType.url.identifier
-            ),
-               let item = await loadItem(
-                   from: provider,
-                   typeIdentifier: UTType.url.identifier
-               ),
-               let url = supportedURL(from: item.value) {
+        for extensionItem in extensionItems {
+            if let text = extensionItem.attributedContentText?.string,
+               let url = firstSupportedURL(in: text) {
                 return url
             }
 
-            if provider.hasItemConformingToTypeIdentifier(
-                UTType.plainText.identifier
-            ),
-               let item = await loadItem(
-                   from: provider,
-                   typeIdentifier: UTType.plainText.identifier
-               ),
-               let text = string(from: item.value),
-               let url = firstSupportedURL(in: text) {
-                return url
+            for provider in extensionItem.attachments ?? [] {
+                if provider.hasItemConformingToTypeIdentifier(
+                    UTType.url.identifier
+                ),
+                   let item = await loadItem(
+                       from: provider,
+                       typeIdentifier: UTType.url.identifier
+                   ),
+                   let url = supportedURL(from: item.value) {
+                    return url
+                }
+
+                if provider.hasItemConformingToTypeIdentifier(
+                    UTType.plainText.identifier
+                ),
+                   let item = await loadItem(
+                       from: provider,
+                       typeIdentifier: UTType.plainText.identifier
+                   ),
+                   let text = string(from: item.value),
+                   let url = firstSupportedURL(in: text) {
+                    return url
+                }
             }
         }
 
