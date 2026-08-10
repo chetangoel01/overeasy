@@ -22,6 +22,8 @@ Supadata and SoScripted are optional URL-transcript fallbacks.
 See [`docs/integration-reference.md`](docs/integration-reference.md) for the
 repository/runtime path map, complete API reference and examples, provider
 fallback behavior, iOS connection setup, and PostgreSQL data dictionary.
+For an interactive guest-to-import-to-recipe walkthrough, start the local stack
+and use the [pipeline Swagger guide](docs/pipeline-swagger.md).
 
 ## Local stack
 

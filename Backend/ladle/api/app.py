@@ -10,6 +10,7 @@ from sqlalchemy import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from ladle.api.errors import install_error_handlers, rate_limit_response
+from ladle.api.openapi import install_pipeline_openapi
 from ladle.api.rate_limits import (
     ClientIPResolver,
     NullRateLimitBackend,
@@ -127,7 +128,7 @@ def create_app(
     application = FastAPI(
         title="Ladle API",
         version="0.1.0",
-        docs_url=None,
+        docs_url="/docs" if configured.environment == "development" else None,
         redoc_url=None,
     )
     application.add_middleware(
@@ -417,6 +418,8 @@ def create_app(
     application.include_router(imports_router)
     application.include_router(health_router)
     install_error_handlers(application)
+    if configured.environment == "development":
+        install_pipeline_openapi(application)
 
     @application.middleware("http")
     async def global_rate_limit(

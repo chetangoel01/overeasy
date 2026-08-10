@@ -51,7 +51,8 @@ The feature worktree used to build this branch is:
 | --- | --- | --- |
 | Ladle API | `http://127.0.0.1:4112` | Published by Docker Compose |
 | Optional Caddy hostname | `http://api.ladle.localhost` | Current iOS Debug URL |
-| OpenAPI JSON | `http://127.0.0.1:4112/openapi.json` | Swagger/ReDoc HTML is intentionally disabled |
+| Swagger UI | `http://127.0.0.1:4112/docs` | Development only; includes pipeline examples and bearer auth |
+| OpenAPI JSON | `http://127.0.0.1:4112/openapi.json` | Generated OpenAPI 3.1 contract |
 | Metrics | `http://127.0.0.1:4112/metrics` | Prometheus text format |
 | MinIO S3 API | `http://127.0.0.1:9000` | Local object storage |
 | MinIO console | `http://127.0.0.1:9001` | Local-only development credentials |
@@ -106,12 +107,13 @@ Adding `--volumes` destroys local data and should only be used intentionally.
 `Settings` reads `LADLE_*` process variables and `Backend/.env` when the API
 or worker is launched from the Backend directory.
 
-The checked-in Compose file is different: it explicitly injects its own
-development environment, including fake providers and container hostnames.
-Merely adding provider keys to `Backend/.env` does not switch the Compose
-worker to live mode because those values are not referenced by the current
-Compose YAML. For live deployment, inject the production variables into the
-API and worker through the deployment platform or a private Compose override.
+The checked-in Compose file injects its development dependencies and forwards
+provider mode and provider keys from `Backend/.env`, with fake-mode defaults.
+To guarantee a free deterministic test even when the private environment uses
+live providers, start Compose with
+`LADLE_WORKER_PROVIDER_MODE=fake docker compose up -d --build`. Production
+still receives its values through the deployment environment, not this local
+profile.
 
 `Backend/.env.example` uses host addresses for PostgreSQL and Redis. The
 checked-in Compose file does not publish those two ports, because the normal
@@ -182,6 +184,7 @@ Canonical recipe payloads are available in:
 | `GET /health/live` | No | `200` | Process liveness only |
 | `GET /health/ready` | No | `200`/`503` | Database, Redis, and object-storage readiness |
 | `GET /metrics` | No | `200` | Bounded-label Prometheus metrics |
+| `GET /docs` | No | `200` | Development-only Swagger pipeline console |
 | `GET /openapi.json` | No | `200` | Generated machine-readable API contract |
 
 There is no separate recipe-list endpoint. Clients rebuild local state from
