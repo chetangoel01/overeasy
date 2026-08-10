@@ -76,10 +76,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         storage = runtime_object_storage()
         if storage is None:
             parser.error("object storage must be enabled for thumbnail backfill")
-        with httpx.Client(
-            timeout=httpx.Timeout(connect=5.0, read=15.0, write=15.0, pool=5.0),
-            follow_redirects=False,
-        ) as http, sessions.begin() as database:
+        with (
+            httpx.Client(
+                timeout=httpx.Timeout(connect=5.0, read=15.0, write=15.0, pool=5.0),
+                follow_redirects=False,
+            ) as http,
+            sessions.begin() as database,
+        ):
             count = ThumbnailBackfillService(
                 fetcher=OEmbedThumbnailFetcher(
                     http=http,

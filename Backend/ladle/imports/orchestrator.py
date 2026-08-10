@@ -258,18 +258,14 @@ class ImportOrchestrator:
                         )
                     if self._thumbnail_observer is not None:
                         if thumbnail_asset is None:
-                            context.diagnostics.append(
-                                "thumbnailAnalysisUnavailable"
-                            )
+                            context.diagnostics.append("thumbnailAnalysisUnavailable")
                         else:
                             try:
-                                thumbnail = (
-                                    self._thumbnail_observer.observe_thumbnail(
-                                        thumbnail_asset.data,
-                                        content_type=thumbnail_asset.content_type,
-                                        job_id=job_id,
-                                        source_revision=descriptor.source_revision,
-                                    )
+                                thumbnail = self._thumbnail_observer.observe_thumbnail(
+                                    thumbnail_asset.data,
+                                    content_type=thumbnail_asset.content_type,
+                                    job_id=job_id,
+                                    source_revision=descriptor.source_revision,
                                 )
                             except (ProviderUnavailable, UsageLimitExceeded):
                                 context.diagnostics.append(
@@ -279,9 +275,7 @@ class ImportOrchestrator:
                                 context.visual_observations.extend(
                                     thumbnail.observations
                                 )
-                                context.diagnostics.append(
-                                    "thumbnailAnalysisUsed"
-                                )
+                                context.diagnostics.append("thumbnailAnalysisUsed")
                 with log_context(stage="extraction"):
                     template = self._extractor.extract(context, job_id=job_id)
                 with log_context(stage="thumbnail"):

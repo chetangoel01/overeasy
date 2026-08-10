@@ -280,9 +280,7 @@ def test_thumbnail_analysis_failure_continues_with_transcript(
                 id=source_id,
                 platform="youtube",
                 platform_video_id="thumbnail-failure",
-                canonical_url=(
-                    "https://www.youtube.com/watch?v=thumbnail-failure"
-                ),
+                canonical_url=("https://www.youtube.com/watch?v=thumbnail-failure"),
                 source_revision="1",
                 source_metadata={},
             )

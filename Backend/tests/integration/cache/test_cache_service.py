@@ -239,9 +239,7 @@ def test_shared_completion_uses_remote_thumbnail_without_object_storage(
                 id=source_id,
                 platform="tiktok",
                 platform_video_id="remote-thumbnail",
-                canonical_url=(
-                    "https://www.tiktok.com/@cook/video/remote-thumbnail"
-                ),
+                canonical_url=("https://www.tiktok.com/@cook/video/remote-thumbnail"),
                 public_access_confirmed_at=clock.now(),
                 source_revision="1",
                 source_metadata={},

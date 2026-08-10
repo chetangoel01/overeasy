@@ -125,8 +125,7 @@ def test_thumbnail_becomes_one_untimed_observation() -> None:
     assert [item["type"] for item in content].count("image_url") == 1
     assert result.observations[0].timestamp_seconds is None
     assert (
-        result.observations[0].provenance
-        == "thumbnail-vision:google/gemini-2.5-flash"
+        result.observations[0].provenance == "thumbnail-vision:google/gemini-2.5-flash"
     )
     assert usage.started_calls[0]["provider"] == "thumbnailVision"
     assert usage.started_calls[0]["operation"] == "thumbnailVisual"

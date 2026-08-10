@@ -514,7 +514,7 @@ class AudioTranscriptProvider:
         ):
             raise TranscriptUnavailable(
                 f"video is {duration_seconds:.0f}s, above the transcription cap"
-        )
+            )
         with tempfile.TemporaryDirectory(prefix="ladle-audio-") as folder:
             work_dir = Path(folder)
             audio = self._audio_source.audio(

@@ -176,8 +176,7 @@ class VisionObserver:
         if not frames:
             raise VisualAnalysisUnavailable("no frames to observe")
         images: list[tuple[float | None, bytes, str]] = [
-            (timestamp, path.read_bytes(), "image/jpeg")
-            for timestamp, path in frames
+            (timestamp, path.read_bytes(), "image/jpeg") for timestamp, path in frames
         ]
         return self._recorded_observe(
             images,
@@ -271,9 +270,7 @@ class VisionObserver:
             content.append(
                 {
                     "type": "image_url",
-                    "image_url": {
-                        "url": f"data:{content_type};base64,{encoded}"
-                    },
+                    "image_url": {"url": f"data:{content_type};base64,{encoded}"},
                 }
             )
         try:

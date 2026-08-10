@@ -47,12 +47,10 @@ def test_mac_mini_profile_is_private_bounded_and_hosts_thumbnails() -> None:
     assert 'command: ["/bin/true"]' not in profile
     assert "depends_on: !reset {}" not in profile
     assert (
-        "MINIO_ROOT_USER: "
-        "${LADLE_OBJECT_STORAGE_ACCESS_KEY:?set by deploy.sh}"
+        "MINIO_ROOT_USER: ${LADLE_OBJECT_STORAGE_ACCESS_KEY:?set by deploy.sh}"
     ) in profile
     assert (
-        "MINIO_ROOT_PASSWORD: "
-        "${LADLE_OBJECT_STORAGE_SECRET_KEY:?set by deploy.sh}"
+        "MINIO_ROOT_PASSWORD: ${LADLE_OBJECT_STORAGE_SECRET_KEY:?set by deploy.sh}"
     ) in profile
     assert "127.0.0.1:4112:8080" in profile
     assert "127.0.0.1:4113:8081" in profile
@@ -64,8 +62,7 @@ def test_mac_mini_profile_is_private_bounded_and_hosts_thumbnails() -> None:
     assert "network_mode: service:worker-egress" in profile
     assert profile.count("volumes: !reset []") == 2
     assert (
-        "LADLE_OBJECT_STORAGE_LIFECYCLE_PATH: "
-        "/app/deploy/object-storage-lifecycle.json"
+        "LADLE_OBJECT_STORAGE_LIFECYCLE_PATH: /app/deploy/object-storage-lifecycle.json"
     ) in profile
     assert "!deploy/object-storage-lifecycle.json" in dockerignore
     assert "MINIO_HOST: minio" in profile
@@ -115,7 +112,7 @@ def test_mac_mini_ngrok_launcher_requires_a_device_key() -> None:
     assert "http://127.0.0.1:4114" in script
     assert "public_url" in script
     assert "req.url.path.startsWith('/ladle-private/')" in script
-    assert "cat \"$access_key_file\"" not in script
+    assert 'cat "$access_key_file"' not in script
 
 
 def test_mac_mini_worker_egress_allows_dependencies_and_public_https_only() -> None:
@@ -165,8 +162,7 @@ def test_mac_mini_deploy_script_generates_secrets_and_runs_migrations() -> None:
     assert "compose up -d postgres redis minio" in script
     assert "compose run --rm minio-init" in script
     assert (
-        "compose run --rm migrate /app/.venv/bin/python "
-        "-m ladle.admin.cache_cli"
+        "compose run --rm migrate /app/.venv/bin/python -m ladle.admin.cache_cli"
     ) in script
     assert "backfill-thumbnails" in script
     assert 'PATH="/usr/local/bin:/opt/homebrew/bin:$HOME/.orbstack/bin:$PATH"' in script
@@ -195,9 +191,7 @@ def test_mac_mini_autostart_installer_starts_docker_at_login() -> None:
 
 
 def test_mac_mini_local_operations_schedule_validated_backups_and_health() -> None:
-    operations = (
-        BACKEND / "deploy" / "mac-mini" / "local-operations.sh"
-    ).read_text()
+    operations = (BACKEND / "deploy" / "mac-mini" / "local-operations.sh").read_text()
     installer = (
         BACKEND / "deploy" / "mac-mini" / "install-local-operations.sh"
     ).read_text()

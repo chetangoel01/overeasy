@@ -195,10 +195,7 @@ class ExtractionCacheService:
         thumbnail_object_key: str | None = None,
         thumbnail_remote_url: str | None = None,
     ) -> CacheCompletion:
-        if (
-            thumbnail_object_key is not None
-            and thumbnail_remote_url is not None
-        ):
+        if thumbnail_object_key is not None and thumbnail_remote_url is not None:
             raise ValueError("a thumbnail must have exactly one location")
         self._claims.assert_leader(database, claim, require_live=True)
         source = database.get(SourceVideo, claim.source_video_id)
@@ -240,16 +237,10 @@ class ExtractionCacheService:
             entry.invalidated_at = None
             entry.created_at = self._clock.now()
             database.flush()
-        elif (
-            entry.thumbnail_object_key is None
-            and entry.thumbnail_remote_url is None
-        ):
+        elif entry.thumbnail_object_key is None and entry.thumbnail_remote_url is None:
             entry.thumbnail_object_key = thumbnail_object_key
             entry.thumbnail_remote_url = thumbnail_remote_url
-            if (
-                thumbnail_object_key is not None
-                or thumbnail_remote_url is not None
-            ):
+            if thumbnail_object_key is not None or thumbnail_remote_url is not None:
                 database.flush()
 
         jobs = list(

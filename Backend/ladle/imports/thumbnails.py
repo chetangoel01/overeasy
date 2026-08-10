@@ -108,10 +108,7 @@ class OEmbedThumbnailFetcher:
         source: SourceVideoDescriptor,
         asset: ThumbnailAsset,
     ) -> str | None:
-        key = (
-            f"thumbnails/{source.source_video_id}/"
-            f"{uuid4().hex}{asset.extension}"
-        )
+        key = f"thumbnails/{source.source_video_id}/{uuid4().hex}{asset.extension}"
         try:
             self._storage.put(
                 key,

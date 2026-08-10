@@ -98,9 +98,7 @@ def test_backfill_replaces_cached_and_recipe_remote_thumbnail_locations(
         assert fetcher.candidates == [remote_url]
         assert cache is not None
         assert cache.thumbnail_remote_url is None
-        assert cache.thumbnail_object_key == (
-            "thumbnails/tiktok-video/durable.webp"
-        )
+        assert cache.thumbnail_object_key == ("thumbnails/tiktok-video/durable.webp")
         assert image is not None
         assert image.remote_url is None
         assert image.object_key == "thumbnails/tiktok-video/durable.webp"

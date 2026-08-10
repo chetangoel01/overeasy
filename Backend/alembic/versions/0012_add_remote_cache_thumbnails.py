@@ -25,10 +25,7 @@ def upgrade() -> None:
     op.create_check_constraint(
         "ck_extraction_cache_one_thumbnail_location",
         "extraction_cache",
-        (
-            "thumbnail_object_key IS NULL "
-            "OR thumbnail_remote_url IS NULL"
-        ),
+        ("thumbnail_object_key IS NULL OR thumbnail_remote_url IS NULL"),
     )
 
 

@@ -86,6 +86,4 @@ def test_provider_returned_public_media_is_pinned_and_bounded(
     assert requests[0].url.host == "93.184.216.34"
     assert requests[0].headers["host"] == "media.example"
     assert requests[0].headers["cookie"] == "tt_chain_token=public"
-    assert requests[0].headers["referer"] == (
-        "https://www.tiktok.com/@cook/video/1"
-    )
+    assert requests[0].headers["referer"] == ("https://www.tiktok.com/@cook/video/1")
