@@ -5,6 +5,7 @@ from functools import partial
 import httpx
 from celery import Celery
 from fastapi import FastAPI, Request, Response
+from fastapi_swagger import patch_fastapi
 from redis import Redis
 from sqlalchemy import Engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -128,8 +129,9 @@ def create_app(
     application = FastAPI(
         title="Ladle API",
         version="0.1.0",
-        docs_url="/docs" if configured.environment == "development" else None,
+        docs_url=None,
         redoc_url=None,
+        swagger_ui_oauth2_redirect_url=None,
     )
     application.add_middleware(
         RequestBodyLimitMiddleware,
@@ -138,6 +140,7 @@ def create_app(
     application.add_middleware(
         SecurityHeadersMiddleware,
         production=configured.environment == "production",
+        interactive_docs=configured.environment == "development",
     )
     application.state.session_factory = database_sessions
     application.state.clock = runtime_clock
@@ -420,6 +423,7 @@ def create_app(
     install_error_handlers(application)
     if configured.environment == "development":
         install_pipeline_openapi(application)
+        patch_fastapi(application, redirect_from_root_to_docs=False)
 
     @application.middleware("http")
     async def global_rate_limit(

@@ -420,6 +420,18 @@ wheels = [
 ]
 
 [[package]]
+name = "fastapi-swagger"
+version = "0.4.56"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "fastapi" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/5d/4c/dc292eb7782a8197b7b9a8651d86ffbbb5d915e07a193bcb630ca86f2200/fastapi_swagger-0.4.56.tar.gz", hash = "sha256:490c727e988cf722e21571bbc944133cc57c377b71bc8b245028b7ce9d21cd5f", size = 451543, upload-time = "2026-08-04T02:21:54.63Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/97/ae/141d8e265815c2cc298dd30345410e761714bf2f4db7438c3134750e3f42/fastapi_swagger-0.4.56-py3-none-any.whl", hash = "sha256:0974ddad5989f5cab7f3f585595bbfa49316dbea79a48b2a62d69f7dec83489d", size = 454622, upload-time = "2026-08-04T02:21:53.055Z" },
+]
+
+[[package]]
 name = "googleapis-common-protos"
 version = "1.75.0"
 source = { registry = "https://pypi.org/simple" }
@@ -613,6 +625,7 @@ dependencies = [
     { name = "celery", extra = ["redis"] },
     { name = "cryptography" },
     { name = "fastapi" },
+    { name = "fastapi-swagger" },
     { name = "httpx" },
     { name = "opentelemetry-exporter-otlp-proto-http" },
     { name = "opentelemetry-instrumentation-celery" },
@@ -651,6 +664,7 @@ requires-dist = [
     { name = "celery", extras = ["redis"], specifier = ">=5.6.3,<5.7" },
     { name = "cryptography", specifier = ">=50,<51" },
     { name = "fastapi", specifier = ">=0.116,<1" },
+    { name = "fastapi-swagger", specifier = ">=0.4.56,<0.5" },
     { name = "httpx", specifier = ">=0.28,<1" },
     { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.44,<1.45" },
     { name = "opentelemetry-instrumentation-celery", specifier = "==0.65b0" },

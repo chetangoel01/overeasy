@@ -3,6 +3,8 @@
 Ladle exposes an interactive Swagger UI only in the development environment.
 It is generated directly from the FastAPI routes, so it stays aligned with the
 request and response models instead of becoming a second API contract.
+Its JavaScript, stylesheet, and favicon are served by the local API, so the page
+does not need access to a public CDN.
 
 ## Start Swagger
 
@@ -15,7 +17,8 @@ open http://127.0.0.1:4112/docs
 
 The raw OpenAPI 3.1 document remains available at
 `http://127.0.0.1:4112/openapi.json`. Production and test processes do not
-register `/docs`, and the public gateway also hides the OpenAPI endpoint.
+register `/docs` or its `/swagger/*` browser assets, and the public gateway also
+hides the OpenAPI endpoint.
 
 The explicit override guarantees the deterministic fake provider even when a
 private `Backend/.env` normally enables live providers. Requests still travel
@@ -100,9 +103,9 @@ are JSON strings, not numbers.
 ## Change record and verification
 
 This guide accompanies the development-only Swagger route and the generated
-OpenAPI enrichment in `ladle/api/openapi.py`. A focused schema test protects the
-bearer security scheme, numbered import example, environment boundary, and App
-Attest headers.
+OpenAPI enrichment in `ladle/api/openapi.py`. Focused tests protect the local
+browser assets and page policy as well as the bearer security scheme, numbered
+import example, environment boundary, and App Attest headers.
 
 Verification on 2026-08-09 included Ruff, strict mypy, the repository secret
 scan, 504 non-live/non-chaos tests, and a real local Compose journey from guest

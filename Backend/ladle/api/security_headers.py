@@ -7,9 +7,22 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 
 class SecurityHeadersMiddleware:
-    def __init__(self, app: ASGIApp, *, production: bool) -> None:
+    _INTERACTIVE_DOCS_POLICY = (
+        "default-src 'none'; script-src 'self' 'unsafe-inline'; "
+        "style-src 'self'; img-src 'self' data:; connect-src 'self'; "
+        "frame-ancestors 'none'; base-uri 'none'"
+    )
+
+    def __init__(
+        self,
+        app: ASGIApp,
+        *,
+        production: bool,
+        interactive_docs: bool = False,
+    ) -> None:
         self._app = app
         self._headers = self.headers(production=production)
+        self._interactive_docs = interactive_docs
 
     @staticmethod
     def headers(*, production: bool) -> Mapping[str, str]:
@@ -43,6 +56,12 @@ class SecurityHeadersMiddleware:
             if message["type"] == "http.response.start":
                 response_headers = MutableHeaders(scope=message)
                 for name, value in self._headers.items():
+                    if (
+                        name == "Content-Security-Policy"
+                        and self._interactive_docs
+                        and scope["path"] == "/docs"
+                    ):
+                        value = self._INTERACTIVE_DOCS_POLICY
                     response_headers.setdefault(name, value)
             await send(message)
 
