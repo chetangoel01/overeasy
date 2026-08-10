@@ -53,6 +53,8 @@ cost on this single-tenant host.
 - Independent PostgreSQL 16.14 restore drill: two rows restored with identical
   source and destination SHA-256 checksums.
 - Full-history high-confidence secret scan: passed.
+- Dependency audit: passed after upgrading `cryptography` to the fixed 50.x
+  release for `PYSEC-2026-3552`.
 
 The live VPS was intentionally not changed during this verification. Its old
 stack is healthy, but its environment has no Apple OAuth, Google OAuth, or App
