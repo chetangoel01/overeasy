@@ -15,6 +15,12 @@ managed multi-AZ/PITR policy, a privileged egress sidecar, a second Ladle edge
 proxy, and the custom operations launcher were removed because none solves a
 current need at this scale.
 
+The container probes also stay proportional to this host. API containers use
+the cheap liveness endpoint every 30 seconds, while the Celery CLI ping runs
+every five minutes. Deployment and operator health checks still perform full
+API readiness and worker checks on demand. This avoids spending an idle CPU
+core on repeated dependency scans and Celery process startup.
+
 ## OAuth and security decisions
 
 Production Compose enables Apple and Google sign-in unconditionally. Startup
@@ -41,6 +47,9 @@ cost on this single-tenant host.
 
 - Focused deployment/config/auth tests: 110 passed. Complete non-live/non-chaos
   backend suite: 502 passed and 5 credential-dependent tests deselected.
+- The health-probe follow-up passed the focused deployment contract, Compose
+  rendering, and the current non-live/non-chaos backend suite: 508 passed, 3
+  skipped, and 2 credential-dependent tests deselected.
 - Shell syntax, Compose interpolation, Ruff on changed Python, strict mypy on
   changed modules, and `git diff --check`: passed.
 - Caddy 2.11.4 validation: passed.

@@ -162,8 +162,8 @@ services:
         - CMD
         - /app/.venv/bin/python
         - -c
-        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:4111/health/ready', timeout=3)
-      interval: 10s
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:4111/health/live', timeout=3)
+      interval: 30s
       timeout: 5s
       retries: 20
     depends_on:
@@ -199,9 +199,9 @@ services:
         - inspect
         - ping
         - --timeout=5
-      interval: 15s
+      interval: 5m
       timeout: 10s
-      retries: 12
+      retries: 3
     depends_on:
       migrate:
         condition: service_completed_successfully
