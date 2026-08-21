@@ -40,3 +40,57 @@ Malformed links, non-HTTP(S) links, and unsupported hosts remain rejected.
   simulator build passed and contains the embedded `LadleShare.appex`.
 - The current backend suite passed: 510 passed and 5 skipped. Ruff formatting,
   Ruff lint, and strict mypy also passed.
+
+## `vt.tiktok.com` device rollout
+
+- The deployed VPS was still on preserved revision `99624ee`, so the hotfix
+  release was built from that exact revision plus the current-share-link and
+  `vt.tiktok.com` commits. All 780 tests passed with 5 skips before rollout.
+- VPS revision `d560093` activated successfully after archive validation,
+  migration, API, edge, worker, and Beat health gates. The previous revision
+  remains available for rollback.
+- The checked-in Release hostname, `api.ladle.app`, is parked behind
+  `ns1.dan.com` and `ns2.dan.com` and fails TLS SNI. The Personal Team device
+  build therefore uses the VPS's existing TLS hostname,
+  `https://vps-8b0be574.vps.ovh.us`, plus its guarded tunnel key. The key was
+  injected only at build time and matched without being printed.
+- The replacement signed build installed and launched on the paired iPhone 17
+  Pro. It refreshed the existing session, synced successfully, and submitted
+  both reported `vt.tiktok.com` links with `202 Accepted`.
+- `ZS4NEvuUH` canonicalized to TikTok video `7656390702540115203`, and
+  `ZS4NEwJg6` canonicalized to video `7667383250049862925`. Both completed as
+  `needsReview` with no failure reason, and both appear that way in the device
+  Inbox.
+
+## Empty-result correction
+
+The two terminal jobs above were not valid successful imports. Both contained
+an `Unknown Recipe` placeholder, an unknown ingredient, a fabricated missing-
+method step, and no thumbnail. Worker logs exposed two related defects:
+
+- yt-dlp failed on both current TikTok pages, but `FreeAcquirer` returned
+  before attempting TikTok's independent public-page fallback;
+- `PinnedHTTPClient` decoded TikTok's gzip response while streaming it and
+  then rebuilt an HTTP response with the original `Content-Encoding` header,
+  causing httpx to decode the same bytes again. This dropped both page evidence
+  and oEmbed thumbnails.
+
+The free TikTok rung now runs after a yt-dlp failure and reads the post caption,
+creator, duration, thumbnail, English ASR, and sticker text from TikTok's page.
+The pinned client retains its decoded byte limit while stripping stale encoding
+and length headers from the buffered response. The orchestrator also rejects a
+truly empty acquisition before model extraction, so an empty source becomes a
+typed parser failure instead of a reviewable placeholder.
+
+Verification on 2026-08-21:
+
+- both new regressions failed before production changes and passed afterward;
+- the empty-acquisition integration regression failed as `completed` before
+  the guard and now fails as `parserUnavailable` without calling extraction;
+- the exact two reported videos were probed live with the fixed acquisition
+  path. Video `7656390702540115203` returned a 1,128-character caption, one ASR
+  segment, creator metadata, and a thumbnail. Video `7667383250049862925`
+  returned its caption, four ASR segments totaling 1,308 characters, creator
+  metadata, and a thumbnail;
+- the complete current backend suite passed with 513 tests and 5 live/chaos
+  skips. Ruff format, Ruff lint, strict mypy, and `git diff --check` passed.

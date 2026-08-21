@@ -9,7 +9,12 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from alembic import command
 from ladle.acquisition.errors import VisualAnalysisUnavailable
-from ladle.acquisition.models import VisualEvidence, VisualResult
+from ladle.acquisition.models import (
+    AcquiredVideoContext,
+    SourceVideoDescriptor,
+    VisualEvidence,
+    VisualResult,
+)
 from ladle.cache.claims import ExtractionClaimService
 from ladle.cache.service import ExtractionCacheService
 from ladle.contracts.recipes import RecipeReviewStatus, RecipeSource
@@ -297,6 +302,53 @@ def test_thumbnail_analysis_failure_continues_with_transcript(
     assert extractor.calls[-1].transcript
     assert extractor.calls[-1].visual_observations == []
     assert "thumbnailAnalysisUnavailable" in extractor.calls[-1].diagnostics
+
+
+@pytest.mark.integration
+def test_empty_acquisition_fails_instead_of_saving_placeholder_recipe(
+    clean_postgres_url: str,
+) -> None:
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    clock = FrozenClock(datetime(2026, 7, 23, 21, 0, tzinfo=UTC))
+    sessions, orchestrator, _, acquirer, extractor = services(
+        clean_postgres_url,
+        clock,
+        template=RecipeTemplate.from_recipe(manual_recipe(uuid4())),
+    )
+    source_id = uuid4()
+    with sessions.begin() as database:
+        database.add(
+            SourceVideo(
+                id=source_id,
+                platform="tiktok",
+                platform_video_id="empty-source",
+                canonical_url=("https://www.tiktok.com/@creator/video/empty-source"),
+                source_revision="1",
+                source_metadata={},
+            )
+        )
+        job_id = seed_import(database, source_id=source_id, suffix="empty-source")
+    acquirer.context = AcquiredVideoContext(
+        source=SourceVideoDescriptor(
+            source_video_id=source_id,
+            platform="tiktok",
+            platform_video_id="empty-source",
+            canonical_url="https://www.tiktok.com/@creator/video/empty-source",
+            source_revision="1",
+        ),
+        is_public=True,
+        description="",
+        diagnostics=["metadataUnavailable"],
+    )
+
+    assert orchestrator.process(job_id) == ProcessOutcome.FAILED
+    assert extractor.calls == []
+    with sessions() as database:
+        job = database.get(ImportJob, job_id)
+        assert job is not None
+        assert job.status == "failed"
+        assert job.failure_reason == "parserUnavailable"
+        assert job.diagnostic_code == "ExtractionUnavailable"
 
 
 @pytest.mark.integration

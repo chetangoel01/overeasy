@@ -20,7 +20,7 @@ import httpx
 
 from ladle.acquisition.free.links import LinkFetcher, UnsafeURL
 from ladle.acquisition.free.ytdlp import parse_vtt
-from ladle.acquisition.models import TextEvidence, VisualEvidence
+from ladle.acquisition.models import MediaMetadata, TextEvidence, VisualEvidence
 
 LOGGER = logging.getLogger(__name__)
 
@@ -34,6 +34,7 @@ _MAX_STICKERS = 8
 
 @dataclass
 class TikTokPageEvidence:
+    metadata: MediaMetadata | None = None
     transcript: list[TextEvidence] = field(default_factory=list)
     stickers: list[VisualEvidence] = field(default_factory=list)
     language: str | None = None
@@ -41,7 +42,7 @@ class TikTokPageEvidence:
 
     @property
     def is_empty(self) -> bool:
-        return not self.transcript and not self.stickers
+        return self.metadata is None and not self.transcript and not self.stickers
 
 
 class TikTokPageClient:
@@ -61,8 +62,9 @@ class TikTokPageClient:
             LOGGER.info("TikTok page carried no rehydration data: %s", canonical_url)
             return evidence
 
-        evidence.stickers = _stickers(item)
         evidence.title = _sticker_title(item)
+        evidence.metadata = _metadata(item, title=evidence.title)
+        evidence.stickers = _stickers(item)
         track = _english_track(item)
         if track is None:
             return evidence
@@ -85,6 +87,38 @@ class TikTokPageClient:
         if evidence.transcript:
             evidence.language = language
         return evidence
+
+
+def _metadata(item: dict[str, Any], *, title: str | None) -> MediaMetadata | None:
+    description = str(item.get("desc") or "").strip()
+    author = item.get("author")
+    creator = (
+        str(author.get("nickname") or author.get("uniqueId") or "").strip()
+        if isinstance(author, dict)
+        else ""
+    )
+    video = item.get("video")
+    thumbnail = ""
+    duration: float | None = None
+    if isinstance(video, dict):
+        candidate = str(video.get("cover") or video.get("originCover") or "").strip()
+        thumbnail = candidate if candidate.startswith("https://") else ""
+        value = video.get("duration")
+        if (
+            isinstance(value, int | float)
+            and not isinstance(value, bool)
+            and value >= 0
+        ):
+            duration = float(value)
+    if not any((title, description, creator, thumbnail, duration is not None)):
+        return None
+    return MediaMetadata(
+        title=title,
+        description=description[:50_000],
+        creator_name=creator or None,
+        thumbnail_url=thumbnail or None,
+        duration_seconds=duration,
+    )
 
 
 def _item_struct(page: str) -> dict[str, Any] | None:

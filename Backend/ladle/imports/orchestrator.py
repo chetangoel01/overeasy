@@ -283,6 +283,10 @@ class ImportOrchestrator:
                                     "thumbnailAnalysisUsed"
                                 )
                 with log_context(stage="extraction"):
+                    if not _has_source_evidence(context):
+                        raise ExtractionUnavailable(
+                            "acquisition returned no usable source evidence"
+                        )
                     template = self._extractor.extract(context, job_id=job_id)
                 with log_context(stage="thumbnail"):
                     thumbnail_key = (
@@ -414,3 +418,12 @@ class ImportOrchestrator:
                 diagnostic_code=type(error).__name__,
                 include_shared_followers=not bypass_cache,
             )
+
+
+def _has_source_evidence(context: AcquiredVideoContext) -> bool:
+    return bool(
+        context.description.strip()
+        or context.transcript
+        or context.visual_observations
+        or context.linked_documents
+    )
