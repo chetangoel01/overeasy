@@ -125,3 +125,44 @@ Verification on 2026-08-21:
   17 Pro. Its synchronized library displays the corrected noodle recipe and
   thumbnail; the rice candidate remains isolated in Inbox until review is
   completed, preserving the app's safe re-import contract.
+
+## Nutrition precision and adaptive layout correction
+
+The corrected imports exposed a separate presentation and extraction-contract
+bug on a real recipe with an 11-serving yield. The model returned per-serving
+nutrition without a `servingBasis`, and the server substituted the recipe
+yield. The app then divided already-per-serving values by 11 and rendered the
+full repeating decimals. Those strings expanded grid rows, left large gaps
+between cards, and crowded the recipe-detail metadata band.
+
+The extraction prompt now states the nutrition basis contract explicitly:
+per-serving values use a basis of one, whole-recipe totals name the number of
+servings they represent, and nutrition is omitted rather than supported by
+false precision. Calories are requested as whole numbers and gram values with
+at most one decimal place. The structured-output schema repeats the basis rule,
+and the server safely treats a missing basis as one. Prompt version
+`recipe-2026-08-21-v9` keeps the changed wording and schema out of older cache
+identities.
+
+The iOS presentation also bounds every cook-facing nutrition value regardless
+of the stored precision. Calories display as whole numbers and quantities use
+at most one decimal place in the recipe archive, Watch, recipe detail,
+nutrition, yield, and Health export confirmation. Archive metadata is capped at
+two lines. At XXXL Dynamic Type the archive changes to one column and the
+detail metadata band changes from three columns to stacked rows, before text
+reaches accessibility sizes.
+
+Verification on 2026-08-21:
+
+- the Swift regression reproduced the reported values exactly as
+  `4.999999… g P` and `56.818181… cal` before the fix, then passed with
+  `5 g P` and `57 cal`;
+- the backend regression first stored basis-less nutrition with a basis of 11,
+  then passed with the promised per-serving basis of one;
+- focused prompt tests pin the basis, non-null, and precision wording, plus the
+  versioned prompt digest;
+- all 515 backend tests passed with 5 expected skips; Ruff formatting, Ruff
+  lint, and strict mypy passed;
+- all Ladle app tests and all 43 LadleCore tests passed on the iOS 26.5
+  verification simulator; the complete Release simulator build, including the
+  Share Extension, also passed.

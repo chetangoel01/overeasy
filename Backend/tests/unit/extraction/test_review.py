@@ -132,6 +132,24 @@ def test_confident_complete_extraction_is_ready() -> None:
     assert reviewed.review_status == RecipeReviewStatus.READY
 
 
+def test_nutrition_without_a_basis_remains_per_serving() -> None:
+    extraction = _solid_recipe(
+        servings=Decimal("11"),
+        nutrition=ExtractedNutrition(
+            calories=Decimal("625"),
+            protein_grams=Decimal("55"),
+            serving_basis=None,
+        ),
+    )
+
+    reviewed = build_reviewed_template(extraction, context=context())
+
+    assert reviewed.nutrition is not None
+    assert reviewed.nutrition.calories == Decimal("625")
+    assert reviewed.nutrition.protein_grams == Decimal("55")
+    assert reviewed.nutrition.serving_basis == Decimal("1")
+
+
 def _solid_recipe(**overrides: object) -> RecipeExtraction:
     """A recipe with nothing actually wrong with it."""
 

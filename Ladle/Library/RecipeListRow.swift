@@ -24,6 +24,7 @@ struct RecipeListRow: View {
                     Text(recipe.libraryFacts)
                         .ladleFont(.metadata)
                         .foregroundStyle(LadleTheme.ink.opacity(0.58))
+                        .lineLimit(2)
                 }
             }
 

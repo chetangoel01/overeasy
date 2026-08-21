@@ -232,7 +232,10 @@ def build_reviewed_template(
                 )
                 for value in nutrition.other_nutrients
             ],
-            serving_basis=nutrition.serving_basis or servings,
+            # The extraction contract defines nutrition as per serving unless
+            # it explicitly names another basis. Falling back to the recipe
+            # yield divides an already-per-serving value a second time.
+            serving_basis=nutrition.serving_basis or Decimal(1),
             is_estimated=True,
         )
         if nutrition is not None

@@ -68,6 +68,9 @@ PROMPT_DIGESTS = {
     "recipe-2026-07-27-v8": (
         "ebd705fd35c03bf698d1e35a5b86214ce4168a7e7f13900aebc68890dfc7eafc"
     ),
+    "recipe-2026-08-21-v9": (
+        "a563e12a829a7317e04f99782f12b783efedc15cdf182058e62400e97465ba28"
+    ),
 }
 
 
@@ -86,6 +89,12 @@ def test_prompt_allows_honest_method_bridging_without_fake_quantities() -> None:
     assert "general cooking knowledge" in SYSTEM_PROMPT
     assert "mark methodProvenance 'partial' or 'inferred'" in SYSTEM_PROMPT
     assert "Never invent ingredient quantities" in SYSTEM_PROMPT
+
+
+def test_prompt_defines_nutrition_basis_and_precision() -> None:
+    assert "set servingBasis to 1" in SYSTEM_PROMPT
+    assert "Never leave servingBasis null" in SYSTEM_PROMPT
+    assert "false precision" in SYSTEM_PROMPT
 
 
 def test_changing_the_prompt_requires_a_new_version() -> None:

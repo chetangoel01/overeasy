@@ -328,6 +328,24 @@ final class LibraryViewModelTests: XCTestCase {
         XCTAssertEqual(recipe.libraryFacts, "30 g P · ≈ 300 cal")
     }
 
+    func testDenseArchiveFactsRoundRepeatingPerServingValues() {
+        let recipe = Recipe(
+            title: "Creamy Italian Sausage Rigatoni",
+            source: .tiktok,
+            originalURL: URL(string: "https://www.tiktok.com/@cook/video/1")!,
+            servings: 11,
+            nutrition: Nutrition(
+                calories: 625,
+                proteinGrams: 55,
+                servingBasis: 11,
+                isEstimated: true
+            )
+        )
+
+        XCTAssertEqual(recipe.libraryFacts, "5 g P · ≈ 57 cal")
+        XCTAssertEqual(recipe.ladleYieldText, "11 servings")
+    }
+
     func testDenseArchiveFactsOmitNutritionWithInvalidServingBasis() {
         let recipe = Recipe(
             title: "Unknown Batch Soup",
