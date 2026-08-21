@@ -15,6 +15,7 @@ class FakeAcquirer:
     failure: Exception | None = None
     is_public: bool = True
     thumbnail_url: str | None = None
+    context: AcquiredVideoContext | None = None
 
     def check_public(
         self,
@@ -38,6 +39,8 @@ class FakeAcquirer:
         self.calls.append(source)
         if self.failure is not None:
             raise self.failure
+        if self.context is not None:
+            return self.context.model_copy(update={"source": source})
         return AcquiredVideoContext(
             source=source,
             is_public=True,

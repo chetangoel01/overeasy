@@ -61,3 +61,36 @@ Malformed links, non-HTTP(S) links, and unsupported hosts remain rejected.
   `ZS4NEwJg6` canonicalized to video `7667383250049862925`. Both completed as
   `needsReview` with no failure reason, and both appear that way in the device
   Inbox.
+
+## Empty-result correction
+
+The two terminal jobs above were not valid successful imports. Both contained
+an `Unknown Recipe` placeholder, an unknown ingredient, a fabricated missing-
+method step, and no thumbnail. Worker logs exposed two related defects:
+
+- yt-dlp failed on both current TikTok pages, but `FreeAcquirer` returned
+  before attempting TikTok's independent public-page fallback;
+- `PinnedHTTPClient` decoded TikTok's gzip response while streaming it and
+  then rebuilt an HTTP response with the original `Content-Encoding` header,
+  causing httpx to decode the same bytes again. This dropped both page evidence
+  and oEmbed thumbnails.
+
+The free TikTok rung now runs after a yt-dlp failure and reads the post caption,
+creator, duration, thumbnail, English ASR, and sticker text from TikTok's page.
+The pinned client retains its decoded byte limit while stripping stale encoding
+and length headers from the buffered response. The orchestrator also rejects a
+truly empty acquisition before model extraction, so an empty source becomes a
+typed parser failure instead of a reviewable placeholder.
+
+Verification on 2026-08-21:
+
+- both new regressions failed before production changes and passed afterward;
+- the empty-acquisition integration regression failed as `completed` before
+  the guard and now fails as `parserUnavailable` without calling extraction;
+- the exact two reported videos were probed live with the fixed acquisition
+  path. Video `7656390702540115203` returned a 1,128-character caption, one ASR
+  segment, creator metadata, and a thumbnail. Video `7667383250049862925`
+  returned its caption, four ASR segments totaling 1,308 characters, creator
+  metadata, and a thumbnail;
+- the complete current backend suite passed with 513 tests and 5 live/chaos
+  skips. Ruff format, Ruff lint, strict mypy, and `git diff --check` passed.

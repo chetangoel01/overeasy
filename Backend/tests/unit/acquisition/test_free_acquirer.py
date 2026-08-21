@@ -3,6 +3,7 @@ import subprocess
 from uuid import uuid4
 
 from ladle.acquisition.free.acquirer import FreeAcquirer
+from ladle.acquisition.free.tiktok import TikTokPageClient
 from ladle.acquisition.free.ytdlp import YtDlpClient
 from ladle.acquisition.models import SourceVideoDescriptor
 
@@ -35,6 +36,19 @@ class Runner:
         )
 
 
+class FailingRunner:
+    def __call__(
+        self, command: list[str], *, timeout: float
+    ) -> subprocess.CompletedProcess[str]:
+        del command, timeout
+        return subprocess.CompletedProcess(
+            args=["yt-dlp"],
+            returncode=1,
+            stdout="",
+            stderr="Unexpected response from webpage request",
+        )
+
+
 class SpyFetcher:
     def __init__(self) -> None:
         self.urls: list[str] = []
@@ -45,6 +59,17 @@ class SpyFetcher:
 
     def fetch_raw(self, url: str) -> str:
         return self.fetch_text(url)
+
+
+class ResponseFetcher:
+    def __init__(self, responses: dict[str, str]) -> None:
+        self.responses = responses
+
+    def fetch_raw(self, url: str) -> str:
+        return self.responses[url]
+
+    def fetch_text(self, url: str) -> str:
+        return self.fetch_raw(url)
 
 
 def acquirer(description: str, fetcher: SpyFetcher) -> FreeAcquirer:
@@ -134,3 +159,61 @@ def test_a_covered_caption_still_ignores_a_sponsor_link() -> None:
 
     assert fetcher.urls == []
     assert context.linked_documents == []
+
+
+def test_tiktok_page_recovers_metadata_and_transcript_when_ytdlp_fails() -> None:
+    video_url = source().canonical_url
+    track_url = "https://cdn.tiktok.example/captions/eng.vtt"
+    payload = {
+        "__DEFAULT_SCOPE__": {
+            "webapp.video-detail": {
+                "itemInfo": {
+                    "itemStruct": {
+                        "desc": "Add 2 cups of rice and simmer until tender.",
+                        "author": {"nickname": "Creator"},
+                        "video": {
+                            "cover": "https://images.example/recipe.jpg",
+                            "duration": 30,
+                            "subtitleInfos": [
+                                {
+                                    "Url": track_url,
+                                    "Format": "webvtt",
+                                    "LanguageCodeName": "eng-US",
+                                    "Source": "ASR",
+                                }
+                            ],
+                        },
+                        "stickersOnItem": [],
+                    }
+                }
+            }
+        }
+    }
+    page = (
+        '<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__" '
+        f'type="application/json">{json.dumps(payload)}</script>'
+    )
+    transcript = """WEBVTT
+
+00:00:00.000 --> 00:00:04.000
+Add the rice and simmer until tender.
+"""
+    page_fetcher = ResponseFetcher({video_url: page, track_url: transcript})
+    free = FreeAcquirer(
+        ytdlp=YtDlpClient(
+            binary="yt-dlp",
+            runner=FailingRunner(),
+        ),
+        tiktok=TikTokPageClient(fetcher=page_fetcher),
+    )
+
+    context = free.acquire(source(), job_id=uuid4())
+
+    assert context.metadata is not None
+    assert context.metadata.description.startswith("Add 2 cups")
+    assert context.metadata.creator_name == "Creator"
+    assert context.metadata.thumbnail_url == "https://images.example/recipe.jpg"
+    assert context.transcript[0].text == "Add the rice and simmer until tender."
+    assert "freeMetadataUnavailable" in context.diagnostics
+    assert "tiktokPageMetadataUsed" in context.diagnostics
+    assert "tiktokAsrCaptionsUsed" in context.diagnostics
