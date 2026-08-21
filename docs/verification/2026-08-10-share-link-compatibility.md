@@ -166,3 +166,23 @@ Verification on 2026-08-21:
 - all Ladle app tests and all 43 LadleCore tests passed on the iOS 26.5
   verification simulator; the complete Release simulator build, including the
   Share Extension, also passed.
+
+### Live precision rollout
+
+- The change was transplanted onto the preserved VPS release line. Its full
+  suite passed with 785 tests and 5 expected skips; the changed files passed
+  Ruff formatting, the complete release line passed Ruff lint and strict
+  mypy, and `git diff --check` passed.
+- VPS revision `4aa6a83` activated after archive, environment, Compose,
+  migration, object-storage, API, edge, worker, Beat, and operations gates.
+  External guarded readiness passes and the running API reports prompt version
+  `recipe-2026-08-21-v9`. Revision `1e5e16c` remains the rollback target.
+- The existing `Creamy Italian Sausage Rigatoni` record matched the failed
+  contract exactly: 625 calories and 55 g protein had a serving basis of 11.
+  A guarded transaction changed only that basis to one, incremented the recipe
+  revision from 1 to 2, and recorded sync sequence 6 as an upsert. Its
+  object-backed image and the rest of the recipe graph were left untouched.
+- Physical release build `1.0 (20260821.1)` passed strict app and Share
+  Extension signature verification. It contains the expected Personal Team
+  shared Keychain group, guarded VPS route, matched tunnel key, and the
+  explicitly disabled App Attest setting required by this development server.
