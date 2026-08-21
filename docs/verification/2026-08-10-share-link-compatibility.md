@@ -40,3 +40,24 @@ Malformed links, non-HTTP(S) links, and unsupported hosts remain rejected.
   simulator build passed and contains the embedded `LadleShare.appex`.
 - The current backend suite passed: 510 passed and 5 skipped. Ruff formatting,
   Ruff lint, and strict mypy also passed.
+
+## `vt.tiktok.com` device rollout
+
+- The deployed VPS was still on preserved revision `99624ee`, so the hotfix
+  release was built from that exact revision plus the current-share-link and
+  `vt.tiktok.com` commits. All 780 tests passed with 5 skips before rollout.
+- VPS revision `d560093` activated successfully after archive validation,
+  migration, API, edge, worker, and Beat health gates. The previous revision
+  remains available for rollback.
+- The checked-in Release hostname, `api.ladle.app`, is parked behind
+  `ns1.dan.com` and `ns2.dan.com` and fails TLS SNI. The Personal Team device
+  build therefore uses the VPS's existing TLS hostname,
+  `https://vps-8b0be574.vps.ovh.us`, plus its guarded tunnel key. The key was
+  injected only at build time and matched without being printed.
+- The replacement signed build installed and launched on the paired iPhone 17
+  Pro. It refreshed the existing session, synced successfully, and submitted
+  both reported `vt.tiktok.com` links with `202 Accepted`.
+- `ZS4NEvuUH` canonicalized to TikTok video `7656390702540115203`, and
+  `ZS4NEwJg6` canonicalized to video `7667383250049862925`. Both completed as
+  `needsReview` with no failure reason, and both appear that way in the device
+  Inbox.
