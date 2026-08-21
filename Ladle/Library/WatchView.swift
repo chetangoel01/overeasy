@@ -266,7 +266,7 @@ private struct WatchRecipeCard: View {
         [
             recipe.totalMinutes.map { "\($0) min" },
             recipe.libraryNutrition?.proteinGrams.map {
-                "\(NSDecimalNumber(decimal: $0).stringValue) g protein"
+                "\(ladleNumber($0)) g protein"
             },
             recipe.ladleYieldText,
         ]

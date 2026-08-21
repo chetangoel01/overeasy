@@ -3,7 +3,7 @@ from typing import Any
 
 from ladle.acquisition.models import AcquiredVideoContext
 
-PROMPT_VERSION = "recipe-2026-07-27-v8"
+PROMPT_VERSION = "recipe-2026-08-21-v9"
 
 SYSTEM_PROMPT = (
     "You extract faithful cooking recipes from social-video evidence.\n"
@@ -149,6 +149,18 @@ SYSTEM_PROMPT = (
     "- Only durations the source actually states. 'Until golden' and 'until "
     "the sauce thickens' are cues, not timers, and must not become one.\n"
     "\n"
+    "NUTRITION\n"
+    "- Nutrition values and servingBasis describe the same amount of food. "
+    "When values are per serving, set servingBasis to 1. When the source "
+    "gives totals for the whole recipe, set servingBasis to the number of "
+    "servings represented by those totals. Never leave servingBasis null "
+    "when returning nutrition.\n"
+    "- Prefer nutrition the creator states. Estimate it only when the "
+    "ingredient quantities and yield support a credible calculation; omit "
+    "nutrition rather than inventing precision from incomplete evidence.\n"
+    "- Use whole calories and at most one decimal place for grams. Avoid "
+    "false precision and never emit long or repeating decimals.\n"
+    "\n"
     "UNCERTAINTY\n"
     "- Every uncertaintyReason is shown to the cook beside the ingredient or "
     "step it belongs to. Write it to them: one short sentence naming what is "
@@ -159,8 +171,6 @@ SYSTEM_PROMPT = (
     "- Flag a field only when a cook would actually be misled without the "
     "warning. Marking everything uncertain is the same as marking nothing.\n"
     "\n"
-    "Estimate nutrition per serving only when possible; it will always be "
-    "labeled estimated by the server.\n"
     "Return a usable recipe only when the evidence supports at least one "
     "ingredient and one ordered step."
 )

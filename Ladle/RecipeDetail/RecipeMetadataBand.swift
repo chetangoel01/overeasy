@@ -9,7 +9,7 @@ struct RecipeMetadataBand: View {
 
     var body: some View {
         Group {
-            if dynamicTypeSize.isAccessibilitySize {
+            if usesVerticalLayout {
                 VStack(spacing: 0) {
                     totalTimeItem
                     horizontalDivider
@@ -74,14 +74,15 @@ struct RecipeMetadataBand: View {
             Text(value)
                 .ladleFont(.bodyStrong)
                 .foregroundStyle(LadleTheme.ink)
-                .lineLimit(1)
-                .minimumScaleFactor(0.78)
+                .lineLimit(usesVerticalLayout ? 2 : 1)
+                .minimumScaleFactor(usesVerticalLayout ? 1 : 0.78)
             Text(label)
                 .ladleFont(.metadata)
                 .foregroundStyle(LadleTheme.ink.opacity(0.56))
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, dynamicTypeSize.isAccessibilitySize ? 10 : 0)
+        .padding(.horizontal, 6)
+        .padding(.vertical, usesVerticalLayout ? 10 : 0)
         .accessibilityElement(children: .combine)
     }
 
@@ -104,17 +105,17 @@ struct RecipeMetadataBand: View {
         guard let calories = recipe.libraryNutrition?.calories else {
             return "—"
         }
-        return "≈ \(decimalText(calories)) cal"
+        return "≈ \(ladleNumber(calories, maximumFractionDigits: 0)) cal"
     }
 
-    private func decimalText(_ value: Decimal) -> String {
-        NSDecimalNumber(decimal: value).stringValue
+    private var usesVerticalLayout: Bool {
+        dynamicTypeSize >= .xxxLarge
     }
 }
 
 extension Recipe {
     var ladleYieldText: String {
-        let value = NSDecimalNumber(decimal: servings).stringValue
+        let value = ladleNumber(servings)
         let noun = servings == 1 ? "serving" : "servings"
         if uncertainties.contains(where: { $0.field == "servings" }) {
             return servings == 1 ? "Yield unknown" : "About \(value) \(noun)"

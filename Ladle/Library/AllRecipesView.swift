@@ -184,7 +184,7 @@ struct AllRecipesView: View {
     }
 
     private var columns: [GridItem] {
-        dynamicTypeSize.isAccessibilitySize
+        dynamicTypeSize >= .xxxLarge
             ? [GridItem(.flexible())]
             : [
                 GridItem(.flexible(), spacing: LadleTheme.Spacing.regular),

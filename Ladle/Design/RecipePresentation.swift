@@ -14,9 +14,11 @@ extension Recipe {
 
     var libraryFacts: String {
         [
-            libraryNutrition?.proteinGrams.map { "\(number($0)) g P" },
+            libraryNutrition?.proteinGrams.map { "\(ladleNumber($0)) g P" },
             totalMinutes.map { "\($0) min" },
-            libraryNutrition?.calories.map { "≈ \(number($0)) cal" },
+            libraryNutrition?.calories.map {
+                "≈ \(ladleNumber($0, maximumFractionDigits: 0)) cal"
+            },
         ]
         .compactMap(\.self)
         .joined(separator: " · ")
@@ -30,9 +32,17 @@ extension Recipe {
             .joined(separator: "-")
     }
 
-    private func number(_ value: Decimal) -> String {
-        NSDecimalNumber(decimal: value).stringValue
-    }
+}
+
+func ladleNumber(
+    _ value: Decimal,
+    maximumFractionDigits: Int = 1
+) -> String {
+    value.formatted(
+        .number.precision(
+            .fractionLength(0...maximumFractionDigits)
+        )
+    )
 }
 
 extension RecipeSource {
