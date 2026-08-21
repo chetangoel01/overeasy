@@ -302,7 +302,7 @@ struct OnboardingWalkthroughView: View {
             HStack {
                 Text("STEP 3 OF 6")
                     .ladleFont(.eyebrow)
-                    .foregroundStyle(LadleTheme.celery)
+                    .foregroundStyle(LadleTheme.focusGold)
 
                 Spacer()
 
@@ -352,7 +352,7 @@ struct OnboardingWalkthroughView: View {
                     Capsule()
                         .fill(
                             index < 3
-                                ? LadleTheme.brick
+                                ? LadleTheme.focusGold
                                 : LadleTheme.onAccent.opacity(0.18)
                         )
                         .frame(maxWidth: .infinity)

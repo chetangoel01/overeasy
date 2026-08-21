@@ -116,15 +116,6 @@ struct LadlePrimaryButtonStyle: ButtonStyle {
                     style: .continuous
                 )
             )
-            .overlay {
-                if !isProminent {
-                    RoundedRectangle(
-                        cornerRadius: LadleTheme.Corner.control,
-                        style: .continuous
-                    )
-                    .stroke(LadleTheme.ink.opacity(0.12), lineWidth: 1)
-                }
-            }
             .opacity(
                 !isEnabled
                     ? 0.48
@@ -246,7 +237,9 @@ enum LadleIconButtonTone {
         switch self {
         case .quiet:
             LadleTheme.ink
-        case .primary, .onDark:
+        case .primary:
+            LadleTheme.onAccent
+        case .onDark:
             LadleTheme.onAccent
         }
     }
@@ -340,19 +333,12 @@ private struct LadleCardModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .background(
-                LadleTheme.paper,
+                LadleTheme.oat,
                 in: RoundedRectangle(
                     cornerRadius: LadleTheme.Corner.card,
                     style: .continuous
                 )
             )
-            .overlay {
-                RoundedRectangle(
-                    cornerRadius: LadleTheme.Corner.card,
-                    style: .continuous
-                )
-                .stroke(LadleTheme.ink.opacity(0.09), lineWidth: 1)
-            }
     }
 }
 

@@ -50,28 +50,34 @@ enum LadleTextStyle {
 
     var weight: Font.Weight {
         switch self {
-        case .display, .title, .recipeTitle, .section:
-            .bold
+        case .display, .title:
+            .black
+        case .recipeTitle, .section:
+            .heavy
         case .bodyStrong:
             .semibold
         case .body:
             .regular
-        case .metadata, .eyebrow:
+        case .metadata:
             .medium
+        case .eyebrow:
+            .semibold
         }
     }
 
     var width: Font.Width {
-        .standard
+        switch self {
+        case .display, .title:
+            .expanded
+        case .eyebrow:
+            .condensed
+        case .recipeTitle, .section, .body, .bodyStrong, .metadata:
+            .standard
+        }
     }
 
     var design: Font.Design {
-        switch self {
-        case .display, .title, .recipeTitle, .section:
-            .rounded
-        case .body, .bodyStrong, .metadata, .eyebrow:
-            .default
-        }
+        .default
     }
 }
 

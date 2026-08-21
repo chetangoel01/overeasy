@@ -25,13 +25,14 @@ Copy is short, concrete, and never exclamatory. One signature metaphor
 
 ## Visual direction
 
-Native-first SwiftUI using the approved Muted Corner Store system. SF Rounded
-carries screen titles, recipe names, and short section headings. SF Pro carries
-body copy, controls, ingredients, metadata, and cooking instructions. Warm
-paper and oat browsing surfaces use smoky plum, dusty brick, soft celery, and
-muted ube for deliberate action and state roles. Focus cooking uses a
-high-contrast plum ground. No tracked uppercase eyebrow labels; hierarchy comes
-from size, weight, color, and spacing.
+Native-first SwiftUI using the approved Butter & Basil system. The reference
+world is a sunny deli counter: butter carries the app chrome like an awning,
+warm white carries reading surfaces, deep basil is the ink and the cooking
+ground, and tomato is the single appetizing action color. Everything on
+screen should look edible; nothing cold or clinical. SF Pro throughout, with
+black expanded weight for the wordmark and screen titles. Surfaces are flat
+color blocks with no outlines or shadows. Hierarchy comes from size, weight,
+color, and spacing.
 
 ## Anti-references
 

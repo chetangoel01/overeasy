@@ -1,50 +1,70 @@
-# Ladle Design System
+# Ladle Design System — "Butter & Basil"
 
 Status: approved implementation source of truth
 
+## Concept
+
+Overeasy is a sunny deli counter. Butter carries the chrome like an awning,
+warm white carries the reading surfaces, deep basil is the ink and the
+cooking ground, and tomato is the single appetizing action color. Everything
+on screen should look edible; nothing should read cold or clinical.
+
 ## Scene
 
-A home cook saves and sorts recipes one-handed on the couch, then reads Ladle
-from a bright kitchen counter with wet or floury hands. Browsing is warm and
-compact. Cooking is high contrast, calm, and legible at a glance.
+A home cook saves and sorts recipes one-handed on the couch, then reads
+Overeasy from a bright kitchen counter with wet or floury hands. Browsing is
+sunny and appetizing. Cooking is high contrast, calm, and legible at a
+glance.
 
 ## Design principles
 
 - Native iOS behavior comes first. Use SwiftUI navigation, sheets, menus,
   alerts, controls, safe areas, and SF Symbols.
-- Food photography is the most saturated visual element.
-- Color communicates action or state, never decoration alone.
-- Browsing surfaces are light. Focus cooking uses smoky plum to create a clear
-  task boundary.
-- Dynamic Type, VoiceOver, Reduce Motion, and 44-point targets are preserved
-  even when a mockup uses smaller presentation-scale measurements.
+- The butter band is the brand: app chrome (top bar, section picker) sits on
+  butter in both appearances.
+- Surfaces are flat and confident: no outlines, no drop shadows, no glass
+  effects. Color blocks do the work.
+- Tomato appears for actions and favorites, never decoration. Tomato and
+  basil are kept apart at large scale; Focus Mode pairs basil with butter
+  gold so the screen never reads as red-on-green.
+- Food photography is the most saturated visual element on warm white.
+- Dynamic Type, VoiceOver, Reduce Motion, and 44-point targets are preserved.
 - Long content scrolls. Primary actions stay reachable without covering
   ingredients, steps, or form fields.
 
 ## Color
 
-| Role | Value | Use |
-| --- | --- | --- |
-| Smoky plum | `#493943` | Selected controls and Focus Mode background |
-| Paper | `#FAF6EF` | Primary reading surface |
-| Oat | `#F1ECE3` | Secondary surfaces and fields |
-| Ink | `#30272D` | Primary text and controls |
-| Dusty brick | `#AD503D` | Primary actions and errors |
-| Soft celery | `#BEC9AE` | Success and progress |
-| Muted ube | `#DDD5DF` | Inactive controls and quiet grouping |
-| Muted ink | `#72676D` | Secondary text on paper or oat |
+Legacy token names in code carry the new roles (see `LadleTheme`).
 
-Brick is deliberately darker than the exploration artifact so small text and
-button labels meet contrast requirements. Use paper text on brick and plum.
-Use ink text on celery and ube.
+| Role | Code token | Light | Dark | Use |
+| --- | --- | --- | --- | --- |
+| Butter | `butter` | `#F7E082` | `#2E290F` | Chrome band |
+| Warm white | `paper` | `#FFFBEB` | `#15190D` | Primary reading surface |
+| Butter-light | `oat` | `#FAF0C0` | `#231F0E` | Cards, fields, secondary surfaces |
+| Deep basil | `ink` | `#253312` | `#F6F2DC` | Primary text and controls |
+| Basil ground | `plum` | `#2E4517` | `#233611` | Focus Mode, Watch, selected controls, welcome |
+| Tomato | `brick` | `#C0391B` | `#E8552E` | Primary actions |
+| Basil leaf | `celery` | `#A3C46E` | `#39491F` | Success states |
+| Pistachio wash | `ube` | `#EDEFD6` | `#20260F` | Inactive controls, quiet grouping |
+| Muted olive | `mutedInk` | `#6C6C4E` | `#B8B694` | Secondary text |
+| Deep tomato | `accentText` | `#A63A1B` | `#FF9973` | Favorites, warm accents, tinted icons |
+| On-dark cream | `onAccent` | `#FFFBEB` fixed | same | Text and icons on basil and tomato |
+| Fixed basil | `onYolk` | `#253312` fixed | same | Text on fixed light fills (timer card, focus CTA) |
+| Butter gold | `focusGold` | `#F6D95C` fixed | same | Focus Mode eyebrow, progress, advance button |
+
+Tomato fills always carry cream `onAccent`. Errors use the system
+destructive role.
 
 ## Typography
 
-- SF Rounded carries screen titles, recipe names, and short section headings.
-- SF Pro carries body copy, controls, ingredients, metadata, and cooking
-  instructions.
+All SF Pro (standard design).
+
+- Display and screen titles: black weight, expanded width. The chunky
+  grotesque wordmark treatment is part of the identity.
+- Recipe names and section headings: heavy weight, standard width.
+- Body, controls, ingredients, metadata: regular/medium SF Pro.
+- Eyebrows: semibold condensed.
 - Long cooking instructions prioritize distance legibility over personality.
-- Hierarchy comes from size and weight, not tracked uppercase labels.
 - Body copy uses semantic Dynamic Type styles with scaled custom sizes where
   the approved hierarchy requires them.
 
@@ -54,23 +74,36 @@ Use ink text on celery and ube.
 - Primary controls and fields use 14 to 16-point continuous corners.
 - Prominent images and grouped surfaces use 18 to 22-point continuous corners.
 - Sheets use the native presentation shape and drag indicator.
-- Use 8, 12, 16, 24, and 32-point spacing roles, with varied rhythm between
-  compact controls, sections, and cooking content.
-- Prefer dividers and open lists to wrapping every section in a card.
+- Use 8, 12, 16, 24, and 32-point spacing roles.
+- Flat color blocks separate content; no strokes or shadows on cards.
 
 ## Components
 
+### Chrome band
+
+- `LibraryView` wraps the top bar and section picker in a butter band that
+  extends into the top safe area.
+- The wordmark renders in deep basil ink; quiet icon buttons are warm-white
+  circles; the add button is tomato with cream.
+
 ### Buttons
 
-- Primary: brick fill, paper label, full width when it advances the task.
-- Secondary: oat fill, ink label.
+- Primary: tomato fill, cream label, full width when it advances the task.
+- Secondary: butter-light fill, basil ink label.
 - Quiet: text-only for cancellation or optional paths.
 - Destructive actions use the system destructive role.
 - Press feedback lasts 150 to 200 milliseconds and respects Reduce Motion.
 
+### The tomato timer
+
+- `RecipeTimerButton` leads with a circular ring that drains as time runs;
+  the ring is tomato while running and completes in the card's foreground.
+- In Focus Mode the timer card is fixed cream with fixed basil `onYolk`
+  content so it reads identically in light and dark appearance.
+
 ### Navigation
 
-- Home and All Recipes share a native segmented control.
+- Home and All Recipes share a native segmented control inside the band.
 - Search is presented only when summoned.
 - Sort uses a native menu. Filters use a native sheet.
 - Recipe actions use a sheet so cooking content remains primary.
@@ -87,7 +120,8 @@ Use ink text on celery and ube.
 ### Cooking
 
 - Full Recipe remains a light checklist and overview.
-- Focus Mode uses plum with paper text and celery progress.
+- Focus Mode is deep basil with cream text; the step eyebrow, progress bar,
+  and advance button are butter gold (advance label in fixed basil).
 - One instruction owns the screen. Timers are large and stateful.
 - No food photography or library controls appear in Focus Mode.
 
@@ -95,21 +129,20 @@ Use ink text on celery and ube.
 
 ### First run
 
-- Launch directly into one dedicated, full-screen welcome surface on paper.
-  Do not reveal or soften the library behind it, and do not require a passive
-  feature tour.
-- Use the same fried-egg mark as the installed app icon; do not invent a
-  secondary onboarding logo.
+- Launch directly into one dedicated, full-screen welcome surface on deep
+  basil (always dark-appearance colors). Do not reveal or soften the library
+  behind it, and do not require a passive feature tour.
+- Use the same fried-egg mark as the installed app icon.
 - Continue with Apple, Sign in with Google, and guest entry are the initial
   account choices. State the ten-recipe guest limit and that later sign-in
   preserves recipes.
-- An empty Home or All Recipes view leads directly to adding the first recipe.
-  Share Extension guidance stays contextual beside that action.
+- An empty Home or All Recipes view leads directly to adding the first
+  recipe. Share Extension guidance stays contextual beside that action.
 
 ### Home
 
 - Import Inbox entry with an attention count
-- Watch saved recipes entry
+- Watch saved recipes entry (basil block)
 - Recipes saved this week
 - Useful generated groups: ready in 30 minutes, favorites, and not cooked yet
 
@@ -133,6 +166,7 @@ Use ink text on celery and ube.
 - Test default, extra-large, and accessibility Dynamic Type sizes.
 - Verify light and dark cooking surfaces with VoiceOver labels.
 - Verify all controls at a minimum 44-point target.
-- Verify small text at WCAG AA contrast or better.
+- Verify small text at WCAG AA contrast or better; tomato fills always carry
+  cream text, and butter fills always carry basil ink.
 - Capture the primary atlas destinations at the project simulator size and
-  compare hierarchy, spacing, state, and content rather than HTML pixel values.
+  compare hierarchy, spacing, state, and content.

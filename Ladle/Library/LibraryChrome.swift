@@ -43,7 +43,7 @@ struct LibraryTopBar: View {
     private func iconButton(
         _ systemName: String,
         label: String,
-        tint: Color = LadleTheme.field,
+        tint: Color = LadleTheme.paper,
         foreground: Color = LadleTheme.ink,
         isEnabled: Bool = true,
         action: @escaping () -> Void

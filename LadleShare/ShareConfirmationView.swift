@@ -169,35 +169,35 @@ private struct SharePrimaryButtonStyle: ButtonStyle {
 }
 
 private enum ShareTheme {
+    // Mirrors LadleTheme's "Butter & Basil" palette.
     static let paper = adaptive(
-        light: (0.980, 0.965, 0.937),
-        dark: (0.114, 0.098, 0.110)
+        light: (1.0, 0.984, 0.922),
+        dark: (0.082, 0.098, 0.051)
     )
     static let field = adaptive(
-        light: (0.949, 0.925, 0.894),
-        dark: (0.157, 0.133, 0.149)
+        light: (0.980, 0.941, 0.753),
+        dark: (0.137, 0.122, 0.055)
     )
     static let review = adaptive(
-        light: (0.867, 0.835, 0.875),
-        dark: (0.200, 0.169, 0.192)
+        light: (0.929, 0.937, 0.839),
+        dark: (0.125, 0.149, 0.059)
     )
-    static let brick = Color(
-        red: 0.678,
-        green: 0.314,
-        blue: 0.239
+    static let brick = adaptive(
+        light: (0.753, 0.224, 0.106),
+        dark: (0.910, 0.333, 0.180)
     )
     static let accentText = adaptive(
-        light: (0.678, 0.314, 0.239),
-        dark: (0.898, 0.541, 0.455)
+        light: (0.651, 0.227, 0.106),
+        dark: (1.0, 0.6, 0.451)
     )
     static let ink = adaptive(
-        light: (0.188, 0.153, 0.176),
-        dark: (0.969, 0.941, 0.910)
+        light: (0.145, 0.2, 0.071),
+        dark: (0.965, 0.949, 0.863)
     )
     static let onAccent = Color(
-        red: 1,
-        green: 249 / 255,
-        blue: 240 / 255
+        red: 255 / 255,
+        green: 251 / 255,
+        blue: 235 / 255
     )
 
     private static func adaptive(

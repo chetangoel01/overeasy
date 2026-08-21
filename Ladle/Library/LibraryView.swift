@@ -40,15 +40,22 @@ struct LibraryView: View {
     var body: some View {
         NavigationStack(path: $navigation.path) {
             VStack(spacing: 0) {
-                LibraryTopBar(
-                    openSearch: { navigation.open(.search) },
-                    openAccount: { isAccountPresented = true },
-                    addRecipe: { isAddSheetPresented = true },
-                    isAddEnabled: canImport
-                )
-                LibrarySectionPicker(
-                    selection: $section,
-                    recipeCount: viewModel.recipes.count
+                // The butter band: the app's chrome sits on butter
+                // like a deli awning.
+                VStack(spacing: 0) {
+                    LibraryTopBar(
+                        openSearch: { navigation.open(.search) },
+                        openAccount: { isAccountPresented = true },
+                        addRecipe: { isAddSheetPresented = true },
+                        isAddEnabled: canImport
+                    )
+                    LibrarySectionPicker(
+                        selection: $section,
+                        recipeCount: viewModel.recipes.count
+                    )
+                }
+                .background(
+                    LadleTheme.butter.ignoresSafeArea(edges: .top)
                 )
                 content
             }

@@ -44,7 +44,7 @@ final class ProjectSmokeTests: XCTestCase {
         XCTAssertFalse(cooking.contains("Text(\"Cooking\")"))
     }
 
-    func testFocusActionUsesTextForItsFixedLightSurface() throws {
+    func testFocusActionUsesFixedInkForItsFixedYolkSurface() throws {
         let sourceURL = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -53,7 +53,7 @@ final class ProjectSmokeTests: XCTestCase {
 
         XCTAssertTrue(
             source.contains(
-                ".foregroundStyle(LadleTheme.focusActionText)"
+                ".foregroundStyle(LadleTheme.onYolk)"
             )
         )
     }

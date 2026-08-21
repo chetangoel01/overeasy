@@ -66,7 +66,7 @@ struct FocusModeView: View {
             }
 
             ProgressView(value: viewModel.progress)
-                .tint(LadleTheme.celery)
+                .tint(LadleTheme.focusGold)
                 .accessibilityLabel(
                     "\(viewModel.progressText) cooking progress"
                 )
@@ -85,7 +85,7 @@ struct FocusModeView: View {
                         : "Timer finished"
                 )
                 .ladleFont(.eyebrow)
-                .foregroundStyle(LadleTheme.celery)
+                .foregroundStyle(LadleTheme.focusGold)
 
                 Text(
                     viewModel.finishedTimerForCurrentStep.map {
@@ -189,10 +189,10 @@ struct FocusModeView: View {
             Button(action: advance) {
                 Text(nextButtonTitle)
                     .ladleFont(.bodyStrong)
-                    .foregroundStyle(LadleTheme.focusActionText)
+                    .foregroundStyle(LadleTheme.onYolk)
                     .frame(maxWidth: .infinity, minHeight: 52)
                     .background(
-                        LadleTheme.onAccent,
+                        LadleTheme.focusGold,
                         in: RoundedRectangle(
                             cornerRadius: LadleTheme.Corner.control,
                             style: .continuous
