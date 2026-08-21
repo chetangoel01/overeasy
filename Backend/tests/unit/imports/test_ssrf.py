@@ -169,12 +169,15 @@ def test_external_fetch_rejects_response_over_its_byte_limit() -> None:
         client.get("https://assets.example/large", max_bytes=1_024)
 
 
-def test_redirect_resolver_pins_ip_and_revalidates_every_hop() -> None:
+@pytest.mark.parametrize("short_host", ["vm.tiktok.com", "vt.tiktok.com"])
+def test_redirect_resolver_pins_ip_and_revalidates_every_hop(
+    short_host: str,
+) -> None:
     requests: list[httpx.Request] = []
 
     def respond(request: httpx.Request) -> httpx.Response:
         requests.append(request)
-        if request.headers["host"] == "vm.tiktok.com":
+        if request.headers["host"] == short_host:
             return httpx.Response(
                 302,
                 headers={
@@ -188,7 +191,7 @@ def test_redirect_resolver_pins_ip_and_revalidates_every_hop() -> None:
 
     dns = FakeDNS(
         {
-            "vm.tiktok.com": ["93.184.216.34"],
+            short_host: ["93.184.216.34"],
             "www.tiktok.com": ["93.184.216.35"],
         }
     )
@@ -198,7 +201,7 @@ def test_redirect_resolver_pins_ip_and_revalidates_every_hop() -> None:
         maximum_redirects=3,
     )
 
-    resolved = resolver.resolve("https://vm.tiktok.com/ZMshort/")
+    resolved = resolver.resolve(f"https://{short_host}/ZMshort/")
 
     assert resolved == (
         "https://www.tiktok.com/@chef/video/7481234567890123456?tracking=1"
@@ -208,10 +211,10 @@ def test_redirect_resolver_pins_ip_and_revalidates_every_hop() -> None:
         "93.184.216.35",
     ]
     assert [request.headers["host"] for request in requests] == [
-        "vm.tiktok.com",
+        short_host,
         "www.tiktok.com",
     ]
-    assert requests[0].extensions["sni_hostname"] == b"vm.tiktok.com"
+    assert requests[0].extensions["sni_hostname"] == short_host.encode("ascii")
 
 
 def test_redirect_to_non_allowlisted_host_is_rejected_before_request() -> None:

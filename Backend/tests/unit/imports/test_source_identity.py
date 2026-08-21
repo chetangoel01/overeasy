@@ -94,6 +94,20 @@ def test_tiktok_short_link_uses_safe_redirect_resolver() -> None:
     assert resolver.calls == ["https://vm.tiktok.com/ZMshort/"]
 
 
+def test_tiktok_vt_short_link_uses_safe_redirect_resolver() -> None:
+    resolver = FakeRedirectResolver(
+        destination="https://www.tiktok.com/@chef/video/7481234567890123456",
+        calls=[],
+    )
+
+    identity = SourceIdentityParser(redirect_resolver=resolver).parse(
+        "https://vt.tiktok.com/ZS4NEvuUH/"
+    )
+
+    assert identity.platform_video_id == "7481234567890123456"
+    assert resolver.calls == ["https://vt.tiktok.com/ZS4NEvuUH/"]
+
+
 def test_tiktok_web_share_link_uses_safe_redirect_resolver() -> None:
     resolver = FakeRedirectResolver(
         destination="https://www.tiktok.com/@chef/video/7481234567890123456",

@@ -14,6 +14,7 @@ ALLOWED_SOCIAL_HOSTS = frozenset(
         "m.youtube.com",
         "tiktok.com",
         "vm.tiktok.com",
+        "vt.tiktok.com",
         "www.instagram.com",
         "www.tiktok.com",
         "www.youtube.com",
