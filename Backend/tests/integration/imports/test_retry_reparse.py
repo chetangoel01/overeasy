@@ -24,6 +24,7 @@ from ladle.db.models import (
     ImportJob,
     NegativeExtractionCache,
     Recipe,
+    RecipeImage,
     SourceVideo,
 )
 from ladle.db.session import build_engine
@@ -231,7 +232,7 @@ def test_correction_reparse_replaces_unchanged_recipe_without_poisoning_cache(
         "thumbnail-vision:test"
     )
     assert thumbnails.downloads == 2
-    assert thumbnails.stores == 1
+    assert thumbnails.stores == 2
 
     with sessions() as database:
         completed = database.get(ImportJob, job_id)
@@ -242,6 +243,11 @@ def test_correction_reparse_replaces_unchanged_recipe_without_poisoning_cache(
         assert stored is not None
         assert stored.title == "Corrected Lemon Orzo"
         assert stored.revision == 2
+        image = database.scalar(
+            select(RecipeImage).where(RecipeImage.recipe_id == original_recipe_id)
+        )
+        assert image is not None
+        assert image.object_key == "thumbnails/retry/thumb.jpg"
         assert completed.correction_notes_encrypted is None
         assert completed.pasted_text_encrypted is None
         assert database.scalar(select(func.count()).select_from(ExtractionCache)) == 1
@@ -364,10 +370,18 @@ def test_pasted_text_skips_acquisition_and_stale_edit_preserves_current_recipe(
         }
     )
     template = RecipeTemplate.from_recipe(recipe)
+    thumbnails = FakeThumbnailFetcher(
+        ThumbnailAsset(
+            data=b"thumbnail-bytes",
+            content_type="image/jpeg",
+            extension=".jpg",
+        )
+    )
     sessions, orchestrator, retry, acquirer, extractor = services(
         clean_postgres_url,
         clock,
         template=template,
+        thumbnails=thumbnails,
     )
     with sessions.begin() as database:
         source_id = uuid4()
@@ -418,6 +432,11 @@ def test_pasted_text_skips_acquisition_and_stale_edit_preserves_current_recipe(
         assert current.title == "User Edited Title"
         assert candidate is not None
         assert candidate.title == "Automated Replacement"
+        image = database.scalar(
+            select(RecipeImage).where(RecipeImage.recipe_id == candidate.id)
+        )
+        assert image is not None
+        assert image.object_key == "thumbnails/retry/thumb.jpg"
         assert job.status == "needsReview"
         assert job.correction_notes_encrypted is None
         assert job.pasted_text_encrypted is None

@@ -295,9 +295,7 @@ class ImportOrchestrator:
                             thumbnail_asset,
                         )
                         if (
-                            self._thumbnails is not None
-                            and thumbnail_asset is not None
-                            and not bypass_cache
+                            self._thumbnails is not None and thumbnail_asset is not None
                         )
                         else None
                     )
@@ -306,7 +304,6 @@ class ImportOrchestrator:
                         if self._thumbnails is None
                         and context.thumbnail_url is not None
                         and context.thumbnail_url.startswith("https://")
-                        and not bypass_cache
                         else None
                     )
         except (
@@ -340,6 +337,8 @@ class ImportOrchestrator:
                     database,
                     job=job,
                     template=template,
+                    thumbnail_object_key=thumbnail_key,
+                    thumbnail_remote_url=thumbnail_remote_url,
                 )
                 return self._outcome(
                     (
