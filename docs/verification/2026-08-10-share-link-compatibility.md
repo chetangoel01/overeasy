@@ -103,3 +103,25 @@ Verification on 2026-08-21:
   metadata, and a thumbnail;
 - the complete current backend suite passed with 513 tests and 5 live/chaos
   skips. Ruff format, Ruff lint, strict mypy, and `git diff --check` passed.
+
+### Corrected live rollout
+
+- The recovery and retry-thumbnail changes were transplanted onto the
+  preserved VPS release line. Its complete backend suite passed with 783 tests
+  and 5 expected skips; the focused thumbnail promotion/candidate tests, Ruff
+  lint, strict mypy, and `git diff --check` also passed after the final change.
+- VPS revision `1e5e16c` activated after archive, environment, Compose,
+  migration, object-storage, API, edge, worker, Beat, and operations gates.
+- Exactly one poisoned positive-cache entry was invalidated for each reported
+  TikTok video. The two existing jobs were retried through the normal retry,
+  quota, outbox, and worker services.
+- Video `7656390702540115203` now saves as ready `Spicy Tofu & Chicken
+  Noodles`, with 17 ingredients, 5 steps, and one private object-backed image.
+- Video `7667383250049862925` now provides a needs-review `Fiber-Rich Cilantro
+  Lime Rice` candidate, with 6 ingredients, 3 steps, and one private
+  object-backed image. Both stored image objects passed an object-storage
+  existence check.
+- The signed app was terminated and relaunched on the paired physical iPhone
+  17 Pro. Its synchronized library displays the corrected noodle recipe and
+  thumbnail; the rice candidate remains isolated in Inbox until review is
+  completed, preserving the app's safe re-import contract.
