@@ -82,11 +82,20 @@ and length headers from the buffered response. The orchestrator also rejects a
 truly empty acquisition before model extraction, so an empty source becomes a
 typed parser failure instead of a reviewable placeholder.
 
+The live retry exposed one additional thumbnail handoff gap: cache-bypassing
+re-imports downloaded the public thumbnail for extraction context but did not
+persist it. A successful retry now stores that image and attaches it directly
+to either the promoted current recipe or the needs-review candidate without
+putting private correction text or the private extraction result into shared
+cache.
+
 Verification on 2026-08-21:
 
 - both new regressions failed before production changes and passed afterward;
 - the empty-acquisition integration regression failed as `completed` before
   the guard and now fails as `parserUnavailable` without calling extraction;
+- retry-thumbnail regressions cover both an automatically promoted recipe and
+  an isolated needs-review candidate;
 - the exact two reported videos were probed live with the fixed acquisition
   path. Video `7656390702540115203` returned a 1,128-character caption, one ASR
   segment, creator metadata, and a thumbnail. Video `7667383250049862925`

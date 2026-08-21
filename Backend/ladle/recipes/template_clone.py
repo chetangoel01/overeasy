@@ -333,6 +333,8 @@ class RecipeTemplateCloner:
         *,
         job: ImportJob,
         template: RecipeTemplate,
+        thumbnail_object_key: str | None = None,
+        thumbnail_remote_url: str | None = None,
     ) -> bool:
         """Complete a cache-bypassing job; return true when current was promoted."""
 
@@ -348,6 +350,12 @@ class RecipeTemplateCloner:
             )
             stored.source_video_id = job.source_video_id
             stored.source_cache_id = None
+            self._attach_thumbnail(
+                database,
+                recipe_id=recipe_id,
+                thumbnail_object_key=thumbnail_object_key,
+                thumbnail_remote_url=thumbnail_remote_url,
+            )
             self._record_change(
                 database,
                 user_id=job.user_id,
@@ -372,6 +380,8 @@ class RecipeTemplateCloner:
             template=template,
             cache_entry=None,
             now=now,
+            thumbnail_object_key=thumbnail_object_key,
+            thumbnail_remote_url=thumbnail_remote_url,
         )
         database.flush()
         return promoted
@@ -384,6 +394,8 @@ class RecipeTemplateCloner:
         template: RecipeTemplate,
         cache_entry: ExtractionCache | None,
         now: datetime,
+        thumbnail_object_key: str | None = None,
+        thumbnail_remote_url: str | None = None,
     ) -> tuple[bool, UUID]:
         if job.current_recipe_id is None:
             raise ValueError("re-import is missing its current recipe")
@@ -419,6 +431,8 @@ class RecipeTemplateCloner:
                 database,
                 recipe_id=updated.id,
                 cache_entry=cache_entry,
+                thumbnail_object_key=thumbnail_object_key,
+                thumbnail_remote_url=thumbnail_remote_url,
             )
             self._record_change(
                 database,
@@ -458,6 +472,8 @@ class RecipeTemplateCloner:
             database,
             recipe_id=candidate_id,
             cache_entry=cache_entry,
+            thumbnail_object_key=thumbnail_object_key,
+            thumbnail_remote_url=thumbnail_remote_url,
         )
         job.candidate_recipe_id = candidate_id
         job.cache_entry_id = cache_entry.id if cache_entry is not None else None
@@ -473,19 +489,25 @@ class RecipeTemplateCloner:
         database: Session,
         *,
         recipe_id: UUID,
-        cache_entry: ExtractionCache | None,
+        cache_entry: ExtractionCache | None = None,
+        thumbnail_object_key: str | None = None,
+        thumbnail_remote_url: str | None = None,
     ) -> None:
-        if cache_entry is None or (
-            cache_entry.thumbnail_object_key is None
-            and cache_entry.thumbnail_remote_url is None
-        ):
+        if cache_entry is not None:
+            if thumbnail_object_key is not None or thumbnail_remote_url is not None:
+                raise ValueError("thumbnail location was provided twice")
+            thumbnail_object_key = cache_entry.thumbnail_object_key
+            thumbnail_remote_url = cache_entry.thumbnail_remote_url
+        if thumbnail_object_key is not None and thumbnail_remote_url is not None:
+            raise ValueError("a thumbnail must have exactly one location")
+        if thumbnail_object_key is None and thumbnail_remote_url is None:
             return
         database.add(
             RecipeImage(
                 id=uuid4(),
                 recipe_id=recipe_id,
-                object_key=cache_entry.thumbnail_object_key,
-                remote_url=cache_entry.thumbnail_remote_url,
+                object_key=thumbnail_object_key,
+                remote_url=thumbnail_remote_url,
                 order_index=0,
             )
         )
