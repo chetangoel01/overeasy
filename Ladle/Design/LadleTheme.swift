@@ -1,32 +1,29 @@
 import SwiftUI
 
 enum LadleTheme {
-    // "Butter & Basil" palette. Legacy token names carry new roles:
-    // plum = deep basil (Focus Mode, selected), paper = warm white,
-    // oat = butter-light surfaces, butter = chrome band, brick = tomato,
-    // celery = basil leaf, ube = pistachio wash, accentText = deep tomato.
-    static let plumHex = "#2E4517"
-    static let paperHex = "#FFFBEB"
-    static let oatHex = "#FAF0C0"
-    static let butterHex = "#F7E082"
-    static let inkHex = "#253312"
-    static let brickHex = "#C0391B"
-    static let celeryHex = "#A3C46E"
-    static let ubeHex = "#EDEFD6"
-    static let mutedInkHex = "#6C6C4E"
-    static let darkPaperHex = "#15190D"
-    static let darkOatHex = "#231F0E"
-    static let darkButterHex = "#2E290F"
-    static let darkInkHex = "#F6F2DC"
-    static let darkMutedInkHex = "#B8B694"
-    static let darkUbeHex = "#20260F"
-    static let darkCeleryHex = "#39491F"
-    static let onAccentHex = "#FFFBEB"
-    static let accentTextHex = "#A63A1B"
-    static let darkAccentTextHex = "#FF9973"
-    static let onYolkHex = "#253312"
-    static let focusGoldHex = "#F6D95C"
-    static let focusActionTextHex = plumHex
+    // Porcelain library surfaces, graphite Focus Mode, and a single signal-red
+    // action color. Legacy token names remain while their semantic roles settle.
+    static let plumHex = "#14181B"
+    static let paperHex = "#F2F4F6"
+    static let oatHex = "#E3E7EA"
+    static let butterHex = "#D7DDE2"
+    static let inkHex = "#14181B"
+    static let brickHex = "#EE4B2F"
+    static let celeryHex = "#83A18A"
+    static let ubeHex = "#D7DDE2"
+    static let mutedInkHex = "#64707A"
+    static let darkPaperHex = "#101214"
+    static let darkOatHex = "#1C2024"
+    static let darkButterHex = "#252A2F"
+    static let darkInkHex = "#F2F4F5"
+    static let darkMutedInkHex = "#A6AFB7"
+    static let darkUbeHex = "#252A2F"
+    static let darkCeleryHex = "#294233"
+    static let onAccentHex = "#FAFBFC"
+    static let accentTextHex = "#C73924"
+    static let darkAccentTextHex = "#FF7562"
+    static let fixedInkHex = "#14181B"
+    static let focusAccentHex = "#FF5A3D"
 
     static let plum = Color("Plum")
     static let paper = Color("Paper")
@@ -39,26 +36,19 @@ enum LadleTheme {
     static let mutedInk = Color("MutedInk")
     static let accentText = Color("AccentText")
     static let onAccent = Color(
-        red: 255 / 255,
+        red: 250 / 255,
         green: 251 / 255,
-        blue: 235 / 255
+        blue: 252 / 255
     )
-    // Fixed deep basil for text on fixed light fills in both appearances.
-    static let onYolk = Color(
-        red: 37 / 255,
-        green: 51 / 255,
-        blue: 18 / 255
+    static let fixedInk = Color(
+        red: 20 / 255,
+        green: 24 / 255,
+        blue: 27 / 255
     )
-    // Fixed butter gold for accents on the basil Focus Mode ground.
-    static let focusGold = Color(
-        red: 246 / 255,
-        green: 217 / 255,
-        blue: 92 / 255
-    )
-    static let focusActionText = Color(
-        red: 46 / 255,
-        green: 69 / 255,
-        blue: 23 / 255
+    static let focusAccent = Color(
+        red: 255 / 255,
+        green: 90 / 255,
+        blue: 61 / 255
     )
 
     static let field = oat

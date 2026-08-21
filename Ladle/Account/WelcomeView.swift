@@ -44,7 +44,7 @@ struct WelcomeView: View {
                 }
             }
         }
-        // The welcome surface is always enamel; render on-dark colors.
+        // The welcome surface is always graphite; render on-dark colors.
         .environment(\.colorScheme, .dark)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("welcome.full-screen")
@@ -111,15 +111,14 @@ struct WelcomeView: View {
                 .ladleScaledFont(
                     size: 29,
                     relativeTo: .title,
-                    weight: .black,
-                    width: .expanded
+                    weight: .bold
                 )
                 .lineSpacing(2)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(LadleTheme.onAccent)
 
             Text(
-                "Turn TikTok, Instagram, and YouTube links into clear recipes made for cooking."
+                "Save recipe videos as something you can actually cook."
             )
             .ladleFont(.body)
             .multilineTextAlignment(.center)

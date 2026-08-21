@@ -8,27 +8,29 @@ struct AllRecipesView: View {
     @Bindable var viewModel: LibraryViewModel
     let addRecipe: () -> Void
     let openRecipe: (Recipe) -> Void
+    let openCollection: (LibraryRecipeCollection) -> Void
     let presentFilters: () -> Void
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: LadleTheme.Spacing.regular) {
+                searchField
                 if viewModel.recipes.isEmpty {
                     firstRecipeState
                 } else {
-                    controls
+                    recipeHeader
                     activeFilters
-                    LadleSectionHeader(
-                        title: "All recipes",
-                        detail: recipeCountText
-                    )
                     recipes
+                    if showsCollections {
+                        collections
+                    }
                 }
             }
             .padding(.horizontal, LadleTheme.Spacing.regular)
             .padding(.bottom, 44)
         }
         .scrollIndicators(.hidden)
+        .background(LadleTheme.paper)
         .sensoryFeedback(
             .selection,
             trigger: viewModel.displayMode
@@ -40,20 +42,63 @@ struct AllRecipesView: View {
         .accessibilityIdentifier("library.all-recipes")
     }
 
+    private var searchField: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(LadleTheme.mutedInk)
+            TextField("Search recipes", text: $viewModel.searchText)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+            if !viewModel.searchText.isEmpty {
+                Button {
+                    viewModel.searchText = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(LadleTheme.mutedInk)
+                        .frame(width: 32, height: 44)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear search")
+            }
+        }
+        .ladleFont(.body)
+        .foregroundStyle(LadleTheme.ink)
+        .padding(.horizontal, 14)
+        .frame(minHeight: 48)
+        .background(
+            LadleTheme.oat,
+            in: RoundedRectangle(
+                cornerRadius: LadleTheme.Corner.control,
+                style: .continuous
+            )
+        )
+        .accessibilityIdentifier("library.search")
+    }
+
     private var firstRecipeState: some View {
         LadleStateView(
-            systemImage: "books.vertical",
+            systemImage: "book.closed",
             title: "No recipes yet",
-            message:
-                "Add a recipe from a link or create one yourself. Your full collection will live here.",
-            primaryTitle: "Add your first recipe",
+            message: "Save a link or create a recipe to begin.",
+            primaryTitle: "Add recipe",
             primaryAction: addRecipe
         )
         .padding(.top, LadleTheme.Spacing.regular)
     }
 
-    private var controls: some View {
-        HStack(spacing: 10) {
+    private var recipeHeader: some View {
+        HStack(alignment: .center, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(sectionTitle)
+                    .ladleFont(.section)
+                    .foregroundStyle(LadleTheme.ink)
+                Text(recipeCountText)
+                    .ladleFont(.metadata)
+                    .foregroundStyle(LadleTheme.mutedInk)
+            }
+
+            Spacer()
+
             Menu {
                 ForEach(RecipeSort.allCases, id: \.self) { sort in
                     Button {
@@ -67,35 +112,27 @@ struct AllRecipesView: View {
                     }
                 }
             } label: {
-                controlLabel(
-                    viewModel.sort.libraryTitle,
-                    systemImage: "arrow.up.arrow.down"
-                )
+                controlIcon("arrow.up.arrow.down")
             }
             .accessibilityLabel("Sort recipes")
             .buttonStyle(LadlePressButtonStyle())
 
             Button(action: presentFilters) {
-                controlLabel(
-                    filterButtonTitle,
-                    systemImage: "line.3.horizontal.decrease"
+                controlIcon(
+                    filterChips.isEmpty
+                        ? "line.3.horizontal.decrease"
+                        : "line.3.horizontal.decrease.circle.fill"
                 )
             }
-            .accessibilityLabel("Filter recipes")
+            .accessibilityLabel(filterButtonTitle)
             .buttonStyle(LadlePressButtonStyle())
 
-            Spacer()
-
             Button(action: toggleDisplayMode) {
-                Image(
-                    systemName: viewModel.displayMode == .grid
+                controlIcon(
+                    viewModel.displayMode == .grid
                         ? "list.bullet"
                         : "square.grid.2x2"
                 )
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(LadleTheme.ink)
-                .frame(width: 44, height: 44)
-                .background(LadleTheme.field, in: Circle())
             }
             .accessibilityLabel(
                 viewModel.displayMode == .grid
@@ -104,6 +141,55 @@ struct AllRecipesView: View {
             )
             .buttonStyle(LadlePressButtonStyle())
         }
+    }
+
+    private var collections: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Collections")
+                .ladleFont(.section)
+                .foregroundStyle(LadleTheme.ink)
+
+            VStack(spacing: 0) {
+                ForEach(viewModel.collectionRows, id: \.identifier) { row in
+                    Button {
+                        openCollection(row.collection)
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: row.systemImage)
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(LadleTheme.accentText)
+                                .frame(width: 28)
+                            Text(row.title)
+                                .ladleFont(.body)
+                                .foregroundStyle(LadleTheme.ink)
+                            Spacer()
+                            Text(row.count.formatted())
+                                .ladleFont(.metadata)
+                                .foregroundStyle(LadleTheme.mutedInk)
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(LadleTheme.mutedInk)
+                        }
+                        .frame(minHeight: 52)
+                        .padding(.horizontal, 12)
+                    }
+                    .buttonStyle(.plain)
+
+                    if row.showsDivider {
+                        Divider()
+                            .padding(.leading, 52)
+                    }
+                }
+            }
+            .background(
+                LadleTheme.oat,
+                in: RoundedRectangle(
+                    cornerRadius: LadleTheme.Corner.control,
+                    style: .continuous
+                )
+            )
+        }
+        .padding(.top, 8)
     }
 
     @ViewBuilder
@@ -247,22 +333,11 @@ struct AllRecipesView: View {
         }
     }
 
-    private func controlLabel(
-        _ title: String,
-        systemImage: String
-    ) -> some View {
-        Label(title, systemImage: systemImage)
-            .ladleFont(.metadata)
+    private func controlIcon(_ systemImage: String) -> some View {
+        Image(systemName: systemImage)
+            .font(.system(size: 15, weight: .semibold))
             .foregroundStyle(LadleTheme.ink)
-            .padding(.horizontal, 12)
-            .frame(minHeight: 44)
-            .background(
-                LadleTheme.field,
-                in: RoundedRectangle(
-                    cornerRadius: LadleTheme.Corner.control,
-                    style: .continuous
-                )
-            )
+            .frame(width: 44, height: 44)
     }
 
     private func toggleDisplayMode() {
@@ -286,6 +361,22 @@ struct AllRecipesView: View {
     private var recipeCountText: String {
         let count = viewModel.visibleRecipes.count
         return count == 1 ? "1 recipe" : "\(count) recipes"
+    }
+
+    private var sectionTitle: String {
+        if !viewModel.searchText.isEmpty {
+            return "Results"
+        }
+        if viewModel.selectedCollection != .all {
+            return viewModel.selectedCollection.title
+        }
+        return "Recent"
+    }
+
+    private var showsCollections: Bool {
+        viewModel.searchText.isEmpty
+            && viewModel.selectedCollection == .all
+            && filterChips.isEmpty
     }
 }
 

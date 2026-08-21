@@ -39,13 +39,7 @@ struct ShareConfirmationView: View {
     private var brand: some View {
         Label {
             Text(Self.brandName)
-                .font(
-                    .system(
-                        .headline,
-                        design: .rounded,
-                        weight: .bold
-                    )
-                )
+                .font(.headline.weight(.semibold))
         } icon: {
             Image(systemName: "frying.pan.fill")
                 .foregroundStyle(ShareTheme.accentText)
@@ -60,13 +54,7 @@ struct ShareConfirmationView: View {
 
             VStack(spacing: 10) {
                 Text(title)
-                    .font(
-                        .system(
-                            .title,
-                            design: .rounded,
-                            weight: .bold
-                        )
-                    )
+                    .font(.title.bold())
                     .multilineTextAlignment(.center)
                     .foregroundStyle(ShareTheme.ink)
                     .fixedSize(horizontal: false, vertical: true)
@@ -135,7 +123,7 @@ struct ShareConfirmationView: View {
         case .loading:
             "Keep this open while Overeasy saves the link."
         case .success:
-            "Tap Done when you’re ready. The recipe will finish importing in the app."
+            "It’ll finish importing in the app."
         case let .failure(message):
             message
         }
@@ -169,35 +157,35 @@ private struct SharePrimaryButtonStyle: ButtonStyle {
 }
 
 private enum ShareTheme {
-    // Mirrors LadleTheme's "Butter & Basil" palette.
+    // Mirrors LadleTheme's porcelain and graphite palette.
     static let paper = adaptive(
-        light: (1.0, 0.984, 0.922),
-        dark: (0.082, 0.098, 0.051)
+        light: (0.949, 0.957, 0.965),
+        dark: (0.063, 0.071, 0.078)
     )
     static let field = adaptive(
-        light: (0.980, 0.941, 0.753),
-        dark: (0.137, 0.122, 0.055)
+        light: (0.890, 0.906, 0.918),
+        dark: (0.110, 0.125, 0.141)
     )
     static let review = adaptive(
-        light: (0.929, 0.937, 0.839),
-        dark: (0.125, 0.149, 0.059)
+        light: (0.843, 0.867, 0.886),
+        dark: (0.145, 0.165, 0.184)
     )
     static let brick = adaptive(
-        light: (0.753, 0.224, 0.106),
-        dark: (0.910, 0.333, 0.180)
+        light: (0.933, 0.294, 0.184),
+        dark: (1.0, 0.404, 0.306)
     )
     static let accentText = adaptive(
-        light: (0.651, 0.227, 0.106),
-        dark: (1.0, 0.6, 0.451)
+        light: (0.780, 0.224, 0.141),
+        dark: (1.0, 0.459, 0.384)
     )
     static let ink = adaptive(
-        light: (0.145, 0.2, 0.071),
-        dark: (0.965, 0.949, 0.863)
+        light: (0.078, 0.094, 0.106),
+        dark: (0.949, 0.957, 0.961)
     )
     static let onAccent = Color(
-        red: 255 / 255,
+        red: 250 / 255,
         green: 251 / 255,
-        blue: 235 / 255
+        blue: 252 / 255
     )
 
     private static func adaptive(

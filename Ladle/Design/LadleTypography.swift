@@ -13,11 +13,11 @@ enum LadleTextStyle {
     var baseSize: CGFloat {
         switch self {
         case .display:
-            42
+            38
         case .title:
             31
         case .recipeTitle:
-            21
+            18
         case .section:
             19
         case .body, .bodyStrong:
@@ -51,29 +51,22 @@ enum LadleTextStyle {
     var weight: Font.Weight {
         switch self {
         case .display, .title:
-            .black
+            .bold
         case .recipeTitle, .section:
-            .heavy
+            .semibold
         case .bodyStrong:
             .semibold
         case .body:
             .regular
         case .metadata:
-            .medium
+            .regular
         case .eyebrow:
             .semibold
         }
     }
 
     var width: Font.Width {
-        switch self {
-        case .display, .title:
-            .expanded
-        case .eyebrow:
-            .condensed
-        case .recipeTitle, .section, .body, .bodyStrong, .metadata:
-            .standard
-        }
+        .standard
     }
 
     var design: Font.Design {

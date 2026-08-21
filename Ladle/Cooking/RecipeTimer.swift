@@ -208,7 +208,7 @@ struct RecipeTimerButton: View {
                     toggleTimer()
                 } label: {
                     HStack(spacing: 11) {
-                        yolkRing
+                        timerRing
                         VStack(alignment: .leading, spacing: 2) {
                             Text(actionTitle)
                                 .ladleFont(.metadata)
@@ -306,18 +306,18 @@ struct RecipeTimerButton: View {
         }
     }
 
-    // The non-finished onDark card is fixed cream, so its content needs
+    // The non-finished onDark card is fixed porcelain, so its content needs
     // a fixed dark foreground rather than the adaptive ink.
     private var cardForeground: Color {
         if onDark, phase != .finished {
-            LadleTheme.onYolk
+            LadleTheme.fixedInk
         } else {
             LadleTheme.ink
         }
     }
 
-    /// The signature timer mark: a yolk that drains as time runs out.
-    private var yolkRing: some View {
+    /// The timer ring drains as time runs out.
+    private var timerRing: some View {
         ZStack {
             Circle()
                 .stroke(cardForeground.opacity(0.2), lineWidth: 3)
