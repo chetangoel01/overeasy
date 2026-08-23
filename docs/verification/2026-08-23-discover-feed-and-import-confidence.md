@@ -114,8 +114,11 @@ profiles.
 - LadleCore contract coverage decodes the Discover wire payload.
 - App tests cover Discover loading/error states, save idempotency, creator
   attribution, and account toolbar availability across all workspace tabs.
+- A focused simulator UI test performs a real 0.8-second press on a Discover
+  result, verifies the native View/Save menu, opens the preview, and confirms
+  Account remains available from the detail screen.
 - `swift test --package-path Packages/LadleCore`: 44 passed.
-- Full simulator test suite: 174 passed, 1 skipped, 0 failures.
+- Full simulator test suite: 175 passed, 1 skipped, 0 failures.
 - Backend suite: 520 passed, 5 skipped.
 - A generic iOS Simulator build completed for the app and embedded Share
   Extension with `CODE_SIGNING_ALLOWED=NO`.

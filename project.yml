@@ -76,6 +76,19 @@ targets:
     dependencies:
       - target: Ladle
 
+  LadleUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: LadleUITests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ladle.ios.ui-tests
+        GENERATE_INFOPLIST_FILE: true
+        TEST_TARGET_NAME: Ladle
+    dependencies:
+      - target: Ladle
+
 schemes:
   Ladle:
     build:
@@ -90,3 +103,4 @@ schemes:
       gatherCoverageData: true
       targets:
         - LadleTests
+        - LadleUITests

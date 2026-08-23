@@ -73,6 +73,7 @@
 		93CF9021D2F49A9F1263B0FC /* LadleApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 398FE0A6194867671568AF86 /* LadleApp.swift */; };
 		94CBE2FD5CDC33A263424029 /* LibraryViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E75C97A3440E521A8A01510 /* LibraryViewModelTests.swift */; };
 		9623A5A3F2476BF1D217B6C1 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CFAA18EE2255DC832AF47E2 /* APIClient.swift */; };
+		96E87A78BF3F631A16CE527B /* DiscoverInteractionUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE78D9B90CFB707BA76115BA /* DiscoverInteractionUITests.swift */; };
 		9AE69ACA22E7BEE2CE2D625C /* ImportCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3801D743E5C7CE52681E7C04 /* ImportCoordinatorTests.swift */; };
 		9C16EF897125A7B0B4CBF604 /* AccountSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B38BC487172BD4E150410E78 /* AccountSessionTests.swift */; };
 		9E6908D535A27DA7429230D5 /* AuthClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9C01DA218666D762AB16E8A /* AuthClient.swift */; };
@@ -116,6 +117,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		1A54CC8D6F606992E80768BE /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 7EEAF269B9CE72409582E1B0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 513B30DBEF18968525BDCBA9;
+			remoteInfo = Ladle;
+		};
 		4EADD8258403DFFD0F6A8364 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 7EEAF269B9CE72409582E1B0 /* Project object */;
@@ -202,6 +210,7 @@
 		8ECA1AA3280738489BF150D2 /* ImportInboxView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportInboxView.swift; sourceTree = "<group>"; };
 		8FD8C1479556171086A421DD /* RecipeContextMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeContextMenu.swift; sourceTree = "<group>"; };
 		9209E28951C4CAA3BC8E7629 /* ProjectSmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectSmokeTests.swift; sourceTree = "<group>"; };
+		92186EA22A7478D595EF7866 /* LadleUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = LadleUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		95EAF34BC77BC1BC1B427BAC /* RemoteImportServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteImportServiceTests.swift; sourceTree = "<group>"; };
 		96B58AC391122DA6ADD686C9 /* CookingViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CookingViewModelTests.swift; sourceTree = "<group>"; };
 		9795563629F29EFC955E4CEE /* DiscoverService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscoverService.swift; sourceTree = "<group>"; };
@@ -240,6 +249,7 @@
 		DB9237724B9663AD4AFC1232 /* AccountSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSession.swift; sourceTree = "<group>"; };
 		DC8EEB0F6CE2D7F25FAF7308 /* RecipeGridCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeGridCard.swift; sourceTree = "<group>"; };
 		DD8157BECA8D206CD8B984BB /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		DE78D9B90CFB707BA76115BA /* DiscoverInteractionUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscoverInteractionUITests.swift; sourceTree = "<group>"; };
 		E2461B3FDEC6CF3119C4548A /* ReimportSafetyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReimportSafetyTests.swift; sourceTree = "<group>"; };
 		E3E83CF891E137AB8EEEC5D5 /* RecipeSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeSyncService.swift; sourceTree = "<group>"; };
 		E70BCF12B0F114BF77D3F95E /* RemoteImageCacheTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteImageCacheTests.swift; sourceTree = "<group>"; };
@@ -304,6 +314,7 @@
 				C785830BA90FF06D98550174 /* Ladle */,
 				C4FA77D8C431C224299760C5 /* LadleShare */,
 				AC62D73EFA5767328A97BEBB /* LadleTests */,
+				B83462334B3609B1DD29A356 /* LadleUITests */,
 				814C8622786A5D7B00F966DE /* Packages */,
 				42BCDF39316A0AD46ACABDE8 /* Products */,
 			);
@@ -335,6 +346,7 @@
 				8685543E83A66097689438A5 /* Ladle.app */,
 				D975A502CE6CABFF17DE770D /* LadleShare.appex */,
 				AB7758A009F552E1ADAB5A3B /* LadleTests.xctest */,
+				92186EA22A7478D595EF7866 /* LadleUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -453,6 +465,14 @@
 				C39A167F8EA2C188D03B1BE6 /* SwiftDataRecipeRepositoryTests.swift */,
 			);
 			path = LadleTests;
+			sourceTree = "<group>";
+		};
+		B83462334B3609B1DD29A356 /* LadleUITests */ = {
+			isa = PBXGroup;
+			children = (
+				DE78D9B90CFB707BA76115BA /* DiscoverInteractionUITests.swift */,
+			);
+			path = LadleUITests;
 			sourceTree = "<group>";
 		};
 		BE74E9F234FB183FF0B4198C /* Notifications */ = {
@@ -604,6 +624,24 @@
 			productReference = D975A502CE6CABFF17DE770D /* LadleShare.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		475AAE76462CFCD6F9D7D183 /* LadleUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F30AB32E272920E9C0A3B2B5 /* Build configuration list for PBXNativeTarget "LadleUITests" */;
+			buildPhases = (
+				073B09EFF771252A8419C4A3 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				D6CDB72C6DB1CD945D60D61C /* PBXTargetDependency */,
+			);
+			name = LadleUITests;
+			packageProductDependencies = (
+			);
+			productName = LadleUITests;
+			productReference = 92186EA22A7478D595EF7866 /* LadleUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 		513B30DBEF18968525BDCBA9 /* Ladle */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 3D06870932410678ECED6837 /* Build configuration list for PBXNativeTarget "Ladle" */;
@@ -636,6 +674,9 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
+					475AAE76462CFCD6F9D7D183 = {
+						TestTargetID = 513B30DBEF18968525BDCBA9;
+					};
 				};
 			};
 			buildConfigurationList = CF6488C83A91CB09240F2084 /* Build configuration list for PBXProject "Ladle" */;
@@ -659,6 +700,7 @@
 				513B30DBEF18968525BDCBA9 /* Ladle */,
 				0E7C3C938012F05938CD3962 /* LadleShare */,
 				0695185D5604E61881FD6C0E /* LadleTests */,
+				475AAE76462CFCD6F9D7D183 /* LadleUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -676,6 +718,14 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		073B09EFF771252A8419C4A3 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				96E87A78BF3F631A16CE527B /* DiscoverInteractionUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		0BDBCB9343FDC25FEC0E2E67 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -810,6 +860,11 @@
 			target = 513B30DBEF18968525BDCBA9 /* Ladle */;
 			targetProxy = 4EADD8258403DFFD0F6A8364 /* PBXContainerItemProxy */;
 		};
+		D6CDB72C6DB1CD945D60D61C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 513B30DBEF18968525BDCBA9 /* Ladle */;
+			targetProxy = 1A54CC8D6F606992E80768BE /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
@@ -897,6 +952,23 @@
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		7EE341668699E1635F94FB49 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "com.ladle.ios.ui-tests";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Ladle;
 			};
 			name = Debug;
 		};
@@ -1011,6 +1083,23 @@
 			};
 			name = Release;
 		};
+		CABE07F77F403C4E18ED2A52 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "com.ladle.ios.ui-tests";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Ladle;
+			};
+			name = Release;
+		};
 		D0DE4373B594866A124815DB /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1083,6 +1172,15 @@
 			buildConfigurations = (
 				5AB76AE9D5F008AED3F1E772 /* Debug */,
 				9432038AE773E73BEC9EDE39 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		F30AB32E272920E9C0A3B2B5 /* Build configuration list for PBXNativeTarget "LadleUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7EE341668699E1635F94FB49 /* Debug */,
+				CABE07F77F403C4E18ED2A52 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
