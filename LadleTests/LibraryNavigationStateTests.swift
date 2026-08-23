@@ -4,10 +4,35 @@ import XCTest
 
 @MainActor
 final class LibraryNavigationStateTests: XCTestCase {
-    func testCompletedReviewReturnsToInboxWhenActionableItemsRemain() {
+    func testLibraryStartsOnRecipesTab() {
+        let state = LibraryNavigationState()
+
+        XCTAssertEqual(state.tab, .recipes)
+        XCTAssertTrue(state.path.isEmpty)
+    }
+
+    func testSelectingAWorkspaceTabDoesNotPushNavigation() {
         var state = LibraryNavigationState(
             path: [
-                .importInbox,
+                .recipe(
+                    LibraryRecipeDestination(
+                        recipe: PreviewFixtures.recipes[0],
+                        statusText: "Saved recipe"
+                    )
+                ),
+            ]
+        )
+
+        state.select(.watch)
+
+        XCTAssertEqual(state.tab, .watch)
+        XCTAssertTrue(state.path.isEmpty)
+    }
+
+    func testCompletedReviewReturnsToInboxWhenActionableItemsRemain() {
+        var state = LibraryNavigationState(
+            tab: .inbox,
+            path: [
                 .recipe(
                     LibraryRecipeDestination(
                         recipe: PreviewFixtures.recipes[1],
@@ -19,13 +44,14 @@ final class LibraryNavigationStateTests: XCTestCase {
 
         state.reviewDidComplete(hasActionableImports: true)
 
-        XCTAssertEqual(state.path, [.importInbox])
+        XCTAssertEqual(state.tab, .inbox)
+        XCTAssertTrue(state.path.isEmpty)
     }
 
     func testCompletedLastReviewReturnsToLibraryRoot() {
         var state = LibraryNavigationState(
+            tab: .inbox,
             path: [
-                .importInbox,
                 .recipe(
                     LibraryRecipeDestination(
                         recipe: PreviewFixtures.recipes[1],
@@ -37,15 +63,17 @@ final class LibraryNavigationStateTests: XCTestCase {
 
         state.reviewDidComplete(hasActionableImports: false)
 
+        XCTAssertEqual(state.tab, .recipes)
         XCTAssertTrue(state.path.isEmpty)
     }
 
-    func testImportInboxCanOpenAgainAfterReturningToRoot() {
-        var state = LibraryNavigationState(path: [.importInbox])
+    func testInboxCanBeSelectedAgainAfterReturningToRecipes() {
+        var state = LibraryNavigationState(tab: .inbox)
+
         state.reviewDidComplete(hasActionableImports: false)
+        state.select(.inbox)
 
-        state.open(.importInbox)
-
-        XCTAssertEqual(state.path, [.importInbox])
+        XCTAssertEqual(state.tab, .inbox)
+        XCTAssertTrue(state.path.isEmpty)
     }
 }

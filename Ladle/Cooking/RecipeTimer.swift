@@ -207,9 +207,8 @@ struct RecipeTimerButton: View {
                 Button {
                     toggleTimer()
                 } label: {
-                    HStack(spacing: 9) {
-                        Image(systemName: timerIcon)
-                            .font(.system(size: 15, weight: .semibold))
+                    HStack(spacing: 11) {
+                        timerRing
                         VStack(alignment: .leading, spacing: 2) {
                             Text(actionTitle)
                                 .ladleFont(.metadata)
@@ -223,7 +222,7 @@ struct RecipeTimerButton: View {
                         }
                         Spacer(minLength: 0)
                     }
-                    .foregroundStyle(LadleTheme.ink)
+                    .foregroundStyle(cardForeground)
                     .padding(.horizontal, 14)
                     .frame(minHeight: onDark ? 68 : 58)
                     .background(
@@ -305,6 +304,47 @@ struct RecipeTimerButton: View {
         } else {
             onDark ? LadleTheme.onAccent : LadleTheme.review
         }
+    }
+
+    // The non-finished onDark card is fixed porcelain, so its content needs
+    // a fixed dark foreground rather than the adaptive ink.
+    private var cardForeground: Color {
+        if onDark, phase != .finished {
+            LadleTheme.fixedInk
+        } else {
+            LadleTheme.ink
+        }
+    }
+
+    /// The timer ring drains as time runs out.
+    private var timerRing: some View {
+        ZStack {
+            Circle()
+                .stroke(cardForeground.opacity(0.2), lineWidth: 3)
+
+            Circle()
+                .trim(from: 0, to: remainingFraction)
+                .stroke(
+                    phase == .finished
+                        ? cardForeground
+                        : LadleTheme.brick,
+                    style: StrokeStyle(lineWidth: 3, lineCap: .round)
+                )
+                .rotationEffect(.degrees(-90))
+
+            Image(systemName: timerIcon)
+                .font(.system(size: 11, weight: .bold))
+        }
+        .frame(width: 32, height: 32)
+        .accessibilityHidden(true)
+    }
+
+    private var remainingFraction: CGFloat {
+        guard detectedTimer.durationSeconds > 0 else {
+            return 0
+        }
+        return CGFloat(remainingSeconds)
+            / CGFloat(detectedTimer.durationSeconds)
     }
 
     private var clockText: String {

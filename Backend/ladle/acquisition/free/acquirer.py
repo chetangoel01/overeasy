@@ -118,14 +118,14 @@ class FreeAcquirer:
             self._apply_instagram_embed(source, context)
         if not context.has_metadata:
             self._apply_ytdlp(source, context)
-        metadata = context.metadata
-        if metadata is None:
-            return context
 
         # yt-dlp reports nothing for TikTok, but TikTok publishes its own ASR
         # track in the page. Worth a look whenever captions are still missing.
         if not context.transcript and source.platform == "tiktok":
             self._apply_tiktok_page(source.canonical_url, context)
+        metadata = context.metadata
+        if metadata is None:
+            return context
 
         # Captions and description may already be enough. Fetching anyway would
         # chase sponsor links through redirects for nothing.
@@ -216,6 +216,19 @@ class FreeAcquirer:
         if evidence.is_empty:
             context.diagnostics.append("tiktokPageEvidenceUnavailable")
             return
+        if evidence.metadata is not None:
+            page = evidence.metadata
+            metadata = context.metadata
+            if metadata is None:
+                context.metadata = page
+            else:
+                metadata.description = metadata.description or page.description
+                metadata.creator_name = metadata.creator_name or page.creator_name
+                metadata.thumbnail_url = metadata.thumbnail_url or page.thumbnail_url
+                metadata.duration_seconds = (
+                    metadata.duration_seconds or page.duration_seconds
+                )
+            context.diagnostics.append("tiktokPageMetadataUsed")
         if evidence.transcript:
             context.transcript = evidence.transcript
             context.language = evidence.language

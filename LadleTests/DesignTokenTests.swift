@@ -2,28 +2,31 @@ import XCTest
 @testable import Ladle
 
 final class DesignTokenTests: XCTestCase {
-    func testMutedCornerStorePaletteUsesApprovedHexValues() {
-        XCTAssertEqual(LadleTheme.plumHex, "#493943")
-        XCTAssertEqual(LadleTheme.paperHex, "#FAF6EF")
-        XCTAssertEqual(LadleTheme.oatHex, "#F1ECE3")
-        XCTAssertEqual(LadleTheme.inkHex, "#30272D")
-        XCTAssertEqual(LadleTheme.brickHex, "#AD503D")
-        XCTAssertEqual(LadleTheme.celeryHex, "#BEC9AE")
-        XCTAssertEqual(LadleTheme.ubeHex, "#DDD5DF")
-        XCTAssertEqual(LadleTheme.mutedInkHex, "#72676D")
+    func testPorcelainPaletteUsesApprovedHexValues() {
+        XCTAssertEqual(LadleTheme.plumHex, "#14181B")
+        XCTAssertEqual(LadleTheme.paperHex, "#F2F4F6")
+        XCTAssertEqual(LadleTheme.oatHex, "#E3E7EA")
+        XCTAssertEqual(LadleTheme.butterHex, "#D7DDE2")
+        XCTAssertEqual(LadleTheme.inkHex, "#14181B")
+        XCTAssertEqual(LadleTheme.brickHex, "#EE4B2F")
+        XCTAssertEqual(LadleTheme.celeryHex, "#83A18A")
+        XCTAssertEqual(LadleTheme.ubeHex, "#D7DDE2")
+        XCTAssertEqual(LadleTheme.mutedInkHex, "#64707A")
     }
 
-    func testDarkPaletteStaysWarmAndKeepsAccentTextSeparate() {
-        XCTAssertEqual(LadleTheme.darkPaperHex, "#1D191C")
-        XCTAssertEqual(LadleTheme.darkOatHex, "#282226")
-        XCTAssertEqual(LadleTheme.darkInkHex, "#F7F0E8")
-        XCTAssertEqual(LadleTheme.darkMutedInkHex, "#B9ADB3")
-        XCTAssertEqual(LadleTheme.darkUbeHex, "#332B31")
-        XCTAssertEqual(LadleTheme.darkCeleryHex, "#364536")
-        XCTAssertEqual(LadleTheme.onAccentHex, "#FFF9F0")
-        XCTAssertEqual(LadleTheme.accentTextHex, "#AD503D")
-        XCTAssertEqual(LadleTheme.darkAccentTextHex, "#E58A74")
-        XCTAssertEqual(LadleTheme.focusActionTextHex, "#493943")
+    func testDarkPaletteUsesNeutralGraphiteSurfaces() {
+        XCTAssertEqual(LadleTheme.darkPaperHex, "#101214")
+        XCTAssertEqual(LadleTheme.darkOatHex, "#1C2024")
+        XCTAssertEqual(LadleTheme.darkButterHex, "#252A2F")
+        XCTAssertEqual(LadleTheme.darkInkHex, "#F2F4F5")
+        XCTAssertEqual(LadleTheme.darkMutedInkHex, "#A6AFB7")
+        XCTAssertEqual(LadleTheme.darkUbeHex, "#252A2F")
+        XCTAssertEqual(LadleTheme.darkCeleryHex, "#294233")
+        XCTAssertEqual(LadleTheme.onAccentHex, "#FAFBFC")
+        XCTAssertEqual(LadleTheme.accentTextHex, "#C73924")
+        XCTAssertEqual(LadleTheme.darkAccentTextHex, "#FF7562")
+        XCTAssertEqual(LadleTheme.fixedInkHex, "#14181B")
+        XCTAssertEqual(LadleTheme.focusAccentHex, "#FF5A3D")
     }
 
     func testSpacingScaleIncreasesPredictably() {

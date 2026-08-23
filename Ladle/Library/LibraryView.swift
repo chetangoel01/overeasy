@@ -2,21 +2,32 @@ import LadleCore
 import SwiftUI
 
 enum LibraryNavigationDestination: Hashable {
-    case search
-    case importInbox
-    case watch
     case recipe(LibraryRecipeDestination)
 }
 
+enum LibraryTab: Hashable {
+    case recipes
+    case discover
+    case watch
+    case inbox
+}
+
 struct LibraryNavigationState: Equatable {
+    var tab: LibraryTab = .recipes
     var path: [LibraryNavigationDestination] = []
 
     mutating func open(_ destination: LibraryNavigationDestination) {
         path.append(destination)
     }
 
+    mutating func select(_ tab: LibraryTab) {
+        self.tab = tab
+        path = []
+    }
+
     mutating func reviewDidComplete(hasActionableImports: Bool) {
-        path = hasActionableImports ? [.importInbox] : []
+        tab = hasActionableImports ? .inbox : .recipes
+        path = []
     }
 }
 
@@ -30,7 +41,6 @@ struct LibraryView: View {
     var onSignOut: @MainActor () async -> Void = {}
     var onDeleteAccount: @MainActor () async throws -> Void = {}
 
-    @State private var section: LibrarySection = .home
     @State private var isFilterSheetPresented = false
     @State private var isAddSheetPresented = false
     @State private var navigation = LibraryNavigationState()
@@ -41,21 +51,69 @@ struct LibraryView: View {
 
     var body: some View {
         NavigationStack(path: $navigation.path) {
-            VStack(spacing: 0) {
-                LibraryTopBar(
-                    openSearch: { navigation.open(.search) },
-                    openAccount: { isAccountPresented = true },
-                    addRecipe: { presentAddRecipe() },
-                    isAddEnabled: canImport
+            TabView(selection: $navigation.tab) {
+                recipes
+                    .tabItem {
+                        Label("Recipes", systemImage: "book.closed")
+                    }
+                    .tag(LibraryTab.recipes)
+
+                DiscoverView(
+                    service: discoverService,
+                    saveRecipe: { recipe in
+                        presentAddRecipe(url: recipe.originalURL)
+                    }
                 )
-                LibrarySectionPicker(
-                    selection: $section,
-                    recipeCount: viewModel.recipes.count
+                .tabItem {
+                    Label("Discover", systemImage: "sparkles")
+                }
+                .tag(LibraryTab.discover)
+
+                WatchView(
+                    viewModel: viewModel,
+                    openRecipe: openRecipe
                 )
-                content
+                .tabItem {
+                    Label("Watch", systemImage: "play.rectangle")
+                }
+                .tag(LibraryTab.watch)
+
+                ImportInboxView(
+                    viewModel: viewModel,
+                    recoverImport: { failedImportJob = $0 },
+                    openReview: showRecipe
+                )
+                .tabItem {
+                    Label("Inbox", systemImage: "tray")
+                }
+                .badge(viewModel.importAttentionCount)
+                .tag(LibraryTab.inbox)
             }
             .background(LadleTheme.paper)
-            .toolbar(.hidden, for: .navigationBar)
+            .tint(LadleTheme.brick)
+            .navigationTitle(navigation.tab.title)
+            .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                if navigation.tab == .recipes {
+                    ToolbarItemGroup(placement: .topBarTrailing) {
+                        Button {
+                            isAccountPresented = true
+                        } label: {
+                            Image(systemName: "person.crop.circle")
+                        }
+                        .accessibilityLabel("Account")
+
+                        Button {
+                            isAddSheetPresented = true
+                        } label: {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 20, weight: .semibold))
+                        }
+                        .accessibilityLabel("Add recipe")
+                        .disabled(!canImport)
+                    }
+                }
+            }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("library.root")
             .task {
@@ -109,22 +167,6 @@ struct LibraryView: View {
             .navigationDestination(for: LibraryNavigationDestination.self) {
                 destination in
                 switch destination {
-                case .search:
-                    LibrarySearchView(
-                        viewModel: viewModel,
-                        openRecipe: openRecipe
-                    )
-                case .importInbox:
-                    ImportInboxView(
-                        viewModel: viewModel,
-                        recoverImport: { failedImportJob = $0 },
-                        openReview: showRecipe
-                    )
-                case .watch:
-                    WatchView(
-                        viewModel: viewModel,
-                        openRecipe: openRecipe
-                    )
                 case let .recipe(destination):
                     recipeDetail(destination)
                 }
@@ -143,7 +185,7 @@ struct LibraryView: View {
                 Text(viewModel.operationErrorMessage ?? "Please try again.")
             }
         }
-        .sensoryFeedback(.selection, trigger: section)
+        .sensoryFeedback(.selection, trigger: navigation.tab)
         .sensoryFeedback(
             .impact(weight: .light, intensity: 0.65),
             trigger: navigation.path.count
@@ -162,41 +204,20 @@ struct LibraryView: View {
     }
 
     @ViewBuilder
-    private var content: some View {
-        if section == .discover {
-            DiscoverView(
-                service: discoverService,
-                saveRecipe: { recipe in
-                    presentAddRecipe(url: recipe.originalURL)
-                }
+    private var recipes: some View {
+        switch viewModel.loadState {
+        case .idle:
+            LibraryLoadStateView(message: nil, retry: viewModel.load)
+        case let .failed(message):
+            LibraryLoadStateView(message: message, retry: viewModel.load)
+        case .loaded:
+            AllRecipesView(
+                viewModel: viewModel,
+                addRecipe: { presentAddRecipe() },
+                openRecipe: openRecipe,
+                openCollection: openCollection,
+                presentFilters: { isFilterSheetPresented = true }
             )
-        } else {
-            switch viewModel.loadState {
-            case .idle:
-                LibraryLoadStateView(message: nil, retry: viewModel.load)
-            case let .failed(message):
-                LibraryLoadStateView(message: message, retry: viewModel.load)
-            case .loaded:
-                if section == .home {
-                    LibraryHomeView(
-                        viewModel: viewModel,
-                        addRecipe: { presentAddRecipe() },
-                        openRecipe: openRecipe,
-                        openCollection: openCollection,
-                        openImportInbox: {
-                            navigation.open(.importInbox)
-                        },
-                        openWatch: { navigation.open(.watch) }
-                    )
-                } else {
-                    AllRecipesView(
-                        viewModel: viewModel,
-                        addRecipe: { presentAddRecipe() },
-                        openRecipe: openRecipe,
-                        presentFilters: { isFilterSheetPresented = true }
-                    )
-                }
-            }
         }
     }
 
@@ -225,7 +246,7 @@ struct LibraryView: View {
 
     private func openCollection(_ collection: LibraryRecipeCollection) {
         viewModel.showCollection(collection)
-        section = .all
+        navigation.select(.recipes)
     }
 
     private func openRecipe(_ recipe: Recipe) {
@@ -273,9 +294,6 @@ struct LibraryView: View {
         navigation.reviewDidComplete(
             hasActionableImports: hasActionableImports
         )
-        if !hasActionableImports {
-            section = .home
-        }
     }
 
     private var operationErrorIsPresented: Binding<Bool> {
@@ -283,6 +301,36 @@ struct LibraryView: View {
             get: { viewModel.operationErrorMessage != nil },
             set: { if !$0 { viewModel.clearOperationError() } }
         )
+    }
+}
+
+private struct LibraryLoadStateView: View {
+    let message: String?
+    let retry: () -> Void
+
+    var body: some View {
+        VStack(spacing: 14) {
+            if let message {
+                Image(systemName: "fork.knife.circle")
+                    .font(.system(size: 34))
+                    .foregroundStyle(LadleTheme.accentText)
+                Text("Couldn’t load recipes")
+                    .ladleFont(.section)
+                    .foregroundStyle(LadleTheme.ink)
+                Text(message)
+                    .ladleFont(.body)
+                    .foregroundStyle(LadleTheme.mutedInk)
+                    .multilineTextAlignment(.center)
+                Button("Try Again", action: retry)
+                    .buttonStyle(LadlePrimaryButtonStyle(isProminent: false))
+            } else {
+                ProgressView("Loading recipes")
+                    .tint(LadleTheme.brick)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(32)
+        .background(LadleTheme.paper)
     }
 }
 
@@ -299,6 +347,17 @@ private extension ImportCoordinatorState {
         case .idle, .validationFailed, .duplicate, .guestLimit,
              .persistenceFailed:
             false
+        }
+    }
+}
+
+private extension LibraryTab {
+    var title: String {
+        switch self {
+        case .recipes: "Recipes"
+        case .discover: "Discover"
+        case .watch: "Watch"
+        case .inbox: "Inbox"
         }
     }
 }

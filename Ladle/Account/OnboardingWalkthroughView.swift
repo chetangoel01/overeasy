@@ -302,7 +302,7 @@ struct OnboardingWalkthroughView: View {
             HStack {
                 Text("STEP 3 OF 6")
                     .ladleFont(.eyebrow)
-                    .foregroundStyle(LadleTheme.celery)
+                    .foregroundStyle(LadleTheme.focusAccent)
 
                 Spacer()
 
@@ -331,7 +331,7 @@ struct OnboardingWalkthroughView: View {
 
                 Text("Start timer")
                     .ladleFont(.metadata)
-                    .foregroundStyle(LadleTheme.plum)
+                    .foregroundStyle(LadleTheme.ink)
                     .padding(.horizontal, 13)
                     .frame(minHeight: 44)
                     .background(LadleTheme.celery, in: Capsule())
@@ -352,7 +352,7 @@ struct OnboardingWalkthroughView: View {
                     Capsule()
                         .fill(
                             index < 3
-                                ? LadleTheme.brick
+                                ? LadleTheme.focusAccent
                                 : LadleTheme.onAccent.opacity(0.18)
                         )
                         .frame(maxWidth: .infinity)

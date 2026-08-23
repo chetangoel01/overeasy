@@ -278,6 +278,6 @@ struct HealthExportSheet: View {
     }
 
     private func decimalText(_ value: Decimal) -> String {
-        NSDecimalNumber(decimal: value).stringValue
+        ladleNumber(value)
     }
 }

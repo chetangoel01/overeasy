@@ -94,7 +94,7 @@ def test_defaults_and_coverage_problems_become_needs_review() -> None:
     assert reviewed.steps[0].ingredient_indexes == [0]
     assert reviewed.steps[0].uncertainty is not None
     assert reviewed.nutrition is not None
-    assert reviewed.nutrition.serving_basis == 4
+    assert reviewed.nutrition.serving_basis == 1
     assert reviewed.nutrition.is_estimated
     reasons = {value.field for value in reviewed.uncertainties}
     assert "servings" in reasons
@@ -130,6 +130,24 @@ def test_confident_complete_extraction_is_ready() -> None:
     reviewed = build_reviewed_template(extraction, context=context())
 
     assert reviewed.review_status == RecipeReviewStatus.READY
+
+
+def test_nutrition_without_a_basis_remains_per_serving() -> None:
+    extraction = _solid_recipe(
+        servings=Decimal("11"),
+        nutrition=ExtractedNutrition(
+            calories=Decimal("625"),
+            protein_grams=Decimal("55"),
+            serving_basis=None,
+        ),
+    )
+
+    reviewed = build_reviewed_template(extraction, context=context())
+
+    assert reviewed.nutrition is not None
+    assert reviewed.nutrition.calories == Decimal("625")
+    assert reviewed.nutrition.protein_grams == Decimal("55")
+    assert reviewed.nutrition.serving_basis == Decimal("1")
 
 
 def _solid_recipe(**overrides: object) -> RecipeExtraction:

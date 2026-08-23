@@ -35,6 +35,7 @@ _TIKTOK_PATH = re.compile(
     r"^/@(?P<username>[A-Za-z0-9._-]+)/video/(?P<video_id>[0-9]{6,32})/?$"
 )
 _TIKTOK_SHARE_PATH = re.compile(r"^/t/[A-Za-z0-9_-]{3,64}/?$")
+_TIKTOK_SHORT_HOSTS = {"vm.tiktok.com", "vt.tiktok.com"}
 _INSTAGRAM_PATH = re.compile(r"^/(?P<kind>reel|p)/(?P<video_id>[A-Za-z0-9_-]{3,64})/?$")
 
 
@@ -49,7 +50,7 @@ class SourceIdentityParser:
     def parse(self, url: str) -> SourceIdentity:
         parsed = self._validated_components(url)
         hostname = parsed.hostname.casefold() if parsed.hostname else ""
-        needs_redirect = hostname == "vm.tiktok.com" or (
+        needs_redirect = hostname in _TIKTOK_SHORT_HOSTS or (
             hostname in {"tiktok.com", "www.tiktok.com", "m.tiktok.com"}
             and _TIKTOK_SHARE_PATH.fullmatch(parsed.path) is not None
         )
@@ -60,7 +61,7 @@ class SourceIdentityParser:
             destination_parts = self._validated_components(destination)
             if (
                 destination_parts.hostname is not None
-                and destination_parts.hostname.casefold() == "vm.tiktok.com"
+                and destination_parts.hostname.casefold() in _TIKTOK_SHORT_HOSTS
             ):
                 raise InvalidSourceURL("short link did not resolve")
             return self._parse_direct(destination_parts)

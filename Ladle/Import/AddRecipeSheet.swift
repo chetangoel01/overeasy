@@ -294,7 +294,7 @@ struct AddRecipeSheet: View {
             )
             .font(.system(size: 25, weight: .bold))
             .foregroundStyle(
-                needsReview ? LadleTheme.ink : LadleTheme.onAccent
+                LadleTheme.ink
             )
             .frame(width: 62, height: 62)
             .background(

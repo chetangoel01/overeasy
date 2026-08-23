@@ -14,6 +14,7 @@ ALLOWED_SOCIAL_HOSTS = frozenset(
         "m.youtube.com",
         "tiktok.com",
         "vm.tiktok.com",
+        "vt.tiktok.com",
         "www.instagram.com",
         "www.tiktok.com",
         "www.youtube.com",
@@ -230,9 +231,16 @@ class PinnedHTTPClient:
                         raise UnsafeNetworkTarget(
                             f"response exceeded {max_bytes} bytes"
                         )
+                decoded_headers = httpx.Headers(
+                    [
+                        (name, value)
+                        for name, value in response.headers.multi_items()
+                        if name.casefold() not in {"content-encoding", "content-length"}
+                    ]
+                )
                 return httpx.Response(
                     status_code=response.status_code,
-                    headers=response.headers,
+                    headers=decoded_headers,
                     content=bytes(content),
                     request=request,
                     extensions=response.extensions,

@@ -1,147 +1,128 @@
-# Ladle Design System
+# Ladle Design System — "Porcelain & Graphite"
 
 Status: approved implementation source of truth
 
+## Concept
+
+Overeasy should feel like a focused iPhone utility, not a themed recipe app.
+Cool porcelain surfaces recede behind food photography, graphite makes cooking
+calm and legible, and signal red marks actions or items that need attention.
+
 ## Scene
 
-A home cook saves and sorts recipes one-handed on the couch, then reads Ladle
-from a bright kitchen counter with wet or floury hands. Browsing is warm and
-compact. Cooking is high contrast, calm, and legible at a glance.
+A home cook saves and sorts recipes one-handed on the couch, then reads the app
+from a bright kitchen counter with wet or floury hands. Browsing is compact and
+familiar. Cooking is high contrast and readable at a glance.
 
 ## Design principles
 
-- Native iOS behavior comes first. Use SwiftUI navigation, sheets, menus,
-  alerts, controls, safe areas, and SF Symbols.
-- Food photography is the most saturated visual element.
-- Color communicates action or state, never decoration alone.
-- Browsing surfaces are light. Focus cooking uses smoky plum to create a clear
-  task boundary.
-- Dynamic Type, VoiceOver, Reduce Motion, and 44-point targets are preserved
-  even when a mockup uses smaller presentation-scale measurements.
-- Long content scrolls. Primary actions stay reachable without covering
-  ingredients, steps, or form fields.
+- Prefer native iOS navigation, sheets, menus, controls, safe areas, SF Symbols,
+  and system feedback.
+- Show the object and the action before explaining either one. Instructional
+  copy appears only when a consequence or recovery path is not obvious.
+- Food photography is the most saturated element in the library.
+- Signal red appears for primary actions, favorites, active navigation, and
+  attention badges—never as decoration.
+- Use flat or material-backed native surfaces without decorative gradients,
+  outlines, or ornamental shadows.
+- Preserve Dynamic Type, VoiceOver, Reduce Motion, and 44-point targets.
 
 ## Color
 
-| Role | Value | Use |
-| --- | --- | --- |
-| Smoky plum | `#493943` | Selected controls and Focus Mode background |
-| Paper | `#FAF6EF` | Primary reading surface |
-| Oat | `#F1ECE3` | Secondary surfaces and fields |
-| Ink | `#30272D` | Primary text and controls |
-| Dusty brick | `#AD503D` | Primary actions and errors |
-| Soft celery | `#BEC9AE` | Success and progress |
-| Muted ube | `#DDD5DF` | Inactive controls and quiet grouping |
-| Muted ink | `#72676D` | Secondary text on paper or oat |
+Legacy token names remain in code while their semantic roles settle.
 
-Brick is deliberately darker than the exploration artifact so small text and
-button labels meet contrast requirements. Use paper text on brick and plum.
-Use ink text on celery and ube.
+| Role | Code token | Light | Dark | Use |
+| --- | --- | --- | --- | --- |
+| Porcelain | `paper` | `#F2F4F6` | `#101214` | Primary surface |
+| Raised neutral | `oat` | `#E3E7EA` | `#1C2024` | Fields and quiet grouping |
+| Steel | `butter`, `ube` | `#D7DDE2` | `#252A2F` | Inactive and review surfaces |
+| Graphite ink | `ink` | `#14181B` | `#F2F4F5` | Primary text and controls |
+| Graphite ground | `plum` | `#14181B` | `#101214` | Welcome and Focus Mode |
+| Signal red | `brick` | `#EE4B2F` | `#FF674E` | Primary action and active state |
+| Accessible red text | `accentText` | `#C73924` | `#FF7562` | Favorites and tinted icons |
+| Sage success | `celery` | `#83A18A` | `#294233` | Success state |
+| Secondary ink | `mutedInk` | `#64707A` | `#A6AFB7` | Metadata |
+| On-signal | `onAccent` | `#FAFBFC` fixed | same | Content on signal red or graphite |
+| Fixed graphite | `fixedInk` | `#14181B` fixed | same | Content on fixed pale surfaces |
+| Focus signal | `focusAccent` | `#FF5A3D` fixed | same | Focus progress and advance action |
+
+Signal-red fills always carry `onAccent`. Errors use the system destructive
+role.
 
 ## Typography
 
-- SF Rounded carries screen titles, recipe names, and short section headings.
-- SF Pro carries body copy, controls, ingredients, metadata, and cooking
-  instructions.
-- Long cooking instructions prioritize distance legibility over personality.
-- Hierarchy comes from size and weight, not tracked uppercase labels.
-- Body copy uses semantic Dynamic Type styles with scaled custom sizes where
-  the approved hierarchy requires them.
+All type uses SF Pro's standard design and width.
+
+- Screen titles and welcome headlines: bold.
+- Recipe names and section headings: semibold.
+- Body: regular; action emphasis: semibold.
+- Metadata: regular and secondary in color.
+- Long cooking instructions can use larger scaled sizes for distance legibility.
+
+Avoid expanded display type, serif editorial accents, and decorative uppercase
+tracking.
 
 ## Shape and spacing
 
-- Circular icon controls are at least 44 points.
-- Primary controls and fields use 14 to 16-point continuous corners.
-- Prominent images and grouped surfaces use 18 to 22-point continuous corners.
-- Sheets use the native presentation shape and drag indicator.
-- Use 8, 12, 16, 24, and 32-point spacing roles, with varied rhythm between
-  compact controls, sections, and cooking content.
-- Prefer dividers and open lists to wrapping every section in a card.
+- Icon controls have at least a 44-point target.
+- Controls and fields use 14–16 point continuous corners.
+- Recipe images and grouped surfaces use 18–22 point continuous corners.
+- Sheets keep the native presentation shape and drag indicator.
+- Use the 8, 12, 16, 24, and 32 point spacing roles.
 
-## Components
+## Navigation and library
 
-### Buttons
+- The root workspace is a native four-tab structure: Recipes, Discover, Watch,
+  and Inbox.
+- Recipes is the default tab. Discover, Watch, and Inbox are direct workspace
+  destinations, not cards hidden inside a home feed.
+- Inbox shows a badge only when imports need attention.
+- Recipes owns the large title, an always-visible search field, compact sort,
+  filter, and grid/list controls, an image-led recipe archive, and generated
+  collections below the archive.
+- Selecting a tab returns to that workspace root instead of pushing a faux
+  destination onto the recipe navigation path.
+- Recipe detail remains a pushed destination. Import and account flows remain
+  native sheets.
 
-- Primary: brick fill, paper label, full width when it advances the task.
-- Secondary: oat fill, ink label.
-- Quiet: text-only for cancellation or optional paths.
-- Destructive actions use the system destructive role.
-- Press feedback lasts 150 to 200 milliseconds and respects Reduce Motion.
+## Watch and Inbox
 
-### Navigation
+- Watch is a regular scrolling destination with one large video image, source,
+  recipe metadata, and direct Open/Start Cooking actions per item.
+- Do not reproduce recipe detail inside segmented card panels.
+- Inbox is a plain native list. Empty copy is one short sentence. Recovery and
+  review actions remain explicit when an import needs attention.
 
-- Home and All Recipes share a native segmented control.
-- Search is presented only when summoned.
-- Sort uses a native menu. Filters use a native sheet.
-- Recipe actions use a sheet so cooking content remains primary.
+## Cooking
 
-### Async and recovery states
-
-- A circular state symbol, direct heading, short explanation, and one clear
-  next action form the shared state pattern.
-- Background imports can be dismissed safely.
-- Failures always explain what remained unchanged or preserved.
-- Loading content uses stable placeholders when the surrounding layout is
-  already known.
-
-### Cooking
-
-- Full Recipe remains a light checklist and overview.
-- Focus Mode uses plum with paper text and celery progress.
+- Full Recipe stays a light checklist and overview.
+- Focus Mode uses the graphite ground with porcelain text and a fixed signal-red
+  progress/action color.
 - One instruction owns the screen. Timers are large and stateful.
-- No food photography or library controls appear in Focus Mode.
+- Food photography and library navigation do not appear in Focus Mode.
 
-## Information architecture
+## First run and Share Extension
 
-### First run
+- Welcome is a dedicated graphite surface with the installed app mark, one
+  product sentence, and Apple, Google, and guest choices.
+- State the ten-recipe guest limit because it changes the user's decision; avoid
+  a passive feature tour.
+- The Share Extension mirrors the porcelain/graphite palette and says only what
+  is needed to confirm saving or explain recovery.
 
-- Launch directly into one dedicated, full-screen welcome surface on paper.
-  Do not reveal or soften the library behind it, and do not require a passive
-  feature tour.
-- Use the same fried-egg mark as the installed app icon; do not invent a
-  secondary onboarding logo.
-- Continue with Apple, Sign in with Google, and guest entry are the initial
-  account choices. State the ten-recipe guest limit and that later sign-in
-  preserves recipes.
-- An empty Home or All Recipes view leads directly to adding the first recipe.
-  Share Extension guidance stays contextual beside that action.
+## Discover and account
 
-### Home
-
-- Import Inbox entry with an attention count
-- Watch saved recipes entry
-- Recipes saved this week
-- Useful generated groups: ready in 30 minutes, favorites, and not cooked yet
-
-### Discover
-
-- A peer destination beside Home and All Recipes
-- Open list of public recipe-video sources ranked by aggregate saves
-- Creator account, source, image, short description, and save count are visible
-- Saving pre-fills the existing import flow so extraction and ownership remain
-  account-scoped
-
-### All Recipes
-
-- Dense archive supporting hundreds of recipes
-- Optional list and grid presentation
-- Sort, filters, and removable active filters
-- Search as a dedicated destination
-
-### Watch
-
-- Regular vertical scrolling with content-sized recipe cards
-- Creator account and source platform remain visible above each recipe
-- Overview, Ingredients, and Method switch within each card
-- Only one source action is active at a time
-- Stored imagery and the original source link are the required fallback when
-  direct third-party playback is unavailable
+- Discover ranks public recipe-video sources by aggregate saves and shows the
+  creator account, source, image, summary, and save count. Saving starts the
+  existing account-owned import flow.
+- Account presents the connected provider, saved-recipe count, and sync state.
+  Internal installation identifiers and provider profile details stay hidden.
 
 ## Accessibility and verification
 
 - Test default, extra-large, and accessibility Dynamic Type sizes.
-- Verify light and dark cooking surfaces with VoiceOver labels.
-- Verify all controls at a minimum 44-point target.
-- Verify small text at WCAG AA contrast or better.
-- Capture the primary atlas destinations at the project simulator size and
-  compare hierarchy, spacing, state, and content rather than HTML pixel values.
+- Verify light and dark cooking surfaces and VoiceOver labels.
+- Verify 44-point targets and WCAG AA contrast for small text.
+- Capture Recipes, Discover, Watch, Inbox, Account, recipe detail, Focus Mode,
+  welcome, and Share Extension at the project simulator size before a design
+  checkpoint.

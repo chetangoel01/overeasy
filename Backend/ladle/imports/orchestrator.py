@@ -277,6 +277,10 @@ class ImportOrchestrator:
                                 )
                                 context.diagnostics.append("thumbnailAnalysisUsed")
                 with log_context(stage="extraction"):
+                    if not _has_source_evidence(context):
+                        raise ExtractionUnavailable(
+                            "acquisition returned no usable source evidence"
+                        )
                     template = self._extractor.extract(context, job_id=job_id)
                 with log_context(stage="thumbnail"):
                     thumbnail_key = (
@@ -285,9 +289,7 @@ class ImportOrchestrator:
                             thumbnail_asset,
                         )
                         if (
-                            self._thumbnails is not None
-                            and thumbnail_asset is not None
-                            and not bypass_cache
+                            self._thumbnails is not None and thumbnail_asset is not None
                         )
                         else None
                     )
@@ -296,7 +298,6 @@ class ImportOrchestrator:
                         if self._thumbnails is None
                         and context.thumbnail_url is not None
                         and context.thumbnail_url.startswith("https://")
-                        and not bypass_cache
                         else None
                     )
         except (
@@ -330,6 +331,8 @@ class ImportOrchestrator:
                     database,
                     job=job,
                     template=template,
+                    thumbnail_object_key=thumbnail_key,
+                    thumbnail_remote_url=thumbnail_remote_url,
                 )
                 return self._outcome(
                     (
@@ -408,3 +411,12 @@ class ImportOrchestrator:
                 diagnostic_code=type(error).__name__,
                 include_shared_followers=not bypass_cache,
             )
+
+
+def _has_source_evidence(context: AcquiredVideoContext) -> bool:
+    return bool(
+        context.description.strip()
+        or context.transcript
+        or context.visual_observations
+        or context.linked_documents
+    )

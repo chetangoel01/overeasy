@@ -1,28 +1,34 @@
 import SwiftUI
 
 enum LadleTheme {
-    static let plumHex = "#493943"
-    static let paperHex = "#FAF6EF"
-    static let oatHex = "#F1ECE3"
-    static let inkHex = "#30272D"
-    static let brickHex = "#AD503D"
-    static let celeryHex = "#BEC9AE"
-    static let ubeHex = "#DDD5DF"
-    static let mutedInkHex = "#72676D"
-    static let darkPaperHex = "#1D191C"
-    static let darkOatHex = "#282226"
-    static let darkInkHex = "#F7F0E8"
-    static let darkMutedInkHex = "#B9ADB3"
-    static let darkUbeHex = "#332B31"
-    static let darkCeleryHex = "#364536"
-    static let onAccentHex = "#FFF9F0"
-    static let accentTextHex = "#AD503D"
-    static let darkAccentTextHex = "#E58A74"
-    static let focusActionTextHex = plumHex
+    // Porcelain library surfaces, graphite Focus Mode, and a single signal-red
+    // action color. Legacy token names remain while their semantic roles settle.
+    static let plumHex = "#14181B"
+    static let paperHex = "#F2F4F6"
+    static let oatHex = "#E3E7EA"
+    static let butterHex = "#D7DDE2"
+    static let inkHex = "#14181B"
+    static let brickHex = "#EE4B2F"
+    static let celeryHex = "#83A18A"
+    static let ubeHex = "#D7DDE2"
+    static let mutedInkHex = "#64707A"
+    static let darkPaperHex = "#101214"
+    static let darkOatHex = "#1C2024"
+    static let darkButterHex = "#252A2F"
+    static let darkInkHex = "#F2F4F5"
+    static let darkMutedInkHex = "#A6AFB7"
+    static let darkUbeHex = "#252A2F"
+    static let darkCeleryHex = "#294233"
+    static let onAccentHex = "#FAFBFC"
+    static let accentTextHex = "#C73924"
+    static let darkAccentTextHex = "#FF7562"
+    static let fixedInkHex = "#14181B"
+    static let focusAccentHex = "#FF5A3D"
 
     static let plum = Color("Plum")
     static let paper = Color("Paper")
     static let oat = Color("Oat")
+    static let butter = Color("Butter")
     static let ink = Color("Ink")
     static let brick = Color("Brick")
     static let celery = Color("Celery")
@@ -30,14 +36,19 @@ enum LadleTheme {
     static let mutedInk = Color("MutedInk")
     static let accentText = Color("AccentText")
     static let onAccent = Color(
-        red: 1,
-        green: 249 / 255,
-        blue: 240 / 255
+        red: 250 / 255,
+        green: 251 / 255,
+        blue: 252 / 255
     )
-    static let focusActionText = Color(
-        red: 73 / 255,
-        green: 57 / 255,
-        blue: 67 / 255
+    static let fixedInk = Color(
+        red: 20 / 255,
+        green: 24 / 255,
+        blue: 27 / 255
+    )
+    static let focusAccent = Color(
+        red: 255 / 255,
+        green: 90 / 255,
+        blue: 61 / 255
     )
 
     static let field = oat

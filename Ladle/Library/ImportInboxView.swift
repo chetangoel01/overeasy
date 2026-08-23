@@ -15,11 +15,6 @@ struct ImportInboxView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(LadleTheme.paper)
-        .navigationTitle("Import inbox")
-        .navigationBarTitleDisplayMode(.large)
-        .toolbar(.visible, for: .navigationBar)
-        .toolbarBackground(LadleTheme.paper, for: .navigationBar)
-        .toolbarBackground(.visible, for: .navigationBar)
         .animation(
             reduceMotion
                 ? nil
@@ -35,9 +30,7 @@ struct ImportInboxView: View {
             ContentUnavailableView(
                 "Inbox clear",
                 systemImage: "checkmark.circle",
-                description: Text(
-                    "New imports and anything that needs attention appear here."
-                )
+                description: Text("New imports appear here.")
             )
             .foregroundStyle(LadleTheme.ink)
             .listRowBackground(LadleTheme.paper)

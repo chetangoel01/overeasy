@@ -191,7 +191,7 @@ struct NutritionView: View {
         value: Decimal?,
         color: Color
     ) -> some View {
-        let valueText = value.map { "\(decimalText($0)) g" } ?? "Unavailable"
+        let valueText = value.map { "\(ladleNumber($0)) g" } ?? "Unavailable"
 
         return VStack(spacing: 7) {
             Circle()
@@ -220,7 +220,7 @@ struct NutritionView: View {
             Text(nutrient.name)
                 .ladleFont(.body)
             Spacer()
-            Text("\(decimalText(nutrient.amount)) \(nutrient.unit)")
+            Text("\(ladleNumber(nutrient.amount)) \(nutrient.unit)")
                 .ladleFont(.bodyStrong)
         }
         .foregroundStyle(LadleTheme.ink)
@@ -279,7 +279,7 @@ struct NutritionView: View {
             return "—"
         }
         let prefix = displayedNutrition.isEstimated ? "≈ " : ""
-        return "\(prefix)\(decimalText(calories))"
+        return "\(prefix)\(ladleNumber(calories, maximumFractionDigits: 0))"
     }
 
     private var displayedNutrition: Nutrition {
@@ -294,9 +294,6 @@ struct NutritionView: View {
         nutrition.perServing != nil
     }
 
-    private func decimalText(_ value: Decimal) -> String {
-        NSDecimalNumber(decimal: value).stringValue
-    }
 }
 
 private struct NutritionDisplayRow: Identifiable {

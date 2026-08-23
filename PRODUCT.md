@@ -14,30 +14,30 @@ cook it hands-messy with big type and per-step focus.
 Home cooks who save recipe videos and never find them again. They use the app
 in two modes: browsing/triage (couch, one thumb) and cooking (phone propped on
 the kitchen counter, bright light, wet or floury hands, glancing from a
-distance). The cooking mode drives the design: light theme, high contrast,
+distance). The cooking mode drives the design: high contrast,
 oversized type, 44pt-plus hit targets.
 
 ## Brand and tone
 
-Practical, warm, unfussy. The voice is a competent friend, not a magazine.
+Practical, direct, unfussy. The voice is a competent friend, not a magazine.
 Copy is short, concrete, and never exclamatory. One signature metaphor
 ("rescued from the scroll") is reserved for the welcome screen only.
 
 ## Visual direction
 
-Native-first SwiftUI using the approved Muted Corner Store system. SF Rounded
-carries screen titles, recipe names, and short section headings. SF Pro carries
-body copy, controls, ingredients, metadata, and cooking instructions. Warm
-paper and oat browsing surfaces use smoky plum, dusty brick, soft celery, and
-muted ube for deliberate action and state roles. Focus cooking uses a
-high-contrast plum ground. No tracked uppercase eyebrow labels; hierarchy comes
-from size, weight, color, and spacing.
+Native-first SwiftUI using the approved Porcelain & Graphite system. Cool
+neutral surfaces keep the library quiet enough for food photography to lead;
+graphite creates a high-contrast cooking ground; signal red is reserved for
+actions and attention. SF Pro uses familiar iOS weights and widths. Hierarchy
+comes from content, size, spacing, and native navigation rather than branded
+chrome or explanatory cards.
 
 ## Anti-references
 
 - The "AI recipe app" default: cream background + terracotta accents + system
   serif (New York) headlines + tracked uppercase eyebrows. This app had that
   look and is deliberately moving off it.
+- Cozy pantry, deli-counter, kraft-paper, or illustrated food metaphors.
 - Editorial food-magazine styling (Fraunces/Playfair serifs, italic accents).
 - Shouty coaching copy ("DO THIS NOW", exclamation marks).
 

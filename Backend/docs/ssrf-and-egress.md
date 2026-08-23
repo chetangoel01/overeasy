@@ -12,6 +12,9 @@ metadata, task credentials, localhost, or private services.
 rejects the complete DNS answer if any address is non-global, and connects to
 the validated address with the original `Host` and TLS SNI names. Every
 redirect is resolved and checked independently. Responses are byte bounded.
+The bound applies to decoded response bytes. When the pinned client rebuilds a
+buffered response, it removes the original content-encoding and content-length
+headers so gzip or deflate data is not decoded a second time.
 
 The shared client now covers creator-linked pages, TikTok and yt-dlp subtitle
 URLs, Instagram and yt-dlp media URLs, oEmbed calls, and returned thumbnails.
@@ -41,6 +44,7 @@ policy there rather than carrying a home-grown network namespace forward.
 Unit tests cover mixed DNS answers, DNS rebinding, every redirect, literal
 metadata endpoints, IPv4-mapped IPv6, nonstandard schemes and ports,
 provider-returned subtitle/media/thumbnail URLs, byte bounds, and pinned
-address/Host/SNI behavior. The deployed worker should still be probed with
+address/Host/SNI behavior, including a compressed-response regression. The
+deployed worker should still be probed with
 representative metadata, private-address, redirect, and public-HTTPS cases
 before a release is promoted.

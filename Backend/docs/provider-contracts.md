@@ -78,6 +78,14 @@ quota failures open the affected provider circuit. Supadata and SoScripted are
 optional: a private worker can run the free acquisition, raw-media Whisper,
 frame-analysis, and recipe-extraction path with only its OpenRouter key.
 
+TikTok's page metadata and English ASR track are an independent part of the
+free rung. They are attempted even when yt-dlp cannot read the post, and can
+recover the caption, creator, thumbnail, duration, transcript, and sticker
+text from TikTok's public rehydration data. A context with no description,
+transcript, visual observation, or linked document is rejected before recipe
+extraction; it must fail as `parserUnavailable` instead of saving an empty
+`needsReview` placeholder.
+
 ## Transcript fallback verification
 
 Purpose: keep TikTok and Instagram transcription resilient without maintaining

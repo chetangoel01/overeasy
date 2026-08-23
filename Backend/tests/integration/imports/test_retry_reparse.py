@@ -9,7 +9,12 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from alembic import command
 from ladle.acquisition.errors import VisualAnalysisUnavailable
-from ladle.acquisition.models import VisualEvidence, VisualResult
+from ladle.acquisition.models import (
+    AcquiredVideoContext,
+    SourceVideoDescriptor,
+    VisualEvidence,
+    VisualResult,
+)
 from ladle.cache.claims import ExtractionClaimService
 from ladle.cache.service import ExtractionCacheService
 from ladle.contracts.recipes import RecipeReviewStatus, RecipeSource
@@ -19,6 +24,7 @@ from ladle.db.models import (
     ImportJob,
     NegativeExtractionCache,
     Recipe,
+    RecipeImage,
     SourceVideo,
 )
 from ladle.db.session import build_engine
@@ -226,7 +232,7 @@ def test_correction_reparse_replaces_unchanged_recipe_without_poisoning_cache(
         "thumbnail-vision:test"
     )
     assert thumbnails.downloads == 2
-    assert thumbnails.stores == 1
+    assert thumbnails.stores == 2
 
     with sessions() as database:
         completed = database.get(ImportJob, job_id)
@@ -237,6 +243,11 @@ def test_correction_reparse_replaces_unchanged_recipe_without_poisoning_cache(
         assert stored is not None
         assert stored.title == "Corrected Lemon Orzo"
         assert stored.revision == 2
+        image = database.scalar(
+            select(RecipeImage).where(RecipeImage.recipe_id == original_recipe_id)
+        )
+        assert image is not None
+        assert image.object_key == "thumbnails/retry/thumb.jpg"
         assert completed.correction_notes_encrypted is None
         assert completed.pasted_text_encrypted is None
         assert database.scalar(select(func.count()).select_from(ExtractionCache)) == 1
@@ -298,6 +309,53 @@ def test_thumbnail_analysis_failure_continues_with_transcript(
 
 
 @pytest.mark.integration
+def test_empty_acquisition_fails_instead_of_saving_placeholder_recipe(
+    clean_postgres_url: str,
+) -> None:
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    clock = FrozenClock(datetime(2026, 7, 23, 21, 0, tzinfo=UTC))
+    sessions, orchestrator, _, acquirer, extractor = services(
+        clean_postgres_url,
+        clock,
+        template=RecipeTemplate.from_recipe(manual_recipe(uuid4())),
+    )
+    source_id = uuid4()
+    with sessions.begin() as database:
+        database.add(
+            SourceVideo(
+                id=source_id,
+                platform="tiktok",
+                platform_video_id="empty-source",
+                canonical_url=("https://www.tiktok.com/@creator/video/empty-source"),
+                source_revision="1",
+                source_metadata={},
+            )
+        )
+        job_id = seed_import(database, source_id=source_id, suffix="empty-source")
+    acquirer.context = AcquiredVideoContext(
+        source=SourceVideoDescriptor(
+            source_video_id=source_id,
+            platform="tiktok",
+            platform_video_id="empty-source",
+            canonical_url="https://www.tiktok.com/@creator/video/empty-source",
+            source_revision="1",
+        ),
+        is_public=True,
+        description="",
+        diagnostics=["metadataUnavailable"],
+    )
+
+    assert orchestrator.process(job_id) == ProcessOutcome.FAILED
+    assert extractor.calls == []
+    with sessions() as database:
+        job = database.get(ImportJob, job_id)
+        assert job is not None
+        assert job.status == "failed"
+        assert job.failure_reason == "parserUnavailable"
+        assert job.diagnostic_code == "ExtractionUnavailable"
+
+
+@pytest.mark.integration
 def test_pasted_text_skips_acquisition_and_stale_edit_preserves_current_recipe(
     clean_postgres_url: str,
 ) -> None:
@@ -310,10 +368,18 @@ def test_pasted_text_skips_acquisition_and_stale_edit_preserves_current_recipe(
         }
     )
     template = RecipeTemplate.from_recipe(recipe)
+    thumbnails = FakeThumbnailFetcher(
+        ThumbnailAsset(
+            data=b"thumbnail-bytes",
+            content_type="image/jpeg",
+            extension=".jpg",
+        )
+    )
     sessions, orchestrator, retry, acquirer, extractor = services(
         clean_postgres_url,
         clock,
         template=template,
+        thumbnails=thumbnails,
     )
     with sessions.begin() as database:
         source_id = uuid4()
@@ -364,6 +430,11 @@ def test_pasted_text_skips_acquisition_and_stale_edit_preserves_current_recipe(
         assert current.title == "User Edited Title"
         assert candidate is not None
         assert candidate.title == "Automated Replacement"
+        image = database.scalar(
+            select(RecipeImage).where(RecipeImage.recipe_id == candidate.id)
+        )
+        assert image is not None
+        assert image.object_key == "thumbnails/retry/thumb.jpg"
         assert job.status == "needsReview"
         assert job.correction_notes_encrypted is None
         assert job.pasted_text_encrypted is None

@@ -68,8 +68,8 @@ PROMPT_DIGESTS = {
     "recipe-2026-07-27-v8": (
         "ebd705fd35c03bf698d1e35a5b86214ce4168a7e7f13900aebc68890dfc7eafc"
     ),
-    "recipe-2026-08-23-v9": (
-        "1f3650ec5b8e2ca4ef5189ff07cf6cf430feddc8787c5d253810f30a7a12439e"
+    "recipe-2026-08-23-v10": (
+        "cfb1629db485dc2f217e34089535d68aa809517b0268758d6c2e72f580a48755"
     ),
 }
 
@@ -90,6 +90,12 @@ def test_prompt_allows_labelled_culinary_estimates_for_missing_quantities() -> N
     assert "mark methodProvenance 'partial' or 'inferred'" in SYSTEM_PROMPT
     assert "conservative culinary estimate" in SYSTEM_PROMPT
     assert "Never present an estimate as the creator's amount" in SYSTEM_PROMPT
+
+
+def test_prompt_defines_nutrition_basis_and_precision() -> None:
+    assert "set servingBasis to 1" in SYSTEM_PROMPT
+    assert "Never leave servingBasis null" in SYSTEM_PROMPT
+    assert "false precision" in SYSTEM_PROMPT
 
 
 def test_changing_the_prompt_requires_a_new_version() -> None:

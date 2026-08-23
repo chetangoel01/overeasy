@@ -307,7 +307,7 @@ struct FullRecipeView: View {
             if isCompleted {
                 Image(systemName: "checkmark")
                     .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(LadleTheme.onAccent)
+                    .foregroundStyle(LadleTheme.ink)
             } else if let number {
                 Text("\(number)")
                     .ladleFont(.metadata)

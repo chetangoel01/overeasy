@@ -5,22 +5,13 @@ import SwiftUI
 
 @MainActor
 final class ProjectSmokeTests: XCTestCase {
-    func testLibraryUsesOneNavigationPathForWorkspaceDestinations() {
-        var state = LibraryNavigationState()
-
-        state.open(.search)
-        state.open(.watch)
-
-        XCTAssertEqual(state.path, [.search, .watch])
-    }
-
     func testPrimaryScreensAvoidRedundantExplanatoryHeadings() throws {
         let project = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-        let home = try String(
+        let library = try String(
             contentsOf: project.appendingPathComponent(
-                "Ladle/Library/LibraryHomeView.swift"
+                "Ladle/Library/AllRecipesView.swift"
             ),
             encoding: .utf8
         )
@@ -37,14 +28,14 @@ final class ProjectSmokeTests: XCTestCase {
             encoding: .utf8
         )
 
-        XCTAssertFalse(home.contains("Return to saved recipe videos"))
-        XCTAssertFalse(home.contains("Useful groups"))
+        XCTAssertFalse(library.contains("Return to saved recipe videos"))
+        XCTAssertFalse(library.contains("Useful groups"))
         XCTAssertFalse(detail.contains("Text(kicker)"))
         XCTAssertFalse(cooking.contains("Tap as you prep"))
         XCTAssertFalse(cooking.contains("Text(\"Cooking\")"))
     }
 
-    func testFocusActionUsesTextForItsFixedLightSurface() throws {
+    func testFocusActionUsesSignalColorWithReadableText() throws {
         let sourceURL = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -53,9 +44,10 @@ final class ProjectSmokeTests: XCTestCase {
 
         XCTAssertTrue(
             source.contains(
-                ".foregroundStyle(LadleTheme.focusActionText)"
+                ".foregroundStyle(LadleTheme.onAccent)"
             )
         )
+        XCTAssertTrue(source.contains("LadleTheme.focusAccent"))
     }
 
     func testRuntimeConfigurationUsesInMemoryStoreForUnitTests() {

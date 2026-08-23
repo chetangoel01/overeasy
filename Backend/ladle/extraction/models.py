@@ -125,7 +125,14 @@ class ExtractedNutrition(WireModel):
     sugar_grams: RecipeDecimal | None = Field(default=None, ge=0)
     sodium_milligrams: RecipeDecimal | None = Field(default=None, ge=0)
     other_nutrients: list[ExtractedNutrient] = Field(default_factory=list)
-    serving_basis: RecipeDecimal | None = Field(default=None, gt=0)
+    serving_basis: RecipeDecimal | None = Field(
+        default=None,
+        gt=0,
+        description=(
+            "Number of servings represented by every nutrition value; use 1 "
+            "when the values are per serving"
+        ),
+    )
 
 
 MethodProvenance = Literal["explicit", "partial", "inferred"]
