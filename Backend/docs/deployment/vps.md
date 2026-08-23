@@ -281,6 +281,14 @@ OVH hostname, whose A and AAAA records already resolve to this VPS. This
 temporary hostname is for guarded staging only; changing it later requires a
 planned environment rotation and redeploy.
 
+Because this is a testing deployment, each Ladle runtime container runs its
+Docker health check every five minutes after startup. During the first minute,
+Docker probes every five seconds so the existing two-minute deployment waits
+can still establish readiness promptly; after startup, three consecutive
+failures are required before a container becomes unhealthy. The independent
+systemd health job also runs every five minutes and performs the fuller
+application, gateway, TLS, backup-freshness, and active-revision checks.
+
 The shared Caddy gateway is the VPS TLS boundary and emits the two-year HSTS
 policy for every HTTPS response, including staging-gate rejections. Nginx and
 the API retain the remaining security headers on authorized responses. Ladle

@@ -1351,6 +1351,25 @@ def test_vps_profile_files_exist() -> None:
     assert PROFILE.is_file()
 
 
+def test_vps_profile_uses_five_minute_testing_health_checks() -> None:
+    services = _profile()["services"]
+
+    for name in (
+        "postgres",
+        "redis",
+        "minio",
+        "edge",
+        "api",
+        "worker-egress",
+        "worker",
+    ):
+        healthcheck = services[name]["healthcheck"]
+        assert healthcheck["interval"] == "5m", name
+        assert healthcheck["retries"] == 3, name
+        assert healthcheck["start_period"] == "1m", name
+        assert healthcheck["start_interval"] == "5s", name
+
+
 def test_gateway_assets_exist() -> None:
     assert GATEWAY_PROFILE.is_file()
     assert GATEWAY_CADDYFILE.is_file()

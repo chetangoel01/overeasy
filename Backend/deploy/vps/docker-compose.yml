@@ -9,6 +9,12 @@ x-vps-runtime-build: &vps-runtime-build
   args:
     INSTALL_MEDIA_TOOLS: "true"
 
+x-testing-healthcheck: &testing-healthcheck
+  interval: 5m
+  retries: 3
+  start_period: 1m
+  start_interval: 5s
+
 x-vps-environment: &vps-environment
   LADLE_ENVIRONMENT: "development"
   LADLE_JWT_SIGNING_SECRET: ${LADLE_JWT_SIGNING_SECRET:?set LADLE_JWT_SIGNING_SECRET}
@@ -62,6 +68,7 @@ services:
     mem_limit: 1g
     cpus: 1.0
     logging: *bounded-logging
+    healthcheck: *testing-healthcheck
     volumes:
       - ladle-postgres:/var/lib/postgresql/data
 
@@ -98,6 +105,7 @@ services:
     mem_limit: 384m
     cpus: 0.5
     logging: *bounded-logging
+    healthcheck: *testing-healthcheck
     volumes:
       - ladle-redis:/data
 
@@ -118,6 +126,7 @@ services:
     mem_limit: 768m
     cpus: 1.0
     logging: *bounded-logging
+    healthcheck: *testing-healthcheck
     volumes:
       - ladle-minio:/data
     networks:
@@ -161,10 +170,9 @@ services:
     cpus: 0.25
     logging: *bounded-logging
     healthcheck:
+      <<: *testing-healthcheck
       test: ["CMD", "nginx", "-t"]
-      interval: 5s
       timeout: 3s
-      retries: 12
     depends_on:
       api:
         condition: service_healthy
@@ -195,6 +203,7 @@ services:
     mem_limit: 1g
     cpus: 1.5
     logging: *bounded-logging
+    healthcheck: *testing-healthcheck
     networks:
       default: {}
       edge:
@@ -224,6 +233,7 @@ services:
       REDIS_HOST: redis
       MINIO_HOST: minio
     healthcheck:
+      <<: *testing-healthcheck
       test:
         - CMD
         - sh
@@ -232,9 +242,7 @@ services:
           test -f /tmp/egress-ready &&
           iptables -C OUTPUT -m owner --uid-owner 10001
           -j LADLE_WORKER_EGRESS
-      interval: 5s
       timeout: 3s
-      retries: 12
     depends_on:
       postgres:
         condition: service_healthy
@@ -253,6 +261,7 @@ services:
     mem_limit: 1536m
     cpus: 2.0
     logging: *bounded-logging
+    healthcheck: *testing-healthcheck
     depends_on:
       worker-egress:
         condition: service_healthy
