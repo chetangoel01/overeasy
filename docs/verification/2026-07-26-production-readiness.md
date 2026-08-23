@@ -47,6 +47,9 @@ metadata, and TestFlight packaging path before the first 1.0 beta.
   system transport/security functionality and a one-way hash.
 - `PrivacyInfo.xcprivacy` declares app-only `UserDefaults` access with required
   reason `CA92.1`; tracking is disabled.
+- `project.yml` owns automatic signing and team `P48VDW72LU` for every target,
+  so regenerating the Xcode project cannot silently make device archives
+  unsigned.
 - Until production DNS is available, Release builds use the existing guarded
   backend at `https://vps-8b0be574.vps.ovh.us`. The ignored
   `.private/VPSRelease.xcconfig` injects its gateway key, and App Attest is

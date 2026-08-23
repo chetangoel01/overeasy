@@ -119,6 +119,19 @@ final class ProjectSmokeTests: XCTestCase {
         )
     }
 
+    func testGeneratedProjectKeepsAutomaticSigningTeam() throws {
+        let project = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let specification = try String(
+            contentsOf: project.appendingPathComponent("project.yml"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(specification.contains("DEVELOPMENT_TEAM: P48VDW72LU"))
+        XCTAssertTrue(specification.contains("CODE_SIGN_STYLE: Automatic"))
+    }
+
     func testRuntimeConfigurationReadsSharedKeychainAccessGroup() {
         let configuration = LadleRuntimeConfiguration(
             launchArguments: [],
