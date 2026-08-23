@@ -3,10 +3,10 @@
 Ladle — shipping under the product name **Overeasy** — is a native iPhone recipe workspace for turning scattered social-video
 links into structured recipes that are easier to save, review, and cook.
 
-The app follows the Muted Corner Store system: warm paper and oat surfaces,
-smoky plum, dusty brick, and native SF Rounded/SF Pro typography. It is
-implemented in SwiftUI with a SwiftData persistence layer and a separate
-`LadleCore` domain package.
+The app follows the Porcelain & Graphite system: cool neutral surfaces let food
+photography lead, graphite supports high-contrast cooking, and signal red is
+reserved for actions and attention. It is implemented in SwiftUI with a
+SwiftData persistence layer and a separate `LadleCore` domain package.
 
 ## What is included
 
@@ -53,7 +53,7 @@ Ladle/                  SwiftUI application
   Edit/                 Structured editor and safe re-import
   Health/               Explicit Apple Health export
   Import/               Import coordinator and recovery surfaces
-  Library/              Home, Discover, Watch, Inbox, search, and archive
+  Library/              Recipes, Discover, Watch, and Inbox workspace tabs
   Notifications/        Import completion notifications
   Nutrition/            Nutrition detail
   RecipeDetail/         Editorial recipe presentation

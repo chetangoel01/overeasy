@@ -67,6 +67,10 @@ private struct WatchRecipeCard: View {
             media
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 VStack(alignment: .leading, spacing: 4) {
+                    Text(recipe.creatorAccountLabel)
+                        .ladleFont(.metadata)
+                        .foregroundStyle(LadleTheme.accentText)
+                        .lineLimit(1)
                     Text(recipe.title)
                         .ladleFont(.section)
                         .foregroundStyle(LadleTheme.ink)
@@ -105,15 +109,6 @@ private struct WatchRecipeCard: View {
     private var media: some View {
         ZStack {
             WatchRecipeImage(recipe: recipe)
-                .overlay(alignment: .topLeading) {
-                    Text(recipe.creatorAccountLabel)
-                        .ladleFont(.metadata)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 10)
-                        .frame(minHeight: 30)
-                        .background(.black.opacity(0.48), in: Capsule())
-                        .padding(12)
-                }
             Button {
                 isVideoPresented = true
             } label: {

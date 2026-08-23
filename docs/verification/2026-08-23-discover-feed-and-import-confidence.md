@@ -22,7 +22,9 @@ sign-in configuration.
 
 ## User-visible behavior
 
-- Home, Discover, and All Recipes are peer library destinations.
+- Recipes, Discover, Watch, and Inbox are persistent native workspace tabs.
+  Recipes keeps search, sort, filters, display controls, and generated
+  collections in one archive rather than splitting them across Home and All.
 - Discover ranks public social-recipe sources by aggregate saves from other
   accounts. Rows show creator account, source image, summary, save count, and a
   Save action that pre-fills the existing import sheet.
@@ -38,13 +40,15 @@ sign-in configuration.
 
 ## Import decisions
 
-- Prompt version `recipe-2026-08-23-v9` permits conservative conventional
+- Prompt version `recipe-2026-08-23-v10` permits conservative conventional
   ingredient estimates when dish context and standard technique support them.
 - Estimated quantities use rounded measures, confidence below 0.7, and a short
   cook-facing uncertainty reason. The prompt forbids presenting an estimate as
   the creator's stated amount.
 - A missing yield falls back to a clearly labeled four-serving household
   estimate only when ingredient mass cannot support a better calculation.
+- Nutrition without an explicit basis remains per-serving instead of being
+  divided again by the recipe yield.
 
 ## Discovery privacy
 
@@ -121,5 +125,9 @@ profiles.
 - The signed-in Account sheet was visually checked on `Ladle-Verify` after a
   successful Google session; all content fit without clipping, and the focused
   provider/sync presentation test passed.
-- Final verification: 165 iOS tests passed on `Ladle-Verify` with one expected
-  skip; the backend suite passed 511 tests with five expected skips.
+- Final consolidated verification: 167 iOS tests passed on `Ladle-Verify` with
+  one expected skip; LadleCore passed 44 tests; the backend suite passed 518
+  tests with five expected skips.
+- The Porcelain & Graphite redesign was inspected on the same simulator after
+  consolidation. Recipes, Discover, and regular-scroll Watch retained native
+  hierarchy, four-tab navigation, and readable creator attribution.

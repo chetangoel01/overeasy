@@ -11,7 +11,7 @@ final class LibraryNavigationStateTests: XCTestCase {
         XCTAssertTrue(state.path.isEmpty)
     }
 
-    func testSelectingAWorkspaceTabDoesNotPushNavigation() {
+    func testSelectingDiscoverDoesNotPushNavigation() {
         var state = LibraryNavigationState(
             path: [
                 .recipe(
@@ -23,9 +23,9 @@ final class LibraryNavigationStateTests: XCTestCase {
             ]
         )
 
-        state.select(.watch)
+        state.select(.discover)
 
-        XCTAssertEqual(state.tab, .watch)
+        XCTAssertEqual(state.tab, .discover)
         XCTAssertTrue(state.path.isEmpty)
     }
 
