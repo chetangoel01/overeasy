@@ -108,6 +108,13 @@ team. The app and extension currently share `group.com.ladle.ios`. Google also
 requires the ignored `.private/GoogleAuth.xcconfig`; start from
 `Config/GoogleAuth.xcconfig.example`.
 
+For local SSO, set the Apple and Google variables in `Backend/.env`. The local
+Compose profile forwards them to the API and mounts
+`LADLE_APPLE_PRIVATE_KEY_FILE` read-only at runtime; the key stays outside the
+container image and Git. Google App Check prewarming is best-effort so a
+transient or simulator-only prewarm failure does not block the OAuth screen;
+the Google SDK retries while building the authorization request.
+
 ## Run the backend
 
 ```bash

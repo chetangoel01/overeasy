@@ -127,6 +127,20 @@ final class ProjectSmokeTests: XCTestCase {
         XCTAssertFalse(configuration.seedsPreviewData)
     }
 
+    func testGoogleAppCheckPrewarmFailureDoesNotBlockSignInSetup() async throws {
+        let provider = GoogleSignInProvider(
+            infoDictionary: [
+                "GIDClientID": "ios-client-id",
+                "GIDServerClientID": "server-client-id",
+            ],
+            configureAppCheck: { completion in
+                completion(GoogleAppCheckTestError.unavailable)
+            }
+        )
+
+        try await provider.configureIfNeeded()
+    }
+
     func testLaunchScreenUsesThePaperSurface() {
         let launchScreen = Bundle.main.object(
             forInfoDictionaryKey: "UILaunchScreen"
@@ -223,4 +237,8 @@ final class ProjectSmokeTests: XCTestCase {
             "Processing limit reached. Try again later."
         )
     }
+}
+
+private enum GoogleAppCheckTestError: Error {
+    case unavailable
 }

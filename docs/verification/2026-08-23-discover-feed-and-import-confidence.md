@@ -91,6 +91,20 @@ profiles.
   Extension with `CODE_SIGNING_ALLOWED=NO`.
 - Runtime settings load the Apple private key and both enabled provider
   configurations without exposing credential contents.
-- Focused Apple, Google, and production-configuration tests: 71 passed.
+- Focused Apple, Google, and production-configuration tests: 72 passed.
 - A post-configuration simulator build confirms the issued iOS client ID,
   server audience ID, and callback scheme are embedded in the app.
+- A signed generic-device build succeeded with regenerated automatic
+  provisioning for the app and Share Extension.
+- The local Compose contract forwards both provider configurations and mounts
+  the Apple private key read-only into the API container.
+- On the dedicated `Ladle-Verify` iOS 26.5 simulator, Apple opened the system
+  Apple Account prompt. Full token exchange requires signing that simulator
+  into an Apple Account.
+- The same simulator completed Google OAuth through `accounts.google.com`; the
+  local API accepted `/v1/auth/google` with `200 OK`, restored the signed-in
+  session, and loaded the live Discover feed.
+- Google App Check prewarm failure was reproduced red on the simulator, fixed
+  as a non-blocking optimization, and protected by a focused regression test.
+- Final verification: 164 iOS tests passed on `Ladle-Verify` with one expected
+  skip; the backend suite passed 511 tests with five expected skips.

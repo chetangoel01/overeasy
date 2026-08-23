@@ -18,7 +18,25 @@ enum GoogleSignInProviderError: Error {
 
 @MainActor
 final class GoogleSignInProvider: GoogleSignInProviding {
+    typealias ConfigureAppCheck = (
+        @escaping (Error?) -> Void
+    ) -> Void
+
+    private let infoDictionary: [String: Any]
+    private let configureAppCheck: ConfigureAppCheck
     private var isConfigured = false
+
+    init(
+        infoDictionary: [String: Any] = Bundle.main.infoDictionary ?? [:],
+        configureAppCheck: @escaping ConfigureAppCheck = { completion in
+            GIDSignIn.sharedInstance.configure { error in
+                completion(error)
+            }
+        }
+    ) {
+        self.infoDictionary = infoDictionary
+        self.configureAppCheck = configureAppCheck
+    }
 
     func signIn() async throws -> String {
         try await configureIfNeeded()
@@ -69,7 +87,7 @@ final class GoogleSignInProvider: GoogleSignInProviding {
         GIDSignIn.sharedInstance.handle(url)
     }
 
-    private func configureIfNeeded() async throws {
+    func configureIfNeeded() async throws {
         guard !isConfigured else {
             return
         }
@@ -83,14 +101,12 @@ final class GoogleSignInProvider: GoogleSignInProviding {
             clientID: clientID,
             serverClientID: serverClientID
         )
-        try await withCheckedThrowingContinuation {
-            (continuation: CheckedContinuation<Void, any Error>) in
-            GIDSignIn.sharedInstance.configure { error in
-                if let error {
-                    continuation.resume(throwing: error)
-                } else {
-                    continuation.resume()
-                }
+        await withCheckedContinuation {
+            (continuation: CheckedContinuation<Void, Never>) in
+            configureAppCheck { _ in
+                // App Check prewarming is best-effort. The SDK retries while
+                // creating the authorization request, including on simulators.
+                continuation.resume()
             }
         }
         isConfigured = true
@@ -98,9 +114,7 @@ final class GoogleSignInProvider: GoogleSignInProviding {
 
     private func configuredValue(_ key: String) -> String? {
         guard
-            let value = Bundle.main.object(
-                forInfoDictionaryKey: key
-            ) as? String,
+            let value = infoDictionary[key] as? String,
             !value.isEmpty,
             !value.contains("$(")
         else {
