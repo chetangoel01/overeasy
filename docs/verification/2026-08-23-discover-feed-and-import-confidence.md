@@ -46,20 +46,27 @@ fresh account-owned import instead of copying another user's recipe.
 
 ## Authentication configuration
 
-The app already contains the Apple entitlement and native authorization-code /
-nonce flow, plus the Google iOS SDK, callback URL scheme, server-audience token
-exchange, backend verification, and guest-account merge. Secrets remain outside
-Git. `.private/GoogleAuth.xcconfig` is now explicitly ignored.
+The app contains the Apple entitlement and native authorization-code / nonce
+flow, plus the Google iOS SDK, callback URL scheme, server-audience token
+exchange, backend verification, and guest-account merge. The provider consoles
+and local runtime are now configured:
 
-Live console completion is externally gated:
+- Apple Developer has Sign in with Apple enabled for `com.ladle.ios`. The
+  `Ladle Sign In` key is scoped to that primary App ID.
+- Google Cloud project `ladle-recipe-app-2026` has external production consent
+  branding plus separate iOS and backend OAuth clients. The iOS client is bound
+  to bundle ID `com.ladle.ios` and team `P48VDW72LU`; no Web origins or redirect
+  URIs are needed for backend ID-token audience verification.
+- `.private/GoogleAuth.xcconfig` supplies the iOS, reversed, and server client
+  IDs. `Backend/.env` enables both providers and points Apple at the downloaded
+  private key.
+- Both local configuration files and the Apple `.p8` are ignored by Git and
+  restricted to owner read/write permissions. The unused Google Web client
+  secret was not stored.
 
-- Google Cloud is signed in as the repository owner but blocks project access
-  until two-step verification is enabled.
-- Apple Developer requires the owner to sign in before App ID and key settings
-  can be inspected.
-- After those owner steps, create or select the Google iOS and Web OAuth clients,
-  populate `.private/GoogleAuth.xcconfig`, enable both backend providers, and run
-  the signed-device Apple, Google, guest-merge, and deletion journeys.
+A signed physical-device pass remains required before release for Apple,
+Google, guest merge, refresh, account deletion, and regenerated provisioning
+profiles.
 
 ## Affected components
 
@@ -82,3 +89,8 @@ Live console completion is externally gated:
 - Backend suite: 510 passed, 5 skipped.
 - A generic iOS Simulator build completed for the app and embedded Share
   Extension with `CODE_SIGNING_ALLOWED=NO`.
+- Runtime settings load the Apple private key and both enabled provider
+  configurations without exposing credential contents.
+- Focused Apple, Google, and production-configuration tests: 71 passed.
+- A post-configuration simulator build confirms the issued iOS client ID,
+  server audience ID, and callback scheme are embedded in the app.
