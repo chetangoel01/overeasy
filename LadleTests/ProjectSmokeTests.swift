@@ -93,6 +93,32 @@ final class ProjectSmokeTests: XCTestCase {
         XCTAssertEqual(configuration.tunnelAccessKey, "device-tunnel")
     }
 
+    func testReleaseBuildTargetsGuardedVPS() throws {
+        let project = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let configuration = try String(
+            contentsOf: project.appendingPathComponent(
+                "Config/Release.xcconfig"
+            ),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(
+            configuration.contains(
+                "LADLE_API_BASE_URL = https:/$()/vps-8b0be574.vps.ovh.us"
+            )
+        )
+        XCTAssertTrue(
+            configuration.contains("LADLE_APP_ATTEST_ENABLED = NO")
+        )
+        XCTAssertTrue(
+            configuration.contains(
+                #"#include? "../.private/VPSRelease.xcconfig""#
+            )
+        )
+    }
+
     func testRuntimeConfigurationReadsSharedKeychainAccessGroup() {
         let configuration = LadleRuntimeConfiguration(
             launchArguments: [],
@@ -205,7 +231,7 @@ final class ProjectSmokeTests: XCTestCase {
             Bundle.main.object(
                 forInfoDictionaryKey: "CFBundleVersion"
             ) as? String,
-            "20260726.2"
+            "20260823.1"
         )
     }
 

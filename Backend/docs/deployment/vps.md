@@ -23,6 +23,13 @@ The API has ample capacity for 100 users. Four imports can run concurrently;
 additional imports queue in Redis rather than spawning more infrastructure.
 Increase worker concurrency only after CPU and queue measurements justify it.
 
+The checked-in environment defaults to production and enforced App Attest. A
+guarded internal TestFlight backend may explicitly set
+`LADLE_ENVIRONMENT=development`, `LADLE_ATTESTATION_ENFORCED=false`, and
+`LADLE_APP_ATTEST_ENVIRONMENT=development` while the corresponding internal
+app build disables App Attest at runtime. Do not use that exception for an
+unguarded public service or an external App Store release.
+
 Compose probes every service every five seconds during its first minute so
 deployment readiness stays fast, then backs all Docker health checks off to a
 five-minute interval. Three consecutive failures are required before a service

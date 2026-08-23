@@ -39,17 +39,21 @@ metadata, and TestFlight packaging path before the first 1.0 beta.
 
 ## Release decisions
 
-- Marketing version is `1.0`; this candidate uses build `20260726.2`.
+- Marketing version is `1.0`; the internal TestFlight VPS candidate uses build
+  `20260823.1`.
 - App and share-extension versions come from shared Xcode build settings so they
   cannot drift.
 - `ITSAppUsesNonExemptEncryption` is false because the app uses only exempt
   system transport/security functionality and a one-way hash.
 - `PrivacyInfo.xcprivacy` declares app-only `UserDefaults` access with required
   reason `CA92.1`; tracking is disabled.
-- The Release API endpoint remains `https://api.ladle.app`, but the 2026-07-26
-  live boundary check found that this hostname does not currently terminate TLS
-  and its HTTP endpoint serves a parked-domain page. This is a release blocker,
-  not an app-code failure.
+- Until production DNS is available, Release builds use the existing guarded
+  backend at `https://vps-8b0be574.vps.ovh.us`. The ignored
+  `.private/VPSRelease.xcconfig` injects its gateway key, and App Attest is
+  disabled to match that backend's development environment.
+- `https://api.ladle.app` remains parked and does not terminate TLS. That blocks
+  broader external distribution, but no longer blocks an internal TestFlight
+  build against the guarded VPS.
 - Account deletion is a server-authoritative operation. A failed Apple token
   revocation or backend deletion leaves local authentication and recipes intact
   so the user can retry.
@@ -121,10 +125,11 @@ export a selected serving to Apple Health.
 - App privacy answers matching imported URLs, recipe content, user/device IDs,
   diagnostics, and the absence of tracking/advertising
 
-## Release blockers and upload handoff
+## External-release blockers and upload handoff
 
-The frontend candidate is locally green, but it must not be uploaded until all
-of the following external release gates are closed:
+The guarded VPS configuration is suitable only for internal TestFlight. Do not
+promote it to external testers or App Review until all of the following release
+gates are closed:
 
 1. Deploy the production API and worker, run migrations through `0011`, route
    `api.ladle.app` to them, and install a valid TLS certificate. Recheck both
@@ -147,10 +152,15 @@ of the following external release gates are closed:
    Attest, Sign in with Apple, Sign in with Google, share-extension, import,
    guest-merge, and account-deletion journeys on a signed physical device. App
    Attest production validation cannot run in Simulator.
-7. Create or confirm the App Store Connect app record, complete the owner fields
-   above, archive with managed distribution signing, validate, upload, wait for
+7. Complete the owner fields above, switch Release back to the production API,
+   archive with managed distribution signing, validate, upload, wait for
    processing, then attach the beta description, test notes, and review notes
    from this document.
+
+For the internal candidate, Xcode managed signing successfully produced and
+exported the app and embedded Share Extension for App Store Connect. The VPS
+gateway key remains ignored and must be rotated before any build is shared
+beyond trusted internal testers because an installed app can be inspected.
 
 The compile-only handoff artifact is
 `/tmp/Overeasy-1.0-20260726.2-unsigned.xcarchive.zip` (13 MB,

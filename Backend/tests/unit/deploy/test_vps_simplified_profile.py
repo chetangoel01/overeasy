@@ -65,7 +65,7 @@ def test_deployment_contract_requires_oauth_configuration() -> None:
     environment = compose()["x-ladle-environment"]
     example = (VPS / "env.example").read_text()
 
-    assert environment["LADLE_ENVIRONMENT"] == "production"
+    assert environment["LADLE_ENVIRONMENT"] == "${LADLE_ENVIRONMENT:-production}"
     variables = {
         "LADLE_APPLE_ENABLED": "LADLE_APPLE_ENABLED",
         "LADLE_APPLE_BUNDLE_ID": "LADLE_APPLE_BUNDLE_ID",
@@ -80,6 +80,22 @@ def test_deployment_contract_requires_oauth_configuration() -> None:
         assert setup_variable in example
     assert environment["LADLE_APPLE_ENABLED"] == "true"
     assert environment["LADLE_GOOGLE_ENABLED"] == "true"
+
+
+def test_guarded_internal_beta_can_disable_app_attest() -> None:
+    environment = compose()["x-ladle-environment"]
+    example = (VPS / "env.example").read_text()
+
+    assert environment["LADLE_ENVIRONMENT"] == "${LADLE_ENVIRONMENT:-production}"
+    assert environment["LADLE_ATTESTATION_ENFORCED"] == (
+        "${LADLE_ATTESTATION_ENFORCED:-true}"
+    )
+    assert environment["LADLE_APP_ATTEST_ENVIRONMENT"] == (
+        "${LADLE_APP_ATTEST_ENVIRONMENT:-production}"
+    )
+    assert "LADLE_ENVIRONMENT=production" in example
+    assert "LADLE_ATTESTATION_ENFORCED=true" in example
+    assert "LADLE_APP_ATTEST_ENVIRONMENT=production" in example
 
 
 def test_vps_operations_stay_small_and_cover_the_real_recovery_contract() -> None:
