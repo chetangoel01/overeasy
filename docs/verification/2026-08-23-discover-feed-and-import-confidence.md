@@ -1,0 +1,84 @@
+# Discover, feed, and import-confidence update
+
+Date: August 23, 2026
+
+## Purpose
+
+Reduce routine recipe-verification work, make creator accounts visible in the
+video and import surfaces, replace Watch paging with ordinary scrolling, add a
+useful Discover destination, and finish the repository side of Apple and Google
+sign-in configuration.
+
+## User-visible behavior
+
+- Home, Discover, and All Recipes are peer library destinations.
+- Discover ranks public social-recipe sources by aggregate saves from other
+  accounts. Rows show creator account, source image, summary, save count, and a
+  Save action that pre-fills the existing import sheet.
+- Watch uses continuous native scrolling and content-sized cards. It no longer
+  snaps one viewport-sized card at a time.
+- Watch and Import Inbox show the source creator account when available. Inbox
+  also derives handles such as `@cook` from supported source URLs while an
+  import is still processing.
+- The former routine "Needs review" presentation is now "Check details" and is
+  exceptional. Reconstructed standard methods and labeled serving estimates do
+  not block cooking. A recipe is gated only when most non-garnish ingredients
+  remain without usable amounts.
+
+## Import decisions
+
+- Prompt version `recipe-2026-08-23-v9` permits conservative conventional
+  ingredient estimates when dish context and standard technique support them.
+- Estimated quantities use rounded measures, confidence below 0.7, and a short
+  cook-facing uncertainty reason. The prompt forbids presenting an estimate as
+  the creator's stated amount.
+- A missing yield falls back to a clearly labeled four-serving household
+  estimate only when ingredient mass cannot support a better calculation.
+
+## Discovery privacy
+
+`GET /v1/recipes/discover` groups ready, undeleted social recipes by their
+normalized source-video record and ranks them by distinct saving accounts. The
+response is rebuilt from the shared extraction cache and contains public source
+metadata plus an aggregate count only. It excludes account IDs, private
+ingredients and steps, user edits, and correction notes. Saving a result runs a
+fresh account-owned import instead of copying another user's recipe.
+
+## Authentication configuration
+
+The app already contains the Apple entitlement and native authorization-code /
+nonce flow, plus the Google iOS SDK, callback URL scheme, server-audience token
+exchange, backend verification, and guest-account merge. Secrets remain outside
+Git. `.private/GoogleAuth.xcconfig` is now explicitly ignored.
+
+Live console completion is externally gated:
+
+- Google Cloud is signed in as the repository owner but blocks project access
+  until two-step verification is enabled.
+- Apple Developer requires the owner to sign in before App ID and key settings
+  can be inspected.
+- After those owner steps, create or select the Google iOS and Web OAuth clients,
+  populate `.private/GoogleAuth.xcconfig`, enable both backend providers, and run
+  the signed-device Apple, Google, guest-merge, and deletion journeys.
+
+## Affected components
+
+- `Backend/ladle/extraction/prompt.py` and `review.py`
+- `Backend/ladle/api/routes/recipes.py`, recipe contracts, repository, and service
+- `Packages/LadleCore/Sources/LadleCore/RemoteContracts.swift`
+- `Ladle/Library/DiscoverView.swift`, `WatchView.swift`, and inbox presentation
+- `Ladle/Remote/DiscoverService.swift`
+- Root composition and the existing import sheet
+
+## Verification
+
+- Prompt/review unit tests cover labeled estimation and exceptional gating.
+- Discover API integration coverage proves aggregation and response privacy.
+- LadleCore contract coverage decodes the Discover wire payload.
+- App tests cover Discover loading/error states and creator attribution.
+- Targeted simulator tests cover Discover, library grouping, and navigation.
+- `swift test --package-path Packages/LadleCore`: 44 passed.
+- Full simulator test suite: 163 passed, 1 skipped, 0 failures.
+- Backend suite: 510 passed, 5 skipped.
+- A generic iOS Simulator build completed for the app and embedded Share
+  Extension with `CODE_SIGNING_ALLOWED=NO`.

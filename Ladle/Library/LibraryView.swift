@@ -24,6 +24,7 @@ struct LibraryView: View {
     @Bindable var viewModel: LibraryViewModel
     @Bindable var importCoordinator: ImportCoordinator
     let accountSession: AccountSession
+    var discoverService: any DiscoverServing = DemoDiscoverService()
     var installationID: String = "preview-installation"
     var canImport = true
     var onSignOut: @MainActor () async -> Void = {}
@@ -36,6 +37,7 @@ struct LibraryView: View {
     @State private var isAccountPresented = false
     @State private var failedImportJob: ImportJob?
     @State private var pendingDestination: LibraryRecipeDestination?
+    @State private var discoverImportURL: URL?
 
     var body: some View {
         NavigationStack(path: $navigation.path) {
@@ -43,7 +45,7 @@ struct LibraryView: View {
                 LibraryTopBar(
                     openSearch: { navigation.open(.search) },
                     openAccount: { isAccountPresented = true },
-                    addRecipe: { isAddSheetPresented = true },
+                    addRecipe: { presentAddRecipe() },
                     isAddEnabled: canImport
                 )
                 LibrarySectionPicker(
@@ -78,11 +80,13 @@ struct LibraryView: View {
                 onDismiss: {
                     viewModel.load()
                     finishPendingNavigation()
+                    discoverImportURL = nil
                 }
             ) {
                 AddRecipeSheet(
                     coordinator: importCoordinator,
                     accountSession: accountSession,
+                    initialLink: discoverImportURL?.absoluteString ?? "",
                     viewRecipe: queueNavigation
                 )
             }
@@ -160,32 +164,46 @@ struct LibraryView: View {
 
     @ViewBuilder
     private var content: some View {
-        switch viewModel.loadState {
-        case .idle:
-            LibraryLoadStateView(message: nil, retry: viewModel.load)
-        case let .failed(message):
-            LibraryLoadStateView(message: message, retry: viewModel.load)
-        case .loaded:
-            if section == .home {
-                LibraryHomeView(
-                    viewModel: viewModel,
-                    addRecipe: { isAddSheetPresented = true },
-                    openRecipe: openRecipe,
-                    openCollection: openCollection,
-                    openImportInbox: {
-                        navigation.open(.importInbox)
-                    },
-                    openWatch: { navigation.open(.watch) }
-                )
-            } else {
-                AllRecipesView(
-                    viewModel: viewModel,
-                    addRecipe: { isAddSheetPresented = true },
-                    openRecipe: openRecipe,
-                    presentFilters: { isFilterSheetPresented = true }
-                )
+        if section == .discover {
+            DiscoverView(
+                service: discoverService,
+                saveRecipe: { recipe in
+                    presentAddRecipe(url: recipe.originalURL)
+                }
+            )
+        } else {
+            switch viewModel.loadState {
+            case .idle:
+                LibraryLoadStateView(message: nil, retry: viewModel.load)
+            case let .failed(message):
+                LibraryLoadStateView(message: message, retry: viewModel.load)
+            case .loaded:
+                if section == .home {
+                    LibraryHomeView(
+                        viewModel: viewModel,
+                        addRecipe: { presentAddRecipe() },
+                        openRecipe: openRecipe,
+                        openCollection: openCollection,
+                        openImportInbox: {
+                            navigation.open(.importInbox)
+                        },
+                        openWatch: { navigation.open(.watch) }
+                    )
+                } else {
+                    AllRecipesView(
+                        viewModel: viewModel,
+                        addRecipe: { presentAddRecipe() },
+                        openRecipe: openRecipe,
+                        presentFilters: { isFilterSheetPresented = true }
+                    )
+                }
             }
         }
+    }
+
+    private func presentAddRecipe(url: URL? = nil) {
+        discoverImportURL = url
+        isAddSheetPresented = true
     }
 
     private func recipeDetail(

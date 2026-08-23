@@ -79,7 +79,7 @@ struct RecipeDetailView: View {
         _isFavorite = State(initialValue: recipe.isFavorite)
         _reviewIsPending = State(
             initialValue: recipe.reviewStatus == .needsReview
-                || statusText == "Needs review"
+                || statusText == "Check details"
         )
     }
 

@@ -2,6 +2,7 @@ import SwiftUI
 
 enum LibrarySection: Hashable {
     case home
+    case discover
     case all
 }
 
@@ -71,6 +72,7 @@ struct LibrarySectionPicker: View {
     var body: some View {
         Picker("Recipe destination", selection: $selection) {
             Text("Home").tag(LibrarySection.home)
+            Text("Discover").tag(LibrarySection.discover)
             Text("All \(recipeCount)").tag(LibrarySection.all)
         }
         .pickerStyle(.segmented)

@@ -119,6 +119,61 @@ public enum RemoteRecipeSource: Hashable, Sendable {
     }
 }
 
+public struct DiscoverRecipe: Hashable, Identifiable, Sendable {
+    public var id: URL { originalURL }
+    public let title: String
+    public let description: String
+    public let creatorName: String?
+    public let source: RecipeSource
+    public let originalURL: URL
+    public let imageURL: URL?
+    public let savedCount: Int
+
+    public init(
+        title: String,
+        description: String,
+        creatorName: String?,
+        source: RecipeSource,
+        originalURL: URL,
+        imageURL: URL?,
+        savedCount: Int
+    ) {
+        self.title = title
+        self.description = description
+        self.creatorName = creatorName
+        self.source = source
+        self.originalURL = originalURL
+        self.imageURL = imageURL
+        self.savedCount = savedCount
+    }
+}
+
+public struct RemoteDiscoverRecipeDTO: Codable, Hashable, Sendable {
+    public let title: String
+    public let description: String
+    public let creatorName: String?
+    public let source: RemoteRecipeSource
+    public let originalURL: URL
+    public let imageURL: URL?
+    public let savedCount: Int
+
+    public func recipe() -> DiscoverRecipe {
+        DiscoverRecipe(
+            title: title,
+            description: description,
+            creatorName: creatorName,
+            source: source.recipeSource,
+            originalURL: originalURL,
+            imageURL: imageURL,
+            savedCount: savedCount
+        )
+    }
+}
+
+public struct RemoteDiscoverPageDTO: Codable, Hashable, Sendable {
+    public let items: [RemoteDiscoverRecipeDTO]
+}
+
 extension RemoteRecipeSource: Codable {
     public init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()

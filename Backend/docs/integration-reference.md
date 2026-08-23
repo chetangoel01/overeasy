@@ -178,6 +178,7 @@ Canonical recipe payloads are available in:
 | `GET /v1/imports/{jobID}` | Bearer | `200` | Poll an import owned by the current user |
 | `POST /v1/imports/{jobID}/retry` | Bearer | `202` | Retry with optional correction or pasted text |
 | `GET /v1/recipes/sync?cursor=&limit=` | Bearer | `200` | Read ordered recipe upserts and tombstones |
+| `GET /v1/recipes/discover?limit=` | Bearer | `200` | Rank public recipe-video sources by aggregate saves |
 | `GET /v1/recipes/{recipeID}` | Bearer | `200` | Fetch one current recipe |
 | `PUT /v1/recipes/{recipeID}` | Bearer | `200` | Create or update a recipe with revision checking |
 | `DELETE /v1/recipes/{recipeID}?baseRevision=` | Bearer | `204` | Soft-delete and emit a tombstone |
@@ -187,8 +188,11 @@ Canonical recipe payloads are available in:
 | `GET /docs` | No | `200` | Development-only Swagger pipeline console |
 | `GET /openapi.json` | No | `200` | Generated machine-readable API contract |
 
-There is no separate recipe-list endpoint. Clients rebuild local state from
-`/v1/recipes/sync` and use `/v1/recipes/{recipeID}` for an individual refresh.
+There is no separate private recipe-list endpoint. Clients rebuild local state
+from `/v1/recipes/sync` and use `/v1/recipes/{recipeID}` for an individual
+refresh. Discover is a public-source preview: it excludes the requesting
+account, returns aggregate save counts and source metadata only, and never
+returns another user's identity, ingredients, steps, or edits.
 
 ### Authentication payloads
 

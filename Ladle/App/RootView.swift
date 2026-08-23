@@ -8,6 +8,7 @@ struct RootView: View {
     let importCoordinator: ImportCoordinator
     let authClient: AuthClient?
     let googleSignIn: (any GoogleSignInProviding)?
+    let discoverService: any DiscoverServing
     let installationID: String
     let onAuthenticated: @MainActor () async -> Void
     let onSignOut: @MainActor () async -> Void
@@ -19,6 +20,7 @@ struct RootView: View {
         importCoordinator: ImportCoordinator,
         authClient: AuthClient? = nil,
         googleSignIn: (any GoogleSignInProviding)? = nil,
+        discoverService: any DiscoverServing = DemoDiscoverService(),
         installationID: String = "preview-installation",
         onAuthenticated: @escaping @MainActor () async -> Void = {},
         onSignOut: @escaping @MainActor () async -> Void = {},
@@ -30,6 +32,7 @@ struct RootView: View {
         self.importCoordinator = importCoordinator
         self.authClient = authClient
         self.googleSignIn = googleSignIn
+        self.discoverService = discoverService
         self.installationID = installationID
         self.onAuthenticated = onAuthenticated
         self.onSignOut = onSignOut
@@ -57,6 +60,7 @@ struct RootView: View {
                     viewModel: libraryViewModel,
                     importCoordinator: importCoordinator,
                     accountSession: accountSession,
+                    discoverService: discoverService,
                     installationID: installationID,
                     canImport:
                         authClient == nil

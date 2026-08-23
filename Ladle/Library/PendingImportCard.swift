@@ -5,6 +5,7 @@ struct PendingImportCard: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     let job: ImportJob
+    var creatorName: String?
 
     var body: some View {
         Group {
@@ -42,7 +43,7 @@ struct PendingImportCard: View {
                 .foregroundStyle(LadleTheme.ink)
                 .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
 
-            Text("From \(job.source.libraryTitle) · \(detailText)")
+            Text(byline)
                 .ladleFont(.metadata)
                 .foregroundStyle(LadleTheme.ink.opacity(0.56))
                 .lineLimit(usesStackedLayout ? 2 : 1)
@@ -118,12 +119,21 @@ struct PendingImportCard: View {
         case .parsing:
             "Parsing"
         case .needsReview:
-            "Needs review"
+            "Check details"
         case .failed:
             "Import failed"
         case .ready:
             "Ready"
         }
+    }
+
+    private var byline: String {
+        [creatorName, job.source.libraryTitle, detailText]
+            .compactMap { value in
+                guard let value, !value.isEmpty else { return nil }
+                return value
+            }
+            .joined(separator: " · ")
     }
 
     private var detailText: String {

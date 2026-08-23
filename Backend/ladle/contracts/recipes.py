@@ -238,6 +238,20 @@ class RecipeDTO(WireModel):
         return self
 
 
+class DiscoverRecipeDTO(WireModel):
+    title: str = Field(min_length=1, max_length=300)
+    description: str = Field(max_length=10_000)
+    creator_name: str | None = Field(default=None, max_length=200)
+    source: RecipeSource
+    original_url: AnyHttpUrl = Field(max_length=2_048)
+    image_url: AnyHttpUrl | None = Field(default=None, max_length=2_048)
+    saved_count: int = Field(gt=0)
+
+
+class DiscoverPageDTO(WireModel):
+    items: list[DiscoverRecipeDTO] = Field(max_length=100)
+
+
 class SyncChangeKind(StrEnum):
     UPSERT = "upsert"
     DELETE = "delete"

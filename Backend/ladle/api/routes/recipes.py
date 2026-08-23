@@ -15,7 +15,7 @@ from ladle.contracts.errors import (
     ErrorCode,
     SyncConflictDetails,
 )
-from ladle.contracts.recipes import RecipeDTO, SyncPageDTO
+from ladle.contracts.recipes import DiscoverPageDTO, RecipeDTO, SyncPageDTO
 from ladle.observability.metrics import MetricsRegistry
 from ladle.recipes.limits import GuestRecipeLimitReached
 from ladle.recipes.service import (
@@ -96,6 +96,24 @@ def sync_recipes(
             message="Sync history expired; restart from a full snapshot.",
             retryable=True,
             http_status=status.HTTP_409_CONFLICT,
+        )
+
+
+@router.get("/discover", response_model=DiscoverPageDTO)
+def discover_recipes(
+    request: Request,
+    limit: Annotated[PositiveInt, Query(le=100)] = 30,
+    authorization: Annotated[str | None, Header()] = None,
+) -> DiscoverPageDTO:
+    claims = access_claims(request, authorization)
+    _rate_limits(request).enforce(
+        _rate_limit_policies(request).sync_poll(str(claims.user_id))
+    )
+    with database(request) as current_database:
+        return _recipes(request).discover(
+            current_database,
+            user_id=claims.user_id,
+            limit=limit,
         )
 
 

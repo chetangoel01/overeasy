@@ -68,6 +68,17 @@ struct RemoteContractTests {
     }
 
     @Test
+    func discoverFixtureCarriesPublicSourceDataWithoutUserIdentity() throws {
+        let page: RemoteDiscoverPageDTO = try decodeFixture("discover-page")
+
+        #expect(page.items.count == 1)
+        #expect(page.items[0].creatorName == "@mia_cooks")
+        #expect(page.items[0].source == .tiktok)
+        #expect(page.items[0].savedCount == 12)
+        #expect(page.items[0].imageURL?.host == "images.ladle.example")
+    }
+
+    @Test
     func errorFixtureDecodesCodeSpecificDetails() throws {
         let envelopes: [RemoteErrorEnvelope] = try decodeFixture("errors")
 

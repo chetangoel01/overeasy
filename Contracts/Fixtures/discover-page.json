@@ -1,0 +1,13 @@
+{
+  "items": [
+    {
+      "title": "Lemon Orzo",
+      "description": "Creamy lemon orzo with spinach.",
+      "creatorName": "@mia_cooks",
+      "source": "tiktok",
+      "originalURL": "https://www.tiktok.com/@mia_cooks/video/1234567890",
+      "imageURL": "https://images.ladle.example/discover/lemon-orzo.jpg",
+      "savedCount": 12
+    }
+  ]
+}

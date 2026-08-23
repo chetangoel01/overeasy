@@ -71,6 +71,7 @@ struct LadleApp: App {
     private let googleSignIn: GoogleSignInProvider?
     private let syncService: RecipeSyncService?
     private let remoteImageCache: RemoteImageCache?
+    private let discoverService: any DiscoverServing
     private let installationID: String
     @State private var accountSession: AccountSession
     @State private var libraryViewModel: LibraryViewModel
@@ -164,6 +165,7 @@ struct LadleApp: App {
         let importService: any ImportService
         let syncService: RecipeSyncService?
         let remoteImageCache: RemoteImageCache?
+        let discoverService: any DiscoverServing
         if runtimeConfiguration.usesInMemoryStore {
             authClient = nil
             importService = DemoImportService(
@@ -173,6 +175,7 @@ struct LadleApp: App {
             )
             syncService = nil
             remoteImageCache = nil
+            discoverService = DemoDiscoverService()
         } else {
             do {
                 let tokenStore = KeychainTokenStore()
@@ -218,6 +221,7 @@ struct LadleApp: App {
                     ),
                     api: api
                 )
+                discoverService = RemoteDiscoverService(api: api)
             } catch {
                 fatalError(
                     "Overeasy could not initialize its API configuration: \(error)"
@@ -230,6 +234,7 @@ struct LadleApp: App {
         self.googleSignIn = googleSignIn
         self.syncService = syncService
         self.remoteImageCache = remoteImageCache
+        self.discoverService = discoverService
         self.installationID = installationID
         _accountSession = State(
             initialValue: accountSession
@@ -263,6 +268,7 @@ struct LadleApp: App {
                 importCoordinator: importCoordinator,
                 authClient: authClient,
                 googleSignIn: googleSignIn,
+                discoverService: discoverService,
                 installationID: installationID,
                 onAuthenticated: {
                     if let syncService {

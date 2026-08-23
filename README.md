@@ -3,17 +3,20 @@
 Ladle — shipping under the product name **Overeasy** — is a native iPhone recipe workspace for turning scattered social-video
 links into structured recipes that are easier to save, review, and cook.
 
-The app follows a warm editorial visual system built around cream paper,
-paprika accents, serif headlines, food photography, and intentionally quiet
-controls. It is implemented in SwiftUI with a SwiftData persistence layer and
-a separate `LadleCore` domain package.
+The app follows the Muted Corner Store system: warm paper and oat surfaces,
+smoky plum, dusty brick, and native SF Rounded/SF Pro typography. It is
+implemented in SwiftUI with a SwiftData persistence layer and a separate
+`LadleCore` domain package.
 
 ## What is included
 
 - Guest onboarding with an explicit ten-recipe limit
 - Link, manual-entry, and iOS Share Extension import entry points
 - Durable Share Extension queue reconciliation through an App Group
-- Parsing, needs-review, ready, duplicate, and recoverable failure states
+- Parsing, exceptional check-details, ready, duplicate, and recoverable failure
+  states
+- Discover from aggregate saves of public recipe-video sources
+- Creator-account attribution in Watch and the Import Inbox
 - Search, sorting, filters, grid/list display, and favorites
 - Structured recipe detail, editing, and safe re-import
 - Clearly labeled estimated nutrition and serving-basis details
@@ -26,8 +29,8 @@ a separate `LadleCore` domain package.
 
 ## Current product boundary
 
-The native app is connected to the FastAPI backend through real guest
-authentication, Sign in with Apple, remote import polling, and offline-first
+The native app is connected to the FastAPI backend through real guest, Apple,
+and Google authentication, remote import polling, discovery, and offline-first
 recipe synchronization. The live worker uses free source metadata and
 transcripts first, then server-side media download and Whisper transcription,
 optional frame analysis, paid transcript fallbacks, and structured extraction
@@ -50,7 +53,7 @@ Ladle/                  SwiftUI application
   Edit/                 Structured editor and safe re-import
   Health/               Explicit Apple Health export
   Import/               Import coordinator and recovery surfaces
-  Library/              Search, filters, cards, grid/list library
+  Library/              Home, Discover, Watch, Inbox, search, and archive
   Notifications/        Import completion notifications
   Nutrition/            Nutrition detail
   RecipeDetail/         Editorial recipe presentation
@@ -99,9 +102,11 @@ xcodebuild build \
   CODE_SIGNING_ALLOWED=NO
 ```
 
-Production-device HealthKit, notification, and App Group behavior requires
-the corresponding signing capabilities configured for your team. The app and
-extension currently share `group.com.ladle.ios`.
+Production-device HealthKit, notification, App Group, and Sign in with Apple
+behavior requires the corresponding signing capabilities configured for your
+team. The app and extension currently share `group.com.ladle.ios`. Google also
+requires the ignored `.private/GoogleAuth.xcconfig`; start from
+`Config/GoogleAuth.xcconfig.example`.
 
 ## Run the backend
 
@@ -151,7 +156,7 @@ recovery states reproducible:
 
 - Ordinary supported links return a ready recipe.
 - `slow` introduces the parsing delay used by the background-card flow.
-- `review` or `needs-review` returns a recipe that needs review.
+- `review` or `needs-review` returns the exceptional check-details state.
 - `private` or `deleted` returns the private/deleted failure.
 - `network` or `offline` returns the network failure.
 - `parser` or `failed` returns the parser failure.
@@ -165,7 +170,8 @@ server configuration.
 
 ## Product and verification notes
 
-- Nutrition remains visibly estimated wherever the source is uncertain.
+- Conservative inferred ingredient amounts and nutrition remain visibly
+  estimated wherever the source is uncertain.
 - Apple Health authorization is deferred until the user reviews values and
   confirms an export.
 - Notification denial never changes a successfully persisted recipe or import

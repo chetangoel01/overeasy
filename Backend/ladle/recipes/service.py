@@ -5,7 +5,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from ladle.clock import Clock
-from ladle.contracts.recipes import RecipeDTO, RecipeSource
+from ladle.contracts.recipes import DiscoverPageDTO, RecipeDTO, RecipeSource
 from ladle.db.models import RecipeChange
 from ladle.recipes.limits import ensure_recipe_capacity
 from ladle.recipes.repository import RecipeRepository
@@ -51,6 +51,19 @@ class RecipeService:
         if stored is None:
             raise RecipeNotFound
         return self._repository.to_dto(database, stored)
+
+    def discover(
+        self,
+        database: Session,
+        *,
+        user_id: UUID,
+        limit: int,
+    ) -> DiscoverPageDTO:
+        return self._repository.discover(
+            database,
+            user_id=user_id,
+            limit=limit,
+        )
 
     def upsert(
         self,

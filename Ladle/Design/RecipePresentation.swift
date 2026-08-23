@@ -30,6 +30,15 @@ extension Recipe {
             .joined(separator: "-")
     }
 
+    var creatorAccountLabel: String {
+        guard let creatorName,
+              !creatorName.trimmingCharacters(in: .whitespacesAndNewlines)
+                .isEmpty else {
+            return source.libraryTitle
+        }
+        return creatorName
+    }
+
     private func number(_ value: Decimal) -> String {
         NSDecimalNumber(decimal: value).stringValue
     }
@@ -42,6 +51,14 @@ extension RecipeSource {
         case .instagram: "Instagram"
         case .youtube: "YouTube"
         case .other: "Saved recipe"
+        }
+    }
+}
+
+extension ImportJob {
+    var sourceAccountLabel: String? {
+        sourceURL.pathComponents.first { component in
+            component.hasPrefix("@") && component.count > 1
         }
     }
 }

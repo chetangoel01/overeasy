@@ -17,7 +17,7 @@ from ladle.recipes.template_clone import (
 )
 
 _CONFIDENCE_THRESHOLD = 0.7
-_MISSING_QUANTITY_THRESHOLD = 0.3
+_MISSING_QUANTITY_THRESHOLD = 0.6
 # Review is a claim that the cook should check something before trusting the
 # recipe. Every caveat used to raise it, including ones that say nothing about
 # the dish — an unavailable visual provider, a serving count we estimated and
@@ -70,16 +70,13 @@ def build_reviewed_template(
         # scaling and per-serving nutrition would inherit the lie.
         estimated = _estimate_servings(extraction)
         if estimated is None:
-            servings = Decimal(1)
-            # Presenting a whole dish as one serving misstates every per-serving
-            # number the app derives from it.
-            blocking.append("servings")
+            servings = Decimal(4)
             uncertainties.append(
                 FieldUncertaintyDTO(
                     field="servings",
                     reason=(
-                        "Serving count was absent and could not be estimated "
-                        "from the ingredient amounts."
+                        "Serving count was absent; using a four-serving "
+                        "household estimate."
                     ),
                 )
             )
@@ -110,24 +107,23 @@ def build_reviewed_template(
     if quantified and (
         missing_quantities / len(quantified) > _MISSING_QUANTITY_THRESHOLD
     ):
-        # Too much of the recipe is unmeasured to cook from without checking.
+        # Reserve the gate for a recipe that is mostly unmeasured. The prompt
+        # supplies clearly labelled, conservative estimates where it can.
         blocking.append("ingredientQuantities")
         uncertainties.append(
             FieldUncertaintyDTO(
                 field="ingredientQuantities",
-                reason="More than 30 percent of ingredients lack quantities.",
+                reason="Most ingredients still lack usable quantities.",
             )
         )
 
     if extraction.method_provenance == "inferred":
-        # These steps are our reconstruction, not the creator's method.
-        blocking.append("steps")
         uncertainties.append(
             FieldUncertaintyDTO(
                 field="steps",
                 reason=(
-                    "The source did not describe a method; these steps were "
-                    "reconstructed and need your review."
+                    "The source did not describe a complete method; these "
+                    "steps use standard cooking technique."
                 ),
             )
         )

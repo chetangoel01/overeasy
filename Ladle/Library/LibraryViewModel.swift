@@ -220,6 +220,12 @@ final class LibraryViewModel {
         return nil
     }
 
+    func creatorName(for job: ImportJob) -> String? {
+        job.reviewCandidate?.creatorName
+            ?? recipeForReview(job)?.creatorName
+            ?? job.sourceAccountLabel
+    }
+
     var actionableImportJobs: [ImportJob] {
         importJobs
             .filter { job in

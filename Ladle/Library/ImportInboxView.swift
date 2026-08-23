@@ -53,11 +53,14 @@ struct ImportInboxView: View {
                         importButton(
                             job,
                             action: {
-                                openReview(recipe, "Needs review")
+                                openReview(recipe, "Check details")
                             }
                         )
                     } else {
-                        PendingImportCard(job: job)
+                        PendingImportCard(
+                            job: job,
+                            creatorName: viewModel.creatorName(for: job)
+                        )
                     }
                 }
                 .listRowInsets(
@@ -86,7 +89,10 @@ struct ImportInboxView: View {
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            PendingImportCard(job: job)
+            PendingImportCard(
+                job: job,
+                creatorName: viewModel.creatorName(for: job)
+            )
         }
         .buttonStyle(.plain)
     }

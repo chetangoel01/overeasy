@@ -11,7 +11,7 @@ final class LibraryNavigationStateTests: XCTestCase {
                 .recipe(
                     LibraryRecipeDestination(
                         recipe: PreviewFixtures.recipes[1],
-                        statusText: "Needs review"
+                        statusText: "Check details"
                     )
                 ),
             ]
@@ -29,7 +29,7 @@ final class LibraryNavigationStateTests: XCTestCase {
                 .recipe(
                     LibraryRecipeDestination(
                         recipe: PreviewFixtures.recipes[1],
-                        statusText: "Needs review"
+                        statusText: "Check details"
                     )
                 ),
             ]

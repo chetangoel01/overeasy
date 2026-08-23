@@ -34,7 +34,7 @@ final class LibraryNavigationStateTests: XCTestCase {
                 .recipe(
                     LibraryRecipeDestination(
                         recipe: PreviewFixtures.recipes[1],
-                        statusText: "Needs review"
+                        statusText: "Check details"
                     )
                 ),
             ]
@@ -52,7 +52,7 @@ final class LibraryNavigationStateTests: XCTestCase {
                 .recipe(
                     LibraryRecipeDestination(
                         recipe: PreviewFixtures.recipes[1],
-                        statusText: "Needs review"
+                        statusText: "Check details"
                     )
                 ),
             ]
@@ -398,4 +398,3 @@ Run the Ladle scheme from Xcode on **Overeasy - iPhone 16 Pro** and verify:
 git add docs/verification/2026-07-27-import-inbox-and-dark-mode.md
 git commit -m "docs: verify import inbox review navigation"
 ```
-

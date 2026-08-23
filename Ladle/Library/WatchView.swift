@@ -2,15 +2,13 @@ import LadleCore
 import SwiftUI
 
 struct WatchView: View {
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
     @Bindable var viewModel: LibraryViewModel
     let openRecipe: (Recipe) -> Void
 
     @State private var cookingViewModel: CookingViewModel?
 
     var body: some View {
-        GeometryReader { proxy in
+        Group {
             if viewModel.watchRecipes.isEmpty {
                 emptyState
             } else {
@@ -31,19 +29,12 @@ struct WatchView: View {
                                     )
                                 }
                             )
-                            .frame(
-                                height: dynamicTypeSize.isAccessibilitySize
-                                    ? max(proxy.size.height * 1.5, 900)
-                                    : max(proxy.size.height - 12, 520)
-                            )
                         }
                     }
-                    .scrollTargetLayout()
                     .padding(.horizontal, LadleTheme.Spacing.regular)
                     .padding(.bottom, 36)
                 }
                 .scrollIndicators(.hidden)
-                .scrollTargetBehavior(.viewAligned(limitBehavior: .always))
             }
         }
         .background(LadleTheme.plum)
@@ -92,7 +83,6 @@ private struct WatchRecipeCard: View {
                 .lineLimit(2)
             panelPicker
             panelContent
-                .frame(maxHeight: .infinity, alignment: .top)
             actions
         }
         .padding(16)
@@ -111,10 +101,17 @@ private struct WatchRecipeCard: View {
         HStack(spacing: 8) {
             Image(systemName: "play.rectangle.fill")
                 .foregroundStyle(LadleTheme.paprika)
-            Text(recipe.creatorName ?? recipe.source.libraryTitle)
-                .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.mutedInk)
-                .lineLimit(1)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(recipe.creatorAccountLabel)
+                    .ladleFont(.metadata)
+                    .foregroundStyle(LadleTheme.ink)
+                if recipe.creatorName != nil {
+                    Text(recipe.source.libraryTitle)
+                        .ladleFont(.metadata)
+                        .foregroundStyle(LadleTheme.mutedInk)
+                }
+            }
+            .lineLimit(1)
             Spacer()
             ShareLink(item: recipe.originalURL) {
                 Image(systemName: "square.and.arrow.up")
@@ -257,7 +254,7 @@ private struct WatchRecipeCard: View {
             Button("Start cooking", action: startCooking)
                 .buttonStyle(LadlePrimaryButtonStyle())
         } else {
-            Button("Review recipe", action: openRecipe)
+            Button("Check recipe", action: openRecipe)
                 .buttonStyle(LadlePrimaryButtonStyle())
         }
     }

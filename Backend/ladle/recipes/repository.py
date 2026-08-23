@@ -4,11 +4,13 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, distinct, func, select
 from sqlalchemy.orm import Session
 
 from ladle.contracts.recipes import (
     DetectedTimerDTO,
+    DiscoverPageDTO,
+    DiscoverRecipeDTO,
     FieldUncertaintyDTO,
     IngredientDTO,
     NutrientDTO,
@@ -21,6 +23,7 @@ from ladle.contracts.recipes import (
 )
 from ladle.db.models import (
     DetectedTimer,
+    ExtractionCache,
     FieldUncertainty,
     Ingredient,
     Nutrition,
@@ -28,6 +31,7 @@ from ladle.db.models import (
     Recipe,
     RecipeImage,
     RecipeStep,
+    SourceVideo,
     StepIngredient,
 )
 
@@ -59,6 +63,75 @@ class RecipeRepository:
         if not include_deleted:
             query = query.where(Recipe.deleted_at.is_(None))
         return database.scalar(query)
+
+    def discover(
+        self,
+        database: Session,
+        *,
+        user_id: UUID,
+        limit: int,
+    ) -> DiscoverPageDTO:
+        ranked = database.execute(
+            select(
+                Recipe.source_video_id,
+                func.count(distinct(Recipe.user_id)).label("saved_count"),
+                func.max(Recipe.updated_at).label("latest_save"),
+            )
+            .where(
+                Recipe.user_id != user_id,
+                Recipe.deleted_at.is_(None),
+                Recipe.review_status == RecipeReviewStatus.READY.value,
+                Recipe.source != RecipeSource.OTHER.value,
+                Recipe.source_video_id.is_not(None),
+                Recipe.source_cache_id.is_not(None),
+            )
+            .group_by(Recipe.source_video_id)
+            .order_by(
+                func.count(distinct(Recipe.user_id)).desc(),
+                func.max(Recipe.updated_at).desc(),
+                Recipe.source_video_id,
+            )
+            .limit(limit)
+        ).all()
+        items: list[DiscoverRecipeDTO] = []
+        for source_video_id, saved_count, _ in ranked:
+            stored = database.scalar(
+                select(Recipe)
+                .where(
+                    Recipe.source_video_id == source_video_id,
+                    Recipe.user_id != user_id,
+                    Recipe.deleted_at.is_(None),
+                    Recipe.review_status == RecipeReviewStatus.READY.value,
+                )
+                .order_by(Recipe.updated_at.desc(), Recipe.id)
+                .limit(1)
+            )
+            if stored is None:
+                continue
+            source = database.get(SourceVideo, source_video_id)
+            cache = database.get(ExtractionCache, stored.source_cache_id)
+            if source is None or cache is None:
+                continue
+            template = cache.template_json
+            image_url = cache.thumbnail_remote_url
+            if (
+                image_url is None
+                and cache.thumbnail_object_key is not None
+                and self._object_url is not None
+            ):
+                image_url = self._object_url(cache.thumbnail_object_key)
+            items.append(
+                DiscoverRecipeDTO(
+                    title=template["title"],
+                    description=template["description"],
+                    creator_name=template.get("creatorName"),
+                    source=template["source"],
+                    original_url=source.canonical_url,
+                    image_url=image_url,
+                    saved_count=saved_count,
+                )
+            )
+        return DiscoverPageDTO(items=items)
 
     def insert(
         self,

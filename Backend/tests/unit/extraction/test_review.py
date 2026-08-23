@@ -90,11 +90,11 @@ def test_defaults_and_coverage_problems_become_needs_review() -> None:
     )
 
     assert reviewed.review_status == RecipeReviewStatus.NEEDS_REVIEW
-    assert reviewed.servings == 1
+    assert reviewed.servings == 4
     assert reviewed.steps[0].ingredient_indexes == [0]
     assert reviewed.steps[0].uncertainty is not None
     assert reviewed.nutrition is not None
-    assert reviewed.nutrition.serving_basis == 1
+    assert reviewed.nutrition.serving_basis == 4
     assert reviewed.nutrition.is_estimated
     reasons = {value.field for value in reviewed.uncertainties}
     assert "servings" in reasons
@@ -220,15 +220,47 @@ def test_one_shaky_garnish_does_not_condemn_the_whole_recipe() -> None:
     assert reviewed.ingredients[-1].uncertainty is not None
 
 
-def test_a_reconstructed_method_still_forces_review() -> None:
-    """We wrote these steps, not the creator. The cook has to be told."""
+def test_a_reconstructed_method_is_labelled_without_blocking_the_recipe() -> None:
+    """A useful reconstruction should be transparent, not a routine gate."""
 
     reviewed = build_reviewed_template(
         _solid_recipe(method_provenance="inferred"),
         context=context(),
     )
 
-    assert reviewed.review_status == RecipeReviewStatus.NEEDS_REVIEW
+    assert reviewed.review_status == RecipeReviewStatus.READY
+    assert "steps" in {value.field for value in reviewed.uncertainties}
+
+
+def test_an_unstated_yield_gets_a_useful_labelled_default() -> None:
+    ingredients = [
+        ExtractedIngredient(
+            name="bread",
+            quantity_text="1 loaf",
+            normalized_quantity=Decimal("1"),
+            unit="loaf",
+            confidence=0.95,
+        )
+    ]
+    reviewed = build_reviewed_template(
+        _solid_recipe(
+            servings=None,
+            servings_basis="unknown",
+            ingredients=ingredients,
+            steps=[
+                ExtractedStep(
+                    instruction="Slice and serve the bread.",
+                    ingredient_indices=[0],
+                    confidence=0.95,
+                )
+            ],
+        ),
+        context=context(),
+    )
+
+    assert reviewed.review_status == RecipeReviewStatus.READY
+    assert reviewed.servings == 4
+    assert "servings" in {value.field for value in reviewed.uncertainties}
 
 
 def test_mostly_unmeasured_ingredients_still_force_review() -> None:

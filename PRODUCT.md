@@ -48,7 +48,10 @@ from size, weight, color, and spacing.
 - First-run identity is explicit and inclusive: a dedicated welcome screen
   offers Apple, Google, and a clearly limited guest path before entering the
   library.
-- Honesty in data: estimated values are always labeled estimated; uncertain
-  imported fields are surfaced for review, never silently invented.
+- Honesty in data: conservative amounts may be inferred when the dish and
+  standard technique support them, but every estimate is labeled inline.
+  Blocking review is reserved for recipes that remain mostly unmeasured.
+- Discovery uses aggregate saves of public recipe-video sources. It never
+  exposes the identity of the cook who saved a recipe or their private edits.
 - Demo/fixture content must be indistinguishable from real recipes; a
   placeholder ingredient is a bug.

@@ -1,6 +1,6 @@
 # Overeasy privacy policy
 
-Effective: July 26, 2026
+Effective: August 23, 2026
 
 Overeasy turns public recipe links and text you provide into recipes and syncs
 them across your devices. This policy describes the data needed to do that.
@@ -15,6 +15,10 @@ apps or websites.
   that sign-in method.
 - Imported URLs, public-source metadata, recipe content, thumbnails, and edit
   history provide imports and device sync.
+- Discover ranks public recipe-video sources by aggregate saves. It shows the
+  public creator account, source metadata, thumbnail, and total save count. It
+  does not expose who saved a recipe, private edits, ingredients, or personal
+  correction notes from another account.
 - Pasted recipe text and correction notes are encrypted at rest and used only
   to complete or retry the requested import.
 - Request IDs, pseudonymous user identifiers, import job IDs, provider stage,

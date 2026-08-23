@@ -1,18 +1,20 @@
 import json
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import Session, sessionmaker
 
 from alembic import command
 from ladle.api.app import create_app
 from ladle.auth.attestation import AttestationService
 from ladle.auth.sessions import SessionService
 from ladle.auth.tokens import AccessTokenCodec, RefreshTokenCodec
+from ladle.db.models import ExtractionCache, Recipe, SourceVideo
 from ladle.db.session import build_engine
 from tests.integration.test_migrations import alembic_config
 
@@ -104,4 +106,113 @@ def test_recipe_crud_conflict_and_sync_tombstone(clean_postgres_url: str) -> Non
         assert page.json()["changes"][-1]["kind"] == "delete"
         assert page.json()["nextCursor"] == 3
 
+    engine.dispose()
+
+
+@pytest.mark.integration
+def test_discover_returns_aggregated_public_source_data(
+    clean_postgres_url: str,
+) -> None:
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    engine = build_engine(clean_postgres_url)
+    app = create_app(
+        session_factory=sessionmaker(engine, expire_on_commit=False),
+        attestation=AttestationService(enforced=False),
+    )
+    recipe = json.loads(FIXTURE.read_text())
+    source_url = "https://www.tiktok.com/@mia_cooks/video/1234567890"
+
+    with TestClient(app) as client:
+        users = [
+            client.post(
+                "/v1/auth/guest",
+                json={
+                    "installationID": f"discover-user-{index}",
+                    "attestation": None,
+                },
+            ).json()
+            for index in range(3)
+        ]
+        with Session(engine) as database, database.begin():
+            source_id = uuid4()
+            cache_id = uuid4()
+            database.add(
+                SourceVideo(
+                    id=source_id,
+                    platform="tiktok",
+                    platform_video_id="1234567890",
+                    canonical_url=source_url,
+                    public_access_confirmed_at=datetime(2026, 8, 23, 12, tzinfo=UTC),
+                    source_revision="1",
+                    source_metadata={},
+                )
+            )
+            database.flush()
+            database.add(
+                ExtractionCache(
+                    id=cache_id,
+                    source_video_id=source_id,
+                    source_revision="1",
+                    contract_version="v1",
+                    prompt_version="recipe-test",
+                    model_id="test-model",
+                    template_json={
+                        "title": "Lemon Orzo",
+                        "description": recipe["description"],
+                        "creatorName": "@mia_cooks",
+                        "source": "tiktok",
+                        "originalURL": source_url,
+                        "servings": "4",
+                        "ingredients": [],
+                        "steps": [],
+                        "notes": [],
+                        "reviewStatus": "ready",
+                        "uncertainties": [],
+                    },
+                    review_status="ready",
+                    thumbnail_remote_url=recipe["images"][0]["remoteURL"],
+                )
+            )
+            for index, user in enumerate(users[1:], start=1):
+                recipe_id = uuid4()
+                database.add(
+                    Recipe(
+                        id=recipe_id,
+                        user_id=UUID(user["userID"]),
+                        source_video_id=source_id,
+                        source_cache_id=cache_id,
+                        title=f"Private title edit {index}",
+                        description=f"Private description edit {index}",
+                        creator_name="Private creator edit",
+                        source="tiktok",
+                        original_url=source_url,
+                        servings=Decimal(4),
+                        favorite=False,
+                        review_status="ready",
+                        revision=1,
+                        created_at=datetime(2026, 8, 23, 12, index, tzinfo=UTC),
+                        updated_at=datetime(2026, 8, 23, 12, index, tzinfo=UTC),
+                    )
+                )
+
+        response = client.get(
+            "/v1/recipes/discover",
+            headers={"Authorization": f"Bearer {users[0]['accessToken']}"},
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["items"] == [
+        {
+            "title": "Lemon Orzo",
+            "description": recipe["description"],
+            "creatorName": "@mia_cooks",
+            "source": "tiktok",
+            "originalURL": source_url,
+            "imageURL": recipe["images"][0]["remoteURL"],
+            "savedCount": 2,
+        }
+    ]
+    assert "userID" not in json.dumps(payload)
+    assert "ingredients" not in payload["items"][0]
     engine.dispose()

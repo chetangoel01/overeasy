@@ -189,6 +189,14 @@ final class LibraryViewModelTests: XCTestCase {
         viewModel.load()
 
         XCTAssertEqual(viewModel.importAttentionCount, 2)
+        XCTAssertEqual(
+            viewModel.creatorName(
+                for: viewModel.actionableImportJobs.first {
+                    $0.status == .parsing
+                }!
+            ),
+            "@cook"
+        )
     }
 
     func testNeedsReviewImportResolvesRecipeForInbox() throws {
@@ -203,6 +211,10 @@ final class LibraryViewModelTests: XCTestCase {
         XCTAssertEqual(
             viewModel.recipeForReview(job)?.id,
             PreviewFixtures.recipes[1].id
+        )
+        XCTAssertEqual(
+            viewModel.creatorName(for: job),
+            PreviewFixtures.recipes[1].creatorName
         )
     }
 

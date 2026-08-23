@@ -16,6 +16,18 @@ struct AddRecipeSheet: View {
     @State private var recoveryInputMode: RecoveryInputMode?
     @State private var isRetrying = false
 
+    init(
+        coordinator: ImportCoordinator,
+        accountSession: AccountSession,
+        initialLink: String = "",
+        viewRecipe: @escaping (Recipe, String) -> Void
+    ) {
+        self.coordinator = coordinator
+        self.accountSession = accountSession
+        self.viewRecipe = viewRecipe
+        _linkText = State(initialValue: initialLink)
+    }
+
     var body: some View {
         NavigationStack {
             Group {
@@ -291,7 +303,7 @@ struct AddRecipeSheet: View {
             )
 
             VStack(spacing: 8) {
-                Text(needsReview ? "Recipe needs review" : "Recipe saved")
+                Text(needsReview ? "Check a few details" : "Recipe saved")
                     .ladleFont(.title)
                     .foregroundStyle(LadleTheme.ink)
                     .multilineTextAlignment(.center)
@@ -310,7 +322,7 @@ struct AddRecipeSheet: View {
                 }
                 viewRecipe(
                     recipe,
-                    needsReview ? "Needs review" : "Imported recipe"
+                    needsReview ? "Check details" : "Imported recipe"
                 )
                 coordinator.reset()
                 dismiss()

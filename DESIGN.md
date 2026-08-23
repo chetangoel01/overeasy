@@ -113,6 +113,14 @@ Use ink text on celery and ube.
 - Recipes saved this week
 - Useful generated groups: ready in 30 minutes, favorites, and not cooked yet
 
+### Discover
+
+- A peer destination beside Home and All Recipes
+- Open list of public recipe-video sources ranked by aggregate saves
+- Creator account, source, image, short description, and save count are visible
+- Saving pre-fills the existing import flow so extraction and ownership remain
+  account-scoped
+
 ### All Recipes
 
 - Dense archive supporting hundreds of recipes
@@ -122,8 +130,9 @@ Use ink text on celery and ube.
 
 ### Watch
 
-- Vertical, snap-aligned recipe cards
-- Overview, Ingredients, and Method switch within a fixed-height card
+- Regular vertical scrolling with content-sized recipe cards
+- Creator account and source platform remain visible above each recipe
+- Overview, Ingredients, and Method switch within each card
 - Only one source action is active at a time
 - Stored imagery and the original source link are the required fallback when
   direct third-party playback is unavailable

@@ -128,7 +128,7 @@ struct FailedImportSheet: View {
                 coordinator.reset()
                 dismiss()
             case .needsReview:
-                viewRecipe(recipe, "Needs review")
+                viewRecipe(recipe, "Check details")
                 coordinator.reset()
                 dismiss()
             default:
