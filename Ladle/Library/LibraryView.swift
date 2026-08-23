@@ -272,7 +272,8 @@ struct LibraryView: View {
             toggleFavorite: viewModel.toggleFavorite,
             completeReview: viewModel.completeReview,
             deleteRecipe: viewModel.deleteRecipe,
-            allowsLibraryEdits: destination.allowsLibraryEdits
+            allowsLibraryEdits: destination.allowsLibraryEdits,
+            openAccount: { isAccountPresented = true }
         )
     }
 

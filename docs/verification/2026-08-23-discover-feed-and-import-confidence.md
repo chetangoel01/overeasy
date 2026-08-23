@@ -33,7 +33,8 @@ sign-in configuration.
   read-only detail screen without saving it. A long press previews Discover and
   saved recipes with native Open and Save/Favorite context-menu actions.
 - Account management is the consistent top-right action on Recipes, Discover,
-  Watch, and Inbox. Add Recipe remains limited to Recipes.
+  Watch, Inbox, and saved or Discover recipe details. Add Recipe remains limited
+  to Recipes; distraction-free Focus Mode remains intentionally unchanged.
 - Watch uses continuous native scrolling and content-sized cards. It no longer
   snaps one viewport-sized card at a time.
 - Watch and Import Inbox show the source creator account when available. Inbox

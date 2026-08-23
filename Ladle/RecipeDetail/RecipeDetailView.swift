@@ -41,6 +41,7 @@ struct RecipeDetailView: View {
     let completeReview: (UUID) -> Recipe?
     let deleteRecipe: (UUID) -> Bool
     let allowsLibraryEdits: Bool
+    let openAccount: () -> Void
 
     @State private var displayedRecipe: Recipe
     @State private var isFavorite: Bool
@@ -67,7 +68,8 @@ struct RecipeDetailView: View {
         toggleFavorite: @escaping (UUID) -> Bool,
         completeReview: @escaping (UUID) -> Recipe? = { _ in nil },
         deleteRecipe: @escaping (UUID) -> Bool = { _ in false },
-        allowsLibraryEdits: Bool = true
+        allowsLibraryEdits: Bool = true,
+        openAccount: @escaping () -> Void
     ) {
         self.statusText = statusText
         self.importCoordinator = importCoordinator
@@ -78,6 +80,7 @@ struct RecipeDetailView: View {
         self.completeReview = completeReview
         self.deleteRecipe = deleteRecipe
         self.allowsLibraryEdits = allowsLibraryEdits
+        self.openAccount = openAccount
         _displayedRecipe = State(initialValue: recipe)
         _isFavorite = State(initialValue: recipe.isFavorite)
         _reviewIsPending = State(
@@ -170,6 +173,15 @@ struct RecipeDetailView: View {
                     .buttonStyle(LadlePressButtonStyle())
                     .accessibilityLabel("Recipe options")
                 }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(action: openAccount) {
+                    Image(systemName: "person.crop.circle")
+                        .frame(width: 44, height: 44)
+                }
+                .foregroundStyle(LadleTheme.ink)
+                .buttonStyle(LadlePressButtonStyle())
+                .accessibilityLabel("Account")
             }
         }
         .sheet(
