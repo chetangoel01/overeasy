@@ -162,6 +162,32 @@ exported the app and embedded Share Extension for App Store Connect. The VPS
 gateway key remains ignored and must be rotated before any build is shared
 beyond trusted internal testers because an installed app can be inspected.
 
+### 2026-08-23 guarded VPS rollout
+
+- The legacy deployment passed its health gate and created pre-migration backup
+  `ladle-20260823-211800-1092575.dump` before service replacement.
+- VPS revision `7907382e838157a71196c9be0469435d2a107ad8` is deployed. PostgreSQL,
+  Redis, and MinIO retained their named volumes; the consolidated API and worker
+  passed direct health checks; and the shared Caddy configuration validated and
+  reloaded.
+- The owner-only deployment environment is mode `0600`. The Apple private key
+  is mode `0400`, owned by the container's fixed UID/GID `10001:10001`, and its
+  value was never printed. Deployment preflight now reads the key as the
+  container user before replacing services.
+- The external guarded verifier passed TLS, security headers, secret leakage,
+  access-key enforcement, dependency readiness, hidden endpoints,
+  authentication boundaries, and request-size enforcement.
+- Release build `1.0 (20260823.1)` was installed on an isolated iPhone 17 iOS
+  26.5 simulator. It created a guest session with `201`, completed its first
+  authenticated read with `200`, opened the four-tab workspace, and loaded the
+  live Discover feed from the deployed backend after a fresh tab reload.
+- Verification passed with 167 iOS tests and one expected skip, 44 LadleCore
+  tests, and 519 backend tests with five expected skips before the final narrow
+  deployment hardening. The 11 directly affected Swagger, configuration,
+  deployment, lint, shell, and Compose checks passed afterward. A redundant
+  final full backend rerun was stopped when the local Docker test-container
+  socket stalled before producing a test failure.
+
 The compile-only handoff artifact is
 `/tmp/Overeasy-1.0-20260726.2-unsigned.xcarchive.zip` (13 MB,
 SHA-256 `64010a9337aa85b6ee34b9a7aaf24bf28631c1a6d6ae9cb8a180d0c8b251c0a3`).
