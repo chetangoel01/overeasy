@@ -62,6 +62,8 @@ metadata, and TestFlight packaging path before the first 1.0 beta.
   **Ready to Test** in App Store Connect on August 23, 2026. The build expires
   in 90 days and remains intentionally limited to internal testers while it
   targets the guarded VPS.
+- The **Internal Testers** group uses automatic build distribution. The account
+  holder was invited on August 23, 2026, with one ready build assigned.
 - Account deletion is a server-authoritative operation. A failed Apple token
   revocation or backend deletion leaves local authentication and recipes intact
   so the user can retry.
