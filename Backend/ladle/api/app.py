@@ -126,9 +126,14 @@ def create_app(
         database_sessions = build_session_factory(database_engine)
     else:
         database_sessions = session_factory
+    interactive_docs = (
+        configured.environment == "development"
+        and configured.interactive_docs_enabled
+    )
     application = FastAPI(
         title="Ladle API",
         version="0.1.0",
+        openapi_url="/openapi.json" if interactive_docs else None,
         docs_url=None,
         redoc_url=None,
         swagger_ui_oauth2_redirect_url=None,
@@ -140,7 +145,7 @@ def create_app(
     application.add_middleware(
         SecurityHeadersMiddleware,
         production=configured.environment == "production",
-        interactive_docs=configured.environment == "development",
+        interactive_docs=interactive_docs,
     )
     application.state.session_factory = database_sessions
     application.state.clock = runtime_clock
@@ -421,7 +426,7 @@ def create_app(
     application.include_router(imports_router)
     application.include_router(health_router)
     install_error_handlers(application)
-    if configured.environment == "development":
+    if interactive_docs:
         install_pipeline_openapi(application)
         patch_fastapi(application, redirect_from_root_to_docs=False)
 

@@ -47,9 +47,11 @@ archive=$1
 revision=$2
 app=/opt/ladle/app
 gateway=/opt/platform/gateway
+gateway_env=/etc/platform/gateway.env
 
 sudo -n test -f /opt/ladle/.env
 sudo -n test -f "$gateway/docker-compose.yml"
+sudo -n test -f "$gateway_env"
 sudo -n test -d "$gateway/routes"
 sudo -n mkdir -p "$app"
 sudo -n find "$app" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
@@ -60,7 +62,7 @@ sudo -n /opt/ladle/app/Backend/deploy/vps/manage.sh deploy
 sudo -n install -m 0644 \
     "$app/Backend/deploy/vps/gateway/routes/ladle.caddy" \
     "$gateway/routes/ladle.caddy"
-sudo -n sh -c "cd '$gateway' && docker compose exec -T gateway caddy validate --config /etc/caddy/Caddyfile && docker compose exec -T gateway caddy reload --config /etc/caddy/Caddyfile"
+sudo -n sh -c "cd '$gateway' && docker compose --project-name platform-gateway --env-file /etc/platform/gateway.env exec -T gateway caddy validate --config /etc/caddy/Caddyfile && docker compose --project-name platform-gateway --env-file /etc/platform/gateway.env exec -T gateway caddy reload --config /etc/caddy/Caddyfile"
 REMOTE
 
 printf 'Deployed %s to %s\n' "$revision" "$ssh_target"

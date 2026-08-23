@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     )
 
     environment: Literal["development", "test", "production"] = "development"
+    interactive_docs_enabled: bool = True
     jwt_signing_secret: SecretStr = SecretStr(
         "change-me-development-only-signing-secret"
     )

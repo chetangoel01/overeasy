@@ -100,3 +100,22 @@ def test_interactive_swagger_is_hidden_outside_development() -> None:
     assert docs.headers["Content-Security-Policy"] == (
         "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
     )
+
+
+def test_guarded_development_server_can_hide_interactive_swagger() -> None:
+    application = create_app(
+        settings=Settings(
+            environment="development",
+            interactive_docs_enabled=False,
+            _env_file=None,
+        )
+    )
+
+    with TestClient(application) as client:
+        schema = client.get("/openapi.json")
+        docs = client.get("/docs")
+        javascript = client.get("/swagger/swagger-ui-bundle.js")
+
+    assert schema.status_code == 404
+    assert docs.status_code == 404
+    assert javascript.status_code == 404

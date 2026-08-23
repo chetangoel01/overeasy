@@ -26,9 +26,10 @@ Increase worker concurrency only after CPU and queue measurements justify it.
 The checked-in environment defaults to production and enforced App Attest. A
 guarded internal TestFlight backend may explicitly set
 `LADLE_ENVIRONMENT=development`, `LADLE_ATTESTATION_ENFORCED=false`, and
-`LADLE_APP_ATTEST_ENVIRONMENT=development` while the corresponding internal
-app build disables App Attest at runtime. Do not use that exception for an
-unguarded public service or an external App Store release.
+`LADLE_APP_ATTEST_ENVIRONMENT=development` while keeping
+`LADLE_INTERACTIVE_DOCS_ENABLED=false` and disabling App Attest in the
+corresponding internal app build. Do not use that exception for an unguarded
+public service or an external App Store release.
 
 Compose probes every service every five seconds during its first minute so
 deployment readiness stays fast, then backs all Docker health checks off to a
@@ -95,7 +96,8 @@ In Apple Developer:
 1. Register the `com.ladle.ios` App ID and enable Sign in with Apple and App
    Attest.
 2. Create a Sign in with Apple key and download its `.p8` file once.
-3. Copy that file to `/opt/ladle/secrets/` with mode `0600`.
+3. Install that file in `/opt/ladle/secrets/` for the container's fixed user:
+   `sudo install -o 10001 -g 10001 -m 0400 AuthKey_KEYID.p8 /opt/ladle/secrets/`.
 4. Set the App ID prefix, Team ID, Key ID, bundle ID, and absolute key path in
    `/opt/ladle/.env`.
 
@@ -132,8 +134,12 @@ To validate and reload it manually:
 
 ```bash
 cd /opt/platform/gateway
-sudo docker compose exec gateway caddy validate --config /etc/caddy/Caddyfile
-sudo docker compose exec gateway caddy reload --config /etc/caddy/Caddyfile
+sudo docker compose --project-name platform-gateway \
+  --env-file /etc/platform/gateway.env \
+  exec gateway caddy validate --config /etc/caddy/Caddyfile
+sudo docker compose --project-name platform-gateway \
+  --env-file /etc/platform/gateway.env \
+  exec gateway caddy reload --config /etc/caddy/Caddyfile
 ```
 
 Only ports 22, 80, and 443 should be public. The Caddy route hides ordinary API

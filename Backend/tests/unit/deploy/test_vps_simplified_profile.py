@@ -93,7 +93,11 @@ def test_guarded_internal_beta_can_disable_app_attest() -> None:
     assert environment["LADLE_APP_ATTEST_ENVIRONMENT"] == (
         "${LADLE_APP_ATTEST_ENVIRONMENT:-production}"
     )
+    assert environment["LADLE_INTERACTIVE_DOCS_ENABLED"] == (
+        "${LADLE_INTERACTIVE_DOCS_ENABLED:-false}"
+    )
     assert "LADLE_ENVIRONMENT=production" in example
+    assert "LADLE_INTERACTIVE_DOCS_ENABLED=false" in example
     assert "LADLE_ATTESTATION_ENFORCED=true" in example
     assert "LADLE_APP_ATTEST_ENVIRONMENT=production" in example
 
@@ -112,6 +116,9 @@ def test_vps_operations_stay_small_and_cover_the_real_recovery_contract() -> Non
     assert "sha256sum" in manage
     assert "archive --format=tar.gz" in push
     assert "manage.sh deploy" in push
+    assert "apple_private_key_value" in manage
+    assert "--project-name platform-gateway" in push
+    assert "--env-file /etc/platform/gateway.env" in push
     assert "caddy reload" in push
 
 

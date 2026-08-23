@@ -48,7 +48,7 @@ deploy() {
     compose config --quiet
     compose build minio-init migrate api worker
     compose run --rm --no-deps api /app/.venv/bin/python -c \
-        "from ladle.config import Settings; Settings()"
+        "from ladle.config import Settings; settings = Settings(); settings.apple_private_key_value"
     compose up -d --wait postgres redis minio
     compose run --rm minio-init
     compose run --rm migrate
