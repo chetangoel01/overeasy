@@ -23,12 +23,13 @@ The API has ample capacity for 100 users. Four imports can run concurrently;
 additional imports queue in Redis rather than spawning more infrastructure.
 Increase worker concurrency only after CPU and queue measurements justify it.
 
-Compose uses cheap runtime health checks: the API liveness endpoint runs every
-30 seconds, and the Celery ping runs every five minutes. The explicit
-`manage.sh health` command still checks full API readiness and worker response
-before a deployment succeeds. Do not use full readiness as a frequent Docker
-probe; it contacts every dependency and wakes a Celery CLI process even when
-the application has no work.
+Compose probes every service every five seconds during its first minute so
+deployment readiness stays fast, then backs all Docker health checks off to a
+five-minute interval. Three consecutive failures are required before a service
+becomes unhealthy. The explicit `manage.sh health` command still checks full
+API readiness and worker response before a deployment succeeds. Do not use full
+readiness as a frequent Docker probe; it contacts every dependency and wakes a
+Celery CLI process even when the application has no work.
 
 ## Host layout
 

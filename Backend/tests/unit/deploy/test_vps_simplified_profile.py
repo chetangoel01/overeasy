@@ -31,16 +31,18 @@ def test_vps_runtime_is_right_sized_for_one_small_host() -> None:
     assert compose()["x-app"]["build"]["context"] == "."
 
 
-def test_runtime_healthchecks_do_not_poll_full_readiness() -> None:
+def test_runtime_healthchecks_are_fast_at_start_then_back_off() -> None:
     services = compose()["services"]
     api_healthcheck = services["api"]["healthcheck"]
-    worker_healthcheck = services["worker"]["healthcheck"]
 
     assert "/health/live" in api_healthcheck["test"][-1]
     assert "/health/ready" not in api_healthcheck["test"][-1]
-    assert api_healthcheck["interval"] == "30s"
-    assert worker_healthcheck["interval"] == "5m"
-    assert worker_healthcheck["retries"] == 3
+    for name in ("postgres", "redis", "minio", "api", "worker"):
+        healthcheck = services[name]["healthcheck"]
+        assert healthcheck["interval"] == "5m", name
+        assert healthcheck["retries"] == 3, name
+        assert healthcheck["start_period"] == "1m", name
+        assert healthcheck["start_interval"] == "5s", name
 
 
 def test_shared_gateway_connects_directly_to_api_and_private_media() -> None:

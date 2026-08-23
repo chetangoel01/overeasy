@@ -1,3 +1,9 @@
+x-testing-healthcheck: &testing-healthcheck
+  interval: 5m
+  retries: 3
+  start_period: 1m
+  start_interval: 5s
+
 x-ladle-environment: &ladle-environment
   LADLE_ENVIRONMENT: production
   LADLE_JWT_SIGNING_SECRET: ${LADLE_JWT_SIGNING_SECRET:?set LADLE_JWT_SIGNING_SECRET}
@@ -73,10 +79,9 @@ services:
       POSTGRES_USER: ladle
       POSTGRES_PASSWORD: ${LADLE_DATABASE_PASSWORD:?set LADLE_DATABASE_PASSWORD}
     healthcheck:
+      <<: *testing-healthcheck
       test: ["CMD-SHELL", "pg_isready -U ladle -d ladle"]
-      interval: 5s
       timeout: 5s
-      retries: 20
     volumes:
       - postgres:/var/lib/postgresql/data
     mem_limit: 768m
@@ -94,10 +99,9 @@ services:
         --maxmemory 192mb --maxmemory-policy noeviction
         --requirepass "$${REDIS_PASSWORD}"
     healthcheck:
+      <<: *testing-healthcheck
       test: ["CMD-SHELL", "REDISCLI_AUTH=$$REDIS_PASSWORD redis-cli ping"]
-      interval: 5s
       timeout: 5s
-      retries: 20
     volumes:
       - redis:/data
     mem_limit: 256m
@@ -110,10 +114,9 @@ services:
       MINIO_ROOT_USER: ${LADLE_OBJECT_STORAGE_ACCESS_KEY:?set LADLE_OBJECT_STORAGE_ACCESS_KEY}
       MINIO_ROOT_PASSWORD: ${LADLE_OBJECT_STORAGE_SECRET_KEY:?set LADLE_OBJECT_STORAGE_SECRET_KEY}
     healthcheck:
+      <<: *testing-healthcheck
       test: ["CMD", "curl", "--fail", "http://127.0.0.1:9000/minio/health/live"]
-      interval: 5s
       timeout: 5s
-      retries: 20
     volumes:
       - minio:/data
     networks:
@@ -158,14 +161,13 @@ services:
       - "2"
       - --proxy-headers
     healthcheck:
+      <<: *testing-healthcheck
       test:
         - CMD
         - /app/.venv/bin/python
         - -c
         - import urllib.request; urllib.request.urlopen('http://127.0.0.1:4111/health/live', timeout=3)
-      interval: 30s
       timeout: 5s
-      retries: 20
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -191,6 +193,7 @@ services:
       - --loglevel=INFO
       - --concurrency=4
     healthcheck:
+      <<: *testing-healthcheck
       test:
         - CMD
         - /app/.venv/bin/celery
@@ -199,9 +202,7 @@ services:
         - inspect
         - ping
         - --timeout=5
-      interval: 5m
       timeout: 10s
-      retries: 3
     depends_on:
       migrate:
         condition: service_completed_successfully
