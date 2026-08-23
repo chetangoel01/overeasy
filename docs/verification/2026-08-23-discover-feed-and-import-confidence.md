@@ -27,7 +27,10 @@ sign-in configuration.
   collections in one archive rather than splitting them across Home and All.
 - Discover ranks public social-recipe sources by aggregate saves from other
   accounts. Rows show creator account, source image, summary, save count, and a
-  Save action that pre-fills the existing import sheet.
+  Save action that stores the already-resolved recipe immediately. The button
+  shows progress during the request and becomes Saved when complete.
+- Account management is the consistent top-right action on Recipes, Discover,
+  Watch, and Inbox. Add Recipe remains limited to Recipes.
 - Watch uses continuous native scrolling and content-sized cards. It no longer
   snaps one viewport-sized card at a time.
 - Watch and Import Inbox show the source creator account when available. Inbox
@@ -56,8 +59,11 @@ sign-in configuration.
 normalized source-video record and ranks them by distinct saving accounts. The
 response is rebuilt from the shared extraction cache and contains public source
 metadata plus an aggregate count only. It excludes account IDs, private
-ingredients and steps, user edits, and correction notes. Saving a result runs a
-fresh account-owned import instead of copying another user's recipe.
+ingredients and steps, user edits, and correction notes. Saving uses the opaque
+source ID to instantiate the ready shared extraction as a new account-owned
+recipe. It does not copy another user's recipe and does not create an import
+job, download media, transcribe audio, or call an extraction model. Repeated
+save requests return the same active account recipe.
 
 ## Authentication configuration
 
@@ -97,12 +103,14 @@ profiles.
 
 - Prompt/review unit tests cover labeled estimation and exceptional gating.
 - Discover API integration coverage proves aggregation and response privacy.
+- Discover direct-save coverage proves idempotent cloning, sync visibility, and
+  zero import-job creation.
 - LadleCore contract coverage decodes the Discover wire payload.
-- App tests cover Discover loading/error states and creator attribution.
-- Targeted simulator tests cover Discover, library grouping, and navigation.
+- App tests cover Discover loading/error states, save idempotency, creator
+  attribution, and account toolbar availability across all workspace tabs.
 - `swift test --package-path Packages/LadleCore`: 44 passed.
-- Full simulator test suite: 163 passed, 1 skipped, 0 failures.
-- Backend suite: 510 passed, 5 skipped.
+- Full simulator test suite: 172 passed, 1 skipped, 0 failures.
+- Backend suite: 520 passed, 5 skipped.
 - A generic iOS Simulator build completed for the app and embedded Share
   Extension with `CODE_SIGNING_ALLOWED=NO`.
 - Runtime settings load the Apple private key and both enabled provider

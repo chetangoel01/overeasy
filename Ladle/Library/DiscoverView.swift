@@ -14,6 +14,9 @@ final class DiscoverViewModel {
 
     private let service: any DiscoverServing
     private(set) var state: State = .idle
+    private(set) var savingSourceIDs: Set<UUID> = []
+    private(set) var savedSourceIDs: Set<UUID> = []
+    private(set) var saveErrorMessage: String?
 
     init(service: any DiscoverServing) {
         self.service = service
@@ -23,22 +26,62 @@ final class DiscoverViewModel {
         guard state != .loading else { return }
         state = .loading
         do {
-            state = .loaded(try await service.fetchDiscoverRecipes())
+            let recipes = try await service.fetchDiscoverRecipes()
+            savedSourceIDs.formUnion(
+                recipes.lazy
+                    .filter { $0.savedRecipeID != nil }
+                    .map(\.sourceID)
+            )
+            state = .loaded(recipes)
         } catch is CancellationError {
             state = .idle
         } catch {
             state = .failed
         }
     }
+
+    func isSaving(_ recipe: DiscoverRecipe) -> Bool {
+        savingSourceIDs.contains(recipe.sourceID)
+    }
+
+    func isSaved(_ recipe: DiscoverRecipe) -> Bool {
+        savedSourceIDs.contains(recipe.sourceID)
+            || recipe.savedRecipeID != nil
+    }
+
+    func save(
+        _ recipe: DiscoverRecipe
+    ) async -> SavedDiscoverRecipe? {
+        guard !isSaving(recipe), !isSaved(recipe) else {
+            return nil
+        }
+        savingSourceIDs.insert(recipe.sourceID)
+        defer { savingSourceIDs.remove(recipe.sourceID) }
+        do {
+            let saved = try await service.saveDiscoverRecipe(
+                sourceID: recipe.sourceID
+            )
+            savedSourceIDs.insert(recipe.sourceID)
+            saveErrorMessage = nil
+            return saved
+        } catch {
+            saveErrorMessage = "That recipe couldn’t be saved."
+            return nil
+        }
+    }
+
+    func clearSaveError() {
+        saveErrorMessage = nil
+    }
 }
 
 struct DiscoverView: View {
     @State private var viewModel: DiscoverViewModel
-    let saveRecipe: (DiscoverRecipe) -> Void
+    let saveRecipe: (SavedDiscoverRecipe) -> Void
 
     init(
         service: any DiscoverServing,
-        saveRecipe: @escaping (DiscoverRecipe) -> Void
+        saveRecipe: @escaping (SavedDiscoverRecipe) -> Void
     ) {
         _viewModel = State(
             initialValue: DiscoverViewModel(service: service)
@@ -66,6 +109,14 @@ struct DiscoverView: View {
             }
         }
         .accessibilityIdentifier("library.discover")
+        .alert(
+            "Couldn’t save recipe",
+            isPresented: saveErrorIsPresented
+        ) {
+            Button("OK", action: viewModel.clearSaveError)
+        } message: {
+            Text(viewModel.saveErrorMessage ?? "Please try again.")
+        }
     }
 
     private var loadingContent: some View {
@@ -124,7 +175,15 @@ struct DiscoverView: View {
                 ForEach(recipes) { recipe in
                     DiscoverRecipeRow(
                         recipe: recipe,
-                        save: { saveRecipe(recipe) }
+                        isSaving: viewModel.isSaving(recipe),
+                        isSaved: viewModel.isSaved(recipe),
+                        save: {
+                            Task {
+                                if let saved = await viewModel.save(recipe) {
+                                    saveRecipe(saved)
+                                }
+                            }
+                        }
                     )
                     Divider()
                         .overlay(LadleTheme.ink.opacity(0.08))
@@ -136,12 +195,21 @@ struct DiscoverView: View {
         .scrollIndicators(.hidden)
         .refreshable { await viewModel.load() }
     }
+
+    private var saveErrorIsPresented: Binding<Bool> {
+        Binding(
+            get: { viewModel.saveErrorMessage != nil },
+            set: { if !$0 { viewModel.clearSaveError() } }
+        )
+    }
 }
 
 private struct DiscoverRecipeRow: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     let recipe: DiscoverRecipe
+    let isSaving: Bool
+    let isSaved: Bool
     let save: () -> Void
 
     var body: some View {
@@ -218,15 +286,34 @@ private struct DiscoverRecipeRow: View {
 
     private var saveButton: some View {
         Button(action: save) {
-            Label("Save", systemImage: "plus")
+            Group {
+                if isSaving {
+                    ProgressView()
+                        .controlSize(.small)
+                        .tint(LadleTheme.onAccent)
+                } else {
+                    Label(
+                        isSaved ? "Saved" : "Save",
+                        systemImage: isSaved ? "checkmark" : "plus"
+                    )
+                }
+            }
                 .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.onAccent)
+                .foregroundStyle(
+                    isSaved ? LadleTheme.ink : LadleTheme.onAccent
+                )
                 .padding(.horizontal, 13)
                 .frame(minHeight: 44)
-                .background(LadleTheme.brick, in: Capsule())
+                .background(
+                    isSaved ? LadleTheme.celery : LadleTheme.brick,
+                    in: Capsule()
+                )
         }
         .buttonStyle(LadlePressButtonStyle())
-        .accessibilityLabel("Save \(recipe.title)")
+        .disabled(isSaving || isSaved)
+        .accessibilityLabel(
+            isSaved ? "\(recipe.title) saved" : "Save \(recipe.title)"
+        )
     }
 
     private var saveCountText: String {

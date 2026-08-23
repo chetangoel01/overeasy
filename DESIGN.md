@@ -84,6 +84,8 @@ tracking.
   destination onto the recipe navigation path.
 - Recipe detail remains a pushed destination. Import and account flows remain
   native sheets.
+- Account management stays in the top-right toolbar on Recipes, Discover,
+  Watch, and Inbox. Add Recipe remains specific to Recipes.
 
 ## Watch and Inbox
 
@@ -113,8 +115,9 @@ tracking.
 ## Discover and account
 
 - Discover ranks public recipe-video sources by aggregate saves and shows the
-  creator account, source, image, summary, and save count. Saving starts the
-  existing account-owned import flow.
+  creator account, source, image, summary, and save count. Saving clones the
+  already-resolved shared extraction into the current account. It never
+  resubmits the video to the import, transcription, or model pipeline.
 - Account presents the connected provider, saved-recipe count, and sync state.
   Internal installation identifiers and provider profile details stay hidden.
 

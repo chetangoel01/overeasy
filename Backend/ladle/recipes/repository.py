@@ -95,23 +95,32 @@ class RecipeRepository:
         ).all()
         items: list[DiscoverRecipeDTO] = []
         for source_video_id, saved_count, _ in ranked:
-            stored = database.scalar(
-                select(Recipe)
+            source = database.get(SourceVideo, source_video_id)
+            if source is None:
+                continue
+            cache = database.scalar(
+                select(ExtractionCache)
                 .where(
+                    ExtractionCache.source_video_id == source_video_id,
+                    ExtractionCache.source_revision == source.source_revision,
+                    ExtractionCache.review_status == RecipeReviewStatus.READY.value,
+                    ExtractionCache.invalidated_at.is_(None),
+                )
+                .order_by(ExtractionCache.created_at.desc(), ExtractionCache.id)
+                .limit(1)
+            )
+            if cache is None:
+                continue
+            saved_recipe_id = database.scalar(
+                select(Recipe.id)
+                .where(
+                    Recipe.user_id == user_id,
                     Recipe.source_video_id == source_video_id,
-                    Recipe.user_id != user_id,
                     Recipe.deleted_at.is_(None),
-                    Recipe.review_status == RecipeReviewStatus.READY.value,
                 )
                 .order_by(Recipe.updated_at.desc(), Recipe.id)
                 .limit(1)
             )
-            if stored is None:
-                continue
-            source = database.get(SourceVideo, source_video_id)
-            cache = database.get(ExtractionCache, stored.source_cache_id)
-            if source is None or cache is None:
-                continue
             template = cache.template_json
             image_url = cache.thumbnail_remote_url
             if (
@@ -122,6 +131,7 @@ class RecipeRepository:
                 image_url = self._object_url(cache.thumbnail_object_key)
             items.append(
                 DiscoverRecipeDTO(
+                    source_id=source_video_id,
                     title=template["title"],
                     description=template["description"],
                     creator_name=template.get("creatorName"),
@@ -129,6 +139,7 @@ class RecipeRepository:
                     original_url=source.canonical_url,
                     image_url=image_url,
                     saved_count=saved_count,
+                    saved_recipe_id=saved_recipe_id,
                 )
             )
         return DiscoverPageDTO(items=items)

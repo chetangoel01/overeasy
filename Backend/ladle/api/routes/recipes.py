@@ -19,6 +19,7 @@ from ladle.contracts.recipes import DiscoverPageDTO, RecipeDTO, SyncPageDTO
 from ladle.observability.metrics import MetricsRegistry
 from ladle.recipes.limits import GuestRecipeLimitReached
 from ladle.recipes.service import (
+    DiscoverRecipeUnavailable,
     InvalidManualRecipe,
     RecipeNotFound,
     RecipeService,
@@ -115,6 +116,35 @@ def discover_recipes(
             user_id=claims.user_id,
             limit=limit,
         )
+
+
+@router.post("/discover/{source_video_id}/save", response_model=RecipeDTO)
+def save_discovered_recipe(
+    source_video_id: UUID,
+    request: Request,
+    authorization: Annotated[str | None, Header()] = None,
+) -> RecipeDTO | JSONResponse:
+    claims = access_claims(request, authorization)
+    _rate_limits(request).enforce(
+        _rate_limit_policies(request).recipe_mutation(str(claims.user_id))
+    )
+    try:
+        with database(request) as current_database, current_database.begin():
+            return _recipes(request).save_discovered(
+                current_database,
+                user_id=claims.user_id,
+                source_video_id=source_video_id,
+            )
+    except GuestRecipeLimitReached:
+        return error_response(
+            request,
+            code=ErrorCode.GUEST_RECIPE_LIMIT_REACHED,
+            message="Create a free account to save more recipes.",
+            retryable=False,
+            http_status=status.HTTP_409_CONFLICT,
+        )
+    except DiscoverRecipeUnavailable as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND) from error
 
 
 @router.get("/{recipe_id}", response_model=RecipeDTO)

@@ -5,17 +5,7 @@ import XCTest
 @MainActor
 final class DiscoverViewModelTests: XCTestCase {
     func testLoadPublishesDiscoveredRecipes() async {
-        let recipe = DiscoverRecipe(
-            title: "Lemon Orzo",
-            description: "Creamy lemon orzo with spinach.",
-            creatorName: "@mia_cooks",
-            source: .tiktok,
-            originalURL: URL(
-                string: "https://www.tiktok.com/@mia_cooks/video/1234567890"
-            )!,
-            imageURL: nil,
-            savedCount: 12
-        )
+        let recipe = discoveredRecipe()
         let viewModel = DiscoverViewModel(
             service: DiscoverTestService(result: .success([recipe]))
         )
@@ -34,16 +24,84 @@ final class DiscoverViewModelTests: XCTestCase {
 
         XCTAssertEqual(viewModel.state, .failed)
     }
+
+    func testSaveClonesLoadedRecipeWithoutSubmittingAnImport() async {
+        let recipe = discoveredRecipe()
+        let saved = SavedDiscoverRecipe(
+            recipe: PreviewFixtures.recipes[0],
+            revision: 3
+        )
+        let service = DiscoverTestService(
+            result: .success([recipe]),
+            savedResult: .success(saved)
+        )
+        let viewModel = DiscoverViewModel(service: service)
+
+        let result = await viewModel.save(recipe)
+
+        XCTAssertEqual(result, saved)
+        XCTAssertTrue(viewModel.isSaved(recipe))
+        XCTAssertEqual(service.savedSourceIDs, [recipe.sourceID])
+    }
+
+    func testSaveIsIdempotentWhileRecipeIsMarkedSaved() async {
+        let recipe = discoveredRecipe(savedRecipeID: UUID())
+        let service = DiscoverTestService(result: .success([recipe]))
+        let viewModel = DiscoverViewModel(service: service)
+
+        await viewModel.load()
+        let result = await viewModel.save(recipe)
+
+        XCTAssertNil(result)
+        XCTAssertTrue(viewModel.isSaved(recipe))
+        XCTAssertTrue(service.savedSourceIDs.isEmpty)
+    }
 }
 
-private struct DiscoverTestService: DiscoverServing {
+private final class DiscoverTestService: DiscoverServing {
     let result: Result<[DiscoverRecipe], any Error>
+    let savedResult: Result<SavedDiscoverRecipe, any Error>
+    private(set) var savedSourceIDs: [UUID] = []
+
+    init(
+        result: Result<[DiscoverRecipe], any Error>,
+        savedResult: Result<SavedDiscoverRecipe, any Error> =
+            .failure(TestError.failed)
+    ) {
+        self.result = result
+        self.savedResult = savedResult
+    }
 
     func fetchDiscoverRecipes() async throws -> [DiscoverRecipe] {
         try result.get()
+    }
+
+    func saveDiscoverRecipe(
+        sourceID: UUID
+    ) async throws -> SavedDiscoverRecipe {
+        savedSourceIDs.append(sourceID)
+        return try savedResult.get()
     }
 }
 
 private enum TestError: Error {
     case failed
+}
+
+private func discoveredRecipe(
+    savedRecipeID: UUID? = nil
+) -> DiscoverRecipe {
+    DiscoverRecipe(
+        sourceID: UUID(uuidString: "90000000-0000-4000-8000-000000000001")!,
+        title: "Lemon Orzo",
+        description: "Creamy lemon orzo with spinach.",
+        creatorName: "@mia_cooks",
+        source: .tiktok,
+        originalURL: URL(
+            string: "https://www.tiktok.com/@mia_cooks/video/1234567890"
+        )!,
+        imageURL: nil,
+        savedCount: 12,
+        savedRecipeID: savedRecipeID
+    )
 }

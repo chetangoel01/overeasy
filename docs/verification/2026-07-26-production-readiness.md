@@ -40,7 +40,7 @@ metadata, and TestFlight packaging path before the first 1.0 beta.
 ## Release decisions
 
 - Marketing version is `1.0`; the internal TestFlight VPS candidate uses build
-  `20260823.1`.
+  `20260823.2`.
 - App and share-extension versions come from shared Xcode build settings so they
   cannot drift.
 - `ITSAppUsesNonExemptEncryption` is false because the app uses only exempt
@@ -113,7 +113,8 @@ export a selected serving to Apple Health.
 - Feedback email: **required**
 - Support URL: **required**
 - Privacy policy URL: **required**
-- App Store Connect app record for bundle ID `com.ladle.ios`
+- App Store Connect record **Overeasy Recipes** for bundle ID `com.ladle.ios`:
+  completed
 - Google Cloud OAuth clients: one iOS client for `com.ladle.ios` and one web
   client whose client ID is used as the server audience
 - Build-time `GOOGLE_IOS_CLIENT_ID`, `GOOGLE_REVERSED_CLIENT_ID`, and

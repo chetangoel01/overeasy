@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from alembic import command
@@ -14,7 +15,7 @@ from ladle.api.app import create_app
 from ladle.auth.attestation import AttestationService
 from ladle.auth.sessions import SessionService
 from ladle.auth.tokens import AccessTokenCodec, RefreshTokenCodec
-from ladle.db.models import ExtractionCache, Recipe, SourceVideo
+from ladle.db.models import ExtractionCache, ImportJob, Recipe, SourceVideo
 from ladle.db.session import build_engine
 from tests.integration.test_migrations import alembic_config
 
@@ -204,6 +205,7 @@ def test_discover_returns_aggregated_public_source_data(
     payload = response.json()
     assert payload["items"] == [
         {
+            "sourceID": str(source_id),
             "title": "Lemon Orzo",
             "description": recipe["description"],
             "creatorName": "@mia_cooks",
@@ -211,8 +213,44 @@ def test_discover_returns_aggregated_public_source_data(
             "originalURL": source_url,
             "imageURL": recipe["images"][0]["remoteURL"],
             "savedCount": 2,
+            "savedRecipeID": None,
         }
     ]
     assert "userID" not in json.dumps(payload)
     assert "ingredients" not in payload["items"][0]
+
+    with TestClient(app) as client:
+        resumed = client.post(
+            "/v1/auth/guest",
+            json={"installationID": "discover-user-0", "attestation": None},
+        ).json()
+        save_headers = {"Authorization": f"Bearer {resumed['accessToken']}"}
+        saved = client.post(
+            f"/v1/recipes/discover/{source_id}/save",
+            headers=save_headers,
+        )
+        repeated = client.post(
+            f"/v1/recipes/discover/{source_id}/save",
+            headers=save_headers,
+        )
+        refreshed = client.get(
+            "/v1/recipes/discover",
+            headers=save_headers,
+        )
+        sync = client.get(
+            "/v1/recipes/sync?cursor=0&limit=10",
+            headers=save_headers,
+        )
+
+    assert saved.status_code == 200
+    assert saved.json()["title"] == "Lemon Orzo"
+    assert saved.json()["reviewStatus"] == "ready"
+    assert repeated.status_code == 200
+    assert repeated.json()["id"] == saved.json()["id"]
+    assert refreshed.status_code == 200
+    assert refreshed.json()["items"][0]["savedRecipeID"] == saved.json()["id"]
+    assert sync.status_code == 200
+    assert sync.json()["changes"][-1]["recipe"]["id"] == saved.json()["id"]
+    with Session(engine) as database:
+        assert database.scalar(select(func.count()).select_from(ImportJob)) == 0
     engine.dispose()

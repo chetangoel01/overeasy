@@ -179,6 +179,7 @@ Canonical recipe payloads are available in:
 | `POST /v1/imports/{jobID}/retry` | Bearer | `202` | Retry with optional correction or pasted text |
 | `GET /v1/recipes/sync?cursor=&limit=` | Bearer | `200` | Read ordered recipe upserts and tombstones |
 | `GET /v1/recipes/discover?limit=` | Bearer | `200` | Rank public recipe-video sources by aggregate saves |
+| `POST /v1/recipes/discover/{sourceVideoID}/save` | Bearer | `200` | Idempotently clone a ready shared extraction into the account |
 | `GET /v1/recipes/{recipeID}` | Bearer | `200` | Fetch one current recipe |
 | `PUT /v1/recipes/{recipeID}` | Bearer | `200` | Create or update a recipe with revision checking |
 | `DELETE /v1/recipes/{recipeID}?baseRevision=` | Bearer | `204` | Soft-delete and emit a tombstone |
@@ -192,7 +193,11 @@ There is no separate private recipe-list endpoint. Clients rebuild local state
 from `/v1/recipes/sync` and use `/v1/recipes/{recipeID}` for an individual
 refresh. Discover is a public-source preview: it excludes the requesting
 account, returns aggregate save counts and source metadata only, and never
-returns another user's identity, ingredients, steps, or edits.
+returns another user's identity, ingredients, steps, or edits. Each item carries
+an opaque source ID and the requesting account's saved recipe ID when present.
+Saving that source instantiates the ready shared extraction directly and emits
+a normal sync upsert. It does not create an import job or rerun acquisition,
+transcription, or extraction.
 
 ### Authentication payloads
 

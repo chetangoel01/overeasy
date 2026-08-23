@@ -239,6 +239,7 @@ class RecipeDTO(WireModel):
 
 
 class DiscoverRecipeDTO(WireModel):
+    source_id: WireUUID
     title: str = Field(min_length=1, max_length=300)
     description: str = Field(max_length=10_000)
     creator_name: str | None = Field(default=None, max_length=200)
@@ -246,6 +247,7 @@ class DiscoverRecipeDTO(WireModel):
     original_url: AnyHttpUrl = Field(max_length=2_048)
     image_url: AnyHttpUrl | None = Field(default=None, max_length=2_048)
     saved_count: int = Field(gt=0)
+    saved_recipe_id: WireUUID | None = None
 
 
 class DiscoverPageDTO(WireModel):

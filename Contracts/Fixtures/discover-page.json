@@ -1,13 +1,15 @@
 {
   "items": [
     {
+      "sourceID": "90000000-0000-4000-8000-000000000001",
       "title": "Lemon Orzo",
       "description": "Creamy lemon orzo with spinach.",
       "creatorName": "@mia_cooks",
       "source": "tiktok",
       "originalURL": "https://www.tiktok.com/@mia_cooks/video/1234567890",
       "imageURL": "https://images.ladle.example/discover/lemon-orzo.jpg",
-      "savedCount": 12
+      "savedCount": 12,
+      "savedRecipeID": null
     }
   ]
 }

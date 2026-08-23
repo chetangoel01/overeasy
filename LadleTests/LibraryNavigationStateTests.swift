@@ -76,4 +76,20 @@ final class LibraryNavigationStateTests: XCTestCase {
         XCTAssertEqual(state.tab, .inbox)
         XCTAssertTrue(state.path.isEmpty)
     }
+
+    func testEveryWorkspaceTabKeepsAccountInItsToolbar() {
+        for tab in LibraryTab.allCases {
+            XCTAssertTrue(
+                tab.toolbarActions.contains(.account),
+                "Expected account action on \(tab)"
+            )
+        }
+        XCTAssertEqual(
+            LibraryTab.recipes.toolbarActions,
+            [.account, .addRecipe]
+        )
+        XCTAssertEqual(LibraryTab.discover.toolbarActions, [.account])
+        XCTAssertEqual(LibraryTab.watch.toolbarActions, [.account])
+        XCTAssertEqual(LibraryTab.inbox.toolbarActions, [.account])
+    }
 }

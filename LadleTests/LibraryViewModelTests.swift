@@ -469,6 +469,26 @@ final class LibraryViewModelTests: XCTestCase {
         )
     }
 
+    func testDiscoveredRecipeStoresTheServerRevisionWithoutAnImportJob() {
+        let repository = LibraryTestRepository()
+        let viewModel = LibraryViewModel(
+            repository: repository,
+            preferenceStore: LibraryTestPreferenceStore()
+        )
+        viewModel.load()
+        let recipe = PreviewFixtures.recipes[0]
+
+        XCTAssertTrue(
+            viewModel.storeDiscoveredRecipe(
+                SavedDiscoverRecipe(recipe: recipe, revision: 7)
+            )
+        )
+
+        XCTAssertEqual(repository.savedRemoteRevisions[recipe.id], 7)
+        XCTAssertEqual(viewModel.visibleRecipes, [recipe])
+        XCTAssertTrue(repository.importJobs.isEmpty)
+    }
+
     func testRemovingMaximumTimeKeepsOtherQueryState() {
         let viewModel = makeViewModel()
         viewModel.searchText = "udon"
@@ -533,6 +553,7 @@ private final class LibraryTestRepository: RecipeRepository {
     var recipes: [Recipe]
     var importJobs: [ImportJob]
     var savedRecipes: [Recipe] = []
+    var savedRemoteRevisions: [UUID: Int] = [:]
     var fetchError: Error?
     var saveError: Error?
 
@@ -565,6 +586,11 @@ private final class LibraryTestRepository: RecipeRepository {
         } else {
             recipes.append(recipe)
         }
+    }
+
+    func saveRemote(_ recipe: Recipe, revision: Int) throws {
+        try save(recipe)
+        savedRemoteRevisions[recipe.id] = revision
     }
 
     func deleteRecipe(id: UUID) throws {

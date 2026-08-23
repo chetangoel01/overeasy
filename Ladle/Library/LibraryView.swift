@@ -5,11 +5,16 @@ enum LibraryNavigationDestination: Hashable {
     case recipe(LibraryRecipeDestination)
 }
 
-enum LibraryTab: Hashable {
+enum LibraryTab: Hashable, CaseIterable {
     case recipes
     case discover
     case watch
     case inbox
+}
+
+enum LibraryToolbarAction: Hashable {
+    case account
+    case addRecipe
 }
 
 struct LibraryNavigationState: Equatable {
@@ -47,7 +52,6 @@ struct LibraryView: View {
     @State private var isAccountPresented = false
     @State private var failedImportJob: ImportJob?
     @State private var pendingDestination: LibraryRecipeDestination?
-    @State private var discoverImportURL: URL?
 
     var body: some View {
         NavigationStack(path: $navigation.path) {
@@ -60,8 +64,8 @@ struct LibraryView: View {
 
                 DiscoverView(
                     service: discoverService,
-                    saveRecipe: { recipe in
-                        presentAddRecipe(url: recipe.originalURL)
+                    saveRecipe: { saved in
+                        viewModel.storeDiscoveredRecipe(saved)
                     }
                 )
                 .tabItem {
@@ -94,23 +98,29 @@ struct LibraryView: View {
             .navigationTitle(navigation.tab.title)
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
-                if navigation.tab == .recipes {
-                    ToolbarItemGroup(placement: .topBarTrailing) {
-                        Button {
-                            isAccountPresented = true
-                        } label: {
-                            Image(systemName: "person.crop.circle")
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    ForEach(navigation.tab.toolbarActions, id: \.self) {
+                        action in
+                        switch action {
+                        case .account:
+                            Button {
+                                isAccountPresented = true
+                            } label: {
+                                Image(systemName: "person.crop.circle")
+                            }
+                            .accessibilityLabel("Account")
+                        case .addRecipe:
+                            Button {
+                                isAddSheetPresented = true
+                            } label: {
+                                Image(systemName: "plus.circle.fill")
+                                    .font(
+                                        .system(size: 20, weight: .semibold)
+                                    )
+                            }
+                            .accessibilityLabel("Add recipe")
+                            .disabled(!canImport)
                         }
-                        .accessibilityLabel("Account")
-
-                        Button {
-                            isAddSheetPresented = true
-                        } label: {
-                            Image(systemName: "plus.circle.fill")
-                                .font(.system(size: 20, weight: .semibold))
-                        }
-                        .accessibilityLabel("Add recipe")
-                        .disabled(!canImport)
                     }
                 }
             }
@@ -137,13 +147,11 @@ struct LibraryView: View {
                 onDismiss: {
                     viewModel.load()
                     finishPendingNavigation()
-                    discoverImportURL = nil
                 }
             ) {
                 AddRecipeSheet(
                     coordinator: importCoordinator,
                     accountSession: accountSession,
-                    initialLink: discoverImportURL?.absoluteString ?? "",
                     viewRecipe: queueNavigation
                 )
             }
@@ -221,8 +229,7 @@ struct LibraryView: View {
         }
     }
 
-    private func presentAddRecipe(url: URL? = nil) {
-        discoverImportURL = url
+    private func presentAddRecipe() {
         isAddSheetPresented = true
     }
 
@@ -351,7 +358,7 @@ private extension ImportCoordinatorState {
     }
 }
 
-private extension LibraryTab {
+extension LibraryTab {
     var title: String {
         switch self {
         case .recipes: "Recipes"
@@ -359,5 +366,9 @@ private extension LibraryTab {
         case .watch: "Watch"
         case .inbox: "Inbox"
         }
+    }
+
+    var toolbarActions: [LibraryToolbarAction] {
+        self == .recipes ? [.account, .addRecipe] : [.account]
     }
 }

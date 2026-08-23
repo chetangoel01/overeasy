@@ -72,10 +72,15 @@ struct RemoteContractTests {
         let page: RemoteDiscoverPageDTO = try decodeFixture("discover-page")
 
         #expect(page.items.count == 1)
+        #expect(
+            page.items[0].sourceID.uuidString.lowercased()
+                == "90000000-0000-4000-8000-000000000001"
+        )
         #expect(page.items[0].creatorName == "@mia_cooks")
         #expect(page.items[0].source == .tiktok)
         #expect(page.items[0].savedCount == 12)
         #expect(page.items[0].imageURL?.host == "images.ladle.example")
+        #expect(page.items[0].savedRecipeID == nil)
     }
 
     @Test

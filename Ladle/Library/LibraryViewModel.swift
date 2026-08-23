@@ -274,6 +274,24 @@ final class LibraryViewModel {
     }
 
     @discardableResult
+    func storeDiscoveredRecipe(
+        _ saved: SavedDiscoverRecipe
+    ) -> Bool {
+        do {
+            try repository.saveRemote(
+                saved.recipe,
+                revision: saved.revision
+            )
+            load()
+            operationErrorMessage = nil
+            return true
+        } catch {
+            operationErrorMessage = "That recipe couldn’t be stored locally."
+            return false
+        }
+    }
+
+    @discardableResult
     func toggleFavorite(recipeID: UUID) -> Bool {
         guard var recipe = recipes.first(where: { $0.id == recipeID }) else {
             return false

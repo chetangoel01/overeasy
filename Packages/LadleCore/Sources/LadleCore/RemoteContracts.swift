@@ -120,7 +120,8 @@ public enum RemoteRecipeSource: Hashable, Sendable {
 }
 
 public struct DiscoverRecipe: Hashable, Identifiable, Sendable {
-    public var id: URL { originalURL }
+    public var id: UUID { sourceID }
+    public let sourceID: UUID
     public let title: String
     public let description: String
     public let creatorName: String?
@@ -128,16 +129,20 @@ public struct DiscoverRecipe: Hashable, Identifiable, Sendable {
     public let originalURL: URL
     public let imageURL: URL?
     public let savedCount: Int
+    public let savedRecipeID: UUID?
 
     public init(
+        sourceID: UUID,
         title: String,
         description: String,
         creatorName: String?,
         source: RecipeSource,
         originalURL: URL,
         imageURL: URL?,
-        savedCount: Int
+        savedCount: Int,
+        savedRecipeID: UUID? = nil
     ) {
+        self.sourceID = sourceID
         self.title = title
         self.description = description
         self.creatorName = creatorName
@@ -145,10 +150,12 @@ public struct DiscoverRecipe: Hashable, Identifiable, Sendable {
         self.originalURL = originalURL
         self.imageURL = imageURL
         self.savedCount = savedCount
+        self.savedRecipeID = savedRecipeID
     }
 }
 
 public struct RemoteDiscoverRecipeDTO: Codable, Hashable, Sendable {
+    public let sourceID: UUID
     public let title: String
     public let description: String
     public let creatorName: String?
@@ -156,16 +163,19 @@ public struct RemoteDiscoverRecipeDTO: Codable, Hashable, Sendable {
     public let originalURL: URL
     public let imageURL: URL?
     public let savedCount: Int
+    public let savedRecipeID: UUID?
 
     public func recipe() -> DiscoverRecipe {
         DiscoverRecipe(
+            sourceID: sourceID,
             title: title,
             description: description,
             creatorName: creatorName,
             source: source.recipeSource,
             originalURL: originalURL,
             imageURL: imageURL,
-            savedCount: savedCount
+            savedCount: savedCount,
+            savedRecipeID: savedRecipeID
         )
     }
 }
