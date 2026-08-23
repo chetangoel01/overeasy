@@ -29,6 +29,9 @@ sign-in configuration.
   accounts. Rows show creator account, source image, summary, save count, and a
   Save action that stores the already-resolved recipe immediately. The button
   shows progress during the request and becomes Saved when complete.
+- Tapping a Discover result loads its complete shared recipe and pushes a
+  read-only detail screen without saving it. A long press previews Discover and
+  saved recipes with native Open and Save/Favorite context-menu actions.
 - Account management is the consistent top-right action on Recipes, Discover,
   Watch, and Inbox. Add Recipe remains limited to Recipes.
 - Watch uses continuous native scrolling and content-sized cards. It no longer
@@ -105,11 +108,13 @@ profiles.
 - Discover API integration coverage proves aggregation and response privacy.
 - Discover direct-save coverage proves idempotent cloning, sync visibility, and
   zero import-job creation.
+- Discover detail coverage proves the full shared ingredients and method can be
+  read without creating an account recipe.
 - LadleCore contract coverage decodes the Discover wire payload.
 - App tests cover Discover loading/error states, save idempotency, creator
   attribution, and account toolbar availability across all workspace tabs.
 - `swift test --package-path Packages/LadleCore`: 44 passed.
-- Full simulator test suite: 172 passed, 1 skipped, 0 failures.
+- Full simulator test suite: 174 passed, 1 skipped, 0 failures.
 - Backend suite: 520 passed, 5 skipped.
 - A generic iOS Simulator build completed for the app and embedded Share
   Extension with `CODE_SIGNING_ALLOWED=NO`.
@@ -133,7 +138,7 @@ profiles.
 - The signed-in Account sheet was visually checked on `Ladle-Verify` after a
   successful Google session; all content fit without clipping, and the focused
   provider/sync presentation test passed.
-- Final consolidated verification: 167 iOS tests passed on `Ladle-Verify` with
+- Earlier consolidation checkpoint: 167 iOS tests passed on `Ladle-Verify` with
   one expected skip; LadleCore passed 44 tests; the backend suite passed 518
   tests with five expected skips.
 - The Porcelain & Graphite redesign was inspected on the same simulator after

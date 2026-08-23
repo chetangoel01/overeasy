@@ -40,6 +40,7 @@ struct RecipeDetailView: View {
     let toggleFavorite: (UUID) -> Bool
     let completeReview: (UUID) -> Recipe?
     let deleteRecipe: (UUID) -> Bool
+    let allowsLibraryEdits: Bool
 
     @State private var displayedRecipe: Recipe
     @State private var isFavorite: Bool
@@ -65,7 +66,8 @@ struct RecipeDetailView: View {
         reviewDidComplete: @escaping () -> Void = {},
         toggleFavorite: @escaping (UUID) -> Bool,
         completeReview: @escaping (UUID) -> Recipe? = { _ in nil },
-        deleteRecipe: @escaping (UUID) -> Bool = { _ in false }
+        deleteRecipe: @escaping (UUID) -> Bool = { _ in false },
+        allowsLibraryEdits: Bool = true
     ) {
         self.statusText = statusText
         self.importCoordinator = importCoordinator
@@ -75,6 +77,7 @@ struct RecipeDetailView: View {
         self.toggleFavorite = toggleFavorite
         self.completeReview = completeReview
         self.deleteRecipe = deleteRecipe
+        self.allowsLibraryEdits = allowsLibraryEdits
         _displayedRecipe = State(initialValue: recipe)
         _isFavorite = State(initialValue: recipe.isFavorite)
         _reviewIsPending = State(
@@ -154,17 +157,19 @@ struct RecipeDetailView: View {
         .toolbarBackground(LadleTheme.paper, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                favoriteButton
-                Button {
-                    isOptionsPresented = true
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .frame(width: 44, height: 44)
+            if allowsLibraryEdits {
+                ToolbarItemGroup(placement: .primaryAction) {
+                    favoriteButton
+                    Button {
+                        isOptionsPresented = true
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .frame(width: 44, height: 44)
+                    }
+                    .foregroundStyle(LadleTheme.ink)
+                    .buttonStyle(LadlePressButtonStyle())
+                    .accessibilityLabel("Recipe options")
                 }
-                .foregroundStyle(LadleTheme.ink)
-                .buttonStyle(LadlePressButtonStyle())
-                .accessibilityLabel("Recipe options")
             }
         }
         .sheet(
@@ -261,6 +266,12 @@ struct RecipeDetailView: View {
             }
             .ladleFont(.metadata)
             .foregroundStyle(LadleTheme.ink.opacity(0.58))
+
+            if !allowsLibraryEdits {
+                Label("Discover preview", systemImage: "sparkles")
+                    .ladleFont(.metadata)
+                    .foregroundStyle(LadleTheme.accentText)
+            }
 
             if !displayedRecipe.description.isEmpty {
                 Text(displayedRecipe.description)
@@ -469,20 +480,35 @@ struct RecipeDetailView: View {
                     LadlePrimaryButtonStyle(isProminent: false)
                 )
         case .missingIngredients:
-            Button("Add ingredients before cooking") {
-                editorViewModel = makeEditorViewModel(displayedRecipe)
+            if allowsLibraryEdits {
+                Button("Add ingredients before cooking") {
+                    editorViewModel = makeEditorViewModel(displayedRecipe)
+                }
+                .buttonStyle(
+                    LadlePrimaryButtonStyle(isProminent: false)
+                )
+            } else {
+                previewUnavailable("Ingredients aren’t available in this preview.")
             }
-            .buttonStyle(
-                LadlePrimaryButtonStyle(isProminent: false)
-            )
         case .missingMethod:
-            Button("Add a method before cooking") {
-                editorViewModel = makeEditorViewModel(displayedRecipe)
+            if allowsLibraryEdits {
+                Button("Add a method before cooking") {
+                    editorViewModel = makeEditorViewModel(displayedRecipe)
+                }
+                .buttonStyle(
+                    LadlePrimaryButtonStyle(isProminent: false)
+                )
+            } else {
+                previewUnavailable("The method isn’t available in this preview.")
             }
-            .buttonStyle(
-                LadlePrimaryButtonStyle(isProminent: false)
-            )
         }
+    }
+
+    private func previewUnavailable(_ message: String) -> some View {
+        Text(message)
+            .ladleFont(.metadata)
+            .foregroundStyle(LadleTheme.mutedInk)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var cookingReadiness: RecipeCookingReadiness {

@@ -92,4 +92,26 @@ final class LibraryNavigationStateTests: XCTestCase {
         XCTAssertEqual(LibraryTab.watch.toolbarActions, [.account])
         XCTAssertEqual(LibraryTab.inbox.toolbarActions, [.account])
     }
+
+    func testDiscoverRecipeDestinationIsReadOnly() {
+        let destination = LibraryRecipeDestination(
+            recipe: PreviewFixtures.recipes[0],
+            statusText: "Discover recipe",
+            access: .discover
+        )
+
+        XCTAssertFalse(destination.allowsLibraryEdits)
+    }
+
+    func testRecipeContextMenuOffersOpenAndFavoriteActions() {
+        var recipe = PreviewFixtures.recipes[0]
+        recipe.isFavorite = false
+        let presentation = RecipeContextMenuPresentation(
+            recipe: recipe
+        )
+
+        XCTAssertEqual(presentation.actions, [.open, .toggleFavorite])
+        XCTAssertEqual(presentation.openTitle, "Open Recipe")
+        XCTAssertEqual(presentation.favoriteTitle, "Add to Favorites")
+    }
 }

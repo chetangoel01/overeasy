@@ -1,6 +1,6 @@
 from datetime import datetime
 from urllib.parse import urlsplit
-from uuid import UUID, uuid4
+from uuid import UUID, uuid4, uuid5
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -9,6 +9,7 @@ from ladle.clock import Clock
 from ladle.contracts.recipes import (
     DiscoverPageDTO,
     RecipeDTO,
+    RecipeImageDTO,
     RecipeReviewStatus,
     RecipeSource,
 )
@@ -82,6 +83,37 @@ class RecipeService:
             limit=limit,
         )
 
+    def discover_detail(
+        self,
+        database: Session,
+        *,
+        source_video_id: UUID,
+    ) -> RecipeDTO:
+        source = database.get(SourceVideo, source_video_id)
+        if source is None:
+            raise DiscoverRecipeUnavailable
+        cache_entry = self._current_discover_cache(database, source)
+        if cache_entry is None:
+            raise DiscoverRecipeUnavailable
+        template = self._ready_discover_template(cache_entry)
+        preview = template.instantiate(
+            recipe_id=source_video_id,
+            now=self._clock.now(),
+        )
+        image_url = self._repository.extraction_thumbnail_url(cache_entry)
+        if image_url is None:
+            return preview
+        return preview.model_copy(
+            update={
+                "images": [
+                    RecipeImageDTO(
+                        id=uuid5(source_video_id, "discover-thumbnail"),
+                        remote_url=image_url,
+                    )
+                ]
+            }
+        )
+
     def save_discovered(
         self,
         database: Session,
@@ -110,23 +142,11 @@ class RecipeService:
         if existing is not None:
             return self._repository.to_dto(database, existing)
 
-        cache_entry = database.scalar(
-            select(ExtractionCache)
-            .where(
-                ExtractionCache.source_video_id == source_video_id,
-                ExtractionCache.source_revision == source.source_revision,
-                ExtractionCache.review_status == "ready",
-                ExtractionCache.invalidated_at.is_(None),
-            )
-            .order_by(ExtractionCache.created_at.desc(), ExtractionCache.id)
-            .limit(1)
-        )
+        cache_entry = self._current_discover_cache(database, source)
         if cache_entry is None:
             raise DiscoverRecipeUnavailable
 
-        template = RecipeTemplate.model_validate(cache_entry.template_json)
-        if template.review_status != RecipeReviewStatus.READY:
-            raise DiscoverRecipeUnavailable
+        template = self._ready_discover_template(cache_entry)
         ensure_recipe_capacity(database, user_id)
         now = self._clock.now()
         recipe = template.instantiate(recipe_id=uuid4(), now=now)
@@ -161,6 +181,32 @@ class RecipeService:
         )
         database.flush()
         return self._repository.to_dto(database, stored)
+
+    def _current_discover_cache(
+        self,
+        database: Session,
+        source: SourceVideo,
+    ) -> ExtractionCache | None:
+        return database.scalar(
+            select(ExtractionCache)
+            .where(
+                ExtractionCache.source_video_id == source.id,
+                ExtractionCache.source_revision == source.source_revision,
+                ExtractionCache.review_status == RecipeReviewStatus.READY.value,
+                ExtractionCache.invalidated_at.is_(None),
+            )
+            .order_by(ExtractionCache.created_at.desc(), ExtractionCache.id)
+            .limit(1)
+        )
+
+    def _ready_discover_template(
+        self,
+        cache_entry: ExtractionCache,
+    ) -> RecipeTemplate:
+        template = RecipeTemplate.model_validate(cache_entry.template_json)
+        if template.review_status != RecipeReviewStatus.READY:
+            raise DiscoverRecipeUnavailable
+        return template
 
     def upsert(
         self,

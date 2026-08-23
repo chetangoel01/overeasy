@@ -9,6 +9,7 @@ struct SavedDiscoverRecipe: Equatable, Sendable {
 @MainActor
 protocol DiscoverServing {
     func fetchDiscoverRecipes() async throws -> [DiscoverRecipe]
+    func fetchDiscoverRecipe(sourceID: UUID) async throws -> Recipe
     func saveDiscoverRecipe(
         sourceID: UUID
     ) async throws -> SavedDiscoverRecipe
@@ -22,6 +23,13 @@ struct RemoteDiscoverService: DiscoverServing {
             path: "/v1/recipes/discover"
         )
         return page.items.map { $0.recipe() }
+    }
+
+    func fetchDiscoverRecipe(sourceID: UUID) async throws -> Recipe {
+        let remote: RemoteRecipeDTO = try await api.request(
+            path: "/v1/recipes/discover/\(sourceID.uuidString)"
+        )
+        return try remote.recipe()
     }
 
     func saveDiscoverRecipe(
@@ -53,6 +61,15 @@ struct DemoDiscoverService: DiscoverServing {
                 savedRecipeID: nil
             )
         }
+    }
+
+    func fetchDiscoverRecipe(sourceID: UUID) async throws -> Recipe {
+        guard let recipe = PreviewFixtures.recipes.first(
+            where: { $0.id == sourceID }
+        ) else {
+            throw APIError.invalidResponse
+        }
+        return recipe
     }
 
     func saveDiscoverRecipe(

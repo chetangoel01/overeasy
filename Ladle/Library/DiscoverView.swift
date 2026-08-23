@@ -15,8 +15,10 @@ final class DiscoverViewModel {
     private let service: any DiscoverServing
     private(set) var state: State = .idle
     private(set) var savingSourceIDs: Set<UUID> = []
+    private(set) var loadingDetailSourceIDs: Set<UUID> = []
     private(set) var savedSourceIDs: Set<UUID> = []
     private(set) var saveErrorMessage: String?
+    private(set) var detailErrorMessage: String?
 
     init(service: any DiscoverServing) {
         self.service = service
@@ -27,10 +29,10 @@ final class DiscoverViewModel {
         state = .loading
         do {
             let recipes = try await service.fetchDiscoverRecipes()
-            savedSourceIDs.formUnion(
-                recipes.lazy
-                    .filter { $0.savedRecipeID != nil }
-                    .map(\.sourceID)
+            savedSourceIDs = Set(
+                recipes.lazy.compactMap { recipe in
+                    recipe.savedRecipeID == nil ? nil : recipe.sourceID
+                }
             )
             state = .loaded(recipes)
         } catch is CancellationError {
@@ -49,6 +51,27 @@ final class DiscoverViewModel {
             || recipe.savedRecipeID != nil
     }
 
+    func isLoadingDetail(_ recipe: DiscoverRecipe) -> Bool {
+        loadingDetailSourceIDs.contains(recipe.sourceID)
+    }
+
+    func detail(for recipe: DiscoverRecipe) async -> Recipe? {
+        guard !isLoadingDetail(recipe) else { return nil }
+        loadingDetailSourceIDs.insert(recipe.sourceID)
+        defer { loadingDetailSourceIDs.remove(recipe.sourceID) }
+        do {
+            let detail = try await service.fetchDiscoverRecipe(
+                sourceID: recipe.sourceID
+            )
+            detailErrorMessage = nil
+            return detail
+        } catch {
+            saveErrorMessage = nil
+            detailErrorMessage = "That recipe couldn’t be opened."
+            return nil
+        }
+    }
+
     func save(
         _ recipe: DiscoverRecipe
     ) async -> SavedDiscoverRecipe? {
@@ -63,30 +86,36 @@ final class DiscoverViewModel {
             )
             savedSourceIDs.insert(recipe.sourceID)
             saveErrorMessage = nil
+            detailErrorMessage = nil
             return saved
         } catch {
+            detailErrorMessage = nil
             saveErrorMessage = "That recipe couldn’t be saved."
             return nil
         }
     }
 
-    func clearSaveError() {
+    func clearOperationError() {
         saveErrorMessage = nil
+        detailErrorMessage = nil
     }
 }
 
 struct DiscoverView: View {
     @State private var viewModel: DiscoverViewModel
     let saveRecipe: (SavedDiscoverRecipe) -> Void
+    let openRecipe: (Recipe) -> Void
 
     init(
         service: any DiscoverServing,
-        saveRecipe: @escaping (SavedDiscoverRecipe) -> Void
+        saveRecipe: @escaping (SavedDiscoverRecipe) -> Void,
+        openRecipe: @escaping (Recipe) -> Void
     ) {
         _viewModel = State(
             initialValue: DiscoverViewModel(service: service)
         )
         self.saveRecipe = saveRecipe
+        self.openRecipe = openRecipe
     }
 
     var body: some View {
@@ -110,12 +139,18 @@ struct DiscoverView: View {
         }
         .accessibilityIdentifier("library.discover")
         .alert(
-            "Couldn’t save recipe",
-            isPresented: saveErrorIsPresented
+            viewModel.detailErrorMessage == nil
+                ? "Couldn’t save recipe"
+                : "Couldn’t open recipe",
+            isPresented: operationErrorIsPresented
         ) {
-            Button("OK", action: viewModel.clearSaveError)
+            Button("OK", action: viewModel.clearOperationError)
         } message: {
-            Text(viewModel.saveErrorMessage ?? "Please try again.")
+            Text(
+                viewModel.detailErrorMessage
+                    ?? viewModel.saveErrorMessage
+                    ?? "Please try again."
+            )
         }
     }
 
@@ -175,8 +210,18 @@ struct DiscoverView: View {
                 ForEach(recipes) { recipe in
                     DiscoverRecipeRow(
                         recipe: recipe,
+                        isLoadingDetail: viewModel.isLoadingDetail(recipe),
                         isSaving: viewModel.isSaving(recipe),
                         isSaved: viewModel.isSaved(recipe),
+                        open: {
+                            Task {
+                                if let detail = await viewModel.detail(
+                                    for: recipe
+                                ) {
+                                    openRecipe(detail)
+                                }
+                            }
+                        },
                         save: {
                             Task {
                                 if let saved = await viewModel.save(recipe) {
@@ -196,10 +241,13 @@ struct DiscoverView: View {
         .refreshable { await viewModel.load() }
     }
 
-    private var saveErrorIsPresented: Binding<Bool> {
+    private var operationErrorIsPresented: Binding<Bool> {
         Binding(
-            get: { viewModel.saveErrorMessage != nil },
-            set: { if !$0 { viewModel.clearSaveError() } }
+            get: {
+                viewModel.saveErrorMessage != nil
+                    || viewModel.detailErrorMessage != nil
+            },
+            set: { if !$0 { viewModel.clearOperationError() } }
         )
     }
 }
@@ -208,27 +256,48 @@ private struct DiscoverRecipeRow: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     let recipe: DiscoverRecipe
+    let isLoadingDetail: Bool
     let isSaving: Bool
     let isSaved: Bool
+    let open: () -> Void
     let save: () -> Void
 
     var body: some View {
         Group {
             if dynamicTypeSize.isAccessibilitySize {
                 VStack(alignment: .leading, spacing: 12) {
-                    details
+                    Button(action: open) {
+                        details
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isLoadingDetail)
                     saveButton
                 }
             } else {
                 HStack(alignment: .top, spacing: 14) {
-                    artwork
-                    details
+                    Button(action: open) {
+                        HStack(alignment: .top, spacing: 14) {
+                            artwork
+                            details
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isLoadingDetail)
                     saveButton
                 }
             }
         }
         .padding(.vertical, 14)
+        .contextMenu {
+            Button("View Recipe", systemImage: "book.pages", action: open)
+            if !isSaved {
+                Button("Save Recipe", systemImage: "plus", action: save)
+            }
+        } preview: {
+            DiscoverRecipeContextPreview(recipe: recipe)
+        }
         .accessibilityElement(children: .contain)
+        .accessibilityAction(named: "Open recipe", open)
         .accessibilityIdentifier(
             "discover.\(recipe.originalURL.absoluteString)"
         )
@@ -281,6 +350,15 @@ private struct DiscoverRecipeRow: View {
                 style: .continuous
             )
         )
+        .overlay {
+            if isLoadingDetail {
+                ZStack {
+                    Rectangle().fill(.thinMaterial)
+                    ProgressView()
+                        .tint(LadleTheme.brick)
+                }
+            }
+        }
         .accessibilityHidden(true)
     }
 
@@ -320,6 +398,51 @@ private struct DiscoverRecipeRow: View {
         recipe.savedCount == 1
             ? "Saved by 1 cook"
             : "Saved by \(recipe.savedCount) cooks"
+    }
+}
+
+private struct DiscoverRecipeContextPreview: View {
+    let recipe: DiscoverRecipe
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            AsyncImage(url: recipe.imageURL) { phase in
+                if case let .success(image) = phase {
+                    image.resizable().scaledToFill()
+                } else {
+                    Rectangle()
+                        .fill(LadleTheme.oat)
+                        .overlay {
+                            Image(systemName: "fork.knife")
+                                .foregroundStyle(LadleTheme.paprika)
+                        }
+                }
+            }
+            .frame(height: 210)
+            .clipShape(
+                RoundedRectangle(
+                    cornerRadius: LadleTheme.Corner.card,
+                    style: .continuous
+                )
+            )
+
+            Text(recipe.creatorName ?? recipe.source.libraryTitle)
+                .ladleFont(.metadata)
+                .foregroundStyle(LadleTheme.accentText)
+            Text(recipe.title)
+                .ladleFont(.section)
+                .foregroundStyle(LadleTheme.ink)
+                .lineLimit(2)
+            if !recipe.description.isEmpty {
+                Text(recipe.description)
+                    .ladleFont(.metadata)
+                    .foregroundStyle(LadleTheme.mutedInk)
+                    .lineLimit(3)
+            }
+        }
+        .padding(16)
+        .frame(width: 300)
+        .background(LadleTheme.paper)
     }
 }
 

@@ -84,6 +84,11 @@ private struct WatchRecipeCard: View {
             }
             actions
         }
+        .recipeContextMenu(
+            recipe: recipe,
+            openRecipe: openRecipe,
+            toggleFavorite: toggleFavorite
+        )
         .accessibilityIdentifier("watch.\(recipe.librarySlug)")
         .sensoryFeedback(.selection, trigger: recipe.isFavorite)
     }

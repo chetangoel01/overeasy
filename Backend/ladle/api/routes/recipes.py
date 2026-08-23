@@ -118,6 +118,26 @@ def discover_recipes(
         )
 
 
+@router.get("/discover/{source_video_id}", response_model=RecipeDTO)
+def get_discovered_recipe(
+    source_video_id: UUID,
+    request: Request,
+    authorization: Annotated[str | None, Header()] = None,
+) -> RecipeDTO:
+    claims = access_claims(request, authorization)
+    _rate_limits(request).enforce(
+        _rate_limit_policies(request).sync_poll(str(claims.user_id))
+    )
+    try:
+        with database(request) as current_database:
+            return _recipes(request).discover_detail(
+                current_database,
+                source_video_id=source_video_id,
+            )
+    except DiscoverRecipeUnavailable as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND) from error
+
+
 @router.post("/discover/{source_video_id}/save", response_model=RecipeDTO)
 def save_discovered_recipe(
     source_video_id: UUID,

@@ -115,9 +115,13 @@ tracking.
 ## Discover and account
 
 - Discover ranks public recipe-video sources by aggregate saves and shows the
-  creator account, source, image, summary, and save count. Saving clones the
-  already-resolved shared extraction into the current account. It never
+  creator account, source, image, summary, and save count. Tapping a result opens
+  the complete shared extraction as a read-only recipe preview. Saving clones
+  that already-resolved extraction into the current account. Neither action
   resubmits the video to the import, transcription, or model pipeline.
+- Recipe cards and Discover results use the native long-press context menu as
+  the modern replacement for 3D Touch. The menu previews the recipe and exposes
+  Open plus a non-destructive Save or Favorite action.
 - Account presents the connected provider, saved-recipe count, and sync state.
   Internal installation identifiers and provider profile details stay hidden.
 

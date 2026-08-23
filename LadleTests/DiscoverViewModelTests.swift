@@ -56,20 +56,40 @@ final class DiscoverViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.isSaved(recipe))
         XCTAssertTrue(service.savedSourceIDs.isEmpty)
     }
+
+    func testOpeningRecipeLoadsFullDiscoverDetail() async {
+        let recipe = discoveredRecipe()
+        let detail = PreviewFixtures.recipes[0]
+        let service = DiscoverTestService(
+            result: .success([recipe]),
+            detailResult: .success(detail)
+        )
+        let viewModel = DiscoverViewModel(service: service)
+
+        let result = await viewModel.detail(for: recipe)
+
+        XCTAssertEqual(result, detail)
+        XCTAssertEqual(service.detailSourceIDs, [recipe.sourceID])
+        XCTAssertFalse(viewModel.isLoadingDetail(recipe))
+    }
 }
 
 private final class DiscoverTestService: DiscoverServing {
     let result: Result<[DiscoverRecipe], any Error>
     let savedResult: Result<SavedDiscoverRecipe, any Error>
+    let detailResult: Result<Recipe, any Error>
     private(set) var savedSourceIDs: [UUID] = []
+    private(set) var detailSourceIDs: [UUID] = []
 
     init(
         result: Result<[DiscoverRecipe], any Error>,
         savedResult: Result<SavedDiscoverRecipe, any Error> =
-            .failure(TestError.failed)
+            .failure(TestError.failed),
+        detailResult: Result<Recipe, any Error> = .failure(TestError.failed)
     ) {
         self.result = result
         self.savedResult = savedResult
+        self.detailResult = detailResult
     }
 
     func fetchDiscoverRecipes() async throws -> [DiscoverRecipe] {
@@ -81,6 +101,11 @@ private final class DiscoverTestService: DiscoverServing {
     ) async throws -> SavedDiscoverRecipe {
         savedSourceIDs.append(sourceID)
         return try savedResult.get()
+    }
+
+    func fetchDiscoverRecipe(sourceID: UUID) async throws -> Recipe {
+        detailSourceIDs.append(sourceID)
+        return try detailResult.get()
     }
 }
 

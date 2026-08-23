@@ -56,42 +56,10 @@ struct LibraryView: View {
     var body: some View {
         NavigationStack(path: $navigation.path) {
             TabView(selection: $navigation.tab) {
-                recipes
-                    .tabItem {
-                        Label("Recipes", systemImage: "book.closed")
-                    }
-                    .tag(LibraryTab.recipes)
-
-                DiscoverView(
-                    service: discoverService,
-                    saveRecipe: { saved in
-                        viewModel.storeDiscoveredRecipe(saved)
-                    }
-                )
-                .tabItem {
-                    Label("Discover", systemImage: "sparkles")
-                }
-                .tag(LibraryTab.discover)
-
-                WatchView(
-                    viewModel: viewModel,
-                    openRecipe: openRecipe
-                )
-                .tabItem {
-                    Label("Watch", systemImage: "play.rectangle")
-                }
-                .tag(LibraryTab.watch)
-
-                ImportInboxView(
-                    viewModel: viewModel,
-                    recoverImport: { failedImportJob = $0 },
-                    openReview: showRecipe
-                )
-                .tabItem {
-                    Label("Inbox", systemImage: "tray")
-                }
-                .badge(viewModel.importAttentionCount)
-                .tag(LibraryTab.inbox)
+                recipesTab
+                discoverTab
+                watchTab
+                inboxTab
             }
             .background(LadleTheme.paper)
             .tint(LadleTheme.brick)
@@ -99,28 +67,9 @@ struct LibraryView: View {
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
-                    ForEach(navigation.tab.toolbarActions, id: \.self) {
-                        action in
-                        switch action {
-                        case .account:
-                            Button {
-                                isAccountPresented = true
-                            } label: {
-                                Image(systemName: "person.crop.circle")
-                            }
-                            .accessibilityLabel("Account")
-                        case .addRecipe:
-                            Button {
-                                isAddSheetPresented = true
-                            } label: {
-                                Image(systemName: "plus.circle.fill")
-                                    .font(
-                                        .system(size: 20, weight: .semibold)
-                                    )
-                            }
-                            .accessibilityLabel("Add recipe")
-                            .disabled(!canImport)
-                        }
+                    accountButton
+                    if navigation.tab == .recipes {
+                        addRecipeButton
                     }
                 }
             }
@@ -184,14 +133,11 @@ struct LibraryView: View {
                     viewModel.load()
                 }
             }
-            .alert(
-                "Couldn’t update library",
-                isPresented: operationErrorIsPresented
-            ) {
-                Button("OK", action: viewModel.clearOperationError)
-            } message: {
-                Text(viewModel.operationErrorMessage ?? "Please try again.")
-            }
+            .libraryOperationAlert(
+                isPresented: operationErrorIsPresented,
+                message: operationErrorText,
+                clear: viewModel.clearOperationError
+            )
         }
         .sensoryFeedback(.selection, trigger: navigation.tab)
         .sensoryFeedback(
@@ -229,6 +175,84 @@ struct LibraryView: View {
         }
     }
 
+    private var recipesTab: some View {
+        recipes
+            .tabItem {
+                Label("Recipes", systemImage: "book.closed")
+            }
+            .tag(LibraryTab.recipes)
+    }
+
+    private var discoverTab: some View {
+        discover
+            .tabItem {
+                Label("Discover", systemImage: "sparkles")
+            }
+            .tag(LibraryTab.discover)
+    }
+
+    private var watchTab: some View {
+        WatchView(
+            viewModel: viewModel,
+            openRecipe: openRecipe
+        )
+        .tabItem {
+            Label("Watch", systemImage: "play.rectangle")
+        }
+        .tag(LibraryTab.watch)
+    }
+
+    private var inboxTab: some View {
+        ImportInboxView(
+            viewModel: viewModel,
+            recoverImport: { failedImportJob = $0 },
+            openReview: { recipe, statusText in
+                showRecipe(recipe, statusText: statusText)
+            }
+        )
+        .tabItem {
+            Label("Inbox", systemImage: "tray")
+        }
+        .badge(viewModel.importAttentionCount)
+        .tag(LibraryTab.inbox)
+    }
+
+    private var discover: some View {
+        DiscoverView(
+            service: discoverService,
+            saveRecipe: { saved in
+                viewModel.storeDiscoveredRecipe(saved)
+            },
+            openRecipe: { recipe in
+                showRecipe(
+                    recipe,
+                    statusText: "Discover recipe",
+                    access: .discover
+                )
+            }
+        )
+    }
+
+    private var accountButton: some View {
+        Button {
+            isAccountPresented = true
+        } label: {
+            Image(systemName: "person.crop.circle")
+        }
+        .accessibilityLabel("Account")
+    }
+
+    private var addRecipeButton: some View {
+        Button {
+            isAddSheetPresented = true
+        } label: {
+            Image(systemName: "plus.circle.fill")
+                .font(.system(size: 20, weight: .semibold))
+        }
+        .accessibilityLabel("Add recipe")
+        .disabled(!canImport)
+    }
+
     private func presentAddRecipe() {
         isAddSheetPresented = true
     }
@@ -247,7 +271,8 @@ struct LibraryView: View {
             reviewDidComplete: finishReviewNavigation,
             toggleFavorite: viewModel.toggleFavorite,
             completeReview: viewModel.completeReview,
-            deleteRecipe: viewModel.deleteRecipe
+            deleteRecipe: viewModel.deleteRecipe,
+            allowsLibraryEdits: destination.allowsLibraryEdits
         )
     }
 
@@ -262,13 +287,15 @@ struct LibraryView: View {
 
     private func showRecipe(
         _ recipe: Recipe,
-        statusText: String
+        statusText: String,
+        access: LibraryRecipeAccess = .saved
     ) {
         navigation.open(
             .recipe(
                 .init(
                     recipe: recipe,
-                    statusText: statusText
+                    statusText: statusText,
+                    access: access
                 )
             )
         )
@@ -309,6 +336,10 @@ struct LibraryView: View {
             set: { if !$0 { viewModel.clearOperationError() } }
         )
     }
+
+    private var operationErrorText: String {
+        viewModel.operationErrorMessage ?? "Please try again."
+    }
 }
 
 private struct LibraryLoadStateView: View {
@@ -344,6 +375,41 @@ private struct LibraryLoadStateView: View {
 struct LibraryRecipeDestination: Hashable {
     let recipe: Recipe
     let statusText: String
+    let access: LibraryRecipeAccess
+
+    init(
+        recipe: Recipe,
+        statusText: String,
+        access: LibraryRecipeAccess = .saved
+    ) {
+        self.recipe = recipe
+        self.statusText = statusText
+        self.access = access
+    }
+
+    var allowsLibraryEdits: Bool { access == .saved }
+}
+
+enum LibraryRecipeAccess: Hashable {
+    case saved
+    case discover
+}
+
+private extension View {
+    func libraryOperationAlert(
+        isPresented: Binding<Bool>,
+        message: String,
+        clear: @escaping () -> Void
+    ) -> some View {
+        alert(
+            "Couldn’t update library",
+            isPresented: isPresented
+        ) {
+            Button("OK", action: clear)
+        } message: {
+            Text(message)
+        }
+    }
 }
 
 private extension ImportCoordinatorState {

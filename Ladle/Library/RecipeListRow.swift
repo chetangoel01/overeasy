@@ -55,6 +55,11 @@ struct RecipeListRow: View {
         .ladleCard()
         .contentShape(Rectangle())
         .onTapGesture(perform: openRecipe)
+        .recipeContextMenu(
+            recipe: recipe,
+            openRecipe: openRecipe,
+            toggleFavorite: toggleFavorite
+        )
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(.isButton)
         .accessibilityAction(named: "Open recipe", openRecipe)

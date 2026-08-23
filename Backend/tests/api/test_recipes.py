@@ -164,8 +164,28 @@ def test_discover_returns_aggregated_public_source_data(
                         "source": "tiktok",
                         "originalURL": source_url,
                         "servings": "4",
-                        "ingredients": [],
-                        "steps": [],
+                        "ingredients": [
+                            {
+                                "quantityText": "1 cup",
+                                "normalizedQuantity": "1",
+                                "unit": "cup",
+                                "name": "orzo",
+                                "preparation": None,
+                                "orderIndex": 0,
+                                "uncertainty": None,
+                            }
+                        ],
+                        "steps": [
+                            {
+                                "orderIndex": 0,
+                                "instruction": "Cook the orzo until tender.",
+                                "ingredientIndexes": [0],
+                                "timers": [],
+                                "sourceStartSeconds": None,
+                                "sourceEndSeconds": None,
+                                "uncertainty": None,
+                            }
+                        ],
                         "notes": [],
                         "reviewStatus": "ready",
                         "uncertainties": [],
@@ -225,6 +245,10 @@ def test_discover_returns_aggregated_public_source_data(
             json={"installationID": "discover-user-0", "attestation": None},
         ).json()
         save_headers = {"Authorization": f"Bearer {resumed['accessToken']}"}
+        detail = client.get(
+            f"/v1/recipes/discover/{source_id}",
+            headers=save_headers,
+        )
         saved = client.post(
             f"/v1/recipes/discover/{source_id}/save",
             headers=save_headers,
@@ -242,6 +266,11 @@ def test_discover_returns_aggregated_public_source_data(
             headers=save_headers,
         )
 
+    assert detail.status_code == 200
+    assert detail.json()["id"] == str(source_id)
+    assert detail.json()["title"] == "Lemon Orzo"
+    assert detail.json()["ingredients"][0]["name"] == "orzo"
+    assert detail.json()["steps"][0]["instruction"] == "Cook the orzo until tender."
     assert saved.status_code == 200
     assert saved.json()["title"] == "Lemon Orzo"
     assert saved.json()["reviewStatus"] == "ready"

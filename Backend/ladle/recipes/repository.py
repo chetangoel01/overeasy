@@ -122,13 +122,7 @@ class RecipeRepository:
                 .limit(1)
             )
             template = cache.template_json
-            image_url = cache.thumbnail_remote_url
-            if (
-                image_url is None
-                and cache.thumbnail_object_key is not None
-                and self._object_url is not None
-            ):
-                image_url = self._object_url(cache.thumbnail_object_key)
+            image_url = self.extraction_thumbnail_url(cache)
             items.append(
                 DiscoverRecipeDTO(
                     source_id=source_video_id,
@@ -143,6 +137,13 @@ class RecipeRepository:
                 )
             )
         return DiscoverPageDTO(items=items)
+
+    def extraction_thumbnail_url(self, cache: ExtractionCache) -> str | None:
+        if cache.thumbnail_remote_url is not None:
+            return cache.thumbnail_remote_url
+        if cache.thumbnail_object_key is not None and self._object_url is not None:
+            return self._object_url(cache.thumbnail_object_key)
+        return None
 
     def insert(
         self,

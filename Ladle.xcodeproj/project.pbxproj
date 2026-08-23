@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		0088C19DE085223382B93D22 /* FailedImportSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E773EEC85D6B10B47798F46E /* FailedImportSheet.swift */; };
+		00CBE25ACB8C502FDB3DB85B /* RecipeContextMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FD8C1479556171086A421DD /* RecipeContextMenu.swift */; };
 		02B81E38806DC747131FD239 /* RecipeEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE210DBCF0B5E6E0CEF88ED8 /* RecipeEditorView.swift */; };
 		04F10BBF44F7962FD24A6ADD /* CookingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 659DEB801C4C5EC75C6F09EC /* CookingViewModel.swift */; };
 		0C08C50CC1819995B222FA03 /* RecipeSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3E83CF891E137AB8EEEC5D5 /* RecipeSyncService.swift */; };
@@ -199,6 +200,7 @@
 		89DD2D1BF2804CED5D137279 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
 		8A93A16FCFB7610C2A4F09D4 /* ShareURLExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareURLExtractor.swift; sourceTree = "<group>"; };
 		8ECA1AA3280738489BF150D2 /* ImportInboxView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportInboxView.swift; sourceTree = "<group>"; };
+		8FD8C1479556171086A421DD /* RecipeContextMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeContextMenu.swift; sourceTree = "<group>"; };
 		9209E28951C4CAA3BC8E7629 /* ProjectSmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectSmokeTests.swift; sourceTree = "<group>"; };
 		95EAF34BC77BC1BC1B427BAC /* RemoteImportServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteImportServiceTests.swift; sourceTree = "<group>"; };
 		96B58AC391122DA6ADD686C9 /* CookingViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CookingViewModelTests.swift; sourceTree = "<group>"; };
@@ -347,6 +349,7 @@
 				AA427F9A68EAFE92CBFCB53E /* LibraryView.swift */,
 				6638D8D4EFDAA359DD3B8348 /* LibraryViewModel.swift */,
 				02E89F28EBF53680812A3D38 /* PendingImportCard.swift */,
+				8FD8C1479556171086A421DD /* RecipeContextMenu.swift */,
 				DC8EEB0F6CE2D7F25FAF7308 /* RecipeGridCard.swift */,
 				79C69755A0FE0CB8CFD2F500 /* RecipeListRow.swift */,
 				2FCA9C00709407DA52C805AE /* VideoEmbedSheet.swift */,
@@ -721,6 +724,7 @@
 				5AB882C9AB6EB4BF73B1F7DC /* PreviewFixtures.swift in Sources */,
 				24197E5B542EB0789077028F /* PrivacyDetailView.swift in Sources */,
 				5368CFB524D69182278FAED5 /* RecipeArtworkView.swift in Sources */,
+				00CBE25ACB8C502FDB3DB85B /* RecipeContextMenu.swift in Sources */,
 				CCDAC2330A4A8A54849C8D02 /* RecipeDetailView.swift in Sources */,
 				E9A5AB80751C1695EB9A83A9 /* RecipeDraft.swift in Sources */,
 				02B81E38806DC747131FD239 /* RecipeEditorView.swift in Sources */,
