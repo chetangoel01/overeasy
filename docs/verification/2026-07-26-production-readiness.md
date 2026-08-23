@@ -57,6 +57,11 @@ metadata, and TestFlight packaging path before the first 1.0 beta.
 - `https://api.ladle.app` remains parked and does not terminate TLS. That blocks
   broader external distribution, but no longer blocks an internal TestFlight
   build against the guarded VPS.
+- Internal TestFlight build `1.0 (20260823.2)` was archived from revision
+  `96adf7a`, uploaded with `testFlightInternalTestingOnly`, and reached
+  **Ready to Test** in App Store Connect on August 23, 2026. The build expires
+  in 90 days and remains intentionally limited to internal testers while it
+  targets the guarded VPS.
 - Account deletion is a server-authoritative operation. A failed Apple token
   revocation or backend deletion leaves local authentication and recipes intact
   so the user can retry.
