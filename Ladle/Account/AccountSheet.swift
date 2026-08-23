@@ -6,7 +6,6 @@ struct AccountSheet: View {
 
     let accountSession: AccountSession
     let library: LibraryViewModel
-    let installationID: String
     let signOut: @MainActor () async -> Void
     let deleteAccount: @MainActor () async throws -> Void
 
@@ -23,10 +22,10 @@ struct AccountSheet: View {
                     alignment: .leading,
                     spacing: LadleTheme.Spacing.cooking
                 ) {
-                    accountSection
+                    accountSummary
+                    librarySection
                     privacySection
-                    signOutSection
-                    deleteAccountSection
+                    accountActionsSection
                 }
                 .padding(.horizontal, LadleTheme.Spacing.generous)
                 .padding(.top, LadleTheme.Spacing.regular)
@@ -47,97 +46,65 @@ struct AccountSheet: View {
         .presentationBackground(LadleTheme.paper)
     }
 
-    private var accountSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            LadleSectionHeader(title: "Your account")
+    private var accountSummary: some View {
+        HStack(alignment: .top, spacing: LadleTheme.Spacing.regular) {
+            Image(systemName: "person.crop.circle.badge.checkmark")
+                .font(.system(size: 24, weight: .semibold))
+                .foregroundStyle(LadleTheme.paprika)
+                .frame(width: 52, height: 52)
+                .background(LadleTheme.review, in: Circle())
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: LadleTheme.Spacing.compact) {
+                Text(Self.accountTitle(for: accountSession.state))
+                    .ladleFont(.section)
+                    .foregroundStyle(LadleTheme.ink)
+
+                Text(Self.accountDetail(for: accountSession.state))
+                    .ladleFont(.body)
+                    .foregroundStyle(LadleTheme.mutedInk)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                LadlePill(
+                    text: accountStatus,
+                    systemImage: accountStatusSymbol,
+                    tint: accountStatusTint
+                )
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(LadleTheme.Spacing.regular)
+        .background(LadleTheme.field, in: accountShape)
+        .overlay {
+            accountShape
+                .stroke(LadleTheme.ink.opacity(0.08), lineWidth: 1)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var librarySection: some View {
+        VStack(alignment: .leading, spacing: LadleTheme.Spacing.medium) {
+            LadleSectionHeader(title: "Library")
 
             VStack(spacing: 0) {
                 infoRow(
-                    icon: "person",
-                    title: "Signed in as",
-                    value: accountStateTitle
-                )
-                accountDivider
-                infoRow(
                     icon: "book.closed",
-                    title: "Recipes in your library",
+                    title: "Saved recipes",
                     value: "\(library.recipes.count)"
                 )
                 accountDivider
                 infoRow(
-                    icon: "iphone",
-                    title: "Installation ID",
-                    value: shortInstallationID
+                    icon: "arrow.triangle.2.circlepath",
+                    title: "Sync",
+                    value: Self.syncValue(for: accountSession.state)
                 )
             }
-            .background(
-                LadleTheme.field,
-                in: RoundedRectangle(
-                    cornerRadius: LadleTheme.Corner.control,
-                    style: .continuous
-                )
-            )
+            .background(LadleTheme.field, in: accountShape)
             .overlay {
-                RoundedRectangle(
-                    cornerRadius: LadleTheme.Corner.control,
-                    style: .continuous
-                )
-                .stroke(LadleTheme.ink.opacity(0.08), lineWidth: 1)
+                accountShape
+                    .stroke(LadleTheme.ink.opacity(0.08), lineWidth: 1)
             }
-        }
-    }
-
-    private var deleteAccountSection: some View {
-        VStack(alignment: .leading, spacing: LadleTheme.Spacing.medium) {
-            Text(
-                "Deleting your account permanently removes your synced recipes and account data."
-            )
-            .ladleFont(.metadata)
-            .foregroundStyle(LadleTheme.ink.opacity(0.55))
-            .fixedSize(horizontal: false, vertical: true)
-
-            Button(role: .destructive) {
-                isDeleteConfirmationPresented = true
-            } label: {
-                if isDeletingAccount {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, minHeight: 24)
-                } else {
-                    Text("Delete account")
-                        .frame(maxWidth: .infinity)
-                }
-            }
-            .buttonStyle(LadlePrimaryButtonStyle(isProminent: false))
-            .tint(.red)
-            .disabled(isDeletingAccount)
-            .accessibilityIdentifier("account.delete")
-        }
-        .alert(
-            "Delete your Overeasy account?",
-            isPresented: $isDeleteConfirmationPresented
-        ) {
-            Button("Delete Account", role: .destructive) {
-                performAccountDeletion()
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text(
-                "Your synced recipes and account data will be permanently deleted. This can’t be undone."
-            )
-        }
-        .alert(
-            "Account could not be deleted",
-            isPresented: Binding(
-                get: { deletionErrorMessage != nil },
-                set: { if !$0 { deletionErrorMessage = nil } }
-            )
-        ) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(
-                deletionErrorMessage
-                    ?? "Please check your connection and try again."
-            )
         }
     }
 
@@ -170,19 +137,10 @@ struct AccountSheet: View {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
                 .frame(minHeight: 56)
-                .background(
-                    LadleTheme.field,
-                    in: RoundedRectangle(
-                        cornerRadius: LadleTheme.Corner.control,
-                        style: .continuous
-                    )
-                )
+                .background(LadleTheme.field, in: accountShape)
                 .overlay {
-                    RoundedRectangle(
-                        cornerRadius: LadleTheme.Corner.control,
-                        style: .continuous
-                    )
-                    .stroke(LadleTheme.ink.opacity(0.08), lineWidth: 1)
+                    accountShape
+                        .stroke(LadleTheme.ink.opacity(0.08), lineWidth: 1)
                 }
                 .contentShape(Rectangle())
             }
@@ -191,32 +149,47 @@ struct AccountSheet: View {
         }
     }
 
-    private var signOutSection: some View {
+    private var accountActionsSection: some View {
         VStack(alignment: .leading, spacing: LadleTheme.Spacing.medium) {
-            Divider()
-                .overlay(LadleTheme.ink.opacity(0.1))
+            LadleSectionHeader(title: "Account actions")
 
-            Text(
-                "Signing out removes recipes from this device. Your synced library returns when you sign back in."
-            )
-            .ladleFont(.metadata)
-            .foregroundStyle(LadleTheme.ink.opacity(0.55))
-            .fixedSize(horizontal: false, vertical: true)
-
-            Button {
-                isSignOutConfirmationPresented = true
-            } label: {
-                if isSigningOut {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, minHeight: 24)
-                } else {
-                    Text("Sign out")
-                        .frame(maxWidth: .infinity)
+            VStack(spacing: 0) {
+                Button {
+                    isSignOutConfirmationPresented = true
+                } label: {
+                    accountActionRow(
+                        icon: "rectangle.portrait.and.arrow.right",
+                        title: "Sign out",
+                        detail: "Keep your synced library in Overeasy.",
+                        isLoading: isSigningOut
+                    )
                 }
+                .buttonStyle(.plain)
+                .disabled(isSigningOut)
+                .accessibilityIdentifier("account.sign-out")
+
+                accountDivider
+
+                Button(role: .destructive) {
+                    isDeleteConfirmationPresented = true
+                } label: {
+                    accountActionRow(
+                        icon: "trash",
+                        title: "Delete account",
+                        detail: "Permanently remove account data and recipes.",
+                        isDestructive: true,
+                        isLoading: isDeletingAccount
+                    )
+                }
+                .buttonStyle(.plain)
+                .disabled(isDeletingAccount)
+                .accessibilityIdentifier("account.delete")
             }
-            .buttonStyle(LadlePrimaryButtonStyle(isProminent: false))
-            .disabled(isSigningOut)
-            .accessibilityIdentifier("account.sign-out")
+            .background(LadleTheme.field, in: accountShape)
+            .overlay {
+                accountShape
+                    .stroke(LadleTheme.ink.opacity(0.08), lineWidth: 1)
+            }
         }
         .confirmationDialog(
             "Sign out of Overeasy?",
@@ -230,6 +203,33 @@ struct AccountSheet: View {
         } message: {
             Text(
                 "Recipes are removed from this device but stay in your synced library."
+            )
+        }
+        .alert(
+            "Delete your Overeasy account?",
+            isPresented: $isDeleteConfirmationPresented
+        ) {
+            Button("Delete Account", role: .destructive) {
+                performAccountDeletion()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text(
+                "Your synced recipes and account data will be permanently deleted. This can’t be undone."
+            )
+        }
+        .alert(
+            "Account could not be deleted",
+            isPresented: Binding(
+                get: { deletionErrorMessage != nil },
+                set: { if !$0 { deletionErrorMessage = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(
+                deletionErrorMessage
+                    ?? "Please check your connection and try again."
             )
         }
     }
@@ -263,18 +263,58 @@ struct AccountSheet: View {
         }
     }
 
-    private var accountStateTitle: String {
-        switch accountSession.state {
-        case .undecided: "Not signed in"
-        case .guest: "Guest"
-        case .freeAccount: "Free account"
-        case .signedInWithApple: "Apple account"
-        case .signedInWithGoogle: "Google account"
+    static func accountTitle(for state: AccountState) -> String {
+        switch state {
+        case .undecided: "Choose an account"
+        case .guest: "Using Overeasy as a guest"
+        case .freeAccount: "Signed in to Overeasy"
+        case .signedInWithApple: "Signed in with Apple"
+        case .signedInWithGoogle: "Signed in with Google"
         }
     }
 
-    private var shortInstallationID: String {
-        String(installationID.prefix(8))
+    static func accountDetail(for state: AccountState) -> String {
+        switch state {
+        case .undecided:
+            "Sign in to keep your recipes synced."
+        case .guest:
+            "Recipes stay on this device until you sign in."
+        case .freeAccount, .signedInWithApple, .signedInWithGoogle:
+            "Your recipes stay synced across your devices."
+        }
+    }
+
+    static func syncValue(for state: AccountState) -> String {
+        switch state {
+        case .undecided, .guest: "This device"
+        case .freeAccount, .signedInWithApple, .signedInWithGoogle: "On"
+        }
+    }
+
+    private var accountStatus: String {
+        switch accountSession.state {
+        case .undecided: "Not connected"
+        case .guest: "Guest"
+        case .freeAccount, .signedInWithApple, .signedInWithGoogle: "Connected"
+        }
+    }
+
+    private var accountStatusSymbol: String {
+        switch accountSession.state {
+        case .undecided: "exclamationmark.circle"
+        case .guest: "iphone"
+        case .freeAccount, .signedInWithApple, .signedInWithGoogle:
+            "checkmark.circle.fill"
+        }
+    }
+
+    private var accountStatusTint: Color {
+        switch accountSession.state {
+        case .undecided: LadleTheme.review
+        case .guest: LadleTheme.review
+        case .freeAccount, .signedInWithApple, .signedInWithGoogle:
+            LadleTheme.success
+        }
     }
 
     private var accountDivider: some View {
@@ -325,6 +365,59 @@ struct AccountSheet: View {
         Text(value)
             .ladleFont(.bodyStrong)
             .foregroundStyle(LadleTheme.ink.opacity(0.75))
+    }
+
+    private func accountActionRow(
+        icon: String,
+        title: String,
+        detail: String,
+        isDestructive: Bool = false,
+        isLoading: Bool
+    ) -> some View {
+        HStack(spacing: 13) {
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(
+                    isDestructive ? LadleTheme.brick : LadleTheme.ink
+                )
+                .frame(width: 34, height: 34)
+                .background(LadleTheme.review, in: Circle())
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .ladleFont(.bodyStrong)
+                    .foregroundStyle(
+                        isDestructive ? LadleTheme.brick : LadleTheme.ink
+                    )
+                Text(detail)
+                    .ladleFont(.metadata)
+                    .foregroundStyle(LadleTheme.mutedInk)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: LadleTheme.Spacing.compact)
+
+            if isLoading {
+                ProgressView()
+            } else {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(LadleTheme.mutedInk)
+                    .accessibilityHidden(true)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
+        .contentShape(Rectangle())
+    }
+
+    private var accountShape: RoundedRectangle {
+        RoundedRectangle(
+            cornerRadius: LadleTheme.Corner.control,
+            style: .continuous
+        )
     }
 
 }

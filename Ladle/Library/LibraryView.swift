@@ -70,7 +70,6 @@ struct LibraryView: View {
                 AccountSheet(
                     accountSession: accountSession,
                     library: viewModel,
-                    installationID: installationID,
                     signOut: onSignOut,
                     deleteAccount: onDeleteAccount
                 )

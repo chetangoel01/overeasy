@@ -9,6 +9,17 @@ video and import surfaces, replace Watch paging with ordinary scrolling, add a
 useful Discover destination, and finish the repository side of Apple and Google
 sign-in configuration.
 
+## Signed-in account presentation
+
+- The Account sheet leads with the connected provider and an explicit sync
+  status instead of the ambiguous "Signed in as Google account" label.
+- Library status shows saved-recipe count and whether sync is on. The internal
+  installation identifier is no longer exposed to users.
+- Privacy remains one clear destination, while sign-out and permanent deletion
+  are compact secondary actions with their existing confirmations.
+- Provider identity stays intentionally limited to Apple or Google. The app
+  does not add storage for profile names, email addresses, or avatars.
+
 ## User-visible behavior
 
 - Home, Discover, and All Recipes are peer library destinations.
@@ -74,6 +85,7 @@ profiles.
 - `Backend/ladle/api/routes/recipes.py`, recipe contracts, repository, and service
 - `Packages/LadleCore/Sources/LadleCore/RemoteContracts.swift`
 - `Ladle/Library/DiscoverView.swift`, `WatchView.swift`, and inbox presentation
+- `Ladle/Account/AccountSheet.swift`
 - `Ladle/Remote/DiscoverService.swift`
 - Root composition and the existing import sheet
 
@@ -106,5 +118,8 @@ profiles.
   session, and loaded the live Discover feed.
 - Google App Check prewarm failure was reproduced red on the simulator, fixed
   as a non-blocking optimization, and protected by a focused regression test.
-- Final verification: 164 iOS tests passed on `Ladle-Verify` with one expected
+- The signed-in Account sheet was visually checked on `Ladle-Verify` after a
+  successful Google session; all content fit without clipping, and the focused
+  provider/sync presentation test passed.
+- Final verification: 165 iOS tests passed on `Ladle-Verify` with one expected
   skip; the backend suite passed 511 tests with five expected skips.
