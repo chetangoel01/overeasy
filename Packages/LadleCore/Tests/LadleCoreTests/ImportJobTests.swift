@@ -45,6 +45,14 @@ struct ImportJobTests {
     }
 
     @Test
+    func insufficientTextEvidenceHasAStableWireValue() {
+        #expect(
+            ImportFailure.insufficientTextEvidence.rawValue
+                == "insufficientTextEvidence"
+        )
+    }
+
+    @Test
     func readyCannotReturnToParsing() throws {
         let ready = try ImportJob.queued(sourceURL: sourceURL)
             .transitioning(to: .ready)

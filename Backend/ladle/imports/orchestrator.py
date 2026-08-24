@@ -24,6 +24,10 @@ from ladle.clock import Clock
 from ladle.crypto.private_text import PrivateTextCipher
 from ladle.db.models import ImportJob, SourceVideo
 from ladle.extraction.claude import ExtractionUnavailable
+from ladle.extraction.evidence_gate import (
+    InsufficientTextEvidence,
+    require_recipe_evidence,
+)
 from ladle.extraction.protocol import RecipeExtractor
 from ladle.imports.thumbnails import OEmbedThumbnailFetcher, ThumbnailAsset
 from ladle.imports.transitions import ImportTransitionService
@@ -235,6 +239,7 @@ class ImportOrchestrator:
                             generated=False,
                         )
                     )
+                require_recipe_evidence(context)
                 thumbnail_asset: ThumbnailAsset | None = None
                 with log_context(stage="thumbnailContext"):
                     if self._thumbnails is not None:
@@ -267,6 +272,7 @@ class ImportOrchestrator:
                     )
         except (
             ExtractionUnavailable,
+            InsufficientTextEvidence,
             PrivateOrDeleted,
             ProviderUnavailable,
             UsageLimitExceeded,
@@ -351,12 +357,19 @@ class ImportOrchestrator:
 
         if isinstance(error, PrivateOrDeleted):
             failure_reason = "privateOrDeleted"
+            diagnostic_code = type(error).__name__
+        elif isinstance(error, InsufficientTextEvidence):
+            failure_reason = "insufficientTextEvidence"
+            diagnostic_code = "insufficientTextEvidence"
         elif isinstance(error, UsageLimitExceeded):
             failure_reason = "quotaExceeded"
+            diagnostic_code = type(error).__name__
         elif isinstance(error, ProviderTransientError):
             failure_reason = "networkUnavailable"
+            diagnostic_code = type(error).__name__
         else:
             failure_reason = "parserUnavailable"
+            diagnostic_code = type(error).__name__
         with self._sessions.begin() as database:
             if isinstance(error, PrivateOrDeleted):
                 self._maintenance.mark_private_or_deleted(
@@ -371,6 +384,6 @@ class ImportOrchestrator:
                 job_id=job_id,
                 source_video_id=descriptor.source_video_id,
                 failure_reason=failure_reason,
-                diagnostic_code=type(error).__name__,
+                diagnostic_code=diagnostic_code,
                 include_shared_followers=not bypass_cache,
             )

@@ -2,6 +2,7 @@ import Foundation
 
 public enum ImportFailure: String, Codable, Error, Hashable, Sendable {
     case parserUnavailable
+    case insufficientTextEvidence
     case privateOrDeleted
     case unsupportedSource
     case invalidURL

@@ -124,6 +124,47 @@ def test_import_runtime_has_no_thumbnail_analysis_hook() -> None:
 
 
 @pytest.mark.integration
+def test_sparse_source_fails_before_extraction_without_persisting_recipe(
+    clean_postgres_url: str,
+) -> None:
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    clock = FrozenClock(datetime(2026, 8, 24, 12, 0, tzinfo=UTC))
+    sessions, orchestrator, _, acquirer, extractor = services(
+        clean_postgres_url,
+        clock,
+        template=RecipeTemplate.from_recipe(manual_recipe(uuid4())),
+    )
+    acquirer.transcript_text = None
+    acquirer.title = "The creamiest pasta"
+    acquirer.description = "You need this tonight. Full recipe in bio."
+    with sessions.begin() as database:
+        source_id = uuid4()
+        database.add(
+            SourceVideo(
+                id=source_id,
+                platform="instagram",
+                platform_video_id="sparse-evidence",
+                canonical_url="https://www.instagram.com/reel/sparse-evidence",
+                source_revision="1",
+                source_metadata={},
+            )
+        )
+        job_id = seed_import(database, source_id=source_id, suffix="sparse")
+
+    assert orchestrator.process(job_id) == ProcessOutcome.FAILED
+    assert extractor.calls == []
+    with sessions() as database:
+        job = database.get(ImportJob, job_id)
+        assert job is not None
+        assert job.status == "failed"
+        assert job.failure_reason == "insufficientTextEvidence"
+        assert job.diagnostic_code == "insufficientTextEvidence"
+        assert job.current_recipe_id is None
+        assert job.candidate_recipe_id is None
+        assert database.scalar(select(func.count()).select_from(Recipe)) == 0
+
+
+@pytest.mark.integration
 def test_correction_reparse_replaces_unchanged_recipe_without_poisoning_cache(
     clean_postgres_url: str,
 ) -> None:

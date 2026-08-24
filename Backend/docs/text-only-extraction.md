@@ -43,6 +43,17 @@ linked documents, never its visual observations. The prompt version changes
 whenever this evidence contract changes so old cached extractions cannot be
 served as though the new boundary produced them.
 
+After all text enrichment and user corrections, an evidence gate requires a
+transcript or creator-linked page containing both a quantified ingredient and
+a cooking action. Titles, promotional captions, and platform sticker/alt text
+cannot satisfy this gate by themselves. A rejection happens before thumbnail
+download and model extraction, persists no recipe, and completes the import as
+`failed(insufficientTextEvidence)` with the same diagnostic code.
+
+The iOS recovery surfaces this as missing written recipe detail and directs the
+cook to paste the recipe or create it manually. This is distinct from an
+unsupported host or a provider outage.
+
 ## Affected components
 
 - acquisition provider chain and Supadata client;
@@ -62,3 +73,8 @@ Verified on 2026-08-24:
 - Ruff: all affected application, script, unit, and retry/reparse files pass;
 - strict mypy: 21 affected source files pass; and
 - `git diff --check`: clean.
+
+The evidence-gate slice additionally passed 12 focused unit tests, 21 combined
+gate/coverage/contract tests, 6 PostgreSQL retry/reparse integration tests, the
+complete 434-test backend unit/contract suite, all 44 LadleCore tests, and 161
+Ladle iOS tests with one expected live-device test skipped.

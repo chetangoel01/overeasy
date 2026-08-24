@@ -325,8 +325,8 @@ The response has this shape:
 ```
 
 Statuses are `parsing`, `ready`, `needsReview`, and `failed`. Failure reasons
-are `parserUnavailable`, `privateOrDeleted`, `unsupportedSource`,
-`invalidURL`, and `networkUnavailable`.
+are `parserUnavailable`, `insufficientTextEvidence`, `privateOrDeleted`,
+`unsupportedSource`, `invalidURL`, `networkUnavailable`, and `quotaExceeded`.
 
 Retry an existing job:
 

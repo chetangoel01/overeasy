@@ -6,12 +6,15 @@ from ladle.acquisition.models import AcquiredVideoContext
 _QUANTITY = re.compile(
     r"\b(?:\d+(?:[./]\d+)?|one|two|three|four|five|six|half|quarter)"
     r"\s*(?:cups?|tbsp|tablespoons?|tsp|teaspoons?|grams?|g|kg|ml|"
-    r"liters?|litres?|ounces?|oz|pounds?|lb|cloves?|cans?|pinch(?:es)?)\b",
+    r"liters?|litres?|ounces?|oz|pounds?|lb|cloves?|cans?|pinch(?:es)?|"
+    r"slices?|pieces?|packages?|packets?|bunches?|sprigs?|stalks?|heads?|"
+    r"jars?|bottles?|boxes?|bags?|sticks?)\b",
     re.IGNORECASE,
 )
 _INSTRUCTION = re.compile(
-    r"\b(?:add|bake|blend|boil|chop|combine|cook|fold|fry|heat|mix|pour|"
-    r"roast|season|simmer|slice|stir|whisk)\b",
+    r"\b(?:add|bake|blend|boil|chill|chop|combine|cook|drain|fold|fry|grate|"
+    r"heat|knead|marinate|mix|peel|pour|preheat|refrigerate|rinse|roast|"
+    r"saute|season|serve|simmer|slice|stir|toast|transfer|whisk)\b",
     re.IGNORECASE,
 )
 
@@ -21,7 +24,9 @@ def has_quantities(text: str) -> bool:
 
 
 def has_instructions(text: str) -> bool:
-    return _INSTRUCTION.search(text) is not None
+    # A count such as "1 slice bread" names an ingredient amount; `slice`
+    # must not double as the action that makes the same line recipe-bearing.
+    return _INSTRUCTION.search(_QUANTITY.sub("", text)) is not None
 
 
 @dataclass(frozen=True)
@@ -29,9 +34,7 @@ class CoverageReport:
     has_quantities: bool
     has_instructions: bool
     sufficient_for_extraction: bool
-    requires_visual_fallback: bool
     requires_review: bool
-    used_visual_evidence: bool
     #: Whether anything here reports what the recipe actually *is*, as opposed
     #: to what the post said about it. A transcript is the creator narrating
     #: the dish; a linked page is the creator's own written version. A caption
@@ -60,18 +63,18 @@ def assess_coverage(context: AcquiredVideoContext) -> CoverageReport:
             *(document.text for document in context.linked_documents),
         ]
     )
-    visual = " ".join(value.text for value in context.visual_observations)
+    platform_text = " ".join(
+        value.text for value in context.visual_observations
+    )
     spoken_has_quantities = has_quantities(spoken)
-    visual_has_quantities = has_quantities(visual)
-    quantities = spoken_has_quantities or visual_has_quantities
-    instructions = has_instructions(f"{spoken} {visual}")
+    platform_has_quantities = has_quantities(platform_text)
+    quantities = spoken_has_quantities or platform_has_quantities
+    instructions = has_instructions(f"{spoken} {platform_text}")
     sufficient = quantities and instructions
     return CoverageReport(
         has_quantities=quantities,
         has_instructions=instructions,
         sufficient_for_extraction=sufficient,
-        requires_visual_fallback=not sufficient and not visual_has_quantities,
         requires_review=not sufficient,
-        used_visual_evidence=bool(context.visual_observations),
         has_recipe_evidence=bool(context.transcript or context.linked_documents),
     )
