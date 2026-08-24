@@ -55,13 +55,14 @@ class CoverageReport:
 
 
 def assess_coverage(context: AcquiredVideoContext) -> CoverageReport:
-    spoken = " ".join(
+    recipe_text = " ".join(
         [
-            context.title or "",
-            context.description,
             *(segment.text for segment in context.transcript),
             *(document.text for document in context.linked_documents),
         ]
+    )
+    spoken = " ".join(
+        [context.title or "", context.description, recipe_text]
     )
     platform_text = " ".join(
         value.text for value in context.visual_observations
@@ -71,10 +72,11 @@ def assess_coverage(context: AcquiredVideoContext) -> CoverageReport:
     quantities = spoken_has_quantities or platform_has_quantities
     instructions = has_instructions(f"{spoken} {platform_text}")
     sufficient = quantities and instructions
+    recipe_evidence = has_quantities(recipe_text) and has_instructions(recipe_text)
     return CoverageReport(
         has_quantities=quantities,
         has_instructions=instructions,
         sufficient_for_extraction=sufficient,
         requires_review=not sufficient,
-        has_recipe_evidence=bool(context.transcript or context.linked_documents),
+        has_recipe_evidence=recipe_evidence,
     )

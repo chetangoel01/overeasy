@@ -22,6 +22,7 @@ from ladle.acquisition.models import (
     TranscriptResult,
     VisualEvidence,
 )
+from ladle.acquisition.search import SparseTextEnricher
 from ladle.observability.metrics import MetricsRegistry
 from ladle.observability.structured_logging import log_context
 from ladle.usage.circuit import CircuitBreaker, CircuitOpen
@@ -81,11 +82,13 @@ class ProviderChain:
         server_fallback: ContextFallback | None = None,
         free: FreeAcquirer | None = None,
         audio: AudioTranscriber | None = None,
+        search: SparseTextEnricher | None = None,
         metrics: MetricsRegistry | None = None,
     ) -> None:
         self._primary = primary
         self._fallback = fallback
         self._audio = audio
+        self._search = search
         self._circuits = circuits
         self._server_fallback = server_fallback
         self._free = free
@@ -191,22 +194,8 @@ class ProviderChain:
                     documents=documents,
                     diagnostics=diagnostics,
                 )
-                if assess_coverage(context).sufficient_for_extraction:
+                if assess_coverage(context).has_recipe_evidence:
                     return context
-            elif free_coverage.sufficient_for_extraction:
-                # The caption carried a whole recipe and the audio was out of
-                # reach. Listening was worth a try; buying a transcript for
-                # something we can already read is not. Rebuilt rather than
-                # reused: the context above was snapshotted before the failed
-                # attempt recorded its diagnostic.
-                return self._context(
-                    source,
-                    metadata=metadata,
-                    transcript=None,
-                    observations=platform_text,
-                    documents=documents,
-                    diagnostics=diagnostics,
-                )
 
         if transcript is None and self._primary is not None:
             transcript = self._transcript_or_none(
@@ -240,7 +229,7 @@ class ProviderChain:
             diagnostics=diagnostics,
         )
         if (
-            not assess_coverage(result).sufficient_for_extraction
+            not assess_coverage(result).has_recipe_evidence
             and self._server_fallback is not None
         ):
             try:
@@ -251,6 +240,20 @@ class ProviderChain:
                 result.transcript.extend(server.transcript)
                 result.linked_documents.extend(server.linked_documents)
                 result.diagnostics.append("serverFallbackUsed")
+        if not assess_coverage(result).has_recipe_evidence and self._search is not None:
+            search = self._search
+            try:
+                documents = self._provider_call(
+                    "openrouterSearch",
+                    lambda: search.enrich(result, job_id=job_id),
+                )
+            except (CircuitOpen, ProviderUnavailable):
+                result.diagnostics.append("creatorSearchUnavailable")
+            else:
+                result.linked_documents.extend(documents)
+                result.diagnostics.append(
+                    "creatorSearchUsed" if documents else "creatorSearchNoMatch"
+                )
         return result
 
     def _free_context(

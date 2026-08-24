@@ -169,6 +169,12 @@ class Settings(BaseSettings):
     ytdlp_timeout_seconds: float = Field(default=90, gt=0)
     linked_page_timeout_seconds: float = Field(default=12, gt=0)
 
+    # Search is a last text-only acquisition rung. Bounds protect worker
+    # latency and response size; they are not a per-import price ceiling.
+    creator_search_enabled: bool = True
+    creator_search_maximum_queries: int = Field(default=3, ge=1, le=8)
+    creator_search_maximum_results: int = Field(default=6, ge=1, le=20)
+
     # Whisper on the raw audio. Cheap enough to precede the transcript
     # providers, and it reuses the OpenRouter key rather than adding a secret.
     audio_transcription_enabled: bool = True

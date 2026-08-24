@@ -201,6 +201,20 @@ def test_text_only_defaults_disable_all_visual_analysis() -> None:
     assert not settings.thumbnail_analysis_enabled
 
 
+def test_creator_search_bounds_load_from_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LADLE_CREATOR_SEARCH_ENABLED", "true")
+    monkeypatch.setenv("LADLE_CREATOR_SEARCH_MAXIMUM_QUERIES", "4")
+    monkeypatch.setenv("LADLE_CREATOR_SEARCH_MAXIMUM_RESULTS", "9")
+
+    settings = Settings(_env_file=None)
+
+    assert settings.creator_search_enabled
+    assert settings.creator_search_maximum_queries == 4
+    assert settings.creator_search_maximum_results == 9
+
+
 def test_production_requires_app_attest_and_its_identity() -> None:
     with pytest.raises(ValidationError):
         Settings(

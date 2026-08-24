@@ -14,7 +14,8 @@ the import is explicitly refused.
   page;
 - native captions, platform speech-to-text, Whisper audio transcription, and
   transcript-provider output;
-- written pages linked by the creator; and
+- written pages linked by the creator;
+- independently fetched creator pages discovered by text-only web search; and
 - user-pasted recipe text or correction notes.
 
 The legacy `visual_observations` context field is retained for cache
@@ -43,6 +44,29 @@ linked documents, never its visual observations. The prompt version changes
 whenever this evidence contract changes so old cached extractions cannot be
 served as though the new boundary produced them.
 
+If those rungs still lack a quantified ingredient and a cooking action in a
+transcript or linked page, the worker issues up to three exact searches based
+on creator, dish title, canonical post URL, and platform post identity. The
+OpenRouter client forces the beta `openrouter:web_search` server tool with the
+Exa text engine. Search citations and snippets are discovery metadata only:
+they never enter extraction evidence.
+
+Every candidate page is fetched again through the DNS-pinned, redirect-checked
+`SafeLinkFetcher`. A result is accepted only when its URL belongs to the
+creator or resolves to the exact canonical post, its title/URL and fetched
+body match the source dish, and the fetched body is substantial written text
+containing both quantities and method. Generic same-dish pages, unrelated
+recipes on the creator site, thin previews, unfetched snippets, and malformed
+provider results are rejected. Only the first independently validated page is
+attached, with provenance `creatorSearch`, to avoid mixing nearby recipes.
+
+Successful, empty, and unavailable searches add `creatorSearchUsed`,
+`creatorSearchNoMatch`, and `creatorSearchUnavailable` diagnostics
+respectively. Search runs with no image or video understanding parameters.
+`LADLE_CREATOR_SEARCH_MAXIMUM_QUERIES` and
+`LADLE_CREATOR_SEARCH_MAXIMUM_RESULTS` bound latency and response size, not
+price. Enabling this rung in a live worker requires an OpenRouter key.
+
 After all text enrichment and user corrections, an evidence gate requires a
 transcript or creator-linked page containing both a quantified ingredient and
 a cooking action. Titles, promotional captions, and platform sticker/alt text
@@ -57,6 +81,7 @@ unsupported host or a provider outage.
 ## Affected components
 
 - acquisition provider chain and Supadata client;
+- creator-search client, safe linked-page fetcher, and worker configuration;
 - worker and import-orchestrator construction;
 - extraction prompt serialization;
 - VPS and local environment defaults;
@@ -78,3 +103,10 @@ The evidence-gate slice additionally passed 12 focused unit tests, 21 combined
 gate/coverage/contract tests, 6 PostgreSQL retry/reparse integration tests, the
 complete 434-test backend unit/contract suite, all 44 LadleCore tests, and 161
 Ladle iOS tests with one expected live-device test skipped.
+
+The creator-search slice additionally passed the complete 452-test backend
+unit/contract suite. Ruff passed all affected search, acquisition, runtime,
+configuration, and test files; strict mypy passed all five affected source
+files. Tests cover forced text-search payloads, citation parsing, SSRF-safe
+refetching, ownership and dish matching, thin/non-recipe rejection, transcript
+ordering, diagnostics, runtime construction, and the zero-visual boundary.

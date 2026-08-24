@@ -29,6 +29,10 @@ from ladle.acquisition.models import (
 )
 from ladle.acquisition.protocol import VideoAcquirer
 from ladle.acquisition.provider_chain import ProviderChain
+from ladle.acquisition.search import (
+    OpenRouterRecipeSearchClient,
+    SparseTextEnricher,
+)
 from ladle.acquisition.soscripted import SoScriptedClient
 from ladle.acquisition.supadata import SupadataClient
 from ladle.cache.claims import ExtractionClaimService
@@ -218,6 +222,34 @@ def _free_acquirer(settings: Settings) -> FreeAcquirer | None:
         instagram=InstagramEmbedClient(fetcher=page_fetcher),
         follow_caption_links=settings.free_acquisition_follow_links,
         subtitles_enabled=settings.free_acquisition_subtitles,
+    )
+
+
+def _creator_search(settings: Settings) -> SparseTextEnricher | None:
+    if not settings.creator_search_enabled:
+        return None
+    if settings.openrouter_api_key is None:
+        raise RuntimeError("creator search requires an OpenRouter API key")
+    return SparseTextEnricher(
+        search=OpenRouterRecipeSearchClient(
+            http=httpx.Client(
+                timeout=settings.openrouter_timeout_seconds,
+                trust_env=False,
+            ),
+            api_key=settings.openrouter_api_key.get_secret_value(),
+            base_url=str(settings.openrouter_base_url),
+            model_id=settings.openrouter_model_id,
+            maximum_queries=settings.creator_search_maximum_queries,
+            maximum_results=settings.creator_search_maximum_results,
+        ),
+        fetcher=SafeLinkFetcher(
+            http=httpx.Client(
+                timeout=settings.linked_page_timeout_seconds,
+                trust_env=False,
+            )
+        ),
+        maximum_queries=settings.creator_search_maximum_queries,
+        maximum_candidates=settings.creator_search_maximum_results,
     )
 
 
@@ -436,6 +468,7 @@ def runtime_orchestrator() -> ImportOrchestrator:
             ),
             free=_free_acquirer(settings),
             audio=_audio_transcriber(settings, usage=usage),
+            search=_creator_search(settings),
             metrics=metrics,
         )
         if settings.extraction_provider == "openrouter":

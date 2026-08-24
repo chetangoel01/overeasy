@@ -7,9 +7,11 @@ import pytest
 from ladle.acquisition.errors import (
     PrivateOrDeleted,
     ProviderQuotaError,
+    ProviderTransientError,
     TranscriptUnavailable,
 )
 from ladle.acquisition.models import (
+    LinkedDocument,
     MediaMetadata,
     SourceVideoDescriptor,
     TranscriptResult,
@@ -34,6 +36,7 @@ class Primary:
     native: TranscriptResult | Exception
     generated: TranscriptResult | Exception
     thumbnail_url: str | None = None
+    description: str = "Add flour and bake."
     calls: list[str] = field(default_factory=list)
 
     def metadata(self, source: SourceVideoDescriptor, *, job_id: UUID) -> MediaMetadata:
@@ -41,7 +44,7 @@ class Primary:
         self.calls.append("metadata")
         return MediaMetadata(
             title="Recipe",
-            description="Add flour and bake.",
+            description=self.description,
             creator_name="Creator",
             thumbnail_url=self.thumbnail_url,
             duration_seconds=30,
@@ -88,6 +91,24 @@ class ContextBackup:
     ) -> object:
         del source, job_id
         self.calls += 1
+        return self.result
+
+
+@dataclass
+class SearchEnricher:
+    result: list[LinkedDocument] | Exception
+    calls: int = 0
+
+    def enrich(
+        self,
+        context: object,
+        *,
+        job_id: UUID,
+    ) -> list[LinkedDocument]:
+        del context, job_id
+        self.calls += 1
+        if isinstance(self.result, Exception):
+            raise self.result
         return self.result
 
 
@@ -293,3 +314,93 @@ def test_server_fallback_merges_text_but_discards_visual_context() -> None:
     assert result.transcript[-1].provenance == "server-transcript"
     assert result.visual_observations == []
     assert "serverFallbackUsed" in result.diagnostics
+
+
+def test_creator_search_runs_only_after_transcript_fallbacks_remain_sparse() -> None:
+    creator_page = LinkedDocument(
+        url="https://creator.example/recipe",
+        text=(
+            "Ingredients: 2 cups flour. Method: mix the flour with water, "
+            "then bake until golden."
+        ),
+        provenance="creatorSearch",
+    )
+    search = SearchEnricher([creator_page])
+    primary = Primary(
+        native=TranscriptUnavailable(),
+        generated=TranscriptUnavailable(),
+    )
+    fallback = Fallback(transcript("This is my favorite dinner."))
+    chain = ProviderChain(primary=primary, fallback=fallback, search=search)
+
+    result = chain.acquire(source(), job_id=uuid4())
+
+    assert primary.calls == ["metadata", "transcript:auto"]
+    assert fallback.calls == 1
+    assert search.calls == 1
+    assert result.linked_documents == [creator_page]
+    assert "creatorSearchUsed" in result.diagnostics
+
+
+def test_promotional_caption_cannot_hide_sparse_recipe_evidence_from_search() -> None:
+    creator_page = LinkedDocument(
+        url="https://creator.example/recipe",
+        text="Ingredients: 2 cups flour. Method: mix and bake until golden.",
+        provenance="creatorSearch",
+    )
+    search = SearchEnricher([creator_page])
+    primary = Primary(
+        native=TranscriptUnavailable(),
+        generated=transcript("This one is so good."),
+        description="Add 2 cups flour and bake tonight. Full recipe in bio.",
+    )
+    chain = ProviderChain(primary=primary, fallback=None, search=search)
+
+    result = chain.acquire(source(), job_id=uuid4())
+
+    assert search.calls == 1
+    assert result.linked_documents == [creator_page]
+
+
+def test_creator_search_is_skipped_when_transcript_is_recipe_bearing() -> None:
+    search = SearchEnricher([])
+    primary = Primary(
+        native=TranscriptUnavailable(),
+        generated=transcript("Add 2 cups flour, mix well, and bake until golden."),
+    )
+    chain = ProviderChain(primary=primary, fallback=None, search=search)
+
+    chain.acquire(source(), job_id=uuid4())
+
+    assert search.calls == 0
+
+
+def test_creator_search_records_when_no_creator_recipe_matches() -> None:
+    search = SearchEnricher([])
+    primary = Primary(
+        native=TranscriptUnavailable(),
+        generated=TranscriptUnavailable(),
+    )
+    chain = ProviderChain(primary=primary, fallback=None, search=search)
+
+    result = chain.acquire(source(), job_id=uuid4())
+
+    assert search.calls == 1
+    assert result.linked_documents == []
+    assert "creatorSearchNoMatch" in result.diagnostics
+
+
+def test_creator_search_failure_is_diagnostic_and_never_adds_visual_evidence() -> None:
+    search = SearchEnricher(ProviderTransientError("search unavailable"))
+    primary = Primary(
+        native=TranscriptUnavailable(),
+        generated=TranscriptUnavailable(),
+    )
+    chain = ProviderChain(primary=primary, fallback=None, search=search)
+
+    result = chain.acquire(source(), job_id=uuid4())
+
+    assert search.calls == 1
+    assert result.visual_observations == []
+    assert result.linked_documents == []
+    assert "creatorSearchUnavailable" in result.diagnostics

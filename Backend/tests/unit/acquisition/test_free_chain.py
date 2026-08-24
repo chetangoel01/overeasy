@@ -90,7 +90,7 @@ def caption_only() -> FreeContext:
     )
 
 
-def test_rich_caption_bills_nothing() -> None:
+def test_rich_caption_without_audio_still_tries_text_transcript_providers() -> None:
     primary = Primary()
     fallback = Fallback()
     free = Free(caption_only())
@@ -99,8 +99,8 @@ def test_rich_caption_bills_nothing() -> None:
     context = chain.acquire(source(), job_id=uuid4())
 
     assert free.calls == 1
-    assert primary.calls == []
-    assert fallback.calls == 0
+    assert primary.calls == ["transcript:auto"]
+    assert fallback.calls == 1
     assert context.creator_name == "mishkamakesfood"
     assert "freeMetadataUsed" in context.diagnostics
 
@@ -296,8 +296,8 @@ def test_a_rich_caption_does_not_excuse_us_from_listening() -> None:
     assert primary.calls == []
 
 
-def test_an_unheard_video_with_a_rich_caption_still_bills_nothing() -> None:
-    """Listening is worth attempting; buying what we can already read is not."""
+def test_unavailable_audio_and_rich_caption_continue_to_text_providers() -> None:
+    """A promo caption cannot terminate accuracy-first text acquisition."""
 
     primary = Primary()
     fallback = Fallback()
@@ -312,8 +312,8 @@ def test_an_unheard_video_with_a_rich_caption_still_bills_nothing() -> None:
     context = chain.acquire(source(), job_id=uuid4())
 
     assert len(audio.calls) == 1
-    assert primary.calls == []
-    assert fallback.calls == 0
+    assert primary.calls == ["transcript:auto"]
+    assert fallback.calls == 1
     assert "audioTranscriptionUnavailable" in context.diagnostics
 
 
