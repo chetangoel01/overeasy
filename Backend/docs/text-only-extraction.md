@@ -80,17 +80,35 @@ unsupported host or a provider outage.
 
 ## Nutrition provenance
 
-Prompt version `recipe-2026-08-24-v10` forbids the extraction model from
-estimating nutrition, claiming that it ran USDA calculations, or inventing a
-serving count to divide totals. Nutrition is returned only when the creator
-states it in source text, with basis `creatorStated` and a short supporting
-passage. Missing values stay absent for the deterministic nutrition stage.
+Prompt version `recipe-2026-08-24-v11` requires the extraction model to return
+nutrition as null. It cannot estimate nutrition, claim that it ran USDA
+calculations, invent a serving count to divide totals, or copy a publisher
+panel into another field. Explicit panels and missing values are handled only
+by the deterministic nutrition stages below.
 
-The server accepts only `creatorStated` nutrition from model output and maps it
-to `isEstimated=false`. Model output labeled `unknown` or `usdaCalculated` is
-discarded; only the later deterministic USDA calculator may assign
-`usdaCalculated`. The internal recipe template preserves this basis and its
-evidence without changing the public iOS nutrition contract.
+The review boundary retains backward compatibility for old cached model
+output: only `creatorStated` nutrition can survive, while `unknown` and
+`usdaCalculated` claims are discarded. New v11 extraction calls always return
+nutrition null. Only the deterministic stages assign `creatorStated` or
+`usdaCalculated`, preserving the internal basis and evidence without changing
+the public iOS nutrition contract.
+
+Before USDA lookup, a deterministic creator-facts pass scans only the same
+title, description, transcript, and linked-document text supplied to targeted
+verification. It applies a yield only when a unique `makes`, `yields`,
+`serves`, or labeled `yield` value is present. It applies nutrition only from
+a complete, explicitly labeled per-serving or whole-recipe panel containing
+calories, protein, carbohydrate, and total fat. Per-serving panels always use
+`servingBasis=1`; whole-recipe panels require a stated yield and use that yield
+as their basis. Conflicting or partial panels are ignored, and saturated fat
+cannot stand in for total fat.
+
+The same pass copies unique labeled prep, cook, and total times, including the
+stacked-column layout in retained government recipe text. Durations mentioned
+only inside method steps never become top-level recipe times. Exact facts
+remove their matching uncertainty, while unrelated review blockers remain.
+This layer can correct a model-copied serving basis but cannot infer missing
+nutrition or yield.
 
 Each internal ingredient now retains its source metric amount/unit and a
 normalized USDA search phrase derived from the ingredient name and preparation
@@ -161,6 +179,7 @@ per-share acceptance ceiling.
 - creator-search client, safe linked-page fetcher, and worker configuration;
 - worker and import-orchestrator construction;
 - extraction prompt serialization;
+- deterministic creator yield, nutrition-panel, and labeled-time parsing;
 - USDA FoodData Central client and deterministic nutrition calculator;
 - deterministic issue detection and targeted structured verifier;
 - locked text-only extraction corpus and whole-recipe evaluator;

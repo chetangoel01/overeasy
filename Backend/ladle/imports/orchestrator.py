@@ -33,6 +33,7 @@ from ladle.extraction.protocol import RecipeExtractor, RecipeVerifier
 from ladle.extraction.verification import verification_evidence
 from ladle.imports.thumbnails import OEmbedThumbnailFetcher, ThumbnailAsset
 from ladle.imports.transitions import ImportTransitionService
+from ladle.nutrition.creator import apply_creator_facts
 from ladle.observability.metrics import MetricsRegistry
 from ladle.observability.structured_logging import log_context
 from ladle.recipes.template_clone import (
@@ -263,6 +264,11 @@ class ImportOrchestrator:
                         )
                 with log_context(stage="extraction"):
                     template = self._extractor.extract(context, job_id=job_id)
+                text_evidence = verification_evidence(context)
+                template = apply_creator_facts(
+                    template,
+                    (value.text for value in text_evidence),
+                )
                 if self._nutrition is not None:
                     with log_context(stage="nutrition"):
                         try:
@@ -291,7 +297,7 @@ class ImportOrchestrator:
                     with log_context(stage="verification"):
                         template = self._verifier.verify(
                             template,
-                            evidence=verification_evidence(context),
+                            evidence=text_evidence,
                             job_id=job_id,
                         )
                 with log_context(stage="thumbnail"):

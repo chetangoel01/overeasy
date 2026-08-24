@@ -54,8 +54,14 @@ Corpus digests cover the canonical JSON encoding of `cases` and
 
 ```text
 tuning   3461ea84be082f52436c70e38537bda708ca1719de0e362f792da876a8063eee
-held-out 7153942ffc57e90a979c8e988e9d784133580091ae36c04068677687404ccd9b
+held-out 4cc80ef9735e786feba6c42654b833bd2435775d85f64d060030ad61d0c5bf00
 ```
+
+Before the first provider-backed held-out run, the `held-nhlbi-060` reference
+was corrected from 4 to 180 whole-recipe calories. Its retained source panel
+states 45 calories per serving and four servings; the fixture builder also
+reproduces 180. This ground-truth repair changed only the held-out digest shown
+above.
 
 `scripts/build_evaluation_corpus.py` reproduces the fixtures from text made
 with `pdftotext -layout`. It requires exactly 25 selected USDA recipe files and

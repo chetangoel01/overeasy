@@ -75,6 +75,9 @@ PROMPT_DIGESTS = {
     "recipe-2026-08-24-v10": (
         "9c288c83f9cb39cb8d9d05a9b74888cf21a7a6a9633a197f06a36e0f0b20d2e5"
     ),
+    "recipe-2026-08-24-v11": (
+        "50e878ed23833b89d62ad7f2c5d7e4aa65c073729d392960b8245986046359b2"
+    ),
 }
 
 
@@ -96,6 +99,8 @@ def test_prompt_allows_honest_method_bridging_without_fake_quantities() -> None:
 
 
 def test_prompt_forbids_nutrition_and_serving_estimates() -> None:
+    assert "Always return nutrition null" in SYSTEM_PROMPT
+    assert "deterministic server code" in SYSTEM_PROMPT
     assert "Never estimate nutrition" in SYSTEM_PROMPT
     assert "leave nutrition null" in SYSTEM_PROMPT
     assert "Never invent or estimate a serving count" in SYSTEM_PROMPT

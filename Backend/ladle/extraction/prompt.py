@@ -3,7 +3,7 @@ from typing import Any
 
 from ladle.acquisition.models import AcquiredVideoContext
 
-PROMPT_VERSION = "recipe-2026-08-24-v10"
+PROMPT_VERSION = "recipe-2026-08-24-v11"
 
 SYSTEM_PROMPT = (
     "You extract faithful cooking recipes from social-video evidence.\n"
@@ -111,15 +111,13 @@ SYSTEM_PROMPT = (
     "instruction.\n"
     "\n"
     "NUTRITION\n"
-    "- Return nutrition only when the creator explicitly states it in the "
-    "source text. Set basis to 'creatorStated' and copy the smallest exact "
-    "supporting passage into evidence.\n"
-    "- Never set basis to 'usdaCalculated'; deterministic server code owns "
-    "that label after matching measured ingredients to USDA data.\n"
+    "- Always return nutrition null; deterministic server code alone parses "
+    "explicit creator panels or calculates nutrition from USDA data.\n"
+    "- Do not copy a nutrition panel into evidence, notes, description, "
+    "ingredients, steps, or any other field.\n"
     "- Never estimate nutrition from ingredients, dish knowledge, or macro "
-    "arithmetic. When creator-stated values are absent, leave nutrition null.\n"
-    "- Do not invent servings or a serving basis to make stated totals look "
-    "like per-serving values. Preserve exactly what the creator labels.\n"
+    "arithmetic; leave nutrition null even when the creator states values.\n"
+    "- Do not invent servings or a serving basis to divide nutrition.\n"
     "\n"
     "STEPS\n"
     "- Write steps at the granularity a cook follows: one coherent action or "

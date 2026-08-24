@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from inspect import signature
 from uuid import uuid4
 
@@ -212,6 +213,64 @@ def test_import_persists_deterministically_calculated_nutrition(
         assert stored.calories == 420
         assert stored.protein_grams == 18
         assert stored.is_estimated
+
+
+@pytest.mark.integration
+def test_creator_facts_are_applied_before_nutrition_calculation(
+    clean_postgres_url: str,
+) -> None:
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    clock = FrozenClock(datetime(2026, 8, 24, 12, 0, tzinfo=UTC))
+    copied = TemplateNutrition(
+        calories="160",
+        protein_grams="1",
+        carbohydrate_grams="35",
+        fat_grams="2",
+        serving_basis="6",
+        is_estimated=False,
+        basis="creatorStated",
+        evidence="model copy with incorrect serving basis",
+    )
+    calculator = FakeNutritionCalculator()
+    template = RecipeTemplate.from_recipe(manual_recipe(uuid4())).model_copy(
+        update={
+            "servings": Decimal(1),
+            "servings_basis": "unknown",
+            "nutrition": copied,
+            "review_status": RecipeReviewStatus.NEEDS_REVIEW,
+        }
+    )
+    sessions, orchestrator, _, acquirer, _ = services(
+        clean_postgres_url,
+        clock,
+        template=template,
+        nutrition_calculator=calculator,
+    )
+    acquirer.transcript_text = (
+        "Add 2 cups orzo and simmer for 10 minutes. Makes 6 servings. "
+        "Nutrients per serving: Calories 160, Protein 1 g, "
+        "Carbohydrates 35 g, Total Fat 2 g."
+    )
+    with sessions.begin() as database:
+        source_id = uuid4()
+        database.add(
+            SourceVideo(
+                id=source_id,
+                platform="youtube",
+                platform_video_id="creator-facts",
+                canonical_url="https://www.youtube.com/watch?v=creator-facts",
+                source_revision="1",
+                source_metadata={},
+            )
+        )
+        job_id = seed_import(database, source_id=source_id, suffix="creator-facts")
+
+    assert orchestrator.process(job_id) == ProcessOutcome.COMPLETED
+    observed = calculator.calls[0]
+    assert observed.servings == 6
+    assert observed.servings_basis == "stated"
+    assert observed.nutrition is not None
+    assert observed.nutrition.serving_basis == 1
 
 
 @pytest.mark.integration

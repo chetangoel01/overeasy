@@ -65,6 +65,7 @@ from ladle.extraction.verification import (
     verification_evidence,
 )
 from ladle.nutrition.calculator import NutritionCalculator
+from ladle.nutrition.creator import apply_creator_facts
 from ladle.nutrition.usda import USDAClient
 from ladle.recipes.template_clone import RecipeTemplate
 
@@ -100,13 +101,18 @@ class EvaluationPipeline:
         if extraction is None:
             raise ValueError(f"no parsed output: {response.stop_reason}")
         template = build_reviewed_template(extraction, context=context)
+        text_evidence = verification_evidence(context)
+        template = apply_creator_facts(
+            template,
+            (value.text for value in text_evidence),
+        )
         nutrition = self.nutrition.calculate(template)
         if nutrition is not None:
             template = template.model_copy(update={"nutrition": nutrition})
         if self.verifier is not None:
             template = self.verifier.verify(
                 template,
-                evidence=verification_evidence(context),
+                evidence=text_evidence,
                 job_id=uuid.uuid4(),
             )
         return response, extraction, template
