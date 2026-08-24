@@ -64,6 +64,19 @@ def test_local_long_running_services_recover_and_worker_avoids_memory_overlap() 
     assert "--concurrency=${LADLE_WORKER_CONCURRENCY:-1}" in worker["command"]
 
 
+def test_local_device_tunnel_has_a_loopback_only_edge_profile() -> None:
+    compose = yaml.safe_load((BACKEND / "docker-compose.yml").read_text())
+    edge = compose["services"]["device-edge"]
+
+    assert edge["profiles"] == ["device-tunnel"]
+    assert edge["ports"] == ["127.0.0.1:4114:8082"]
+    assert edge["read_only"] is True
+    assert edge["cap_drop"] == ["ALL"]
+    assert edge["security_opt"] == ["no-new-privileges:true"]
+    assert edge["depends_on"]["api"]["condition"] == "service_healthy"
+    assert edge["depends_on"]["minio"]["condition"] == "service_healthy"
+
+
 def test_production_context_excludes_development_and_private_artifacts() -> None:
     ignored = (BACKEND / ".dockerignore").read_text()
 

@@ -93,6 +93,12 @@ xcodegen generate
 Open `Ladle.xcodeproj`, select the `Ladle` scheme and an iPhone simulator, then
 Run.
 
+Physical Debug builds that use local Docker must use the guarded device tunnel
+instead of `.localhost`. From `Backend/`, run
+`./scripts/device_tunnel.sh rotate`, then pass
+`.private/DeviceTunnel.xcconfig` to `xcodebuild` with `-xcconfig`. The backend
+README documents the complete rotate/start/stop workflow.
+
 For a command-line simulator build:
 
 ```bash

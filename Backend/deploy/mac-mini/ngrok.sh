@@ -4,15 +4,40 @@ set -eu
 umask 077
 
 state_dir=${LADLE_NGROK_STATE_DIR:-"$HOME/.config/ladle/ngrok"}
-ngrok_bin=${LADLE_NGROK_BIN:-"$HOME/bin/ngrok"}
-ngrok_config=${LADLE_NGROK_CONFIG:-"$HOME/.config/ngrok/ngrok.yml"}
+if [ -n "${LADLE_NGROK_BIN:-}" ]; then
+    ngrok_bin=$LADLE_NGROK_BIN
+elif ngrok_path=$(command -v ngrok 2>/dev/null); then
+    ngrok_bin=$ngrok_path
+else
+    ngrok_bin=$HOME/bin/ngrok
+fi
+if [ -n "${LADLE_NGROK_CONFIG:-}" ]; then
+    ngrok_config=$LADLE_NGROK_CONFIG
+elif [ -f "$HOME/.config/ngrok/ngrok.yml" ]; then
+    ngrok_config=$HOME/.config/ngrok/ngrok.yml
+else
+    ngrok_config="$HOME/Library/Application Support/ngrok/ngrok.yml"
+fi
 access_key_file=$state_dir/access-key
 policy_file=$state_dir/policy.yml
 pid_file=$state_dir/agent.pid
 log_file=${LADLE_NGROK_LOG:-"$HOME/Library/Logs/Ladle/ngrok.log"}
 agent_api=${LADLE_NGROK_AGENT_API:-http://127.0.0.1:4040}
+launchd_label=${LADLE_NGROK_LAUNCHD_LABEL:-com.ladle.device-tunnel}
+launchd_service=gui/$(id -u)/$launchd_label
 
 agent_pid() {
+    if command -v launchctl >/dev/null 2>&1; then
+        launchd_pid=$(launchctl print "$launchd_service" 2>/dev/null |
+            sed -n 's/^[[:space:]]*pid = \([0-9][0-9]*\)$/\1/p' |
+            head -n 1)
+        case $launchd_pid in
+            "" | *[!0-9]*) return 1 ;;
+        esac
+        kill -0 "$launchd_pid" 2>/dev/null || return 1
+        printf '%s\n' "$launchd_pid"
+        return
+    fi
     [ -f "$pid_file" ] || return 1
     pid=$(sed -n '1p' "$pid_file")
     case $pid in
@@ -28,9 +53,17 @@ public_url() {
         head -n 1
 }
 
+generate_access_key() {
+    mkdir -p "$state_dir"
+    key_tmp=$(mktemp "$state_dir/access-key.XXXXXX")
+    openssl rand -hex 32 >"$key_tmp"
+    chmod 600 "$key_tmp"
+    mv "$key_tmp" "$access_key_file"
+}
+
 write_policy() {
     if [ ! -s "$access_key_file" ]; then
-        openssl rand -hex 32 >"$access_key_file"
+        generate_access_key
     fi
     chmod 600 "$access_key_file"
     access_key=$(sed -n '1p' "$access_key_file")
@@ -89,12 +122,21 @@ start() {
     }
     mkdir -p "$state_dir" "$(dirname "$log_file")"
     write_policy
-    nohup "$ngrok_bin" http http://127.0.0.1:4114 \
-        --config "$ngrok_config" \
-        --traffic-policy-file "$policy_file" \
-        --log stdout \
-        >"$log_file" 2>&1 </dev/null &
-    printf '%s\n' "$!" >"$pid_file"
+    if command -v launchctl >/dev/null 2>&1; then
+        launchctl remove "$launchd_label" >/dev/null 2>&1 || true
+        launchctl submit -l "$launchd_label" -o "$log_file" -e "$log_file" -- \
+            "$ngrok_bin" http http://127.0.0.1:4114 \
+            --config "$ngrok_config" \
+            --traffic-policy-file "$policy_file" \
+            --log stdout
+    else
+        nohup "$ngrok_bin" http http://127.0.0.1:4114 \
+            --config "$ngrok_config" \
+            --traffic-policy-file "$policy_file" \
+            --log stdout \
+            >"$log_file" 2>&1 </dev/null &
+        printf '%s\n' "$!" >"$pid_file"
+    fi
 
     attempts=0
     while [ "$attempts" -lt 30 ]; do
@@ -111,15 +153,24 @@ start() {
 }
 
 stop() {
-    if pid=$(agent_pid); then
+    if command -v launchctl >/dev/null 2>&1; then
+        launchctl remove "$launchd_label" >/dev/null 2>&1 || true
+    elif pid=$(agent_pid); then
         kill "$pid"
     fi
     rm -f "$pid_file"
 }
 
+rotate_key() {
+    stop
+    generate_access_key
+    start
+}
+
 case ${1:-status} in
     start) start ;;
     stop) stop ;;
+    rotate-key) rotate_key ;;
     status)
         if agent_pid >/dev/null; then
             public_url
@@ -129,7 +180,7 @@ case ${1:-status} in
         ;;
     key-file) printf '%s\n' "$access_key_file" ;;
     *)
-        echo "usage: $0 {start|stop|status|key-file}" >&2
+        echo "usage: $0 {start|stop|rotate-key|status|key-file}" >&2
         exit 64
         ;;
 esac

@@ -67,3 +67,32 @@ plus its team ID, key ID, and `com.ladle.ios` bundle ID; Google requires its
 server OAuth client ID. Provider credentials and optional browser cookies
 belong only in host-managed secrets, never in the repository or iOS
 application.
+
+## Guarded physical-device builds
+
+The Debug `.localhost` route belongs to the Mac and simulator. Before building
+for a physical iPhone, rotate a per-build key and start the guarded HTTPS
+tunnel:
+
+```bash
+./scripts/device_tunnel.sh rotate
+xcodebuild build \
+  -project ../Ladle.xcodeproj \
+  -scheme Ladle \
+  -configuration Debug \
+  -destination 'generic/platform=iOS' \
+  -xcconfig ../.private/DeviceTunnel.xcconfig \
+  -allowProvisioningUpdates
+```
+
+`rotate` invalidates older tunnel builds, writes a mode-`600` ignored xcconfig,
+and verifies that missing or incorrect keys receive `404`, authorized readiness
+receives `200`, and `/metrics` remains hidden. Use `start` to keep serving an
+already installed build without rotating its key. Use `stop` when device
+testing ends; it closes the public endpoint and restores local simulator
+thumbnail URLs.
+
+The tunnel listener is published only on host loopback port `4114`. API
+requests require the embedded `X-Ladle-Tunnel-Key`; signed private-thumbnail
+paths are exempt from that header because native image loading cannot attach
+it, but MinIO still validates the short-lived object signature.
