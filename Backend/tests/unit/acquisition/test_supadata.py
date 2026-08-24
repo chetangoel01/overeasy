@@ -23,12 +23,10 @@ def source() -> SourceVideoDescriptor:
     )
 
 
-def test_metadata_native_transcript_and_async_visual_contracts() -> None:
+def test_metadata_and_native_transcript_contracts() -> None:
     requests: list[httpx.Request] = []
-    poll_count = 0
 
     def respond(request: httpx.Request) -> httpx.Response:
-        nonlocal poll_count
         requests.append(request)
         assert request.headers["x-api-key"] == "supadata-secret"
         if request.url.path == "/v1/metadata":
@@ -43,23 +41,6 @@ def test_metadata_native_transcript_and_async_visual_contracts() -> None:
                 200,
                 json=json.loads((FIXTURES / "transcript.json").read_text()),
                 headers={"x-billable-requests": "1"},
-            )
-        if request.url.path == "/v1/extract" and request.method == "POST":
-            body = json.loads(request.content)
-            assert body["url"] == source().canonical_url
-            assert body["schema"]["required"] == ["observations"]
-            return httpx.Response(
-                202,
-                json={"jobId": "extract-job-1"},
-                headers={"x-billable-requests": "3"},
-            )
-        if request.url.path == "/v1/extract/extract-job-1":
-            poll_count += 1
-            if poll_count == 1:
-                return httpx.Response(200, json={"status": "active"})
-            return httpx.Response(
-                200,
-                json=json.loads((FIXTURES / "extract-completed.json").read_text()),
             )
         raise AssertionError(f"unexpected request: {request.method} {request.url}")
 
@@ -76,7 +57,6 @@ def test_metadata_native_transcript_and_async_visual_contracts() -> None:
 
     metadata = client.metadata(source(), job_id=uuid4())
     transcript = client.transcript(source(), job_id=uuid4(), mode="native")
-    visual = client.visual(source(), job_id=uuid4())
 
     assert metadata.title == "One-Pot Lemon Orzo"
     assert metadata.creator_name == "Ladle Kitchen"
@@ -84,10 +64,10 @@ def test_metadata_native_transcript_and_async_visual_contracts() -> None:
     assert transcript.language == "en"
     assert transcript.segments[0].start_seconds == 1
     assert not transcript.segments[0].generated
-    assert visual.observations[0].text == "2 cups orzo"
-    assert visual.external_job_id == "extract-job-1"
-    assert visual.billed_units == 3
-    assert poll_count == 2
+    assert [request.url.path for request in requests] == [
+        "/v1/metadata",
+        "/v1/transcript",
+    ]
 
 
 def test_authentication_error_is_typed_without_exposing_key() -> None:

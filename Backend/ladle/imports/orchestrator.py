@@ -15,7 +15,6 @@ from ladle.acquisition.models import (
     AcquiredVideoContext,
     SourceVideoDescriptor,
     TextEvidence,
-    VisualResult,
 )
 from ladle.acquisition.protocol import VideoAcquirer
 from ladle.cache.claims import ClaimLease
@@ -50,17 +49,6 @@ class ClaimHeartbeat(Protocol):
     def monitor(self, claim: ClaimLease) -> AbstractContextManager[None]: ...
 
 
-class ThumbnailObserver(Protocol):
-    def observe_thumbnail(
-        self,
-        image: bytes,
-        *,
-        content_type: str,
-        job_id: UUID,
-        source_revision: str,
-    ) -> VisualResult: ...
-
-
 class ImportOrchestrator:
     def __init__(
         self,
@@ -75,7 +63,6 @@ class ImportOrchestrator:
         transitions: ImportTransitionService | None = None,
         metrics: MetricsRegistry | None = None,
         thumbnails: OEmbedThumbnailFetcher | None = None,
-        thumbnail_observer: ThumbnailObserver | None = None,
         heartbeat: ClaimHeartbeat | None = None,
     ) -> None:
         self._sessions = session_factory
@@ -88,7 +75,6 @@ class ImportOrchestrator:
         self._transitions = transitions
         self._metrics = metrics
         self._thumbnails = thumbnails
-        self._thumbnail_observer = thumbnail_observer
         self._heartbeat = heartbeat
 
     def process(self, job_id: UUID) -> ProcessOutcome:
@@ -256,26 +242,6 @@ class ImportOrchestrator:
                             descriptor,
                             candidate_url=context.thumbnail_url,
                         )
-                    if self._thumbnail_observer is not None:
-                        if thumbnail_asset is None:
-                            context.diagnostics.append("thumbnailAnalysisUnavailable")
-                        else:
-                            try:
-                                thumbnail = self._thumbnail_observer.observe_thumbnail(
-                                    thumbnail_asset.data,
-                                    content_type=thumbnail_asset.content_type,
-                                    job_id=job_id,
-                                    source_revision=descriptor.source_revision,
-                                )
-                            except (ProviderUnavailable, UsageLimitExceeded):
-                                context.diagnostics.append(
-                                    "thumbnailAnalysisUnavailable"
-                                )
-                            else:
-                                context.visual_observations.extend(
-                                    thumbnail.observations
-                                )
-                                context.diagnostics.append("thumbnailAnalysisUsed")
                 with log_context(stage="extraction"):
                     template = self._extractor.extract(context, job_id=job_id)
                 with log_context(stage="thumbnail"):

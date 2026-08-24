@@ -20,8 +20,8 @@ _CONFIDENCE_THRESHOLD = 0.7
 _MISSING_QUANTITY_THRESHOLD = 0.3
 # Review is a claim that the cook should check something before trusting the
 # recipe. Every caveat used to raise it, including ones that say nothing about
-# the dish — an unavailable visual provider, a serving count we estimated and
-# labelled as estimated. With those firing on nearly every import, the flag
+# the dish — an unavailable-provider diagnostic, a serving count we estimated
+# and labelled as estimated. With those firing on nearly every import, the flag
 # stopped distinguishing anything. Only caveats that could actually mislead
 # someone cooking from the result raise it now; the rest are still recorded
 # and still shown beside the field they belong to.

@@ -31,11 +31,6 @@ from ladle.acquisition.protocol import VideoAcquirer
 from ladle.acquisition.provider_chain import ProviderChain
 from ladle.acquisition.soscripted import SoScriptedClient
 from ladle.acquisition.supadata import SupadataClient
-from ladle.acquisition.vision import (
-    FrameSampler,
-    VisionObserver,
-    VisionVisualProvider,
-)
 from ladle.cache.claims import ExtractionClaimService
 from ladle.cache.service import ExtractionCacheService
 from ladle.clock import SystemClock
@@ -201,39 +196,6 @@ def _audio_transcriber(
             usage=usage,
         ),
         max_duration_seconds=settings.transcription_max_duration_seconds,
-    )
-
-
-def _vision_provider(
-    settings: Settings,
-    *,
-    usage: ProviderUsageLedger,
-) -> VisionVisualProvider | None:
-    if not settings.frame_analysis_enabled or settings.openrouter_api_key is None:
-        return None
-    media = MediaAudioSource(
-        http=httpx.Client(
-            timeout=settings.frame_analysis_timeout_seconds,
-            trust_env=False,
-        ),
-    )
-    sampler = FrameSampler(max_frames=settings.frame_analysis_max_frames)
-    if not sampler.available:
-        LOGGER.warning("ffmpeg is missing; frame analysis is disabled")
-        return None
-    return VisionVisualProvider(
-        media_source=media,
-        sampler=sampler,
-        observer=VisionObserver(
-            http=httpx.Client(
-                timeout=settings.frame_analysis_timeout_seconds,
-                trust_env=False,
-            ),
-            api_key=settings.openrouter_api_key.get_secret_value(),
-            base_url=str(settings.openrouter_base_url),
-            model_id=settings.frame_analysis_model_id,
-            usage=usage,
-        ),
     )
 
 
@@ -409,7 +371,6 @@ def runtime_orchestrator() -> ImportOrchestrator:
     )
     acquirer: VideoAcquirer
     extractor: RecipeExtractor
-    thumbnail_observer: VisionObserver | None = None
     if settings.worker_provider_mode == "fake":
         acquirer = FakeRuntimeAcquirer(
             delay_seconds=settings.fake_provider_delay_seconds,
@@ -440,20 +401,6 @@ def runtime_orchestrator() -> ImportOrchestrator:
             reservation_units=settings.provider_reservation_billed_units,
             metrics=metrics,
         )
-        if (
-            settings.thumbnail_analysis_enabled
-            and settings.openrouter_api_key is not None
-        ):
-            thumbnail_observer = VisionObserver(
-                http=httpx.Client(
-                    timeout=settings.frame_analysis_timeout_seconds,
-                    trust_env=False,
-                ),
-                api_key=settings.openrouter_api_key.get_secret_value(),
-                base_url=str(settings.openrouter_base_url),
-                model_id=settings.frame_analysis_model_id,
-                usage=usage,
-            )
         acquirer = ProviderChain(
             primary=(
                 SupadataClient(
@@ -489,7 +436,6 @@ def runtime_orchestrator() -> ImportOrchestrator:
             ),
             free=_free_acquirer(settings),
             audio=_audio_transcriber(settings, usage=usage),
-            vision=_vision_provider(settings, usage=usage),
             metrics=metrics,
         )
         if settings.extraction_provider == "openrouter":
@@ -542,7 +488,6 @@ def runtime_orchestrator() -> ImportOrchestrator:
         extractor=extractor,
         clock=clock,
         thumbnails=thumbnails,
-        thumbnail_observer=thumbnail_observer,
         private_text=build_private_text_cipher(
             active_key_id=settings.data_encryption_active_key_id,
             keyring_json=settings.data_encryption_keyring,

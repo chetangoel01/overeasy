@@ -194,6 +194,13 @@ def test_soscripted_default_allows_its_synchronous_transcription_window() -> Non
     assert settings.soscripted_timeout_seconds == 600
 
 
+def test_text_only_defaults_disable_all_visual_analysis() -> None:
+    settings = Settings(_env_file=None)
+
+    assert not settings.frame_analysis_enabled
+    assert not settings.thumbnail_analysis_enabled
+
+
 def test_production_requires_app_attest_and_its_identity() -> None:
     with pytest.raises(ValidationError):
         Settings(

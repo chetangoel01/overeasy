@@ -175,11 +175,11 @@ def _solid_recipe(**overrides: object) -> RecipeExtraction:
     return RecipeExtraction.model_validate(defaults)
 
 
-def test_an_unavailable_provider_is_not_a_doubt_about_the_recipe() -> None:
-    """Visual analysis being down says nothing about whether this dish is right.
+def test_a_legacy_unavailable_provider_code_is_not_recipe_doubt() -> None:
+    """An old provider diagnostic says nothing about whether the dish is right.
 
-    It used to force review anyway, and because the visual provider is often
-    unavailable that pushed essentially every import into the review queue.
+    Cached acquisition contexts may retain this code, so review remains
+    backward-compatible even though production no longer has a visual path.
     """
 
     reviewed = build_reviewed_template(

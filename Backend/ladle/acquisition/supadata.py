@@ -22,29 +22,8 @@ from ladle.acquisition.models import (
     SourceVideoDescriptor,
     TextEvidence,
     TranscriptResult,
-    VisualEvidence,
-    VisualResult,
 )
 from ladle.usage.ledger import NullProviderUsageSink, ProviderUsageSink
-
-_VISUAL_SCHEMA: dict[str, Any] = {
-    "type": "object",
-    "properties": {
-        "observations": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "timestampSeconds": {"type": "number"},
-                    "text": {"type": "string"},
-                    "confidence": {"type": "number"},
-                },
-                "required": ["timestampSeconds", "text"],
-            },
-        }
-    },
-    "required": ["observations"],
-}
 
 
 class SupadataClient:
@@ -173,96 +152,6 @@ class SupadataClient:
                 payload,
                 mode=mode,
                 billed_units=billed,
-                external_job_id=external_job_id,
-            )
-        except AcquisitionError as error:
-            self._failed(job_id, idempotency_key, error)
-            raise
-        self._completed(
-            job_id,
-            idempotency_key=idempotency_key,
-            billed_units=result.billed_units,
-        )
-        return result
-
-    def visual(
-        self,
-        source: SourceVideoDescriptor,
-        *,
-        job_id: UUID,
-    ) -> VisualResult:
-        idempotency_key = f"supadata:visual:{source.source_revision}"
-        existing_job_id = self._usage.existing_external_job_id(
-            job_id=job_id,
-            idempotency_key=idempotency_key,
-        )
-        self._started(
-            job_id,
-            operation="visual",
-            idempotency_key=idempotency_key,
-            external_job_id=existing_job_id,
-        )
-        try:
-            if existing_job_id is None:
-                response = self._request(
-                    "POST",
-                    "/extract",
-                    json={
-                        "url": source.canonical_url,
-                        "prompt": (
-                            "Record visible recipe ingredients, quantities, "
-                            "temperatures, timings, and ordered cooking actions "
-                            "with timestamps."
-                        ),
-                        "schema": _VISUAL_SCHEMA,
-                    },
-                )
-                payload = self._json_object(response)
-                external_job_id = self._optional_string(payload.get("jobId"))
-                if external_job_id is None:
-                    raise MalformedProviderResponse("Supadata omitted extract job ID")
-                billed_units = self._billed_units(response)
-                self._started(
-                    job_id,
-                    operation="visual",
-                    idempotency_key=idempotency_key,
-                    external_job_id=external_job_id,
-                    billed_units=billed_units,
-                )
-            else:
-                external_job_id = existing_job_id
-                billed_units = Decimal(0)
-            polled = self._poll("/extract", external_job_id)
-            data = polled.get("data")
-            if not isinstance(data, dict):
-                raise MalformedProviderResponse("Supadata extract result omitted data")
-            values = data.get("observations")
-            if not isinstance(values, list):
-                raise MalformedProviderResponse(
-                    "Supadata extract observations are invalid"
-                )
-            observations: list[VisualEvidence] = []
-            for value in values:
-                if not isinstance(value, dict):
-                    raise MalformedProviderResponse(
-                        "Supadata extract observation is invalid"
-                    )
-                try:
-                    observations.append(
-                        VisualEvidence(
-                            text=value["text"],
-                            timestamp_seconds=value["timestampSeconds"],
-                            provenance="supadata-visual",
-                            confidence=value.get("confidence"),
-                        )
-                    )
-                except (KeyError, ValueError, TypeError) as error:
-                    raise MalformedProviderResponse(
-                        "Supadata extract observation is invalid"
-                    ) from error
-            result = VisualResult(
-                observations=observations,
-                billed_units=billed_units,
                 external_job_id=external_job_id,
             )
         except AcquisitionError as error:

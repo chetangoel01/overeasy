@@ -21,6 +21,7 @@ x-private-staging-environment: &private-staging-environment
   LADLE_OBJECT_STORAGE_SECRET_KEY: ${LADLE_OBJECT_STORAGE_SECRET_KEY:?set by deploy.sh}
   LADLE_AUDIO_TRANSCRIPTION_ENABLED: "false"
   LADLE_FRAME_ANALYSIS_ENABLED: "false"
+  LADLE_THUMBNAIL_ANALYSIS_ENABLED: "false"
   LADLE_SERVER_MEDIA_FALLBACK_ENABLED: "false"
 
 services:

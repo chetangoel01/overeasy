@@ -13,7 +13,6 @@ from ladle.acquisition.models import (
     MediaMetadata,
     SourceVideoDescriptor,
     TranscriptResult,
-    VisualResult,
 )
 from ladle.acquisition.provider_chain import ProviderChain
 from ladle.observability.metrics import MetricsRegistry
@@ -34,7 +33,6 @@ def source() -> SourceVideoDescriptor:
 class Primary:
     native: TranscriptResult | Exception
     generated: TranscriptResult | Exception
-    visual_result: VisualResult | Exception
     thumbnail_url: str | None = None
     calls: list[str] = field(default_factory=list)
 
@@ -63,14 +61,6 @@ class Primary:
         if isinstance(value, Exception):
             raise value
         return value
-
-    def visual(self, source: SourceVideoDescriptor, *, job_id: UUID) -> VisualResult:
-        del source, job_id
-        self.calls.append("visual")
-        if isinstance(self.visual_result, Exception):
-            raise self.visual_result
-        return self.visual_result
-
 
 @dataclass
 class Fallback:
@@ -119,10 +109,6 @@ def transcript(text: str, provenance: str = "supadata") -> TranscriptResult:
     )
 
 
-def empty_visual() -> VisualResult:
-    return VisualResult(observations=[], billed_units=0, external_job_id="visual-1")
-
-
 def test_sufficient_supadata_auto_material_skips_paid_fallbacks() -> None:
     primary = Primary(
         native=TranscriptUnavailable(),
@@ -130,7 +116,6 @@ def test_sufficient_supadata_auto_material_skips_paid_fallbacks() -> None:
             "Add 2 cups flour. Mix well, then bake for 20 minutes.",
             "supadata-auto",
         ),
-        visual_result=empty_visual(),
     )
     fallback = Fallback(transcript("unused"))
     metrics = MetricsRegistry()
@@ -158,7 +143,6 @@ def test_acquired_context_preserves_provider_thumbnail() -> None:
             "Add 2 cups flour. Mix well, then bake for 20 minutes.",
             "supadata-auto",
         ),
-        visual_result=empty_visual(),
         thumbnail_url="https://images.example/recipe.jpg",
     )
     chain = ProviderChain(primary=primary, fallback=None)
@@ -187,7 +171,6 @@ def test_public_recheck_uses_metadata_without_transcript_or_visual_spend() -> No
     primary = Primary(
         native=TranscriptUnavailable(),
         generated=TranscriptUnavailable(),
-        visual_result=empty_visual(),
     )
     chain = ProviderChain(
         primary=primary,
@@ -198,24 +181,10 @@ def test_public_recheck_uses_metadata_without_transcript_or_visual_spend() -> No
     assert primary.calls == ["metadata"]
 
 
-def test_quota_or_missing_native_uses_transcript_and_visual_backups() -> None:
-    from ladle.acquisition.models import VisualEvidence
-
+def test_sparse_source_uses_text_fallbacks_but_never_visual_analysis() -> None:
     primary = Primary(
         native=TranscriptUnavailable(),
         generated=ProviderQuotaError(),
-        visual_result=VisualResult(
-            observations=[
-                VisualEvidence(
-                    text="2 cups flour",
-                    timestamp_seconds=1,
-                    provenance="supadata-visual",
-                    confidence=0.9,
-                )
-            ],
-            billed_units=2,
-            external_job_id="visual-1",
-        ),
     )
     fallback = Fallback(
         transcript("Add flour. Mix well, then bake for 20 minutes.", "soscripted")
@@ -226,7 +195,8 @@ def test_quota_or_missing_native_uses_transcript_and_visual_backups() -> None:
 
     assert fallback.calls == 1
     assert context.transcript[0].provenance == "soscripted"
-    assert context.visual_observations[0].text == "2 cups flour"
+    assert primary.calls == ["metadata", "transcript:auto"]
+    assert context.visual_observations == []
     assert "supadataTranscriptUnavailable" in context.diagnostics
 
 
@@ -234,7 +204,6 @@ def test_private_source_short_circuits_all_fallback_spend() -> None:
     primary = Primary(
         native=TranscriptUnavailable(),
         generated=PrivateOrDeleted(),
-        visual_result=empty_visual(),
     )
     fallback = Fallback(transcript("must not run"))
     chain = ProviderChain(primary=primary, fallback=fallback)
@@ -263,7 +232,6 @@ def test_quota_failure_opens_primary_circuit_and_uses_independent_backup() -> No
     primary = Primary(
         native=TranscriptUnavailable(),
         generated=ProviderQuotaError(),
-        visual_result=empty_visual(),
     )
     fallback = Fallback(
         transcript(
@@ -285,14 +253,13 @@ def test_quota_failure_opens_primary_circuit_and_uses_independent_backup() -> No
         circuits.before_call("supadata")
 
 
-def test_server_fallback_supplies_burned_in_quantities_when_apis_are_sparse() -> None:
+def test_server_fallback_merges_text_but_discards_visual_context() -> None:
     from ladle.acquisition.models import AcquiredVideoContext, VisualEvidence
 
     source_value = source()
     primary = Primary(
         native=transcript("Add flour and bake until golden.", "supadata-native"),
         generated=TranscriptUnavailable(),
-        visual_result=ProviderQuotaError(),
     )
     fallback = Fallback(transcript("unused"))
     server = ContextBackup(
@@ -300,7 +267,9 @@ def test_server_fallback_supplies_burned_in_quantities_when_apis_are_sparse() ->
             source=source_value,
             is_public=True,
             description="",
-            transcript=[],
+            transcript=transcript(
+                "Add 2 cups flour and bake.", "server-transcript"
+            ).segments,
             visual_observations=[
                 VisualEvidence(
                     text="2 cups flour",
@@ -321,5 +290,6 @@ def test_server_fallback_supplies_burned_in_quantities_when_apis_are_sparse() ->
     result = chain.acquire(source_value, job_id=uuid4())
 
     assert server.calls == 1
-    assert result.visual_observations[-1].provenance == "server-ocr"
+    assert result.transcript[-1].provenance == "server-transcript"
+    assert result.visual_observations == []
     assert "serverFallbackUsed" in result.diagnostics

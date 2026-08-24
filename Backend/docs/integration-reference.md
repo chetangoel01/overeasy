@@ -432,23 +432,22 @@ Only these codes carry typed details:
 
 With `LADLE_WORKER_PROVIDER_MODE=live`, the worker follows this order:
 
-1. Free platform metadata, captions, on-screen text, and linked recipe pages.
+1. Free platform metadata, captions, platform-published sticker/accessibility
+   text, and linked recipe pages.
 2. If evidence is incomplete, Whisper transcription of the acquired media,
    with one retry only for transport, timeout, or provider 5xx failures.
 3. If configured and no transcript is available, one Supadata `mode=auto`
    request, which
    performs its own native-first/generated-fallback policy.
 4. If configured and no transcript is available, SoScripted transcription.
-5. If evidence is still incomplete, sampled-frame analysis followed by
-   Supadata visual extraction when configured.
-6. Claude structured recipe and nutrition extraction.
-7. Review gating and transactional recipe/cache completion.
+5. Structured recipe and nutrition extraction from the collected text.
+6. Review gating and transactional recipe/cache completion.
 
 Outbound adapter paths:
 
 | Provider | Adapter | Calls |
 | --- | --- | --- |
-| Supadata | `ladle/acquisition/supadata.py` | `GET /metadata`, `GET /transcript`, `GET /transcript/{jobID}`, `POST /extract`, `GET /extract/{jobID}` |
+| Supadata | `ladle/acquisition/supadata.py` | `GET /metadata`, `GET /transcript`, `GET /transcript/{jobID}` |
 | SoScripted | `ladle/acquisition/soscripted.py` | `POST /transcribe` |
 | OpenRouter (default) | `ladle/extraction/openrouter.py` | Chat completions with `json_schema` response format, Pydantic-validated |
 | Anthropic (alternative) | `ladle/extraction/claude.py` | SDK `messages.parse` with a Pydantic output model |
@@ -491,7 +490,7 @@ Supadata and SoScripted keys are optional. Without them the chain remains:
 
 ```text
 permitted free evidence -> temporary media download -> Whisper
--> temporary frame analysis -> structured recipe extraction
+-> structured recipe extraction
 ```
 
 For a personal session that public extraction cannot reach, set

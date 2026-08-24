@@ -177,23 +177,10 @@ class Settings(BaseSettings):
     transcription_max_audio_bytes: int = Field(default=20 * 1024 * 1024, gt=0)
     transcription_max_duration_seconds: float = Field(default=1800, gt=0)
 
-    # Frames read by a vision model, for the silent videos where the method is
-    # only ever shown. Cheaper than the visual provider it precedes, and it
-    # reuses the media transcription already downloaded.
-    frame_analysis_enabled: bool = True
-    # One still image can clarify the dish without sampling the video. This is
-    # deliberately independent from frame analysis so deployments can enable
-    # thumbnail context without activating multi-frame processing.
+    # Compatibility flags remain parseable for existing deployments, but the
+    # import runtime has no visual-provider wiring.
+    frame_analysis_enabled: bool = False
     thumbnail_analysis_enabled: bool = False
-    # Same model as extraction, so a frame is read with the same understanding
-    # of what a recipe needs. It is 5x the input and 3x the output price of
-    # gemini-2.5-flash, which takes eight frames from roughly $0.002 to
-    # $0.009; against extraction's $0.013-0.056 that is still the cheap rung,
-    # and it is the rung that decides whether a silent video is `partial` or
-    # `inferred`. Re-measure with scripts/measure_cost.py before changing.
-    frame_analysis_model_id: str = "google/gemini-3.6-flash"
-    frame_analysis_max_frames: int = Field(default=8, gt=0, le=32)
-    frame_analysis_timeout_seconds: float = Field(default=120, gt=0)
 
     supadata_base_url: AnyHttpUrl = AnyHttpUrl("https://api.supadata.ai/v1")
     supadata_timeout_seconds: float = Field(default=30, gt=0)
@@ -303,7 +290,6 @@ class Settings(BaseSettings):
             self.ytdlp_timeout_seconds,
             self.linked_page_timeout_seconds,
             self.transcription_timeout_seconds,
-            self.frame_analysis_timeout_seconds,
             self.supadata_timeout_seconds,
             self.soscripted_timeout_seconds,
             self.anthropic_timeout_seconds,

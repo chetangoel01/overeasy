@@ -1,5 +1,7 @@
+import ast
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from pathlib import Path
 
 from billiard.exceptions import SoftTimeLimitExceeded
 from redis.exceptions import ConnectionError as RedisConnectionError
@@ -18,6 +20,8 @@ from ladle.worker.app import (
     record_worker_heartbeat,
 )
 from ladle.worker.tasks import is_retryable_import_failure, retry_countdown
+
+BACKEND = Path(__file__).parents[3]
 
 
 @dataclass
@@ -60,6 +64,24 @@ def test_worker_uses_late_ack_and_long_visibility_timeout() -> None:
     }
     assert app.conf.task_serializer == "json"
     assert app.conf.accept_content == ["json"]
+
+
+def test_live_runtime_constructs_no_visual_provider_or_thumbnail_observer() -> None:
+    runtime = ast.parse((BACKEND / "ladle/worker/runtime.py").read_text())
+    calls = [node for node in ast.walk(runtime) if isinstance(node, ast.Call)]
+
+    assert not any(
+        isinstance(call.func, ast.Name)
+        and call.func.id in {"VisionObserver", "VisionVisualProvider", "FrameSampler"}
+        for call in calls
+    )
+    for call in calls:
+        if isinstance(call.func, ast.Name) and call.func.id == "ProviderChain":
+            assert "vision" not in {keyword.arg for keyword in call.keywords}
+        if isinstance(call.func, ast.Name) and call.func.id == "ImportOrchestrator":
+            assert "thumbnail_observer" not in {
+                keyword.arg for keyword in call.keywords
+            }
 
 
 def test_worker_retry_backoff_is_bounded_and_jittered() -> None:

@@ -7,6 +7,7 @@ from ladle.acquisition.models import (
     LinkedDocument,
     SourceVideoDescriptor,
     TextEvidence,
+    VisualEvidence,
 )
 from ladle.extraction.prompt import (
     _MAX_SOURCE_CHARACTERS,
@@ -68,6 +69,9 @@ PROMPT_DIGESTS = {
     "recipe-2026-07-27-v8": (
         "ebd705fd35c03bf698d1e35a5b86214ce4168a7e7f13900aebc68890dfc7eafc"
     ),
+    "recipe-2026-08-24-v9": (
+        "f4f9f1a5de9b1efb34f6df24d49e8ddf2570755b5af4bc6b0b8aa496c832672e"
+    ),
 }
 
 
@@ -86,6 +90,30 @@ def test_prompt_allows_honest_method_bridging_without_fake_quantities() -> None:
     assert "general cooking knowledge" in SYSTEM_PROMPT
     assert "mark methodProvenance 'partial' or 'inferred'" in SYSTEM_PROMPT
     assert "Never invent ingredient quantities" in SYSTEM_PROMPT
+
+
+def test_prompt_exposes_only_platform_text_without_visual_instructions() -> None:
+    value = context()
+    value.visual_observations = [
+        VisualEvidence(text="Lemon Orzo", provenance="tiktok:sticker"),
+        VisualEvidence(
+            text="A pan shown from above",
+            provenance="vision:google/gemini",
+        ),
+        VisualEvidence(
+            text="Finished dish photograph",
+            provenance="thumbnail-vision:google/gemini",
+        ),
+    ]
+
+    payload = _payload(build_user_prompt(value))
+
+    assert payload["platformText"] == [
+        {"provenance": "tiktok:sticker", "text": "Lemon Orzo"}
+    ]
+    assert "visualObservations" not in payload
+    assert "frames" not in SYSTEM_PROMPT.casefold()
+    assert "thumbnail" not in SYSTEM_PROMPT.casefold()
 
 
 def test_changing_the_prompt_requires_a_new_version() -> None:

@@ -28,7 +28,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from ladle.acquisition.audio import MediaAudioSource
 from ladle.acquisition.free.ytdlp import YtDlpClient
 from ladle.acquisition.models import AcquiredVideoContext
-from ladle.acquisition.vision import FrameSampler
 from ladle.config import Settings
 from ladle.extraction.models import RecipeExtraction
 from ladle.extraction.prompt import SYSTEM_PROMPT, build_user_prompt
@@ -105,7 +104,7 @@ def extraction_cost(settings: Settings, context: AcquiredVideoContext) -> Measur
 
 
 def media_costs(settings: Settings, context: AcquiredVideoContext) -> Measured:
-    """Transcription and frame analysis, both of which need the media."""
+    """Measure the text pipeline's audio-to-transcript rung."""
 
     measured = Measured(name="media")
     ytdlp = YtDlpClient(
@@ -116,8 +115,6 @@ def media_costs(settings: Settings, context: AcquiredVideoContext) -> Measured:
     source = MediaAudioSource(
         http=httpx.Client(timeout=180, trust_env=False),
     )
-    sampler = FrameSampler(max_frames=settings.frame_analysis_max_frames)
-
     with tempfile.TemporaryDirectory() as folder:
         work_dir = Path(folder)
         audio = source.audio(
@@ -147,39 +144,6 @@ def media_costs(settings: Settings, context: AcquiredVideoContext) -> Measured:
                 seconds = usage.get("seconds", 0)
                 measured.detail["transcription"] = f"{seconds:.0f}s audio"
 
-    with tempfile.TemporaryDirectory() as folder:
-        work_dir = Path(folder)
-        video = source.video(
-            context.source,
-            media_url=media.video_url or media.media_url,
-            work_dir=work_dir,
-        )
-        if video is not None:
-            frames = sampler.frames(video, work_dir=work_dir, duration_seconds=None)
-            if frames:
-                content: list[dict[str, Any]] = [
-                    {"type": "text", "text": "Describe each frame in one sentence."}
-                ]
-                for _, path in frames:
-                    encoded = base64.b64encode(path.read_bytes()).decode("ascii")
-                    content.append(
-                        {
-                            "type": "image_url",
-                            "image_url": {"url": f"data:image/jpeg;base64,{encoded}"},
-                        }
-                    )
-                body = _post(
-                    settings,
-                    {
-                        "model": settings.frame_analysis_model_id,
-                        "max_tokens": 1200,
-                        "temperature": 0,
-                        "messages": [{"role": "user", "content": content}],
-                    },
-                )
-                usage = body.get("usage") or {}
-                measured.costs["frameAnalysis"] = float(usage.get("cost") or 0)
-                measured.detail["frameAnalysis"] = f"{len(frames)} frames"
     return measured
 
 
@@ -204,8 +168,7 @@ def main() -> int:
         )
 
     print(
-        f"\n{'source':<24} {'extract':>10} {'transcribe':>11} "
-        f"{'frames':>10} {'total':>10}"
+        f"\n{'source':<24} {'extract':>10} {'transcribe':>11} {'total':>10}"
     )
     print("-" * 70)
     totals: dict[str, float] = {}
@@ -216,7 +179,6 @@ def main() -> int:
         print(
             f"{name:<24} ${line.get('extraction', 0):>9.5f} "
             f"${line.get('transcription', 0):>10.5f} "
-            f"${line.get('frameAnalysis', 0):>9.5f} "
             f"${sum(line.values()):>9.5f}"
         )
     if rows:

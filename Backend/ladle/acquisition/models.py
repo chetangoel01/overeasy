@@ -82,12 +82,6 @@ class TranscriptResult(WireModel):
     external_job_id: str | None = None
 
 
-class VisualResult(WireModel):
-    observations: list[VisualEvidence]
-    billed_units: Decimal = Field(default=Decimal(0), ge=0)
-    external_job_id: str
-
-
 class AcquiredVideoContext(WireModel):
     source: SourceVideoDescriptor
     is_public: bool
