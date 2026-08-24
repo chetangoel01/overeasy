@@ -34,8 +34,25 @@ curl --fail http://127.0.0.1:4112/health/ready
 ```
 
 Readiness checks PostgreSQL, Redis, and the private object-storage bucket.
+It also fails when the Celery worker is unavailable. The API, worker, and Beat
+services restart after unexpected exits. Local imports default to one worker
+process, a 2 GiB worker memory limit, and two CPUs so live media processing does
+not overlap itself inside the previous 1 GiB ceiling. Override
+`LADLE_WORKER_CONCURRENCY`, `LADLE_WORKER_MEMORY_LIMIT`, or
+`LADLE_WORKER_CPU_LIMIT` in `.env` only when Docker Desktop has enough capacity.
 Prometheus-format bounded-label counters are available at `/metrics`. Run
 `scripts/check_secrets.sh` before publishing a deployment artifact.
+
+For a deterministic full-stack test, temporarily select fake providers, run
+the copy-ready import smoke test in
+[`docs/integration-reference.md`](docs/integration-reference.md), then recreate
+the services without the override to restore the `.env` provider mode:
+
+```bash
+LADLE_WORKER_PROVIDER_MODE=fake docker compose up -d --force-recreate api worker beat
+# Run the local import smoke test.
+docker compose up -d --force-recreate api worker beat
+```
 
 For the private Mac mini staging deployment, see
 [`docs/deployment/mac-mini.md`](docs/deployment/mac-mini.md).
