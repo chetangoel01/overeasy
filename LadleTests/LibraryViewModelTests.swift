@@ -316,6 +316,35 @@ final class LibraryViewModelTests: XCTestCase {
         )
     }
 
+    func testWatchShufflesRecipesOnceAndKeepsTheOrderAcrossReloads() {
+        var shuffleCallCount = 0
+        let viewModel = LibraryViewModel(
+            repository: LibraryTestRepository(
+                recipes: PreviewFixtures.recipes
+            ),
+            preferenceStore: LibraryTestPreferenceStore(),
+            shuffleRecipeIDs: { recipeIDs in
+                shuffleCallCount += 1
+                return Array(recipeIDs.reversed())
+            }
+        )
+
+        viewModel.load()
+
+        XCTAssertEqual(
+            viewModel.watchRecipes.map(\.id),
+            Array(PreviewFixtures.recipes.map(\.id).reversed())
+        )
+
+        viewModel.load()
+
+        XCTAssertEqual(
+            viewModel.watchRecipes.map(\.id),
+            Array(PreviewFixtures.recipes.map(\.id).reversed())
+        )
+        XCTAssertEqual(shuffleCallCount, 1)
+    }
+
     func testDenseArchiveFactsLeadWithProtein() {
         XCTAssertEqual(
             PreviewFixtures.recipes[0].libraryFacts,
