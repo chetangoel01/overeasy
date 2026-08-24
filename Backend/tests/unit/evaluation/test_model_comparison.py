@@ -16,6 +16,7 @@ def _run(model: str) -> dict[str, object]:
         "promptVersion": "recipe-v11",
         "modelVersion": model,
         "label": f"{model}-run-1",
+        "runStartedAt": "2026-08-24T12:00:00Z",
         "visualProviderCalls": 0,
         "cases": [{} for _ in range(80)],
         "wholeRecipeNutrition": {

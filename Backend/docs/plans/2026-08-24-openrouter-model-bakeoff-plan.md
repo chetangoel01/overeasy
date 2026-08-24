@@ -235,6 +235,10 @@ Run the comparison script over the six artifacts. Confirm compatible corpus and
 prompt identities, 80 scored cases per run, 20 sparse cases, and zero visual
 calls. Inspect every provider/schema error and the aggregate raw totals.
 
+Comparison artifact validation includes the per-run `runStartedAt` timestamp
+written by the evaluator. The timestamp is accepted as run metadata but is not
+a compatibility field, so independent repeats can be grouped normally.
+
 ## Task 6: Repeat finalists and determine the recommendation
 
 **Artifacts:**

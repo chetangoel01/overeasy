@@ -73,6 +73,7 @@ class RunArtifact(WireModel):
     prompt_version: str
     model_version: str
     label: str
+    run_started_at: str
     visual_provider_calls: int
     cases: list[dict[str, Any]]
     whole_recipe_nutrition: GateSummary
