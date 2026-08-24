@@ -225,6 +225,10 @@ Keep each run's console output available until its artifact is validated. Do not
 parallelize live calls because shared upstream rate limits could bias reliability
 and latency.
 
+The runner prints and flushes the model ID, case key, and `[current/total]`
+position before each request. This makes long provider stalls distinguishable
+from normal sequential progress without changing benchmark inputs or scoring.
+
 ### Step 2: Validate and compare round one
 
 Run the comparison script over the six artifacts. Confirm compatible corpus and

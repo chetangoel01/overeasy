@@ -340,6 +340,7 @@ def test_pipeline_resets_verification_usage_before_each_case() -> None:
 def test_extract_writes_per_case_and_aggregate_benchmark_measurements(
     monkeypatch,
     tmp_path: Path,
+    capsys,
 ) -> None:
     extraction = RecipeExtraction(
         title="Test recipe",
@@ -406,6 +407,10 @@ def test_extract_writes_per_case_and_aggregate_benchmark_measurements(
         "candidate-model",
     )
 
+    assert (
+        f"RUNNING  [1/1] candidate-model {reference.cache_key}"
+        in capsys.readouterr().out
+    )
     artifact = json.loads((tmp_path / "candidate-run.json").read_text())
     case = artifact["cases"][0]
     assert artifact["runStartedAt"].endswith("Z")

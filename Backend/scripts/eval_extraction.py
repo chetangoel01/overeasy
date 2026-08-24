@@ -565,7 +565,12 @@ def extract(
     }
     nutrition_scores = []
 
-    for reference in references:
+    for index, reference in enumerate(references, start=1):
+        print(
+            f"RUNNING  [{index}/{len(references)}] "
+            f"{pipeline.model_id} {reference.cache_key}",
+            flush=True,
+        )
         context = _context(reference, fixture_version=corpus.fixture_version)
         started = time.perf_counter()
         try:
