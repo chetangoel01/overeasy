@@ -150,7 +150,10 @@ does the same without failing the import.
 Verifier calls are recorded separately as provider operation
 `recipeVerification`. They reuse the configured extraction provider/model and
 are controlled by `LADLE_RECIPE_VERIFICATION_ENABLED` and
-`LADLE_RECIPE_VERIFICATION_MAX_TOKENS`.
+`LADLE_RECIPE_VERIFICATION_MAX_TOKENS`. When OpenRouter reports dollar cost,
+extraction, verification, and transcription persist it independently from
+daily billed-unit controls. Dollar cost is measured but never compared with a
+per-share acceptance ceiling.
 
 ## Affected components
 

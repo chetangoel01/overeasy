@@ -448,6 +448,11 @@ def extract(label: str, only: str | None, partition: str) -> None:
                 "usage": {
                     "extractionInputTokens": response.input_tokens,
                     "extractionOutputTokens": response.output_tokens,
+                    "extractionCostUSD": (
+                        str(response.cost_usd)
+                        if response.cost_usd is not None
+                        else None
+                    ),
                 },
                 "transcriptProvenance": score.transcript_provenance,
                 "ingredients": [

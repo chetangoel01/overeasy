@@ -68,6 +68,7 @@ class StructuredVerificationResponse:
     parsed_output: VerificationResponse | None
     input_tokens: int
     output_tokens: int
+    cost_usd: Decimal | None = None
 
 
 class VerificationModelClient(Protocol):
@@ -207,6 +208,7 @@ class OpenRouterVerificationClient:
                 parsed_output=parsed,
                 input_tokens=int(usage.get("prompt_tokens") or 0),
                 output_tokens=int(usage.get("completion_tokens") or 0),
+                cost_usd=_reported_cost(usage.get("cost")),
             )
         except (json.JSONDecodeError, LookupError, TypeError, ValidationError) as error:
             raise VerificationUnavailable(
@@ -470,6 +472,7 @@ class TargetedRecipeVerifier:
             idempotency_key=key,
             billed_units=billed_units,
             latency_ms=None,
+            cost_usd=response.cost_usd,
         )
         return _with_issues(updated, remaining) if remaining else updated
 
@@ -652,6 +655,11 @@ def _decimal(value: object) -> Decimal | None:
     except (InvalidOperation, ValueError):
         return None
     return result if result.is_finite() else None
+
+
+def _reported_cost(value: object) -> Decimal | None:
+    parsed = _decimal(value)
+    return parsed if parsed is not None and parsed >= 0 else None
 
 
 def _fraction(value: str) -> Decimal | None:

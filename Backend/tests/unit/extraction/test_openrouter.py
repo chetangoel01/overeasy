@@ -51,6 +51,7 @@ def completion(
     content: str,
     *,
     finish_reason: str = "stop",
+    cost: str = "0.0042",
 ) -> httpx.Response:
     return httpx.Response(
         200,
@@ -61,7 +62,11 @@ def completion(
                     "message": {"content": content},
                 }
             ],
-            "usage": {"prompt_tokens": 120, "completion_tokens": 45},
+            "usage": {
+                "prompt_tokens": 120,
+                "completion_tokens": 45,
+                "cost": cost,
+            },
         },
     )
 
@@ -90,6 +95,7 @@ def test_valid_completion_parses_and_reports_usage() -> None:
     assert response.stop_reason == "end_turn"
     assert response.input_tokens == 120
     assert response.output_tokens == 45
+    assert response.cost_usd == Decimal("0.0042")
     assert captured["headers"]["authorization"] == "Bearer test-key"
     schema = captured["payload"]["response_format"]["json_schema"]
     assert schema["name"] == "recipe_extraction"
@@ -129,12 +135,20 @@ def test_transport_error_raises_extraction_unavailable() -> None:
 
 
 def test_unparseable_first_attempt_is_retried_once() -> None:
-    bodies = iter([completion('{"nope": true}'), completion(extraction_json())])
+    bodies = iter(
+        [
+            completion('{"nope": true}', cost="0.001"),
+            completion(extraction_json(), cost="0.002"),
+        ]
+    )
 
     response = parse(client_returning(lambda request: next(bodies)))
 
     assert response.parsed_output is not None
     assert response.parsed_output.title == "Toast"
+    assert response.input_tokens == 240
+    assert response.output_tokens == 90
+    assert response.cost_usd == Decimal("0.003")
 
 
 def test_retry_is_bounded_to_one_extra_attempt() -> None:

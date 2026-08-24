@@ -35,6 +35,7 @@ class ClaudeStructuredResponse:
     parsed_output: RecipeExtraction | None
     input_tokens: int
     output_tokens: int
+    cost_usd: Decimal | None = None
 
 
 class ClaudeStructuredClient(Protocol):
@@ -167,6 +168,7 @@ class ClaudeRecipeExtractor:
             idempotency_key=idempotency_key,
             billed_units=billed_tokens,
             latency_ms=None,
+            cost_usd=response.cost_usd,
         )
         return template
 

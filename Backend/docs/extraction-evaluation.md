@@ -91,8 +91,9 @@ LADLE_OPENROUTER_API_KEY=... LADLE_USDA_API_KEY=... \
 For Anthropic, set `LADLE_EXTRACTION_PROVIDER=anthropic`,
 `LADLE_ANTHROPIC_API_KEY`, and `LADLE_USDA_API_KEY` instead. The evaluator
 stores sanitized per-case predictions, failed fields, structure measurements,
-extraction token counts, prompt/model/corpus versions, sparse results, and a
-zero visual-call count under `.eval-cache/results/`.
+extraction token counts and provider-reported USD cost, prompt/model/corpus
+versions, sparse results, and a zero visual-call count under
+`.eval-cache/results/`.
 
 After tuning is complete, freeze the prompt and model, then run the held-out
 partition once for a milestone version:

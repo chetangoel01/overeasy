@@ -37,6 +37,7 @@ class ProviderUsageSink(Protocol):
         idempotency_key: str,
         billed_units: Decimal,
         latency_ms: int | None,
+        cost_usd: Decimal | None = None,
     ) -> None: ...
 
     def failed(
@@ -84,8 +85,9 @@ class NullProviderUsageSink:
         idempotency_key: str,
         billed_units: Decimal,
         latency_ms: int | None,
+        cost_usd: Decimal | None = None,
     ) -> None:
-        del job_id, idempotency_key, billed_units, latency_ms
+        del job_id, idempotency_key, billed_units, latency_ms, cost_usd
 
     def failed(
         self,
@@ -219,7 +221,12 @@ class ProviderUsageLedger:
         idempotency_key: str,
         billed_units: Decimal,
         latency_ms: int | None,
+        cost_usd: Decimal | None = None,
     ) -> None:
+        if cost_usd is not None and (
+            not cost_usd.is_finite() or cost_usd < 0
+        ):
+            raise ValueError("provider USD cost must be finite and nonnegative")
         provider: str | None = None
         actual = Decimal(0)
         with self._sessions.begin() as database:
@@ -235,6 +242,8 @@ class ProviderUsageLedger:
             self._reconcile(database, attempt=attempt, actual_units=actual)
             attempt.status = "completed"
             attempt.billed_units = actual
+            if cost_usd is not None:
+                attempt.cost_usd = Decimal(attempt.cost_usd or 0) + cost_usd
             attempt.latency_ms = latency_ms
             attempt.completed_at = self._clock.now()
         if self._metrics is not None and provider is not None:

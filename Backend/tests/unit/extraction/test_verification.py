@@ -37,6 +37,7 @@ from ladle.recipes.template_clone import (
 class Model:
     patches: list[VerificationPatch] = field(default_factory=list)
     calls: list[dict[str, object]] = field(default_factory=list)
+    cost_usd: Decimal | None = None
 
     def propose_patches(
         self,
@@ -60,6 +61,7 @@ class Model:
             parsed_output=VerificationResponse(patches=self.patches),
             input_tokens=50,
             output_tokens=20,
+            cost_usd=self.cost_usd,
         )
 
 
@@ -67,6 +69,7 @@ class Model:
 class Usage:
     starts: list[dict[str, object]] = field(default_factory=list)
     completions: int = 0
+    completion_values: dict[str, object] = field(default_factory=dict)
     failures: int = 0
 
     def existing_external_job_id(
@@ -82,7 +85,7 @@ class Usage:
         self.starts.append(values)
 
     def completed(self, **values: object) -> None:
-        del values
+        self.completion_values = values
         self.completions += 1
 
     def failed(self, **values: object) -> None:
@@ -366,7 +369,7 @@ def test_unsupported_patch_value_is_rejected() -> None:
 
 def test_verification_is_recorded_as_a_distinct_provider_operation() -> None:
     usage = Usage()
-    model = Model()
+    model = Model(cost_usd=Decimal("0.009"))
     service = TargetedRecipeVerifier(
         client=model,
         model_id="quality-verifier",
@@ -382,6 +385,7 @@ def test_verification_is_recorded_as_a_distinct_provider_operation() -> None:
         "recipeVerification"
     }
     assert usage.completions == 1
+    assert usage.completion_values["cost_usd"] == Decimal("0.009")
     assert usage.failures == 0
 
 
@@ -425,7 +429,11 @@ def test_openrouter_verifier_uses_strict_text_only_structured_output() -> None:
                         },
                     }
                 ],
-                "usage": {"prompt_tokens": 100, "completion_tokens": 20},
+                "usage": {
+                    "prompt_tokens": 100,
+                    "completion_tokens": 20,
+                    "cost": "0.0075",
+                },
             },
         )
 
@@ -448,6 +456,7 @@ def test_openrouter_verifier_uses_strict_text_only_structured_output() -> None:
     assert result.parsed_output is not None
     assert result.parsed_output.patches[0].field_path == "total_minutes"
     assert result.input_tokens == 100
+    assert result.cost_usd == Decimal("0.0075")
     payload = str(captured["payload"])
     assert '"name":"recipe_verification"' in payload
     assert "image_url" not in payload

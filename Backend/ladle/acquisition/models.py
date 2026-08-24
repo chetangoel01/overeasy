@@ -79,6 +79,7 @@ class TranscriptResult(WireModel):
     language: str | None = None
     available_languages: list[str] = Field(default_factory=list)
     billed_units: Decimal = Field(default=Decimal(0), ge=0)
+    cost_usd: Decimal | None = Field(default=None, ge=0)
     external_job_id: str | None = None
 
 

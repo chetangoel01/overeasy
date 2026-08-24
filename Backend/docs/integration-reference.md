@@ -593,7 +593,7 @@ not persisted.
 | `extraction_cache` | `id uuid PK`; `source_video_id uuid FK`; source/contract/prompt/model versions; `template_json json`; `review_status`; thumbnail object key; creation/invalidation timestamps |
 | `negative_extraction_cache` | `id uuid PK`; `source_video_id uuid UNIQUE FK`; `reason`; `created_at`; `expires_at` |
 | `extraction_claims` | `id uuid PK`; `source_video_id uuid FK`; `owner_job_id uuid FK`; `claim_version`; lease/heartbeat/release timestamps |
-| `provider_attempts` | `id uuid PK`; `import_job_id uuid FK`; provider/operation/idempotency/status; optional external job, latency, billed units, failure code, timestamps |
+| `provider_attempts` | `id uuid PK`; `import_job_id uuid FK`; provider/operation/idempotency/status; optional external job, latency, billed units, provider-reported USD cost, failure code, timestamps |
 
 Key constraints:
 

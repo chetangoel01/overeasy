@@ -1,5 +1,7 @@
 import json
 import logging
+from dataclasses import replace
+from decimal import Decimal, InvalidOperation
 
 import httpx
 from pydantic import ValidationError
@@ -78,11 +80,17 @@ class OpenRouterStructuredClient:
         )
         if response.parsed_output is not None or response.stop_reason != "end_turn":
             return response
-        return self._attempt(
+        retry = self._attempt(
             model=model,
             max_tokens=max_tokens,
             system=system,
             user_prompt=user_prompt,
+        )
+        return replace(
+            retry,
+            input_tokens=response.input_tokens + retry.input_tokens,
+            output_tokens=response.output_tokens + retry.output_tokens,
+            cost_usd=_sum_cost(response.cost_usd, retry.cost_usd),
         )
 
     def _attempt(
@@ -174,4 +182,21 @@ class OpenRouterStructuredClient:
             parsed_output=parsed,
             input_tokens=int(usage.get("prompt_tokens") or 0),
             output_tokens=int(usage.get("completion_tokens") or 0),
+            cost_usd=_cost_usd(usage.get("cost")),
         )
+
+
+def _cost_usd(value: object) -> Decimal | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        parsed = Decimal(str(value))
+    except InvalidOperation:
+        return None
+    return parsed if parsed.is_finite() and parsed >= 0 else None
+
+
+def _sum_cost(first: Decimal | None, second: Decimal | None) -> Decimal | None:
+    if first is None and second is None:
+        return None
+    return (first or Decimal(0)) + (second or Decimal(0))
