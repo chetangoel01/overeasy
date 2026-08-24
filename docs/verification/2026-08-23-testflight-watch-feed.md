@@ -11,6 +11,7 @@ the guarded VPS Release configuration.
 
 - Marketing version: `1.0`
 - Build: `20260823.3`
+- Source revision: `97c5284`
 - Distribution: internal TestFlight only
 - Backend: guarded VPS from `Config/Release.xcconfig`
 
@@ -27,5 +28,8 @@ the guarded VPS Release configuration.
 - All 26 `LibraryViewModelTests` passed.
 - The Ladle app and embedded Share Extension built successfully before the
   TestFlight version bump.
-- Archive validation and App Store Connect upload status are recorded after
-  distribution completes.
+- The signed archive contains app and Share Extension build `20260823.3`, both
+  dSYMs, the privacy manifest, and the guarded VPS API URL.
+- App Store Connect accepted the internal-only upload at 11:54 PM EDT. Build
+  `20260823.3` completed processing, entered `Testing`, and was assigned to the
+  Internal Testers group with one invite.
