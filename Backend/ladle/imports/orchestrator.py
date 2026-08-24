@@ -21,6 +21,7 @@ from ladle.cache.claims import ClaimLease
 from ladle.cache.maintenance import CacheMaintenanceService
 from ladle.cache.service import CacheDisposition, ExtractionCacheService
 from ladle.clock import Clock
+from ladle.contracts.recipes import FieldUncertaintyDTO, RecipeReviewStatus
 from ladle.crypto.private_text import PrivateTextCipher
 from ladle.db.models import ImportJob, SourceVideo
 from ladle.extraction.claude import ExtractionUnavailable
@@ -33,7 +34,11 @@ from ladle.imports.thumbnails import OEmbedThumbnailFetcher, ThumbnailAsset
 from ladle.imports.transitions import ImportTransitionService
 from ladle.observability.metrics import MetricsRegistry
 from ladle.observability.structured_logging import log_context
-from ladle.recipes.template_clone import RecipeTemplateCloner
+from ladle.recipes.template_clone import (
+    RecipeTemplate,
+    RecipeTemplateCloner,
+    TemplateNutrition,
+)
 from ladle.usage.limits import UsageLimitExceeded
 
 
@@ -53,6 +58,10 @@ class ClaimHeartbeat(Protocol):
     def monitor(self, claim: ClaimLease) -> AbstractContextManager[None]: ...
 
 
+class NutritionService(Protocol):
+    def calculate(self, template: RecipeTemplate) -> TemplateNutrition | None: ...
+
+
 class ImportOrchestrator:
     def __init__(
         self,
@@ -68,6 +77,7 @@ class ImportOrchestrator:
         metrics: MetricsRegistry | None = None,
         thumbnails: OEmbedThumbnailFetcher | None = None,
         heartbeat: ClaimHeartbeat | None = None,
+        nutrition_calculator: NutritionService | None = None,
     ) -> None:
         self._sessions = session_factory
         self._cache = cache
@@ -80,6 +90,7 @@ class ImportOrchestrator:
         self._metrics = metrics
         self._thumbnails = thumbnails
         self._heartbeat = heartbeat
+        self._nutrition = nutrition_calculator
 
     def process(self, job_id: UUID) -> ProcessOutcome:
         requires_recheck = False
@@ -249,6 +260,30 @@ class ImportOrchestrator:
                         )
                 with log_context(stage="extraction"):
                     template = self._extractor.extract(context, job_id=job_id)
+                if self._nutrition is not None:
+                    with log_context(stage="nutrition"):
+                        try:
+                            nutrition = self._nutrition.calculate(template)
+                        except ProviderUnavailable:
+                            template = self._needs_nutrition_review(
+                                template,
+                                reason=(
+                                    "USDA nutrition data was unavailable; calories "
+                                    "and macros need review."
+                                ),
+                            )
+                        else:
+                            template = (
+                                template.model_copy(update={"nutrition": nutrition})
+                                if nutrition is not None
+                                else self._needs_nutrition_review(
+                                    template,
+                                    reason=(
+                                        "Nutrition could not be calculated from the "
+                                        "stated quantities without guessing."
+                                    ),
+                                )
+                            )
                 with log_context(stage="thumbnail"):
                     thumbnail_key = (
                         self._thumbnails.store(
@@ -331,6 +366,26 @@ class ImportOrchestrator:
             ProcessOutcome.COMPLETED,
             status=template.review_status.value,
             source=descriptor.platform,
+        )
+
+    @staticmethod
+    def _needs_nutrition_review(
+        template: RecipeTemplate,
+        *,
+        reason: str,
+    ) -> RecipeTemplate:
+        if template.nutrition is not None:
+            return template
+        uncertainties = list(template.uncertainties)
+        if not any(value.field == "nutrition" for value in uncertainties):
+            uncertainties.append(
+                FieldUncertaintyDTO(field="nutrition", reason=reason)
+            )
+        return template.model_copy(
+            update={
+                "review_status": RecipeReviewStatus.NEEDS_REVIEW,
+                "uncertainties": uncertainties,
+            }
         )
 
     def _outcome(

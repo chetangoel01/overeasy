@@ -38,6 +38,7 @@ class TemplateIngredient(WireModel):
     metric_amount: WireDecimal | None = None
     metric_unit: Literal["g", "ml"] | None = None
     usda_search_term: str | None = Field(default=None, min_length=1)
+    is_to_taste: bool = False
     order_index: int = Field(ge=0)
     uncertainty: FieldUncertaintyDTO | None = None
 
@@ -89,6 +90,7 @@ class RecipeTemplate(WireModel):
     cooking_minutes: int | None = Field(default=None, ge=0)
     total_minutes: int | None = Field(default=None, ge=0)
     servings: WireDecimal
+    servings_basis: Literal["stated", "estimatedFromYield", "unknown"] = "unknown"
     ingredients: list[TemplateIngredient] = Field(default_factory=list)
     steps: list[TemplateStep] = Field(default_factory=list)
     nutrition: TemplateNutrition | None = None
@@ -132,6 +134,7 @@ class RecipeTemplate(WireModel):
                     unit=value.unit,
                     name=value.name,
                     preparation=value.preparation,
+                    is_to_taste=False,
                     order_index=value.order_index,
                     uncertainty=value.uncertainty,
                 )

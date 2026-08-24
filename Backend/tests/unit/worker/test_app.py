@@ -83,6 +83,48 @@ def test_enabled_creator_search_requires_its_openrouter_key() -> None:
         )
 
 
+def test_nutrition_runtime_builder_preserves_configured_bounds() -> None:
+    from pydantic import SecretStr
+
+    from ladle.nutrition.calculator import NutritionCalculator
+    from ladle.worker.runtime import _nutrition_calculator
+
+    built = _nutrition_calculator(
+        Settings(
+            usda_api_key=SecretStr("food-key"),
+            usda_maximum_candidates=7,
+            _env_file=None,
+        )
+    )
+
+    assert isinstance(built, NutritionCalculator)
+    assert built._source._maximum_candidates == 7
+
+
+def test_nutrition_runtime_builder_respects_explicit_disable() -> None:
+    from ladle.worker.runtime import _nutrition_calculator
+
+    assert (
+        _nutrition_calculator(
+            Settings(usda_nutrition_enabled=False, _env_file=None)
+        )
+        is None
+    )
+
+
+def test_enabled_nutrition_requires_a_usda_key() -> None:
+    from ladle.worker.runtime import _nutrition_calculator
+
+    with pytest.raises(RuntimeError, match="nutrition requires a USDA API key"):
+        _nutrition_calculator(
+            Settings(
+                usda_nutrition_enabled=True,
+                usda_api_key=None,
+                _env_file=None,
+            )
+        )
+
+
 @dataclass
 class FrozenClock:
     value: datetime

@@ -93,6 +93,7 @@ def test_defaults_and_coverage_problems_become_needs_review() -> None:
 
     assert reviewed.review_status == RecipeReviewStatus.NEEDS_REVIEW
     assert reviewed.servings == 1
+    assert reviewed.servings_basis == "unknown"
     assert reviewed.steps[0].ingredient_indexes == [0]
     assert reviewed.steps[0].uncertainty is not None
     assert reviewed.nutrition is None
@@ -130,6 +131,7 @@ def test_confident_complete_extraction_is_ready() -> None:
     reviewed = build_reviewed_template(extraction, context=context())
 
     assert reviewed.review_status == RecipeReviewStatus.READY
+    assert reviewed.servings_basis == "unknown"
 
 
 def _solid_recipe(**overrides: object) -> RecipeExtraction:
@@ -257,6 +259,7 @@ def test_a_labelled_serving_estimate_does_not_force_review() -> None:
     )
 
     assert reviewed.review_status == RecipeReviewStatus.READY
+    assert reviewed.servings_basis == "estimatedFromYield"
     assert "servings" in {value.field for value in reviewed.uncertainties}
 
 
@@ -276,6 +279,7 @@ def test_one_shaky_garnish_does_not_condemn_the_whole_recipe() -> None:
 
     assert reviewed.review_status == RecipeReviewStatus.READY
     assert reviewed.ingredients[-1].uncertainty is not None
+    assert reviewed.ingredients[-1].is_to_taste
 
 
 def test_a_reconstructed_method_still_forces_review() -> None:

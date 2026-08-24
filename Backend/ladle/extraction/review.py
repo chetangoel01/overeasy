@@ -71,12 +71,14 @@ def build_reviewed_template(
     # to caveats worth showing them.
     blocking: list[str] = []
     servings = extraction.servings
+    servings_basis = extraction.servings_basis
     if servings is None:
         # A yield the source never stated is unknown, not one. Downstream
         # scaling and per-serving nutrition would inherit the lie.
         estimated = _estimate_servings(extraction)
         if estimated is None:
             servings = Decimal(1)
+            servings_basis = "unknown"
             # Presenting a whole dish as one serving misstates every per-serving
             # number the app derives from it.
             blocking.append("servings")
@@ -91,6 +93,7 @@ def build_reviewed_template(
             )
         else:
             servings = estimated
+            servings_basis = "estimatedFromYield"
             uncertainties.append(
                 FieldUncertaintyDTO(
                     field="servings",
@@ -179,6 +182,7 @@ def build_reviewed_template(
                     ingredient_value.name,
                     ingredient_value.preparation,
                 ),
+                is_to_taste=ingredient_value.is_to_taste,
                 order_index=index,
                 uncertainty=uncertainty,
             )
@@ -266,6 +270,7 @@ def build_reviewed_template(
         cooking_minutes=extraction.cooking_minutes,
         total_minutes=extraction.total_minutes,
         servings=servings,
+        servings_basis=servings_basis,
         ingredients=ingredients,
         steps=steps,
         nutrition=template_nutrition,

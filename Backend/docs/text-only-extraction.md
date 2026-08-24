@@ -97,12 +97,38 @@ normalized USDA search phrase derived from the ingredient name and preparation
 state. These fields survive extraction review for deterministic matching but
 are not exposed as creator claims in the public recipe DTO.
 
+When creator-stated nutrition is absent, a live worker queries USDA FoodData
+Central through its search and food-detail endpoints. It prefers Foundation,
+SR Legacy, and FNDDS generic foods over branded results, then requires an
+unambiguous ingredient-description match. The client accepts only the
+documented kcal energy nutrients (preferring specific then general Atwater
+energy) and gram-valued protein, carbohydrate, and fat nutrients. Complete
+normalized query results are cached in-process.
+
+The calculator converts source grams and standard mass units directly. Cups,
+spoons, counts, and milliliters require a matching USDA portion with an
+explicit gram weight; it never invents density or item size. Every material
+ingredient must have a quantity, match one complete USDA record, and pass a
+broad calorie-versus-macros consistency check. To-taste seasonings are omitted.
+The whole-recipe totals are divided only by a creator-stated serving count,
+then stored as `usdaCalculated` / `isEstimated=true` with the contributing FDC
+IDs retained as internal evidence.
+
+Any missing quantity, unsupported portion, ambiguous food match, incomplete
+macro record, unknown serving count, or implausible nutrient record produces
+no calculated nutrition. The recipe completes as `needsReview` with an
+actionable nutrition uncertainty. USDA authentication, quota, transport, and
+service failures follow the same non-terminal behavior; creator-stated
+nutrition remains untouched and never calls USDA. Live workers require
+`LADLE_USDA_API_KEY` when `LADLE_USDA_NUTRITION_ENABLED` is true.
+
 ## Affected components
 
 - acquisition provider chain and Supadata client;
 - creator-search client, safe linked-page fetcher, and worker configuration;
 - worker and import-orchestrator construction;
 - extraction prompt serialization;
+- USDA FoodData Central client and deterministic nutrition calculator;
 - VPS and local environment defaults;
 - provider cost measurement; and
 - thumbnail retry/reparse behavior.
@@ -134,3 +160,9 @@ The nutrition-provenance slice additionally passed all 62 extraction tests and
 the complete 458-test backend unit/contract suite. Ruff passed all affected
 extraction, template, and test files; strict mypy passed all four affected
 source files.
+
+The deterministic USDA slice additionally passed 36 focused nutrition/review
+tests, 172 nutrition/extraction/configuration/runtime/import regression tests,
+all 8 PostgreSQL retry/reparse integration tests, the complete 491-test backend
+unit/contract suite, and all 8 VPS deployment contract tests. Ruff passed the
+full backend application and tests; strict mypy passed all 116 source files.

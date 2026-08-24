@@ -56,6 +56,8 @@ from ladle.imports.reservations import ReservationService
 from ladle.imports.thumbnails import OEmbedThumbnailFetcher
 from ladle.imports.transitions import ImportTransitionService
 from ladle.infrastructure.object_storage import S3ObjectStorage
+from ladle.nutrition.calculator import NutritionCalculator
+from ladle.nutrition.usda import USDAClient
 from ladle.observability.metrics import MetricsRegistry, RedisMetricsBackend
 from ladle.observability.operations import OperationalMetricsCollector
 from ladle.observability.tracing import instrument_database
@@ -253,6 +255,24 @@ def _creator_search(settings: Settings) -> SparseTextEnricher | None:
     )
 
 
+def _nutrition_calculator(settings: Settings) -> NutritionCalculator | None:
+    if not settings.usda_nutrition_enabled:
+        return None
+    if settings.usda_api_key is None:
+        raise RuntimeError("nutrition requires a USDA API key")
+    return NutritionCalculator(
+        USDAClient(
+            http=httpx.Client(
+                timeout=settings.usda_timeout_seconds,
+                trust_env=False,
+            ),
+            api_key=settings.usda_api_key.get_secret_value(),
+            base_url=str(settings.usda_base_url),
+            maximum_candidates=settings.usda_maximum_candidates,
+        )
+    )
+
+
 def _ytdlp(settings: Settings) -> YtDlpClient:
     return YtDlpClient(
         binary=settings.ytdlp_binary_path,
@@ -403,12 +423,14 @@ def runtime_orchestrator() -> ImportOrchestrator:
     )
     acquirer: VideoAcquirer
     extractor: RecipeExtractor
+    nutrition_calculator: NutritionCalculator | None = None
     if settings.worker_provider_mode == "fake":
         acquirer = FakeRuntimeAcquirer(
             delay_seconds=settings.fake_provider_delay_seconds,
         )
         extractor = FakeRuntimeExtractor()
     else:
+        nutrition_calculator = _nutrition_calculator(settings)
         extraction_key = (
             settings.openrouter_api_key
             if settings.extraction_provider == "openrouter"
@@ -520,6 +542,7 @@ def runtime_orchestrator() -> ImportOrchestrator:
         acquirer=acquirer,
         extractor=extractor,
         clock=clock,
+        nutrition_calculator=nutrition_calculator,
         thumbnails=thumbnails,
         private_text=build_private_text_cipher(
             active_key_id=settings.data_encryption_active_key_id,

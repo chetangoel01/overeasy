@@ -1,0 +1,23 @@
+{
+  "totalHits": 3,
+  "foods": [
+    {
+      "fdcId": 999001,
+      "description": "Chocolate covered chickpea snack bites",
+      "dataType": "Branded",
+      "score": 980.0
+    },
+    {
+      "fdcId": 2644288,
+      "description": "Chickpeas (garbanzo beans), canned, drained and rinsed",
+      "dataType": "Foundation",
+      "score": 755.22
+    },
+    {
+      "fdcId": 173800,
+      "description": "Chickpeas, mature seeds, canned, drained solids",
+      "dataType": "SR Legacy",
+      "score": 755.22
+    }
+  ]
+}

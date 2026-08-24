@@ -90,6 +90,15 @@ def test_vps_forces_text_only_extraction() -> None:
     assert "LADLE_THUMBNAIL_ANALYSIS_ENABLED=false" in example
 
 
+def test_vps_supplies_usda_nutrition_configuration() -> None:
+    environment = compose()["x-ladle-environment"]
+    example = (VPS / "env.example").read_text()
+
+    assert environment["LADLE_USDA_NUTRITION_ENABLED"] == "true"
+    assert "LADLE_USDA_API_KEY" in environment
+    assert "LADLE_USDA_API_KEY=change-me" in example
+
+
 def test_vps_operations_stay_small_and_cover_the_real_recovery_contract() -> None:
     scripts = sorted(VPS.glob("*.sh"))
     script_lines = sum(len(script.read_text().splitlines()) for script in scripts)

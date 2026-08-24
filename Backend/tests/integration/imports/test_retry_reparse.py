@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from inspect import signature
 from uuid import uuid4
@@ -9,14 +9,17 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from alembic import command
+from ladle.acquisition.errors import ProviderTransientError
 from ladle.cache.claims import ExtractionClaimService
 from ladle.cache.service import ExtractionCacheService
 from ladle.contracts.recipes import RecipeReviewStatus, RecipeSource
 from ladle.crypto.private_text import LocalPrivateTextCipher
 from ladle.db.models import (
     ExtractionCache,
+    FieldUncertainty,
     ImportJob,
     NegativeExtractionCache,
+    Nutrition,
     Recipe,
     SourceVideo,
 )
@@ -27,7 +30,11 @@ from ladle.imports.reservations import ReservationService
 from ladle.imports.source_identity import SourceIdentityParser
 from ladle.imports.thumbnails import ThumbnailAsset
 from ladle.imports.transitions import ImportRetryService, ImportTransitionService
-from ladle.recipes.template_clone import RecipeTemplate, RecipeTemplateCloner
+from ladle.recipes.template_clone import (
+    RecipeTemplate,
+    RecipeTemplateCloner,
+    TemplateNutrition,
+)
 from ladle.usage.limits import UsageLimitExceeded
 from tests.e2e.test_fake_import_round_trip import seed_import
 from tests.fakes.acquisition import FakeAcquirer
@@ -66,12 +73,26 @@ class FakeThumbnailFetcher:
         return "thumbnails/retry/thumb.jpg"
 
 
+@dataclass
+class FakeNutritionCalculator:
+    result: TemplateNutrition | None = None
+    failure: Exception | None = None
+    calls: list[RecipeTemplate] = field(default_factory=list)
+
+    def calculate(self, template: RecipeTemplate) -> TemplateNutrition | None:
+        self.calls.append(template)
+        if self.failure is not None:
+            raise self.failure
+        return self.result
+
+
 def services(
     database_url: str,
     clock: FrozenClock,
     *,
     template: RecipeTemplate,
     thumbnails: FakeThumbnailFetcher | None = None,
+    nutrition_calculator: FakeNutritionCalculator | None = None,
 ) -> tuple[
     sessionmaker[Session],
     ImportOrchestrator,
@@ -102,6 +123,7 @@ def services(
             extractor=extractor,
             clock=clock,
             thumbnails=thumbnails,  # type: ignore[arg-type]
+            nutrition_calculator=nutrition_calculator,
             private_text=cipher,
             private_completion=cloner,
             transitions=ImportTransitionService(
@@ -117,6 +139,106 @@ def services(
         acquirer,
         extractor,
     )
+
+
+@pytest.mark.integration
+def test_import_persists_deterministically_calculated_nutrition(
+    clean_postgres_url: str,
+) -> None:
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    clock = FrozenClock(datetime(2026, 8, 24, 12, 0, tzinfo=UTC))
+    nutrition = TemplateNutrition(
+        calories="420.0",
+        protein_grams="18.0",
+        carbohydrate_grams="52.0",
+        fat_grams="16.0",
+        serving_basis="4",
+        is_estimated=True,
+        basis="usdaCalculated",
+        evidence="USDA FDC 123",
+    )
+    calculator = FakeNutritionCalculator(result=nutrition)
+    template = RecipeTemplate.from_recipe(manual_recipe(uuid4())).model_copy(
+        update={"nutrition": None, "servings_basis": "stated"}
+    )
+    sessions, orchestrator, _, _, _ = services(
+        clean_postgres_url,
+        clock,
+        template=template,
+        nutrition_calculator=calculator,
+    )
+    with sessions.begin() as database:
+        source_id = uuid4()
+        database.add(
+            SourceVideo(
+                id=source_id,
+                platform="youtube",
+                platform_video_id="nutrition-calculated",
+                canonical_url="https://www.youtube.com/watch?v=nutrition-calculated",
+                source_revision="1",
+                source_metadata={},
+            )
+        )
+        job_id = seed_import(database, source_id=source_id, suffix="nutrition")
+
+    assert orchestrator.process(job_id) == ProcessOutcome.COMPLETED
+    assert len(calculator.calls) == 1
+    with sessions() as database:
+        job = database.get(ImportJob, job_id)
+        assert job is not None
+        stored = database.get(Nutrition, job.current_recipe_id)
+        assert stored is not None
+        assert stored.calories == 420
+        assert stored.protein_grams == 18
+        assert stored.is_estimated
+
+
+@pytest.mark.integration
+def test_usda_failure_completes_import_with_nutrition_review_uncertainty(
+    clean_postgres_url: str,
+) -> None:
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    clock = FrozenClock(datetime(2026, 8, 24, 12, 0, tzinfo=UTC))
+    calculator = FakeNutritionCalculator(
+        failure=ProviderTransientError("USDA unavailable")
+    )
+    template = RecipeTemplate.from_recipe(manual_recipe(uuid4())).model_copy(
+        update={"nutrition": None, "servings_basis": "stated"}
+    )
+    sessions, orchestrator, _, _, _ = services(
+        clean_postgres_url,
+        clock,
+        template=template,
+        nutrition_calculator=calculator,
+    )
+    with sessions.begin() as database:
+        source_id = uuid4()
+        database.add(
+            SourceVideo(
+                id=source_id,
+                platform="youtube",
+                platform_video_id="nutrition-unavailable",
+                canonical_url="https://www.youtube.com/watch?v=nutrition-unavailable",
+                source_revision="1",
+                source_metadata={},
+            )
+        )
+        job_id = seed_import(database, source_id=source_id, suffix="nutrition-down")
+
+    assert orchestrator.process(job_id) == ProcessOutcome.COMPLETED
+    with sessions() as database:
+        job = database.get(ImportJob, job_id)
+        assert job is not None
+        assert job.status == "needsReview"
+        assert database.get(Nutrition, job.current_recipe_id) is None
+        uncertainty = database.scalar(
+            select(FieldUncertainty).where(
+                FieldUncertainty.recipe_id == job.current_recipe_id,
+                FieldUncertainty.field == "nutrition",
+            )
+        )
+        assert uncertainty is not None
+        assert "unavailable" in uncertainty.reason.casefold()
 
 
 def test_import_runtime_has_no_thumbnail_analysis_hook() -> None:

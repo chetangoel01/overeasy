@@ -175,6 +175,14 @@ class Settings(BaseSettings):
     creator_search_maximum_queries: int = Field(default=3, ge=1, le=8)
     creator_search_maximum_results: int = Field(default=6, ge=1, le=20)
 
+    # Deterministic whole-recipe calories and macros. The calculator refuses
+    # unsupported portions or unstated servings instead of estimating them.
+    usda_nutrition_enabled: bool = True
+    usda_base_url: AnyHttpUrl = AnyHttpUrl("https://api.nal.usda.gov/fdc/v1")
+    usda_timeout_seconds: float = Field(default=15, gt=0)
+    usda_api_key: SecretStr | None = None
+    usda_maximum_candidates: int = Field(default=5, ge=1, le=10)
+
     # Whisper on the raw audio. Cheap enough to precede the transcript
     # providers, and it reuses the OpenRouter key rather than adding a secret.
     audio_transcription_enabled: bool = True
@@ -268,6 +276,7 @@ class Settings(BaseSettings):
             "soscripted_api_key",
             "anthropic_api_key",
             "openrouter_api_key",
+            "usda_api_key",
         ):
             secret = getattr(self, field_name)
             if secret is not None and not secret.get_secret_value().strip():
@@ -300,6 +309,7 @@ class Settings(BaseSettings):
             self.soscripted_timeout_seconds,
             self.anthropic_timeout_seconds,
             self.openrouter_timeout_seconds,
+            self.usda_timeout_seconds,
         )
         safe = (
             self.extraction_claim_heartbeat_seconds * 2 < claim_seconds
@@ -486,11 +496,19 @@ class Settings(BaseSettings):
             raise ValueError(
                 f"production live workers require a configured {extraction_key}"
             )
+        if self.usda_nutrition_enabled and (
+            self.usda_api_key is None
+            or self._is_placeholder(self.usda_api_key.get_secret_value())
+        ):
+            raise ValueError(
+                "production nutrition requires a configured usda_api_key"
+            )
         for field_name in (
             "supadata_base_url",
             "soscripted_base_url",
             "anthropic_base_url",
             "openrouter_base_url",
+            "usda_base_url",
             "apple_jwks_url",
             "apple_token_url",
             "google_jwks_url",
