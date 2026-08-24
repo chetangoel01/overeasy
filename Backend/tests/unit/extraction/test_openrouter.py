@@ -39,11 +39,12 @@ def extraction_json() -> str:
     ).model_dump_json(by_alias=True)
 
 
-def client_returning(handler) -> OpenRouterStructuredClient:
+def client_returning(handler, *, sleep=None) -> OpenRouterStructuredClient:
     return OpenRouterStructuredClient(
         http=httpx.Client(transport=httpx.MockTransport(handler)),
         api_key="test-key",
         base_url="https://openrouter.test/api/v1",
+        **({"sleep": sleep} if sleep is not None else {}),
     )
 
 
@@ -124,6 +125,43 @@ def test_server_error_raises_extraction_unavailable() -> None:
                 lambda request: httpx.Response(503, json={"error": "down"})
             )
         )
+
+
+def test_rate_limit_retries_after_server_delay() -> None:
+    responses = iter(
+        [
+            httpx.Response(429, headers={"Retry-After": "2"}),
+            completion(extraction_json()),
+        ]
+    )
+    delays: list[float] = []
+
+    response = parse(
+        client_returning(
+            lambda request: next(responses),
+            sleep=delays.append,
+        )
+    )
+
+    assert response.parsed_output is not None
+    assert delays == [2.0]
+
+
+def test_repeated_rate_limits_use_bounded_backoff() -> None:
+    attempts = 0
+    delays: list[float] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        nonlocal attempts
+        attempts += 1
+        return httpx.Response(429)
+
+    with pytest.raises(ExtractionUnavailable, match="HTTP 429"):
+        parse(client_returning(handler, sleep=delays.append))
+
+    assert attempts == 4
+    assert delays == [2.0, 4.0, 8.0]
 
 
 def test_transport_error_raises_extraction_unavailable() -> None:

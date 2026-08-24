@@ -78,6 +78,12 @@ The iOS recovery surfaces this as missing written recipe detail and directs the
 cook to paste the recipe or create it manually. This is distinct from an
 unsupported host or a provider outage.
 
+Structured OpenRouter extraction treats HTTP 429 as transient. It honors a
+numeric `Retry-After` value up to 60 seconds; without one it retries after 2,
+4, and 8 seconds. Four rate-limited attempts still fail as
+`ExtractionUnavailable`. Other HTTP failures keep their existing behavior,
+and malformed successful output retains its separate one-repeat policy.
+
 ## Nutrition provenance
 
 Prompt version `recipe-2026-08-24-v11` requires the extraction model to return

@@ -1,5 +1,7 @@
 import json
 import logging
+import time
+from collections.abc import Callable
 from dataclasses import replace
 from decimal import Decimal, InvalidOperation
 
@@ -56,10 +58,12 @@ class OpenRouterStructuredClient:
         http: httpx.Client,
         api_key: str,
         base_url: str,
+        sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         self._http = http
         self._api_key = api_key
         self._base_url = base_url.rstrip("/")
+        self._sleep = sleep
 
     def parse_recipe(
         self,
@@ -129,17 +133,25 @@ class OpenRouterStructuredClient:
                 },
             },
         }
-        try:
-            response = self._http.post(
-                f"{self._base_url}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {self._api_key}",
-                    "X-Title": "Overeasy",
-                },
-                json=payload,
+        for attempt in range(4):
+            try:
+                response = self._http.post(
+                    f"{self._base_url}/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {self._api_key}",
+                        "X-Title": "Overeasy",
+                    },
+                    json=payload,
+                )
+            except httpx.HTTPError as error:
+                raise ExtractionUnavailable(
+                    "OpenRouter extraction unavailable"
+                ) from error
+            if response.status_code != 429 or attempt == 3:
+                break
+            self._sleep(
+                _retry_after_seconds(response, default=2 ** (attempt + 1))
             )
-        except httpx.HTTPError as error:
-            raise ExtractionUnavailable("OpenRouter extraction unavailable") from error
         if response.status_code >= 400:
             raise ExtractionUnavailable(
                 f"OpenRouter extraction failed with HTTP {response.status_code}"
@@ -194,6 +206,16 @@ def _cost_usd(value: object) -> Decimal | None:
     except InvalidOperation:
         return None
     return parsed if parsed.is_finite() and parsed >= 0 else None
+
+
+def _retry_after_seconds(response: httpx.Response, *, default: int) -> float:
+    try:
+        delay = Decimal(response.headers.get("Retry-After", str(default)))
+    except InvalidOperation:
+        return float(default)
+    if not delay.is_finite() or delay < 0:
+        return float(default)
+    return float(min(delay, Decimal(60)))
 
 
 def _sum_cost(first: Decimal | None, second: Decimal | None) -> Decimal | None:
