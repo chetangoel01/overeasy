@@ -89,8 +89,12 @@ tracking.
 
 ## Watch and Inbox
 
-- Watch is a regular scrolling destination with one large video image, source,
-  recipe metadata, and direct Open/Start Cooking actions per item.
+- Watch is a vertically paged, full-viewport feed. Each swipe settles on one
+  video recipe with full-bleed artwork, source and creator attribution, and
+  direct Play, Favorite, Share, Open, and Start Cooking actions.
+- Video recipes are shuffled once when the library session loads. Refreshes
+  preserve the active order so favorite and sync updates never move content
+  beneath the user.
 - Do not reproduce recipe detail inside segmented card panels.
 - Inbox is a plain native list. Empty copy is one short sentence. Recovery and
   review actions remain explicit when an import needs attention.

@@ -65,6 +65,12 @@ struct LibraryView: View {
             .tint(LadleTheme.brick)
             .navigationTitle(navigation.tab.title)
             .navigationBarTitleDisplayMode(.large)
+            .toolbar(
+                navigation.tab == .watch && !viewModel.watchRecipes.isEmpty
+                    ? .hidden
+                    : .visible,
+                for: .navigationBar
+            )
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     accountButton
@@ -194,7 +200,8 @@ struct LibraryView: View {
     private var watchTab: some View {
         WatchView(
             viewModel: viewModel,
-            openRecipe: openRecipe
+            openRecipe: openRecipe,
+            openAccount: { isAccountPresented = true }
         )
         .tabItem {
             Label("Watch", systemImage: "play.rectangle")

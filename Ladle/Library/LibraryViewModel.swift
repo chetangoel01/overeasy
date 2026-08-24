@@ -47,6 +47,12 @@ final class LibraryViewModel {
     @ObservationIgnored
     private let now: () -> Date
 
+    @ObservationIgnored
+    private let shuffleRecipeIDs: ([UUID]) -> [UUID]
+
+    @ObservationIgnored
+    private var watchRecipeOrder: [UUID] = []
+
     private let didMutate:
         @MainActor @Sendable () async -> Void
 
@@ -78,12 +84,14 @@ final class LibraryViewModel {
         repository: RecipeRepository,
         preferenceStore: PreferenceStoring = UserDefaults.standard,
         now: @escaping () -> Date = Date.init,
+        shuffleRecipeIDs: @escaping ([UUID]) -> [UUID] = { $0.shuffled() },
         didMutate:
             @escaping @MainActor @Sendable () async -> Void = {}
     ) {
         self.repository = repository
         self.preferenceStore = preferenceStore
         self.now = now
+        self.shuffleRecipeIDs = shuffleRecipeIDs
         self.didMutate = didMutate
         displayMode = preferenceStore
             .string(forKey: PreferenceKey.displayMode)
@@ -203,7 +211,10 @@ final class LibraryViewModel {
     }
 
     var watchRecipes: [Recipe] {
-        RecipeQuery().apply(to: recipes.filter { $0.source != .other })
+        let recipesByID = Dictionary(
+            uniqueKeysWithValues: recipes.map { ($0.id, $0) }
+        )
+        return watchRecipeOrder.compactMap { recipesByID[$0] }
     }
 
     func searchResults(matching text: String) -> [Recipe] {
@@ -264,12 +275,28 @@ final class LibraryViewModel {
     func load() {
         do {
             recipes = try repository.fetchRecipes()
+            refreshWatchRecipeOrder()
             importJobs = try repository.fetchImportJobs()
             loadState = .loaded
         } catch {
             recipes = []
+            watchRecipeOrder = []
             importJobs = []
             loadState = .failed("Your recipes couldn’t be loaded.")
+        }
+    }
+
+    private func refreshWatchRecipeOrder() {
+        let availableIDs = recipes
+            .filter { $0.source != .other }
+            .map(\.id)
+        let availableSet = Set(availableIDs)
+        let retainedIDs = watchRecipeOrder.filter(availableSet.contains)
+        let retainedSet = Set(retainedIDs)
+        let newIDs = availableIDs.filter { !retainedSet.contains($0) }
+        watchRecipeOrder = retainedIDs
+        if !newIDs.isEmpty {
+            watchRecipeOrder += shuffleRecipeIDs(newIDs)
         }
     }
 
