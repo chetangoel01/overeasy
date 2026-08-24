@@ -208,6 +208,12 @@ and report:
 - count of visual-provider calls, required to be zero; and
 - provider usage and cost distributions for observability.
 
+Reference fixtures carry an explicit `scaffold` or `verified` status. The
+initial schema-valid examples exercise the harness only: their pass rate is
+never evidence for the accuracy target. A scored run must name either the
+tuning or held-out partition, records failed and missing extractions as cases,
+and emits prompt, model, fixture, and corpus versions with every result.
+
 Prompt or model changes cannot ship under an existing cache version. A
 milestone is complete only after the held-out nutrition gate reaches 95%, the
 sparse and zero-vision gates reach 100%, focused tests pass, the complete

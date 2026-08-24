@@ -1,0 +1,27 @@
+{
+  "corpusName": "text-only-held-out",
+  "fixtureVersion": "scaffold-v1",
+  "partition": "heldOut",
+  "referenceStatus": "scaffold",
+  "cases": [
+    {
+      "id": "held-out-scaffold-001",
+      "cacheKey": "7666186049663634702",
+      "sourceURL": "https://www.tiktok.com/@thegoldenbalance/video/7666186049663634702",
+      "nutrition": {
+        "servings": "4",
+        "calories": "600",
+        "proteinGrams": "32",
+        "carbohydrateGrams": "70",
+        "fatGrams": "22"
+      },
+      "structure": {
+        "statedCookTimeMinutes": "35",
+        "ingredientNameQuantities": [
+          {"name": "scaffold ingredient", "quantity": "500 g"}
+        ],
+        "orderedStepPhrases": ["scaffold step"]
+      }
+    }
+  ]
+}

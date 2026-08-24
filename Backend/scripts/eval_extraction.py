@@ -10,12 +10,12 @@ Run `acquire` when the source set changes; run `extract` after every prompt or
 extraction-layer edit and compare the scoreboard to the previous run.
 
     python scripts/eval_extraction.py acquire
-    python scripts/eval_extraction.py extract --label v3-baseline
+    python scripts/eval_extraction.py extract --corpus tuning --label v3-baseline
 
-Scores are deliberately mechanical. They cannot tell you a recipe is correct —
-only a human reading the output can — but they catch the regressions that
-matter: quantities disappearing, steps losing their place in the video, the
-model inventing a yield it was told to leave unknown.
+Scored runs require an explicit tuning or held-out reference corpus. Nutrition
+is a whole-case gate: servings, calories, and all three primary macros must be
+within their documented tolerances, and the nutrition must have an auditable
+basis. Structural measurements remain visible but do not inflate that gate.
 """
 
 import argparse
@@ -26,7 +26,7 @@ import sys
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -36,6 +36,18 @@ from ladle.acquisition.models import (
     AcquiredVideoContext,
     SourceVideoDescriptor,
 )
+from ladle.evaluation.extraction import (
+    EvaluationCorpus,
+    IngredientNameQuantity,
+    NutritionBasis,
+    NutritionPrediction,
+    StructuralPrediction,
+    measure_structure,
+    score_nutrition_case,
+    summarize_nutrition_cases,
+)
+from ladle.extraction.claude import ClaudeRecipeExtractor
+from ladle.extraction.models import RecipeExtraction
 from ladle.extraction.prompt import (
     PROMPT_VERSION,
     SYSTEM_PROMPT,
@@ -47,6 +59,12 @@ from ladle.worker.runtime import runtime_orchestrator, runtime_sessions
 
 CACHE = Path(__file__).resolve().parent.parent / ".eval-cache"
 RESULTS = CACHE / "results"
+REFERENCE_FIXTURES = {
+    "tuning": Path(__file__).resolve().parent.parent
+    / "tests/fixtures/evaluation/text-only-tuning.json",
+    "held-out": Path(__file__).resolve().parent.parent
+    / "tests/fixtures/evaluation/text-only-held-out.json",
+}
 
 SOURCES = [
     "https://www.tiktok.com/@mishkamakesfood/video/7628226554589482271",
@@ -241,19 +259,97 @@ def _duration_phrases(context: AcquiredVideoContext) -> int:
     return len(set(match.group(0).lower() for match in _DURATION.finditer(haystack)))
 
 
-def extract(label: str, only: str | None) -> None:
+def _load_corpus(partition: str) -> EvaluationCorpus:
+    return EvaluationCorpus.model_validate_json(
+        REFERENCE_FIXTURES[partition].read_text()
+    )
+
+
+def _nutrition_prediction(
+    extraction: RecipeExtraction,
+) -> NutritionPrediction | None:
+    nutrition = extraction.nutrition
+    if (
+        extraction.servings is None
+        or nutrition is None
+        or nutrition.calories is None
+        or nutrition.protein_grams is None
+        or nutrition.carbohydrate_grams is None
+        or nutrition.fat_grams is None
+    ):
+        return None
+    raw_basis = getattr(nutrition, "basis", "unknown")
+    basis = cast(
+        NutritionBasis,
+        raw_basis if raw_basis in {"creatorStated", "usdaCalculated"} else "unknown",
+    )
+    return NutritionPrediction(
+        servings=extraction.servings,
+        calories=nutrition.calories,
+        protein_grams=nutrition.protein_grams,
+        carbohydrate_grams=nutrition.carbohydrate_grams,
+        fat_grams=nutrition.fat_grams,
+        basis=basis,
+    )
+
+
+def _structural_prediction(extraction: RecipeExtraction) -> StructuralPrediction:
+    return StructuralPrediction(
+        stated_cook_time_minutes=extraction.cooking_minutes,
+        ingredient_name_quantities=[
+            IngredientNameQuantity(name=value.name, quantity=value.quantity_text)
+            for value in extraction.ingredients
+            if value.quantity_text is not None
+        ],
+        steps=[value.instruction for value in extraction.steps],
+    )
+
+
+def extract(label: str, only: str | None, partition: str) -> None:
     RESULTS.mkdir(parents=True, exist_ok=True)
     # Go through the structured client rather than ClaudeRecipeExtractor.extract,
     # which returns the reviewed template. The raw RecipeExtraction is what
     # carries servingsBasis, methodProvenance and the metric amounts — exactly
     # the fields worth watching while tuning the prompt.
-    extractor = runtime_orchestrator()._extractor
+    extractor = cast(ClaudeRecipeExtractor, runtime_orchestrator()._extractor)
     client = extractor._client
     scores: list[Score] = []
-    dump: dict[str, Any] = {"promptVersion": PROMPT_VERSION, "label": label}
+    corpus = _load_corpus(partition)
+    references = [
+        case
+        for case in corpus.cases
+        if only is None or only in case.id or only in case.cache_key
+    ]
+    if not references:
+        raise ValueError(f"no {partition} reference case matches --only={only!r}")
+    dump: dict[str, Any] = {
+        "corpusName": corpus.corpus_name,
+        "fixtureVersion": corpus.fixture_version,
+        "partition": corpus.partition,
+        "referenceStatus": corpus.reference_status,
+        "promptVersion": PROMPT_VERSION,
+        "modelVersion": extractor.model_id,
+        "label": label,
+        "cases": [],
+    }
+    nutrition_scores = []
 
-    for path in sorted(CACHE.glob("*.json")):
-        if only and only not in path.stem:
+    for reference in references:
+        path = CACHE / f"{reference.cache_key}.json"
+        if not path.exists():
+            nutrition_score = score_nutrition_case(reference.nutrition, None)
+            nutrition_scores.append(nutrition_score)
+            dump["cases"].append(
+                {
+                    "id": reference.id,
+                    "sourceURL": reference.source_url,
+                    "nutrition": nutrition_score.model_dump(
+                        mode="json", by_alias=True
+                    ),
+                    "structure": None,
+                    "error": f"missing acquired context: {path.name}",
+                }
+            )
             continue
         context = AcquiredVideoContext.model_validate_json(path.read_text())
         try:
@@ -268,11 +364,46 @@ def extract(label: str, only: str | None) -> None:
                 print(
                     f"FAILED   {path.stem}: no parsed output ({response.stop_reason})"
                 )
+                nutrition_score = score_nutrition_case(reference.nutrition, None)
+                nutrition_scores.append(nutrition_score)
+                dump["cases"].append(
+                    {
+                        "id": reference.id,
+                        "sourceURL": reference.source_url,
+                        "nutrition": nutrition_score.model_dump(
+                            mode="json", by_alias=True
+                        ),
+                        "structure": None,
+                        "error": f"no parsed output: {response.stop_reason}",
+                    }
+                )
                 continue
         except Exception as error:
             print(f"FAILED   {path.stem}: {type(error).__name__}: {error}")
+            nutrition_score = score_nutrition_case(reference.nutrition, None)
+            nutrition_scores.append(nutrition_score)
+            dump["cases"].append(
+                {
+                    "id": reference.id,
+                    "sourceURL": reference.source_url,
+                    "nutrition": nutrition_score.model_dump(
+                        mode="json", by_alias=True
+                    ),
+                    "structure": None,
+                    "error": f"{type(error).__name__}: {error}",
+                }
+            )
             continue
         template = build_reviewed_template(extraction, context=context)
+        nutrition_score = score_nutrition_case(
+            reference.nutrition,
+            _nutrition_prediction(extraction),
+        )
+        nutrition_scores.append(nutrition_score)
+        structure = measure_structure(
+            reference.structure,
+            _structural_prediction(extraction),
+        )
 
         quantified = [
             value for value in extraction.ingredients if not value.is_to_taste
@@ -307,38 +438,47 @@ def extract(label: str, only: str | None) -> None:
             title=extraction.title,
         )
         scores.append(score)
-        dump[path.stem] = {
-            "title": extraction.title,
-            "prompt_characters": len(build_user_prompt(context)),
-            "transcriptProvenance": score.transcript_provenance,
-            "ingredients": [
-                {
-                    "quantityText": value.quantity_text,
-                    "name": value.name,
-                    "metricAmount": (
-                        str(value.metric_amount)
-                        if value.metric_amount is not None
-                        else None
-                    ),
-                    "metricUnit": value.metric_unit,
-                    "isToTaste": value.is_to_taste,
-                }
-                for value in extraction.ingredients
-            ],
-            "steps": [
-                {
-                    "instruction": value.instruction,
-                    "start": value.source_start_seconds,
-                    "end": value.source_end_seconds,
-                    "timers": [
-                        f"{t.label}={t.duration_seconds}s" for t in value.timers
-                    ],
-                }
-                for value in extraction.steps
-            ],
-            "notes": extraction.notes,
-            "uncertainties": score.top_uncertainties,
-        }
+        dump["cases"].append(
+            {
+                "id": reference.id,
+                "sourceURL": reference.source_url,
+                "nutrition": nutrition_score.model_dump(
+                    mode="json", by_alias=True
+                ),
+                "structure": structure.model_dump(mode="json", by_alias=True),
+                "title": extraction.title,
+                "promptCharacters": len(build_user_prompt(context)),
+                "transcriptProvenance": score.transcript_provenance,
+                "ingredients": [
+                    {
+                        "quantityText": value.quantity_text,
+                        "name": value.name,
+                        "metricAmount": (
+                            str(value.metric_amount)
+                            if value.metric_amount is not None
+                            else None
+                        ),
+                        "metricUnit": value.metric_unit,
+                        "isToTaste": value.is_to_taste,
+                    }
+                    for value in extraction.ingredients
+                ],
+                "steps": [
+                    {
+                        "instruction": value.instruction,
+                        "start": value.source_start_seconds,
+                        "end": value.source_end_seconds,
+                        "timers": [
+                            f"{timer.label}={timer.duration_seconds}s"
+                            for timer in value.timers
+                        ],
+                    }
+                    for value in extraction.steps
+                ],
+                "notes": extraction.notes,
+                "uncertainties": score.top_uncertainties,
+            }
+        )
 
     header = (
         f"{'source':<24} {'segs':>4} {'ingr':>5} "
@@ -371,6 +511,19 @@ def extract(label: str, only: str | None) -> None:
             for reason in score.top_uncertainties:
                 print(f"  {score.name:<24} {reason[:96]}")
 
+    nutrition_summary = summarize_nutrition_cases(nutrition_scores)
+    dump["wholeRecipeNutrition"] = nutrition_summary.model_dump(
+        mode="json", by_alias=True
+    )
+    print(
+        "\nwhole-recipe nutrition "
+        f"{nutrition_summary.passed}/{nutrition_summary.total} "
+        f"({nutrition_summary.pass_rate:.1%}) "
+        f"gate={'PASS' if nutrition_summary.meets_gate else 'FAIL'}"
+    )
+    if corpus.reference_status != "verified":
+        print("reference status is scaffold; this run is not accuracy evidence")
+
     out = RESULTS / f"{label}.json"
     out.write_text(json.dumps(dump, indent=2, ensure_ascii=False))
     print(f"\nwrote {out}")
@@ -383,12 +536,13 @@ def main() -> int:
     run = sub.add_parser("extract")
     run.add_argument("--label", default="run")
     run.add_argument("--only", default=None)
+    run.add_argument("--corpus", choices=REFERENCE_FIXTURES, required=True)
     arguments = parser.parse_args()
 
     if arguments.command == "acquire":
         acquire()
     else:
-        extract(arguments.label, arguments.only)
+        extract(arguments.label, arguments.only, arguments.corpus)
     return 0
 
 

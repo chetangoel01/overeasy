@@ -1,0 +1,27 @@
+{
+  "corpusName": "text-only-tuning",
+  "fixtureVersion": "scaffold-v1",
+  "partition": "tuning",
+  "referenceStatus": "scaffold",
+  "cases": [
+    {
+      "id": "tuning-scaffold-001",
+      "cacheKey": "7628226554589482271",
+      "sourceURL": "https://www.tiktok.com/@mishkamakesfood/video/7628226554589482271",
+      "nutrition": {
+        "servings": "4",
+        "calories": "520",
+        "proteinGrams": "24",
+        "carbohydrateGrams": "62",
+        "fatGrams": "20"
+      },
+      "structure": {
+        "statedCookTimeMinutes": "30",
+        "ingredientNameQuantities": [
+          {"name": "scaffold ingredient", "quantity": "1 cup"}
+        ],
+        "orderedStepPhrases": ["scaffold step"]
+      }
+    }
+  ]
+}
