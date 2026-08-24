@@ -41,6 +41,9 @@ readiness unavailable and blocking imports.
   recipe, observed it through incremental sync, and loaded Discover.
 - The stack was restored to the private `.env` live-provider mode after the
   deterministic test.
+- In restored live mode, an Instagram import completed media acquisition,
+  transcription, structured extraction, and recipe persistence as `ready` in
+  34 seconds without retrying or destabilizing the worker.
 - The Debug routing reference now states the correct host port and preserves
   the physical-device boundary: `.localhost` is for the Mac and simulator;
   device builds use the guarded VPS or tunnel.
