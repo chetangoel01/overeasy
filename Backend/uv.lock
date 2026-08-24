@@ -421,14 +421,14 @@ wheels = [
 
 [[package]]
 name = "fastapi-swagger"
-version = "0.4.56"
+version = "0.4.58"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "fastapi" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/5d/4c/dc292eb7782a8197b7b9a8651d86ffbbb5d915e07a193bcb630ca86f2200/fastapi_swagger-0.4.56.tar.gz", hash = "sha256:490c727e988cf722e21571bbc944133cc57c377b71bc8b245028b7ce9d21cd5f", size = 451543, upload-time = "2026-08-04T02:21:54.63Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/11/92/f9e98378ec9095cc9ba83f4af49cf5334fd8903c2cc2630d8b5696494c48/fastapi_swagger-0.4.58.tar.gz", hash = "sha256:cf36b86d365fc8bb47b34723f84bed6b2fec934915a3160f40e5b80f100ff79d", size = 451903, upload-time = "2026-08-19T01:06:55.789Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/97/ae/141d8e265815c2cc298dd30345410e761714bf2f4db7438c3134750e3f42/fastapi_swagger-0.4.56-py3-none-any.whl", hash = "sha256:0974ddad5989f5cab7f3f585595bbfa49316dbea79a48b2a62d69f7dec83489d", size = 454622, upload-time = "2026-08-04T02:21:53.055Z" },
+    { url = "https://files.pythonhosted.org/packages/06/a8/63d00849143eb098e4e8224f757463907f6e59ef75409e6bc522f9378ad6/fastapi_swagger-0.4.58-py3-none-any.whl", hash = "sha256:bca84de043964c4e9ff8a0babc0deb8d688a1d087ca6d16df2c9f63a9bad31d0", size = 454996, upload-time = "2026-08-19T01:06:54.425Z" },
 ]
 
 [[package]]
