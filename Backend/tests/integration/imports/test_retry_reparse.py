@@ -24,6 +24,7 @@ from ladle.db.models import (
     SourceVideo,
 )
 from ladle.db.session import build_engine
+from ladle.extraction.verification import VerificationEvidence
 from ladle.imports.admission import AdmissionService
 from ladle.imports.orchestrator import ImportOrchestrator, ProcessOutcome
 from ladle.imports.reservations import ReservationService
@@ -86,6 +87,24 @@ class FakeNutritionCalculator:
         return self.result
 
 
+@dataclass
+class FakeRecipeVerifier:
+    calls: list[tuple[RecipeTemplate, list[VerificationEvidence]]] = field(
+        default_factory=list
+    )
+
+    def verify(
+        self,
+        template: RecipeTemplate,
+        *,
+        evidence: list[VerificationEvidence],
+        job_id: object,
+    ) -> RecipeTemplate:
+        del job_id
+        self.calls.append((template, evidence))
+        return template.model_copy(update={"title": "Verified Lemon Orzo"})
+
+
 def services(
     database_url: str,
     clock: FrozenClock,
@@ -93,6 +112,7 @@ def services(
     template: RecipeTemplate,
     thumbnails: FakeThumbnailFetcher | None = None,
     nutrition_calculator: FakeNutritionCalculator | None = None,
+    verifier: FakeRecipeVerifier | None = None,
 ) -> tuple[
     sessionmaker[Session],
     ImportOrchestrator,
@@ -124,6 +144,7 @@ def services(
             clock=clock,
             thumbnails=thumbnails,  # type: ignore[arg-type]
             nutrition_calculator=nutrition_calculator,
+            verifier=verifier,
             private_text=cipher,
             private_completion=cloner,
             transitions=ImportTransitionService(
@@ -239,6 +260,61 @@ def test_usda_failure_completes_import_with_nutrition_review_uncertainty(
         )
         assert uncertainty is not None
         assert "unavailable" in uncertainty.reason.casefold()
+
+
+@pytest.mark.integration
+def test_verification_runs_after_nutrition_with_text_evidence_before_persistence(
+    clean_postgres_url: str,
+) -> None:
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    clock = FrozenClock(datetime(2026, 8, 24, 12, 0, tzinfo=UTC))
+    nutrition = TemplateNutrition(
+        calories="420",
+        protein_grams="18",
+        carbohydrate_grams="52",
+        fat_grams="16",
+        serving_basis="4",
+        is_estimated=True,
+        basis="usdaCalculated",
+        evidence="USDA FDC 123",
+    )
+    calculator = FakeNutritionCalculator(result=nutrition)
+    verifier = FakeRecipeVerifier()
+    template = RecipeTemplate.from_recipe(manual_recipe(uuid4())).model_copy(
+        update={"nutrition": None, "servings_basis": "stated"}
+    )
+    sessions, orchestrator, _, _, _ = services(
+        clean_postgres_url,
+        clock,
+        template=template,
+        nutrition_calculator=calculator,
+        verifier=verifier,
+    )
+    with sessions.begin() as database:
+        source_id = uuid4()
+        database.add(
+            SourceVideo(
+                id=source_id,
+                platform="youtube",
+                platform_video_id="verified-recipe",
+                canonical_url="https://www.youtube.com/watch?v=verified-recipe",
+                source_revision="1",
+                source_metadata={},
+            )
+        )
+        job_id = seed_import(database, source_id=source_id, suffix="verified")
+
+    assert orchestrator.process(job_id) == ProcessOutcome.COMPLETED
+    assert verifier.calls[0][0].nutrition == nutrition
+    assert any(
+        "two cups orzo" in value.text.casefold()
+        for value in verifier.calls[0][1]
+    )
+    with sessions() as database:
+        job = database.get(ImportJob, job_id)
+        recipe_row = database.get(Recipe, job.current_recipe_id if job else None)
+        assert recipe_row is not None
+        assert recipe_row.title == "Verified Lemon Orzo"
 
 
 def test_import_runtime_has_no_thumbnail_analysis_hook() -> None:

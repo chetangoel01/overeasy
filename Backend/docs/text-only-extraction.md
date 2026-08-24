@@ -122,6 +122,33 @@ service failures follow the same non-terminal behavior; creator-stated
 nutrition remains untouched and never calls USDA. Live workers require
 `LADLE_USDA_API_KEY` when `LADLE_USDA_NUTRITION_ENABLED` is true.
 
+## Targeted verification
+
+After deterministic nutrition and before persistence, the worker runs local
+checks for explicit-yield conflicts, impossible total-time arithmetic,
+out-of-bounds step ingredient references, gross calorie/macro contradictions,
+material ingredients absent from the method, and conflicting source amounts.
+A clean recipe makes no verifier call.
+
+When an issue exists, a separate structured-output call receives the recipe,
+only the disputed field paths, and only textual spans connected to those
+issues. Its system contract forbids visual inference and general recipe
+knowledge. The verifier boundary copies metadata text, transcript segments,
+and creator-linked documents; it cannot copy `visual_observations`.
+
+Model output is a list of field-level patches rather than a rewritten recipe.
+The server rejects a patch unless the field was flagged, the path and value
+type are supported, the cited passage occurs exactly in the supplied text,
+the patched value occurs in that passage, and the resulting template still
+validates. Checks run once more after accepted patches. Every unresolved issue
+becomes a field uncertainty and forces `needsReview`; verifier provider failure
+does the same without failing the import.
+
+Verifier calls are recorded separately as provider operation
+`recipeVerification`. They reuse the configured extraction provider/model and
+are controlled by `LADLE_RECIPE_VERIFICATION_ENABLED` and
+`LADLE_RECIPE_VERIFICATION_MAX_TOKENS`.
+
 ## Affected components
 
 - acquisition provider chain and Supadata client;
@@ -129,6 +156,7 @@ nutrition remains untouched and never calls USDA. Live workers require
 - worker and import-orchestrator construction;
 - extraction prompt serialization;
 - USDA FoodData Central client and deterministic nutrition calculator;
+- deterministic issue detection and targeted structured verifier;
 - VPS and local environment defaults;
 - provider cost measurement; and
 - thumbnail retry/reparse behavior.
@@ -166,3 +194,9 @@ tests, 172 nutrition/extraction/configuration/runtime/import regression tests,
 all 8 PostgreSQL retry/reparse integration tests, the complete 491-test backend
 unit/contract suite, and all 8 VPS deployment contract tests. Ruff passed the
 full backend application and tests; strict mypy passed all 116 source files.
+
+The targeted-verification slice additionally passed all 80 extraction tests,
+106 verifier/runtime/configuration/import regression tests, all 9 PostgreSQL
+retry/reparse integration tests, and the complete 511-test backend
+unit/contract suite. Ruff passed the full backend application and tests;
+strict mypy passed all 117 source files.

@@ -207,6 +207,8 @@ class Settings(BaseSettings):
     soscripted_api_key: SecretStr | None = None
 
     extraction_provider: Literal["anthropic", "openrouter"] = "openrouter"
+    recipe_verification_enabled: bool = True
+    recipe_verification_max_tokens: int = Field(default=4096, gt=0)
 
     anthropic_base_url: AnyHttpUrl = AnyHttpUrl("https://api.anthropic.com")
     anthropic_timeout_seconds: float = Field(default=60, gt=0)

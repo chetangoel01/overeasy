@@ -125,6 +125,37 @@ def test_enabled_nutrition_requires_a_usda_key() -> None:
         )
 
 
+def test_recipe_verifier_runtime_builder_uses_extraction_model() -> None:
+    from pydantic import SecretStr
+
+    from ladle.extraction.verification import TargetedRecipeVerifier
+    from ladle.worker.runtime import _recipe_verifier
+
+    built = _recipe_verifier(
+        Settings(
+            openrouter_api_key=SecretStr("verify-key"),
+            openrouter_model_id="quality-model",
+            _env_file=None,
+        ),
+        usage=None,
+    )
+
+    assert isinstance(built, TargetedRecipeVerifier)
+    assert built._model_id == "quality-model"
+
+
+def test_recipe_verifier_runtime_builder_respects_explicit_disable() -> None:
+    from ladle.worker.runtime import _recipe_verifier
+
+    assert (
+        _recipe_verifier(
+            Settings(recipe_verification_enabled=False, _env_file=None),
+            usage=None,
+        )
+        is None
+    )
+
+
 @dataclass
 class FrozenClock:
     value: datetime

@@ -29,7 +29,8 @@ from ladle.extraction.evidence_gate import (
     InsufficientTextEvidence,
     require_recipe_evidence,
 )
-from ladle.extraction.protocol import RecipeExtractor
+from ladle.extraction.protocol import RecipeExtractor, RecipeVerifier
+from ladle.extraction.verification import verification_evidence
 from ladle.imports.thumbnails import OEmbedThumbnailFetcher, ThumbnailAsset
 from ladle.imports.transitions import ImportTransitionService
 from ladle.observability.metrics import MetricsRegistry
@@ -78,6 +79,7 @@ class ImportOrchestrator:
         thumbnails: OEmbedThumbnailFetcher | None = None,
         heartbeat: ClaimHeartbeat | None = None,
         nutrition_calculator: NutritionService | None = None,
+        verifier: RecipeVerifier | None = None,
     ) -> None:
         self._sessions = session_factory
         self._cache = cache
@@ -91,6 +93,7 @@ class ImportOrchestrator:
         self._thumbnails = thumbnails
         self._heartbeat = heartbeat
         self._nutrition = nutrition_calculator
+        self._verifier = verifier
 
     def process(self, job_id: UUID) -> ProcessOutcome:
         requires_recheck = False
@@ -284,6 +287,13 @@ class ImportOrchestrator:
                                     ),
                                 )
                             )
+                if self._verifier is not None:
+                    with log_context(stage="verification"):
+                        template = self._verifier.verify(
+                            template,
+                            evidence=verification_evidence(context),
+                            job_id=job_id,
+                        )
                 with log_context(stage="thumbnail"):
                     thumbnail_key = (
                         self._thumbnails.store(
