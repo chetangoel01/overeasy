@@ -93,7 +93,7 @@ class NutritionCalculator:
             protein_grams=per_serving[1],
             carbohydrate_grams=per_serving[2],
             fat_grams=per_serving[3],
-            serving_basis=template.servings,
+            serving_basis=Decimal(1),
             is_estimated=True,
             basis="usdaCalculated",
             evidence=evidence,

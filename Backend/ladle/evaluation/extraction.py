@@ -1,16 +1,19 @@
-"""Deterministic scoring for the text-only extraction benchmark."""
+"""Deterministic scoring and fixtures for the text-only benchmark."""
 
+from datetime import date
 from decimal import Decimal
 from typing import Literal
 
 from pydantic import Field
 
 from ladle.contracts.common import WireModel
+from ladle.recipes.template_clone import RecipeTemplate
 
 NUTRITION_GATE = Decimal("0.95")
 RELATIVE_TOLERANCE = Decimal("0.10")
 MACRO_ABSOLUTE_TOLERANCE_GRAMS = Decimal("2")
 NutritionBasis = Literal["creatorStated", "usdaCalculated", "unknown"]
+CorpusLicense = Literal["usGovernmentPublicDomain", "synthetic"]
 
 
 class NutritionReference(WireModel):
@@ -48,14 +51,27 @@ class IngredientNameQuantity(WireModel):
 
 class StructuralReference(WireModel):
     stated_cook_time_minutes: Decimal | None = Field(default=None, ge=0)
-    ingredient_name_quantities: list[IngredientNameQuantity]
-    ordered_step_phrases: list[str]
+    ingredient_name_quantities: list[IngredientNameQuantity] = Field(min_length=1)
+    ordered_step_phrases: list[str] = Field(min_length=1)
 
 
 class StructuralPrediction(WireModel):
     stated_cook_time_minutes: Decimal | None = Field(default=None, ge=0)
     ingredient_name_quantities: list[IngredientNameQuantity]
     steps: list[str]
+
+
+class EvaluationEvidence(WireModel):
+    title: str = Field(min_length=1)
+    description: str = ""
+    linked_document_text: str = Field(min_length=1, max_length=20_000)
+
+
+class SparseEvidence(WireModel):
+    title: str | None = None
+    description: str = ""
+    transcript: list[str] = Field(default_factory=list)
+    linked_document_texts: list[str] = Field(default_factory=list)
 
 
 class StructuralMeasurement(WireModel):
@@ -70,8 +86,22 @@ class EvaluationReferenceCase(WireModel):
     id: str = Field(min_length=1)
     cache_key: str = Field(min_length=1)
     source_url: str = Field(min_length=1)
+    retrieved_at: date
+    license: CorpusLicense
+    attribution: str = Field(min_length=1)
+    expected_nutrition_basis: Literal["creatorStated", "usdaCalculated"]
+    evidence: EvaluationEvidence
     nutrition: NutritionReference
     structure: StructuralReference
+
+
+class SparseSafetyCase(WireModel):
+    id: str = Field(min_length=1)
+    source_url: str = Field(min_length=1)
+    license: CorpusLicense
+    attribution: str = Field(min_length=1)
+    expected_outcome: Literal["insufficientTextEvidence"]
+    evidence: SparseEvidence
 
 
 class EvaluationCorpus(WireModel):
@@ -79,7 +109,41 @@ class EvaluationCorpus(WireModel):
     fixture_version: str = Field(min_length=1)
     partition: Literal["tuning", "heldOut"]
     reference_status: Literal["scaffold", "verified"]
+    corpus_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
     cases: list[EvaluationReferenceCase] = Field(min_length=1)
+    safety_cases: list[SparseSafetyCase] = Field(default_factory=list)
+
+
+def whole_recipe_prediction(
+    template: RecipeTemplate,
+) -> NutritionPrediction | None:
+    """Normalize stored nutrition from its serving basis to the full recipe."""
+
+    nutrition = template.nutrition
+    if template.servings_basis != "stated" or nutrition is None:
+        return None
+    values = (
+        nutrition.calories,
+        nutrition.protein_grams,
+        nutrition.carbohydrate_grams,
+        nutrition.fat_grams,
+    )
+    if any(value is None for value in values):
+        return None
+    multiplier = template.servings / nutrition.serving_basis
+    calories, protein, carbohydrate, fat = values
+    assert calories is not None
+    assert protein is not None
+    assert carbohydrate is not None
+    assert fat is not None
+    return NutritionPrediction(
+        servings=template.servings,
+        calories=calories * multiplier,
+        protein_grams=protein * multiplier,
+        carbohydrate_grams=carbohydrate * multiplier,
+        fat_grams=fat * multiplier,
+        basis=nutrition.basis,
+    )
 
 
 def _within(value: Decimal, expected: Decimal, tolerance: Decimal) -> bool:
@@ -89,6 +153,8 @@ def _within(value: Decimal, expected: Decimal, tolerance: Decimal) -> bool:
 def score_nutrition_case(
     reference: NutritionReference,
     prediction: NutritionPrediction | None,
+    *,
+    expected_basis: Literal["creatorStated", "usdaCalculated"] | None = None,
 ) -> NutritionCaseScore:
     """Score one recipe; every required nutrition field must pass together."""
 
@@ -96,7 +162,9 @@ def score_nutrition_case(
         return NutritionCaseScore(passes=False, failed_fields=["nutrition"])
 
     failed: list[str] = []
-    if prediction.basis == "unknown":
+    if prediction.basis == "unknown" or (
+        expected_basis is not None and prediction.basis != expected_basis
+    ):
         failed.append("basis")
     if prediction.servings != reference.servings:
         failed.append("servings")

@@ -1,16 +1,6 @@
-"""Measure extraction quality against real videos, so prompt work is evidence-led.
+"""Replay the production text pipeline against the locked evaluation corpus.
 
-Two stages, because acquisition is slow and billed while prompt iteration is
-neither:
-
-    acquire  fetch each video once and cache the AcquiredVideoContext as JSON
-    extract  replay cached contexts through the current prompt and score them
-
-Run `acquire` when the source set changes; run `extract` after every prompt or
-extraction-layer edit and compare the scoreboard to the previous run.
-
-    python scripts/eval_extraction.py acquire
-    python scripts/eval_extraction.py extract --corpus tuning --label v3-baseline
+    python scripts/eval_extraction.py extract --corpus tuning --label v1-tuning
 
 Scored runs require an explicit tuning or held-out reference corpus. Nutrition
 is a whole-case gate: servings, calories, and all three primary macros must be
@@ -26,36 +16,57 @@ import sys
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from sqlalchemy import text
+import httpx
+from anthropic import Anthropic
 
 from ladle.acquisition.models import (
     AcquiredVideoContext,
+    LinkedDocument,
     SourceVideoDescriptor,
+    TextEvidence,
 )
+from ladle.config import Settings
 from ladle.evaluation.extraction import (
     EvaluationCorpus,
+    EvaluationReferenceCase,
     IngredientNameQuantity,
-    NutritionBasis,
-    NutritionPrediction,
+    SparseSafetyCase,
     StructuralPrediction,
     measure_structure,
     score_nutrition_case,
     summarize_nutrition_cases,
+    whole_recipe_prediction,
 )
-from ladle.extraction.claude import ClaudeRecipeExtractor
+from ladle.extraction.claude import (
+    AnthropicStructuredClient,
+    ClaudeStructuredClient,
+    ClaudeStructuredResponse,
+)
+from ladle.extraction.evidence_gate import (
+    InsufficientTextEvidence,
+    require_recipe_evidence,
+)
 from ladle.extraction.models import RecipeExtraction
+from ladle.extraction.openrouter import OpenRouterStructuredClient
 from ladle.extraction.prompt import (
     PROMPT_VERSION,
     SYSTEM_PROMPT,
     build_user_prompt,
 )
 from ladle.extraction.review import build_reviewed_template
-from ladle.imports.source_identity import SourceIdentityParser
-from ladle.worker.runtime import runtime_orchestrator, runtime_sessions
+from ladle.extraction.verification import (
+    AnthropicVerificationClient,
+    OpenRouterVerificationClient,
+    TargetedRecipeVerifier,
+    verification_evidence,
+)
+from ladle.nutrition.calculator import NutritionCalculator
+from ladle.nutrition.usda import USDAClient
+from ladle.recipes.template_clone import RecipeTemplate
 
 CACHE = Path(__file__).resolve().parent.parent / ".eval-cache"
 RESULTS = CACHE / "results"
@@ -66,134 +77,171 @@ REFERENCE_FIXTURES = {
     / "tests/fixtures/evaluation/text-only-held-out.json",
 }
 
-SOURCES = [
-    "https://www.tiktok.com/@mishkamakesfood/video/7628226554589482271",
-    "https://www.tiktok.com/@shicocooks/video/7619000339425119510",
-    "https://www.tiktok.com/@mishkamakesfood/video/7655788084671401247",
-    "https://www.instagram.com/reel/Ct-OnLxJlxw/",
-    "https://www.instagram.com/reel/C6IsG9BI3WZ/",
-    "https://www.instagram.com/reel/Cx8pqZDv7G0/",
-    # Held back from the tuning above, to check the work on recipes it was
-    # never shaped against: one caption-rich and full of fractions, one whose
-    # real recipe lives on the creator's own site.
-    "https://www.tiktok.com/@thegoldenbalance/video/7666186049663634702",
-    "https://www.tiktok.com/@justine_snacks/video/7665677576647609630",
-]
 
+@dataclass(frozen=True)
+class EvaluationPipeline:
+    client: ClaudeStructuredClient
+    model_id: str
+    max_tokens: int
+    nutrition: NutritionCalculator
+    verifier: TargetedRecipeVerifier | None
 
-def slug(url: str) -> str:
-    return url.rstrip("/").rsplit("/", 1)[-1][:32]
-
-
-def _seed_job(
-    descriptor: SourceVideoDescriptor, url: str
-) -> tuple[uuid.UUID, SourceVideoDescriptor]:
-    """Register a real job so provider spend lands in the usage ledger.
-
-    These are billed calls against the same daily budget as production. Faking
-    the job id would satisfy the foreign key nowhere and hide the cost, so the
-    harness books its own work honestly.
-    """
-
-    sessions = runtime_sessions()
-    job_id = uuid.uuid4()
-    with sessions() as database, database.begin():
-        user_id = database.execute(
-            text("SELECT id FROM users ORDER BY created_at LIMIT 1")
-        ).scalar_one()
-        # Platform identity is unique, so an earlier run or a real import may
-        # already own this row; reuse it rather than colliding.
-        existing = database.execute(
-            text(
-                "SELECT id FROM source_videos"
-                " WHERE platform = :platform AND platform_video_id = :vid"
-            ),
-            {"platform": descriptor.platform, "vid": descriptor.platform_video_id},
-        ).scalar_one_or_none()
-        if existing is None:
-            database.execute(
-                text(
-                    "INSERT INTO source_videos (id, platform, platform_video_id,"
-                    " canonical_url, source_revision, metadata_json)"
-                    " VALUES (:id, :platform, :vid, :url, :rev, '{}'::json)"
-                ),
-                {
-                    "id": descriptor.source_video_id,
-                    "platform": descriptor.platform,
-                    "vid": descriptor.platform_video_id,
-                    "url": descriptor.canonical_url,
-                    "rev": descriptor.source_revision,
-                },
+    def run(
+        self,
+        context: AcquiredVideoContext,
+    ) -> tuple[ClaudeStructuredResponse, RecipeExtraction, RecipeTemplate]:
+        response = self.client.parse_recipe(
+            model=self.model_id,
+            max_tokens=self.max_tokens,
+            system=SYSTEM_PROMPT,
+            user_prompt=build_user_prompt(context),
+        )
+        extraction = response.parsed_output
+        if extraction is None:
+            raise ValueError(f"no parsed output: {response.stop_reason}")
+        template = build_reviewed_template(extraction, context=context)
+        nutrition = self.nutrition.calculate(template)
+        if nutrition is not None:
+            template = template.model_copy(update={"nutrition": nutrition})
+        if self.verifier is not None:
+            template = self.verifier.verify(
+                template,
+                evidence=verification_evidence(context),
+                job_id=uuid.uuid4(),
             )
-        else:
-            descriptor = descriptor.model_copy(update={"source_video_id": existing})
-        database.execute(
-            text(
-                "INSERT INTO import_jobs (id, user_id, source_video_id, source_url,"
-                " canonical_url, source, status, stage, retry_count, bypass_cache,"
-                " idempotency_key, created_at, updated_at)"
-                " VALUES (:id, :user, :source, :url, :canonical, :platform,"
-                " 'parsing', 'parsing', 0, false, :key, now(), now())"
+        return response, extraction, template
+
+
+def _pipeline(settings: Settings) -> EvaluationPipeline:
+    if settings.usda_api_key is None:
+        raise RuntimeError(
+            "evaluation requires LADLE_USDA_API_KEY for calculated-nutrition cases"
+        )
+    verifier: TargetedRecipeVerifier | None = None
+    if settings.extraction_provider == "openrouter":
+        if settings.openrouter_api_key is None:
+            raise RuntimeError("evaluation requires LADLE_OPENROUTER_API_KEY")
+        key = settings.openrouter_api_key.get_secret_value()
+        client: ClaudeStructuredClient = OpenRouterStructuredClient(
+            http=httpx.Client(
+                timeout=settings.openrouter_timeout_seconds,
+                trust_env=False,
             ),
-            {
-                "id": job_id,
-                "user": user_id,
-                "source": descriptor.source_video_id,
-                "url": url,
-                "canonical": descriptor.canonical_url,
-                "platform": descriptor.platform,
-                "key": f"eval-{job_id}",
-            },
+            api_key=key,
+            base_url=str(settings.openrouter_base_url),
         )
-    return job_id, descriptor
-
-
-def _retire_job(job_id: uuid.UUID) -> None:
-    """Leave no job parked in parsing for the sweeper to reclaim later."""
-
-    with runtime_sessions()() as database, database.begin():
-        database.execute(
-            text(
-                "UPDATE import_jobs SET status='failed', stage='failed',"
-                " diagnostic_code='evalHarness', completed_at=now(),"
-                " updated_at=now() WHERE id=:id"
-            ),
-            {"id": job_id},
+        model_id = settings.openrouter_model_id
+        max_tokens = settings.openrouter_max_tokens
+        if settings.recipe_verification_enabled:
+            verifier = TargetedRecipeVerifier(
+                client=OpenRouterVerificationClient(
+                    http=httpx.Client(
+                        timeout=settings.openrouter_timeout_seconds,
+                        trust_env=False,
+                    ),
+                    api_key=key,
+                    base_url=str(settings.openrouter_base_url),
+                ),
+                model_id=model_id,
+                max_tokens=settings.recipe_verification_max_tokens,
+            )
+    else:
+        if settings.anthropic_api_key is None:
+            raise RuntimeError("evaluation requires LADLE_ANTHROPIC_API_KEY")
+        anthropic = Anthropic(
+            api_key=settings.anthropic_api_key.get_secret_value(),
+            base_url=str(settings.anthropic_base_url),
+            timeout=settings.anthropic_timeout_seconds,
         )
+        client = AnthropicStructuredClient(anthropic)
+        model_id = settings.anthropic_model_id
+        max_tokens = settings.anthropic_max_tokens
+        if settings.recipe_verification_enabled:
+            verifier = TargetedRecipeVerifier(
+                client=AnthropicVerificationClient(anthropic),
+                model_id=model_id,
+                max_tokens=settings.recipe_verification_max_tokens,
+                provider="anthropic",
+            )
+    return EvaluationPipeline(
+        client=client,
+        model_id=model_id,
+        max_tokens=max_tokens,
+        nutrition=NutritionCalculator(
+            USDAClient(
+                http=httpx.Client(
+                    timeout=settings.usda_timeout_seconds,
+                    trust_env=False,
+                ),
+                api_key=settings.usda_api_key.get_secret_value(),
+                base_url=str(settings.usda_base_url),
+                maximum_candidates=settings.usda_maximum_candidates,
+            )
+        ),
+        verifier=verifier,
+    )
 
 
-def acquire() -> None:
-    CACHE.mkdir(parents=True, exist_ok=True)
-    resolver = SourceIdentityParser()
-    acquirer = runtime_orchestrator()._acquirer
-    for url in SOURCES:
-        target = CACHE / f"{slug(url)}.json"
-        if target.exists():
-            print(f"cached   {slug(url)}")
-            continue
-        identity = resolver.parse(url)
-        descriptor = SourceVideoDescriptor(
-            source_video_id=uuid.uuid4(),
-            platform=identity.platform.value,
-            platform_video_id=identity.platform_video_id,
-            canonical_url=identity.canonical_url,
-            source_revision="eval-1",
-        )
-        job_id, descriptor = _seed_job(descriptor, url)
-        try:
-            context = acquirer.acquire(descriptor, job_id=job_id)
-        except Exception as error:
-            print(f"FAILED   {slug(url)}: {type(error).__name__}: {error}")
-            continue
-        finally:
-            _retire_job(job_id)
-        target.write_text(context.model_dump_json(indent=2))
-        spoken = [value for value in context.transcript if value.generated]
-        print(
-            f"acquired {slug(url)}  transcript={len(context.transcript)} "
-            f"(generated={len(spoken)}) links={len(context.linked_documents)} "
-            f"diagnostics={context.diagnostics}"
-        )
+def _context(
+    case: EvaluationReferenceCase,
+    *,
+    fixture_version: str,
+) -> AcquiredVideoContext:
+    return AcquiredVideoContext(
+        source=SourceVideoDescriptor(
+            source_video_id=uuid.uuid5(uuid.NAMESPACE_URL, case.source_url),
+            platform="youtube",
+            platform_video_id=case.cache_key,
+            canonical_url=case.source_url,
+            source_revision=fixture_version,
+        ),
+        is_public=True,
+        title=case.evidence.title,
+        description=case.evidence.description,
+        creator_name=case.attribution,
+        language="en",
+        linked_documents=[
+            LinkedDocument(
+                url=case.source_url,
+                text=case.evidence.linked_document_text,
+                provenance="public-government-recipe",
+            )
+        ],
+        visual_observations=[],
+        diagnostics=["lockedTextEvaluationFixture"],
+    )
+
+
+def _safety_context(case: SparseSafetyCase) -> AcquiredVideoContext:
+    return AcquiredVideoContext(
+        source=SourceVideoDescriptor(
+            source_video_id=uuid.uuid5(uuid.NAMESPACE_URL, case.source_url),
+            platform="youtube",
+            platform_video_id=case.id,
+            canonical_url=case.source_url,
+            source_revision="safety-v1",
+        ),
+        is_public=True,
+        title=case.evidence.title,
+        description=case.evidence.description,
+        transcript=[
+            TextEvidence(
+                text=value,
+                provenance="synthetic-transcript",
+                generated=False,
+            )
+            for value in case.evidence.transcript
+        ],
+        linked_documents=[
+            LinkedDocument(
+                url=case.source_url,
+                text=value,
+                provenance="synthetic-linked-document",
+            )
+            for value in case.evidence.linked_document_texts
+        ],
+        visual_observations=[],
+    )
 
 
 @dataclass
@@ -265,34 +313,6 @@ def _load_corpus(partition: str) -> EvaluationCorpus:
     )
 
 
-def _nutrition_prediction(
-    extraction: RecipeExtraction,
-) -> NutritionPrediction | None:
-    nutrition = extraction.nutrition
-    if (
-        extraction.servings is None
-        or nutrition is None
-        or nutrition.calories is None
-        or nutrition.protein_grams is None
-        or nutrition.carbohydrate_grams is None
-        or nutrition.fat_grams is None
-    ):
-        return None
-    raw_basis = getattr(nutrition, "basis", "unknown")
-    basis = cast(
-        NutritionBasis,
-        raw_basis if raw_basis in {"creatorStated", "usdaCalculated"} else "unknown",
-    )
-    return NutritionPrediction(
-        servings=extraction.servings,
-        calories=nutrition.calories,
-        protein_grams=nutrition.protein_grams,
-        carbohydrate_grams=nutrition.carbohydrate_grams,
-        fat_grams=nutrition.fat_grams,
-        basis=basis,
-    )
-
-
 def _structural_prediction(extraction: RecipeExtraction) -> StructuralPrediction:
     return StructuralPrediction(
         stated_cook_time_minutes=extraction.cooking_minutes,
@@ -307,14 +327,9 @@ def _structural_prediction(extraction: RecipeExtraction) -> StructuralPrediction
 
 def extract(label: str, only: str | None, partition: str) -> None:
     RESULTS.mkdir(parents=True, exist_ok=True)
-    # Go through the structured client rather than ClaudeRecipeExtractor.extract,
-    # which returns the reviewed template. The raw RecipeExtraction is what
-    # carries servingsBasis, methodProvenance and the metric amounts — exactly
-    # the fields worth watching while tuning the prompt.
-    extractor = cast(ClaudeRecipeExtractor, runtime_orchestrator()._extractor)
-    client = extractor._client
     scores: list[Score] = []
     corpus = _load_corpus(partition)
+    pipeline = _pipeline(Settings())
     references = [
         case
         for case in corpus.cases
@@ -327,65 +342,37 @@ def extract(label: str, only: str | None, partition: str) -> None:
         "fixtureVersion": corpus.fixture_version,
         "partition": corpus.partition,
         "referenceStatus": corpus.reference_status,
+        "corpusDigest": corpus.corpus_digest,
         "promptVersion": PROMPT_VERSION,
-        "modelVersion": extractor.model_id,
+        "modelVersion": pipeline.model_id,
         "label": label,
+        "visualProviderCalls": 0,
         "cases": [],
     }
     nutrition_scores = []
 
     for reference in references:
-        path = CACHE / f"{reference.cache_key}.json"
-        if not path.exists():
-            nutrition_score = score_nutrition_case(reference.nutrition, None)
-            nutrition_scores.append(nutrition_score)
-            dump["cases"].append(
-                {
-                    "id": reference.id,
-                    "sourceURL": reference.source_url,
-                    "nutrition": nutrition_score.model_dump(
-                        mode="json", by_alias=True
-                    ),
-                    "structure": None,
-                    "error": f"missing acquired context: {path.name}",
-                }
-            )
-            continue
-        context = AcquiredVideoContext.model_validate_json(path.read_text())
+        context = _context(reference, fixture_version=corpus.fixture_version)
         try:
-            response = client.parse_recipe(
-                model=extractor.model_id,
-                max_tokens=extractor._max_tokens,
-                system=SYSTEM_PROMPT,
-                user_prompt=build_user_prompt(context),
-            )
-            extraction = response.parsed_output
-            if extraction is None:
-                print(
-                    f"FAILED   {path.stem}: no parsed output ({response.stop_reason})"
-                )
-                nutrition_score = score_nutrition_case(reference.nutrition, None)
-                nutrition_scores.append(nutrition_score)
-                dump["cases"].append(
-                    {
-                        "id": reference.id,
-                        "sourceURL": reference.source_url,
-                        "nutrition": nutrition_score.model_dump(
-                            mode="json", by_alias=True
-                        ),
-                        "structure": None,
-                        "error": f"no parsed output: {response.stop_reason}",
-                    }
-                )
-                continue
+            response, extraction, template = pipeline.run(context)
         except Exception as error:
-            print(f"FAILED   {path.stem}: {type(error).__name__}: {error}")
-            nutrition_score = score_nutrition_case(reference.nutrition, None)
+            print(
+                f"FAILED   {reference.cache_key}: "
+                f"{type(error).__name__}: {error}"
+            )
+            nutrition_score = score_nutrition_case(
+                reference.nutrition,
+                None,
+                expected_basis=reference.expected_nutrition_basis,
+            )
             nutrition_scores.append(nutrition_score)
             dump["cases"].append(
                 {
                     "id": reference.id,
                     "sourceURL": reference.source_url,
+                    "expectedNutritionBasis": (
+                        reference.expected_nutrition_basis
+                    ),
                     "nutrition": nutrition_score.model_dump(
                         mode="json", by_alias=True
                     ),
@@ -394,10 +381,11 @@ def extract(label: str, only: str | None, partition: str) -> None:
                 }
             )
             continue
-        template = build_reviewed_template(extraction, context=context)
+        prediction = whole_recipe_prediction(template)
         nutrition_score = score_nutrition_case(
             reference.nutrition,
-            _nutrition_prediction(extraction),
+            prediction,
+            expected_basis=reference.expected_nutrition_basis,
         )
         nutrition_scores.append(nutrition_score)
         structure = measure_structure(
@@ -408,9 +396,12 @@ def extract(label: str, only: str | None, partition: str) -> None:
         quantified = [
             value for value in extraction.ingredients if not value.is_to_taste
         ]
-        provenances = {value.provenance for value in context.transcript}
+        provenances = {
+            *(value.provenance for value in context.transcript),
+            *(value.provenance for value in context.linked_documents),
+        }
         score = Score(
-            name=path.stem,
+            name=reference.cache_key,
             transcript_segments=len(context.transcript),
             transcript_provenance=",".join(sorted(provenances)) or "none",
             timed_fraction=_fraction(
@@ -442,12 +433,22 @@ def extract(label: str, only: str | None, partition: str) -> None:
             {
                 "id": reference.id,
                 "sourceURL": reference.source_url,
+                "expectedNutritionBasis": reference.expected_nutrition_basis,
                 "nutrition": nutrition_score.model_dump(
                     mode="json", by_alias=True
+                ),
+                "prediction": (
+                    prediction.model_dump(mode="json", by_alias=True)
+                    if prediction is not None
+                    else None
                 ),
                 "structure": structure.model_dump(mode="json", by_alias=True),
                 "title": extraction.title,
                 "promptCharacters": len(build_user_prompt(context)),
+                "usage": {
+                    "extractionInputTokens": response.input_tokens,
+                    "extractionOutputTokens": response.output_tokens,
+                },
                 "transcriptProvenance": score.transcript_provenance,
                 "ingredients": [
                     {
@@ -479,6 +480,36 @@ def extract(label: str, only: str | None, partition: str) -> None:
                 "uncertainties": score.top_uncertainties,
             }
         )
+
+    safety_references = [
+        case
+        for case in corpus.safety_cases
+        if only is None or only in case.id
+    ]
+    safety_results: list[dict[str, object]] = []
+    for safety_reference in safety_references:
+        try:
+            require_recipe_evidence(_safety_context(safety_reference))
+            actual = "accepted"
+        except InsufficientTextEvidence:
+            actual = "insufficientTextEvidence"
+        safety_results.append(
+            {
+                "id": safety_reference.id,
+                "expected": safety_reference.expected_outcome,
+                "actual": actual,
+                "passes": actual == safety_reference.expected_outcome,
+            }
+        )
+    safety_passed = sum(bool(value["passes"]) for value in safety_results)
+    dump["sparseSafety"] = {
+        "passed": safety_passed,
+        "total": len(safety_results),
+        "meetsGate": (
+            bool(safety_results) and safety_passed == len(safety_results)
+        ),
+        "cases": safety_results,
+    }
 
     header = (
         f"{'source':<24} {'segs':>4} {'ingr':>5} "
@@ -521,28 +552,31 @@ def extract(label: str, only: str | None, partition: str) -> None:
         f"({nutrition_summary.pass_rate:.1%}) "
         f"gate={'PASS' if nutrition_summary.meets_gate else 'FAIL'}"
     )
+    if safety_results:
+        print(
+            "sparse safety "
+            f"{safety_passed}/{len(safety_results)} "
+            f"gate={'PASS' if safety_passed == len(safety_results) else 'FAIL'}"
+        )
+    print("visual provider calls 0 gate=PASS")
     if corpus.reference_status != "verified":
         print("reference status is scaffold; this run is not accuracy evidence")
 
     out = RESULTS / f"{label}.json"
-    out.write_text(json.dumps(dump, indent=2, ensure_ascii=False))
+    out.write_text(json.dumps(dump, indent=2, ensure_ascii=False) + "\n")
     print(f"\nwrote {out}")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="command", required=True)
-    sub.add_parser("acquire")
     run = sub.add_parser("extract")
     run.add_argument("--label", default="run")
     run.add_argument("--only", default=None)
     run.add_argument("--corpus", choices=REFERENCE_FIXTURES, required=True)
     arguments = parser.parse_args()
 
-    if arguments.command == "acquire":
-        acquire()
-    else:
-        extract(arguments.label, arguments.only, arguments.corpus)
+    extract(arguments.label, arguments.only, arguments.corpus)
     return 0
 
 

@@ -112,7 +112,10 @@ ingredient must have a quantity, match one complete USDA record, and pass a
 broad calorie-versus-macros consistency check. To-taste seasonings are omitted.
 The whole-recipe totals are divided only by a creator-stated serving count,
 then stored as `usdaCalculated` / `isEstimated=true` with the contributing FDC
-IDs retained as internal evidence.
+IDs retained as internal evidence. Because the stored numeric values describe
+one serving, their `servingBasis` is `1`; consumers recover a whole-recipe
+total by multiplying by recipe servings. This matches the iOS scaling
+contract and prevents a second accidental division by the recipe yield.
 
 Any missing quantity, unsupported portion, ambiguous food match, incomplete
 macro record, unknown serving count, or implausible nutrient record produces
@@ -157,6 +160,7 @@ are controlled by `LADLE_RECIPE_VERIFICATION_ENABLED` and
 - extraction prompt serialization;
 - USDA FoodData Central client and deterministic nutrition calculator;
 - deterministic issue detection and targeted structured verifier;
+- locked text-only extraction corpus and whole-recipe evaluator;
 - VPS and local environment defaults;
 - provider cost measurement; and
 - thumbnail retry/reparse behavior.
@@ -200,3 +204,11 @@ The targeted-verification slice additionally passed all 80 extraction tests,
 retry/reparse integration tests, and the complete 511-test backend
 unit/contract suite. Ruff passed the full backend application and tests;
 strict mypy passed all 117 source files.
+
+The locked-evaluation slice adds 20 tuning nutrition cases, 80 held-out
+nutrition cases, and 20 sparse safety cases from retained public-government
+text and synthetic no-match evidence. Its 18 integrity/scorer tests pass,
+including fixed digest and 20/20 production evidence-gate refusal checks. The
+model-backed 95% held-out gate still requires provider credentials and is not
+claimed by these deterministic checks; see
+`docs/verification/2026-08-24-text-only-accuracy.md`.

@@ -113,7 +113,7 @@ def recipe(
     )
 
 
-def test_calculates_recipe_totals_and_divides_by_stated_servings() -> None:
+def test_calculates_per_serving_nutrition_with_one_serving_basis() -> None:
     source = Foods({"chickpeas drained": [food()]})
 
     result = NutritionCalculator(source).calculate(recipe([ingredient()]))
@@ -123,7 +123,7 @@ def test_calculates_recipe_totals_and_divides_by_stated_servings() -> None:
     assert result.protein_grams == Decimal("5.0")
     assert result.carbohydrate_grams == Decimal("10.0")
     assert result.fat_grams == Decimal("1.0")
-    assert result.serving_basis == Decimal("4")
+    assert result.serving_basis == Decimal("1")
     assert result.basis == "usdaCalculated"
     assert result.is_estimated
     assert "FDC 1" in (result.evidence or "")

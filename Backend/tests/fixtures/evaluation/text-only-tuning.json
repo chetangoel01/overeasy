@@ -1,27 +1,670 @@
 {
   "corpusName": "text-only-tuning",
-  "fixtureVersion": "scaffold-v1",
+  "fixtureVersion": "public-domain-v1",
   "partition": "tuning",
-  "referenceStatus": "scaffold",
+  "referenceStatus": "verified",
+  "corpusDigest": "3461ea84be082f52436c70e38537bda708ca1719de0e362f792da876a8063eee",
   "cases": [
     {
-      "id": "tuning-scaffold-001",
-      "cacheKey": "7628226554589482271",
-      "sourceURL": "https://www.tiktok.com/@mishkamakesfood/video/7628226554589482271",
+      "id": "tuning-usda-001",
+      "cacheKey": "tuning-usda-001",
+      "sourceURL": "https://www.fns.usda.gov/sites/default/files/resource-files/Baked_Beans_6_Servings.pdf",
+      "retrievedAt": "2026-08-24",
+      "license": "usGovernmentPublicDomain",
+      "attribution": "USDA Food and Nutrition Service, CACFP Home Childcare 6-Serving Recipe Project.",
+      "expectedNutritionBasis": "usdaCalculated",
+      "evidence": {
+        "title": "Baked Beans",
+        "description": "Official USDA standardized recipe.",
+        "linkedDocumentText": "United States Department of Agriculture                                     Baked Beans -– CACFP Home Childcare\n\n\n Baked Beans\n This meatless dish is a must try! Baked beans with a Hawaiian twist that includes\n sweet bites of pineapple, onions, peppers and a smokey flavor of the south.\n\n\n  CACFP Home Childcare Crediting Information\n  Legume as Meat Alternate: ½ cup (½ cup measuring cup or\n  4 oz slotted spoodle) provides 2 oz equivalent meat alternate.\n  OR                                                                                      Preparation Time: 15 minutes\n  Legume as Vegetable: ½ cup (½ cup measuring cup or 4 oz slotted                         Cooking Time: 40 minutes\n  spoodle) provides ½ cup vegetable (½ cup legume vegetable).\n                                                                                          Makes: 6 servings\n\n  Ingredients                                                        Directions\n  3 ¼ cups or 29 ½ oz Canned vegetarian beans                        1   Preheat oven:\n  ⅔ cup or 3 oz Fresh yellow onions, chopped                             Conventional oven: 375 °F.\n                                                                         Convection oven: 350 °F.\n  ½ cup or 2 oz Fresh green bell peppers, diced\n                                                                     2   In a large mixing bowl, combine beans, onions,\n  1 tsp Ground mustard                                                   bell peppers, ground mustard, yellow mustard,\n                                                                         brown sugar, granulated sugar, tomato paste,\n  1 Tbsp Yellow mustard\n                                                                         pineapple tidbits, apple cider vinegar, liquid\n  ½ cup or 3 ¾ oz Brown sugar, packed                                    smoke, black pepper, cinnamon, and allspice.\n  ¼ cup or 2 oz Granulated sugar                                         Stir well.\n                                                                     3   Pour the bean mixture into a (9” x 13” x 2”)\n  2 Tbsp or 1 ¼ oz Canned tomato paste, unsalted\n                                                                         baking dish.\n  ½ cup or 5 oz Pineapple tidbits, in juice                          4   Bake:\n  slightly drained                                                       Conventional oven: 375 ºF 30-40 minutes.\n                                                                         Convection oven: 350 ºF 30-35 minutes.\n  ¾ tsp Apple cider vinegar                                          5   Critical Control Point:\n  1 tsp Liquid smoke                                                     Heat to 140 °F or higher for at least\n  ⅛ tsp Ground black pepper                                              15 seconds.\n                                                                     6   Critical Control Point:\n  ½ tsp Ground cinnamon                                                  Hold at 140 °F or higher until served.\n  ⅛ tsp Ground allspice                                              7   Serve ½ cup (portion with ½ cup measuring\n                                                                         cup or 4 oz slotted spoodle).\n\n\n\n\nSource:\nCACFP Home Childcare 6-Serving Recipe Project"
+      },
       "nutrition": {
-        "servings": "4",
-        "calories": "520",
-        "proteinGrams": "24",
-        "carbohydrateGrams": "62",
-        "fatGrams": "20"
+        "servings": "6",
+        "calories": "1608",
+        "proteinGrams": "48",
+        "carbohydrateGrams": "360",
+        "fatGrams": "0"
+      },
+      "structure": {
+        "statedCookTimeMinutes": "40",
+        "ingredientNameQuantities": [
+          {
+            "name": "Canned vegetarian beans",
+            "quantity": "3 ¼ cups"
+          }
+        ],
+        "orderedStepPhrases": [
+          "Preheat oven"
+        ]
+      }
+    },
+    {
+      "id": "tuning-usda-002",
+      "cacheKey": "tuning-usda-002",
+      "sourceURL": "https://www.fns.usda.gov/sites/default/files/resource-files/Baked_Sweet_Potatoes_Apples_6_Servings.pdf",
+      "retrievedAt": "2026-08-24",
+      "license": "usGovernmentPublicDomain",
+      "attribution": "USDA Food and Nutrition Service, CACFP Home Childcare 6-Serving Recipe Project.",
+      "expectedNutritionBasis": "creatorStated",
+      "evidence": {
+        "title": "Baked Sweet Potatoes Apples",
+        "description": "Official USDA standardized recipe.",
+        "linkedDocumentText": "United States Department of Agriculture                     Baked Sweet Potatoes and Apples -- CACFP Home Childcare\n\n\nBaked Sweet Potatoes and Apples\nBaked Sweet Potatoes and Apples become a year-round favorite when you\nspice them up with ginger and nutmeg!\n\n\nCACFP Home Childcare Crediting Information\n½ cup provides ¼ cup vegetable (¼ cup red/orange vegetable),\n                                                                                                      Preparation Time: 30 minutes\nand ¼ cup fruit.\n                                                                                                      Cooking Time: 20 minutes\n\n                                                                                                      Makes: 6 servings\n\n\n\nIngredients                                                            Directions\n3 cups or 12 oz Fresh sweet potatoes, diced                             1   Preheat oven:\n                                                                            Conventional oven: 375 °F.\n2 Tbsp or 1 oz Margarine, trans fat-free                                    Convection oven: 350 °F.\n1 Tbsp or ½ oz Fresh ginger, chopped                                    2   Spray (8” x 8”) square baking dish with\n                                                                            nonstick cooking spray. Place diced sweet\n½ cup or 3 oz Brown sugar, loosely packed\n                                                                            potatoes in the baking pan and cover tightly\n½ tsp Ground cinnamon                                                       with foil.\n½ tsp Ground nutmeg                                                     3   Bake:\n¼ tsp Salt                                                                  Conventional oven: 375 °F for 20 minutes.\n                                                                            Convection oven: 350 °F for 15 minutes.\n½ tsp Vanilla extract                                                   4   Critical Control Point:\n1 ¼ cups or 7 oz Frozen green apples, thawed,                               Heat to 140 °F or higher for at least\nunsweetened                                                                 15 seconds.\n                                                                        5   While sweet potatoes are baking, prepare the\n¼ cup or 2 oz Water\n                                                                            glaze. In a medium pot, add margarine,\n¼ cup or 2 oz Orange juice, concentrated, frozen,                           ginger, brown sugar, cinnamon, nutmeg, salt,\nthawed                                                                      and vanilla. Simmer on top of stove,\n                                                                            uncovered over medium-high heat, for\n⅓ cup or 1 ¼ oz Dried cranberries or dried raisins\n                                                                            1-2 minutes.\n1 ½ tsp Cornstarch                                                      6   Add apples. Simmer uncovered over medium-\n1 ½ tsp Water                                                               high heat for 3-5 minutes. Stir well until apples\n                                                                            are coated with glaze mixture.\n                                                                        7   Add water and orange juice concentrate.\n                                                                            Bring the mixture to a boil.\n\n\n\n\n  United States Department of Agriculture                     Baked Sweet Potatoes and Apples -- CACFP Home Childcare\n\n\n\n\n                                                                      Directions continued\n                                                                      8  Add dried cranberries, cornstarch, and water.\n                                                                         Stir well. Bring the cornstarch mixture to a boil\n                                                                         allowing the mixture to thicken and adhere to\n                                                                         apples.\n                                                                      9 After removing sweet potatoes from oven, pour\n                                                                         apple mixture over sweet potatoes in the baking\n                                                                         dish.\n                                                                      10 Critical Control Point:\n                                                                         Hold at 140 °F or higher until served\n                                                                      11 Serve ½ cup (portion with ½ cup measuring cup\n                                                                         or 4 oz spoodle).\n\n\n\n\nSource:\nCACFP Home Childcare 6-Serving Recipe\n\n\nNutrients Per Servings: Calories 160, Protein 1 g, Carbohydrates 35 g, Dietary Fiber 2 g, Total Sugars 24 g,\nTotal Fat 2 g, Saturated Fat 1 g, Cholesterol 0 mg, Sodium 130 mg, Vitamin A 333 mcg RAE, Vitamin C 23 mg,\nCalcium 93 mg, Vitamin D 20 IU, Calcium 93 mg, Iron 0 mg, Potassium 292 mg"
+      },
+      "nutrition": {
+        "servings": "6",
+        "calories": "960",
+        "proteinGrams": "6",
+        "carbohydrateGrams": "210",
+        "fatGrams": "12"
+      },
+      "structure": {
+        "statedCookTimeMinutes": "20",
+        "ingredientNameQuantities": [
+          {
+            "name": "Fresh sweet potatoes, diced",
+            "quantity": "3 cups"
+          }
+        ],
+        "orderedStepPhrases": [
+          "Preheat oven"
+        ]
+      }
+    },
+    {
+      "id": "tuning-usda-003",
+      "cacheKey": "tuning-usda-003",
+      "sourceURL": "https://www.fns.usda.gov/sites/default/files/resource-files/Bean_Burrito_Bowl_6_Servings.pdf",
+      "retrievedAt": "2026-08-24",
+      "license": "usGovernmentPublicDomain",
+      "attribution": "USDA Food and Nutrition Service, CACFP Home Childcare 6-Serving Recipe Project.",
+      "expectedNutritionBasis": "creatorStated",
+      "evidence": {
+        "title": "Bean Burrito Bowl",
+        "description": "Official USDA standardized recipe.",
+        "linkedDocumentText": "United States Department of Agriculture                                 Bean Burrito Bowl – CACFP Home Childcare\n\n\nBean Burrito Bowl\nBowl meals are one of the newest ways to create layers of nutrition. Our Bean\nBurrito Bowl’s burst of southwest flavor comes from brown rice, black beans,\nMexican spices and popular pico de gallo.\nCACFP Home Childcare Crediting Information\nLegume as Meat Alternate: 1-12 oz bowl provides ⅝ cup vegetable (⅛ cup\nadditional vegetable, ⅜ cup red/orange vegetable, ⅛ cup other vegetable),\n                                                                                         Preparation Time: 40 minutes\n2 oz equivalent meat/meat alternate, and 1 oz equivalent grains.\nOR                                                                                       Cooking Time: 50 minutes\nLegume as a Vegetable: 1-12 oz bowl provides 1 ⅛ cup vegetable (¼ cup\nadditional vegetable, ⅜ cup legume vegetable, ⅜ cup red/orange vegetable,                Makes: 6 servings\n⅛ cup other vegetable), 0.25 oz equivalent meat/meat alternate, and\n1 oz equivalent grains.\n\nIngredients                                                       Directions\n3 ½ cups or 1 lb 5 oz Canned, low sodium pinto                   1  Make Pico de Gallo recipe first and\nbeans, drained, rinsed                                              refrigerate. Set aside for step 12. See recipe\n                                                                    directions on page 2.\nOR                                                               2 Preheat oven:\n3 ½ cups or 1 lb 5 oz Dry pinto beans, cooked                       Conventional oven: 350 °F.\nSee Notes Section                                                   Convection oven: 325 °F.\n                                                                 3 Combine beans, onions, garlic powder,\n¼ cup or 1 oz Fresh onions, chopped                                 ground black pepper, chili powder, ground\n                                                                    cumin, paprika, onion powder, salt, water, and\n¾ tsp Garlic powder\n                                                                    tomato paste in a medium saucepan. Stir well.\n¼ tsp Ground black pepper                                           Simmer over medium heat uncovered for\n                                                                    15 minutes, stirring occasionally.\n¾ tsp Chili powder                                               4 Critical Control Point:\n1 tsp Ground cumin                                                  Heat to 140 °F or higher for at least\n                                                                    15 seconds.\n¾ tsp Paprika                                                       Set aside for step 12.\n                                                                 5 Critical Control Point:\n¾ tsp Onion powder\n                                                                    Hold for hot service at 140 °F.\n½ tsp Salt                                                       6 Boil water for step 8.\n                                                                 7 Place 1 ⅛ cup brown rice in a small baking\n1 ⅛ cup or 9 oz Water                                               pan (8” x 8” x 2”).\n¼ cup or 3 ½ oz Canned no-salt-added tomato                      8 Pour boiling water (2 cups) over brown rice.\npaste                                                               Stir. Cover pan tightly.\n                                                                 9 Bake:\n2 cup or 16 oz Water                                                Conventional oven: 350 °F for 40 minutes.\n                                                                    Convection oven: 325 °F for 40 minutes.\n1 ⅛ cup or 7 oz Brown rice, long-grain, regular, dry,            10 Critical Control Point:\nparboiled                                                           Heat to 140 °F or higher for 15 seconds.\n                                                                 11 Remove rice from oven. Fold cilantro into rice.\n¼ cup or ½ oz Fresh cilantro, finely chopped\n                                                                    Set aside for step 12.\nPico de Gallo (See Notes)\n½ cup or 2 oz Reduced-fat cheddar cheese, finely\nshredded\n\n   United States Department of Agriculture                                 Bean Burrito Bowl – CACFP Home Childcare\n\n\n\n\n Notes Section:                                                       Directions continued\n How to Cook Dry Beans                                                 12 Assembly using a 12 oz bowl:\n Special tip for preparing dry beans:                                         a. First layer:\n                                                                                  Portion rice mixture with\n SOAKING BEANS                                                                    No. 8 scoop (½ cup).\n OVERNIGHT METHOD: Add 1 ¾ qt cold water to                                       Portion beans with\n every 1 lb of dry beans.                                                         No. 8 scoop (½ cup).\n Cover and refrigerate overnight. Discard the                                 b. Third layer:\n water. Proceed with recipe.                                                      Portion Pico de Gallo with\n QUICK-SOAK METHOD: Boil 1 ¾ qt of water for                                      No. 16 scoop (¼ cup).\n each 1 lb of dry beans.                                               13 Garnish each burrito bowl\n Add beans and boil for 2 minutes. Remove from                            with 1 Tbsp of cheese.\n heat and allow to soak for 1 hour. Discard the                        14 Serve 1–12 oz burrito bowl.\n water. Proceed with recipe.\n                                                                      Pico de Gallo Recipe\n COOKING BEANS\n Once the beans have been soaked, add 1 ¾ qt                          10 oz Fresh tomatoes chopped\n water for every lb of dry beans. Boil gently with lid                3 oz Fresh red onions diced ¼”\n                                                                      1 oz Fresh jalapeño peppers seeded diced ¼”\n tilted until tender, about 2 hours. Use hot beans\n                                                                      ¼ cup or ½ oz Fresh cilantro, finely chopped\n immediately.\n                                                                      ⅛ cup Fresh green onions, finely chopped\n Critical Control Point:                                              ⅛ tsp Salt\n Hold for hot service at 140 °F or higher.                            ⅛ tsp Ground black pepper\n OR                                                                   ¾ tsp Garlic powder\n Chill for later use.\n Critical Control Point:                                              Combine all ingredients in a medium size\n Cool to 70 °F within 2 hours and to 40 °F or lower                   mixing bowl. Stir well. Refrigerate until ready\n within 4 hours.                                                      to serve.\n 1 lb dry black beans = about 2 ¼ cups dry or 4 ½                     Critical Control Point:\n cups cooked beans.                                                   Cool to 70 °F within 2 hours and to 40 °F or\n                                                                      lower within 4 hours.\n                                                                      Hold at 40 °F degrees or below.\n\n\n\n\nSource:\nCACFP Home Childcare 6-Serving Recipe Project\n\n\n\nNutrients Per Serving: Calories 259, Protein 13 g, Carbohydrates 51 g, Dietary Fiber 10 g, Total Sugar 4 g,\nTotal Fat 3 g, Saturated Fat 1 g, Cholesterol 5 mg, Sodium 471 mg, Vitamin A 94 mcg RAE, Vitamin C 26 mg,\nVitamin D 1 IU, Calcium 204 mg, Iron 5 mg, Potassium 606 mg"
+      },
+      "nutrition": {
+        "servings": "6",
+        "calories": "1554",
+        "proteinGrams": "78",
+        "carbohydrateGrams": "306",
+        "fatGrams": "18"
+      },
+      "structure": {
+        "statedCookTimeMinutes": "50",
+        "ingredientNameQuantities": [
+          {
+            "name": "5 oz Canned, low sodium pinto",
+            "quantity": "3 ½ cups"
+          }
+        ],
+        "orderedStepPhrases": [
+          "Make Pico de Gallo recipe first and"
+        ]
+      }
+    },
+    {
+      "id": "tuning-usda-004",
+      "cacheKey": "tuning-usda-004",
+      "sourceURL": "https://www.fns.usda.gov/sites/default/files/resource-files/Brown_Rice_Pilaf_6_Servings.pdf",
+      "retrievedAt": "2026-08-24",
+      "license": "usGovernmentPublicDomain",
+      "attribution": "USDA Food and Nutrition Service, CACFP Home Childcare 6-Serving Recipe Project.",
+      "expectedNutritionBasis": "usdaCalculated",
+      "evidence": {
+        "title": "Brown Rice Pilaf",
+        "description": "Official USDA standardized recipe.",
+        "linkedDocumentText": "United States Department of Agriculture                                    Brown Rice Pilaf – –CACFP Home Childcare\n\n\n Brown Rice Pilaf\n Brown Rice Pilaf is a beautiful side dish that combines brown rice and spinach\n with a burst of dried cranberries in a way that makes you want more!\n\n CACFP Home Childcare Crediting Information\n One cup (½ cup measuring cup or No. 8 scoop) provides ¼ cup                                  Preparation Time: 15 minutes\n vegetable (¼ cup red/orange vegetable) and 1 oz equivalent grains.                           Cooking Time: 35 minutes\n\n                                                                                              Makes: 6 servings\n\n  Ingredients                                                         Directions\n                                                                     1  Preheat oven:\n  ¼ cup or 2 oz Fresh onions, diced\n                                                                        Conventional oven: 350 °F.\n  ¼ cup or 2 oz Fresh green bell peppers, diced                         Convection oven: 325 °F.\n  ½ tsp Garlic, minced                                               2 Place onions, peppers, and garlic in a\n                                                                        medium saucepan. Sauté uncovered over\n  ¼ tsp Salt                                                            medium heat for 2 minutes.\n  Pinch or ⅛ tsp Ground black pepper                                 3 Add salt, pepper, celery salt, mushrooms,\n                                                                        and thyme. Continue cooking one additional\n  OR\n                                                                        minute, stirring constantly.\n  Pinch or ⅛ tsp Ground white pepper                                 4 Add chicken broth and tomato paste to\n  ¼ tsp Celery salt                                                     vegetable mixture. Stir well. Bring mixture to\n                                                                        a boil and reduce heat to low and simmer for\n  1 cup or 2 oz Fresh mushrooms, sliced                                 2 minutes.\n  ¼ tsp Fresh thyme                                                  5 Place uncooked brown rice in a medium\n                                                                        baking dish (9”x13”x 2”).\n  3 cups Low-sodium chicken broth\n                                                                     6 Pour vegetable mixture over rice. Stir well.\n  ½ cup or 4 oz Canned no-salt-added tomato paste                    7 Cover baking dish tightly.\n  1 ⅛ cups or 7 oz Brown rice, uncooked, long-grain,                 8 Bake:\n  regular, dry, parboil                                                 Conventional oven: 350 °F for 45 minutes.\n                                                                        Convection oven: 325 °F for 40 minutes.\n  2 cups or 2 oz Fresh spinach, chopped                              9 Critical Control Point:\n  ¼ cup or 1 ½ oz Dried cranberries                                     Heat to 140 °F or higher for at least\n                                                                        15 seconds.\n  ⅛ cup or ½ oz Fresh Parmesan cheese, shaved                        10 Remove baking dish from oven.\n  1 ½ tsp Fresh parsley, minced                                      11 Combine spinach, cranberries, and\n                                                                        parmesan cheese in a large bowl.\n                                                                        Sprinkle over cooked rice.\n                                                                     12 Critical Control Point:\n                                                                        Hold at 140 °F or higher until served.\n                                                                     13 Garnish with parsley.\n                                                                     14 Serve ½ cup (portion with ½ cup measuring\n                                                                        cup or No. 8 scoop).\n\n\nSource:\nCACFP Home Childcare 6-Serving Recipe Project"
+      },
+      "nutrition": {
+        "servings": "6",
+        "calories": "1170",
+        "proteinGrams": "48",
+        "carbohydrateGrams": "252",
+        "fatGrams": "18"
+      },
+      "structure": {
+        "statedCookTimeMinutes": "35",
+        "ingredientNameQuantities": [
+          {
+            "name": "Fresh green bell peppers, diced",
+            "quantity": "¼ cup"
+          }
+        ],
+        "orderedStepPhrases": [
+          "Preheat oven"
+        ]
+      }
+    },
+    {
+      "id": "tuning-usda-005",
+      "cacheKey": "tuning-usda-005",
+      "sourceURL": "https://www.fns.usda.gov/sites/default/files/resource-files/Chicken_Fajita_6_Servings.pdf",
+      "retrievedAt": "2026-08-24",
+      "license": "usGovernmentPublicDomain",
+      "attribution": "USDA Food and Nutrition Service, CACFP Home Childcare 6-Serving Recipe Project.",
+      "expectedNutritionBasis": "creatorStated",
+      "evidence": {
+        "title": "Chicken Fajita",
+        "description": "Official USDA standardized recipe.",
+        "linkedDocumentText": "United States Department of Agriculture\n                                                                             Chicken Fajita - –\n                                                                                             CACFP Home Childcare\n\n\nChicken Fajita\nChicken Fajitas are an easy and delicious Mexican recipe! A warm tortilla holds\nseasoned juicy chicken, sautéed pepper and onions, and toppings; finished with\na squeeze of fresh lime.\n\nCACFP Home Childcare Crediting Information\n1 Fajita provides ½ cup vegetable (¼ cup additional vegetable,                              Preparation Time: 15 minutes\n⅛ cup starchy vegetable, ⅛ cup other vegetable), 1 oz equivalent meat                       plus 12-24 hours marinating time\nalternate, and 1 oz equivalent grains.                                                      Cooking Time: 15 minutes\n\n                                                                                            Makes: 6 servings\n\nIngredients:                                                        Directions:\n7 oz Frozen chicken strips, cooked, thawed                          1   Combine chicken, pepper, garlic powder, chili\n                                                                        powder, cumin, oregano, and Ancho chili\n½ tsp Ground black or white pepper                                      powder or Mexican seasoning mix in a large\n½ tsp Garlic powder                                                     bowl. Stir well. Cover tightly. Allow chicken\n                                                                        mixture to marinate for 12-24 hours.\n1 tsp Chili powder                                                  2   Spray medium saucepan lightly with a pan\n1 tsp Ground cumin                                                      release spray. Heat saucepan to medium high\n                                                                        heat and place marinated chicken in saucepan.\n¼ tsp Dried oregano\n                                                                        Sauté uncovered for 5 minutes.\n1 Tbsp Ancho chili powder                                           3   Critical Control Point:\n                                                                        Heat to 165 °F or higher for at least\nOR                                                                      15 seconds.\n1 Tbsp Mexican Seasoning Mix                                            Set aside for step 8.\n(See Notes Section)                                                 4   In another medium saucepan, spray lightly with\n                                                                        a pan release spray. Add peppers and onions.\n½ cup or 3 oz Red bell pepper, sliced                                   Sauté uncovered over medium-high heat until\n                                                                        onions for 2-3 minutes.\n½ cup or 3 oz Fresh green bell peppers, sliced                          Set aside for step 8.\n                                                                    5   Critical Control Point:\n                                                                        Heat to 140 °F or higher for at least\n                                                                        15 seconds.\n                                                                    6   In a third medium saucepan, add corn,\n                                                                        tomatoes, salsa, sugar, oil, paprika, and lime\n                                                                        juice. Simmer uncovered for 5 minutes over\n                                                                        medium heat. Stir occasionally.\n\n\n\n\n   United States Department of Agriculture                                    Chicken Fajita - –\n                                                                                              CACFP Home Childcare\n\n\n\n\n  Ingredients continued                                              Directions continued\n  ½ cup or 2 oz Fresh onions, sliced                                 7  Critical Control Point:\n  1 ¼ cup or 8 oz Frozen corn, thawed, drained                          Heat to 140 °F or higher for at least\n                                                                        15 seconds.\n  ½ cup or 3 ½ oz Canned tomatoes no-salt-added,                     8 Combine marinated chicken, sautéed\n  diced, drained\n                                                                        peppers and onions, and corn mixture in\n                                                                        a large mixing bowl. Toss well.\n  ½ cup or 3 ½ oz Canned low-sodium salsa\n                                                                     9 Using a No. 8 scoop, portion ½ cup\n  1 tsp Sugar                                                           chicken mixture on a tortilla. Spread\n                                                                        filling on half of tortilla, and fold in half\n  ⅛ cup or 2 Tbsp Canola oil                                            like a taco. Place 6 fajitas on baking\n  ¼ tsp Paprika                                                         dish (9” x 13” x 2”).\n                                                                     10 Critical Control Point:\n  ¼ cup or 2 oz Fresh limes (1 lime)\n                                                                        Hold for hot service at 140 °F or higher.\n  OR                                                                 11 Serve 1 fajita.\n  ¼ cup Fresh lime juice\n  6 Whole grain tortillas (1 oz each)\n\n\n\n\n   Notes Section:\n\n\n   Mexican Seasoning Mix ¾ cup (about 4 ½ oz)\n   Combine 1 Tbsp dried oregano, 1 Tbsp garlic powder, ¼ tsp ground cinnamon,\n   2 tsp sugar, 2 Tbsp chili powder, 1 Tbsp ground cumin, 1 Tbsp 2 tsp paprika,\n   1 Tbsp 2 tsp onion powder, 2 Tbsp dried minced onion, and 2 tsp salt.\n\n\n\n\nSource:\nCACFP Home Childcare 6-Serving Recipe Project\n\nNutrients Per Serving: Calories 230, Protein 13 g, Carbohydrates 28 g, Dietary Fiber 4 g, Total Sugars 6 g,\nTotal Fat 8 g, Saturated Fat 1 g, Cholesterol 25 mg, Sodium 262 mg Vitamin A 31 mcg RAE,\nVitamin C 39 mg, Vitamin D 1 IU, Calcium 72 mg, Iron 2 mg, Potassium 342 mg"
+      },
+      "nutrition": {
+        "servings": "6",
+        "calories": "1380",
+        "proteinGrams": "78",
+        "carbohydrateGrams": "168",
+        "fatGrams": "48"
+      },
+      "structure": {
+        "statedCookTimeMinutes": "15",
+        "ingredientNameQuantities": [
+          {
+            "name": "Frozen chicken strips, cooked, thawed",
+            "quantity": "7 oz"
+          }
+        ],
+        "orderedStepPhrases": [
+          "Combine chicken, pepper, garlic powder, chili"
+        ]
+      }
+    },
+    {
+      "id": "tuning-usda-006",
+      "cacheKey": "tuning-usda-006",
+      "sourceURL": "https://www.fns.usda.gov/sites/default/files/resource-files/Chicken_Turkey_Noodles_6_Servings.pdf",
+      "retrievedAt": "2026-08-24",
+      "license": "usGovernmentPublicDomain",
+      "attribution": "USDA Food and Nutrition Service, CACFP Home Childcare 6-Serving Recipe Project.",
+      "expectedNutritionBasis": "creatorStated",
+      "evidence": {
+        "title": "Chicken Turkey Noodles",
+        "description": "Official USDA standardized recipe.",
+        "linkedDocumentText": "United States Department of Agriculture               Chicken or Turkey Noodles - CACFP\n                                                                                     – Home Childcare\n\n\nChicken or Turkey Noodles\nChicken or Turkey Noodles is an easy casserole full of chicken,\nwhole grain spaghetti, spinach, and bell peppers in a light creamy\nsauce.\n\nCACFP Home Childcare Crediting Information\n1 cup (8 oz spoodle) provides ¼ cup vegetable                                     Preparation Time: 20 minutes\n(⅛ cup red/orange vegetable, ⅛ cup other vegetable),\n                                                                                  Cooking Time: 15 minutes\n1 oz equivalent meat, and 1 oz equivalent grains.\n                                                                                  Makes: 6 servings\n\n\nIngredients                                                   Directions\n2 cups Low-sodium chicken broth                                1  Heat chicken broth to a rolling boil in a\n1 qt or 7 oz Whole grain spaghetti noodles,                       medium saucepan.\nbroken in half                                                 2 Slowly add pasta. Stir constantly until broth\n                                                                  boils again. Cook about 6 minutes or until al\n1 ½ cups or 6 oz Fresh onions, diced                              dente. Stir occasionally.\n                                                                  DO NOT DRAIN BROTH OR OVERCOOK.\n4 cups or 6 oz Fresh carrots, shredded\n                                                               3 Add onions and carrots to pasta.\n1 Tbsp Margarine, trans fat-free                                  Remove from heat.\n2 Tbsp Whole-wheat flour                                          Set aside for step 7.\n                                                               4 In a medium saucepan, melt margarine\n¾ cup or 6 oz Nonfat milk                                         uncovered over medium heat.\n¼ tsp Salt                                                     5 Add flour. Stir well for 1 minute.\n¼ tsp Black pepper                                             6 Add milk. Stir mixture frequently until\n                                                                  smooth and free of lumps.\n¼ tsp Dried marjoram                                              Bring mixture to a boil.\n⅛ cup Dried parsley                                               Remove from heat.\n                                                               7 Add milk mixture, salt, pepper,\n3 ½ cups or 2 oz Fresh spinach, chopped                           marjoram, parsley, and chicken to pasta\n1 ½ cups or 7 oz Cooked diced chicken, thawed                     mixture. Heat uncovered over medium\n                                                                  heat for 3 minutes.\n                                                                  Stir until thickened.\n                                                               8 Add spinach. Stir well over medium heat.\n                                                               9 Critical Control Point:\n                                                                  Heat to 165° F or higher for at least\n                                                                  15 seconds.\n                                                               10 Transfer to a baking dish (9”x13”x2”)\n                                                               11 Critical Control Point:\n                                                                  Hold at 140 °F or higher until served.\n                                                               12 Serve 1 cup (portion with 1 cup measuring\n                                                                  cup or 8 oz spoodle).\n\nSource:\nCACFP Home Childcare 6-Serving Recipe Project\n\n\n\nNutrients Per Serving: Calories 244, Protein 16 g, Carbohydrates 34 g, Dietary Fiber 3 g,\nTotal Sugars 6 g, Total Fat 5 g, Saturated Fat 2 g, Cholesterol 63 mg, Sodium 222 mg,\nVitamin A 288 mcg RAE, Vitamin C 24 mg, Vitamin D 26 IU, Calcium 79 mg, Iron 2 mg, Potassium 421 mg"
+      },
+      "nutrition": {
+        "servings": "6",
+        "calories": "1464",
+        "proteinGrams": "96",
+        "carbohydrateGrams": "204",
+        "fatGrams": "30"
+      },
+      "structure": {
+        "statedCookTimeMinutes": "15",
+        "ingredientNameQuantities": [
+          {
+            "name": "Low-sodium chicken broth",
+            "quantity": "2 cups"
+          }
+        ],
+        "orderedStepPhrases": [
+          "Heat chicken broth to a rolling boil in"
+        ]
+      }
+    },
+    {
+      "id": "tuning-usda-007",
+      "cacheKey": "tuning-usda-007",
+      "sourceURL": "https://www.fns.usda.gov/sites/default/files/resource-files/Chinese_Style_Veg_Tofu_6_Servings.pdf",
+      "retrievedAt": "2026-08-24",
+      "license": "usGovernmentPublicDomain",
+      "attribution": "USDA Food and Nutrition Service, CACFP Home Childcare 6-Serving Recipe Project.",
+      "expectedNutritionBasis": "creatorStated",
+      "evidence": {
+        "title": "Chinese Style Veg Tofu",
+        "description": "Official USDA standardized recipe.",
+        "linkedDocumentText": "United States Department of Agriculture          Chinese Style Vegetables with Tofu -–CACFP Home Childcare\n\n\nChinese Style Vegetables with Tofu\nColorful Chinese Style Vegetables with Tofu provides crunchy bites of broccoli,\nfresh carrots, and red bell peppers along with tender tofu in a sweet\nand salty stir fry sauce. A quick and delicious meal!\n\n\nCACFP Home Childcare Crediting Information\n¾ cup (½ cup and ¼ cup measuring cups or 6 oz spoodle) provides                   Preparation Time: 20 minutes\n½ cup vegetable (¼ cup additional vegetable, ¼ cup red/orange                     Cooking Time: 15 minutes\nvegetable), and 1 oz equivalent meat alternate.\n                                                                                  Makes: 6 servings\n\nIngredients                                                Directions\n¾ cup or 4 oz Fresh broccoli crowns, cut into small        1  Make Stir Fry Sauce using USDA recipe on\npieces                                                        page 2.\n                                                           2 Heat large non-stick skillet over medium-\n2 cups or 6 oz Fresh yellow squash, diced                     high heat and spray with a pan release\n1 cup or 4 oz Fresh red bell peppers, julienne slices         spray.\n                                                           3 Add broccoli. Sauté over medium-high heat\n1 cup or 4 oz Fresh carrots, sliced\n                                                              for 2 minutes.\n2 cups or 13 ⅓ oz Tofu                                     4 Add squash. Sauté over medium-high heat\n⅛ cup Water                                                   for 3 minutes.\n⅛ cup Low-sodium soy sauce                                 5 Fold in red bell peppers. Sauté over\n                                                              medium-high heat for 1-2 minutes.\n¼ tsp Garlic powder                                        6 Add carrots, tofu, water, soy sauce, garlic\n⅛ tsp Ground black or white pepper                            powder, black or white pepper, ginger, and\n½ tsp Ginger, minced                                          Asian spice. Simmer uncovered over\n                                                              medium-high heat for 2-3 minutes.\n¼ tsp Asian five spice powder\n                                                           7 Critical Control Point:\n12 oz Stir fry sauce (recipe on next page)                    Heat to 140 °F or higher for at least\n                                                              15 seconds.\n                                                           8 Add stir fry sauce to vegetables and tofu in\n                                                              a large saucepan. Heat uncovered over low\n*See Notes Section for a replacement list of                  heat for 30 seconds, stirring constantly.\n                                                           9 Pour vegetable mixture into a serving dish\nvegetables to use in case the vegetables\n                                                              (8\" x 8\" x 2\").\nmentioned above are out of season.                         10 Critical Control Point:\n                                                              Hold at 140 °F or higher until served.\n                                                           11 Serve ¾ cup (portion with ½ cup and ¼ cup\n                                                              measuring cups or 6 oz spoodle).\n\n\n\n\n   United States Department of Agriculture         Chinese Style Vegetables with Tofu -–CACFP Home Childcare\n\n\n\n\n   Notes Section:\n\n   Seasonal Vegetable Replacement Options: Cauliflower, Celery, Onions, Cabbage,\n   Green Beans, Green Peas, Zucchini, Snow Peas, Pimientos, and Water Chestnuts\n\n   Stir Fry Sauce Recipe\n   ⅛ cup or 1 oz Sugar\n   1 ⅓ tsp Sesame oil\n   ⅛ cup Low-sodium soy sauce\n   1 ⅓ tsp Fresh ginger, grated\n   1 tsp Fresh garlic, minced\n   ¼ tsp Ground black pepper\n   ⅔ cup Vegetable stock\n   ⅛ cup Apple cider vinegar\n   1 tsp Lime juice\n   ¼ cup or ½ oz Fresh green onions, diced\n   ⅛ cup 1 tsp Cornstarch (rounded up)\n   ¼ cup Water\n\n   1     In a medium saucepan, add sugar, sesame oil, soy sauce, ginger, garlic, pepper,\n         stock, apple cider vinegar, lime juice, and onions.\n   2     Heat uncovered over medium-high heat for 2-3 minutes until sauce comes to a\n         simmer. Stir constantly.\n   3     Add cornstarch and water to thicken sauce. Simmer uncovered over medium-high\n         heat for 1 minute, stirring constantly.\n   4     Critical Control Point:\n         Heat to 140 °F or higher for at least 15 seconds.\n   5     Pour stir fry sauce into a baking dish (8” x 8” x 2”).\n   6     Critical Control Point:\n         Hold at 140 °F or higher until served.\n\n\n\n\nSource:\nCACFP Home Childcare 6-Serving Recipe Project\n\n\nNutrients Per Serving: Calories 127, Protein 8 g, Carbohydrates 13 g, Dietary Fiber 2 g,\nTotal Sugars 6 g, Total Fat 4 g, Saturated Fat 1 g, Cholesterol 0 mg, Sodium 439 mg,\nVitamin A 205 mcg RAE, Vitamin C 48 mg, Vitamin D 0 IU, Calcium 101 mg, Iron 2 mg, Potassium 221 mg"
+      },
+      "nutrition": {
+        "servings": "6",
+        "calories": "762",
+        "proteinGrams": "48",
+        "carbohydrateGrams": "78",
+        "fatGrams": "24"
+      },
+      "structure": {
+        "statedCookTimeMinutes": "15",
+        "ingredientNameQuantities": [
+          {
+            "name": "Fresh broccoli crowns, cut into small",
+            "quantity": "¾ cup"
+          }
+        ],
+        "orderedStepPhrases": [
+          "Make Stir Fry Sauce using USDA recipe on"
+        ]
+      }
+    },
+    {
+      "id": "tuning-usda-008",
+      "cacheKey": "tuning-usda-008",
+      "sourceURL": "https://www.fns.usda.gov/sites/default/files/resource-files/Corn_Edamame_Blend_6_Servings.pdf",
+      "retrievedAt": "2026-08-24",
+      "license": "usGovernmentPublicDomain",
+      "attribution": "USDA Food and Nutrition Service, CACFP Home Childcare 6-Serving Recipe Project.",
+      "expectedNutritionBasis": "usdaCalculated",
+      "evidence": {
+        "title": "Corn Edamame Blend",
+        "description": "Official USDA standardized recipe.",
+        "linkedDocumentText": "United States Department of Agriculture                          Corn and Edamame Blend -– CACFP Home Childcare\n\n\nCorn and Edamame Blend\nCorn and Edamame Blend is a delightful recipe filled with corn, carrots and\nedamame beans seasoned with a hint of sesame oil!\nCACFP Home Childcare Crediting Information\nLegume as Meat Alternate: ½ cup (½ cup measuring cup or\n4 oz spoodle) provides ¼ cup vegetable (⅛ cup additional vegetable,\n⅛ cup starchy vegetable), and 0.5 oz equivalent meat alternate.                                Preparation Time: 20 minutes\n                                                                                               Cooking Time: 10 minutes\nOR\n\nLegume as Vegetable: ½ cup (½ cup measuring cup or 4 oz spoodle)                               Makes: 6 servings\nprovides ½ cup vegetable (¼ cup additional vegetable, ⅛ cup legume\nvegetable, ⅛ cup starchy vegetable).\n\n\nIngredients                                                         Directions\n1 tsp Sesame oil                                                     1  Heat oil in a medium non-stick saucepan\n                                                                        over medium high heat.\n⅔ cup or 3 oz Fresh onions, chopped                                  2 Add onions and garlic.\n2 tsp Garlic, minced                                                    Sauté uncovered for 2 minutes.\n                                                                     3 Add corn. Sauté uncovered for 2 minutes\n⅔ cup or 5 oz Frozen corn, thawed, drained                              stirring frequently.\n1 cup or 6 oz Frozen edamame, thawed, drained                        4 Add edamame. Sauté uncovered over\n                                                                        high heat for 2 minutes, stirring\n1 ½ cups or 6 oz Fresh carrots, shredded                                frequently.\n¼ tsp Ground coriander seeds                                         5 Add carrots, coriander, sesame seeds,\n                                                                        salt, and cilantro.\n1 tsp Toasted sesame seeds (See Notes Section)                       6 Sauté uncovered over high heat for\n¼ tsp Salt                                                              3 minutes, stirring frequently.\n                                                                     7 Critical Control Point:\n¼ cup or ½ oz Fresh cilantro, chopped                                   Heat to 140 °F or higher for at least\n                                                                        15 seconds.\n                                                                     8 Pour corn and edamame mixture into a\n                                                                        baking dish (9” x13” x 2”).\n                                                                     9 Critical Control Point:\n                                                                        Hold at 140 °F or higher until served.\n                                                                     10 Serve ½ cup (portion with ½ cup\n                                                                        measuring cup or 4 oz spoodle).\n\n\n                                                                         Notes Section:\n\n\n                                                                         If toasted sesame seeds are unavailable, toast\n                                                                         sesame seeds in a small stock pot over medium\n                                                                         heat for 3 minutes before adding ingredient to\n                                                                         step 5.\n\nSource:\nCACFP Home Childcare 6-Serving Recipe Project"
+      },
+      "nutrition": {
+        "servings": "6",
+        "calories": "504",
+        "proteinGrams": "30",
+        "carbohydrateGrams": "60",
+        "fatGrams": "18"
+      },
+      "structure": {
+        "statedCookTimeMinutes": "10",
+        "ingredientNameQuantities": [
+          {
+            "name": "Sesame oil",
+            "quantity": "1 tsp"
+          }
+        ],
+        "orderedStepPhrases": [
+          "Heat oil in a medium non-stick saucepan"
+        ]
+      }
+    },
+    {
+      "id": "tuning-usda-009",
+      "cacheKey": "tuning-usda-009",
+      "sourceURL": "https://www.fns.usda.gov/sites/default/files/resource-files/Corn_Pudding_6_Servings.pdf",
+      "retrievedAt": "2026-08-24",
+      "license": "usGovernmentPublicDomain",
+      "attribution": "USDA Food and Nutrition Service, CACFP Home Childcare 6-Serving Recipe Project.",
+      "expectedNutritionBasis": "creatorStated",
+      "evidence": {
+        "title": "Corn Pudding",
+        "description": "Official USDA standardized recipe.",
+        "linkedDocumentText": "United States Department of Agriculture                                   Corn Pudding -– CACFP Home Childcare\n\n\nCorn Pudding\n Corn Pudding is a southern classic that combines frozen corn with canned\n cream style corn in a luscious batter made of whole wheat flour, whole-grain\n cornmeal, eggs, and sour cream. A delicious way to make any meal special!\n\n CACFP Home Childcare Crediting Information\n One piece (2 ½\" x 4\") provides ¼ cup vegetable                                      Preparation Time: 20 minutes\n (¼ cup starchy vegetable), and 1.25 oz equivalent grains.                           Cooking Time: 50 minutes\n\n                                                                                     Makes: 6 servings\n\n\n Ingredients                                                     Directions\n ½ cup + 2 Tbsp or 3 oz Whole-wheat flour                        1  Preheat oven:\n ¼ cup + 2 Tbsp or 2 oz White whole-grain cornmeal                  Conventional oven: 375 °F.\n                                                                    Convection oven: 325 °F.\n ⅛ cup or 2 Tbsp Sugar\n                                                                 2 Combine flour, cornmeal, sugar, baking\n 1 tsp Baking powder                                                powder, salt, and pepper in a large bowl.\n ⅛ tsp Salt                                                         Stir well.\n                                                                    Set aside for step 4.\n ⅛ tsp Ground black or white pepper\n                                                                 3 Combine eggs, sour cream, oil, corn, cream\n 1 medium Egg or 1 oz liquid egg                                    style corn, and onions in a large bowl.\n ¼ cup or 2 oz Low-fat sour cream                                   Stir well.\n                                                                 4 Pour egg mixture over flour mixture. Stir well.\n 1 Tbsp Canola oil\n                                                                 5 Transfer corn pudding mixture to a\n 1 cup or 5 ½ oz Frozen corn, thawed, drained                       (8” x 8” x 2”) baking dish lightly sprayed with\n ½ cup or 5 ½ oz Canned cream style corn, unsalted                  pan release spray.\n ¼ cup or 1 oz Fresh onions, chopped                             6 Bake until golden brown.\n                                                                    Conventional oven: 375 °F for 45-50 minutes.\n                                                                    Convection oven: 325 °F for 30-40 minutes.\n                                                                 7 Critical Control Point:\n                                                                    Heat to 140 °F or higher for at least\n                                                                    15 seconds.\n                                                                 8 Critical Control Point:\n                                                                    Hold for hot service at 140 °F or higher.\n                                                                 9 Cut into six even portions. Serve hot.\n                                                                 10 Serve 1 piece (about 2 ½” x 4” square).\n\n\n\n\nSource:\nCACFP Home Childcare 6-Serving Recipe Project\n\nNutrients Per Serving: Calories 189 Protein 5 g, Carbohydrates 33 g, Dietary Fiber 3 g, Total Sugars 8 g,\nTotal Fat 5 g, Saturated Fat 1 g, Cholesterol 32 mg, Sodium 162 mg, Vitamin A 14 mcg RAE , Vitamin C 1 mg,\nVitamin D 6 IU, Calcium 38 mg, Iron 1 mg, Potassium 216 mg"
+      },
+      "nutrition": {
+        "servings": "6",
+        "calories": "1134",
+        "proteinGrams": "30",
+        "carbohydrateGrams": "198",
+        "fatGrams": "30"
+      },
+      "structure": {
+        "statedCookTimeMinutes": "50",
+        "ingredientNameQuantities": [
+          {
+            "name": "+ 2 Tbsp or 3 oz Whole-wheat flour",
+            "quantity": "½ cup"
+          }
+        ],
+        "orderedStepPhrases": [
+          "Preheat oven"
+        ]
+      }
+    },
+    {
+      "id": "tuning-usda-010",
+      "cacheKey": "tuning-usda-010",
+      "sourceURL": "https://www.fns.usda.gov/sites/default/files/resource-files/Creamy_Coleslaw_6_Servings.pdf",
+      "retrievedAt": "2026-08-24",
+      "license": "usGovernmentPublicDomain",
+      "attribution": "USDA Food and Nutrition Service, CACFP Home Childcare 6-Serving Recipe Project.",
+      "expectedNutritionBasis": "creatorStated",
+      "evidence": {
+        "title": "Creamy Coleslaw",
+        "description": "Official USDA standardized recipe.",
+        "linkedDocumentText": "United States Department of Agriculture                                   Creamy Coleslaw -–CACFP Home Childcare\n\n\n  Creamy Coleslaw\n  This classic side dish, Creamy Coleslaw, is a flavorful and crunchy\n  combination of fresh cabbage, fresh carrots, green onions, and dried\n  cranberries in a sweet and tangy yogurt-based dressing.\n\n\n  CACFP Home Childcare Crediting Information\n  ½ cup (½ cup measuring cup or 4 oz spoodle)\n  provides ½ cup vegetable (½ cup other vegetable).                                        Preparation Time: 15 minutes\n                                                                                           Cooking Time: 10 minutes\n\n                                                                                           Makes: 6 servings\n\n\n  Ingredients                                                           Directions\n  ½ cup or 5 oz Low-fat yogurt, plain                                   1   Dressing:\n  ¼ cup or 2 oz Low-fat mayonnaise                                          Combine yogurt, mayonnaise, honey,\n                                                                            vinegar, salt, and pepper in a medium\n  ¼ cup or 2 ½ oz Honey                                                     mixing bowl. Stir well.\n  ⅛ cup Apple cider vinegar                                                 Set aside for step 3.\n  ¼ tsp Salt                                                            2   Salad:\n                                                                            Combine cabbage, carrots, onions, and\n  ¼ tsp Ground black pepper\n                                                                            dried cranberries in a large mixing bowl.\n  4 cups (1 qt) or 6 oz Fresh green cabbage, chilled,                       Toss lightly.\n  shredded                                                                  Set aside for step 3.\n                                                                        3   Five minutes before serving time pour\n  ¾ cup or 1 ¼ oz Fresh purple cabbage, chilled,\n  shredded                                                                  dressing over vegetable mixture. Stir well.\n                                                                        4   Transfer coleslaw to a large serving dish.\n  ¾ cup or 2 oz Fresh carrots, shredded                                 5   Critical Control Point:\n  ½ cup or 1 oz Fresh green onions, diced                                   Cool to 40 °F or lower within 4 hours.\n                                                                        6   Critical Control Point:\n  ½ cup or 2 ¼ oz Dried cranberries                                         Hold at 40 °F or below until served.\n                                                                        7   Serve ½ cup (portion with ½ cup measuring\n                                                                            cup or 4 oz spoodle).\n\n\n\n\n  Source:\n  CACFP Home Childcare 6-Serving Recipe Project\n\n\nNutrients Per Serving: Calories 144, Protein 3 g, Carbohydrates 30 g, Dietary Fiber 2 g, Total Sugars 24 g,\nTotal Fat 2 g, Saturated Fat 1 g, Cholesterol 5 mg, Sodium 150 mg, Vitamin A 111 mcg RAE,\nVitamin C 15 mg, Vitamin D 0 mg, Calcium 49 mg, Iron 0 mg, Potassium 127 mg"
+      },
+      "nutrition": {
+        "servings": "6",
+        "calories": "864",
+        "proteinGrams": "18",
+        "carbohydrateGrams": "180",
+        "fatGrams": "12"
+      },
+      "structure": {
+        "statedCookTimeMinutes": "10",
+        "ingredientNameQuantities": [
+          {
+            "name": "Low-fat yogurt, plain",
+            "quantity": "½ cup"
+          }
+        ],
+        "orderedStepPhrases": [
+          "Dressing"
+        ]
+      }
+    },
+    {
+      "id": "tuning-usda-011",
+      "cacheKey": "tuning-usda-011",
+      "sourceURL": "https://www.fns.usda.gov/sites/default/files/resource-files/Cuban_Black_Beans_Rice_6_Servings.pdf",
+      "retrievedAt": "2026-08-24",
+      "license": "usGovernmentPublicDomain",
+      "attribution": "USDA Food and Nutrition Service, CACFP Home Childcare 6-Serving Recipe Project.",
+      "expectedNutritionBasis": "creatorStated",
+      "evidence": {
+        "title": "Cuban Black Beans Rice",
+        "description": "Official USDA standardized recipe.",
+        "linkedDocumentText": "United States Department of Agriculture\n                                                            Cuban Black Beans and Rice – CACFP Home Childcare\n\n\n\nCuban Black Beans and Rice\nFilled with brown rice, beans, onions, cilantro and flavors of the Islands,\nCuban Black Beans and Rice is a great meatless choice!\n\nCACFP Home Childcare Crediting Information\n½ cup beans and ½ cup rice (1/2 cup measuring cup or 4 fl oz spoodle)\nprovides\n                                                                                           Preparation Time: 20 minutes\nLegume as Meat Alternate                                                                   Cooking Time: 30 minutes\n¼ cup vegetable (¼ cup other vegetable), 1 oz equivalent meat alternate,\nand 1 oz equivalent grains.                                                                Makes: 6 servings\nOR\nLegume as Vegetable\n½ cup vegetable (¼ cup legume vegetable, ¼ cup other vegetable), and\n1 oz equivalent grains.\n\n\n\nIngredients                                                          Directions\n2 cups Water, boiling                                                1  Preheat Oven:\n                                                                        Conventional oven: 350 °F.\n¼ tsp Salt                                                              Convection oven: 325 °F.\n1 ⅛ cups or 7 oz Brown rice, long-grain, regular, dry,               2 Bring 2 cups water to a boil in a medium\nparboiled                                                               saucepan.\n                                                                     3 Add salt.\n2 Tbsp or ⅛ cup Canola oil                                           4 Place brown rice in a small baking dish\n                                                                        (8” x 8” x 2”).\n¾ cup or 3 oz Fresh onions, diced                                    5 Pour boiling water over brown rice. Stir.\n½ cup or 3 oz Fresh green bell peppers, diced                           Cover dish tightly.\n                                                                     6 Bake:\n1 Tbsp and 1 tsp Garlic, minced                                         Conventional Oven: 350 °F for 40 minutes.\n2 tsp Ground cumin                                                      Convection Oven: 325 °F for 40 minutes.\n                                                                     7 Critical Control Point:\n1 tsp Vegetable base powder bouillon, low-sodium                        Heat to 140 °F or higher for at least\n2 cups or 14 oz Canned low-sodium black beans,                          15 seconds.\ndrained, rinsed                                                      8 Remove cooked rice from oven and let stand\n                                                                        covered for 5 minutes. Stir rice.\nOR                                                                   9 Critical Control Point:\n                                                                        Hold for hot service at 140 °F or higher.\n2 cups 14 oz Dry black beans, cooked                                 10 Set rice aside for step 19.\n(See Notes Section)                                                  11 Heat oil in a medium saucepan uncovered\n                                                                        over medium high heat.\n1 cup Water                                                          12 Add onions and bell peppers. Cook for\n¼ tsp Salt                                                              2-3 minutes or until onions become\n                                                                        translucent, stirring occasionally.\n¼ cup or ½ oz Fresh cilantro,\n                                                                     13 Add garlic, cumin, vegetable base, and\nminced ¾ cup or 3 oz Fresh onions,                                      beans. Stir constantly for 1-2 minutes.\nminced                                                               14 Add 1 cup water and salt.\n                                                                     15 Bring to a boil. Reduce heat to medium.\n                                                                        Simmer for 5-10 minutes.\n                                                                     16 Add cilantro. Stir well.\n                                                                     17 Critical Control Point:\n                                                                        Heat to 140 °F or higher for at least\n                                                                        15 seconds.\n\n\n United States Department of Agriculture\n                                                            Cuban Black Beans and Rice – CACFP Home Childcare\n\n\n\n\n  Notes Section:                                                       Directions continued\n  How to Cook Dry Beans\n                                                                      17 Critical Control Point:\n  Special tip for preparing dry beans:                                   Hold at 140 °F or higher until\n                                                                         served.\n                                                                      18 Pour black bean mixture into a\n                                                                         baking dish (9” x 13” x 2”).\n  SOAKING BEANS\n                                                                      19 Serve rice with ½ cup\n  OVERNIGHT METHOD: Add 1 ¾ qt cold water to                             (1/2 cup measuring cup or 4 oz\n  every 1 lb of dry beans.                                               spoodle).\n  Cover and refrigerate overnight. Discard the                        20 Serve black beans with ½ cup\n  water. Proceed with cooking beans.                                     (1/2 cup measuring cup or 4 oz\n                                                                         slotted spoodle) over rice.\n  QUICK-SOAK METHOD: Boil 1 ¾ qt of water for\n                                                                         Garnish with onions.\n  each 1 lb of dry beans.\n  Add beans and boil for 2 minutes. Remove from\n  heat and allow to soak for 1 hour. Discard the\n  water. Proceed with cooking beans.\n\n\n  COOKING BEANS\n  Once the beans have been soaked, add 1 ¾ qt\n  water for every 1 lb of dry beans. Boil gently with\n  lid tilted until tender, about 2 hours. Use hot beans\n  immediately.\n  Critical Control Point: Hold for hot service at 140\n  °F or higher.\n  OR\n  Chill for later use.\n  Critical Control Point: Cool to 70 °F within 2 hours\n  and to 40 °F or lower within 4 hours.\n  1 lb dry black beans = about 2 ¼ cups dry or 4 ½\n  cups cooked beans.\n\n\n\n\n Source:\n CACFP Home Childcare 6-Serving Recipe Project\n\n\nNutrients Per Serving: Calories 256, Protein 7 g, Carbohydrates 41 g, Dietary Fiber 5 g,\nTotal Sugars 2g, Total Fat 6 g, Saturated Fat 1 g, Cholesterol 0 mg, Sodium 374 mg,\nVitamin A 10 mcg RAE, Vitamin C 12 mg, Vitamin D 0 IU, Calcium 55 mg, Iron 2 mg, Potassium 297 mg"
+      },
+      "nutrition": {
+        "servings": "6",
+        "calories": "1536",
+        "proteinGrams": "42",
+        "carbohydrateGrams": "246",
+        "fatGrams": "36"
       },
       "structure": {
         "statedCookTimeMinutes": "30",
         "ingredientNameQuantities": [
-          {"name": "scaffold ingredient", "quantity": "1 cup"}
+          {
+            "name": "Water, boiling",
+            "quantity": "2 cups"
+          }
         ],
-        "orderedStepPhrases": ["scaffold step"]
+        "orderedStepPhrases": [
+          "Preheat Oven"
+        ]
+      }
+    },
+    {
+      "id": "tuning-usda-012",
+      "cacheKey": "tuning-usda-012",
+      "sourceURL": "https://www.fns.usda.gov/sites/default/files/resource-files/Ground_Turkey_and_Beef_Spanish_Rice_6_Servings.pdf",
+      "retrievedAt": "2026-08-24",
+      "license": "usGovernmentPublicDomain",
+      "attribution": "USDA Food and Nutrition Service, CACFP Home Childcare 6-Serving Recipe Project.",
+      "expectedNutritionBasis": "creatorStated",
+      "evidence": {
+        "title": "Ground Turkey and Beef Spanish Rice",
+        "description": "Official USDA standardized recipe.",
+        "linkedDocumentText": "United States Department of Agriculture               Ground Turkey and Beef Spanish Rice -–CACFP Home Childcare\n\n\nGround Turkey and Beef Spanish Rice\nGround Turkey and Beef Spanish Rice dish is a satisfying variation of\nthe Mexican recipe, Spanish Rice. Lean ground turkey and beef are cooked,\nwith green peppers, onions, celery, and corn, in a savory sauce flavored with\nvibrant seasonings that include garlic, cilantro and cinnamon.\n\n\nCACFP Home Childcare Crediting Information                                                   Preparation Time: 30 minutes\n1 ¼ cup (8 oz spoodle and 2 oz spoodle) provides ½ cup vegetable                             Cooking Time: 60 minutes\n(⅛ cup starchy vegetable, ⅜ cup other vegetable), 1 oz equivalent meat,\nand 1 oz equivalent grains.                                                                  Makes: 6 servings\n\n\n\n Ingredients                                                          Directions\n ½ cup or 4 oz Lean ground turkey                                     1  Preheat oven:\n                                                                         Conventional oven: 350 °F.\n ½ cup or 3 oz Lean ground beef                                          Convection oven: 325 °F.\n ½ cup Fresh cilantro, chopped                                        2 Place ground turkey and ground beef in a\n                                                                         large skillet. Heat over high heat uncovered\n 1 ½ cups or 6 oz Fresh onions, diced                                    for 5-8 minutes. Stir often until meat is well\n 1 ¾ cups or 7 oz Fresh green bell peppers, diced                        done.\n                                                                      3 Critical Control Point:\n ½ tsp Garlic minced                                                     Heat to 165 °F or higher for at least\n 2 tsp Canola oil                                                        15 seconds.\n                                                                      4 Remove meat from heat. Drain beef and\n 2 cups or 7 oz Fresh celery, diced                                      turkey in a colander.\n 1 ½ cups or 7 oz Frozen corn, thawed, drained                           Set aside for step 10.\n                                                                      5 Critical Control Point:\n ½ tsp Salt                                                              Hold for hot service at 140 °F or higher.\n ¼ tsp Black pepper                                                   6 Heat oil in a large saucepan.\n                                                                      7 Reserve ¼ cup cilantro for step 20.\n ½ tsp Chili powder                                                   8 Place remaining cilantro, onions, peppers,\n 1 tsp Cumin                                                             and garlic cloves in pot. Sauté frequently\n                                                                         over medium high heat for 2-3 minutes.\n ½ tsp Paprika                                                        9 Add celery, and corn. Stir well.\n ¼ tsp Onion powder                                                   10 Add cooked meat and stir well.\n                                                                      11 Simmer uncovered over medium low heat for\n ¼ tsp Cinnamon                                                          2 minutes. Add salt, pepper, chili powder, cumin,\n ¼ tsp Garlic powder                                                     paprika, onion powder, cinnamon, garlic powder,\n                                                                         chili powder or Mexican seasoning mix and\n 2 tsp Ancho chili powder                                                oregano. Continue cooking one additional\n OR                                                                      minute, stirring constantly.\n 2 tsp Mexican Seasoning Mix (See Notes Section)                      12 Add water, beef base, tomato paste, and\n                                                                         diced tomatoes. Stir well.\n                                                                      13 Bring to a boil. Reduce heat to low and stir\n                                                                         occasionally. Set aside for step 15.\n                                                                      14 Place 1 cup brown rice in a\n                                                                         9” x 9” baking dish.\n\n\n\n\n United States Department of Agriculture            Ground Turkey and Beef Spanish Rice - CACFP\n                                                                                          –     Home Childcare\n\n\n\n\nIngredients continued                                                   Directions continued\n¼ tsp Oregano                                                           15 Pour meat mixture over rice. Stir well.\n2 cups Water                                                               Cover pan tightly.\n                                                                        16 Bake:\n2 tsp Low-sodium beef base                                                 Conventional oven: 350 °F for 35-40\n¼ cup or 2 oz Canned no-salt-added tomato paste                            minutes.\n                                                                           Convection oven: 350 °F for 35 minutes.\n¾ cup or 6 oz Canned no-salt-added diced                                17 Critical Control Point:\ntomatoes, undrained                                                        Heat to 165° F or higher for at least\n                                                                           15 seconds.\n1 cup or 7 oz Brown rice, long-grain, regular, dry,                     18 Remove pan from oven. Squeeze ¼ cup\nparboiled                                                                  lime juice over pan. Stir well.\n                                                                        19 Critical Control Point:\n¼ cup or 2 oz Juice of fresh lime                                          Hold at 140 °F or higher until served.\n                                                                        20 Garnish with remaining cilantro.\n                                                                        21 Serve 1 ¼ cup. (Portion with 1 cup and ¼\n                                                                           cup measuring cups or 8 oz spoodle and\n                                                                           2 oz spoodle).\n\n\n\n\nNotes Section:\n\nMexican Seasoning Mix:\nMakes ¾ cup (about 4 ½ oz) Combine 1 Tbsp dried oregano, 1 Tbsp garlic powder,\n¼ tsp ground cinnamon, 2 tsp sugar, 2 Tbsp chili powder, 1 Tbsp ground cumin,\n1 Tbsp 2 tsp paprika, 1 Tbsp 2 tsp onion powder, 2 Tbsp dried minced onion, and 2 tsp salt.\n\n\n\n\nSource:\nCACFP Home Childcare 6- Serving Recipe Project\n\nNutrients Per Serving: Calories 251, Protein 12 g, Carbohydrates 46 g, Dietary Fiber 6 g,\nTotal Sugars 6 g Total Fat 5 g, Saturated Fat 1 g, Cholesterol 18 mg, Sodium 354 mg,\nVitamin A 49 mcg RAE, Vitamin C 38 mg, Vitamin D 1 IU, Calcium 74 mg, Iron 4 g, Potassium 629 mg"
+      },
+      "nutrition": {
+        "servings": "6",
+        "calories": "1506",
+        "proteinGrams": "72",
+        "carbohydrateGrams": "276",
+        "fatGrams": "30"
+      },
+      "structure": {
+        "statedCookTimeMinutes": "60",
+        "ingredientNameQuantities": [
+          {
+            "name": "Lean ground turkey",
+            "quantity": "½ cup"
+          }
+        ],
+        "orderedStepPhrases": [
+          "Preheat oven"
+        ]
+      }
+    },
+    {
+      "id": "tuning-usda-013",
+      "cacheKey": "tuning-usda-013",
+      "sourceURL": "https://www.fns.usda.gov/sites/default/files/resource-files/Honey_Lime_Chicken_6_Servings.pdf",
+      "retrievedAt": "2026-08-24",
+      "license": "usGovernmentPublicDomain",
+      "attribution": "USDA Food and Nutrition Service, CACFP Home Childcare 6-Serving Recipe Project.",
+      "expectedNutritionBasis": "usdaCalculated",
+      "evidence": {
+        "title": "Honey Lime Chicken",
+        "description": "Official USDA standardized recipe.",
+        "linkedDocumentText": "United States Department of Agriculture                                  Honey Lime Chicken -–CACFP Home Childcare\n\n\n  Honey Lime Chicken\n  Honey Lime Chicken is a simple and delicious dish of tender baked chicken\n  thighs lightly glazed with lime and honey\n\n\n  CACFP Home Childcare Crediting Information\n  ⅓ cup (1/3 cup measuring cup or 3 oz spoodle) provides\n  1.25 oz equivalent meat.                                                                    Preparation Time: 25 minutes\n                                                                                              Cooking Time: 30 minutes\n\n                                                                                              Makes: 6 servings\n\n\n  Ingredients                                                          Directions\n\n  1 lb 7 oz Raw chicken thighs, boneless, skinless                     1   Preheat oven:\n                                                                           Conventional oven: 400 °F\n  ⅓ cup or 3 ½ oz Honey\n                                                                           Convection oven: 375 °F\n  ¼ cup or 2 oz Fresh lime juice                                       2   Combine chicken thighs, honey, lime juice,\n  ½ tsp Salt                                                               salt, pepper, and lime zest in a large bowl.\n                                                                           Stir well. Set aside for step 2. Allow flavors\n  ¼ tsp Ground black or white pepper\n                                                                           to blend for 15-20 minutes.\n  ⅛ cup Lime zest                                                      3   Place seasoned chicken thighs\n                                                                           on a baking pan (9” x 13” x 2”) lightly\n                                                                           coated with pan release spray and lined\n                                                                           with parchment paper.\n                                                                       4   Bake:\n                                                                           Conventional oven: 400 °F for 30-35\n                                                                           minutes.\n                                                                           Convection oven: 375 °F for 30-35\n                                                                           minutes.\n                                                                       5   Critical Control Point: Heat to 165 °F or\n                                                                           higher for at least 15 seconds.\n                                                                       6   Once chicken thighs are removed from\n                                                                           oven, cut into ¼” cubes.\n                                                                       7   Transfer honey lime chicken to a medium\n                                                                           baking dish (8” x 8” x 2”).\n                                                                       8   Critical Control Point:\n                                                                           Hold at 140 °F or higher until served.\n                                                                       9   Serve ⅓ cup (portion with 1/3 cup\n                                                                           measuring cup or 3 oz spoodle).\n\n\n  Source:\n  CACFP Home Childcare 6-Serving Recipe Project"
+      },
+      "nutrition": {
+        "servings": "6",
+        "calories": "1266",
+        "proteinGrams": "120",
+        "carbohydrateGrams": "90",
+        "fatGrams": "48"
+      },
+      "structure": {
+        "statedCookTimeMinutes": "30",
+        "ingredientNameQuantities": [
+          {
+            "name": "7 oz Raw chicken thighs, boneless, skinless",
+            "quantity": "1 lb"
+          }
+        ],
+        "orderedStepPhrases": [
+          "Preheat oven"
+        ]
+      }
+    },
+    {
+      "id": "tuning-usda-014",
+      "cacheKey": "tuning-usda-014",
+      "sourceURL": "https://www.fns.usda.gov/sites/default/files/resource-files/Hoppin_John_6_Servings.pdf",
+      "retrievedAt": "2026-08-24",
+      "license": "usGovernmentPublicDomain",
+      "attribution": "USDA Food and Nutrition Service, CACFP Home Childcare 6-Serving Recipe Project.",
+      "expectedNutritionBasis": "creatorStated",
+      "evidence": {
+        "title": "Hoppin John",
+        "description": "Official USDA standardized recipe.",
+        "linkedDocumentText": "United States Department of Agriculture                                     Hoppin’ John - CACFP\n                                                                                              –    Home Childcare\n\n\nHoppin’ John\nAn all-time southern favorite, Hoppin’ John just keeps getting better!\nBlack-eyed peas and brown rice are seasoned with fresh onions, bell\npeppers, celery, and a savory broth.\n\nCACFP Home Childcare Crediting Information\nLegume as a Meat Alternate: ⅔ cup (two ⅓ measuring cups or 6 oz spoodle)\nprovides 1 oz equivalent meat alternate and 1 oz equivalent grains.                        Preparation Time: 30 minutes\nOR                                                                                         Cooking Time: 50 minutes\n\nLegume as a Vegetable: ⅔ cup (two ⅓ measuring cups or 6 oz spoodle)                        Makes: 6 servings\nprovides ⅛ cup vegetable (⅛ cup legume vegetable), and 1 oz equivalent\ngrains.\n\n\n\nIngredients                                                        Directions\n1 cup or 6 oz Brown rice, long-grain, regular, dry,                1  Preheat oven:\nparboiled                                                             Conventional oven: 375 °F\n                                                                      Convection oven: 350 °F\n⅛ cup or 1 oz Canola oil                                           2 Place brown rice in baking dish\n¾ cups or 3 oz Fresh onions, chopped                                  (9”x 13”x 2”).\n                                                                      Set aside for step 8.\n½ cups or 3 oz Fresh green bell peppers,                           3 Heat oil in a medium saucepan uncovered over\nchopped ⅓ cup or 2 oz Fresh red bell pepper,                          medium high heat.\n                                                                   4 Add onions, bell peppers, and celery. Sauté for\ndiced                                                                 2-3 minutes or until onions become translucent,\n½ cup or 2 oz Fresh celery, diced                                     stirring occasionally.\n                                                                   5 Add garlic, salt-free seasoning, vegetable base,\n1 tsp Garlic, minced                                                  bay leaf, and peas.\n                                                                      Stir constantly for 1-2 minutes.\n1 Tbsp Salt-free seasoning                                         6 Add water and salt.\n1 tsp Vegetable base concentrate                                   7 Bring to a boil.\n                                                                   8 Pour black eyed pea mixture over rice. Stir well.\n1 Bay leaf                                                            Cover baking pan tightly.\n2 cups or 11 oz Canned low-sodium black-                           9 Bake:\neyed peas, drained, rinsed                                            Conventional oven: 375 °F for 30-45 minutes.\n                                                                      Convection oven: 350 °F for 30-45 minutes.\nOr                                                                 10 Critical Control Point:\n                                                                      Heat to 140 °F or higher for at least 15 seconds.\n2 cups or 11 oz Dry Black-eye peas, cooked                         11 Critical Control Point:\n(See Notes)                                                           Hold at 140 °F or higher until served.\n                                                                   12 Serve ⅔ cup (portion with two ⅓ cup measuring\n2 cups Water                                                          cups or a 6 oz spoodle).\n¾ tsp Salt\n\n\n\n\n United States Department of Agriculture                                   Hoppin’ John - CACFP\n                                                                                             – Home Childcare\n\n\n\nNOTES SECTION\nHow to Cook Dry Black-eyed Peas\nSpecial tip for preparing dry peas:\n\n\n\nSOAKING PEAS\nOVERNIGHT METHOD:\nAdd 1 ¾ qt cold water to every 1 lb of dry peas.\nCover and refrigerate overnight. Discard the water.\nProceed with recipe.\nQUICK-SOAK METHOD:\nBoil 1 ¾ qt of water for each 1 lb of dry peas.\nAdd peas and boil for 2 minutes. Remove from heat\nand allow to soak for 1 hour. Discard the water.\nProceed with recipe.\n\n\nCOOKING PEAS\nOnce the peas have soaked, add 1 ¾ qt water for every lb\nof dry peas. Boil gently with lid tilted until tender, about 2\nhours. Use hot peas immediately.\nCritical Control Point: Hold for hot service at 140 °F or\nhigher.\n\n\n\n\nSource:\nCACFP Home Childcare 6-Serving Recipe Project\n\nNutrients Per Serving: Calories 217, Protein 5 g, Carbohydrates 34 g, Dietary Fiber 4 g, Total Sugar 3 g,\nTotal Fat 6 g, Saturated Fat 1 g, Cholesterol 0 mg, Sodium 407 mg, Vitamin A 19 mg RAE,\nVitamin C 27 mg, Vitamin D 0 IU, Calcium 22 mg, Iron 1 mg, Potassium 248 mg"
+      },
+      "nutrition": {
+        "servings": "6",
+        "calories": "1302",
+        "proteinGrams": "30",
+        "carbohydrateGrams": "204",
+        "fatGrams": "36"
+      },
+      "structure": {
+        "statedCookTimeMinutes": "50",
+        "ingredientNameQuantities": [
+          {
+            "name": "Brown rice, long-grain, regular, dry,",
+            "quantity": "1 cup"
+          }
+        ],
+        "orderedStepPhrases": [
+          "Preheat oven"
+        ]
+      }
+    },
+    {
+      "id": "tuning-usda-015",
+      "cacheKey": "tuning-usda-015",
+      "sourceURL": "https://www.fns.usda.gov/sites/default/files/resource-files/Macaroni_and_Cheese_6_Servings.pdf",
+      "retrievedAt": "2026-08-24",
+      "license": "usGovernmentPublicDomain",
+      "attribution": "USDA Food and Nutrition Service, CACFP Home Childcare 6-Serving Recipe Project.",
+      "expectedNutritionBasis": "usdaCalculated",
+      "evidence": {
+        "title": "Macaroni and Cheese",
+        "description": "Official USDA standardized recipe.",
+        "linkedDocumentText": "United States Department of Agriculture                                    Macaroni and Cheese – CACFP Home Childcare\n\n\nMacaroni and Cheese\nMacaroni and Cheese is a childhood favorite, a satisfying combination\nof cheese and pasta. Our version is made even more special with\ncauliflower!\n\n\nCACFP Home Childcare Crediting Information                                                       Preparation Time: 15 minutes\nOne 2” x 3 ¾” piece provides 1 oz equivalent meat alternate                                      Cooking Time: 30 minutes\nand 1 oz equivalent grains.\n                                                                                                 Makes: 6 servings\n\nIngredients                                                            Directions\n\n2 cups Water                                                           1  Preheat oven:\n                                                                          Conventional oven: 350 °F.\n2 ½ oz Fresh cauliflower florets                                          Convection oven: 325 °F.\n3 cups Water                                                           2 Heat two cups water to a rolling boil in a\n                                                                          medium saucepan.\n1 ¼ cups or 6 oz Whole-grain elbow macaroni                            3 Add cauliflower. Cook uncovered for\n                                                                          4 minutes until very soft. Remove, drain, and\n2 tsp Canola oil\n                                                                          place in a bowl. Mash cauliflower until\n2 tsp Whole-wheat flour                                                   smooth. Set aside for step 7.\n                                                                       4 Heat 3 cups water to a rolling boil in a medium\n½ cup or 4 oz Low-fat (1%) milk\n                                                                          saucepan.\n1 cup or 8 oz Skim milk                                                5 Slowly add macaroni. Stir constantly until\n                                                                          water boils again. Cook about 8-10 minutes or\n2 cups or 7 ¼ oz Low-fat cheddar cheese,                                  until al dente. Stir occasionally. DO NOT\nshredded                                                                  OVERCOOK. Drain well. Set aside for step 7.\n¼ cup or 2 oz Egg whites                                               6 Heat oil in skillet. Add flour to make a roux.\n                                                                          Stir briskly with whisk. Slowly add milk and stir\n¼ cup or 2 oz Low-fat sour cream                                          until smooth. Reduce heat to low.\n                                                                       7 Combine cauliflower mash, macaroni, milk,\n¼ cup or 2 oz Nonfat sour cream\n                                                                          cheese, egg whites, sour cream, onion,\n¼ cup or 1 oz Fresh diced onion                                           pepper, garlic powder, onion flakes, salt, and\n                                                                          lemon pepper in a large bowl. Add warm roux\n⅛ tsp Ground black or white pepper                                        and stir well.\n½ tsp Garlic powder                                                    8 Lightly coat a baking dish (8” x 8” x 2”) with\n                                                                          pan release spray.\n1 ½ tsp Dried onion flakes                                             9 Pour macaroni and cheese mixture into the\n                                                                          baking dish.\n⅛ tsp Salt\n                                                                       10 Bake:\n½ tsp Lemon pepper                                                        Conventional oven: 350 °F for 30-35 minutes.\n                                                                          Convection oven: 325 °F for 25-30 minutes.\n\n\n\n\n    United States Department of Agriculture                                    Macaroni and Cheese – CACFP Home Childcare\n\n\n\n\n                                                                        Directions continued\n                                                                        11 Critical Control Point:\n                                                                           Heat to 165 °F or higher for at least\n                                                                           15 seconds.\n                                                                        12 Critical Control Point:\n                                                                           Hold at 140 °F or higher until served.\n                                                                        13 Cut each pan into 6 pieces (2” x 3 ¾”).\n                                                                        14 Serve one - 2” x 3 ¾” piece.\n\n\n\n\n Source:\n CACFP Home Childcare 6-Serving Recipe Project"
+      },
+      "nutrition": {
+        "servings": "6",
+        "calories": "1458",
+        "proteinGrams": "102",
+        "carbohydrateGrams": "174",
+        "fatGrams": "36"
+      },
+      "structure": {
+        "statedCookTimeMinutes": "30",
+        "ingredientNameQuantities": [
+          {
+            "name": "Water",
+            "quantity": "2 cups"
+          }
+        ],
+        "orderedStepPhrases": [
+          "Preheat oven"
+        ]
+      }
+    },
+    {
+      "id": "tuning-usda-016",
+      "cacheKey": "tuning-usda-016",
+      "sourceURL": "https://www.fns.usda.gov/sites/default/files/resource-files/Quiche_Self-Forming_Crust_6_Servings.pdf",
+      "retrievedAt": "2026-08-24",
+      "license": "usGovernmentPublicDomain",
+      "attribution": "USDA Food and Nutrition Service, CACFP Home Childcare 6-Serving Recipe Project.",
+      "expectedNutritionBasis": "creatorStated",
+      "evidence": {
+        "title": "Quiche Self-Forming Crust",
+        "description": "Official USDA standardized recipe.",
+        "linkedDocumentText": "United States Department of Agriculture             Quiche with Self Forming\n                                                                        -      Crust - CACFP\n                                                                                        –    Home Childcare\n\n\n Quiche with Self-Forming Crust\n Start the morning with Quiche! It packs a punch with the fresh, healthy flavors of\n red bell peppers, eggs, spinach, and cheese.\n\n\n CACFP Home Childcare Crediting Information\n One 2” x 3 ¾” piece provides ½ cup vegetable (⅛ cup additional\n vegetable, ⅜ cup other vegetable), and 1 oz equivalent meat alternate.                 Preparation Time: 20 minutes\n                                                                                        Cooking Time: 45 minutes\n\n                                                                                        Makes: 6 servings\n\n Ingredients                                                      Directions\n\n 1 ⅛ cups or 8 oz Frozen whole eggs, thawed                       1  Preheat oven:\n 1 ½ cups or 12 oz Nonfat milk                                       Conventional oven: 400 °F.\n                                                                     Convection oven: 375 °F.\n ½ cup or 2 ½ oz Whole-wheat flour                                2 Pour eggs into a mixer. Using a wire\n ¼ tsp Baking powder                                                 whip attachment, mix on low speed for\n                                                                     2 minutes. DO NOT OVERMIX.\n ½ tsp Salt                                                       3 Add milk, flour, baking powder, salt,\n ¼ tsp Ground black or white pepper                                  pepper, and nutmeg (optional). Mix for\n                                                                     4 minutes on low speed.\n ⅛ tsp Ground nutmeg                                              4 Combine onions, peppers, spinach,\n 2 cups or 8 oz Fresh onions, diced                                  and egg mixture in a large mixing bowl.\n                                                                     Stir well.\n 2 cups or 8 oz Fresh red bell peppers, diced                     5 Pour egg and vegetable mixture into a\n 2 cups or 2 oz Fresh spinach, chopped                               baking dish (8” x 8” x 2”) lightly coated\n                                                                     with pan release spray.\n ⅓ cup or 1 oz Low-fat cheddar cheese, shredded                   6 Sprinkle cheese over egg mixture.\n                                                                  7 Reduce heat on oven and bake at:\n                                                                     Conventional oven: 375 °F for\n                                                                     35 minutes.\n                                                                     Convection oven: 325 °F for 25 minutes.\n                                                                  8 Critical Control Point:\n                                                                     Heat to 165 °F or higher for at least\n                                                                     15 seconds.\n                                                                  9 Critical Control Point:\n                                                                     Hold at 140 °F or higher until served.\n                                                                  10 Cut each dish into 6 pieces (2” x 3 ¾”).\n                                                                  11 Serve one - 2” x 3 ¾” piece.\n\n\n\n\nSource:\nCACFP Home Childcare 6-Serving Recipe Project\n\nNutrients Per Serving: Calories 149, Protein 11 g, Carbohydrates 18 g, Dietary Fiber 2 g, Total Sugars 6 g,\nTotal Fat 4 g, Saturated Fat 1 g, Cholesterol 143 mg, Sodium 344 mg, Vitamin A 192 mcg RAE,\nVitamin C 64 mg, Vitamin D 60 IU, Calcium 140 mg, Iron 1 mg, Potassium 343 mg"
+      },
+      "nutrition": {
+        "servings": "6",
+        "calories": "894",
+        "proteinGrams": "66",
+        "carbohydrateGrams": "108",
+        "fatGrams": "24"
+      },
+      "structure": {
+        "statedCookTimeMinutes": "45",
+        "ingredientNameQuantities": [
+          {
+            "name": "Frozen whole eggs, thawed",
+            "quantity": "1 ⅛ cups"
+          }
+        ],
+        "orderedStepPhrases": [
+          "Preheat oven"
+        ]
+      }
+    },
+    {
+      "id": "tuning-usda-017",
+      "cacheKey": "tuning-usda-017",
+      "sourceURL": "https://www.fns.usda.gov/sites/default/files/resource-files/Rice_Veg_Casserole_6_Servings.pdf",
+      "retrievedAt": "2026-08-24",
+      "license": "usGovernmentPublicDomain",
+      "attribution": "USDA Food and Nutrition Service, CACFP Home Childcare 6-Serving Recipe Project.",
+      "expectedNutritionBasis": "creatorStated",
+      "evidence": {
+        "title": "Rice Veg Casserole",
+        "description": "Official USDA standardized recipe.",
+        "linkedDocumentText": "United States Department of Agriculture                               Rice Vegetable Casserole – CACFP Home Childcare\n\n\nRice Vegetable Casserole\nEveryone will ask for more Rice Vegetable Casserole! It is a delicious blend of\nkale, brown rice and seasoned vegetables topped with melted cheese.\n\nCACFP Home Childcare Crediting Information\nOne 2” x 3 ¾” piece provides ½ cup vegetable (⅛ cup dark green\nvegetable, ⅜ cup other vegetable), 1 oz equivalent meat alternate,                               Preparation Time: 30 minutes\nand 1 oz equivalent grains.                                                                      Cooking Time: 60 minutes\n\n                                                                                                 Makes: 6 servings\n\nIngredients                                                            Directions\n\n2 cups Low-sodium chicken broth                                        1  Preheat oven:\n                                                                          Conventional oven: 350 °F.\n1 cup or 7 oz Brown rice, uncooked, long-grain,                           Convection oven: 325 °F.\n regular, dry, parboil                                                 2 Pour broth in a medium saucepan and\n                                                                          bring to a boil.\n1 Tbsp Margarine, trans fat-free                                       3 Place brown rice in a small baking dish\n¾ cup or 5 oz Fresh onions, diced                                         (8” x 8” x 2”).\n                                                                       4 Pour boiling broth over brown rice. Stir.\n3 cups or 5 oz Fresh mushrooms, sliced                                    Cover baking dish tightly.\n1 tsp Garlic, minced                                                   5 Bake:\n                                                                          Conventional oven: 350 °F for 40 minutes.\n¼ tsp Salt\n                                                                          Convection oven: 325 °F for 40 minutes.\n¼ tsp Ground black pepper                                              6 Critical Control Point:\n¼ tsp Onion powder                                                        Heat to 140 °F or higher for at least\n                                                                          15 seconds.\n1 Tbsp and 1 tsp Whole-wheat flour                                     7 Remove cooked rice from oven.\n¾ cup or 6 oz Low-fat (1%) milk                                           Set aside for step 14.\n                                                                       8 Mushroom sauce:\n1 qt or 4 oz Fresh kale, finely chopped\n                                                                          In a medium non-stick saucepan, add\n1 cup or 4 oz Low-fat cheddar cheese, shredded                            margarine, onions, mushrooms, minced\n¾ cup or 3 oz Low-fat mozzarella cheese,                                  garlic, salt, pepper, and onion powder.\nlow-moisture, part-skim, shredded                                         Stir constantly over medium high heat until\n                                                                          mushrooms are soft for about 3 minutes.\n                                                                       9 Sprinkle flour over mushroom mixture.\n                                                                          Stir well. After one minute, turn down to\n                                                                          medium low heat.\n                                                                       10 Add milk, stirring constantly until smooth.\n                                                                          Sauce will become creamy and thick in\n                                                                          texture. Remove and set aside for step 15.\n                                                                       11 Combine cheese together in a small bowl,\n                                                                          set aside for step 17.\n\n\n\n\n    United States Department of Agriculture                               Rice Vegetable Casserole – CACFP Home Childcare\n\n\n\n\n                                                                        Directions continued\n                                                                        12 Lightly coat a baking dish (9” x 9”) with pan\n                                                                           release spray.\n                                                                        13 Assemble as follows:\n                                                                        14 First layer:\n                                                                           Place cooked rice in baking dish.\n                                                                        15 Second layer:\n                                                                           Pour mushroom sauce over rice.\n                                                                        16 Third layer:\n                                                                           Add kale.\n                                                                        17 Fourth layer:\n                                                                           Sprinkle 1 cup cheese evenly over rice\n                                                                           mixture.\n                                                                        18 Cover pan tightly.\n                                                                        19 Bake:\n                                                                           Conventional oven: 350 °F for 15-20 minutes.\n                                                                           Convection oven: 325 °F for 5-10 minutes.\n                                                                        20 Cut each pan into 6 pieces (2” x 3 ¾\").\n                                                                        21 Critical Control Point:\n                                                                           Hold at 140 °F or higher until served.\n                                                                        22 Serve one – 2” x 3 ¾\" piece.\n\n\n\n\nSource:\nCACFP Home Childcare 6-Serving Recipe Project\n\nNutrients Per Serving: Calories 251, Protein 16 g, Carbohydrates 37 g, Dietary Fiber 4 g, Total Sugars 3 g,\nTotal Fat 7 g, Saturated Fat 3 g, Cholesterol 8 mg, Sodium 401 mg, Vitamin A 196 mcg RAE,\nVitamin C 10 mg, Vitamin D 27 IU, Calcium 266 mg, Iron 3 mg, Potassium 351 mg"
+      },
+      "nutrition": {
+        "servings": "6",
+        "calories": "1506",
+        "proteinGrams": "96",
+        "carbohydrateGrams": "222",
+        "fatGrams": "42"
+      },
+      "structure": {
+        "statedCookTimeMinutes": "60",
+        "ingredientNameQuantities": [
+          {
+            "name": "Low-sodium chicken broth",
+            "quantity": "2 cups"
+          }
+        ],
+        "orderedStepPhrases": [
+          "Preheat oven"
+        ]
+      }
+    },
+    {
+      "id": "tuning-usda-018",
+      "cacheKey": "tuning-usda-018",
+      "sourceURL": "https://www.fns.usda.gov/sites/default/files/resource-files/Roasted%20Potato%20and%20Turkey%20Hash%206%20Servings.pdf",
+      "retrievedAt": "2026-08-24",
+      "license": "usGovernmentPublicDomain",
+      "attribution": "USDA Food and Nutrition Service, CACFP Home Childcare 6-Serving Recipe Project.",
+      "expectedNutritionBasis": "creatorStated",
+      "evidence": {
+        "title": "Roasted Potato and Turkey Hash",
+        "description": "Official USDA standardized recipe.",
+        "linkedDocumentText": "United States Department of Agriculture   Roasted Potato and Turkey Hash – CACFP Home Childcare\n\nRoasted Potato and Turkey Hash\nRoasted Potato and Turkey Hash goes beyond breakfast!\nRoasted potatoes in combination with ground turkey and red and green\npeppers, all enhanced with the flavors of cayenne, coriander, garlic and sage,\nmake this dish great for breakfast or any meal!\n\n\nCACFP Home Childcare Crediting Information                                                  Preparation Time: 30 minutes\n¾ cup (½ cup and ¼ cup measuring cups or 6 fl oz spoodle) provides                          Cooking Time: 25 - 30 minutes\n½ cup vegetable (⅛ cup red/orange vegetable, ⅜ cup starchy\nvegetable) and 1 oz equivalent meat.                                                        Makes: 6 servings\n\n\n\n\nIngredients                                                         Directions\n3 ½ cups or 20 oz Diced Potatoes, drained                           1   Preheat oven to Bake:\n                                                                        Conventional oven: 375 °F\n1 Tbsp or ½ oz Canola oil\n                                                                        Convection oven: 350 °F\n2 Tbsp or 1 oz Fresh Garlic, minced                                 2   Combine potatoes, oil, garlic, ½ tsp salt, and\n                                                                        pepper in a large bowl.\n1 tsp Salt, (divided into two ½ tsp)\n                                                                        Set remaining ½ tsp salt aside for step\n½ tsp White pepper                                                      10. Stir well.\n                                                                    3   Lightly spray a baking dish (9” x 13” x 2”)\n1 ½ cups or 7 oz Ground Turkey Breast, Raw\n                                                                        with pan release spray.\nno more than 15% fat\n                                                                        Evenly spread potatoes in baking dish.\n                                                                    4   Bake:\n¾ cup or 4 ½ oz Fresh red bell pepper, diced\n                                                                        Conventional oven: 375 °F for 15 minutes.\n¼ cup or 2 oz Fresh green bell pepper, diced                            Convection oven: 350 °F for 10 minutes.\n                                                                    5   Critical Control Point:\n¼ tsp Cayenne pepper\n                                                                        Heat to 140 °F or higher for at least\n½ tsp Sage, ground                                                      15 seconds\n                                                                    6   Critical Control Point:\n½ tsp Red pepper flakes\n                                                                        Hold for hot service at 140 °F or higher.\n½ tsp Coriander seeds, whole                                        7   Set potatoes aside for step 12.\n                                                                    8   Spray large non-stick skillet lightly with pan\n¼ tsp Garlic powder\n                                                                        release spray and heat over medium high\n¼ tsp Onion powder                                                      heat.\n                                                                    9   Add turkey. Cook uncovered over medium-\n2 Tbsp or 1 oz Canned Applesauce,\n                                                                        high heat for 2-3 minutes, stirring\nunsweetened\n                                                                        occasionally.\n\n\n\n\nUnited States Department of Agriculture   Roasted Potato and Turkey Hash – CACFP Home Childcare\n\n\n\n\n                                                                   Directions continued\n\n                                                                   10 Add remaining salt (½ tsp), peppers,\n                                                                      cayenne pepper, sage, red pepper\n                                                                      flakes, coriander, garlic powder, onion\n                                                                      powder, and apple sauce. Sauté\n                                                                      uncovered over medium-high heat for\n                                                                      3-5 minutes, stirring occasionally.\n                                                                      Set aside for step 12.\n                                                                   11 Critical Control Point:\n                                                                      Heat to 165 °F or higher for at least\n                                                                      15 seconds.\n                                                                   12 Pour turkey mixture over seasoned\n                                                                      potatoes in baking dish.\n                                                                      Stir well.\n                                                                   13 Critical Control Point:\n                                                                      Hold for hot service at 140 °F or higher\n                                                                      until served.\n                                                                   14 Serve ¾ cup (portion with ½ cup and\n                                                                      ¼ cup measuring cups or 6 oz spoodle).\n\n\n\n\nSource:\nCACFP Home Childcare 6-Serving Recipe Project\n\nNutrients Per Serving: Calories 140, Protein 6 g, Carbohydrates 16 g, Dietary Fiber 3 g, Total Sugars 2 g,\nTotal Fat 5 g, Saturated Fat 1 g, Calcium 16 mg, Sodium 346 mg, Vitamin A 41 mcg RAE, Vitamin C 47 mg,\nVitamin D 1 IU Cholesterol 16 mg, Iron 2 mg, Potassium 329 mg"
+      },
+      "nutrition": {
+        "servings": "6",
+        "calories": "840",
+        "proteinGrams": "36",
+        "carbohydrateGrams": "96",
+        "fatGrams": "30"
+      },
+      "structure": {
+        "statedCookTimeMinutes": null,
+        "ingredientNameQuantities": [
+          {
+            "name": "Diced Potatoes, drained",
+            "quantity": "3 ½ cups"
+          }
+        ],
+        "orderedStepPhrases": [
+          "Preheat oven to Bake"
+        ]
+      }
+    },
+    {
+      "id": "tuning-usda-019",
+      "cacheKey": "tuning-usda-019",
+      "sourceURL": "https://www.fns.usda.gov/sites/default/files/resource-files/Ropa_Vieja_6_Servings.pdf",
+      "retrievedAt": "2026-08-24",
+      "license": "usGovernmentPublicDomain",
+      "attribution": "USDA Food and Nutrition Service, CACFP Home Childcare 6-Serving Recipe Project.",
+      "expectedNutritionBasis": "creatorStated",
+      "evidence": {
+        "title": "Ropa Vieja",
+        "description": "Official USDA standardized recipe.",
+        "linkedDocumentText": "United States Department of Agriculture                                                 Ropa –\n                                                                                             Vieja - CACFP Home Childcare\n\n\nRopa Vieja\nRopa Vieja is a great Latin dish filled with braised beef, shredded with plenty of\nhealthy, tasty vegetables, like onions, peppers and seasoned with a beef broth\nthen finished off with cilantro.\n\n\n\nCACFP Home Childcare Crediting Information                                                     Preparation Time: 15 minutes\n¾ cup meat/vegetable mixture (½ cup and ¼ cup measuring cups or                                Cooking Time: 2 ½ - 3 hours\n6 oz spoodle) and ½ cup rice (½ cup measuring cup or No. 8 scoop)\nprovides ½ cup vegetable (⅜ cup red/orange vegetable, ⅛ cup other                              Makes: 6 servings\nvegetable), 1 oz equivalent meat, 1 oz equivalent grain.\n\n\n\nIngredients                                                              Directions\n12 oz Beef shoulder                                                      1  Preheat oven:\n5 oz Fresh onions, chopped                                                  Conventional oven: 350 °F.\n5 oz Fresh red bell peppers, chopped                                        Convection oven: 325 °F.\n                                                                         2 Heat large stock pot over medium high heat\n2 tsp Fresh garlic, minced\n                                                                            and spray with a pan release spray.\n½ tsp Salt                                                               3 Add beef shoulder. Cook or sear each side\n½ tsp Ground oregano                                                        uncovered over medium-high heat for\n½ tsp Ground cumin                                                          2 minutes.\n                                                                            Set aside for step 5.\n¼ tsp Dried rosemary, crushed                                               Do not allow meat to sit longer than 5 minutes\n¼ tsp Ground black pepper                                                4 In the same stock pot, add onions, bell\n¼ cup Apple cider vinegar                                                   peppers, and garlic. Cook uncovered over\n                                                                            medium-high heat for 2-3 minutes or until\n1 ½ cups Low-sodium beef broth                                              onions are translucent.\n⅓ cup or 3 ½ oz Canned tomato paste, no-salt-added                       5 Add seared beef, salt, oregano, cumin,\n8 oz Water                                                                  rosemary, black pepper, vinegar, beef broth,\n                                                                            tomato paste, water, and bay leaf.\n1 Bay leaf                                                               6 Bring to a boil. Reduce heat to medium-low.\n½ cup or ½ oz Fresh cilantro, chopped                                       Cover and cook for 2 ½–3 hours. Stir every\n2 cups or 16 oz Water                                                       hour to prevent sticking. Add additional water\n                                                                            as necessary to prevent from sticking.\n1 ⅛ cups or 7 oz Brown rice, long-grain, regular, dry,                   7 Critical Control Point:\nparboiled                                                                   Heat to 165 °F or higher for at least\n                                                                            15 seconds.\n                                                                         8 Once beef is fork tender, remove from heat.\n                                                                            Use a fork to shred meat. Return shredded\n                                                                            beef back to pot.\n                                                                         9 Add cilantro and stir well.\n                                                                         10 Pour about 1 qt 1 ½ cup (2 lb 4 oz) shredded\n                                                                            beef mixture into a roasting pan (9” x 13” x 2”).\n                                                                            Set aside for step 19.\n                                                                         11 Critical Control Point:\n                                                                            Hold for hot service at 140 °F or higher.\n\n\n\n\nUnited States Department of Agriculture                                      Ropa Vieja -– CACFP Home Childcare\n\n\n\n                                                                        Directions continued\n\n                                                                         12 Boil 2 cups of water for the preparation of\n                                                                            rice for step 14.\n                                                                         13 Place about 1 ⅛ cups brown rice in a small\n                                                                            baking pan (8” x 8” x 2”).\n                                                                         14 Pour the boiling water over brown rice. Stir.\n                                                                            Cover pan tightly.\n                                                                            Bake:\n                                                                            Conventional oven: 350 °F for 40 minutes.\n                                                                            Convection oven: 325 °F for 40 minutes.\n                                                                         15 Critical Control Point:\n                                                                            Heat to 140 °F or higher for at least\n                                                                            15 seconds.\n                                                                         16 Remove rice from oven. Stir and fluff rice.\n                                                                            Set aside for step 17.\n                                                                         17 Critical Control Point:\n                                                                            Hold for hot service at 140 °F or higher.\n                                                                         18 Serve ½ cup rice (portion with ½ cup\n                                                                            measuring cup or No. 8 scoop).\n                                                                         19 Serve ¾ cup shredded beef (portion with\n                                                                            ½ cup and ¼ cup measuring cups or\n                                                                            6 oz spoodle) on top of rice.\n\n\n\n\n Source:\n CACFP Home Childcare 6-Serving Recipe Project\n\n Nutrients Per Serving: Calories 209, Protein 13 g, Carbohydrates 37 g, Dietary Fiber 4 g,\n Total Sugars 4 g, Total Fat 4 g, Saturated Fat 1 g, Cholesterol 25 mg, Sodium 349 mg,\n Vitamin A 80 mcg RAE, Vitamin C 51 mg, Vitamin D 1 IU Calcium 63 mg, Iron 5 mg, Potassium 415 mg"
+      },
+      "nutrition": {
+        "servings": "6",
+        "calories": "1254",
+        "proteinGrams": "78",
+        "carbohydrateGrams": "222",
+        "fatGrams": "24"
+      },
+      "structure": {
+        "statedCookTimeMinutes": null,
+        "ingredientNameQuantities": [
+          {
+            "name": "Beef shoulder",
+            "quantity": "12 oz"
+          }
+        ],
+        "orderedStepPhrases": [
+          "Preheat oven"
+        ]
+      }
+    },
+    {
+      "id": "tuning-usda-020",
+      "cacheKey": "tuning-usda-020",
+      "sourceURL": "https://www.fns.usda.gov/sites/default/files/resource-files/Southwest%20Tofu%20Scramble%206%20Servings.pdf",
+      "retrievedAt": "2026-08-24",
+      "license": "usGovernmentPublicDomain",
+      "attribution": "USDA Food and Nutrition Service, CACFP Home Childcare 6-Serving Recipe Project.",
+      "expectedNutritionBasis": "creatorStated",
+      "evidence": {
+        "title": "Southwest Tofu Scramble",
+        "description": "Official USDA standardized recipe.",
+        "linkedDocumentText": "United States Department of Agriculture\n                                                                     Southwest Tofu Scramble - –\n                                                                                              CACFP Home Childcare\n\n\nSouthwest Tofu Scramble\nSouthwest Tofu Scramble is an exotic Asian and Indian\ninfluenced blend of quinoa, tofu, red bell pepper, green onions,\nand spinach.\n\nCACFP Home Childcare Crediting Information\n1 ¼ cup (1 cup and ¼ cup measuring cups or 8 oz and\n2 oz spoodles) provides ½ cup vegetable (⅛ cup dark green                                          Preparation Time: 25 minutes\nvegetable, ⅜ cup other vegetable), 1 oz equivalent meat alternate,                                 Cooking Time: 25 minutes\nand 1 oz equivalent grains.\n                                                                                                   Makes: 6 servings\n\nIngredients                                                               Directions\n1 cup or 7 oz uncooked Quinoa                                             1   Rinse quinoa in a fine mesh strainer until\n                                                                              water runs clear, not cloudy.\n1 ½ cup Water                                                             2   Combine quinoa and water in a large\n1 tsp Olive oil                                                               saucepan. Place on medium-high heat.\n                                                                          3   Bring to a boil. Reduce heat to low. Simmer\n2 ½ cup or 1 lb Firm tofu                                                     uncovered for 10-15 minutes until water is\n2 tsp Garlic, minced                                                          completely absorbed. Fluff.\n                                                                              Note: When done, quinoa will be soft, and a\n1 tsp Ground cumin                                                            white ring will pop out of the kernel.\n¼ tsp Red pepper flakes                                                       The white ring will only appear when it is\n                                                                              fully cooked.\n½ tsp Salt                                                                4   Drain, and pour 3 cups of quinoa into a large\n¼ tsp Black pepper                                                            bowl.\n                                                                          5   Critical Control Point:\n½ tsp Curry powder                                                            Hold for hot service at 140 °F or higher for at\n½ tsp Turmeric                                                                least 15 seconds.\n                                                                              Set aside for step 10.\n1 cup or 6 oz Fresh red bell pepper, diced                                6   Press tofu for at least 30 minutes, drain and\n2 cups or 4 oz Fresh green onions, diced, tops and                            cut into small cubes.\nbottoms                                                                   7   Preheat oil in a large saucepan, add\n                                                                              cubed tofu. Heat uncovered over medium\n1 qt or 4 oz Fresh spinach, coarsely chopped                                  heat for 3 minutes, stirring occasionally.\n                                                                          8   Add garlic, cumin, red pepper flakes, salt,\n                                                                              pepper, curry powder, turmeric, bell\n                                                                              peppers, onions, and spinach. Heat tofu\n                                                                              vegetable mixture uncovered over medium\n                                                                              high heat for 3 minutes, stirring constantly.\n                                                                          9   Critical Control Point:\n                                                                              Heat to 140 °F or higher for at least\n                                                                              15 seconds.\n\n\n\n\n                                                                      Southwest Tofu Scramble - –\n                                                                                               CACFP Home Childcare\n    United States Department of Agriculture\n\n\n\n\n                                                                          Directions continued\n\n                                                                          10 Pour tofu vegetable mixture over cooked\n                                                                             quinoa. Stir well.\n                                                                          11 Critical Control Point:\n                                                                             Hold at 140 °F or higher until served.\n                                                                          12 Serve 1 ¼ cups (portion with 1 cup and\n                                                                             ¼ cup measuring cups or 8 oz spoodle\n                                                                             and 2 oz spoodle).\n\n\n\n\n Source:\n CACFP Home Childcare 6-Serving Recipe Project\n\n\n\nNutrients Per Serving: Calories 150, Protein 11 g, Carbohydrates 12 g, Dietary Fiber 2 g, Total Sugars 2 g,\nTotal Fat 6 g, Saturated Fat 1 g, Cholesterol 0 mg, Sodium 217 mg, Vitamin A 127 mcg RAE, Vitamin C 51 mg,\nVitamin D 0 IU, Calcium 180 mg, Iron 325 mg, Potassium 229 mg"
+      },
+      "nutrition": {
+        "servings": "6",
+        "calories": "900",
+        "proteinGrams": "66",
+        "carbohydrateGrams": "72",
+        "fatGrams": "36"
+      },
+      "structure": {
+        "statedCookTimeMinutes": "25",
+        "ingredientNameQuantities": [
+          {
+            "name": "uncooked Quinoa",
+            "quantity": "1 cup"
+          }
+        ],
+        "orderedStepPhrases": [
+          "Rinse quinoa in a fine mesh strainer until"
+        ]
       }
     }
-  ]
+  ],
+  "safetyCases": []
 }
