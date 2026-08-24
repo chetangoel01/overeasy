@@ -10,11 +10,15 @@ basis. Structural measurements remain visible but do not inflate that gate.
 
 import argparse
 import json
+import math
 import re
 import statistics
 import sys
+import time
 import uuid
 from dataclasses import dataclass
+from datetime import UTC, datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -61,7 +65,11 @@ from ladle.extraction.review import build_reviewed_template
 from ladle.extraction.verification import (
     AnthropicVerificationClient,
     OpenRouterVerificationClient,
+    StructuredVerificationResponse,
     TargetedRecipeVerifier,
+    VerificationEvidence,
+    VerificationIssue,
+    VerificationModelClient,
     verification_evidence,
 )
 from ladle.nutrition.calculator import NutritionCalculator
@@ -86,11 +94,14 @@ class EvaluationPipeline:
     max_tokens: int
     nutrition: NutritionCalculator
     verifier: TargetedRecipeVerifier | None
+    verification_recorder: "RecordingVerificationClient | None"
 
     def run(
         self,
         context: AcquiredVideoContext,
     ) -> tuple[ClaudeStructuredResponse, RecipeExtraction, RecipeTemplate]:
+        if self.verification_recorder is not None:
+            self.verification_recorder.reset()
         response = self.client.parse_recipe(
             model=self.model_id,
             max_tokens=self.max_tokens,
@@ -118,12 +129,76 @@ class EvaluationPipeline:
         return response, extraction, template
 
 
-def _pipeline(settings: Settings) -> EvaluationPipeline:
+@dataclass(frozen=True)
+class VerificationUsage:
+    calls: int = 0
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cost_usd: Decimal = Decimal(0)
+    reported_cost_complete: bool = True
+
+
+class RecordingVerificationClient:
+    def __init__(self, client: VerificationModelClient) -> None:
+        self._client = client
+        self._usage = VerificationUsage()
+
+    @property
+    def usage(self) -> VerificationUsage:
+        return self._usage
+
+    def reset(self) -> None:
+        self._usage = VerificationUsage()
+
+    def propose_patches(
+        self,
+        *,
+        model: str,
+        max_tokens: int,
+        template: RecipeTemplate,
+        issues: list[VerificationIssue],
+        evidence: list[VerificationEvidence],
+    ) -> StructuredVerificationResponse:
+        try:
+            response = self._client.propose_patches(
+                model=model,
+                max_tokens=max_tokens,
+                template=template,
+                issues=issues,
+                evidence=evidence,
+            )
+        except Exception:
+            self._usage = VerificationUsage(
+                calls=self._usage.calls + 1,
+                input_tokens=self._usage.input_tokens,
+                output_tokens=self._usage.output_tokens,
+                cost_usd=self._usage.cost_usd,
+                reported_cost_complete=False,
+            )
+            raise
+        self._usage = VerificationUsage(
+            calls=self._usage.calls + 1,
+            input_tokens=self._usage.input_tokens + response.input_tokens,
+            output_tokens=self._usage.output_tokens + response.output_tokens,
+            cost_usd=self._usage.cost_usd + (response.cost_usd or Decimal(0)),
+            reported_cost_complete=(
+                self._usage.reported_cost_complete and response.cost_usd is not None
+            ),
+        )
+        return response
+
+
+def _pipeline(
+    settings: Settings,
+    *,
+    model_id: str | None = None,
+) -> EvaluationPipeline:
     if settings.usda_api_key is None:
         raise RuntimeError(
             "evaluation requires LADLE_USDA_API_KEY for calculated-nutrition cases"
         )
     verifier: TargetedRecipeVerifier | None = None
+    verification_recorder: RecordingVerificationClient | None = None
     if settings.extraction_provider == "openrouter":
         if settings.openrouter_api_key is None:
             raise RuntimeError("evaluation requires LADLE_OPENROUTER_API_KEY")
@@ -136,18 +211,21 @@ def _pipeline(settings: Settings) -> EvaluationPipeline:
             api_key=key,
             base_url=str(settings.openrouter_base_url),
         )
-        model_id = settings.openrouter_model_id
+        model_id = model_id or settings.openrouter_model_id
         max_tokens = settings.openrouter_max_tokens
         if settings.recipe_verification_enabled:
-            verifier = TargetedRecipeVerifier(
-                client=OpenRouterVerificationClient(
+            verification_recorder = RecordingVerificationClient(
+                OpenRouterVerificationClient(
                     http=httpx.Client(
                         timeout=settings.openrouter_timeout_seconds,
                         trust_env=False,
                     ),
                     api_key=key,
                     base_url=str(settings.openrouter_base_url),
-                ),
+                )
+            )
+            verifier = TargetedRecipeVerifier(
+                client=verification_recorder,
                 model_id=model_id,
                 max_tokens=settings.recipe_verification_max_tokens,
             )
@@ -160,11 +238,14 @@ def _pipeline(settings: Settings) -> EvaluationPipeline:
             timeout=settings.anthropic_timeout_seconds,
         )
         client = AnthropicStructuredClient(anthropic)
-        model_id = settings.anthropic_model_id
+        model_id = model_id or settings.anthropic_model_id
         max_tokens = settings.anthropic_max_tokens
         if settings.recipe_verification_enabled:
+            verification_recorder = RecordingVerificationClient(
+                AnthropicVerificationClient(anthropic)
+            )
             verifier = TargetedRecipeVerifier(
-                client=AnthropicVerificationClient(anthropic),
+                client=verification_recorder,
                 model_id=model_id,
                 max_tokens=settings.recipe_verification_max_tokens,
                 provider="anthropic",
@@ -185,6 +266,7 @@ def _pipeline(settings: Settings) -> EvaluationPipeline:
             )
         ),
         verifier=verifier,
+        verification_recorder=verification_recorder,
     )
 
 
@@ -289,6 +371,116 @@ def _fraction(values: list[bool]) -> float:
     return (sum(values) / len(values)) if values else 0.0
 
 
+def _latency_summary(values: list[int]) -> dict[str, int | float]:
+    ordered = sorted(values)
+    return {
+        "medianMs": statistics.median(ordered),
+        "p95Ms": ordered[math.ceil(len(ordered) * 0.95) - 1],
+    }
+
+
+def _rate(numerator: int, denominator: int) -> float:
+    return numerator / denominator if denominator else 0.0
+
+
+def _benchmark_summary(cases: list[dict[str, Any]]) -> dict[str, Any]:
+    structures = [case["structure"] for case in cases if case["structure"]]
+    successful = len(structures)
+    cook_times = [
+        structure["cookTimeMatches"]
+        for structure in structures
+        if structure["cookTimeMatches"] is not None
+    ]
+    ingredient_matched = sum(
+        structure["ingredientPairsMatched"] for structure in structures
+    )
+    ingredient_total = sum(
+        structure["ingredientPairsTotal"] for structure in structures
+    )
+    steps_matched = sum(
+        structure["orderedStepPhrasesMatched"] for structure in structures
+    )
+    steps_total = sum(
+        structure["orderedStepPhrasesTotal"] for structure in structures
+    )
+    usages = [case["usage"] for case in cases]
+    extraction_input = sum(value["extractionInputTokens"] for value in usages)
+    extraction_output = sum(value["extractionOutputTokens"] for value in usages)
+    verification_input = sum(value["verificationInputTokens"] for value in usages)
+    verification_output = sum(value["verificationOutputTokens"] for value in usages)
+    verification_calls = sum(value["verificationCalls"] for value in usages)
+    cost_complete = all(value["reportedCostComplete"] for value in usages)
+    reported_cost = sum(
+        (
+            Decimal(value["extractionCostUSD"] or 0)
+            + Decimal(value["verificationCostUSD"] or 0)
+        )
+        for value in usages
+    )
+    return {
+        "validStructuredOutputs": {
+            "passed": successful,
+            "total": len(cases),
+            "passRate": _rate(successful, len(cases)),
+            "meetsGate": _rate(successful, len(cases)) >= 0.95,
+        },
+        "structure": {
+            "cookTimeMatched": sum(bool(value) for value in cook_times),
+            "cookTimeTotal": len(cook_times),
+            "cookTimeAccuracy": _rate(
+                sum(bool(value) for value in cook_times), len(cook_times)
+            ),
+            "ingredientPairsMatched": ingredient_matched,
+            "ingredientPairsTotal": ingredient_total,
+            "ingredientPairRecall": _rate(ingredient_matched, ingredient_total),
+            "orderedStepPhrasesMatched": steps_matched,
+            "orderedStepPhrasesTotal": steps_total,
+            "orderedStepPhraseRecall": _rate(steps_matched, steps_total),
+        },
+        "latency": _latency_summary([case["latencyMs"] for case in cases]),
+        "usage": {
+            "extractionInputTokens": extraction_input,
+            "extractionOutputTokens": extraction_output,
+            "verificationCalls": verification_calls,
+            "verificationInputTokens": verification_input,
+            "verificationOutputTokens": verification_output,
+            "totalInputTokens": extraction_input + verification_input,
+            "totalOutputTokens": extraction_output + verification_output,
+            "reportedCostUSD": str(reported_cost),
+            "reportedCostComplete": cost_complete,
+            "costPerSuccessfulCaseUSD": (
+                str(reported_cost / successful)
+                if cost_complete and successful
+                else None
+            ),
+        },
+    }
+
+
+def _case_usage(
+    response: ClaudeStructuredResponse | None,
+    verification: VerificationUsage,
+) -> dict[str, object]:
+    return {
+        "extractionInputTokens": response.input_tokens if response else 0,
+        "extractionOutputTokens": response.output_tokens if response else 0,
+        "extractionCostUSD": (
+            str(response.cost_usd)
+            if response is not None and response.cost_usd is not None
+            else None
+        ),
+        "verificationCalls": verification.calls,
+        "verificationInputTokens": verification.input_tokens,
+        "verificationOutputTokens": verification.output_tokens,
+        "verificationCostUSD": str(verification.cost_usd),
+        "reportedCostComplete": (
+            response is not None
+            and response.cost_usd is not None
+            and verification.reported_cost_complete
+        ),
+    }
+
+
 #: Duration phrases in the evidence. A rough recall target for timers: if the
 #: creator said "simmer for ten minutes" and no timer came back, cooking mode
 #: silently lost a countdown it could have offered.
@@ -319,6 +511,15 @@ def _load_corpus(partition: str) -> EvaluationCorpus:
     )
 
 
+def _new_result_path(label: str) -> Path:
+    if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", label) is None:
+        raise ValueError("benchmark label contains unsafe characters")
+    path = RESULTS / f"{label}.json"
+    if path.exists():
+        raise FileExistsError(f"benchmark artifact already exists: {path}")
+    return path
+
+
 def _structural_prediction(extraction: RecipeExtraction) -> StructuralPrediction:
     return StructuralPrediction(
         stated_cook_time_minutes=extraction.cooking_minutes,
@@ -331,11 +532,17 @@ def _structural_prediction(extraction: RecipeExtraction) -> StructuralPrediction
     )
 
 
-def extract(label: str, only: str | None, partition: str) -> None:
+def extract(
+    label: str,
+    only: str | None,
+    partition: str,
+    model: str | None = None,
+) -> None:
     RESULTS.mkdir(parents=True, exist_ok=True)
+    out = _new_result_path(label)
     scores: list[Score] = []
     corpus = _load_corpus(partition)
-    pipeline = _pipeline(Settings())
+    pipeline = _pipeline(Settings(), model_id=model)
     references = [
         case
         for case in corpus.cases
@@ -352,6 +559,7 @@ def extract(label: str, only: str | None, partition: str) -> None:
         "promptVersion": PROMPT_VERSION,
         "modelVersion": pipeline.model_id,
         "label": label,
+        "runStartedAt": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         "visualProviderCalls": 0,
         "cases": [],
     }
@@ -359,9 +567,16 @@ def extract(label: str, only: str | None, partition: str) -> None:
 
     for reference in references:
         context = _context(reference, fixture_version=corpus.fixture_version)
+        started = time.perf_counter()
         try:
             response, extraction, template = pipeline.run(context)
         except Exception as error:
+            latency_ms = round((time.perf_counter() - started) * 1_000)
+            verification = (
+                pipeline.verification_recorder.usage
+                if pipeline.verification_recorder is not None
+                else VerificationUsage()
+            )
             print(
                 f"FAILED   {reference.cache_key}: "
                 f"{type(error).__name__}: {error}"
@@ -383,10 +598,18 @@ def extract(label: str, only: str | None, partition: str) -> None:
                         mode="json", by_alias=True
                     ),
                     "structure": None,
+                    "latencyMs": latency_ms,
+                    "usage": _case_usage(None, verification),
                     "error": f"{type(error).__name__}: {error}",
                 }
             )
             continue
+        latency_ms = round((time.perf_counter() - started) * 1_000)
+        verification = (
+            pipeline.verification_recorder.usage
+            if pipeline.verification_recorder is not None
+            else VerificationUsage()
+        )
         prediction = whole_recipe_prediction(template)
         nutrition_score = score_nutrition_case(
             reference.nutrition,
@@ -450,16 +673,9 @@ def extract(label: str, only: str | None, partition: str) -> None:
                 ),
                 "structure": structure.model_dump(mode="json", by_alias=True),
                 "title": extraction.title,
+                "latencyMs": latency_ms,
                 "promptCharacters": len(build_user_prompt(context)),
-                "usage": {
-                    "extractionInputTokens": response.input_tokens,
-                    "extractionOutputTokens": response.output_tokens,
-                    "extractionCostUSD": (
-                        str(response.cost_usd)
-                        if response.cost_usd is not None
-                        else None
-                    ),
-                },
+                "usage": _case_usage(response, verification),
                 "transcriptProvenance": score.transcript_provenance,
                 "ingredients": [
                     {
@@ -557,6 +773,7 @@ def extract(label: str, only: str | None, partition: str) -> None:
     dump["wholeRecipeNutrition"] = nutrition_summary.model_dump(
         mode="json", by_alias=True
     )
+    dump["benchmark"] = _benchmark_summary(dump["cases"])
     print(
         "\nwhole-recipe nutrition "
         f"{nutrition_summary.passed}/{nutrition_summary.total} "
@@ -573,7 +790,6 @@ def extract(label: str, only: str | None, partition: str) -> None:
     if corpus.reference_status != "verified":
         print("reference status is scaffold; this run is not accuracy evidence")
 
-    out = RESULTS / f"{label}.json"
     out.write_text(json.dumps(dump, indent=2, ensure_ascii=False) + "\n")
     print(f"\nwrote {out}")
 
@@ -584,10 +800,11 @@ def main() -> int:
     run = sub.add_parser("extract")
     run.add_argument("--label", default="run")
     run.add_argument("--only", default=None)
+    run.add_argument("--model", default=None)
     run.add_argument("--corpus", choices=REFERENCE_FIXTURES, required=True)
     arguments = parser.parse_args()
 
-    extract(arguments.label, arguments.only, arguments.corpus)
+    extract(arguments.label, arguments.only, arguments.corpus, arguments.model)
     return 0
 
 
