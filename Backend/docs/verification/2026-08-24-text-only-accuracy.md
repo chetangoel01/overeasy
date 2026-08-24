@@ -21,6 +21,17 @@ for the missing run.
 
 The held-out fixture has not been used for prompt or model tuning.
 
+Implementation checkpoints:
+
+- `3e271ab` — zero visual-analysis acquisition/runtime paths
+- `eef794a` — insufficient-text refusal
+- `a4d66b8` — creator-owned written-recipe search
+- `4789012` — creator nutrition provenance
+- `90414ed` — deterministic USDA nutrition
+- `34cab87` — targeted text-evidence verification
+- `3a0210d` — locked 20/80 corpus and whole-recipe evaluator
+- `8129b97` — provider-reported USD accounting without a per-share limit
+
 ## Completed evidence
 
 ```text
@@ -53,6 +64,36 @@ Success: no issues found in 117 source files
 .venv/bin/mypy scripts/eval_extraction.py \
   scripts/build_evaluation_corpus.py
 Success: no issues found in 2 source files
+
+.venv/bin/pytest tests/unit/extraction/test_openrouter.py \
+  tests/unit/extraction/test_claude.py \
+  tests/unit/extraction/test_verification.py \
+  tests/unit/acquisition/test_audio.py -q
+54 passed
+
+.venv/bin/pytest tests/integration/usage/test_budget_reservations.py \
+  tests/integration/test_migrations.py -q
+9 passed
+
+.venv/bin/pytest -q
+605 passed, 5 skipped
+
+.venv/bin/ruff check ladle tests scripts alembic
+All checks passed
+
+swift test --package-path Packages/LadleCore
+44 tests passed
+
+xcodebuild test -project Ladle.xcodeproj -scheme Ladle \
+  -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+  -derivedDataPath /tmp/ladle-text-accuracy-derived \
+  CODE_SIGNING_ALLOWED=NO \
+  -only-testing:LadleTests/RemoteImportServiceTests \
+  -only-testing:LadleTests/RecipeEditorViewModelTests
+10 tests passed; TEST SUCCEEDED
+
+Ladle.app/PlugIns/LadleShare.appex present
+NSExtensionPointIdentifier = com.apple.share-services
 ```
 
 The fixture integrity tests independently recompute both digests, confirm no
@@ -60,6 +101,20 @@ tuning/held-out identity overlap, and exercise all 20 sparse cases through the
 production `require_recipe_evidence` gate. Those deterministic sparse cases
 pass 20/20. Production construction and evaluation contexts both contain an
 empty visual-evidence list, and the model clients accept text only.
+
+Provider accounting tests additionally prove that OpenRouter-reported cost is
+parsed for extraction and targeted verification, transcription reports cost,
+the database stores `Numeric(18, 8)`, a two-attempt structured-output retry
+adds both token and cost totals, and repeated processing accumulates cost
+without double-counting idempotent completion. A reported `$999.25` second-run
+cost did not reject the call; only its independent billed-unit reservation
+affected the global abuse-control window.
+
+The five full-suite skips are explicitly live-provider integration cases. The
+testcontainers Redis deprecation warning is upstream test-library noise. The
+iOS simulator emitted a duplicate accessibility-bundle runtime warning, but
+all selected tests passed and the built app contains a validated Share
+Extension.
 
 ## Blocked provider run
 
