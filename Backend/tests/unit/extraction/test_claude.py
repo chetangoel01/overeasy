@@ -16,6 +16,7 @@ from ladle.extraction.claude import (
 )
 from ladle.extraction.models import (
     ExtractedIngredient,
+    ExtractedNutrition,
     ExtractedStep,
     RecipeExtraction,
 )
@@ -117,6 +118,31 @@ def test_structured_output_converts_to_validated_template() -> None:
     assert result.steps[0].ingredient_indexes == [0]
     assert service.contract_version == "v1"
     assert service.prompt_version
+
+
+def test_model_cannot_self_authorize_usda_nutrition() -> None:
+    value = extracted()
+    value.nutrition = ExtractedNutrition(
+        calories=Decimal("500"),
+        protein_grams=Decimal("20"),
+        carbohydrate_grams=Decimal("60"),
+        fat_grams=Decimal("20"),
+        serving_basis=Decimal("1"),
+        basis="usdaCalculated",
+        evidence="Estimated by the extraction model.",
+    )
+    service = extractor(
+        ClaudeStructuredResponse(
+            stop_reason="end_turn",
+            parsed_output=value,
+            input_tokens=100,
+            output_tokens=50,
+        )
+    )
+
+    result = service.extract(context(), job_id=uuid4())
+
+    assert result.nutrition is None
 
 
 @pytest.mark.parametrize(

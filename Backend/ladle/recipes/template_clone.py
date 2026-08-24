@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID, uuid4
 
 from pydantic import Field, model_validator
@@ -34,6 +35,9 @@ class TemplateIngredient(WireModel):
     unit: str | None = None
     name: str = Field(min_length=1)
     preparation: str | None = None
+    metric_amount: WireDecimal | None = None
+    metric_unit: Literal["g", "ml"] | None = None
+    usda_search_term: str | None = Field(default=None, min_length=1)
     order_index: int = Field(ge=0)
     uncertainty: FieldUncertaintyDTO | None = None
 
@@ -71,6 +75,8 @@ class TemplateNutrition(WireModel):
     other_nutrients: list[TemplateNutrient] = Field(default_factory=list)
     serving_basis: WireDecimal
     is_estimated: bool
+    basis: Literal["creatorStated", "usdaCalculated", "unknown"]
+    evidence: str | None = None
 
 
 class RecipeTemplate(WireModel):
@@ -170,6 +176,12 @@ class RecipeTemplate(WireModel):
                     ],
                     serving_basis=nutrition.serving_basis,
                     is_estimated=nutrition.is_estimated,
+                    basis=(
+                        "usdaCalculated"
+                        if nutrition.is_estimated
+                        else "creatorStated"
+                    ),
+                    evidence=None,
                 )
                 if nutrition is not None
                 else None

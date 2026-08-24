@@ -3,7 +3,7 @@ from typing import Any
 
 from ladle.acquisition.models import AcquiredVideoContext
 
-PROMPT_VERSION = "recipe-2026-08-24-v9"
+PROMPT_VERSION = "recipe-2026-08-24-v10"
 
 SYSTEM_PROMPT = (
     "You extract faithful cooking recipes from social-video evidence.\n"
@@ -60,11 +60,8 @@ SYSTEM_PROMPT = (
     "SERVINGS\n"
     "- If the creator states a yield, use it and set servingsBasis to "
     "'stated'.\n"
-    "- Otherwise estimate from total cooked volume or mass using the "
-    "metricAmount values, assuming roughly 350-450 g of finished main dish "
-    "per adult serving, and set servingsBasis to 'estimatedFromYield'.\n"
-    "- Only when the evidence cannot support even a rough estimate, leave "
-    "servings null with servingsBasis 'unknown'.\n"
+    "- Otherwise leave servings null with servingsBasis 'unknown'. Never "
+    "invent or estimate a serving count to divide nutrition.\n"
     "- Never default to 1 simply because the yield was unstated.\n"
     "\n"
     "TIMING\n"
@@ -113,6 +110,17 @@ SYSTEM_PROMPT = (
     "Never smuggle such text into an ingredient name or a step "
     "instruction.\n"
     "\n"
+    "NUTRITION\n"
+    "- Return nutrition only when the creator explicitly states it in the "
+    "source text. Set basis to 'creatorStated' and copy the smallest exact "
+    "supporting passage into evidence.\n"
+    "- Never set basis to 'usdaCalculated'; deterministic server code owns "
+    "that label after matching measured ingredients to USDA data.\n"
+    "- Never estimate nutrition from ingredients, dish knowledge, or macro "
+    "arithmetic. When creator-stated values are absent, leave nutrition null.\n"
+    "- Do not invent servings or a serving basis to make stated totals look "
+    "like per-serving values. Preserve exactly what the creator labels.\n"
+    "\n"
     "STEPS\n"
     "- Write steps at the granularity a cook follows: one coherent action or "
     "a tight group of them, in the order they happen. Do not collapse the "
@@ -145,8 +153,6 @@ SYSTEM_PROMPT = (
     "- Flag a field only when a cook would actually be misled without the "
     "warning. Marking everything uncertain is the same as marking nothing.\n"
     "\n"
-    "Estimate nutrition per serving only when possible; it will always be "
-    "labeled estimated by the server.\n"
     "Return a usable recipe only when the evidence supports at least one "
     "ingredient and one ordered step."
 )

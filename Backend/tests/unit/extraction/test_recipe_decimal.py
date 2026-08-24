@@ -70,7 +70,11 @@ def test_one_fraction_no_longer_discards_the_whole_recipe() -> None:
         "steps": [
             {"instruction": "Dredge the chicken.", "confidence": 1.0},
         ],
-        "nutrition": {"calories": "1/2", "servingBasis": "1/2"},
+        "nutrition": {
+            "calories": "1/2",
+            "servingBasis": "1/2",
+            "basis": "unknown",
+        },
     }
 
     extraction = RecipeExtraction.model_validate(payload)

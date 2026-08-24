@@ -1,3 +1,4 @@
+import re
 from decimal import Decimal
 
 from ladle.acquisition.models import AcquiredVideoContext
@@ -29,6 +30,11 @@ _MISSING_QUANTITY_THRESHOLD = 0.3
 # divisor over-reports servings, which understates per-serving nutrition.
 _GRAMS_PER_SERVING = Decimal(400)
 _MAX_ESTIMATED_SERVINGS = Decimal(12)
+
+
+def _usda_search_term(name: str, preparation: str | None) -> str:
+    value = f"{name} {preparation or ''}".casefold()
+    return " ".join(re.sub(r"[^\w\s-]", " ", value).split())
 
 
 def _estimate_servings(extraction: RecipeExtraction) -> Decimal | None:
@@ -167,6 +173,12 @@ def build_reviewed_template(
                 unit=ingredient_value.unit,
                 name=ingredient_value.name,
                 preparation=ingredient_value.preparation,
+                metric_amount=ingredient_value.metric_amount,
+                metric_unit=ingredient_value.metric_unit,
+                usda_search_term=_usda_search_term(
+                    ingredient_value.name,
+                    ingredient_value.preparation,
+                ),
                 order_index=index,
                 uncertainty=uncertainty,
             )
@@ -233,9 +245,11 @@ def build_reviewed_template(
                 for value in nutrition.other_nutrients
             ],
             serving_basis=nutrition.serving_basis or servings,
-            is_estimated=True,
+            is_estimated=False,
+            basis=nutrition.basis,
+            evidence=nutrition.evidence,
         )
-        if nutrition is not None
+        if nutrition is not None and nutrition.basis == "creatorStated"
         else None
     )
 

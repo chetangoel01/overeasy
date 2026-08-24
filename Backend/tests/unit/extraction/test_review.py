@@ -80,6 +80,8 @@ def test_defaults_and_coverage_problems_become_needs_review() -> None:
             calories=Decimal("500"),
             protein_grams=Decimal("15"),
             serving_basis=None,
+            basis="unknown",
+            evidence=None,
         ),
         uncertainties=[],
     )
@@ -93,9 +95,7 @@ def test_defaults_and_coverage_problems_become_needs_review() -> None:
     assert reviewed.servings == 1
     assert reviewed.steps[0].ingredient_indexes == [0]
     assert reviewed.steps[0].uncertainty is not None
-    assert reviewed.nutrition is not None
-    assert reviewed.nutrition.serving_basis == 1
-    assert reviewed.nutrition.is_estimated
+    assert reviewed.nutrition is None
     reasons = {value.field for value in reviewed.uncertainties}
     assert "servings" in reasons
     assert "ingredientQuantities" in reasons
@@ -150,6 +150,7 @@ def _solid_recipe(**overrides: object) -> RecipeExtraction:
                 unit="can",
                 metric_amount=Decimal("800"),
                 metric_unit="g",
+                preparation="drained",
                 confidence=0.95,
             ),
             ExtractedIngredient(
@@ -173,6 +174,63 @@ def _solid_recipe(**overrides: object) -> RecipeExtraction:
     }
     defaults.update(overrides)
     return RecipeExtraction.model_validate(defaults)
+
+
+def test_creator_stated_nutrition_is_preserved_as_non_estimated() -> None:
+    nutrition = ExtractedNutrition(
+        calories=Decimal("420"),
+        protein_grams=Decimal("18"),
+        carbohydrate_grams=Decimal("52"),
+        fat_grams=Decimal("16"),
+        serving_basis=Decimal("4"),
+        basis="creatorStated",
+        evidence="Per serving: 420 calories, 18g protein, 52g carbs, 16g fat.",
+    )
+
+    reviewed = build_reviewed_template(
+        _solid_recipe(nutrition=nutrition),
+        context=context(),
+    )
+
+    assert reviewed.nutrition is not None
+    assert reviewed.nutrition.basis == "creatorStated"
+    assert reviewed.nutrition.evidence == nutrition.evidence
+    assert not reviewed.nutrition.is_estimated
+
+
+def test_unknown_or_usda_claimed_model_nutrition_is_discarded() -> None:
+    for basis in ("unknown", "usdaCalculated"):
+        nutrition = ExtractedNutrition(
+            calories=Decimal("420"),
+            protein_grams=Decimal("18"),
+            carbohydrate_grams=Decimal("52"),
+            fat_grams=Decimal("16"),
+            serving_basis=Decimal("4"),
+            basis=basis,
+            evidence="A model-generated estimate.",
+        )
+
+        reviewed = build_reviewed_template(
+            _solid_recipe(nutrition=nutrition),
+            context=context(),
+        )
+
+        assert reviewed.nutrition is None
+
+
+def test_absent_creator_nutrition_remains_absent() -> None:
+    reviewed = build_reviewed_template(_solid_recipe(), context=context())
+
+    assert reviewed.nutrition is None
+
+
+def test_review_retains_usda_ready_ingredient_fields() -> None:
+    reviewed = build_reviewed_template(_solid_recipe(), context=context())
+
+    chickpeas = reviewed.ingredients[0]
+    assert chickpeas.metric_amount == Decimal("800")
+    assert chickpeas.metric_unit == "g"
+    assert chickpeas.usda_search_term == "chickpeas drained"
 
 
 def test_a_legacy_unavailable_provider_code_is_not_recipe_doubt() -> None:

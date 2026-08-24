@@ -78,6 +78,25 @@ The iOS recovery surfaces this as missing written recipe detail and directs the
 cook to paste the recipe or create it manually. This is distinct from an
 unsupported host or a provider outage.
 
+## Nutrition provenance
+
+Prompt version `recipe-2026-08-24-v10` forbids the extraction model from
+estimating nutrition, claiming that it ran USDA calculations, or inventing a
+serving count to divide totals. Nutrition is returned only when the creator
+states it in source text, with basis `creatorStated` and a short supporting
+passage. Missing values stay absent for the deterministic nutrition stage.
+
+The server accepts only `creatorStated` nutrition from model output and maps it
+to `isEstimated=false`. Model output labeled `unknown` or `usdaCalculated` is
+discarded; only the later deterministic USDA calculator may assign
+`usdaCalculated`. The internal recipe template preserves this basis and its
+evidence without changing the public iOS nutrition contract.
+
+Each internal ingredient now retains its source metric amount/unit and a
+normalized USDA search phrase derived from the ingredient name and preparation
+state. These fields survive extraction review for deterministic matching but
+are not exposed as creator claims in the public recipe DTO.
+
 ## Affected components
 
 - acquisition provider chain and Supadata client;
@@ -110,3 +129,8 @@ configuration, and test files; strict mypy passed all five affected source
 files. Tests cover forced text-search payloads, citation parsing, SSRF-safe
 refetching, ownership and dish matching, thin/non-recipe rejection, transcript
 ordering, diagnostics, runtime construction, and the zero-visual boundary.
+
+The nutrition-provenance slice additionally passed all 62 extraction tests and
+the complete 458-test backend unit/contract suite. Ruff passed all affected
+extraction, template, and test files; strict mypy passed all four affected
+source files.
