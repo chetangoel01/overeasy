@@ -30,6 +30,10 @@ _ENERGY_IDS = (2048, 2047, 1008)
 _MACRO_IDS = {"protein": 1003, "fat": 1004, "carbohydrate": 1005}
 
 
+class _FoodDetailNotFound(Exception):
+    pass
+
+
 class FoodPortion(WireModel):
     amount: WireDecimal = Field(gt=0)
     gram_weight: WireDecimal = Field(gt=0)
@@ -47,6 +51,7 @@ class FoodNutrients(WireModel):
     carbohydrate_grams_per_100g: WireDecimal = Field(ge=0)
     fat_grams_per_100g: WireDecimal = Field(ge=0)
     portions: list[FoodPortion] = Field(default_factory=list)
+    search_rank: int | None = Field(default=None, ge=0)
 
 
 class FoodDataSource(Protocol):
@@ -101,17 +106,18 @@ class USDAClient:
             key=lambda row: self._search_rank(normalized, row),
         )[: self._maximum_candidates]
         foods: list[FoodNutrients] = []
-        for row in ranked:
+        for search_rank, row in enumerate(ranked):
             fdc_id = row.get("fdcId")
             if not isinstance(fdc_id, int) or fdc_id <= 0:
                 continue
-            detail = self._json_object(
-                self._request("GET", f"/food/{fdc_id}"),
-                "food detail",
-            )
+            try:
+                detail_response = self._request("GET", f"/food/{fdc_id}")
+            except _FoodDetailNotFound:
+                continue
+            detail = self._json_object(detail_response, "food detail")
             parsed = self._parse_food(detail)
             if parsed is not None:
-                foods.append(parsed)
+                foods.append(parsed.model_copy(update={"search_rank": search_rank}))
 
         value = tuple(foods)
         self._cache[normalized] = value
@@ -137,6 +143,8 @@ class USDAClient:
             raise ProviderAuthenticationError("USDA authentication failed")
         if response.status_code in {402, 429}:
             raise ProviderQuotaError("USDA quota unavailable")
+        if response.status_code == 404 and path.startswith("/food/"):
+            raise _FoodDetailNotFound
         if response.status_code >= 400:
             raise ProviderTransientError(
                 f"USDA request failed with HTTP {response.status_code}"

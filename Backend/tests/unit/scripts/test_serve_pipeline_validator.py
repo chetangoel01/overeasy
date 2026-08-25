@@ -199,7 +199,7 @@ def test_results_page_embeds_five_safe_complete_recipe_records() -> None:
         "https://www.instagram.com/p/DbbHIKHM3xr/",
     }
     assert sum(float(record["knownCostUSD"]) for record in records) == pytest.approx(
-        0.0783865776875
+        0.1190838276875
     )
     for record in records:
         recipe = record["recipe"]
@@ -208,6 +208,11 @@ def test_results_page_embeds_five_safe_complete_recipe_records() -> None:
         assert recipe["review_status"] in {"ready", "needsReview"}
         assert recipe["ingredients"]
         assert recipe["steps"]
+        assert recipe["nutrition"]["calories"] is not None
+        assert recipe["nutrition"]["protein_grams"] is not None
+        assert recipe["nutrition"]["carbohydrate_grams"] is not None
+        assert recipe["nutrition"]["fat_grams"] is not None
+        assert recipe["nutrition"]["evidence"]
         assert record["processSeconds"] > 0
 
 

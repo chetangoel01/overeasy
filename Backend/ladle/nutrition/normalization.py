@@ -270,6 +270,7 @@ class RecipeNutritionNormalizer:
                         "metric_amount": normalized.grams,
                         "metric_unit": "g",
                         "usda_search_term": normalized.usda_search_term,
+                        "is_to_taste": False,
                         "exclude_from_nutrition": False,
                         "uncertainty": uncertainty,
                     }
@@ -339,7 +340,7 @@ class RecipeNutritionNormalizer:
             for index, ingredient in enumerate(template.ingredients)
             if not ingredient.is_to_taste
         }
-        if set(all_indexes) != material:
+        if not material <= set(all_indexes):
             raise NutritionNormalizationUnavailable(
                 "normalizer did not account for every material ingredient"
             )

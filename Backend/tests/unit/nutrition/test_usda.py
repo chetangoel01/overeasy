@@ -63,6 +63,7 @@ def test_candidates_prefer_generic_foods_and_parse_nutrients_and_portions() -> N
     foods = client(respond).candidates("chickpeas canned drained")
 
     assert [food.fdc_id for food in foods] == [2644288, 173800, 999001]
+    assert [food.search_rank for food in foods] == [0, 1, 2]
     assert foods[0].calories_per_100g == Decimal("132.972")
     assert foods[0].protein_grams_per_100g == Decimal("7.01875")
     assert foods[0].carbohydrate_grams_per_100g == Decimal("20.32025")
@@ -129,6 +130,22 @@ def test_missing_required_macro_returns_no_candidate() -> None:
         return httpx.Response(200, json=detail)
 
     assert client(respond).candidates("chickpeas") == []
+
+
+def test_stale_search_result_with_missing_detail_is_skipped() -> None:
+    rows = [SEARCH["foods"][0], SEARCH["foods"][1]]
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/foods/search"):
+            return httpx.Response(200, json={"foods": rows})
+        if request.url.path.endswith(str(rows[1]["fdcId"])):
+            return httpx.Response(404)
+        return httpx.Response(200, json=detail_for(rows[0]["fdcId"]))
+
+    foods = client(respond).candidates("chickpeas")
+
+    assert [value.fdc_id for value in foods] == [rows[0]["fdcId"]]
+    assert foods[0].search_rank == 1
 
 
 def test_transport_timeout_is_typed_without_guessing() -> None:

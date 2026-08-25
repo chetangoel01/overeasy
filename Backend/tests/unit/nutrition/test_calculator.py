@@ -51,6 +51,7 @@ def food(
     carbohydrate: str = "20",
     fat: str = "2",
     portions: list[FoodPortion] | None = None,
+    search_rank: int | None = None,
 ) -> FoodNutrients:
     return FoodNutrients.model_validate(
         {
@@ -62,6 +63,7 @@ def food(
             "carbohydrate_grams_per_100g": Decimal(carbohydrate),
             "fat_grams_per_100g": Decimal(fat),
             "portions": portions or [],
+            "search_rank": search_rank,
         }
     )
 
@@ -227,6 +229,30 @@ def test_equally_specific_generic_matches_are_ambiguous() -> None:
     assert error.value.ingredient_name == "rice"
 
 
+def test_trusts_unique_usda_search_order_for_normalized_query() -> None:
+    source = Foods(
+        {
+            "dry wheat noodles": [
+                food(
+                    fdc_id=10,
+                    description="noodles egg dry enriched",
+                    search_rank=0,
+                ),
+                food(
+                    fdc_id=11,
+                    description="noodles rice cooked",
+                    search_rank=1,
+                ),
+            ]
+        }
+    )
+    value = ingredient(name="noodles", query="dry wheat noodles")
+
+    result = NutritionCalculator(source).calculate_required(recipe([value]))
+
+    assert result.evidence == "USDA FDC 10"
+
+
 @pytest.mark.parametrize(
     "value",
     [
@@ -322,6 +348,31 @@ def test_gross_calorie_macro_inconsistency_is_rejected() -> None:
 
     assert error.value.code == "inconsistentNutrients"
     assert error.value.ingredient_index == 0
+
+
+@pytest.mark.parametrize("query", ["white table wine", "black vinegar"])
+def test_non_macro_energy_sources_use_authoritative_usda_calories(query: str) -> None:
+    source = Foods(
+        {
+            query: [
+                food(
+                    description=query,
+                    calories="80",
+                    protein="0",
+                    carbohydrate="2",
+                    fat="0",
+                    search_rank=0,
+                )
+            ]
+        }
+    )
+    value = ingredient(name=query, query=query, metric_amount="100")
+
+    result = NutritionCalculator(source).calculate_required(
+        recipe([value], servings="1")
+    )
+
+    assert result.calories == Decimal("80.0")
 
 
 def test_missing_mass_exposes_ingredient_diagnostic() -> None:

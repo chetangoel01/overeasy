@@ -58,8 +58,8 @@ class RecipeNutritionService:
                 context=context,
                 job_id=job_id,
             )
-        except NutritionNormalizationUnavailable:
-            return _blocked(template, "normalizationUnavailable")
+        except NutritionNormalizationUnavailable as error:
+            return _blocked(template, f"normalizationUnavailable ({error})")
 
         try:
             nutrition = self._calculator.calculate_required(normalized.template)

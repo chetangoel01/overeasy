@@ -99,7 +99,7 @@ class NutritionCalculator:
             raise NutritionCalculationUnavailable("noMaterialIngredients")
         for index, ingredient in material:
             food = self._food_required(ingredient, index=index)
-            if not _consistent(food):
+            if not _consistent(food, query=ingredient.usda_search_term or ""):
                 raise NutritionCalculationUnavailable(
                     "inconsistentNutrients",
                     ingredient_index=index,
@@ -161,9 +161,22 @@ class NutritionCalculator:
                 ingredient_index=index,
                 ingredient_name=ingredient.name,
             )
+        candidates = self._source.candidates(query)
+        provider_ranked = [
+            value for value in candidates if value.search_rank is not None
+        ]
+        if provider_ranked:
+            provider_ranked.sort(
+                key=lambda value: (
+                    value.search_rank if value.search_rank is not None else 0,
+                    value.fdc_id,
+                )
+            )
+            return provider_ranked[0]
+
         ranked: list[tuple[tuple[int, int, int], FoodNutrients]] = []
         normalized_query = " ".join(_tokens(query))
-        for candidate in self._source.candidates(query):
+        for candidate in candidates:
             description_tokens = set(_tokens(candidate.description))
             if not query_tokens <= description_tokens:
                 continue
@@ -219,7 +232,9 @@ def _portion_grams(
     return quantity / portion.amount * portion.gram_weight
 
 
-def _consistent(food: FoodNutrients) -> bool:
+def _consistent(food: FoodNutrients, *, query: str = "") -> bool:
+    if set(_tokens(query)) & {"alcohol", "beer", "liquor", "vinegar", "wine"}:
+        return True
     macro_calories = (
         food.protein_grams_per_100g * 4
         + food.carbohydrate_grams_per_100g * 4

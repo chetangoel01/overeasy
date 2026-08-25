@@ -166,6 +166,32 @@ def test_explicit_normalizer_exclusions_are_applied_for_calculation() -> None:
     assert not result.template.ingredients[0].exclude_from_nutrition
 
 
+def test_model_may_account_for_an_original_to_taste_ingredient() -> None:
+    value = response().model_copy(
+        update={
+            "ingredients": [
+                *response().ingredients,
+                NormalizedIngredient(
+                    ingredient_index=2,
+                    usda_search_term="table salt",
+                    grams=Decimal("3"),
+                    was_inferred=True,
+                    rationale="A bounded seasoning estimate.",
+                ),
+            ]
+        }
+    )
+
+    result = normalizer(value).normalize(
+        template(servings="1", basis="estimatedFromYield"),
+        context=context(),
+        job_id=uuid4(),
+    )
+
+    assert not result.template.ingredients[2].is_to_taste
+    assert result.template.ingredients[2].metric_amount == 3
+
+
 @pytest.mark.parametrize(
     "value",
     [

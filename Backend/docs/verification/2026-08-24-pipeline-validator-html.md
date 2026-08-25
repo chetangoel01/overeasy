@@ -12,8 +12,8 @@ HTML, HTTP job state, browser storage, or committed files.
 - `tools/pipeline-results.html` embeds sanitized copies of the five successful
   TikTok and Instagram recipes from the 2026-08-24 live run.
 - `tools/pipeline-validator.html` accepts one supported link and renders the
-  returned serving count and basis, recipe, timers, review state, uncertainties,
-  latency, and reported cost.
+  returned serving count and basis, per-serving and whole-recipe nutrition,
+  recipe, timers, review state, uncertainties, latency, and reported cost.
 - `scripts/serve_pipeline_validator.py` serves both pages on `127.0.0.1`, admits
   one active run, and keeps ephemeral job state in memory.
 
@@ -37,12 +37,13 @@ To validate the interface without provider calls or credentials:
 
 Verification performed on 2026-08-24:
 
-- Focused helper and artifact suite: 11 passed.
-- Full backend suite: 657 passed, 5 skipped, with one upstream testcontainers
+- Focused helper and artifact suite: 12 passed.
+- Full backend suite: 681 passed, 5 skipped, with one upstream testcontainers
   deprecation warning.
 - Full Ruff check: clean.
 - Strict mypy for the repository's `ladle` target: no issues in 119 source
-  files. The new standalone helper also passed a focused strict mypy check.
+  files at the earlier checkpoint and 121 after nutrition enrichment. The
+  standalone helpers also passed focused strict mypy checks.
 - Both inline JavaScript programs passed `node --check` after extraction from
   their HTML files.
 - The demo server returned `200 text/html` for the validator and results pages.
@@ -51,7 +52,8 @@ Verification performed on 2026-08-24:
   recipe and zero reported demo cost.
 - Artifact assertions cover the five canonical source URLs, five recipe
   records, servings and basis, ingredients, steps, review flags, processing
-  time, the $0.0783865776875 aggregate known-cost lower bound, semantic
+  time, complete calories and primary macros, the $0.1190838276875 successful
+  pipeline known-cost lower bound, semantic
   landmarks, viewport and reduced-motion behavior, absence of external scripts,
   and absence of the OpenRouter key prefix.
 - Validator assertions cover its labeled URL form, polite live region,
@@ -59,17 +61,15 @@ Verification performed on 2026-08-24:
   abort-safe polling, safe text-node rendering, and both static routes.
 - `git diff --check` is part of the final checkpoint.
 
-## Browser limitation
+## Browser verification
 
-The in-app browser refused `http://127.0.0.1:8765` under its URL security
-policy. No workaround or alternate browser automation was used. Consequently,
-this session did not produce desktop/mobile screenshots. Responsive CSS and DOM
-contracts were checked statically, while the HTTP and asynchronous job behavior
-were exercised against the running demo helper. A normal local browser can
-perform the remaining visual inspection with the demo launch command above.
+The local demo helper was inspected in the in-app browser at 1280 px and 390 px.
+The validator produced its visible nutrition-blocker state, the standalone
+report rendered five nutrition cards, and both pages had document widths equal
+to the mobile viewport after the responsive nutrition-grid correction.
 
 ## Spend
 
-UI verification used `--demo`; it made no paid OpenRouter, USDA, search, or
-transcription call. The report data came from the already completed five-link
-run and does not initiate new work when opened.
+UI verification used `--demo`; it made no paid provider call. Nutrition values
+in the report came from the preserved-evidence replay documented alongside this
+file and do not initiate new work when the HTML is opened.
