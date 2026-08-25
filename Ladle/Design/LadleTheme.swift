@@ -134,6 +134,79 @@ enum LadleTheme {
     static let review = ube
     static let success = celery
 
+    // MARK: - Semantic roles
+    //
+    // The names above are the original palette names and say what a colour
+    // *is*. The roles below say what a colour is *for*, which is the only
+    // thing a call site should need to know. New code uses these; the names
+    // above remain so the existing call sites keep compiling.
+
+    /// Backgrounds, from the page ground upward.
+    enum Surface {
+        /// The page ground. Food photography sits on this.
+        static let porcelain = LadleTheme.paper
+        /// Fields, grouped rows, and quiet cards on top of `porcelain`.
+        static let raised = LadleTheme.oat
+        /// Inactive and review surfaces.
+        static let steel = LadleTheme.ube
+        /// The graphite ground used by Welcome and Focus Mode.
+        static let graphite = LadleTheme.plum
+        /// Fill for a small icon badge sitting on a `raised` card.
+        ///
+        /// `steel` is only about four percent off `raised`, so a badge drawn
+        /// in it disappears into the card behind it. This role is separated
+        /// far enough to read as a badge at 34 points.
+        static let badge = dynamicColor(light: 0xCDD5DC, dark: 0x303840)
+    }
+
+    /// Foregrounds. Each one names the surface it is legible on.
+    enum Label {
+        /// Primary text and controls on `porcelain` or `raised`.
+        static let primary = LadleTheme.ink
+        /// Metadata and supporting text on `porcelain` or `raised`.
+        static let secondary = LadleTheme.mutedInk
+        /// Text on an accent fill, or on `graphite`.
+        static let onAccent = LadleTheme.onAccent
+        /// Text on a surface that stays pale in both appearances.
+        static let onFixedPale = LadleTheme.fixedInk
+        /// Tinted text and icons that must still pass small-text contrast.
+        static var accent: Color { LadleTheme.accentText }
+    }
+
+    /// Colours that carry meaning. Nothing here may be used for decoration:
+    /// an accent-coloured creator handle or bullet is a misuse of this layer.
+    enum Intent {
+        /// Primary actions, favourites, active navigation, attention badges.
+        static var accent: Color { LadleTheme.brick }
+        /// Destructive actions. The system role, so it matches the platform's
+        /// own delete affordances.
+        static let destructive = Color.red
+        /// Success and completion.
+        static let success = LadleTheme.celery
+        /// Focus Mode progress and advance, fixed across appearances.
+        static let focus = LadleTheme.focusAccent
+        /// Fill behind a disabled control. A disabled control loses its accent
+        /// entirely rather than wearing a faded version of it.
+        static let disabledFill = LadleTheme.ube
+        /// Label on a disabled control.
+        static let disabledLabel = LadleTheme.mutedInk
+    }
+
+    /// Hairlines and separators.
+    enum Stroke {
+        static var separator: Color { LadleTheme.ink.opacity(0.1) }
+    }
+
+    static func dynamicColor(light: Int, dark: Int) -> Color {
+        Color(
+            uiColor: UIColor { traits in
+                UIColor(
+                    rgb: traits.userInterfaceStyle == .dark ? dark : light
+                )
+            }
+        )
+    }
+
     private static var selectedAccent: LadleAccentColor {
         LadleAccentColor.resolve(
             storedValue: UserDefaults.standard.string(
@@ -142,6 +215,9 @@ enum LadleTheme {
         )
     }
 
+    /// The only spacing steps the app may use. Any padding or stack spacing
+    /// that is not one of these six values is a bug; see `Layout` first for a
+    /// role that already names the value you want.
     enum Spacing {
         static let tight: CGFloat = 4
         static let compact: CGFloat = 8
@@ -151,9 +227,75 @@ enum LadleTheme {
         static let cooking: CGFloat = 32
     }
 
+    /// Spacing steps bound to the place they are used. Prefer these over the
+    /// raw `Spacing` steps: a screen margin and a card's inner padding are both
+    /// 16, but they are different decisions and should read differently.
+    enum Layout {
+        /// Leading and trailing margin for a workspace screen's content.
+        static let screenMargin = Spacing.regular
+        /// Leading and trailing margin for content inside a sheet, including
+        /// the sheet's own toolbar control.
+        static let sheetMargin = Spacing.generous
+        /// Inner padding for a grouped card or field.
+        static let cardPadding = Spacing.regular
+        /// Gap between two sections of a screen.
+        static let sectionGap = Spacing.generous
+        /// Gap between sibling rows in a list or stack.
+        static let rowGap = Spacing.medium
+        /// Gap between an icon and the label it introduces.
+        static let iconGap = Spacing.medium
+    }
+
+    /// Control heights and hit targets. Three values only — a 46, 50 or 56
+    /// point control is one of these three rounded by hand.
+    enum Control {
+        /// Minimum interactive target. Never smaller, including icon-only
+        /// controls whose glyph is much smaller than the target.
+        static let hitTarget: CGFloat = 44
+        /// Text fields, search fields, and tappable list rows.
+        static let field: CGFloat = 48
+        /// Filled primary, secondary and destructive buttons.
+        static let primary: CGFloat = 52
+    }
+
     enum Corner {
         static let control: CGFloat = 15
         static let card: CGFloat = 20
         static let sheet: CGFloat = 34
+        /// Small artwork (list thumbnails, inline marks) where `card` reads as
+        /// too round for the size.
+        static let thumbnail: CGFloat = 12
+    }
+
+    /// Symbol point sizes. The app had sixteen distinct ad-hoc sizes before
+    /// these five roles existed.
+    enum IconSize {
+        /// Inline with metadata text.
+        static let small: CGFloat = 13
+        /// The default glyph inside a control.
+        static let medium: CGFloat = 16
+        /// A prominent control or a row's leading icon.
+        static let large: CGFloat = 20
+        /// The mark in a state view or an illustration.
+        static let feature: CGFloat = 28
+        /// The mark in a full-screen empty state.
+        static let hero: CGFloat = 38
+    }
+
+    /// Leading inset for a divider that separates rows carrying a leading
+    /// icon. Derive it — never hardcode — so the divider cannot drift away
+    /// from the label it is separating when the icon or gap changes.
+    ///
+    /// - Parameters:
+    ///   - iconWidth: Width of the row's leading icon frame.
+    ///   - gap: Space between that icon and the label.
+    ///   - leadingPadding: The row's own leading padding, if the divider is
+    ///     laid out inside that padding rather than outside it.
+    static func dividerInset(
+        iconWidth: CGFloat,
+        gap: CGFloat = Layout.iconGap,
+        leadingPadding: CGFloat = 0
+    ) -> CGFloat {
+        leadingPadding + iconWidth + gap
     }
 }

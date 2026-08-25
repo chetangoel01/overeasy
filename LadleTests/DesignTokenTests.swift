@@ -1,5 +1,20 @@
+import SwiftUI
+import UIKit
 import XCTest
 @testable import Ladle
+
+private extension UIColor {
+    /// Relative luminance, used to assert that two surfaces are far enough
+    /// apart to read as different.
+    var luminance: CGFloat {
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        return 0.2126 * red + 0.7152 * green + 0.0722 * blue
+    }
+}
 
 final class DesignTokenTests: XCTestCase {
     func testPorcelainPaletteUsesApprovedHexValues() {
@@ -59,6 +74,126 @@ final class DesignTokenTests: XCTestCase {
         XCTAssertEqual(LadleTheme.Corner.control, 15)
         XCTAssertEqual(LadleTheme.Corner.card, 20)
         XCTAssertEqual(LadleTheme.Corner.sheet, 34)
+        XCTAssertEqual(LadleTheme.Corner.thumbnail, 12)
+    }
+
+    func testLayoutRolesResolveToStepsOnTheSpacingScale() {
+        let scale: Set<CGFloat> = [
+            LadleTheme.Spacing.tight,
+            LadleTheme.Spacing.compact,
+            LadleTheme.Spacing.medium,
+            LadleTheme.Spacing.regular,
+            LadleTheme.Spacing.generous,
+            LadleTheme.Spacing.cooking,
+        ]
+        for role in [
+            LadleTheme.Layout.screenMargin,
+            LadleTheme.Layout.sheetMargin,
+            LadleTheme.Layout.cardPadding,
+            LadleTheme.Layout.sectionGap,
+            LadleTheme.Layout.rowGap,
+            LadleTheme.Layout.iconGap,
+        ] {
+            XCTAssertTrue(
+                scale.contains(role),
+                "\(role) is not a step on the spacing scale"
+            )
+        }
+        XCTAssertEqual(LadleTheme.Layout.screenMargin, 16)
+        XCTAssertEqual(LadleTheme.Layout.sheetMargin, 24)
+    }
+
+    func testControlHeightsCollapseToThreeNamedValues() {
+        XCTAssertEqual(LadleTheme.Control.hitTarget, 44)
+        XCTAssertEqual(LadleTheme.Control.field, 48)
+        XCTAssertEqual(LadleTheme.Control.primary, 52)
+    }
+
+    func testIconSizeScaleIsOrdered() {
+        XCTAssertEqual(
+            [
+                LadleTheme.IconSize.small,
+                LadleTheme.IconSize.medium,
+                LadleTheme.IconSize.large,
+                LadleTheme.IconSize.feature,
+                LadleTheme.IconSize.hero,
+            ],
+            [13, 16, 20, 28, 38]
+        )
+    }
+
+    func testDividerInsetIsDerivedFromTheRowItSeparates() {
+        // The cooking checklist lays out a 30pt icon and a 13pt gap, so its
+        // divider belongs at 43 - not the 52 that a differently built row uses.
+        XCTAssertEqual(
+            LadleTheme.dividerInset(iconWidth: 30, gap: 13),
+            43
+        )
+        // Collections: 12pt leading padding, 28pt icon, 12pt gap.
+        XCTAssertEqual(
+            LadleTheme.dividerInset(
+                iconWidth: 28,
+                gap: 12,
+                leadingPadding: 12
+            ),
+            52
+        )
+        XCTAssertEqual(
+            LadleTheme.dividerInset(iconWidth: 28),
+            28 + LadleTheme.Layout.iconGap
+        )
+    }
+
+    func testButtonRolesCarryDistinctFillAndLabelIntent() {
+        XCTAssertNotNil(LadleButtonRole.primary.fill)
+        XCTAssertNotNil(LadleButtonRole.secondary.fill)
+        XCTAssertNotNil(LadleButtonRole.destructive.fill)
+        XCTAssertNil(
+            LadleButtonRole.tertiary.fill,
+            "A tertiary button carries no fill"
+        )
+        XCTAssertEqual(LadleButtonRole.destructive.fill, Color.red)
+        XCTAssertEqual(
+            LadleButtonRole.primary.label,
+            LadleTheme.Label.onAccent
+        )
+        XCTAssertEqual(
+            LadleButtonRole.secondary.label,
+            LadleTheme.Label.primary
+        )
+    }
+
+    func testFilledButtonsShareOneWidthAndTertiaryHugsItsLabel() {
+        XCTAssertTrue(LadleButtonStyle(role: .primary).isFullWidth)
+        XCTAssertTrue(LadleButtonStyle(role: .secondary).isFullWidth)
+        XCTAssertTrue(LadleButtonStyle(role: .destructive).isFullWidth)
+        XCTAssertFalse(LadleButtonStyle(role: .tertiary).isFullWidth)
+        XCTAssertTrue(
+            LadleButtonStyle(role: .tertiary, isFullWidth: true).isFullWidth
+        )
+    }
+
+    func testBadgeSurfaceIsDistinguishableFromTheCardBehindIt() {
+        // Surface.steel sits about four percent off Surface.raised, which is
+        // why a badge drawn in it disappears into the card. Surface.badge has
+        // to separate further than that in both appearances.
+        let light = UITraitCollection(userInterfaceStyle: .light)
+        let dark = UITraitCollection(userInterfaceStyle: .dark)
+
+        for traits in [light, dark] {
+            let raised = UIColor(LadleTheme.Surface.raised)
+                .resolvedColor(with: traits)
+            let steel = UIColor(LadleTheme.Surface.steel)
+                .resolvedColor(with: traits)
+            let badge = UIColor(LadleTheme.Surface.badge)
+                .resolvedColor(with: traits)
+
+            XCTAssertGreaterThan(
+                abs(badge.luminance - raised.luminance),
+                abs(steel.luminance - raised.luminance),
+                "Surface.badge must separate from the card more than steel does"
+            )
+        }
     }
 
     func testPressMotionUsesApprovedZeroBounceTimingLanguage() {

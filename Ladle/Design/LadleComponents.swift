@@ -96,42 +96,142 @@ struct LadlePressButtonStyle: ButtonStyle {
     }
 }
 
-struct LadlePrimaryButtonStyle: ButtonStyle {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.isEnabled) private var isEnabled
+/// The four kinds of filled or textual button the app has. A button that is
+/// none of these is a button that has not been designed: reach for the closest
+/// role rather than assembling a new one out of a background and a font.
+///
+/// Icon-only controls are not roles here — they are `LadleIconButton`.
+enum LadleButtonRole {
+    /// The one action the screen exists to perform.
+    case primary
+    /// A real alternative to the primary action, shown beside it.
+    case secondary
+    /// Deletes or discards. Uses the system destructive colour so it matches
+    /// the platform's own delete affordances.
+    case destructive
+    /// A low-commitment action, often an escape. No fill.
+    case tertiary
 
+    /// `nil` draws no fill at all.
+    var fill: Color? {
+        switch self {
+        case .primary:
+            LadleTheme.Intent.accent
+        case .secondary:
+            LadleTheme.Surface.raised
+        case .destructive:
+            LadleTheme.Intent.destructive
+        case .tertiary:
+            nil
+        }
+    }
+
+    var label: Color {
+        switch self {
+        case .primary, .destructive:
+            LadleTheme.Label.onAccent
+        case .secondary:
+            LadleTheme.Label.primary
+        case .tertiary:
+            LadleTheme.Label.accent
+        }
+    }
+}
+
+/// Every filled or textual button in the app.
+///
+/// Disabled controls drop their fill colour entirely rather than wearing a
+/// faded version of it: a washed-out accent still reads as an accent button,
+/// and at the opacity that made it look disabled its label fell below three
+/// to one against the fill.
+struct LadleButtonStyle: ButtonStyle {
+    var role: LadleButtonRole = .primary
+    /// Primary, secondary and destructive buttons span their container so a
+    /// column of them shares one width. Tertiary buttons hug their label.
+    var isFullWidth: Bool
+
+    init(role: LadleButtonRole = .primary, isFullWidth: Bool? = nil) {
+        self.role = role
+        self.isFullWidth = isFullWidth ?? (role != .tertiary)
+    }
+
+    func makeBody(configuration: Configuration) -> some View {
+        // The body has to be a real view rather than a modifier chain built
+        // here: `@Environment` only resolves for something in the view graph,
+        // and this style is also invoked by `LadlePrimaryButtonStyle`, which
+        // calls `makeBody` directly. Reading `isEnabled` on the style itself
+        // would silently report `true` for every delegated call site.
+        Content(
+            role: role,
+            isFullWidth: isFullWidth,
+            configuration: configuration
+        )
+    }
+
+    private struct Content: View {
+        @Environment(\.accessibilityReduceMotion) private var reduceMotion
+        @Environment(\.isEnabled) private var isEnabled
+
+        let role: LadleButtonRole
+        let isFullWidth: Bool
+        let configuration: Configuration
+
+        private var fill: Color? {
+            guard isEnabled else {
+                return role == .tertiary
+                    ? nil
+                    : LadleTheme.Intent.disabledFill
+            }
+            return role.fill
+        }
+
+        var body: some View {
+            configuration.label
+                .ladleFont(.bodyStrong)
+                .foregroundStyle(
+                    isEnabled ? role.label : LadleTheme.Intent.disabledLabel
+                )
+                .padding(
+                    .horizontal,
+                    role == .tertiary ? LadleTheme.Spacing.regular : 0
+                )
+                .frame(
+                    maxWidth: isFullWidth ? .infinity : nil,
+                    minHeight: LadleTheme.Control.primary
+                )
+                .background {
+                    if let fill {
+                        RoundedRectangle(
+                            cornerRadius: LadleTheme.Corner.control,
+                            style: .continuous
+                        )
+                        .fill(fill)
+                    }
+                }
+                .contentShape(Rectangle())
+                .opacity(configuration.isPressed ? 0.86 : 1)
+                .scaleEffect(
+                    reduceMotion || !isEnabled
+                        ? 1
+                        : (configuration.isPressed ? 0.97 : 1)
+                )
+                .animation(
+                    reduceMotion
+                        ? nil
+                        : .snappy(duration: 0.18, extraBounce: 0),
+                    value: configuration.isPressed
+                )
+        }
+    }
+}
+
+/// Retained so existing call sites keep working. New code states the role.
+struct LadlePrimaryButtonStyle: ButtonStyle {
     var isProminent = true
 
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .ladleFont(.bodyStrong)
-            .foregroundStyle(
-                isProminent ? LadleTheme.onAccent : LadleTheme.ink
-            )
-            .frame(maxWidth: .infinity, minHeight: 52)
-            .background(
-                isProminent ? LadleTheme.brick : LadleTheme.oat,
-                in: RoundedRectangle(
-                    cornerRadius: LadleTheme.Corner.control,
-                    style: .continuous
-                )
-            )
-            .opacity(
-                !isEnabled
-                    ? 0.48
-                    : (configuration.isPressed ? 0.86 : 1)
-            )
-            .scaleEffect(
-                reduceMotion || !isEnabled
-                    ? 1
-                    : (configuration.isPressed ? 0.97 : 1)
-            )
-            .animation(
-                reduceMotion
-                    ? nil
-                    : .snappy(duration: 0.18, extraBounce: 0),
-                value: configuration.isPressed
-            )
+        LadleButtonStyle(role: isProminent ? .primary : .secondary)
+            .makeBody(configuration: configuration)
     }
 }
 
