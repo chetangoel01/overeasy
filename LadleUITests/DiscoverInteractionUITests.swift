@@ -9,7 +9,13 @@ final class DiscoverInteractionUITests: XCTestCase {
         let title = app.staticTexts["Crispy Chili Oil Smash Burgers"]
         XCTAssertTrue(title.waitForExistence(timeout: 3))
 
-        title.press(forDuration: 0.8)
+        let row = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH 'discover.'")
+        ).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 2))
+        row.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.15, dy: 0.5)
+        ).press(forDuration: 1)
         XCTAssertTrue(app.buttons["View Recipe"].waitForExistence(timeout: 2))
         XCTAssertTrue(app.buttons["Save Recipe"].exists)
 
@@ -54,6 +60,34 @@ final class DiscoverInteractionUITests: XCTestCase {
     }
 
     @MainActor
+    func testWatchFeedSelectorSwitchesBetweenSavedAndDiscover() throws {
+        let app = launchApp()
+
+        app.tabBars.buttons["Watch"].tap()
+        XCTAssertTrue(
+            app.buttons["Save"].firstMatch.waitForExistence(timeout: 3)
+        )
+
+        let feed = app.segmentedControls["watch.feed"]
+        XCTAssertTrue(feed.waitForExistence(timeout: 2))
+        let myRecipes = feed.buttons["My Recipes"]
+        let discover = feed.buttons["Discover"]
+
+        myRecipes.tap()
+        XCTAssertTrue(
+            app.buttons["Save"].firstMatch.waitForNonExistence(timeout: 3)
+        )
+        XCTAssertTrue(
+            app.buttons["Open recipe"].firstMatch.waitForExistence(timeout: 3)
+        )
+
+        discover.tap()
+        XCTAssertTrue(
+            app.buttons["Save"].firstMatch.waitForExistence(timeout: 3)
+        )
+    }
+
+    @MainActor
     func testSettingsAccentAndRecipeViewPreferencesAreReachable() throws {
         let app = launchApp()
 
@@ -72,6 +106,29 @@ final class DiscoverInteractionUITests: XCTestCase {
         let viewMenu = app.buttons["Recipe view"]
         XCTAssertTrue(viewMenu.waitForExistence(timeout: 2))
         attachScreenshot(of: app, named: "Recipe grid view")
+
+        let cards = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'recipe.grid.'")
+        )
+        let firstCard = cards.element(boundBy: 0)
+        let secondCard = cards.element(boundBy: 1)
+        let thirdCard = cards.element(boundBy: 2)
+        let fourthCard = cards.element(boundBy: 3)
+        XCTAssertTrue(firstCard.waitForExistence(timeout: 2))
+        XCTAssertTrue(fourthCard.exists)
+        XCTAssertEqual(firstCard.frame.minY, secondCard.frame.minY, accuracy: 1)
+        XCTAssertEqual(
+            firstCard.frame.height,
+            secondCard.frame.height,
+            accuracy: 1
+        )
+        XCTAssertEqual(thirdCard.frame.minY, fourthCard.frame.minY, accuracy: 1)
+        XCTAssertEqual(
+            thirdCard.frame.height,
+            fourthCard.frame.height,
+            accuracy: 1
+        )
+
         viewMenu.tap()
         app.buttons["List"].tap()
 

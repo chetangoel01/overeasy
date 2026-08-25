@@ -10,7 +10,7 @@ saved discoveries gone, repair the compact recipe grid, offer alternate library
 views, clarify the four-tab workspace, and make useful nutrition visible
 without overwhelming the recipe.
 
-The release build number is `20260825.1`.
+The corrective release build number is `20260825.2`.
 
 Ingredient sticker artwork is intentionally outside this release. The visual
 direction remains parked in `design/board/ingredient-icon-directions.html` for
@@ -65,6 +65,13 @@ the next design pass.
 - Watch reuses the existing Discover service and keeps a session snapshot after
   save. Refreshing that snapshot applies the server suppression without
   mutating the currently playing page.
+- Watch owns one persistent feed selector above the video pages. Switching to
+  Discover refreshes the feed, failure offers an explicit retry, and feed type
+  participates in deciding whether a recipe uses saved or Discover actions so
+  matching recipe identifiers cannot leave the wrong feed on screen.
+- Grid artwork is laid out by a square container before the source image is
+  cropped. Portrait and landscape sources therefore cannot change card height
+  or stagger the next row.
 - The same cached `RecipeArtworkView` renders Discover rows and their native
   context previews, preventing a mismatched preview image.
 - The existing four-tab architecture, import coordinator, nutrition model, and
@@ -95,7 +102,7 @@ the next design pass.
   pre-existing Testcontainers Redis deprecation.
 - `xcodebuild test` for `LadleTests` with coverage disabled: 185 passed,
   1 skipped.
-- `xcodebuild test` for `LadleUITests` with coverage disabled: 5 passed.
+- `xcodebuild test` for `LadleUITests` with coverage disabled: 6 passed.
 - The complete app and Share Extension simulator build passes. Visual review
   on iPhone 17 Pro confirms the two-column grid keeps artwork, titles, and
   nutrition facts aligned while retaining the compact image size.
@@ -119,3 +126,24 @@ the next design pass.
 - The corrected app launched successfully. Its first sync refreshed the
   existing account session and retried `GET /v1/recipes/sync`, which returned
   `200`, confirming end-to-end phone-to-production connectivity.
+
+## Corrective grid and Watch pass
+
+- Build `20260825.2` fixes the beta screenshot regression where source image
+  proportions stretched individual grid cards and staggered later rows.
+- Watch's My Recipes and Discover segments now switch the actual content and
+  actions even when the same recipe identity exists in both snapshots. The
+  Discover segment also reloads its snapshot when selected and exposes a retry
+  action after a failed request.
+- Focused UI coverage measures the first two grid rows and verifies both cards
+  in each row share the same position and height. A separate interaction test
+  verifies My Recipes removes the Discover Save action and switching back
+  restores it.
+- Simulator visual review confirms portrait and landscape artwork are cropped
+  into equal squares and subsequent rows remain aligned. The complete six-test
+  UI suite passes on iPhone 17 Pro.
+- All 185 runnable `LadleTests` pass with the one existing intentional skip.
+  A signed Release build also passes embedded Share Extension validation and
+  contains the production HTTPS endpoint and guarded access configuration.
+- Signed build `20260825.2` was installed over the previous copy on Chetan's
+  iPhone without deleting application data.

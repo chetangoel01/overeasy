@@ -59,20 +59,23 @@ struct RecipeGridCard: View {
 
     @ViewBuilder
     private var recipeImage: some View {
-        RecipeArtworkView(
-            recipeID: recipe.id,
-            image: recipe.images.first
-        )
-        .frame(maxWidth: .infinity)
-        .aspectRatio(1, contentMode: .fit)
-        .clipShape(
-            RoundedRectangle(
-                cornerRadius: LadleTheme.Corner.card,
-                style: .continuous
+        Color.clear
+            .aspectRatio(1, contentMode: .fit)
+            .overlay {
+                RecipeArtworkView(
+                    recipeID: recipe.id,
+                    image: recipe.images.first
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipped()
+            }
+            .clipShape(
+                RoundedRectangle(
+                    cornerRadius: LadleTheme.Corner.card,
+                    style: .continuous
+                )
             )
-        )
-        .clipped()
-        .accessibilityHidden(true)
+            .accessibilityHidden(true)
     }
 
     private var favoriteAccessibilityLabel: String {

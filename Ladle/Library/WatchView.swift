@@ -47,17 +47,24 @@ struct WatchView: View {
     }
 
     var body: some View {
-        Group {
-            if feed == .discover {
-                discoverContent
-            } else if viewModel.watchRecipes.isEmpty {
-                emptyState(
-                    title: "No saved videos",
-                    message: "Saved video recipes appear here."
-                )
-            } else {
-                recipeFeed(viewModel.watchRecipes)
+        ZStack(alignment: .topLeading) {
+            Group {
+                if feed == .discover {
+                    discoverContent
+                } else if viewModel.watchRecipes.isEmpty {
+                    emptyState(
+                        title: "No saved videos",
+                        message: "Saved video recipes appear here."
+                    )
+                } else {
+                    recipeFeed(viewModel.watchRecipes)
+                }
             }
+
+            feedPicker
+                .padding(.leading, LadleTheme.Spacing.regular)
+                .padding(.top, 60)
+                .zIndex(1)
         }
         .background(LadleTheme.plum)
         .fullScreenCover(item: $cookingViewModel) {
@@ -66,8 +73,11 @@ struct WatchView: View {
         .task(id: refreshVersion) {
             await discoverViewModel.load()
         }
-        .onChange(of: feed) { _, _ in
+        .onChange(of: feed) { _, newFeed in
             visibleRecipeID = nil
+            if newFeed == .discover {
+                Task { await discoverViewModel.load() }
+            }
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("library.watch.root")
@@ -81,7 +91,8 @@ struct WatchView: View {
         case .failed:
             emptyState(
                 title: "Couldn’t load Discover",
-                message: "Your saved recipe videos are still available."
+                message: "Your saved recipe videos are still available.",
+                retry: { Task { await discoverViewModel.load() } }
             )
         case let .loaded(recipes) where recipes.isEmpty:
             emptyState(
@@ -102,7 +113,6 @@ struct WatchView: View {
                         viewportSize: viewportSize,
                         isVideoActive: activeRecipeID(in: recipes) == recipe.id,
                         isMuted: $isMuted,
-                        feed: $feed,
                         discoverRecipe: discoverRecipe(id: recipe.id),
                         isSaving: discoverRecipe(id: recipe.id).map(
                             discoverViewModel.isSaving
@@ -154,6 +164,7 @@ struct WatchView: View {
     }
 
     private func discoverRecipe(id: UUID) -> DiscoverRecipe? {
+        guard feed == .discover else { return nil }
         guard case let .loaded(recipes) = discoverViewModel.state else {
             return nil
         }
@@ -184,30 +195,34 @@ struct WatchView: View {
         visibleRecipeID ?? recipes.first?.id
     }
 
-    private func emptyState(title: String, message: String) -> some View {
-        ZStack(alignment: .top) {
+    private func emptyState(
+        title: String,
+        message: String,
+        retry: (() -> Void)? = nil
+    ) -> some View {
+        VStack(spacing: LadleTheme.Spacing.medium) {
             ContentUnavailableView(
                 title,
                 systemImage: "play.rectangle",
                 description: Text(message)
             )
             .foregroundStyle(LadleTheme.onAccent)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            feedPicker
-                .padding(.top, 60)
+            if let retry {
+                Button("Try again", action: retry)
+                    .buttonStyle(
+                        LadlePrimaryButtonStyle(isProminent: false)
+                    )
+            }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var loadingState: some View {
-        ZStack(alignment: .top) {
-            ProgressView("Loading Discover")
-                .tint(LadleTheme.onAccent)
-                .foregroundStyle(LadleTheme.onAccent)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            feedPicker
-                .padding(.top, 60)
-        }
+        ProgressView("Loading Discover")
+            .tint(LadleTheme.onAccent)
+            .foregroundStyle(LadleTheme.onAccent)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var feedPicker: some View {
@@ -217,7 +232,8 @@ struct WatchView: View {
             }
         }
         .pickerStyle(.segmented)
-        .frame(maxWidth: 230)
+        .frame(width: 190)
+        .accessibilityIdentifier("watch.feed")
     }
 }
 
@@ -241,7 +257,6 @@ private struct WatchRecipePage: View {
     let viewportSize: CGSize
     let isVideoActive: Bool
     @Binding var isMuted: Bool
-    @Binding var feed: WatchFeed
     let discoverRecipe: DiscoverRecipe?
     let isSaving: Bool
     let isSaved: Bool
@@ -404,14 +419,6 @@ private struct WatchRecipePage: View {
 
     private func topBar(topInset: CGFloat) -> some View {
         HStack(spacing: LadleTheme.Spacing.medium) {
-            Picker("Watch feed", selection: $feed) {
-                ForEach(WatchFeed.allCases) { feed in
-                    Text(feed.rawValue).tag(feed)
-                }
-            }
-            .pickerStyle(.segmented)
-            .frame(maxWidth: 220)
-
             Spacer()
 
             LadleIconButton(
