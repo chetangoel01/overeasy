@@ -31,12 +31,12 @@ final class DiscoverInteractionUITests: XCTestCase {
             NSPredicate(format: "identifier BEGINSWITH 'watch.'")
         )
         let firstPageControl = pageControls.element(boundBy: 0)
-        XCTAssertTrue(firstPageControl.waitForExistence(timeout: 2))
+        XCTAssertTrue(firstPageControl.waitForExistence(timeout: 3))
         XCTAssertTrue(firstPageControl.isHittable)
         XCTAssertTrue(app.buttons["Account"].firstMatch.isHittable)
         XCTAssertTrue(app.buttons["Start cooking"].firstMatch.isHittable)
 
-        feed.swipeUp()
+        app.swipeUp()
 
         let secondPageControl = pageControls.element(boundBy: 1)
         let secondPageIsVisible = XCTNSPredicateExpectation(
@@ -126,5 +126,72 @@ final class DiscoverInteractionUITests: XCTestCase {
         screenshot.name = name
         screenshot.lifetime = .keepAlways
         add(screenshot)
+    }
+
+    @MainActor
+    func testWatchDefaultsToInlinePlayerWithPlaybackControls() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-ui-testing",
+            "-onboarding-complete",
+            "-reset-library-preferences",
+        ]
+        app.launch()
+
+        app.tabBars.buttons["Watch"].tap()
+
+        let player = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH 'watch.player.'")
+        ).firstMatch
+        XCTAssertTrue(player.waitForExistence(timeout: 3))
+        XCTAssertEqual(player.frame.minX, app.frame.minX, accuracy: 1)
+        XCTAssertEqual(player.frame.minY, app.frame.minY, accuracy: 1)
+        XCTAssertEqual(player.frame.width, app.frame.width, accuracy: 1)
+        XCTAssertEqual(player.frame.height, app.frame.height, accuracy: 1)
+        XCTAssertFalse(app.buttons["Close video"].exists)
+
+        let pause = app.buttons["Pause video"].firstMatch
+        let mute = app.buttons["Mute video"].firstMatch
+        XCTAssertTrue(pause.waitForExistence(timeout: 2))
+        XCTAssertTrue(mute.isHittable)
+        let firstPageIdentifier = pause.identifier
+
+        pause.tap()
+        let resume = app.buttons["Resume video"].firstMatch
+        XCTAssertTrue(resume.waitForExistence(timeout: 2))
+
+        mute.tap()
+        XCTAssertTrue(
+            app.buttons["Unmute video"].firstMatch.waitForExistence(timeout: 2)
+        )
+
+        let loadingIndicator = app.descendants(matching: .any)[
+            "watch.player.loading"
+        ]
+        if loadingIndicator.waitForExistence(timeout: 1) {
+            XCTAssertTrue(
+                loadingIndicator.waitForNonExistence(timeout: 12),
+                "The inline player should finish its main navigation."
+            )
+        }
+
+        let safari = XCUIApplication(bundleIdentifier: "com.apple.mobilesafari")
+        XCTAssertNotEqual(safari.state, .runningForeground)
+        XCTAssertEqual(app.state, .runningForeground)
+
+        app.swipeUp()
+
+        let nextPageControl = app.buttons.matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH 'watch.' AND identifier != %@",
+                firstPageIdentifier
+            )
+        ).firstMatch
+        XCTAssertTrue(nextPageControl.waitForExistence(timeout: 3))
+        XCTAssertTrue(nextPageControl.isHittable)
+        let previousPageControl = app.buttons.matching(
+            NSPredicate(format: "identifier == %@", firstPageIdentifier)
+        ).firstMatch
+        XCTAssertFalse(previousPageControl.isHittable)
     }
 }

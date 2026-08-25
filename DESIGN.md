@@ -95,8 +95,19 @@ tracking.
 ## Watch and Inbox
 
 - Watch is a vertically paged, full-viewport feed. Each swipe settles on one
-  video recipe with full-bleed artwork, source and creator attribution, and
-  direct Play, Favorite, Share, Open, and Start Cooking actions.
+  video recipe with the provider's supported inline player already loaded as a
+  full-bleed background. A provider may still require its own first Play tap.
+- Compact Pause or Resume, Mute or Unmute, account, recipe, and cooking actions
+  overlay top and bottom scrims, with the tab bar still visible. Mute state
+  follows the user between recipes. Watch never opens a browser.
+- Only the visible recipe owns a player. Paging away or backgrounding the app
+  suspends that media, while the next settled recipe loads its player without
+  another Ladle Play step.
+- TikTok uses Player for Web, YouTube uses the IFrame player, and Instagram uses
+  its reel/post embed. These are in-app web players, not raw media URLs or
+  `AVPlayer`, because the providers do not expose a durable direct-video
+  contract. Unknown URL shapes show an unavailable state instead of falling
+  back to a social webpage.
 - Video recipes are shuffled once when the library session loads. Refreshes
   preserve the active order so favorite and sync updates never move content
   beneath the user.

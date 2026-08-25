@@ -2,6 +2,10 @@
 
 Date: August 23, 2026
 
+> Playback behavior in this record was superseded on August 25, 2026 by the
+> inline-player implementation documented in
+> `2026-08-25-inline-watch-playback.md`.
+
 ## Purpose
 
 Restore Watch as a focused, video-first rediscovery surface. A saved social
