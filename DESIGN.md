@@ -31,22 +31,36 @@ familiar. Cooking is high contrast and readable at a glance.
 
 ## Color
 
-Legacy token names remain in code while their semantic roles settle.
+Every colour has a semantic role in `LadleTheme`. New code reaches for the
+role, which says what the colour is *for*; the palette name says only what it
+*is* and stays in place so existing call sites keep compiling.
 
-| Role | Code token | Light | Dark | Use |
-| --- | --- | --- | --- | --- |
-| Porcelain | `paper` | `#F2F4F6` | `#101214` | Primary surface |
-| Raised neutral | `oat` | `#E3E7EA` | `#1C2024` | Fields and quiet grouping |
-| Steel | `butter`, `ube` | `#D7DDE2` | `#252A2F` | Inactive and review surfaces |
-| Graphite ink | `ink` | `#14181B` | `#F2F4F5` | Primary text and controls |
-| Graphite ground | `plum` | `#14181B` | `#101214` | Welcome and Focus Mode |
-| Selected accent fill | `brick` | `#EE4B2F` default | `#FF674E` default | Primary action and active state |
-| Accessible accent text | `accentText` | `#C73924` default | `#FF7562` default | Favorites and tinted icons |
-| Sage success | `celery` | `#83A18A` | `#294233` | Success state |
-| Secondary ink | `mutedInk` | `#64707A` | `#A6AFB7` | Metadata |
-| On-signal | `onAccent` | `#FAFBFC` fixed | same | Content on signal red or graphite |
-| Fixed graphite | `fixedInk` | `#14181B` fixed | same | Content on fixed pale surfaces |
-| Focus signal | `focusAccent` | `#FF5A3D` fixed | same | Focus progress and advance action |
+| Role | Semantic name | Palette name | Light | Dark | Use |
+| --- | --- | --- | --- | --- | --- |
+| Porcelain | `Surface.porcelain` | `paper` | `#F2F4F6` | `#101214` | Primary surface |
+| Raised neutral | `Surface.raised` | `oat`, `field` | `#E3E7EA` | `#1C2024` | Fields and quiet grouping |
+| Steel | `Surface.steel` | `ube`, `review` | `#D7DDE2` | `#252A2F` | Inactive and review surfaces |
+| Graphite ground | `Surface.graphite` | `plum` | `#14181B` | `#101214` | Welcome and Focus Mode |
+| Badge | `Surface.badge` | — | `#CDD5DC` | `#303840` | Icon badge on a raised card |
+| Graphite ink | `Label.primary` | `ink` | `#14181B` | `#F2F4F5` | Primary text and controls |
+| Secondary ink | `Label.secondary` | `mutedInk` | `#64707A` | `#A6AFB7` | Metadata |
+| On-signal | `Label.onAccent` | `onAccent` | `#FAFBFC` fixed | same | Content on accent or graphite |
+| Fixed graphite | `Label.onFixedPale` | `fixedInk` | `#14181B` fixed | same | Content on fixed pale surfaces |
+| Accessible accent text | `Label.accent` | `accentText`, `paprika` | `#C73924` default | `#FF7562` default | Favorites and tinted icons |
+| Selected accent fill | `Intent.accent` | `brick` | `#EE4B2F` default | `#FF674E` default | Primary action and active state |
+| Destructive | `Intent.destructive` | — | system red | system red | Delete and discard |
+| Sage success | `Intent.success` | `celery`, `success` | `#83A18A` | `#294233` | Success state |
+| Focus signal | `Intent.focus` | `focusAccent` | `#FF5A3D` fixed | same | Focus progress and advance |
+| Disabled | `Intent.disabledFill` / `disabledLabel` | — | steel / secondary ink | same | Any disabled control |
+
+`Surface.badge` exists because `Surface.steel` sits about four percent off
+`Surface.raised`: a badge drawn in steel on a raised card disappears into it.
+Badges on the porcelain ground may keep using steel.
+
+Superseded palette names, kept only for compatibility: `field` (use
+`Surface.raised`), `review` (use `Surface.steel`), `success` (use
+`Intent.success`), `paprika` (use `Label.accent`). `butter` is unused.
+
 
 Accent fills always carry `onAccent`. Settings offers Tomato, Orange, Sage,
 Blue, and Purple. The selected value is local and persistent. Focus Mode keeps
@@ -54,24 +68,90 @@ its fixed `focusAccent`, and errors use the system destructive role.
 
 ## Typography
 
-All type uses SF Pro's standard design and width.
+All type uses SF Pro's standard design and width. Text uses a role from
+`LadleTextStyle`, never a size.
 
-- Screen titles and welcome headlines: bold.
-- Recipe names and section headings: semibold.
-- Body: regular; action emphasis: semibold.
-- Metadata: regular and secondary in color.
-- Long cooking instructions can use larger scaled sizes for distance legibility.
+| Role | Size | Weight | Use |
+| --- | --- | --- | --- |
+| `display` | 38 | bold | Welcome or Focus headline that owns the screen |
+| `title` | 31 | bold | Screen title, cooking instruction |
+| `recipeTitle` | 18 | semibold | A recipe's name as content |
+| `section` | 19 | semibold | Section heading above a group |
+| `body` | 17 | regular | Running text |
+| `bodyStrong` | 17 | semibold | Emphasis, and every button label |
+| `metadata` | 13 | regular | Counts, sources, supporting detail |
+| `eyebrow` | 12 | semibold | Uppercase label above a title, Focus Mode only |
 
-Avoid expanded display type, serif editorial accents, and decorative uppercase
-tracking.
+`recipeTitle` and `section` sit one point apart but are not interchangeable:
+`recipeTitle` scales against `.title3` because a recipe name is content, and
+`section` against `.headline` because a section label is chrome. They diverge
+at large Dynamic Type, which is the point.
+
+`ladleScaledFont(size:)` is for cooking surfaces needing distance legibility
+beyond `display`, and nothing else. Symbol point sizes use `LadleTheme.IconSize`
+— `small` 13, `medium` 16, `large` 20, `feature` 28, `hero` 38.
+
+Metadata is always paired with `Label.secondary`. Avoid expanded display type,
+serif editorial accents, and decorative uppercase tracking.
+
+Control labels are sentence case: "Start cooking", not "Start Cooking".
 
 ## Shape and spacing
 
-- Icon controls have at least a 44-point target.
-- Controls and fields use 14–16 point continuous corners.
-- Recipe images and grouped surfaces use 18–22 point continuous corners.
-- Sheets keep the native presentation shape and drag indicator.
-- Use the 8, 12, 16, 24, and 32 point spacing roles.
+The scale is 4, 8, 12, 16, 24, and 32 points. A padding or stack spacing that
+is not one of those six is a bug — reach for the `LadleTheme.Layout` role that
+names the value instead of the raw number.
+
+| Role | Value | Use |
+| --- | --- | --- |
+| `Layout.screenMargin` | 16 | Leading and trailing margin on a workspace screen |
+| `Layout.sheetMargin` | 24 | Margin inside a sheet, *including its toolbar control* |
+| `Layout.cardPadding` | 16 | Inner padding of a grouped card or field |
+| `Layout.sectionGap` | 24 | Between two sections of a screen |
+| `Layout.rowGap` | 12 | Between sibling rows |
+| `Layout.iconGap` | 12 | Between an icon and the label it introduces |
+
+Control heights are three values, not six: `Control.hitTarget` 44 (minimum
+interactive target, never smaller), `Control.field` 48 (text fields and
+tappable rows), `Control.primary` 52 (filled buttons).
+
+Corners: `control` 15 for controls and fields, `card` 20 for grouped surfaces
+and recipe images, `thumbnail` 12 for small artwork where 20 reads as too round,
+`sheet` 34. Sheets keep the native presentation shape and drag indicator.
+
+A divider that separates rows carrying a leading icon is derived with
+`LadleTheme.dividerInset(iconWidth:gap:leadingPadding:)` so it lands on the
+label, and cannot drift when the icon or gap changes. Do not hardcode it.
+
+A sheet's close or cancel control sits on `sheetMargin`, the same margin as the
+content beneath it.
+
+## Buttons
+
+Four roles, in `LadleButtonRole`. A button that is none of them has not been
+designed — pick the closest role rather than assembling one out of a background
+and a font.
+
+| Role | Fill | Label | Use |
+| --- | --- | --- | --- |
+| `primary` | `Intent.accent` | `Label.onAccent` | The one action the screen exists to perform |
+| `secondary` | `Surface.raised` | `Label.primary` | A real alternative shown beside the primary |
+| `destructive` | `Intent.destructive` | `Label.onAccent` | Deletes or discards |
+| `tertiary` | none | `Label.accent` | Low-commitment action, often an escape |
+
+Primary, secondary and destructive span their container, so a column of them
+shares one width and one left edge. Tertiary hugs its label.
+
+Disabled controls drop their fill rather than fading it. A faded accent still
+reads as an accent button, and at the opacity that made it look disabled its
+label fell near two to one against its own fill.
+
+Icon-only controls are `LadleIconButton`, always on a 44-point target however
+small the glyph.
+
+Buttons that carry both an icon and a label align their labels to a shared
+leading edge; centring icon and label together as one group gives a column of
+buttons a different text origin per button.
 
 ## Navigation and library
 
