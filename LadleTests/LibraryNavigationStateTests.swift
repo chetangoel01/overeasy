@@ -125,7 +125,7 @@ final class LibraryNavigationStateTests: XCTestCase {
             ),
             URL(
                 string:
-                    "https://www.tiktok.com/player/v1/7612708181004799263?controls=1&rel=0&native_context_menu=0"
+                    "https://www.tiktok.com/player/v1/7612708181004799263?controls=1&progress_bar=0&volume_control=0&fullscreen_button=0&timestamp=0&closed_caption=0&rel=0&native_context_menu=0"
             )
         )
         XCTAssertEqual(

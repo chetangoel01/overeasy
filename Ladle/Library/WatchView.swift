@@ -169,50 +169,94 @@ private struct WatchRecipePage: View {
     }
 
     private var videoLayout: some View {
-        VStack(spacing: 0) {
-            topBar(topInset: 48, showsCloseVideo: true)
-            playerStage
-            recipePanel(bottomInset: 88)
-        }
-        .background(.black)
-    }
-
-    private var playerStage: some View {
-        GeometryReader { proxy in
-            let size = fittedPlayerSize(in: proxy.size)
+        ZStack {
             InlineVideoPlayer(recipe: recipe)
-                .frame(width: size.width, height: size.height)
-                .clipShape(
-                    RoundedRectangle(
-                        cornerRadius: LadleTheme.Corner.card,
-                        style: .continuous
-                    )
+                .frame(
+                    width: viewportSize.width,
+                    height: viewportSize.height
                 )
-                .position(
-                    x: proxy.size.width / 2,
-                    y: proxy.size.height / 2
-                )
-        }
-        .padding(.horizontal, LadleTheme.Spacing.regular)
-        .padding(.vertical, LadleTheme.Spacing.compact)
-        .background(.black)
-    }
+                .ignoresSafeArea()
 
-    private func fittedPlayerSize(in available: CGSize) -> CGSize {
-        let aspectRatio: CGFloat = recipe.source == .youtube
-            ? 16 / 9
-            : 9 / 16
-        let availableRatio = available.width / max(available.height, 1)
-        if availableRatio > aspectRatio {
-            return CGSize(
-                width: available.height * aspectRatio,
-                height: available.height
+            playbackScrim
+
+            VStack(spacing: 0) {
+                topBar(topInset: 48, showsCloseVideo: true)
+                Spacer(minLength: 120)
+                playbackRecipePanel
+            }
+            .frame(
+                width: viewportSize.width,
+                height: viewportSize.height
             )
         }
-        return CGSize(
-            width: available.width,
-            height: available.width / aspectRatio
+    }
+
+    private var playbackScrim: some View {
+        LinearGradient(
+            stops: [
+                .init(
+                    color: LadleTheme.fixedInk.opacity(0.98),
+                    location: 0
+                ),
+                .init(
+                    color: LadleTheme.fixedInk.opacity(0.92),
+                    location: 0.16
+                ),
+                .init(color: .clear, location: 0.3),
+                .init(color: .clear, location: 0.56),
+                .init(
+                    color: LadleTheme.fixedInk.opacity(0.58),
+                    location: 0.72
+                ),
+                .init(
+                    color: LadleTheme.fixedInk.opacity(0.98),
+                    location: 1
+                ),
+            ],
+            startPoint: .top,
+            endPoint: .bottom
         )
+        .allowsHitTesting(false)
+    }
+
+    private var playbackRecipePanel: some View {
+        VStack(alignment: .leading, spacing: LadleTheme.Spacing.compact) {
+            sourceBar(showsActions: false)
+
+            Text(recipe.title)
+                .ladleFont(.recipeTitle)
+                .foregroundStyle(LadleTheme.onAccent)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if !metadata.isEmpty {
+                Text(metadata)
+                    .ladleFont(.metadata)
+                    .foregroundStyle(LadleTheme.onAccent.opacity(0.78))
+                    .lineLimit(1)
+            }
+
+            playbackActions
+        }
+        .padding(.horizontal, LadleTheme.Spacing.regular)
+        .padding(.top, LadleTheme.Spacing.medium)
+        .padding(.bottom, 88 + LadleTheme.Spacing.medium)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private var playbackActions: some View {
+        HStack(spacing: LadleTheme.Spacing.compact) {
+            if recipe.canStartCooking {
+                Button("Open recipe", action: openRecipe)
+                    .buttonStyle(LadlePrimaryButtonStyle(isProminent: false))
+                Button("Start cooking", action: startCooking)
+                    .buttonStyle(LadlePrimaryButtonStyle())
+            } else {
+                Button("Review recipe", action: openRecipe)
+                    .buttonStyle(LadlePrimaryButtonStyle())
+            }
+        }
     }
 
     private func topBar(
@@ -253,7 +297,7 @@ private struct WatchRecipePage: View {
 
     private func recipePanel(bottomInset: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: LadleTheme.Spacing.medium) {
-            sourceBar
+            sourceBar()
 
             Text(recipe.title)
                 .ladleFont(.title)
@@ -280,7 +324,7 @@ private struct WatchRecipePage: View {
         .background(.black.opacity(0.72))
     }
 
-    private var sourceBar: some View {
+    private func sourceBar(showsActions: Bool = true) -> some View {
         HStack(spacing: LadleTheme.Spacing.compact) {
             Image(systemName: "play.rectangle.fill")
                 .foregroundStyle(LadleTheme.focusAccent)
@@ -297,8 +341,10 @@ private struct WatchRecipePage: View {
 
             Spacer(minLength: LadleTheme.Spacing.compact)
 
-            favoriteButton
-            shareButton
+            if showsActions {
+                favoriteButton
+                shareButton
+            }
         }
     }
 

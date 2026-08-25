@@ -84,10 +84,17 @@ final class DiscoverInteractionUITests: XCTestCase {
             NSPredicate(format: "identifier BEGINSWITH 'watch.'")
         ).firstMatch
         XCTAssertTrue(playButton.waitForExistence(timeout: 3))
+        let firstPageIdentifier = playButton.identifier
         playButton.tap()
 
-        XCTAssertTrue(app.buttons["Close video"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.webViews.firstMatch.waitForExistence(timeout: 3))
+        let closeVideo = app.buttons["Close video"]
+        XCTAssertTrue(closeVideo.waitForExistence(timeout: 3))
+        let player = app.webViews.firstMatch
+        XCTAssertTrue(player.waitForExistence(timeout: 3))
+        XCTAssertEqual(player.frame.minX, app.frame.minX, accuracy: 1)
+        XCTAssertEqual(player.frame.minY, app.frame.minY, accuracy: 1)
+        XCTAssertEqual(player.frame.width, app.frame.width, accuracy: 1)
+        XCTAssertEqual(player.frame.height, app.frame.height, accuracy: 1)
 
         let loadingIndicator = app.descendants(matching: .any)[
             "watch.player.loading"
@@ -102,5 +109,17 @@ final class DiscoverInteractionUITests: XCTestCase {
         let safari = XCUIApplication(bundleIdentifier: "com.apple.mobilesafari")
         XCTAssertNotEqual(safari.state, .runningForeground)
         XCTAssertEqual(app.state, .runningForeground)
+
+        app.swipeUp()
+
+        let nextPageControl = app.buttons.matching(
+            NSPredicate(
+                format: "identifier BEGINSWITH 'watch.' AND identifier != %@",
+                firstPageIdentifier
+            )
+        ).firstMatch
+        XCTAssertTrue(nextPageControl.waitForExistence(timeout: 3))
+        XCTAssertTrue(nextPageControl.isHittable)
+        XCTAssertTrue(closeVideo.waitForNonExistence(timeout: 3))
     }
 }

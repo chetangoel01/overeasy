@@ -20,7 +20,7 @@ enum VideoEmbed {
             }
             return URL(
                 string:
-                    "https://www.tiktok.com/player/v1/\(videoID)?controls=1&rel=0&native_context_menu=0"
+                    "https://www.tiktok.com/player/v1/\(videoID)?controls=1&progress_bar=0&volume_control=0&fullscreen_button=0&timestamp=0&closed_caption=0&rel=0&native_context_menu=0"
             )
         case .youtube:
             guard let videoID = youtubeVideoID(from: url) else {
@@ -143,6 +143,7 @@ struct InlineVideoPlayer: View {
         Group {
             if let url = VideoEmbed.url(for: recipe) {
                 WebView(page)
+                    .scrollDisabled(true)
                     .accessibilityIdentifier(
                         "watch.player.\(recipe.librarySlug)"
                     )

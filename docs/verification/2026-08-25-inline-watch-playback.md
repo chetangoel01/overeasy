@@ -9,10 +9,11 @@ Pressing Play must not present a browser or a browser-like sheet.
 
 ## User-visible behavior
 
-- Play replaces the current recipe artwork with a bounded platform player in
+- Play replaces the current recipe artwork with a full-bleed platform player in
   the same vertically paged Watch screen.
 - The Watch title, close and account controls, recipe attribution and actions,
-  and floating tab bar remain native and visible around the player.
+  and floating tab bar remain native and visible over the player. Top and
+  bottom scrims keep that chrome readable without shrinking the video.
 - Closing the player restores the poster. Paging to another recipe removes the
   prior player, and backgrounding the app suspends its media.
 - Provider links and unsupported main-frame navigations are cancelled. A saved
@@ -26,8 +27,13 @@ Pressing Play must not present a browser or a browser-like sheet.
   a stable raw-media contract suitable for `AVPlayer`.
 - Only the active recipe creates a web view. This preserves the native paging
   gesture and avoids keeping a player alive in every lazy feed cell.
-- TikTok and Instagram use portrait stages; YouTube uses a 16:9 stage. The
-  containing layout remains native SwiftUI in all cases.
+- Every provider owns the full viewport and preserves its own media aspect
+  treatment. TikTok's redundant transport controls are hidden individually so
+  its center Play and engagement rail remain without colliding with recipe
+  actions.
+- The embedded web view disables its own scrolling. Taps still reach provider
+  playback controls, while an upward drag continues to page the native Watch
+  feed and removes the prior player.
 - UI-test fixtures use deterministic order and live provider sample URLs so the
   no-browser flow can be exercised in the simulator. Production Watch ordering
   remains shuffled once per library session.
@@ -50,11 +56,12 @@ Pressing Play must not present a browser or a browser-like sheet.
   YouTube, and Instagram and verifies that unsupported URLs never fall back to
   the browser page.
 - `testWatchPlaysVideoInlineWithoutOpeningSafari` taps Watch Play, finds the
-  in-app web view and native close control, confirms Ladle remains foregrounded,
-  and confirms Mobile Safari is not foregrounded.
+  in-app web view and native close control, confirms the player matches the full
+  app frame, confirms Mobile Safari is not foregrounded, and verifies that an
+  upward swipe still advances to a different recipe.
 - The iPhone 17 Pro simulator screenshot was visually inspected at 402 by 874
-  points. The TikTok player and its controls remain inside Watch with Ladle's
-  surrounding controls and recipe actions visible.
+  points. The TikTok player fills Watch edge to edge while the compact native
+  title, recipe actions, and tab bar remain legible over the video.
 - The live TikTok Player for Web, YouTube embed, and Instagram reel embed used
   by the fixtures each returned HTTP 200 during verification.
 - The focused unit and no-Safari UI tests pass on the iPhone 17 Pro iOS 26.5

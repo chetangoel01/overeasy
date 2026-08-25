@@ -93,9 +93,10 @@ tracking.
   video recipe with full-bleed artwork, source and creator attribution, and
   direct Play, Favorite, Share, Open, and Start Cooking actions.
 - Play replaces that recipe's artwork with the provider's supported inline
-  player while Watch controls, recipe context, and the tab bar remain visible.
-  It never opens a browser. Only the visible recipe owns a player; paging away,
-  closing the player, or backgrounding the app suspends playback.
+  player as a full-bleed background. Compact Watch controls and recipe actions
+  overlay top and bottom scrims, with the tab bar still visible. It never opens
+  a browser. Only the visible recipe owns a player; paging away, closing the
+  player, or backgrounding the app suspends playback.
 - TikTok uses Player for Web, YouTube uses the IFrame player, and Instagram uses
   its reel/post embed. These are in-app web players, not raw media URLs or
   `AVPlayer`, because the providers do not expose a durable direct-video
