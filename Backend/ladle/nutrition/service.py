@@ -91,7 +91,6 @@ def _blocked(template: RecipeTemplate, reason: str) -> RecipeTemplate:
     return template.model_copy(
         update={
             "nutrition": None,
-            "review_status": RecipeReviewStatus.NEEDS_REVIEW,
             "uncertainties": uncertainties,
         }
     )

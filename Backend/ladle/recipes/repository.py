@@ -74,7 +74,6 @@ class RecipeRepository:
         saved_recipe = aliased(Recipe)
         saved_source_ids = select(saved_recipe.source_video_id).where(
             saved_recipe.user_id == user_id,
-            saved_recipe.deleted_at.is_(None),
             saved_recipe.source_video_id.is_not(None),
         )
         ranked = database.execute(

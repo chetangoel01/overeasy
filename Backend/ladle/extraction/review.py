@@ -18,7 +18,7 @@ from ladle.recipes.template_clone import (
 )
 
 _CONFIDENCE_THRESHOLD = 0.7
-_MISSING_QUANTITY_THRESHOLD = 0.3
+_MISSING_QUANTITY_THRESHOLD = 0.75
 # Review is a claim that the cook should check something before trusting the
 # recipe. Every caveat used to raise it, including ones that say nothing about
 # the dish — an unavailable-provider diagnostic, a serving count we estimated
@@ -79,9 +79,6 @@ def build_reviewed_template(
         if estimated is None:
             servings = Decimal(1)
             servings_basis = "unknown"
-            # Presenting a whole dish as one serving misstates every per-serving
-            # number the app derives from it.
-            blocking.append("servings")
             uncertainties.append(
                 FieldUncertaintyDTO(
                     field="servings",
@@ -124,7 +121,7 @@ def build_reviewed_template(
         uncertainties.append(
             FieldUncertaintyDTO(
                 field="ingredientQuantities",
-                reason="More than 30 percent of ingredients lack quantities.",
+                reason="Nearly all ingredients lack usable quantities.",
             )
         )
 

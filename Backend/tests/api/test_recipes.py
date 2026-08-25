@@ -265,6 +265,14 @@ def test_discover_returns_aggregated_public_source_data(
             "/v1/recipes/sync?cursor=0&limit=10",
             headers=save_headers,
         )
+        deleted = client.delete(
+            f"/v1/recipes/{saved.json()['id']}?baseRevision=1",
+            headers=save_headers,
+        )
+        after_delete = client.get(
+            "/v1/recipes/discover",
+            headers=save_headers,
+        )
 
     assert detail.status_code == 200
     assert detail.json()["id"] == str(source_id)
@@ -280,6 +288,9 @@ def test_discover_returns_aggregated_public_source_data(
     assert refreshed.json()["items"] == []
     assert sync.status_code == 200
     assert sync.json()["changes"][-1]["recipe"]["id"] == saved.json()["id"]
+    assert deleted.status_code == 204
+    assert after_delete.status_code == 200
+    assert after_delete.json()["items"] == []
     with Session(engine) as database:
         assert database.scalar(select(func.count()).select_from(ImportJob)) == 0
     engine.dispose()

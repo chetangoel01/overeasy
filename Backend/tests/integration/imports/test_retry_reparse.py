@@ -99,7 +99,6 @@ class FakeNutritionEnricher:
         if self.failure is not None:
             return template.model_copy(
                 update={
-                    "review_status": RecipeReviewStatus.NEEDS_REVIEW,
                     "uncertainties": [
                         *template.uncertainties,
                         FieldUncertaintyDTO(
@@ -300,7 +299,7 @@ def test_creator_facts_are_applied_before_nutrition_calculation(
 
 
 @pytest.mark.integration
-def test_usda_failure_completes_import_with_nutrition_review_uncertainty(
+def test_usda_failure_completes_ready_with_inline_nutrition_uncertainty(
     clean_postgres_url: str,
 ) -> None:
     command.upgrade(alembic_config(clean_postgres_url), "head")
@@ -335,7 +334,7 @@ def test_usda_failure_completes_import_with_nutrition_review_uncertainty(
     with sessions() as database:
         job = database.get(ImportJob, job_id)
         assert job is not None
-        assert job.status == "needsReview"
+        assert job.status == "ready"
         assert database.get(Nutrition, job.current_recipe_id) is None
         uncertainty = database.scalar(
             select(FieldUncertainty).where(
@@ -392,8 +391,7 @@ def test_verification_runs_after_nutrition_with_text_evidence_before_persistence
     assert orchestrator.process(job_id) == ProcessOutcome.COMPLETED
     assert verifier.calls[0][0].nutrition == nutrition
     assert any(
-        "two cups orzo" in value.text.casefold()
-        for value in verifier.calls[0][1]
+        "two cups orzo" in value.text.casefold() for value in verifier.calls[0][1]
     )
     with sessions() as database:
         job = database.get(ImportJob, job_id)
@@ -581,6 +579,8 @@ def test_empty_acquisition_fails_instead_of_saving_placeholder_recipe(
         assert job.status == "failed"
         assert job.failure_reason == "insufficientTextEvidence"
         assert job.diagnostic_code == "insufficientTextEvidence"
+
+
 @pytest.mark.integration
 def test_pasted_text_skips_acquisition_and_stale_edit_preserves_current_recipe(
     clean_postgres_url: str,

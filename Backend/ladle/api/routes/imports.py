@@ -3,7 +3,7 @@ from typing import Annotated, Literal, cast
 from uuid import UUID
 
 from fastapi import APIRouter, Header, HTTPException, Request, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import AnyHttpUrl, Field, ValidationError, field_validator
 from sqlalchemy.orm import Session
 
@@ -33,7 +33,12 @@ from ladle.imports.dispatcher import ImportDispatcher
 from ladle.imports.outbox import DispatchOutboxService
 from ladle.imports.quotas import ImportQuotaExceeded
 from ladle.imports.source_identity import InvalidSourceURL, UnsupportedSource
-from ladle.imports.transitions import ImportRetryService, ImportRetryUnavailable
+from ladle.imports.transitions import (
+    ImportCancellationService,
+    ImportCancellationUnavailable,
+    ImportRetryService,
+    ImportRetryUnavailable,
+)
 from ladle.recipes.limits import GuestRecipeLimitReached
 
 router = APIRouter(prefix="/v1/imports", tags=["imports"])
@@ -78,6 +83,13 @@ def _dispatch_outbox(request: Request) -> DispatchOutboxService:
 
 def _retry_service(request: Request) -> ImportRetryService:
     return cast(ImportRetryService, request.app.state.import_retry_service)
+
+
+def _cancellation_service(request: Request) -> ImportCancellationService:
+    return cast(
+        ImportCancellationService,
+        request.app.state.import_cancellation_service,
+    )
 
 
 def _attestation(request: Request) -> AttestationService:
@@ -292,9 +304,34 @@ def get_import(
                 user_id=claims.user_id,
                 job_id=job_id,
             )
+            if job.status == "cancelled":
+                raise ImportJobNotFound
             return _admission(request).response(job)
     except ImportJobNotFound as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND) from error
+
+
+@router.delete(
+    "/{job_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+)
+def cancel_import(
+    job_id: UUID,
+    request: Request,
+    authorization: Annotated[str | None, Header()] = None,
+) -> Response:
+    claims = access_claims(request, authorization)
+    try:
+        with database(request) as current_database, current_database.begin():
+            _cancellation_service(request).cancel(
+                current_database,
+                user_id=claims.user_id,
+                job_id=job_id,
+            )
+    except ImportCancellationUnavailable as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT) from error
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post(

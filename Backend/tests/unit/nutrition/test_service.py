@@ -89,9 +89,7 @@ def context() -> AcquiredVideoContext:
             source_video_id=uuid4(),
             platform="tiktok",
             platform_video_id="7612708181004799263",
-            canonical_url=(
-                "https://www.tiktok.com/@cook/video/7612708181004799263"
-            ),
+            canonical_url=("https://www.tiktok.com/@cook/video/7612708181004799263"),
             source_revision="1",
         ),
         is_public=True,
@@ -181,7 +179,7 @@ def test_success_combines_gemini_normalization_with_usda_evidence() -> None:
     assert not any(item.field == "nutrition" for item in result.uncertainties)
 
 
-def test_normalization_failure_becomes_a_visible_review_blocker() -> None:
+def test_normalization_failure_becomes_a_visible_inline_uncertainty() -> None:
     service = RecipeNutritionService(
         normalizer=Normalizer(
             failure=NutritionNormalizationUnavailable("invalid structured output")
@@ -192,12 +190,12 @@ def test_normalization_failure_becomes_a_visible_review_blocker() -> None:
     result = service.enrich(template(), context=context(), job_id=uuid4())
 
     assert result.nutrition is None
-    assert result.review_status == RecipeReviewStatus.NEEDS_REVIEW
+    assert result.review_status == RecipeReviewStatus.READY
     blocker = next(item for item in result.uncertainties if item.field == "nutrition")
     assert "normalizationUnavailable" in blocker.reason
 
 
-def test_usda_failure_names_the_blocking_ingredient() -> None:
+def test_usda_failure_names_the_unavailable_ingredient() -> None:
     service = RecipeNutritionService(
         normalizer=Normalizer(),
         calculator=NutritionCalculator(NoFoods()),
@@ -206,7 +204,7 @@ def test_usda_failure_names_the_blocking_ingredient() -> None:
     result = service.enrich(template(), context=context(), job_id=uuid4())
 
     assert result.nutrition is None
-    assert result.review_status == RecipeReviewStatus.NEEDS_REVIEW
+    assert result.review_status == RecipeReviewStatus.READY
     blocker = next(item for item in result.uncertainties if item.field == "nutrition")
     assert "foodNotFound" in blocker.reason
     assert "ingredient 0" in blocker.reason

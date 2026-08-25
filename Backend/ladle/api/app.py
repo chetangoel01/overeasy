@@ -71,7 +71,7 @@ from ladle.imports.outbox import DispatchOutboxService
 from ladle.imports.quotas import ImportQuotaService
 from ladle.imports.reservations import ReservationService
 from ladle.imports.source_identity import SourceIdentityParser
-from ladle.imports.transitions import ImportRetryService
+from ladle.imports.transitions import ImportCancellationService, ImportRetryService
 from ladle.infrastructure.dns import PinnedRedirectResolver, SystemDNSResolver
 from ladle.infrastructure.object_storage import S3ObjectStorage
 from ladle.observability.metrics import MetricsRegistry, RedisMetricsBackend
@@ -127,8 +127,7 @@ def create_app(
     else:
         database_sessions = session_factory
     interactive_docs = (
-        configured.environment == "development"
-        and configured.interactive_docs_enabled
+        configured.environment == "development" and configured.interactive_docs_enabled
     )
     application = FastAPI(
         title="Ladle API",
@@ -411,6 +410,10 @@ def create_app(
         private_text=private_text,
         quota=import_quota,
         outbox=dispatch_outbox,
+    )
+    application.state.import_cancellation_service = ImportCancellationService(
+        clock=runtime_clock,
+        reservations=reservations,
     )
     if import_dispatcher is not None:
         application.state.import_dispatcher = import_dispatcher

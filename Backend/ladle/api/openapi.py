@@ -13,6 +13,7 @@ _PROTECTED_OPERATIONS = {
     ("/v1/auth/account", "delete"),
     ("/v1/imports", "post"),
     ("/v1/imports/{job_id}", "get"),
+    ("/v1/imports/{job_id}", "delete"),
     ("/v1/imports/{job_id}/retry", "post"),
     ("/v1/recipes/sync", "get"),
     ("/v1/recipes/{recipe_id}", "get"),

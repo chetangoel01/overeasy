@@ -15,6 +15,50 @@ class ImportRetryUnavailable(Exception):
     pass
 
 
+class ImportCancellationUnavailable(Exception):
+    pass
+
+
+class ImportCancellationService:
+    def __init__(
+        self,
+        *,
+        clock: Clock,
+        reservations: ReservationService,
+    ) -> None:
+        self._clock = clock
+        self._reservations = reservations
+
+    def cancel(
+        self,
+        database: Session,
+        *,
+        user_id: UUID,
+        job_id: UUID,
+    ) -> None:
+        job = database.execute(
+            select(ImportJob)
+            .where(
+                ImportJob.id == job_id,
+                ImportJob.user_id == user_id,
+            )
+            .with_for_update()
+        ).scalar_one_or_none()
+        if job is None:
+            raise ImportCancellationUnavailable
+        if job.status != "parsing":
+            raise ImportCancellationUnavailable
+        now = self._clock.now()
+        job.status = "cancelled"
+        job.stage = "cancelled"
+        job.completed_at = now
+        job.updated_at = now
+        job.correction_notes_encrypted = None
+        job.pasted_text_encrypted = None
+        self._reservations.release_if_reserved(database, job.id)
+        database.flush()
+
+
 class ImportRetryService:
     def __init__(
         self,

@@ -418,7 +418,7 @@ class ImportJob(Base):
             name="ck_import_jobs_source",
         ),
         CheckConstraint(
-            "status IN ('parsing', 'ready', 'needsReview', 'failed')",
+            "status IN ('parsing', 'ready', 'needsReview', 'failed', 'cancelled')",
             name="ck_import_jobs_status",
         ),
     )

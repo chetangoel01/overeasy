@@ -108,7 +108,7 @@ class ImportOrchestrator:
             ).scalar_one_or_none()
             if job is None:
                 raise ValueError("import job does not exist")
-            if job.status in {"ready", "needsReview"}:
+            if job.status != "parsing":
                 return self._outcome(
                     ProcessOutcome.ALREADY_COMPLETED,
                     status=job.status,
@@ -337,6 +337,12 @@ class ImportOrchestrator:
                 job = database.execute(
                     select(ImportJob).where(ImportJob.id == job_id).with_for_update()
                 ).scalar_one()
+                if job.status != "parsing":
+                    return self._outcome(
+                        ProcessOutcome.ALREADY_COMPLETED,
+                        status=job.status,
+                        source=job.source,
+                    )
                 promoted = self._private_completion.complete_private_for_job(
                     database,
                     job=job,

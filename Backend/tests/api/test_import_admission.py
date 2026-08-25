@@ -113,6 +113,17 @@ def test_import_is_committed_before_dispatch_and_can_be_polled(
         assert repeated.json()["jobID"] == str(job_id)
         assert dispatcher.calls == [job_id]
 
+        cancelled = client.delete(f"/v1/imports/{job_id}", headers=headers)
+        assert cancelled.status_code == 204
+
+        missing = client.get(f"/v1/imports/{job_id}", headers=headers)
+        assert missing.status_code == 404
+
+    with Session(engine) as database:
+        stored = database.get(ImportJob, job_id)
+        assert stored is not None
+        assert stored.status == "cancelled"
+
     engine.dispose()
 
 

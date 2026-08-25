@@ -33,7 +33,7 @@ def context(*, diagnostics: list[str] | None = None) -> AcquiredVideoContext:
     )
 
 
-def test_defaults_and_coverage_problems_become_needs_review() -> None:
+def test_nonblocking_defaults_and_short_recipe_caveats_stay_inline() -> None:
     extraction = RecipeExtraction(
         title="Lemon Orzo",
         description="",
@@ -91,7 +91,7 @@ def test_defaults_and_coverage_problems_become_needs_review() -> None:
         context=context(diagnostics=["visualAnalysisUnavailable"]),
     )
 
-    assert reviewed.review_status == RecipeReviewStatus.NEEDS_REVIEW
+    assert reviewed.review_status == RecipeReviewStatus.READY
     assert reviewed.servings == 1
     assert reviewed.servings_basis == "unknown"
     assert reviewed.steps[0].ingredient_indexes == [0]
@@ -99,7 +99,7 @@ def test_defaults_and_coverage_problems_become_needs_review() -> None:
     assert reviewed.nutrition is None
     reasons = {value.field for value in reviewed.uncertainties}
     assert "servings" in reasons
-    assert "ingredientQuantities" in reasons
+    assert "ingredientQuantities" not in reasons
     assert "visualEvidence" in reasons
 
 
@@ -303,3 +303,17 @@ def test_mostly_unmeasured_ingredients_still_force_review() -> None:
     reviewed = build_reviewed_template(recipe, context=context())
 
     assert reviewed.review_status == RecipeReviewStatus.NEEDS_REVIEW
+
+
+def test_one_missing_quantity_in_a_short_recipe_does_not_force_review() -> None:
+    recipe = _solid_recipe()
+    recipe.ingredients.append(
+        ExtractedIngredient(name="garlic", quantity_text=None, confidence=0.9)
+    )
+
+    reviewed = build_reviewed_template(recipe, context=context())
+
+    assert reviewed.review_status == RecipeReviewStatus.READY
+    assert "ingredientQuantities" not in {
+        value.field for value in reviewed.uncertainties
+    }

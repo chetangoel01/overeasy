@@ -176,6 +176,7 @@ Canonical recipe payloads are available in:
 | `DELETE /v1/auth/session` | Bearer | `204` | Revoke the current session |
 | `POST /v1/imports` | Bearer | `202` | Admit and enqueue an import |
 | `GET /v1/imports/{jobID}` | Bearer | `200` | Poll an import owned by the current user |
+| `DELETE /v1/imports/{jobID}` | Bearer | `204` | Cancel an actively parsing import and release its reserved slot |
 | `POST /v1/imports/{jobID}/retry` | Bearer | `202` | Retry with optional correction or pasted text |
 | `GET /v1/recipes/sync?cursor=&limit=` | Bearer | `200` | Read ordered recipe upserts and tombstones |
 | `GET /v1/recipes/discover?limit=` | Bearer | `200` | Rank unsaved public recipe-video sources by aggregate saves |
@@ -192,8 +193,9 @@ Canonical recipe payloads are available in:
 
 There is no separate private recipe-list endpoint. Clients rebuild local state
 from `/v1/recipes/sync` and use `/v1/recipes/{recipeID}` for an individual
-refresh. Discover is a public-source preview: it excludes sources already saved
-by the requesting account, returns aggregate save counts and source metadata
+refresh. Discover is a public-source preview: it excludes sources ever saved by
+the requesting account, even after the owned recipe is deleted, and returns
+aggregate save counts and source metadata
 only, and never returns another user's identity, ingredients, steps, or edits.
 Each item carries an opaque source ID. Saving that source instantiates the ready
 shared extraction directly and emits a normal sync upsert. It does not create
@@ -338,6 +340,10 @@ The response has this shape:
 Statuses are `parsing`, `ready`, `needsReview`, and `failed`. Failure reasons
 are `parserUnavailable`, `insufficientTextEvidence`, `privateOrDeleted`,
 `unsupportedSource`, `invalidURL`, `networkUnavailable`, and `quotaExceeded`.
+Cancellation is exposed as a `204` delete operation rather than another
+pollable client status. The server records the terminal cancellation, releases
+the recipe-slot reservation, and prevents later worker completion from creating
+an account recipe.
 
 Retry an existing job:
 
