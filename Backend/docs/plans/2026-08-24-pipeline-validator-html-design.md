@@ -52,3 +52,9 @@ back to another model. The helper pins extraction and verification to
   desktop and mobile widths, and inspect screenshots for overflow, hierarchy,
   loading, success, and error states.
 
+## Implementation record
+
+The localhost job service is covered by eight focused unit tests. The tests
+exercise canonical URLs, invalid input, job admission and polling, one-active-
+job enforcement, typed failures, and configured-secret redaction. On
+2026-08-24 those tests passed together with focused Ruff and mypy checks.
