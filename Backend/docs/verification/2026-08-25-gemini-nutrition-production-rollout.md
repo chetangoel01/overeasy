@@ -27,7 +27,8 @@ The first VPS smoke import reached the new `openrouterSearch` acquisition rung s
 
 - Regression test: red on the missing label, green after the allowlist update.
 - Backend: 691 passed, 5 skipped; Ruff passed; mypy passed across 121 source files.
-- Production health and live social-link import: pending post-deploy verification.
-- Physical-device release build, install, and launch: pending final verification.
+- Production revision `d54d19385a28d0a37dd4e6d82b5872806d1801dd` passed the deploy health gate, Caddy validation, public liveness, and public readiness.
+- A fresh disposable guest submitted the supplied Ian Kyo TikTok link through the public VPS. It reached `needsReview` as **10-Minute Chili Garlic Noodles** with 2 estimated servings, 12 ingredients, 6 steps, and estimated per-serving nutrition of 839.8 calories, 27.6 g protein, 76.4 g carbohydrate, and 46.8 g fat.
+- The generic physical-device Release build reached signing, then stopped because the Mac has no valid code-signing identity or active Apple Developer account session. The paired iPhone 17 Pro also reported its developer tunnel unavailable. Build, install, and launch remain pending an unlocked Mac, refreshed Xcode account/certificate, and connected unlocked phone.
 
 No credentials are recorded in this document. Local release secrets remain in ignored, owner-readable configuration; VPS secrets remain in the root-owned environment file.
