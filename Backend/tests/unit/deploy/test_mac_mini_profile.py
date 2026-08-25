@@ -40,6 +40,7 @@ def test_mac_mini_profile_is_private_bounded_and_hosts_thumbnails() -> None:
     ) in profile
     assert 'LADLE_AUDIO_TRANSCRIPTION_ENABLED: "false"' in profile
     assert 'LADLE_FRAME_ANALYSIS_ENABLED: "false"' in profile
+    assert 'LADLE_THUMBNAIL_ANALYSIS_ENABLED: "false"' in profile
     assert 'LADLE_SERVER_MEDIA_FALLBACK_ENABLED: "false"' in profile
     assert "max-size: 10m" in profile
     assert "max-file: 3" in profile

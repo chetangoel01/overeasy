@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Ladle · Pipeline pass</title>
+  <style>
+    :root {
+      --paper: #eee5d5;
+      --sheet: #fffaf0;
+      --ink: #211e1a;
+      --muted: #766d60;
+      --rule: #b7aa97;
+      --red: #d3482f;
+      --red-dark: #942d21;
+      --green: #265d45;
+      --amber: #8b4e18;
+      --shadow: 0 22px 70px rgb(48 31 15 / 12%);
+    }
+    * { box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      margin: 0;
+      color: var(--ink);
+      background:
+        linear-gradient(90deg, transparent 49.8%, rgb(56 38 18 / 3%) 50%, transparent 50.2%),
+        radial-gradient(circle at 8% 2%, #fffaf0 0, transparent 30rem),
+        var(--paper);
+      font: 16px/1.55 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button, input { font: inherit; }
+    a { color: var(--red-dark); }
+    :focus-visible { outline: 3px solid var(--red); outline-offset: 4px; }
+    .shell { width: min(1160px, calc(100% - 40px)); margin: 0 auto; padding: 56px 0 88px; }
+    .topline { display: flex; justify-content: space-between; gap: 20px; align-items: center; padding-bottom: 13px; border-bottom: 1px solid var(--ink); }
+    .brand, .lab-note, .eyebrow, .field-label, h3 { font-size: .72rem; font-weight: 850; letter-spacing: .15em; text-transform: uppercase; }
+    .brand { color: var(--red-dark); }
+    .archive { font-size: .82rem; text-underline-offset: 4px; }
+    .hero { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(270px, .75fr); gap: clamp(30px, 8vw, 100px); align-items: end; padding: 58px 0 48px; }
+    h1, h2, .serving-number { font-family: Georgia, "Times New Roman", serif; }
+    h1 { margin: 0; font-size: clamp(3.7rem, 10vw, 8.5rem); font-weight: 500; letter-spacing: -.075em; line-height: .77; }
+    .intro { max-width: 520px; margin: 24px 0 0; color: var(--muted); }
+    .model-card { padding: 18px 20px; border: 1px solid var(--rule); background: rgb(255 250 240 / 56%); transform: rotate(1.2deg); }
+    .model-card strong { display: block; margin: 8px 0; font: 500 1.6rem Georgia, serif; }
+    .model-card p { margin: 0; color: var(--muted); font-size: .82rem; }
+    .setup { margin: 0 0 24px; padding: 20px 22px; border: 1px solid var(--amber); background: #f7e7ce; }
+    .setup code { display: block; margin-top: 9px; overflow-wrap: anywhere; font-size: .8rem; }
+    .pass-card { padding: clamp(22px, 5vw, 46px); border: 1px solid var(--rule); background: var(--sheet); box-shadow: var(--shadow); }
+    form { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 13px; align-items: end; }
+    .field { min-width: 0; }
+    .field-label { display: block; margin-bottom: 9px; color: var(--red-dark); }
+    input {
+      width: 100%;
+      min-height: 58px;
+      padding: 0 17px;
+      color: var(--ink);
+      background: #fffdf8;
+      border: 1px solid var(--ink);
+      border-radius: 0;
+    }
+    input::placeholder { color: #948979; }
+    button {
+      min-height: 58px;
+      padding: 0 24px;
+      color: #fffaf0;
+      background: var(--red);
+      border: 1px solid var(--red);
+      font-weight: 800;
+      cursor: pointer;
+    }
+    button:hover { background: var(--red-dark); border-color: var(--red-dark); }
+    button:disabled { cursor: wait; opacity: .55; }
+    .input-help { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: .78rem; }
+    .progress-panel { display: grid; grid-template-columns: 230px 1fr; gap: 28px; align-items: center; margin-top: 30px; padding-top: 24px; border-top: 1px solid var(--rule); }
+    .status-orbit { position: relative; width: 88px; aspect-ratio: 1; display: grid; place-content: center; margin: 0 auto; border: 1px solid var(--rule); border-radius: 50%; }
+    .status-orbit::before { content: ""; position: absolute; inset: 8px; border: 3px solid transparent; border-top-color: var(--red); border-radius: inherit; opacity: 0; }
+    .is-running .status-orbit::before { opacity: 1; animation: orbit .9s linear infinite; }
+    .status-mark { color: var(--red); font: 500 2.2rem Georgia, serif; }
+    .progress-copy p { margin: 0; }
+    #stage-status { margin-top: 4px; font: 500 clamp(1.3rem, 3vw, 2rem) Georgia, serif; }
+    .stage-track { display: flex; gap: 7px; margin-top: 15px; }
+    .stage-track span { width: 44px; height: 4px; background: #d9cebe; transition: background .25s; }
+    .stage-track span.active { background: var(--red); }
+    .error-box { margin-top: 24px; padding: 18px 20px; border-left: 4px solid var(--red); background: #f8e2d9; }
+    .error-box strong, .error-box p { display: block; margin: 0; }
+    .error-box p { margin-top: 5px; }
+    .result { margin-top: 50px; animation: reveal .5s both; }
+    .result-head { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 230px; gap: clamp(30px, 7vw, 88px); align-items: start; padding: clamp(26px, 6vw, 60px); overflow: hidden; color: var(--sheet); background: var(--ink); }
+    .result-head::after { content: "PASS"; position: absolute; right: -20px; bottom: -48px; color: rgb(255 255 255 / 4%); font: 500 9rem Georgia, serif; transform: rotate(-8deg); }
+    .eyebrow { margin: 0 0 12px; color: #ef9d89; }
+    h2 { position: relative; z-index: 1; margin: 0; font-size: clamp(2.5rem, 7vw, 6rem); font-weight: 500; letter-spacing: -.055em; line-height: .9; }
+    .result-description { max-width: 660px; margin: 20px 0 0; color: #cfc6b8; }
+    .servings-card { position: relative; z-index: 1; padding: 24px 18px; color: var(--ink); background: var(--sheet); text-align: center; transform: rotate(1.5deg); }
+    .serving-number { display: block; color: var(--red); font-size: clamp(5.5rem, 12vw, 8rem); line-height: .72; }
+    .serving-word { display: block; margin-top: 18px; font-weight: 900; letter-spacing: .16em; text-transform: uppercase; }
+    #servings-basis { display: block; margin-top: 8px; color: var(--muted); font-size: .75rem; }
+    .review-banner { padding: 15px 20px; color: var(--sheet); background: var(--green); font-size: .82rem; }
+    .review-banner.needs-review { background: var(--amber); }
+    .result-meta { display: flex; flex-wrap: wrap; gap: 8px 24px; padding: 15px 20px; border: 1px solid var(--rule); border-top: 0; color: var(--muted); font: .75rem ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--sheet); }
+    .nutrition-panel { display: grid; grid-template-columns: minmax(180px, .55fr) minmax(280px, 1.45fr); gap: clamp(24px, 6vw, 70px); padding: clamp(26px, 5vw, 48px); border: 1px solid var(--ink); border-top: 0; color: var(--sheet); background: var(--red-dark); }
+    .nutrition-panel.unavailable { color: var(--ink); background: #f8ead5; border-color: var(--amber); }
+    .calorie-kicker { display: block; color: #f4b9a7; font-size: .72rem; font-weight: 900; letter-spacing: .16em; text-transform: uppercase; }
+    .unavailable .calorie-kicker { color: var(--amber); }
+    .calorie-value { display: block; margin: 5px 0 0; font: 500 clamp(4.8rem, 11vw, 8rem)/.8 Georgia, serif; letter-spacing: -.06em; }
+    .calorie-unit { display: block; margin-top: 16px; font-weight: 850; letter-spacing: .1em; text-transform: uppercase; }
+    .macro-grid { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid rgb(255 255 255 / 42%); border-bottom: 1px solid rgb(255 255 255 / 42%); }
+    .unavailable .macro-grid { border-color: var(--rule); }
+    .macro { padding: 16px 12px; border-right: 1px solid rgb(255 255 255 / 26%); }
+    .macro:last-child { border-right: 0; }
+    .macro strong, .macro span { display: block; }
+    .macro strong { font: 500 1.8rem Georgia, serif; }
+    .macro span { margin-top: 4px; font-size: .7rem; letter-spacing: .1em; text-transform: uppercase; }
+    #whole-recipe-nutrition, #nutrition-evidence { margin: 13px 0 0; font-size: .8rem; }
+    #nutrition-evidence { color: #e2d4c8; }
+    .unavailable #nutrition-evidence { color: var(--amber); }
+    .result-body { display: grid; grid-template-columns: minmax(260px, .8fr) minmax(340px, 1.2fr); gap: clamp(34px, 7vw, 86px); padding: clamp(28px, 6vw, 58px); border: 1px solid var(--rule); border-top: 0; background: var(--sheet); box-shadow: var(--shadow); }
+    h3 { margin: 0 0 18px; padding-bottom: 9px; border-bottom: 2px solid var(--ink); }
+    #ingredients-output, #steps-output, #uncertainties-output, #notes-output { margin: 0; padding: 0; list-style: none; }
+    #ingredients-output li { display: grid; grid-template-columns: minmax(88px, .36fr) 1fr; gap: 13px; padding: 10px 0; border-bottom: 1px dotted var(--rule); }
+    .quantity { color: var(--red-dark); font-weight: 800; }
+    .prep { color: var(--muted); font-size: .83rem; }
+    #steps-output { counter-reset: method; }
+    #steps-output li { position: relative; min-height: 50px; padding: 0 0 24px 56px; counter-increment: method; }
+    #steps-output li::before { content: counter(method, decimal-leading-zero); position: absolute; left: 0; color: var(--red); font: 500 1.65rem Georgia, serif; }
+    .timer { display: inline-block; margin: 8px 6px 0 0; padding: 3px 8px; border: 1px solid var(--rule); border-radius: 999px; color: var(--muted); font-size: .73rem; }
+    .review-section { grid-column: 1 / -1; }
+    #uncertainties-output:empty::after { content: "No recipe-level uncertainties returned."; color: var(--green); }
+    #uncertainties-output li { margin: 7px 0; padding: 10px 13px; border-left: 3px solid var(--amber); background: #f8ead5; }
+    #notes-output { margin-top: 16px; color: var(--muted); }
+    #notes-output li { margin: 5px 0; }
+    [hidden] { display: none !important; }
+    @keyframes orbit { to { transform: rotate(360deg); } }
+    @keyframes reveal { from { opacity: 0; transform: translateY(18px); } }
+    @media (max-width: 760px) {
+      .hero, .progress-panel, .result-head, .nutrition-panel, .result-body { grid-template-columns: 1fr; }
+      .model-card { transform: none; }
+      form { grid-template-columns: 1fr; }
+      button { width: 100%; }
+      .input-help { grid-column: auto; }
+      .progress-panel { text-align: center; }
+      .stage-track { justify-content: center; }
+      .servings-card { width: 180px; transform: none; }
+      .review-section { grid-column: auto; }
+    }
+    @media (max-width: 430px) {
+      .shell { width: calc(100% - 24px); padding-top: 28px; }
+      h1 { font-size: 4.1rem; }
+      .pass-card, .result-head, .result-body { padding: 22px 18px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .is-running .status-orbit::before, .result { animation: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <div class="topline">
+      <span class="brand">Ladle · extraction lab</span>
+      <a class="archive" href="pipeline-results.html">See the five test results</a>
+    </div>
+
+    <header class="hero">
+      <div>
+        <p class="lab-note">A real pipeline pass</p>
+        <h1>Link in.<br>Recipe out.</h1>
+        <p class="intro">Paste a public TikTok, Instagram, or YouTube recipe. Ladle gathers creator evidence, checks that it contains a cookable method, and gives Gemini 3.7 Flash one quality-first extraction pass.</p>
+      </div>
+      <aside class="model-card" aria-label="Pipeline configuration">
+        <span class="lab-note">Pinned model</span>
+        <strong>Gemini 3.7 Flash</strong>
+        <p>One link at a time. Keys stay in the local helper. No automatic fallback to another model.</p>
+      </aside>
+    </header>
+
+    <aside class="setup" id="file-setup" hidden>
+      <strong>This validator needs its local helper.</strong>
+      <span> Open Terminal in the Backend folder and run:</span>
+      <code>.venv/bin/python scripts/serve_pipeline_validator.py</code>
+      <span>Then use the page it opens at http://127.0.0.1:8765.</span>
+    </aside>
+
+    <section class="pass-card" aria-labelledby="pass-heading">
+      <h2 id="pass-heading" hidden>Run a validation</h2>
+      <form id="validation-form">
+        <div class="field">
+          <label for="source-url" class="field-label">Public recipe link</label>
+          <input id="source-url" name="sourceURL" type="url" inputmode="url" autocomplete="url" required placeholder="https://www.tiktok.com/@creator/video/…">
+        </div>
+        <button id="run-validation" type="submit">Run pipeline →</button>
+        <p class="input-help">A live run may spend provider credits. The helper admits only one active run.</p>
+      </form>
+
+      <div class="progress-panel" id="progress-panel" aria-live="polite">
+        <div class="status-orbit" aria-hidden="true"><span class="status-mark" id="status-mark">○</span></div>
+        <div class="progress-copy">
+          <p class="field-label">Pipeline status</p>
+          <p id="stage-status">Ready for a link.</p>
+          <div class="stage-track" aria-hidden="true">
+            <span id="stage-1"></span><span id="stage-2"></span><span id="stage-3"></span><span id="stage-4"></span><span id="stage-5"></span><span id="stage-6"></span>
+          </div>
+        </div>
+      </div>
+      <div class="error-box" id="error-output" role="alert" hidden></div>
+    </section>
+
+    <article class="result" id="recipe-output" hidden aria-labelledby="recipe-title">
+      <header class="result-head">
+        <div>
+          <p class="eyebrow" id="recipe-attribution">Pipeline result</p>
+          <h2 id="recipe-title">Recipe</h2>
+          <p class="result-description" id="recipe-description"></p>
+        </div>
+        <div class="servings-card">
+          <span class="field-label">Output yield</span>
+          <strong class="serving-number" id="servings-output">—</strong>
+          <span class="serving-word">servings</span>
+          <small id="servings-basis">basis unknown</small>
+        </div>
+      </header>
+      <div class="review-banner" id="review-status">Review status</div>
+      <div class="result-meta" id="run-metadata"></div>
+      <section class="nutrition-panel" id="nutrition-output" aria-labelledby="nutrition-heading">
+        <div>
+          <span class="calorie-kicker" id="nutrition-heading">Per serving</span>
+          <strong class="calorie-value" id="calories-output">—</strong>
+          <span class="calorie-unit">Calories</span>
+        </div>
+        <div>
+          <div class="macro-grid">
+            <div class="macro"><strong id="protein-output">—</strong><span>Protein</span></div>
+            <div class="macro"><strong id="carbohydrates-output">—</strong><span>Carbohydrates</span></div>
+            <div class="macro"><strong id="fat-output">—</strong><span>Fat</span></div>
+          </div>
+          <p id="whole-recipe-nutrition">Whole recipe —</p>
+          <p id="nutrition-evidence">Nutrition unavailable until the pipeline completes.</p>
+        </div>
+      </section>
+      <div class="result-body">
+        <section>
+          <h3>Ingredients</h3>
+          <ul id="ingredients-output"></ul>
+        </section>
+        <section>
+          <h3>Method</h3>
+          <ol id="steps-output"></ol>
+        </section>
+        <section class="review-section">
+          <h3>Review notes</h3>
+          <ul id="uncertainties-output"></ul>
+          <ul id="notes-output"></ul>
+        </section>
+      </div>
+    </article>
+  </main>
+
+  <script>
+    const form = document.getElementById('validation-form');
+    const input = document.getElementById('source-url');
+    const button = document.getElementById('run-validation');
+    const panel = document.getElementById('progress-panel');
+    const statusText = document.getElementById('stage-status');
+    const statusMark = document.getElementById('status-mark');
+    const errorBox = document.getElementById('error-output');
+    const result = document.getElementById('recipe-output');
+    const stages = [1, 2, 3, 4, 5, 6].map(number => document.getElementById(`stage-${number}`));
+    let controller = null;
+
+    const make = (tag, className, text) => {
+      const node = document.createElement(tag);
+      if (className) node.className = className;
+      if (text !== undefined) node.textContent = text;
+      return node;
+    };
+    const clear = node => {
+      while (node.firstChild) node.removeChild(node.firstChild);
+    };
+    const stageIndex = stage => ({ queued: 0, starting: 0, acquiring: 1, checking: 2, extracting: 3, normalizing: 4, nutrition: 5, complete: 6, failed: 6 }[stage] ?? 0);
+    const setStage = (stage, message) => {
+      const running = !['complete', 'failed', 'idle'].includes(stage);
+      panel.classList.toggle('is-running', running);
+      statusText.textContent = message;
+      statusMark.textContent = stage === 'complete' ? '✓' : stage === 'failed' ? '!' : running ? '↻' : '○';
+      const reached = stageIndex(stage);
+      stages.forEach((node, index) => node.classList.toggle('active', index < reached));
+    };
+    const wait = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
+    const basisLabel = basis => basis === 'stated' ? 'creator stated' : basis === 'estimatedFromYield' ? 'estimated from ingredient yield' : 'basis unknown';
+    const reviewLabel = status => status === 'needsReview' ? 'Needs review before cooking' : 'Ready — still verify against the creator';
+    const timerLabel = seconds => seconds >= 60 ? `${seconds / 60} min` : `${seconds} sec`;
+    const snakeOrCamel = (object, snake, camel) => object?.[snake] ?? object?.[camel];
+
+    const appendMeta = text => document.getElementById('run-metadata').append(make('span', '', text));
+    const amount = value => value === null || value === undefined ? null : Number(value);
+    const grams = value => value === null ? '—' : `${Math.round(value * 10) / 10}g`;
+
+    const renderNutrition = recipe => {
+      const nutrition = recipe.nutrition;
+      const section = document.getElementById('nutrition-output');
+      const servings = amount(recipe.servings);
+      const blockers = (recipe.uncertainties || []).filter(item => item.field === 'nutrition');
+      section.classList.toggle('unavailable', !nutrition);
+      if (!nutrition) {
+        document.getElementById('calories-output').textContent = '—';
+        document.getElementById('protein-output').textContent = '—';
+        document.getElementById('carbohydrates-output').textContent = '—';
+        document.getElementById('fat-output').textContent = '—';
+        document.getElementById('whole-recipe-nutrition').textContent = 'Whole recipe — nutrition blocked';
+        document.getElementById('nutrition-evidence').textContent = blockers[0]?.reason || 'Nutrition unavailable: no complete calorie and macro panel was produced.';
+        return;
+      }
+      const calories = amount(nutrition.calories);
+      const protein = amount(snakeOrCamel(nutrition, 'protein_grams', 'proteinGrams'));
+      const carbohydrate = amount(snakeOrCamel(nutrition, 'carbohydrate_grams', 'carbohydrateGrams'));
+      const fat = amount(snakeOrCamel(nutrition, 'fat_grams', 'fatGrams'));
+      document.getElementById('calories-output').textContent = calories === null ? '—' : String(Math.round(calories));
+      document.getElementById('protein-output').textContent = grams(protein);
+      document.getElementById('carbohydrates-output').textContent = grams(carbohydrate);
+      document.getElementById('fat-output').textContent = grams(fat);
+      const whole = calories !== null && servings !== null ? Math.round(calories * servings) : null;
+      document.getElementById('whole-recipe-nutrition').textContent = whole === null ? 'Whole recipe calories unavailable' : `Whole recipe · ${whole} calories across ${servings} servings`;
+      document.getElementById('nutrition-evidence').textContent = nutrition.evidence || (snakeOrCamel(nutrition, 'is_estimated', 'isEstimated') ? 'USDA-calculated estimate.' : 'Creator-stated nutrition.');
+    };
+
+    const renderRecipe = payload => {
+      const recipe = payload.recipe;
+      document.getElementById('recipe-title').textContent = recipe.title || 'Untitled recipe';
+      document.getElementById('recipe-description').textContent = recipe.description || '';
+      document.getElementById('recipe-attribution').textContent = `${recipe.source || 'source'} · ${snakeOrCamel(recipe, 'creator_name', 'creatorName') || 'creator unknown'}`;
+      const servings = String(recipe.servings ?? '—');
+      document.getElementById('servings-output').textContent = servings;
+      document.querySelector('.serving-word').textContent = Number(servings) === 1 ? 'serving' : 'servings';
+      document.getElementById('servings-basis').textContent = basisLabel(snakeOrCamel(recipe, 'servings_basis', 'servingsBasis'));
+      renderNutrition(recipe);
+
+      const review = snakeOrCamel(recipe, 'review_status', 'reviewStatus') || 'needsReview';
+      const reviewNode = document.getElementById('review-status');
+      reviewNode.textContent = reviewLabel(review);
+      reviewNode.classList.toggle('needs-review', review === 'needsReview');
+
+      const ingredients = document.getElementById('ingredients-output');
+      clear(ingredients);
+      (recipe.ingredients || []).forEach(item => {
+        const row = make('li');
+        row.append(make('span', 'quantity', snakeOrCamel(item, 'quantity_text', 'quantityText') || 'to taste'));
+        const detail = make('span');
+        detail.append(make('span', '', item.name || 'Unnamed ingredient'));
+        if (item.preparation) detail.append(make('span', 'prep', ` · ${item.preparation}`));
+        row.append(detail);
+        ingredients.append(row);
+      });
+
+      const steps = document.getElementById('steps-output');
+      clear(steps);
+      (recipe.steps || []).forEach(item => {
+        const row = make('li', '', item.instruction || 'Missing instruction');
+        (item.timers || []).forEach(timer => row.append(make('span', 'timer', `${timer.label} · ${timerLabel(snakeOrCamel(timer, 'duration_seconds', 'durationSeconds'))}`)));
+        steps.append(row);
+      });
+
+      const uncertaintyList = document.getElementById('uncertainties-output');
+      clear(uncertaintyList);
+      const uncertainties = [...(recipe.uncertainties || [])];
+      (recipe.ingredients || []).forEach(item => {
+        if (item.uncertainty) uncertainties.push(item.uncertainty);
+      });
+      (recipe.steps || []).forEach(item => {
+        if (item.uncertainty) uncertainties.push(item.uncertainty);
+      });
+      uncertainties.forEach(item => uncertaintyList.append(make('li', '', `${item.field || 'field'}: ${item.reason || 'uncertain'}`)));
+
+      const notes = document.getElementById('notes-output');
+      clear(notes);
+      (recipe.notes || []).forEach(note => notes.append(make('li', '', `— ${note}`)));
+
+      const meta = document.getElementById('run-metadata');
+      clear(meta);
+      appendMeta(payload.modelID || 'model unknown');
+      if (payload.elapsedSeconds !== undefined) appendMeta(`${Number(payload.elapsedSeconds).toFixed(2)}s elapsed`);
+      appendMeta(`${(recipe.ingredients || []).length} ingredients`);
+      appendMeta(`${(recipe.steps || []).length} steps`);
+      const usage = payload.usage || {};
+      const extraction = Number(usage.extractionCostUSD || 0);
+      const verification = Number(usage.verificationCostUSD || 0);
+      if (extraction || verification || usage.reportedCostUSD !== undefined) {
+        appendMeta(`$${Number(usage.reportedCostUSD ?? extraction + verification).toFixed(4)} reported cost`);
+      }
+      result.hidden = false;
+      result.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+    };
+
+    const fail = (type, message) => {
+      clear(errorBox);
+      errorBox.append(make('strong', '', type || 'Validation failed'));
+      errorBox.append(make('p', '', message || 'The pipeline did not return a recipe.'));
+      errorBox.hidden = false;
+      setStage('failed', 'No recipe was produced.');
+    };
+
+    const responseJSON = async response => {
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(`${body.error || `HTTP ${response.status}`}|${body.message || 'Request failed'}`);
+      return body;
+    };
+
+    const poll = async jobID => {
+      for (;;) {
+        await wait(700);
+        const state = await responseJSON(await fetch(`api/jobs/${encodeURIComponent(jobID)}`, { signal: controller.signal }));
+        setStage(state.stage, state.message);
+        if (state.status === 'succeeded') {
+          renderRecipe(state.result);
+          return;
+        }
+        if (state.status === 'failed') {
+          fail(state.errorType, state.error);
+          return;
+        }
+      }
+    };
+
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      controller?.abort();
+      controller = new AbortController();
+      button.disabled = true;
+      input.disabled = true;
+      result.hidden = true;
+      errorBox.hidden = true;
+      setStage('queued', 'Admitting one pipeline run…');
+      try {
+        const admitted = await responseJSON(await fetch('api/validate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sourceURL: input.value }),
+          signal: controller.signal
+        }));
+        await poll(admitted.jobID);
+      } catch (error) {
+        if (error.name !== 'AbortError') {
+          const [type, message] = String(error.message).split('|', 2);
+          fail(type, message);
+        }
+      } finally {
+        button.disabled = false;
+        input.disabled = false;
+        controller = null;
+      }
+    });
+
+    window.addEventListener('beforeunload', () => controller?.abort());
+    if (location.protocol === 'file:') {
+      document.getElementById('file-setup').hidden = false;
+      button.disabled = true;
+      input.disabled = true;
+      setStage('idle', 'Start the local helper to run the pipeline.');
+    }
+  </script>
+</body>
+</html>

@@ -29,13 +29,12 @@ from ladle.acquisition.models import (
 )
 from ladle.acquisition.protocol import VideoAcquirer
 from ladle.acquisition.provider_chain import ProviderChain
+from ladle.acquisition.search import (
+    OpenRouterRecipeSearchClient,
+    SparseTextEnricher,
+)
 from ladle.acquisition.soscripted import SoScriptedClient
 from ladle.acquisition.supadata import SupadataClient
-from ladle.acquisition.vision import (
-    FrameSampler,
-    VisionObserver,
-    VisionVisualProvider,
-)
 from ladle.cache.claims import ExtractionClaimService
 from ladle.cache.service import ExtractionCacheService
 from ladle.clock import SystemClock
@@ -48,7 +47,13 @@ from ladle.extraction.claude import (
     ClaudeRecipeExtractor,
 )
 from ladle.extraction.openrouter import OpenRouterStructuredClient
-from ladle.extraction.protocol import RecipeExtractor
+from ladle.extraction.protocol import RecipeExtractor, RecipeVerifier
+from ladle.extraction.verification import (
+    AnthropicVerificationClient,
+    OpenRouterVerificationClient,
+    TargetedRecipeVerifier,
+    VerificationModelClient,
+)
 from ladle.imports.heartbeat import ClaimHeartbeatMonitor
 from ladle.imports.maintenance import ImportMaintenanceService
 from ladle.imports.orchestrator import ImportOrchestrator
@@ -57,6 +62,13 @@ from ladle.imports.reservations import ReservationService
 from ladle.imports.thumbnails import OEmbedThumbnailFetcher
 from ladle.imports.transitions import ImportTransitionService
 from ladle.infrastructure.object_storage import S3ObjectStorage
+from ladle.nutrition.calculator import NutritionCalculator
+from ladle.nutrition.normalization import (
+    OpenRouterNutritionNormalizationClient,
+    RecipeNutritionNormalizer,
+)
+from ladle.nutrition.service import RecipeNutritionService
+from ladle.nutrition.usda import USDAClient
 from ladle.observability.metrics import MetricsRegistry, RedisMetricsBackend
 from ladle.observability.operations import OperationalMetricsCollector
 from ladle.observability.tracing import instrument_database
@@ -73,7 +85,7 @@ from ladle.recipes.template_clone import (
     TemplateTimer,
 )
 from ladle.usage.circuit import RedisCircuitBreaker
-from ladle.usage.ledger import ProviderUsageLedger
+from ladle.usage.ledger import ProviderUsageLedger, ProviderUsageSink
 from ladle.usage.limits import UsageLimitService
 
 LOGGER = logging.getLogger(__name__)
@@ -204,39 +216,6 @@ def _audio_transcriber(
     )
 
 
-def _vision_provider(
-    settings: Settings,
-    *,
-    usage: ProviderUsageLedger,
-) -> VisionVisualProvider | None:
-    if not settings.frame_analysis_enabled or settings.openrouter_api_key is None:
-        return None
-    media = MediaAudioSource(
-        http=httpx.Client(
-            timeout=settings.frame_analysis_timeout_seconds,
-            trust_env=False,
-        ),
-    )
-    sampler = FrameSampler(max_frames=settings.frame_analysis_max_frames)
-    if not sampler.available:
-        LOGGER.warning("ffmpeg is missing; frame analysis is disabled")
-        return None
-    return VisionVisualProvider(
-        media_source=media,
-        sampler=sampler,
-        observer=VisionObserver(
-            http=httpx.Client(
-                timeout=settings.frame_analysis_timeout_seconds,
-                trust_env=False,
-            ),
-            api_key=settings.openrouter_api_key.get_secret_value(),
-            base_url=str(settings.openrouter_base_url),
-            model_id=settings.frame_analysis_model_id,
-            usage=usage,
-        ),
-    )
-
-
 def _free_acquirer(settings: Settings) -> FreeAcquirer | None:
     if not settings.free_acquisition_enabled:
         return None
@@ -256,6 +235,125 @@ def _free_acquirer(settings: Settings) -> FreeAcquirer | None:
         instagram=InstagramEmbedClient(fetcher=page_fetcher),
         follow_caption_links=settings.free_acquisition_follow_links,
         subtitles_enabled=settings.free_acquisition_subtitles,
+    )
+
+
+def _creator_search(settings: Settings) -> SparseTextEnricher | None:
+    if not settings.creator_search_enabled:
+        return None
+    if settings.openrouter_api_key is None:
+        raise RuntimeError("creator search requires an OpenRouter API key")
+    return SparseTextEnricher(
+        search=OpenRouterRecipeSearchClient(
+            http=httpx.Client(
+                timeout=settings.openrouter_timeout_seconds,
+                trust_env=False,
+            ),
+            api_key=settings.openrouter_api_key.get_secret_value(),
+            base_url=str(settings.openrouter_base_url),
+            model_id=settings.openrouter_model_id,
+            maximum_queries=settings.creator_search_maximum_queries,
+            maximum_results=settings.creator_search_maximum_results,
+        ),
+        fetcher=SafeLinkFetcher(
+            http=httpx.Client(
+                timeout=settings.linked_page_timeout_seconds,
+                trust_env=False,
+            )
+        ),
+        maximum_queries=settings.creator_search_maximum_queries,
+        maximum_candidates=settings.creator_search_maximum_results,
+    )
+
+
+def _nutrition_calculator(settings: Settings) -> NutritionCalculator | None:
+    if not settings.usda_nutrition_enabled:
+        return None
+    if settings.usda_api_key is None:
+        raise RuntimeError("nutrition requires a USDA API key")
+    return NutritionCalculator(
+        USDAClient(
+            http=httpx.Client(
+                timeout=settings.usda_timeout_seconds,
+                trust_env=False,
+            ),
+            api_key=settings.usda_api_key.get_secret_value(),
+            base_url=str(settings.usda_base_url),
+            maximum_candidates=settings.usda_maximum_candidates,
+        )
+    )
+
+
+def _nutrition_service(
+    settings: Settings,
+    *,
+    usage: ProviderUsageSink | None,
+) -> RecipeNutritionService | None:
+    calculator = _nutrition_calculator(settings)
+    if calculator is None or not settings.nutrition_normalization_enabled:
+        return None
+    if settings.openrouter_api_key is None:
+        raise RuntimeError(
+            "nutrition normalization requires an OpenRouter API key"
+        )
+    normalizer = RecipeNutritionNormalizer(
+        client=OpenRouterNutritionNormalizationClient(
+            http=httpx.Client(
+                timeout=settings.openrouter_timeout_seconds,
+                trust_env=False,
+            ),
+            api_key=settings.openrouter_api_key.get_secret_value(),
+            base_url=str(settings.openrouter_base_url),
+        ),
+        model_id=settings.nutrition_normalization_model_id,
+        max_tokens=settings.nutrition_normalization_max_tokens,
+        usage=usage,
+    )
+    return RecipeNutritionService(
+        normalizer=normalizer,
+        calculator=calculator,
+    )
+
+
+def _recipe_verifier(
+    settings: Settings,
+    *,
+    usage: ProviderUsageSink | None,
+) -> TargetedRecipeVerifier | None:
+    if not settings.recipe_verification_enabled:
+        return None
+    client: VerificationModelClient
+    if settings.extraction_provider == "openrouter":
+        if settings.openrouter_api_key is None:
+            raise RuntimeError("recipe verification requires an OpenRouter API key")
+        client = OpenRouterVerificationClient(
+            http=httpx.Client(
+                timeout=settings.openrouter_timeout_seconds,
+                trust_env=False,
+            ),
+            api_key=settings.openrouter_api_key.get_secret_value(),
+            base_url=str(settings.openrouter_base_url),
+        )
+        model_id = settings.openrouter_model_id
+        provider = "openrouter"
+    else:
+        if settings.anthropic_api_key is None:
+            raise RuntimeError("recipe verification requires an Anthropic API key")
+        client = AnthropicVerificationClient(
+            Anthropic(
+                api_key=settings.anthropic_api_key.get_secret_value(),
+                base_url=str(settings.anthropic_base_url),
+                timeout=settings.anthropic_timeout_seconds,
+            )
+        )
+        model_id = settings.anthropic_model_id
+        provider = "anthropic"
+    return TargetedRecipeVerifier(
+        client=client,
+        model_id=model_id,
+        max_tokens=settings.recipe_verification_max_tokens,
+        usage=usage,
+        provider=provider,
     )
 
 
@@ -409,7 +507,8 @@ def runtime_orchestrator() -> ImportOrchestrator:
     )
     acquirer: VideoAcquirer
     extractor: RecipeExtractor
-    thumbnail_observer: VisionObserver | None = None
+    nutrition_service: RecipeNutritionService | None = None
+    verifier: RecipeVerifier | None = None
     if settings.worker_provider_mode == "fake":
         acquirer = FakeRuntimeAcquirer(
             delay_seconds=settings.fake_provider_delay_seconds,
@@ -440,20 +539,8 @@ def runtime_orchestrator() -> ImportOrchestrator:
             reservation_units=settings.provider_reservation_billed_units,
             metrics=metrics,
         )
-        if (
-            settings.thumbnail_analysis_enabled
-            and settings.openrouter_api_key is not None
-        ):
-            thumbnail_observer = VisionObserver(
-                http=httpx.Client(
-                    timeout=settings.frame_analysis_timeout_seconds,
-                    trust_env=False,
-                ),
-                api_key=settings.openrouter_api_key.get_secret_value(),
-                base_url=str(settings.openrouter_base_url),
-                model_id=settings.frame_analysis_model_id,
-                usage=usage,
-            )
+        nutrition_service = _nutrition_service(settings, usage=usage)
+        verifier = _recipe_verifier(settings, usage=usage)
         acquirer = ProviderChain(
             primary=(
                 SupadataClient(
@@ -489,7 +576,7 @@ def runtime_orchestrator() -> ImportOrchestrator:
             ),
             free=_free_acquirer(settings),
             audio=_audio_transcriber(settings, usage=usage),
-            vision=_vision_provider(settings, usage=usage),
+            search=_creator_search(settings),
             metrics=metrics,
         )
         if settings.extraction_provider == "openrouter":
@@ -541,8 +628,9 @@ def runtime_orchestrator() -> ImportOrchestrator:
         acquirer=acquirer,
         extractor=extractor,
         clock=clock,
+        nutrition_enricher=nutrition_service,
+        verifier=verifier,
         thumbnails=thumbnails,
-        thumbnail_observer=thumbnail_observer,
         private_text=build_private_text_cipher(
             active_key_id=settings.data_encryption_active_key_id,
             keyring_json=settings.data_encryption_keyring,

@@ -202,6 +202,8 @@ extension ImportFailure {
             "Sign in again, then retry."
         case .parserUnavailable:
             "Couldn’t read the video. Open for recovery options."
+        case .insufficientTextEvidence:
+            "Not enough written recipe detail. Add details manually."
         case .quotaExceeded:
             "Processing limit reached. Try again later."
         }

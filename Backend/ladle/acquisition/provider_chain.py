@@ -21,14 +21,15 @@ from ladle.acquisition.models import (
     SourceVideoDescriptor,
     TranscriptResult,
     VisualEvidence,
-    VisualResult,
 )
+from ladle.acquisition.search import SparseTextEnricher
 from ladle.observability.metrics import MetricsRegistry
 from ladle.observability.structured_logging import log_context
 from ladle.usage.circuit import CircuitBreaker, CircuitOpen
 
 _T = TypeVar("_T")
 LOGGER = logging.getLogger(__name__)
+_PLATFORM_TEXT_PROVENANCES = {"instagram:altText", "tiktok:sticker"}
 
 
 class PrimaryProvider(Protocol):
@@ -43,11 +44,6 @@ class PrimaryProvider(Protocol):
         job_id: UUID,
         mode: str,
     ) -> TranscriptResult: ...
-
-    def visual(
-        self, source: SourceVideoDescriptor, *, job_id: UUID
-    ) -> VisualResult: ...
-
 
 class TranscriptFallback(Protocol):
     def transcript(
@@ -65,17 +61,6 @@ class AudioTranscriber(Protocol):
         media_headers: Mapping[str, str] | None = None,
         duration_seconds: float | None = None,
     ) -> TranscriptResult: ...
-
-
-class VisualObserver(Protocol):
-    def visual(
-        self,
-        source: SourceVideoDescriptor,
-        *,
-        job_id: UUID,
-        media_url: str | None = None,
-        duration_seconds: float | None = None,
-    ) -> VisualResult: ...
 
 
 class ContextFallback(Protocol):
@@ -97,13 +82,13 @@ class ProviderChain:
         server_fallback: ContextFallback | None = None,
         free: FreeAcquirer | None = None,
         audio: AudioTranscriber | None = None,
-        vision: VisualObserver | None = None,
+        search: SparseTextEnricher | None = None,
         metrics: MetricsRegistry | None = None,
     ) -> None:
         self._primary = primary
         self._fallback = fallback
         self._audio = audio
-        self._vision = vision
+        self._search = search
         self._circuits = circuits
         self._server_fallback = server_fallback
         self._free = free
@@ -167,13 +152,17 @@ class ProviderChain:
                 segments=free.transcript,
                 language=free.language,
             )
-        # On-screen text the free rung read stays in play for every later rung.
-        free_observations = free.visual_observations
+        # These are platform page fields, not text inferred from pixels.
+        platform_text = [
+            value
+            for value in free.visual_observations
+            if value.provenance in _PLATFORM_TEXT_PROVENANCES
+        ]
         context = self._context(
             source,
             metadata=metadata,
             transcript=transcript,
-            observations=free_observations,
+            observations=platform_text,
             documents=documents,
             diagnostics=diagnostics,
         )
@@ -201,26 +190,12 @@ class ProviderChain:
                     source,
                     metadata=metadata,
                     transcript=transcript,
-                    observations=free_observations,
+                    observations=platform_text,
                     documents=documents,
                     diagnostics=diagnostics,
                 )
-                if assess_coverage(context).sufficient_for_extraction:
+                if assess_coverage(context).has_recipe_evidence:
                     return context
-            elif free_coverage.sufficient_for_extraction:
-                # The caption carried a whole recipe and the audio was out of
-                # reach. Listening was worth a try; buying a transcript for
-                # something we can already read is not. Rebuilt rather than
-                # reused: the context above was snapshotted before the failed
-                # attempt recorded its diagnostic.
-                return self._context(
-                    source,
-                    metadata=metadata,
-                    transcript=None,
-                    observations=free_observations,
-                    documents=documents,
-                    diagnostics=diagnostics,
-                )
 
         if transcript is None and self._primary is not None:
             transcript = self._transcript_or_none(
@@ -245,52 +220,16 @@ class ProviderChain:
             except ProviderUnavailable:
                 diagnostics.append("soscriptedUnavailable")
 
-        visual: VisualResult | None = None
-        provisional = self._context(
-            source,
-            metadata=metadata,
-            transcript=transcript,
-            observations=free_observations,
-            documents=documents,
-            diagnostics=diagnostics,
-        )
-        if not assess_coverage(provisional).sufficient_for_extraction:
-            # Sampling frames ourselves costs a fraction of the visual
-            # provider and reuses media we have usually already fetched, so it
-            # goes first. Silent videos land here with nothing but a caption,
-            # and what the creator's hands are doing is the only method left
-            # to read.
-            visual = self._vision_visual(
-                source,
-                job_id=job_id,
-                metadata=metadata,
-                media_url=free.video_url or free.media_url,
-                diagnostics=diagnostics,
-            )
-            if visual is None and self._primary is not None:
-                primary = self._primary
-                try:
-                    visual = self._provider_call(
-                        "supadata",
-                        lambda: primary.visual(source, job_id=job_id),
-                    )
-                except PrivateOrDeleted:
-                    raise
-                except (CircuitOpen, ProviderUnavailable):
-                    diagnostics.append("visualAnalysisUnavailable")
-
         result = self._context(
             source,
             metadata=metadata,
             transcript=transcript,
-            observations=(
-                free_observations + (visual.observations if visual is not None else [])
-            ),
+            observations=platform_text,
             documents=documents,
             diagnostics=diagnostics,
         )
         if (
-            not assess_coverage(result).sufficient_for_extraction
+            not assess_coverage(result).has_recipe_evidence
             and self._server_fallback is not None
         ):
             try:
@@ -299,8 +238,22 @@ class ProviderChain:
                 result.diagnostics.append("serverFallbackUnavailable")
             else:
                 result.transcript.extend(server.transcript)
-                result.visual_observations.extend(server.visual_observations)
+                result.linked_documents.extend(server.linked_documents)
                 result.diagnostics.append("serverFallbackUsed")
+        if not assess_coverage(result).has_recipe_evidence and self._search is not None:
+            search = self._search
+            try:
+                documents = self._provider_call(
+                    "openrouterSearch",
+                    lambda: search.enrich(result, job_id=job_id),
+                )
+            except (CircuitOpen, ProviderUnavailable):
+                result.diagnostics.append("creatorSearchUnavailable")
+            else:
+                result.linked_documents.extend(documents)
+                result.diagnostics.append(
+                    "creatorSearchUsed" if documents else "creatorSearchNoMatch"
+                )
         return result
 
     def _free_context(
@@ -352,35 +305,6 @@ class ProviderChain:
             diagnostics.append("audioTranscriptionUnavailable")
             return None
         diagnostics.append("audioTranscriptionUsed")
-        return result
-
-    def _vision_visual(
-        self,
-        source: SourceVideoDescriptor,
-        *,
-        job_id: UUID,
-        metadata: MediaMetadata,
-        media_url: str | None,
-        diagnostics: list[str],
-    ) -> VisualResult | None:
-        if self._vision is None:
-            return None
-        try:
-            result = self._provider_call(
-                "vision",
-                lambda: self._vision.visual(  # type: ignore[union-attr]
-                    source,
-                    job_id=job_id,
-                    media_url=media_url,
-                    duration_seconds=metadata.duration_seconds,
-                ),
-            )
-        except PrivateOrDeleted:
-            raise
-        except (CircuitOpen, ProviderUnavailable):
-            diagnostics.append("frameAnalysisUnavailable")
-            return None
-        diagnostics.append("frameAnalysisUsed")
         return result
 
     def _transcript_or_none(

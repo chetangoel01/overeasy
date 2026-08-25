@@ -7,13 +7,14 @@ import pytest
 from ladle.acquisition.errors import (
     PrivateOrDeleted,
     ProviderQuotaError,
+    ProviderTransientError,
     TranscriptUnavailable,
 )
 from ladle.acquisition.models import (
+    LinkedDocument,
     MediaMetadata,
     SourceVideoDescriptor,
     TranscriptResult,
-    VisualResult,
 )
 from ladle.acquisition.provider_chain import ProviderChain
 from ladle.observability.metrics import MetricsRegistry
@@ -34,8 +35,8 @@ def source() -> SourceVideoDescriptor:
 class Primary:
     native: TranscriptResult | Exception
     generated: TranscriptResult | Exception
-    visual_result: VisualResult | Exception
     thumbnail_url: str | None = None
+    description: str = "Add flour and bake."
     calls: list[str] = field(default_factory=list)
 
     def metadata(self, source: SourceVideoDescriptor, *, job_id: UUID) -> MediaMetadata:
@@ -43,7 +44,7 @@ class Primary:
         self.calls.append("metadata")
         return MediaMetadata(
             title="Recipe",
-            description="Add flour and bake.",
+            description=self.description,
             creator_name="Creator",
             thumbnail_url=self.thumbnail_url,
             duration_seconds=30,
@@ -63,14 +64,6 @@ class Primary:
         if isinstance(value, Exception):
             raise value
         return value
-
-    def visual(self, source: SourceVideoDescriptor, *, job_id: UUID) -> VisualResult:
-        del source, job_id
-        self.calls.append("visual")
-        if isinstance(self.visual_result, Exception):
-            raise self.visual_result
-        return self.visual_result
-
 
 @dataclass
 class Fallback:
@@ -101,6 +94,24 @@ class ContextBackup:
         return self.result
 
 
+@dataclass
+class SearchEnricher:
+    result: list[LinkedDocument] | Exception
+    calls: int = 0
+
+    def enrich(
+        self,
+        context: object,
+        *,
+        job_id: UUID,
+    ) -> list[LinkedDocument]:
+        del context, job_id
+        self.calls += 1
+        if isinstance(self.result, Exception):
+            raise self.result
+        return self.result
+
+
 def transcript(text: str, provenance: str = "supadata") -> TranscriptResult:
     from ladle.acquisition.models import TextEvidence
 
@@ -119,10 +130,6 @@ def transcript(text: str, provenance: str = "supadata") -> TranscriptResult:
     )
 
 
-def empty_visual() -> VisualResult:
-    return VisualResult(observations=[], billed_units=0, external_job_id="visual-1")
-
-
 def test_sufficient_supadata_auto_material_skips_paid_fallbacks() -> None:
     primary = Primary(
         native=TranscriptUnavailable(),
@@ -130,7 +137,6 @@ def test_sufficient_supadata_auto_material_skips_paid_fallbacks() -> None:
             "Add 2 cups flour. Mix well, then bake for 20 minutes.",
             "supadata-auto",
         ),
-        visual_result=empty_visual(),
     )
     fallback = Fallback(transcript("unused"))
     metrics = MetricsRegistry()
@@ -158,7 +164,6 @@ def test_acquired_context_preserves_provider_thumbnail() -> None:
             "Add 2 cups flour. Mix well, then bake for 20 minutes.",
             "supadata-auto",
         ),
-        visual_result=empty_visual(),
         thumbnail_url="https://images.example/recipe.jpg",
     )
     chain = ProviderChain(primary=primary, fallback=None)
@@ -187,7 +192,6 @@ def test_public_recheck_uses_metadata_without_transcript_or_visual_spend() -> No
     primary = Primary(
         native=TranscriptUnavailable(),
         generated=TranscriptUnavailable(),
-        visual_result=empty_visual(),
     )
     chain = ProviderChain(
         primary=primary,
@@ -198,24 +202,10 @@ def test_public_recheck_uses_metadata_without_transcript_or_visual_spend() -> No
     assert primary.calls == ["metadata"]
 
 
-def test_quota_or_missing_native_uses_transcript_and_visual_backups() -> None:
-    from ladle.acquisition.models import VisualEvidence
-
+def test_sparse_source_uses_text_fallbacks_but_never_visual_analysis() -> None:
     primary = Primary(
         native=TranscriptUnavailable(),
         generated=ProviderQuotaError(),
-        visual_result=VisualResult(
-            observations=[
-                VisualEvidence(
-                    text="2 cups flour",
-                    timestamp_seconds=1,
-                    provenance="supadata-visual",
-                    confidence=0.9,
-                )
-            ],
-            billed_units=2,
-            external_job_id="visual-1",
-        ),
     )
     fallback = Fallback(
         transcript("Add flour. Mix well, then bake for 20 minutes.", "soscripted")
@@ -226,7 +216,8 @@ def test_quota_or_missing_native_uses_transcript_and_visual_backups() -> None:
 
     assert fallback.calls == 1
     assert context.transcript[0].provenance == "soscripted"
-    assert context.visual_observations[0].text == "2 cups flour"
+    assert primary.calls == ["metadata", "transcript:auto"]
+    assert context.visual_observations == []
     assert "supadataTranscriptUnavailable" in context.diagnostics
 
 
@@ -234,7 +225,6 @@ def test_private_source_short_circuits_all_fallback_spend() -> None:
     primary = Primary(
         native=TranscriptUnavailable(),
         generated=PrivateOrDeleted(),
-        visual_result=empty_visual(),
     )
     fallback = Fallback(transcript("must not run"))
     chain = ProviderChain(primary=primary, fallback=fallback)
@@ -263,7 +253,6 @@ def test_quota_failure_opens_primary_circuit_and_uses_independent_backup() -> No
     primary = Primary(
         native=TranscriptUnavailable(),
         generated=ProviderQuotaError(),
-        visual_result=empty_visual(),
     )
     fallback = Fallback(
         transcript(
@@ -285,14 +274,13 @@ def test_quota_failure_opens_primary_circuit_and_uses_independent_backup() -> No
         circuits.before_call("supadata")
 
 
-def test_server_fallback_supplies_burned_in_quantities_when_apis_are_sparse() -> None:
+def test_server_fallback_merges_text_but_discards_visual_context() -> None:
     from ladle.acquisition.models import AcquiredVideoContext, VisualEvidence
 
     source_value = source()
     primary = Primary(
         native=transcript("Add flour and bake until golden.", "supadata-native"),
         generated=TranscriptUnavailable(),
-        visual_result=ProviderQuotaError(),
     )
     fallback = Fallback(transcript("unused"))
     server = ContextBackup(
@@ -300,7 +288,9 @@ def test_server_fallback_supplies_burned_in_quantities_when_apis_are_sparse() ->
             source=source_value,
             is_public=True,
             description="",
-            transcript=[],
+            transcript=transcript(
+                "Add 2 cups flour and bake.", "server-transcript"
+            ).segments,
             visual_observations=[
                 VisualEvidence(
                     text="2 cups flour",
@@ -321,5 +311,96 @@ def test_server_fallback_supplies_burned_in_quantities_when_apis_are_sparse() ->
     result = chain.acquire(source_value, job_id=uuid4())
 
     assert server.calls == 1
-    assert result.visual_observations[-1].provenance == "server-ocr"
+    assert result.transcript[-1].provenance == "server-transcript"
+    assert result.visual_observations == []
     assert "serverFallbackUsed" in result.diagnostics
+
+
+def test_creator_search_runs_only_after_transcript_fallbacks_remain_sparse() -> None:
+    creator_page = LinkedDocument(
+        url="https://creator.example/recipe",
+        text=(
+            "Ingredients: 2 cups flour. Method: mix the flour with water, "
+            "then bake until golden."
+        ),
+        provenance="creatorSearch",
+    )
+    search = SearchEnricher([creator_page])
+    primary = Primary(
+        native=TranscriptUnavailable(),
+        generated=TranscriptUnavailable(),
+    )
+    fallback = Fallback(transcript("This is my favorite dinner."))
+    chain = ProviderChain(primary=primary, fallback=fallback, search=search)
+
+    result = chain.acquire(source(), job_id=uuid4())
+
+    assert primary.calls == ["metadata", "transcript:auto"]
+    assert fallback.calls == 1
+    assert search.calls == 1
+    assert result.linked_documents == [creator_page]
+    assert "creatorSearchUsed" in result.diagnostics
+
+
+def test_promotional_caption_cannot_hide_sparse_recipe_evidence_from_search() -> None:
+    creator_page = LinkedDocument(
+        url="https://creator.example/recipe",
+        text="Ingredients: 2 cups flour. Method: mix and bake until golden.",
+        provenance="creatorSearch",
+    )
+    search = SearchEnricher([creator_page])
+    primary = Primary(
+        native=TranscriptUnavailable(),
+        generated=transcript("This one is so good."),
+        description="Add 2 cups flour and bake tonight. Full recipe in bio.",
+    )
+    chain = ProviderChain(primary=primary, fallback=None, search=search)
+
+    result = chain.acquire(source(), job_id=uuid4())
+
+    assert search.calls == 1
+    assert result.linked_documents == [creator_page]
+
+
+def test_creator_search_is_skipped_when_transcript_is_recipe_bearing() -> None:
+    search = SearchEnricher([])
+    primary = Primary(
+        native=TranscriptUnavailable(),
+        generated=transcript("Add 2 cups flour, mix well, and bake until golden."),
+    )
+    chain = ProviderChain(primary=primary, fallback=None, search=search)
+
+    chain.acquire(source(), job_id=uuid4())
+
+    assert search.calls == 0
+
+
+def test_creator_search_records_when_no_creator_recipe_matches() -> None:
+    search = SearchEnricher([])
+    primary = Primary(
+        native=TranscriptUnavailable(),
+        generated=TranscriptUnavailable(),
+    )
+    chain = ProviderChain(primary=primary, fallback=None, search=search)
+
+    result = chain.acquire(source(), job_id=uuid4())
+
+    assert search.calls == 1
+    assert result.linked_documents == []
+    assert "creatorSearchNoMatch" in result.diagnostics
+
+
+def test_creator_search_failure_is_diagnostic_and_never_adds_visual_evidence() -> None:
+    search = SearchEnricher(ProviderTransientError("search unavailable"))
+    primary = Primary(
+        native=TranscriptUnavailable(),
+        generated=TranscriptUnavailable(),
+    )
+    chain = ProviderChain(primary=primary, fallback=None, search=search)
+
+    result = chain.acquire(source(), job_id=uuid4())
+
+    assert search.calls == 1
+    assert result.visual_observations == []
+    assert result.linked_documents == []
+    assert "creatorSearchUnavailable" in result.diagnostics

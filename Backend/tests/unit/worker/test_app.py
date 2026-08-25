@@ -1,6 +1,9 @@
+import ast
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from pathlib import Path
 
+import pytest
 from billiard.exceptions import SoftTimeLimitExceeded
 from redis.exceptions import ConnectionError as RedisConnectionError
 from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError
@@ -18,6 +21,175 @@ from ladle.worker.app import (
     record_worker_heartbeat,
 )
 from ladle.worker.tasks import is_retryable_import_failure, retry_countdown
+
+BACKEND = Path(__file__).parents[3]
+
+
+def test_free_acquirer_runtime_builder_returns_the_configured_acquirer() -> None:
+    from ladle.acquisition.free import FreeAcquirer
+    from ladle.worker.runtime import _free_acquirer
+
+    built = _free_acquirer(Settings(_env_file=None))
+
+    assert isinstance(built, FreeAcquirer)
+
+
+def test_creator_search_runtime_builder_preserves_configured_bounds() -> None:
+    from pydantic import SecretStr
+
+    from ladle.acquisition.search import SparseTextEnricher
+    from ladle.worker.runtime import _creator_search
+
+    built = _creator_search(
+        Settings(
+            openrouter_api_key=SecretStr("search-key"),
+            creator_search_maximum_queries=4,
+            creator_search_maximum_results=9,
+            _env_file=None,
+        )
+    )
+
+    assert isinstance(built, SparseTextEnricher)
+    assert built._maximum_queries == 4
+    assert built._maximum_candidates == 9
+
+
+def test_creator_search_runtime_builder_respects_explicit_disable() -> None:
+    from pydantic import SecretStr
+
+    from ladle.worker.runtime import _creator_search
+
+    built = _creator_search(
+        Settings(
+            openrouter_api_key=SecretStr("search-key"),
+            creator_search_enabled=False,
+            _env_file=None,
+        )
+    )
+
+    assert built is None
+
+
+def test_enabled_creator_search_requires_its_openrouter_key() -> None:
+    from ladle.worker.runtime import _creator_search
+
+    with pytest.raises(RuntimeError, match="creator search requires an OpenRouter"):
+        _creator_search(
+            Settings(
+                creator_search_enabled=True,
+                openrouter_api_key=None,
+                _env_file=None,
+            )
+        )
+
+
+def test_nutrition_runtime_builder_preserves_configured_bounds() -> None:
+    from pydantic import SecretStr
+
+    from ladle.nutrition.calculator import NutritionCalculator
+    from ladle.worker.runtime import _nutrition_calculator
+
+    built = _nutrition_calculator(
+        Settings(
+            usda_api_key=SecretStr("food-key"),
+            usda_maximum_candidates=7,
+            _env_file=None,
+        )
+    )
+
+    assert isinstance(built, NutritionCalculator)
+    assert built._source._maximum_candidates == 7
+
+
+def test_nutrition_runtime_builder_respects_explicit_disable() -> None:
+    from ladle.worker.runtime import _nutrition_calculator
+
+    assert (
+        _nutrition_calculator(
+            Settings(usda_nutrition_enabled=False, _env_file=None)
+        )
+        is None
+    )
+
+
+def test_enabled_nutrition_requires_a_usda_key() -> None:
+    from ladle.worker.runtime import _nutrition_calculator
+
+    with pytest.raises(RuntimeError, match="nutrition requires a USDA API key"):
+        _nutrition_calculator(
+            Settings(
+                usda_nutrition_enabled=True,
+                usda_api_key=None,
+                _env_file=None,
+            )
+        )
+
+
+def test_nutrition_service_uses_gemini_normalization_and_usda() -> None:
+    from pydantic import SecretStr
+
+    from ladle.nutrition.service import RecipeNutritionService
+    from ladle.worker.runtime import _nutrition_service
+
+    built = _nutrition_service(
+        Settings(
+            openrouter_api_key=SecretStr("model-key"),
+            usda_api_key=SecretStr("food-key"),
+            nutrition_normalization_model_id="google/gemini-3.7-flash",
+            _env_file=None,
+        ),
+        usage=None,
+    )
+
+    assert isinstance(built, RecipeNutritionService)
+    assert built._normalizer._model_id == "google/gemini-3.7-flash"
+
+
+def test_nutrition_service_requires_openrouter_for_normalization() -> None:
+    from pydantic import SecretStr
+
+    from ladle.worker.runtime import _nutrition_service
+
+    with pytest.raises(RuntimeError, match="normalization requires an OpenRouter"):
+        _nutrition_service(
+            Settings(
+                openrouter_api_key=None,
+                usda_api_key=SecretStr("food-key"),
+                _env_file=None,
+            ),
+            usage=None,
+        )
+
+
+def test_recipe_verifier_runtime_builder_uses_extraction_model() -> None:
+    from pydantic import SecretStr
+
+    from ladle.extraction.verification import TargetedRecipeVerifier
+    from ladle.worker.runtime import _recipe_verifier
+
+    built = _recipe_verifier(
+        Settings(
+            openrouter_api_key=SecretStr("verify-key"),
+            openrouter_model_id="quality-model",
+            _env_file=None,
+        ),
+        usage=None,
+    )
+
+    assert isinstance(built, TargetedRecipeVerifier)
+    assert built._model_id == "quality-model"
+
+
+def test_recipe_verifier_runtime_builder_respects_explicit_disable() -> None:
+    from ladle.worker.runtime import _recipe_verifier
+
+    assert (
+        _recipe_verifier(
+            Settings(recipe_verification_enabled=False, _env_file=None),
+            usage=None,
+        )
+        is None
+    )
 
 
 @dataclass
@@ -60,6 +232,24 @@ def test_worker_uses_late_ack_and_long_visibility_timeout() -> None:
     }
     assert app.conf.task_serializer == "json"
     assert app.conf.accept_content == ["json"]
+
+
+def test_live_runtime_constructs_no_visual_provider_or_thumbnail_observer() -> None:
+    runtime = ast.parse((BACKEND / "ladle/worker/runtime.py").read_text())
+    calls = [node for node in ast.walk(runtime) if isinstance(node, ast.Call)]
+
+    assert not any(
+        isinstance(call.func, ast.Name)
+        and call.func.id in {"VisionObserver", "VisionVisualProvider", "FrameSampler"}
+        for call in calls
+    )
+    for call in calls:
+        if isinstance(call.func, ast.Name) and call.func.id == "ProviderChain":
+            assert "vision" not in {keyword.arg for keyword in call.keywords}
+        if isinstance(call.func, ast.Name) and call.func.id == "ImportOrchestrator":
+            assert "thumbnail_observer" not in {
+                keyword.arg for keyword in call.keywords
+            }
 
 
 def test_worker_retry_backoff_is_bounded_and_jittered() -> None:

@@ -683,6 +683,7 @@ class ProviderAttempt(Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     billed_units: Mapped[Decimal | None] = mapped_column(Numeric(18, 6), nullable=True)
+    cost_usd: Mapped[Decimal | None] = mapped_column(Numeric(18, 8), nullable=True)
     reserved_units: Mapped[Decimal] = mapped_column(
         Numeric(18, 6), nullable=False, server_default="0"
     )

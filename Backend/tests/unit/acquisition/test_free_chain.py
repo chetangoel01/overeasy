@@ -11,7 +11,6 @@ from ladle.acquisition.errors import (
     PrivateOrDeleted,
     ProviderUnavailable,
     TranscriptUnavailable,
-    VisualAnalysisUnavailable,
 )
 from ladle.acquisition.free.acquirer import FreeContext
 from ladle.acquisition.models import (
@@ -21,7 +20,6 @@ from ladle.acquisition.models import (
     TextEvidence,
     TranscriptResult,
     VisualEvidence,
-    VisualResult,
 )
 from ladle.acquisition.provider_chain import ProviderChain
 
@@ -51,12 +49,6 @@ class Primary:
         del source, job_id
         self.calls.append(f"transcript:{mode}")
         raise TranscriptUnavailable()
-
-    def visual(self, source: SourceVideoDescriptor, *, job_id: UUID) -> VisualResult:
-        del source, job_id
-        self.calls.append("visual")
-        return VisualResult(observations=[], billed_units=1, external_job_id="v1")
-
 
 @dataclass
 class Fallback:
@@ -98,7 +90,7 @@ def caption_only() -> FreeContext:
     )
 
 
-def test_rich_caption_bills_nothing() -> None:
+def test_rich_caption_without_audio_still_tries_text_transcript_providers() -> None:
     primary = Primary()
     fallback = Fallback()
     free = Free(caption_only())
@@ -107,8 +99,8 @@ def test_rich_caption_bills_nothing() -> None:
     context = chain.acquire(source(), job_id=uuid4())
 
     assert free.calls == 1
-    assert primary.calls == []
-    assert fallback.calls == 0
+    assert primary.calls == ["transcript:auto"]
+    assert fallback.calls == 1
     assert context.creator_name == "mishkamakesfood"
     assert "freeMetadataUsed" in context.diagnostics
 
@@ -181,9 +173,9 @@ def test_thin_free_result_still_falls_through_to_paid_providers() -> None:
 
     context = chain.acquire(source(), job_id=uuid4())
 
-    # Metadata came free, so only the transcript and visual rungs are billed.
+    # Metadata came free, so only text transcript providers are attempted.
     assert "metadata" not in primary.calls
-    assert primary.calls == ["transcript:auto", "visual"]
+    assert primary.calls == ["transcript:auto"]
     assert fallback.calls == 1
     assert context.description == "so good"
 
@@ -208,7 +200,7 @@ def test_free_sticker_text_survives_into_the_paid_result() -> None:
     context = chain.acquire(source(), job_id=uuid4())
 
     # The chain kept going to paid providers, but did not drop what was free.
-    assert primary.calls == ["transcript:auto", "visual"]
+    assert primary.calls == ["transcript:auto"]
     assert [value.provenance for value in context.visual_observations] == [
         "tiktok:sticker"
     ]
@@ -237,9 +229,8 @@ def test_free_transcript_skips_every_paid_transcript_rung() -> None:
 
     chain.acquire(source(), job_id=uuid4())
 
-    # TikTok's ASR covers the same audio Supadata would bill for, so only the
-    # visual rung is worth paying for after it.
-    assert primary.calls == ["visual"]
+    # TikTok's ASR covers the same audio Supadata would bill for.
+    assert primary.calls == []
     assert fallback.calls == 0
 
 
@@ -305,8 +296,8 @@ def test_a_rich_caption_does_not_excuse_us_from_listening() -> None:
     assert primary.calls == []
 
 
-def test_an_unheard_video_with_a_rich_caption_still_bills_nothing() -> None:
-    """Listening is worth attempting; buying what we can already read is not."""
+def test_unavailable_audio_and_rich_caption_continue_to_text_providers() -> None:
+    """A promo caption cannot terminate accuracy-first text acquisition."""
 
     primary = Primary()
     fallback = Fallback()
@@ -321,106 +312,9 @@ def test_an_unheard_video_with_a_rich_caption_still_bills_nothing() -> None:
     context = chain.acquire(source(), job_id=uuid4())
 
     assert len(audio.calls) == 1
-    assert primary.calls == []
-    assert fallback.calls == 0
+    assert primary.calls == ["transcript:auto"]
+    assert fallback.calls == 1
     assert "audioTranscriptionUnavailable" in context.diagnostics
-
-
-@dataclass
-class Vision:
-    result: VisualResult | Exception
-    calls: int = 0
-    media_urls: list[str | None] = field(default_factory=list)
-
-    def visual(
-        self,
-        source: SourceVideoDescriptor,
-        *,
-        job_id: UUID,
-        media_url: str | None = None,
-        duration_seconds: float | None = None,
-    ) -> VisualResult:
-        del source, job_id, duration_seconds
-        self.calls += 1
-        self.media_urls.append(media_url)
-        if isinstance(self.result, Exception):
-            raise self.result
-        return self.result
-
-
-def seen_cooking() -> VisualResult:
-    return VisualResult(
-        observations=[
-            VisualEvidence(
-                text="Feta and spinach are spooned onto a rice paper sheet.",
-                timestamp_seconds=12.0,
-                provenance="vision:google/gemini-2.5-flash",
-            )
-        ],
-        billed_units=Decimal(1),
-        external_job_id="vision:visual:1",
-    )
-
-
-def test_watching_the_video_comes_before_paying_to_have_it_watched() -> None:
-    """Frames we sample ourselves undercut the visual provider they precede."""
-
-    primary = Primary()
-    vision = Vision(seen_cooking())
-    free = Free(
-        FreeContext(
-            metadata=MediaMetadata(title="Rice Paper Rolls", description="link in bio"),
-            video_url="https://cdn.example/video-only.mp4",
-            diagnostics=["freeMetadataUsed"],
-        )
-    )
-    chain = ProviderChain(
-        primary=primary, fallback=Fallback(), free=free, vision=vision
-    )
-
-    context = chain.acquire(source(), job_id=uuid4())
-
-    assert vision.calls == 1
-    assert vision.media_urls == ["https://cdn.example/video-only.mp4"]
-    assert "visual" not in primary.calls
-    assert "frameAnalysisUsed" in context.diagnostics
-    assert context.visual_observations[0].timestamp_seconds == 12.0
-
-
-def test_unwatchable_video_still_falls_through_to_the_visual_provider() -> None:
-    primary = Primary()
-    vision = Vision(VisualAnalysisUnavailable("no media"))
-    free = Free(
-        FreeContext(
-            metadata=MediaMetadata(title="Dinner", description="so good"),
-            diagnostics=["freeMetadataUsed"],
-        )
-    )
-    chain = ProviderChain(
-        primary=primary, fallback=Fallback(), free=free, vision=vision
-    )
-
-    context = chain.acquire(source(), job_id=uuid4())
-
-    assert vision.calls == 1
-    assert "visual" in primary.calls
-    assert "frameAnalysisUnavailable" in context.diagnostics
-
-
-def test_a_covered_recipe_is_never_watched() -> None:
-    """Nothing to gain from frames when the evidence already answers."""
-
-    vision = Vision(seen_cooking())
-    chain = ProviderChain(
-        primary=Primary(),
-        fallback=Fallback(),
-        free=Free(caption_only()),
-        vision=vision,
-    )
-
-    chain.acquire(source(), job_id=uuid4())
-
-    assert vision.calls == 0
 
 
 def test_audio_transcription_runs_before_the_transcript_providers() -> None:
@@ -493,7 +387,7 @@ def test_failed_transcription_still_falls_through_to_paid_providers() -> None:
     context = chain.acquire(source(), job_id=uuid4())
 
     assert len(audio.calls) == 1
-    assert primary.calls == ["transcript:auto", "visual"]
+    assert primary.calls == ["transcript:auto"]
     assert fallback.calls == 1
     assert "audioTranscriptionUnavailable" in context.diagnostics
 

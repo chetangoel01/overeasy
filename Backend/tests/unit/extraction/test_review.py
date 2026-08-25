@@ -80,6 +80,8 @@ def test_defaults_and_coverage_problems_become_needs_review() -> None:
             calories=Decimal("500"),
             protein_grams=Decimal("15"),
             serving_basis=None,
+            basis="unknown",
+            evidence=None,
         ),
         uncertainties=[],
     )
@@ -90,12 +92,11 @@ def test_defaults_and_coverage_problems_become_needs_review() -> None:
     )
 
     assert reviewed.review_status == RecipeReviewStatus.NEEDS_REVIEW
-    assert reviewed.servings == 4
+    assert reviewed.servings == 1
+    assert reviewed.servings_basis == "unknown"
     assert reviewed.steps[0].ingredient_indexes == [0]
     assert reviewed.steps[0].uncertainty is not None
-    assert reviewed.nutrition is not None
-    assert reviewed.nutrition.serving_basis == 1
-    assert reviewed.nutrition.is_estimated
+    assert reviewed.nutrition is None
     reasons = {value.field for value in reviewed.uncertainties}
     assert "servings" in reasons
     assert "ingredientQuantities" in reasons
@@ -130,24 +131,7 @@ def test_confident_complete_extraction_is_ready() -> None:
     reviewed = build_reviewed_template(extraction, context=context())
 
     assert reviewed.review_status == RecipeReviewStatus.READY
-
-
-def test_nutrition_without_a_basis_remains_per_serving() -> None:
-    extraction = _solid_recipe(
-        servings=Decimal("11"),
-        nutrition=ExtractedNutrition(
-            calories=Decimal("625"),
-            protein_grams=Decimal("55"),
-            serving_basis=None,
-        ),
-    )
-
-    reviewed = build_reviewed_template(extraction, context=context())
-
-    assert reviewed.nutrition is not None
-    assert reviewed.nutrition.calories == Decimal("625")
-    assert reviewed.nutrition.protein_grams == Decimal("55")
-    assert reviewed.nutrition.serving_basis == Decimal("1")
+    assert reviewed.servings_basis == "unknown"
 
 
 def _solid_recipe(**overrides: object) -> RecipeExtraction:
@@ -168,6 +152,7 @@ def _solid_recipe(**overrides: object) -> RecipeExtraction:
                 unit="can",
                 metric_amount=Decimal("800"),
                 metric_unit="g",
+                preparation="drained",
                 confidence=0.95,
             ),
             ExtractedIngredient(
@@ -193,11 +178,68 @@ def _solid_recipe(**overrides: object) -> RecipeExtraction:
     return RecipeExtraction.model_validate(defaults)
 
 
-def test_an_unavailable_provider_is_not_a_doubt_about_the_recipe() -> None:
-    """Visual analysis being down says nothing about whether this dish is right.
+def test_creator_stated_nutrition_is_preserved_as_non_estimated() -> None:
+    nutrition = ExtractedNutrition(
+        calories=Decimal("420"),
+        protein_grams=Decimal("18"),
+        carbohydrate_grams=Decimal("52"),
+        fat_grams=Decimal("16"),
+        serving_basis=Decimal("4"),
+        basis="creatorStated",
+        evidence="Per serving: 420 calories, 18g protein, 52g carbs, 16g fat.",
+    )
 
-    It used to force review anyway, and because the visual provider is often
-    unavailable that pushed essentially every import into the review queue.
+    reviewed = build_reviewed_template(
+        _solid_recipe(nutrition=nutrition),
+        context=context(),
+    )
+
+    assert reviewed.nutrition is not None
+    assert reviewed.nutrition.basis == "creatorStated"
+    assert reviewed.nutrition.evidence == nutrition.evidence
+    assert not reviewed.nutrition.is_estimated
+
+
+def test_unknown_or_usda_claimed_model_nutrition_is_discarded() -> None:
+    for basis in ("unknown", "usdaCalculated"):
+        nutrition = ExtractedNutrition(
+            calories=Decimal("420"),
+            protein_grams=Decimal("18"),
+            carbohydrate_grams=Decimal("52"),
+            fat_grams=Decimal("16"),
+            serving_basis=Decimal("4"),
+            basis=basis,
+            evidence="A model-generated estimate.",
+        )
+
+        reviewed = build_reviewed_template(
+            _solid_recipe(nutrition=nutrition),
+            context=context(),
+        )
+
+        assert reviewed.nutrition is None
+
+
+def test_absent_creator_nutrition_remains_absent() -> None:
+    reviewed = build_reviewed_template(_solid_recipe(), context=context())
+
+    assert reviewed.nutrition is None
+
+
+def test_review_retains_usda_ready_ingredient_fields() -> None:
+    reviewed = build_reviewed_template(_solid_recipe(), context=context())
+
+    chickpeas = reviewed.ingredients[0]
+    assert chickpeas.metric_amount == Decimal("800")
+    assert chickpeas.metric_unit == "g"
+    assert chickpeas.usda_search_term == "chickpeas drained"
+
+
+def test_a_legacy_unavailable_provider_code_is_not_recipe_doubt() -> None:
+    """An old provider diagnostic says nothing about whether the dish is right.
+
+    Cached acquisition contexts may retain this code, so review remains
+    backward-compatible even though production no longer has a visual path.
     """
 
     reviewed = build_reviewed_template(
@@ -217,6 +259,7 @@ def test_a_labelled_serving_estimate_does_not_force_review() -> None:
     )
 
     assert reviewed.review_status == RecipeReviewStatus.READY
+    assert reviewed.servings_basis == "estimatedFromYield"
     assert "servings" in {value.field for value in reviewed.uncertainties}
 
 
@@ -236,49 +279,18 @@ def test_one_shaky_garnish_does_not_condemn_the_whole_recipe() -> None:
 
     assert reviewed.review_status == RecipeReviewStatus.READY
     assert reviewed.ingredients[-1].uncertainty is not None
+    assert reviewed.ingredients[-1].is_to_taste
 
 
-def test_a_reconstructed_method_is_labelled_without_blocking_the_recipe() -> None:
-    """A useful reconstruction should be transparent, not a routine gate."""
+def test_a_reconstructed_method_still_forces_review() -> None:
+    """We wrote these steps, not the creator. The cook has to be told."""
 
     reviewed = build_reviewed_template(
         _solid_recipe(method_provenance="inferred"),
         context=context(),
     )
 
-    assert reviewed.review_status == RecipeReviewStatus.READY
-    assert "steps" in {value.field for value in reviewed.uncertainties}
-
-
-def test_an_unstated_yield_gets_a_useful_labelled_default() -> None:
-    ingredients = [
-        ExtractedIngredient(
-            name="bread",
-            quantity_text="1 loaf",
-            normalized_quantity=Decimal("1"),
-            unit="loaf",
-            confidence=0.95,
-        )
-    ]
-    reviewed = build_reviewed_template(
-        _solid_recipe(
-            servings=None,
-            servings_basis="unknown",
-            ingredients=ingredients,
-            steps=[
-                ExtractedStep(
-                    instruction="Slice and serve the bread.",
-                    ingredient_indices=[0],
-                    confidence=0.95,
-                )
-            ],
-        ),
-        context=context(),
-    )
-
-    assert reviewed.review_status == RecipeReviewStatus.READY
-    assert reviewed.servings == 4
-    assert "servings" in {value.field for value in reviewed.uncertainties}
+    assert reviewed.review_status == RecipeReviewStatus.NEEDS_REVIEW
 
 
 def test_mostly_unmeasured_ingredients_still_force_review() -> None:

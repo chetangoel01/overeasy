@@ -2,6 +2,7 @@ from typing import Protocol
 from uuid import UUID
 
 from ladle.acquisition.models import AcquiredVideoContext
+from ladle.extraction.verification import VerificationEvidence
 from ladle.recipes.template_clone import RecipeTemplate
 
 
@@ -19,5 +20,15 @@ class RecipeExtractor(Protocol):
         self,
         context: AcquiredVideoContext,
         *,
+        job_id: UUID,
+    ) -> RecipeTemplate: ...
+
+
+class RecipeVerifier(Protocol):
+    def verify(
+        self,
+        template: RecipeTemplate,
+        *,
+        evidence: list[VerificationEvidence],
         job_id: UUID,
     ) -> RecipeTemplate: ...

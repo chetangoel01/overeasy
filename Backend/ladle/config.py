@@ -170,6 +170,20 @@ class Settings(BaseSettings):
     ytdlp_timeout_seconds: float = Field(default=90, gt=0)
     linked_page_timeout_seconds: float = Field(default=12, gt=0)
 
+    # Search is a last text-only acquisition rung. Bounds protect worker
+    # latency and response size; they are not a per-import price ceiling.
+    creator_search_enabled: bool = True
+    creator_search_maximum_queries: int = Field(default=3, ge=1, le=8)
+    creator_search_maximum_results: int = Field(default=6, ge=1, le=20)
+
+    # Deterministic whole-recipe calories and macros. The calculator refuses
+    # unsupported portions or unstated servings instead of estimating them.
+    usda_nutrition_enabled: bool = True
+    usda_base_url: AnyHttpUrl = AnyHttpUrl("https://api.nal.usda.gov/fdc/v1")
+    usda_timeout_seconds: float = Field(default=15, gt=0)
+    usda_api_key: SecretStr | None = None
+    usda_maximum_candidates: int = Field(default=5, ge=1, le=10)
+
     # Whisper on the raw audio. Cheap enough to precede the transcript
     # providers, and it reuses the OpenRouter key rather than adding a secret.
     audio_transcription_enabled: bool = True
@@ -178,23 +192,10 @@ class Settings(BaseSettings):
     transcription_max_audio_bytes: int = Field(default=20 * 1024 * 1024, gt=0)
     transcription_max_duration_seconds: float = Field(default=1800, gt=0)
 
-    # Frames read by a vision model, for the silent videos where the method is
-    # only ever shown. Cheaper than the visual provider it precedes, and it
-    # reuses the media transcription already downloaded.
-    frame_analysis_enabled: bool = True
-    # One still image can clarify the dish without sampling the video. This is
-    # deliberately independent from frame analysis so deployments can enable
-    # thumbnail context without activating multi-frame processing.
+    # Compatibility flags remain parseable for existing deployments, but the
+    # import runtime has no visual-provider wiring.
+    frame_analysis_enabled: bool = False
     thumbnail_analysis_enabled: bool = False
-    # Same model as extraction, so a frame is read with the same understanding
-    # of what a recipe needs. It is 5x the input and 3x the output price of
-    # gemini-2.5-flash, which takes eight frames from roughly $0.002 to
-    # $0.009; against extraction's $0.013-0.056 that is still the cheap rung,
-    # and it is the rung that decides whether a silent video is `partial` or
-    # `inferred`. Re-measure with scripts/measure_cost.py before changing.
-    frame_analysis_model_id: str = "google/gemini-3.6-flash"
-    frame_analysis_max_frames: int = Field(default=8, gt=0, le=32)
-    frame_analysis_timeout_seconds: float = Field(default=120, gt=0)
 
     supadata_base_url: AnyHttpUrl = AnyHttpUrl("https://api.supadata.ai/v1")
     supadata_timeout_seconds: float = Field(default=30, gt=0)
@@ -207,6 +208,8 @@ class Settings(BaseSettings):
     soscripted_api_key: SecretStr | None = None
 
     extraction_provider: Literal["anthropic", "openrouter"] = "openrouter"
+    recipe_verification_enabled: bool = True
+    recipe_verification_max_tokens: int = Field(default=4096, gt=0)
 
     anthropic_base_url: AnyHttpUrl = AnyHttpUrl("https://api.anthropic.com")
     anthropic_timeout_seconds: float = Field(default=60, gt=0)
@@ -217,18 +220,18 @@ class Settings(BaseSettings):
     openrouter_base_url: AnyHttpUrl = AnyHttpUrl("https://openrouter.ai/api/v1")
     openrouter_timeout_seconds: float = Field(default=90, gt=0)
     openrouter_api_key: SecretStr | None = None
-    # Picked on the quality of the recipe, not the price of the call. It names
-    # ingredients precisely and, in a recipe with several sub-preparations,
-    # says which one each amount belongs to — "soy sauce (for the marinade)"
-    # against three other soy sauce lines. The previous model listed the same
-    # four amounts unlabelled and double-counted batter it had already listed.
-    # It costs about a quarter more per import; see scripts/measure_cost.py.
-    openrouter_model_id: str = "google/gemini-3.6-flash"
+    # User-selected quality-first default after the 2026-08-24 bake-off. The
+    # explicit environment override remains available for reproducible runs.
+    openrouter_model_id: str = "google/gemini-3.7-flash"
     # A 35-ingredient recipe with four sub-preparations ran past 8192 and came
     # back truncated, which the extractor can only report as a failed import.
     # Cost is charged per token emitted, not per token allowed, so a headroom
     # that is never reached is free — and stopping mid-recipe never is.
     openrouter_max_tokens: int = Field(default=32_768, gt=0)
+
+    nutrition_normalization_enabled: bool = True
+    nutrition_normalization_model_id: str = "google/gemini-3.7-flash"
+    nutrition_normalization_max_tokens: int = Field(default=5_000, gt=0)
 
     apple_enabled: bool = False
     apple_bundle_id: str = "com.ladle.ios"
@@ -276,6 +279,7 @@ class Settings(BaseSettings):
             "soscripted_api_key",
             "anthropic_api_key",
             "openrouter_api_key",
+            "usda_api_key",
         ):
             secret = getattr(self, field_name)
             if secret is not None and not secret.get_secret_value().strip():
@@ -304,11 +308,11 @@ class Settings(BaseSettings):
             self.ytdlp_timeout_seconds,
             self.linked_page_timeout_seconds,
             self.transcription_timeout_seconds,
-            self.frame_analysis_timeout_seconds,
             self.supadata_timeout_seconds,
             self.soscripted_timeout_seconds,
             self.anthropic_timeout_seconds,
             self.openrouter_timeout_seconds,
+            self.usda_timeout_seconds,
         )
         safe = (
             self.extraction_claim_heartbeat_seconds * 2 < claim_seconds
@@ -495,11 +499,19 @@ class Settings(BaseSettings):
             raise ValueError(
                 f"production live workers require a configured {extraction_key}"
             )
+        if self.usda_nutrition_enabled and (
+            self.usda_api_key is None
+            or self._is_placeholder(self.usda_api_key.get_secret_value())
+        ):
+            raise ValueError(
+                "production nutrition requires a configured usda_api_key"
+            )
         for field_name in (
             "supadata_base_url",
             "soscripted_base_url",
             "anthropic_base_url",
             "openrouter_base_url",
+            "usda_base_url",
             "apple_jwks_url",
             "apple_token_url",
             "google_jwks_url",

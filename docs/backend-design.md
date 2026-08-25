@@ -113,8 +113,8 @@ DELETE /v1/recipes/{id}          → soft delete
 
 Status values and failure reasons map 1:1 to `ImportStatus` /
 `ImportFailure` in LadleCore (`parsing`, `ready`, `needsReview`, `failed` +
-`parserUnavailable`, `privateOrDeleted`, `unsupportedSource`, `invalidURL`,
-`networkUnavailable`). The client's state machine
+`parserUnavailable`, `insufficientTextEvidence`, `privateOrDeleted`,
+`unsupportedSource`, `invalidURL`, `networkUnavailable`). The client's state machine
 (`StoredImportJob.transitioning(to:)`) doesn't change.
 
 Guest limit: enforced client-side today; the server should also enforce it
@@ -136,9 +136,12 @@ Each stage writes progress to `import_jobs` so a crash resumes cleanly.
    recipe (many creators paste it — check before running ASR). Else
    faster-whisper on the audio. No usable audio/caption →
    `failed(parserUnavailable)`.
-5. **Extract (Claude).** §7. Output includes per-field confidence.
-6. **Nutrition estimate.** §8. Always `isEstimated: true`.
-7. **Review gate.** Any field confidence < 0.7, or missing quantities on >30%
+5. **Evidence gate.** If neither transcript nor a creator-linked page contains
+   a quantified ingredient and cooking action →
+   `failed(insufficientTextEvidence)` without invoking extraction.
+6. **Extract (Claude).** §7. Output includes per-field confidence.
+7. **Nutrition estimate.** §8. Always `isEstimated: true`.
+8. **Review gate.** Any field confidence < 0.7, or missing quantities on >30%
    of ingredients → `needsReview` with `uncertainties[]` populated
    (`FieldUncertainty(field: "ingredients[0].quantityText", reason, confidence)`
    — same shape the editor already renders). Else `ready`.

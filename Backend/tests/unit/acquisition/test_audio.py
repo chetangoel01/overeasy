@@ -81,6 +81,41 @@ def test_verbose_json_becomes_timed_generated_evidence(tmp_path: Path) -> None:
     assert result.billed_units == Decimal(1)
 
 
+def test_provider_reported_transcription_cost_is_recorded(tmp_path: Path) -> None:
+    class Usage:
+        def __init__(self) -> None:
+            self.completed_values: dict[str, object] = {}
+
+        def existing_external_job_id(self, **values: object) -> None:
+            del values
+            return None
+
+        def started(self, **values: object) -> None:
+            del values
+
+        def completed(self, **values: object) -> None:
+            self.completed_values = values
+
+        def failed(self, **values: object) -> None:
+            del values
+
+    usage = Usage()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(
+            200,
+            json={**VERBOSE, "usage": {"cost": "0.00675"}},
+        )
+
+    result = transcriber(handler, usage=usage).transcribe(
+        audio_file(tmp_path), job_id=uuid4(), source_revision="rev-1"
+    )
+
+    assert result.cost_usd == Decimal("0.00675")
+    assert usage.completed_values["cost_usd"] == Decimal("0.00675")
+
+
 def test_transient_service_failure_is_retried_once(tmp_path: Path) -> None:
     calls = 0
     delays: list[float] = []

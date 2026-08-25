@@ -65,18 +65,17 @@ Fixture:
 
 The acquisition order is:
 
-1. free platform metadata, captions, on-screen text, and linked recipe pages;
+1. free platform metadata, captions, platform-published sticker/accessibility
+   text, and linked recipe pages;
 2. Whisper transcription of the acquired media when free evidence is thin;
    transport errors and provider 5xx responses receive one bounded retry;
 3. one Supadata `mode=auto` URL transcript fallback;
-4. SoScripted transcript on an independent Supadata transcript outage;
-5. sampled-frame analysis, then Supadata structured visual analysis when the
-   recipe still lacks quantities or actions.
+4. SoScripted transcript on an independent Supadata transcript outage.
 
 Private/deleted observations stop the chain immediately. Authentication and
 quota failures open the affected provider circuit. Supadata and SoScripted are
-optional: a private worker can run the free acquisition, raw-media Whisper,
-frame-analysis, and recipe-extraction path with only its OpenRouter key.
+optional: a private worker can run free acquisition, raw-media Whisper, and
+text recipe extraction with only its OpenRouter key.
 
 TikTok's page metadata and English ASR track are an independent part of the
 free rung. They are attempted even when yt-dlp cannot read the post, and can

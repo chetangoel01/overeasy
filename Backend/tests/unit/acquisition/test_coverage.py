@@ -56,10 +56,9 @@ def test_recipe_like_quantities_and_ordered_actions_are_sufficient() -> None:
     assert report.has_quantities
     assert report.has_instructions
     assert report.sufficient_for_extraction
-    assert not report.requires_visual_fallback
 
 
-def test_burned_in_visual_quantities_complete_sparse_speech() -> None:
+def test_platform_published_text_can_complete_sparse_speech() -> None:
     sparse = context(
         "Add the flour and salt. Mix everything, then bake until golden.",
         visuals=["2 cups flour", "1 teaspoon salt"],
@@ -70,14 +69,12 @@ def test_burned_in_visual_quantities_complete_sparse_speech() -> None:
     assert report.has_quantities
     assert report.has_instructions
     assert report.sufficient_for_extraction
-    assert report.used_visual_evidence
 
 
-def test_missing_quantities_requests_visual_fallback_and_review() -> None:
+def test_missing_quantities_requires_review() -> None:
     report = assess_coverage(
         context("Add the flour and salt. Mix everything, then bake until golden.")
     )
 
     assert not report.has_quantities
-    assert report.requires_visual_fallback
     assert report.requires_review

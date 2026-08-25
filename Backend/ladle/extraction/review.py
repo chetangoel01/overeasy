@@ -1,3 +1,4 @@
+import re
 from decimal import Decimal
 
 from ladle.acquisition.models import AcquiredVideoContext
@@ -17,11 +18,11 @@ from ladle.recipes.template_clone import (
 )
 
 _CONFIDENCE_THRESHOLD = 0.7
-_MISSING_QUANTITY_THRESHOLD = 0.6
+_MISSING_QUANTITY_THRESHOLD = 0.3
 # Review is a claim that the cook should check something before trusting the
 # recipe. Every caveat used to raise it, including ones that say nothing about
-# the dish — an unavailable visual provider, a serving count we estimated and
-# labelled as estimated. With those firing on nearly every import, the flag
+# the dish — an unavailable-provider diagnostic, a serving count we estimated
+# and labelled as estimated. With those firing on nearly every import, the flag
 # stopped distinguishing anything. Only caveats that could actually mislead
 # someone cooking from the result raise it now; the rest are still recorded
 # and still shown beside the field they belong to.
@@ -29,6 +30,11 @@ _MISSING_QUANTITY_THRESHOLD = 0.6
 # divisor over-reports servings, which understates per-serving nutrition.
 _GRAMS_PER_SERVING = Decimal(400)
 _MAX_ESTIMATED_SERVINGS = Decimal(12)
+
+
+def _usda_search_term(name: str, preparation: str | None) -> str:
+    value = f"{name} {preparation or ''}".casefold()
+    return " ".join(re.sub(r"[^\w\s-]", " ", value).split())
 
 
 def _estimate_servings(extraction: RecipeExtraction) -> Decimal | None:
@@ -65,23 +71,29 @@ def build_reviewed_template(
     # to caveats worth showing them.
     blocking: list[str] = []
     servings = extraction.servings
+    servings_basis = extraction.servings_basis
     if servings is None:
         # A yield the source never stated is unknown, not one. Downstream
         # scaling and per-serving nutrition would inherit the lie.
         estimated = _estimate_servings(extraction)
         if estimated is None:
-            servings = Decimal(4)
+            servings = Decimal(1)
+            servings_basis = "unknown"
+            # Presenting a whole dish as one serving misstates every per-serving
+            # number the app derives from it.
+            blocking.append("servings")
             uncertainties.append(
                 FieldUncertaintyDTO(
                     field="servings",
                     reason=(
-                        "Serving count was absent; using a four-serving "
-                        "household estimate."
+                        "Serving count was absent and could not be estimated "
+                        "from the ingredient amounts."
                     ),
                 )
             )
         else:
             servings = estimated
+            servings_basis = "estimatedFromYield"
             uncertainties.append(
                 FieldUncertaintyDTO(
                     field="servings",
@@ -107,23 +119,24 @@ def build_reviewed_template(
     if quantified and (
         missing_quantities / len(quantified) > _MISSING_QUANTITY_THRESHOLD
     ):
-        # Reserve the gate for a recipe that is mostly unmeasured. The prompt
-        # supplies clearly labelled, conservative estimates where it can.
+        # Too much of the recipe is unmeasured to cook from without checking.
         blocking.append("ingredientQuantities")
         uncertainties.append(
             FieldUncertaintyDTO(
                 field="ingredientQuantities",
-                reason="Most ingredients still lack usable quantities.",
+                reason="More than 30 percent of ingredients lack quantities.",
             )
         )
 
     if extraction.method_provenance == "inferred":
+        # These steps are our reconstruction, not the creator's method.
+        blocking.append("steps")
         uncertainties.append(
             FieldUncertaintyDTO(
                 field="steps",
                 reason=(
-                    "The source did not describe a complete method; these "
-                    "steps use standard cooking technique."
+                    "The source did not describe a method; these steps were "
+                    "reconstructed and need your review."
                 ),
             )
         )
@@ -163,6 +176,13 @@ def build_reviewed_template(
                 unit=ingredient_value.unit,
                 name=ingredient_value.name,
                 preparation=ingredient_value.preparation,
+                metric_amount=ingredient_value.metric_amount,
+                metric_unit=ingredient_value.metric_unit,
+                usda_search_term=_usda_search_term(
+                    ingredient_value.name,
+                    ingredient_value.preparation,
+                ),
+                is_to_taste=ingredient_value.is_to_taste,
                 order_index=index,
                 uncertainty=uncertainty,
             )
@@ -228,13 +248,12 @@ def build_reviewed_template(
                 )
                 for value in nutrition.other_nutrients
             ],
-            # The extraction contract defines nutrition as per serving unless
-            # it explicitly names another basis. Falling back to the recipe
-            # yield divides an already-per-serving value a second time.
-            serving_basis=nutrition.serving_basis or Decimal(1),
-            is_estimated=True,
+            serving_basis=nutrition.serving_basis or servings,
+            is_estimated=False,
+            basis=nutrition.basis,
+            evidence=nutrition.evidence,
         )
-        if nutrition is not None
+        if nutrition is not None and nutrition.basis == "creatorStated"
         else None
     )
 
@@ -251,6 +270,7 @@ def build_reviewed_template(
         cooking_minutes=extraction.cooking_minutes,
         total_minutes=extraction.total_minutes,
         servings=servings,
+        servings_basis=servings_basis,
         ingredients=ingredients,
         steps=steps,
         nutrition=template_nutrition,

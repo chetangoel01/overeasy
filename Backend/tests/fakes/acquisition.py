@@ -16,6 +16,11 @@ class FakeAcquirer:
     is_public: bool = True
     thumbnail_url: str | None = None
     context: AcquiredVideoContext | None = None
+    title: str = "Lemon Orzo"
+    description: str = "A fast one-pot recipe."
+    transcript_text: str | None = (
+        "Add two cups orzo, then simmer for ten minutes."
+    )
 
     def check_public(
         self,
@@ -44,20 +49,24 @@ class FakeAcquirer:
         return AcquiredVideoContext(
             source=source,
             is_public=True,
-            title="Lemon Orzo",
-            description="A fast one-pot recipe.",
+            title=self.title,
+            description=self.description,
             creator_name="Ladle Test Kitchen",
             thumbnail_url=self.thumbnail_url,
             language="en",
-            transcript=[
-                TextEvidence(
-                    text="Add two cups orzo, then simmer for ten minutes.",
-                    start_seconds=0,
-                    end_seconds=6,
-                    provenance="fake-native-caption",
-                    generated=False,
-                )
-            ],
+            transcript=(
+                [
+                    TextEvidence(
+                        text=self.transcript_text,
+                        start_seconds=0,
+                        end_seconds=6,
+                        provenance="fake-native-caption",
+                        generated=False,
+                    )
+                ]
+                if self.transcript_text
+                else []
+            ),
             visual_observations=[],
             diagnostics=[],
         )

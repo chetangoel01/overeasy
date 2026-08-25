@@ -73,6 +73,32 @@ def test_migrated_schema_matches_model_metadata(clean_postgres_url: str) -> None
 
 
 @pytest.mark.integration
+def test_provider_cost_migration_upgrades_and_downgrades(
+    clean_postgres_url: str,
+) -> None:
+    config = alembic_config(clean_postgres_url)
+    command.upgrade(config, "head")
+    engine = create_engine(clean_postgres_url)
+
+    columns = {
+        value["name"]: value
+        for value in inspect(engine).get_columns("provider_attempts")
+    }
+    assert columns["cost_usd"]["type"].precision == 18
+    assert columns["cost_usd"]["type"].scale == 8
+
+    engine.dispose()
+    command.downgrade(config, "0012")
+    engine = create_engine(clean_postgres_url)
+    names = {
+        value["name"]
+        for value in inspect(engine).get_columns("provider_attempts")
+    }
+    assert "cost_usd" not in names
+    engine.dispose()
+
+
+@pytest.mark.integration
 def test_unique_and_foreign_key_constraints_are_enforced(
     clean_postgres_url: str,
 ) -> None:

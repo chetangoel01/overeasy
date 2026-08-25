@@ -534,6 +534,8 @@ private extension ImportFailure {
             "Your session ended. Sign in again to retry this import."
         case .parserUnavailable:
             "Overeasy couldn’t read the video, but the link is still saved."
+        case .insufficientTextEvidence:
+            "The post didn’t include enough written recipe detail. Paste it or add the recipe manually."
         case .quotaExceeded:
             "Overeasy has reached its processing limit. Your link is safe to retry later."
         }

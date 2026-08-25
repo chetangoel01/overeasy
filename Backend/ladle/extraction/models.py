@@ -115,6 +115,9 @@ class ExtractedNutrient(WireModel):
     unit: str = Field(min_length=1)
 
 
+NutritionBasis = Literal["creatorStated", "usdaCalculated", "unknown"]
+
+
 class ExtractedNutrition(WireModel):
     calories: RecipeDecimal | None = Field(default=None, ge=0)
     protein_grams: RecipeDecimal | None = Field(default=None, ge=0)
@@ -133,6 +136,8 @@ class ExtractedNutrition(WireModel):
             "when the values are per serving"
         ),
     )
+    basis: NutritionBasis
+    evidence: str | None = Field(default=None, max_length=2_000)
 
 
 MethodProvenance = Literal["explicit", "partial", "inferred"]

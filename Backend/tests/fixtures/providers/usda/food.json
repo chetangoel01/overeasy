@@ -1,0 +1,40 @@
+{
+  "fdcId": 2644288,
+  "description": "Chickpeas (garbanzo beans), canned, drained and rinsed",
+  "dataType": "Foundation",
+  "foodNutrients": [
+    {
+      "nutrient": {"id": 2047, "name": "Energy (Atwater General Factors)", "unitName": "kcal"},
+      "amount": 137.22
+    },
+    {
+      "nutrient": {"id": 2048, "name": "Energy (Atwater Specific Factors)", "unitName": "kcal"},
+      "amount": 132.972
+    },
+    {
+      "nutrient": {"id": 1003, "name": "Protein", "unitName": "g"},
+      "amount": 7.01875
+    },
+    {
+      "nutrient": {"id": 1004, "name": "Total lipid (fat)", "unitName": "g"},
+      "amount": 3.096
+    },
+    {
+      "nutrient": {"id": 1005, "name": "Carbohydrate, by difference", "unitName": "g"},
+      "amount": 20.32025
+    }
+  ],
+  "foodPortions": [
+    {
+      "amount": 1,
+      "gramWeight": 130,
+      "measureUnit": {"name": "RACC", "abbreviation": "RACC"}
+    },
+    {
+      "amount": 1,
+      "gramWeight": 164,
+      "measureUnit": {"name": "cup", "abbreviation": "cup"},
+      "modifier": "drained"
+    }
+  ]
+}

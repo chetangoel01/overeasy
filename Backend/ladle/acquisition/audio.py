@@ -16,7 +16,7 @@ import shutil
 import subprocess
 import tempfile
 from collections.abc import Callable, Mapping
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from time import sleep
 from typing import Any, Protocol
@@ -288,6 +288,7 @@ class WhisperTranscriber:
             idempotency_key=idempotency_key,
             billed_units=result.billed_units,
             latency_ms=None,
+            cost_usd=result.cost_usd,
         )
         return result
 
@@ -430,6 +431,7 @@ def _segments_from_words(
 
 def _transcript(body: dict[str, Any], *, model_id: str) -> TranscriptResult:
     provenance = f"whisper:{model_id}"
+    cost_usd = _cost_usd(body)
     words = _words(body)
     if words:
         from_words = _segments_from_words(words, provenance=provenance)
@@ -438,6 +440,7 @@ def _transcript(body: dict[str, Any], *, model_id: str) -> TranscriptResult:
                 segments=from_words,
                 language=str(body.get("language") or "") or None,
                 billed_units=Decimal(1),
+                cost_usd=cost_usd,
             )
     segments: list[TextEvidence] = []
     for entry in body.get("segments") or []:
@@ -476,7 +479,20 @@ def _transcript(body: dict[str, Any], *, model_id: str) -> TranscriptResult:
         # One unit per call. The daily limit counts provider calls, not
         # seconds of audio or tokens.
         billed_units=Decimal(1),
+        cost_usd=cost_usd,
     )
+
+
+def _cost_usd(body: dict[str, Any]) -> Decimal | None:
+    usage = body.get("usage")
+    value = usage.get("cost") if isinstance(usage, dict) else None
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        parsed = Decimal(str(value))
+    except InvalidOperation:
+        return None
+    return parsed if parsed.is_finite() and parsed >= 0 else None
 
 
 def _seconds(value: Any) -> float | None:

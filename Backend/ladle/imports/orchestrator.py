@@ -15,7 +15,6 @@ from ladle.acquisition.models import (
     AcquiredVideoContext,
     SourceVideoDescriptor,
     TextEvidence,
-    VisualResult,
 )
 from ladle.acquisition.protocol import VideoAcquirer
 from ladle.cache.claims import ClaimLease
@@ -25,12 +24,21 @@ from ladle.clock import Clock
 from ladle.crypto.private_text import PrivateTextCipher
 from ladle.db.models import ImportJob, SourceVideo
 from ladle.extraction.claude import ExtractionUnavailable
-from ladle.extraction.protocol import RecipeExtractor
+from ladle.extraction.evidence_gate import (
+    InsufficientTextEvidence,
+    require_recipe_evidence,
+)
+from ladle.extraction.protocol import RecipeExtractor, RecipeVerifier
+from ladle.extraction.verification import verification_evidence
 from ladle.imports.thumbnails import OEmbedThumbnailFetcher, ThumbnailAsset
 from ladle.imports.transitions import ImportTransitionService
+from ladle.nutrition.creator import apply_creator_facts
 from ladle.observability.metrics import MetricsRegistry
 from ladle.observability.structured_logging import log_context
-from ladle.recipes.template_clone import RecipeTemplateCloner
+from ladle.recipes.template_clone import (
+    RecipeTemplate,
+    RecipeTemplateCloner,
+)
 from ladle.usage.limits import UsageLimitExceeded
 
 
@@ -50,15 +58,14 @@ class ClaimHeartbeat(Protocol):
     def monitor(self, claim: ClaimLease) -> AbstractContextManager[None]: ...
 
 
-class ThumbnailObserver(Protocol):
-    def observe_thumbnail(
+class NutritionService(Protocol):
+    def enrich(
         self,
-        image: bytes,
+        template: RecipeTemplate,
         *,
-        content_type: str,
+        context: AcquiredVideoContext,
         job_id: UUID,
-        source_revision: str,
-    ) -> VisualResult: ...
+    ) -> RecipeTemplate: ...
 
 
 class ImportOrchestrator:
@@ -75,8 +82,9 @@ class ImportOrchestrator:
         transitions: ImportTransitionService | None = None,
         metrics: MetricsRegistry | None = None,
         thumbnails: OEmbedThumbnailFetcher | None = None,
-        thumbnail_observer: ThumbnailObserver | None = None,
         heartbeat: ClaimHeartbeat | None = None,
+        nutrition_enricher: NutritionService | None = None,
+        verifier: RecipeVerifier | None = None,
     ) -> None:
         self._sessions = session_factory
         self._cache = cache
@@ -88,8 +96,9 @@ class ImportOrchestrator:
         self._transitions = transitions
         self._metrics = metrics
         self._thumbnails = thumbnails
-        self._thumbnail_observer = thumbnail_observer
         self._heartbeat = heartbeat
+        self._nutrition = nutrition_enricher
+        self._verifier = verifier
 
     def process(self, job_id: UUID) -> ProcessOutcome:
         requires_recheck = False
@@ -249,6 +258,7 @@ class ImportOrchestrator:
                             generated=False,
                         )
                     )
+                require_recipe_evidence(context)
                 thumbnail_asset: ThumbnailAsset | None = None
                 with log_context(stage="thumbnailContext"):
                     if self._thumbnails is not None:
@@ -256,32 +266,31 @@ class ImportOrchestrator:
                             descriptor,
                             candidate_url=context.thumbnail_url,
                         )
-                    if self._thumbnail_observer is not None:
-                        if thumbnail_asset is None:
-                            context.diagnostics.append("thumbnailAnalysisUnavailable")
-                        else:
-                            try:
-                                thumbnail = self._thumbnail_observer.observe_thumbnail(
-                                    thumbnail_asset.data,
-                                    content_type=thumbnail_asset.content_type,
-                                    job_id=job_id,
-                                    source_revision=descriptor.source_revision,
-                                )
-                            except (ProviderUnavailable, UsageLimitExceeded):
-                                context.diagnostics.append(
-                                    "thumbnailAnalysisUnavailable"
-                                )
-                            else:
-                                context.visual_observations.extend(
-                                    thumbnail.observations
-                                )
-                                context.diagnostics.append("thumbnailAnalysisUsed")
                 with log_context(stage="extraction"):
                     if not _has_source_evidence(context):
                         raise ExtractionUnavailable(
                             "acquisition returned no usable source evidence"
                         )
                     template = self._extractor.extract(context, job_id=job_id)
+                text_evidence = verification_evidence(context)
+                template = apply_creator_facts(
+                    template,
+                    (value.text for value in text_evidence),
+                )
+                if self._nutrition is not None:
+                    with log_context(stage="nutrition"):
+                        template = self._nutrition.enrich(
+                            template,
+                            context=context,
+                            job_id=job_id,
+                        )
+                if self._verifier is not None:
+                    with log_context(stage="verification"):
+                        template = self._verifier.verify(
+                            template,
+                            evidence=text_evidence,
+                            job_id=job_id,
+                        )
                 with log_context(stage="thumbnail"):
                     thumbnail_key = (
                         self._thumbnails.store(
@@ -302,6 +311,7 @@ class ImportOrchestrator:
                     )
         except (
             ExtractionUnavailable,
+            InsufficientTextEvidence,
             PrivateOrDeleted,
             ProviderUnavailable,
             UsageLimitExceeded,
@@ -388,12 +398,19 @@ class ImportOrchestrator:
 
         if isinstance(error, PrivateOrDeleted):
             failure_reason = "privateOrDeleted"
+            diagnostic_code = type(error).__name__
+        elif isinstance(error, InsufficientTextEvidence):
+            failure_reason = "insufficientTextEvidence"
+            diagnostic_code = "insufficientTextEvidence"
         elif isinstance(error, UsageLimitExceeded):
             failure_reason = "quotaExceeded"
+            diagnostic_code = type(error).__name__
         elif isinstance(error, ProviderTransientError):
             failure_reason = "networkUnavailable"
+            diagnostic_code = type(error).__name__
         else:
             failure_reason = "parserUnavailable"
+            diagnostic_code = type(error).__name__
         with self._sessions.begin() as database:
             if isinstance(error, PrivateOrDeleted):
                 self._maintenance.mark_private_or_deleted(
@@ -408,7 +425,7 @@ class ImportOrchestrator:
                 job_id=job_id,
                 source_video_id=descriptor.source_video_id,
                 failure_reason=failure_reason,
-                diagnostic_code=type(error).__name__,
+                diagnostic_code=diagnostic_code,
                 include_shared_followers=not bypass_cache,
             )
 

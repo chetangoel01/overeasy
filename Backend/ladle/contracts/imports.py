@@ -14,6 +14,7 @@ class ImportStatus(StrEnum):
 
 class ImportFailure(StrEnum):
     PARSER_UNAVAILABLE = "parserUnavailable"
+    INSUFFICIENT_TEXT_EVIDENCE = "insufficientTextEvidence"
     PRIVATE_OR_DELETED = "privateOrDeleted"
     UNSUPPORTED_SOURCE = "unsupportedSource"
     INVALID_URL = "invalidURL"

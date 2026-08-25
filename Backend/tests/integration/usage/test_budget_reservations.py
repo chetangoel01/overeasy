@@ -235,3 +235,51 @@ def test_reprocessing_after_a_completed_attempt_reserves_before_dispatch_again(
         assert window.spent_units == Decimal(1)
         assert window.reserved_units == Decimal("3")
     engine.dispose()
+
+
+@pytest.mark.integration
+def test_provider_cost_accumulates_across_retries_without_limiting_calls(
+    clean_postgres_url: str,
+) -> None:
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    engine = build_engine(clean_postgres_url)
+    sessions = sessionmaker(engine, expire_on_commit=False)
+    clock = MutableClock(datetime(2026, 7, 30, 21, 0, tzinfo=UTC))
+    ledger = ProviderUsageLedger(
+        session_factory=sessions,
+        clock=clock,
+        limits=UsageLimitService(
+            clock=clock,
+            window=timedelta(days=1),
+            max_billed_units=Decimal("10"),
+        ),
+        reservation_units=Decimal("1"),
+    )
+    with sessions.begin() as database:
+        job_id = seed_job(database)
+
+    for cost in (Decimal("0.125"), Decimal("999.25")):
+        ledger.started(
+            job_id=job_id,
+            provider="openrouter",
+            operation="recipeExtraction",
+            idempotency_key="extract:cost-retry",
+            external_job_id=None,
+            billed_units=Decimal(0),
+        )
+        ledger.completed(
+            job_id=job_id,
+            idempotency_key="extract:cost-retry",
+            billed_units=Decimal(1),
+            cost_usd=cost,
+            latency_ms=10,
+        )
+
+    with sessions() as database:
+        attempt = database.scalar(select(ProviderAttempt))
+        window = database.scalar(select(ProviderBudgetWindow))
+        assert attempt is not None
+        assert window is not None
+        assert attempt.cost_usd == Decimal("999.375")
+        assert window.spent_units == Decimal("2")
+    engine.dispose()

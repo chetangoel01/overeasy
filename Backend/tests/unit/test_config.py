@@ -31,6 +31,7 @@ PRODUCTION_RUNTIME = {
     ),
     "worker_provider_mode": "live",
     "openrouter_api_key": "production-openrouter-key",
+    "usda_api_key": "production-usda-key",
     "database_url": (
         "postgresql+psycopg://ladle:production-database-password"
         "@database.example.test/ladle"
@@ -149,6 +150,23 @@ def test_live_worker_requires_only_its_extraction_provider_key() -> None:
     assert settings.soscripted_api_key is None
 
 
+def test_default_openrouter_model_is_user_selected_gemini_3_7() -> None:
+    settings = Settings(_env_file=None)
+
+    assert settings.openrouter_model_id == "google/gemini-3.7-flash"
+
+
+def test_nutrition_normalization_defaults_to_selected_gemini() -> None:
+    settings = Settings(_env_file=None)
+
+    assert settings.nutrition_normalization_enabled
+    assert (
+        settings.nutrition_normalization_model_id
+        == "google/gemini-3.7-flash"
+    )
+    assert settings.nutrition_normalization_max_tokens == 5000
+
+
 def test_empty_provider_environment_values_are_unconfigured(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -192,6 +210,51 @@ def test_soscripted_default_allows_its_synchronous_transcription_window() -> Non
     settings = Settings(_env_file=None)
 
     assert settings.soscripted_timeout_seconds == 600
+
+
+def test_text_only_defaults_disable_all_visual_analysis() -> None:
+    settings = Settings(_env_file=None)
+
+    assert not settings.frame_analysis_enabled
+    assert not settings.thumbnail_analysis_enabled
+
+
+def test_creator_search_bounds_load_from_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LADLE_CREATOR_SEARCH_ENABLED", "true")
+    monkeypatch.setenv("LADLE_CREATOR_SEARCH_MAXIMUM_QUERIES", "4")
+    monkeypatch.setenv("LADLE_CREATOR_SEARCH_MAXIMUM_RESULTS", "9")
+
+    settings = Settings(_env_file=None)
+
+    assert settings.creator_search_enabled
+    assert settings.creator_search_maximum_queries == 4
+    assert settings.creator_search_maximum_results == 9
+
+
+def test_usda_nutrition_configuration_loads_from_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LADLE_USDA_NUTRITION_ENABLED", "true")
+    monkeypatch.setenv("LADLE_USDA_BASE_URL", "https://foods.example.test/v1")
+    monkeypatch.setenv("LADLE_USDA_TIMEOUT_SECONDS", "22.5")
+    monkeypatch.setenv("LADLE_USDA_MAXIMUM_CANDIDATES", "7")
+    monkeypatch.setenv("LADLE_USDA_API_KEY", "food-key")
+
+    settings = Settings(_env_file=None)
+
+    assert settings.usda_nutrition_enabled
+    assert str(settings.usda_base_url) == "https://foods.example.test/v1"
+    assert settings.usda_timeout_seconds == 22.5
+    assert settings.usda_maximum_candidates == 7
+    assert settings.usda_api_key == SecretStr("food-key")
+
+
+def test_blank_usda_key_is_unconfigured(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LADLE_USDA_API_KEY", "")
+
+    assert Settings(_env_file=None).usda_api_key is None
 
 
 def test_production_requires_app_attest_and_its_identity() -> None:
@@ -335,6 +398,8 @@ def test_production_accepts_passworded_single_host_data_services() -> None:
         ("object_storage_secret_key", "ladle-local-secret"),
         ("openrouter_api_key", None),
         ("openrouter_base_url", "http://openrouter.example.test/api/v1"),
+        ("usda_api_key", None),
+        ("usda_base_url", "http://foods.example.test/fdc/v1"),
     ],
 )
 def test_production_runtime_dependencies_fail_closed(

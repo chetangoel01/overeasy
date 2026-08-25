@@ -16,6 +16,7 @@ from ladle.extraction.claude import (
 )
 from ladle.extraction.models import (
     ExtractedIngredient,
+    ExtractedNutrition,
     ExtractedStep,
     RecipeExtraction,
 )
@@ -117,6 +118,70 @@ def test_structured_output_converts_to_validated_template() -> None:
     assert result.steps[0].ingredient_indexes == [0]
     assert service.contract_version == "v1"
     assert service.prompt_version
+
+
+def test_provider_reported_extraction_cost_is_recorded() -> None:
+    class Usage:
+        def __init__(self) -> None:
+            self.completed_values: dict[str, object] = {}
+
+        def existing_external_job_id(self, **values: object) -> None:
+            del values
+            return None
+
+        def started(self, **values: object) -> None:
+            del values
+
+        def completed(self, **values: object) -> None:
+            self.completed_values = values
+
+        def failed(self, **values: object) -> None:
+            del values
+
+    usage = Usage()
+    service = ClaudeRecipeExtractor(
+        client=FakeClaude(
+            ClaudeStructuredResponse(
+                stop_reason="end_turn",
+                parsed_output=extracted(),
+                input_tokens=100,
+                output_tokens=50,
+                cost_usd=Decimal("0.01234567"),
+            )
+        ),
+        model_id="claude-sonnet-4-6",
+        max_tokens=4096,
+        usage=usage,
+    )
+
+    service.extract(context(), job_id=uuid4())
+
+    assert usage.completed_values["cost_usd"] == Decimal("0.01234567")
+
+
+def test_model_cannot_self_authorize_usda_nutrition() -> None:
+    value = extracted()
+    value.nutrition = ExtractedNutrition(
+        calories=Decimal("500"),
+        protein_grams=Decimal("20"),
+        carbohydrate_grams=Decimal("60"),
+        fat_grams=Decimal("20"),
+        serving_basis=Decimal("1"),
+        basis="usdaCalculated",
+        evidence="Estimated by the extraction model.",
+    )
+    service = extractor(
+        ClaudeStructuredResponse(
+            stop_reason="end_turn",
+            parsed_output=value,
+            input_tokens=100,
+            output_tokens=50,
+        )
+    )
+
+    result = service.extract(context(), job_id=uuid4())
+
+    assert result.nutrition is None
 
 
 @pytest.mark.parametrize(
