@@ -101,3 +101,21 @@ the next design pass.
   nutrition facts aligned while retaining the compact image size.
 - Known existing build warnings remain in Google Sign-In's callback sendability
   and a deprecated test-only `UIWindow(frame:)` initializer.
+
+## Live beta deployment
+
+- The first direct phone install used the Debug configuration, whose
+  `api.ladle.localhost` address is intentionally reachable only from the Mac
+  and simulator. That caused network-backed phone screens to report that they
+  could not connect.
+- Before correcting the install, the existing VPS database and media were
+  backed up and verified at `20260825T211557Z`.
+- Backend revision `ec80c4ac5fc5a074141f001b15cfb1c5a9d77d1c` was deployed to
+  the guarded HTTPS VPS route, including migration `0014`. API readiness and a
+  live worker ping both passed after deployment.
+- A signed Release build of `20260825.1` was verified to contain the HTTPS API
+  address and guarded access configuration, then installed over the Debug copy
+  on Chetan's iPhone without removing application data.
+- The corrected app launched successfully. Its first sync refreshed the
+  existing account session and retried `GET /v1/recipes/sync`, which returned
+  `200`, confirming end-to-end phone-to-production connectivity.
