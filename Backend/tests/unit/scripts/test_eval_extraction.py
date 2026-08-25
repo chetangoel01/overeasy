@@ -44,6 +44,10 @@ def test_benchmark_summary_aggregates_quality_latency_and_full_usage() -> None:
                 "verificationInputTokens": 5,
                 "verificationOutputTokens": 2,
                 "verificationCostUSD": "0.05",
+                "normalizationCalls": 1,
+                "normalizationInputTokens": 7,
+                "normalizationOutputTokens": 3,
+                "normalizationCostUSD": "0.02",
                 "reportedCostComplete": True,
             },
         },
@@ -59,6 +63,10 @@ def test_benchmark_summary_aggregates_quality_latency_and_full_usage() -> None:
                 "verificationInputTokens": 0,
                 "verificationOutputTokens": 0,
                 "verificationCostUSD": "0",
+                "normalizationCalls": 0,
+                "normalizationInputTokens": 0,
+                "normalizationOutputTokens": 0,
+                "normalizationCostUSD": "0",
                 "reportedCostComplete": False,
             },
         },
@@ -89,9 +97,12 @@ def test_benchmark_summary_aggregates_quality_latency_and_full_usage() -> None:
             "verificationCalls": 1,
             "verificationInputTokens": 5,
             "verificationOutputTokens": 2,
-            "totalInputTokens": 15,
-            "totalOutputTokens": 22,
-            "reportedCostUSD": "0.15",
+            "normalizationCalls": 1,
+            "normalizationInputTokens": 7,
+            "normalizationOutputTokens": 3,
+            "totalInputTokens": 22,
+            "totalOutputTokens": 25,
+            "reportedCostUSD": "0.17",
             "reportedCostComplete": False,
             "costPerSuccessfulCaseUSD": None,
         },
@@ -315,8 +326,8 @@ def test_pipeline_resets_verification_usage_before_each_case() -> None:
             )
 
     class StubNutritionCalculator:
-        def calculate(self, _template):
-            return None
+        def enrich(self, template, **_kwargs):
+            return template
 
     corpus = eval_extraction._load_corpus("tuning")
     context = eval_extraction._context(
@@ -330,6 +341,7 @@ def test_pipeline_resets_verification_usage_before_each_case() -> None:
         nutrition=StubNutritionCalculator(),
         verifier=None,
         verification_recorder=recorder,
+        nutrition_recorder=None,
     )
 
     pipeline.run(context)
@@ -423,6 +435,10 @@ def test_extract_writes_per_case_and_aggregate_benchmark_measurements(
         "verificationInputTokens": 5,
         "verificationOutputTokens": 2,
         "verificationCostUSD": "0.05",
+        "normalizationCalls": 0,
+        "normalizationInputTokens": 0,
+        "normalizationOutputTokens": 0,
+        "normalizationCostUSD": "0",
         "reportedCostComplete": True,
     }
     assert artifact["benchmark"]["usage"]["reportedCostUSD"] == "0.15"

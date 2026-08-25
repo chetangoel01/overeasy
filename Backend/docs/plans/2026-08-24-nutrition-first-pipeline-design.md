@@ -128,3 +128,7 @@ USDA-friendly food names. USDA remains the source of calories and macros.
   normalization with deterministic USDA arithmetic, appends serving confidence
   and assumptions to the audit evidence, and converts either boundary's failure
   into a visible `nutrition` uncertainty with `needsReview` status.
+- Production imports, evaluation, and the localhost validator now use that same
+  enrichment service. Live construction requires both provider credentials,
+  fake imports remain free, validator progress exposes normalization and USDA
+  stages, and reported usage includes the normalization call and cost.

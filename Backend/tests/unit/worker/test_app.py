@@ -125,6 +125,42 @@ def test_enabled_nutrition_requires_a_usda_key() -> None:
         )
 
 
+def test_nutrition_service_uses_gemini_normalization_and_usda() -> None:
+    from pydantic import SecretStr
+
+    from ladle.nutrition.service import RecipeNutritionService
+    from ladle.worker.runtime import _nutrition_service
+
+    built = _nutrition_service(
+        Settings(
+            openrouter_api_key=SecretStr("model-key"),
+            usda_api_key=SecretStr("food-key"),
+            nutrition_normalization_model_id="google/gemini-3.7-flash",
+            _env_file=None,
+        ),
+        usage=None,
+    )
+
+    assert isinstance(built, RecipeNutritionService)
+    assert built._normalizer._model_id == "google/gemini-3.7-flash"
+
+
+def test_nutrition_service_requires_openrouter_for_normalization() -> None:
+    from pydantic import SecretStr
+
+    from ladle.worker.runtime import _nutrition_service
+
+    with pytest.raises(RuntimeError, match="normalization requires an OpenRouter"):
+        _nutrition_service(
+            Settings(
+                openrouter_api_key=None,
+                usda_api_key=SecretStr("food-key"),
+                _env_file=None,
+            ),
+            usage=None,
+        )
+
+
 def test_recipe_verifier_runtime_builder_uses_extraction_model() -> None:
     from pydantic import SecretStr
 

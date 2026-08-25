@@ -178,17 +178,22 @@ class LivePipelineRunner:
         require_recipe_evidence(context)
         progress("extracting", "Extracting with Gemini 3.7 Flash")
         pipeline = _pipeline(self._settings, model_id=MODEL_ID)
-        response, _extraction, template = pipeline.run(context)
+        response, _extraction, template = pipeline.run(context, progress=progress)
         verification = (
             pipeline.verification_recorder.usage
             if pipeline.verification_recorder is not None
+            else VerificationUsage()
+        )
+        normalization = (
+            pipeline.nutrition_recorder.usage
+            if pipeline.nutrition_recorder is not None
             else VerificationUsage()
         )
         return {
             "modelID": MODEL_ID,
             "elapsedSeconds": round(time.perf_counter() - started, 3),
             "acquisitionDiagnostics": context.diagnostics,
-            "usage": _case_usage(response, verification),
+            "usage": _case_usage(response, verification, normalization),
             "recipe": template.model_dump(mode="json"),
         }
 
@@ -201,6 +206,8 @@ class DemoPipelineRunner:
             ("acquiring", "Reading creator evidence"),
             ("checking", "Checking recipe evidence"),
             ("extracting", "Extracting with Gemini 3.7 Flash"),
+            ("normalizing", "Estimating servings and ingredient masses"),
+            ("nutrition", "Calculating calories and macros with USDA"),
         ):
             progress(stage, message)
             time.sleep(0.2)

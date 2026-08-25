@@ -13,7 +13,11 @@ from alembic import command
 from ladle.acquisition.errors import ProviderTransientError
 from ladle.cache.claims import ExtractionClaimService
 from ladle.cache.service import ExtractionCacheService
-from ladle.contracts.recipes import RecipeReviewStatus, RecipeSource
+from ladle.contracts.recipes import (
+    FieldUncertaintyDTO,
+    RecipeReviewStatus,
+    RecipeSource,
+)
 from ladle.crypto.private_text import LocalPrivateTextCipher
 from ladle.db.models import (
     ExtractionCache,
@@ -76,16 +80,33 @@ class FakeThumbnailFetcher:
 
 
 @dataclass
-class FakeNutritionCalculator:
+class FakeNutritionEnricher:
     result: TemplateNutrition | None = None
     failure: Exception | None = None
     calls: list[RecipeTemplate] = field(default_factory=list)
 
-    def calculate(self, template: RecipeTemplate) -> TemplateNutrition | None:
+    def enrich(
+        self,
+        template: RecipeTemplate,
+        **_kwargs: object,
+    ) -> RecipeTemplate:
         self.calls.append(template)
         if self.failure is not None:
-            raise self.failure
-        return self.result
+            return template.model_copy(
+                update={
+                    "review_status": RecipeReviewStatus.NEEDS_REVIEW,
+                    "uncertainties": [
+                        *template.uncertainties,
+                        FieldUncertaintyDTO(
+                            field="nutrition",
+                            reason="USDA nutrition data was unavailable.",
+                        ),
+                    ],
+                }
+            )
+        if self.result is None:
+            return template
+        return template.model_copy(update={"nutrition": self.result})
 
 
 @dataclass
@@ -112,7 +133,7 @@ def services(
     *,
     template: RecipeTemplate,
     thumbnails: FakeThumbnailFetcher | None = None,
-    nutrition_calculator: FakeNutritionCalculator | None = None,
+    nutrition_enricher: FakeNutritionEnricher | None = None,
     verifier: FakeRecipeVerifier | None = None,
 ) -> tuple[
     sessionmaker[Session],
@@ -144,7 +165,7 @@ def services(
             extractor=extractor,
             clock=clock,
             thumbnails=thumbnails,  # type: ignore[arg-type]
-            nutrition_calculator=nutrition_calculator,
+            nutrition_enricher=nutrition_enricher,
             verifier=verifier,
             private_text=cipher,
             private_completion=cloner,
@@ -179,7 +200,7 @@ def test_import_persists_deterministically_calculated_nutrition(
         basis="usdaCalculated",
         evidence="USDA FDC 123",
     )
-    calculator = FakeNutritionCalculator(result=nutrition)
+    calculator = FakeNutritionEnricher(result=nutrition)
     template = RecipeTemplate.from_recipe(manual_recipe(uuid4())).model_copy(
         update={"nutrition": None, "servings_basis": "stated"}
     )
@@ -187,7 +208,7 @@ def test_import_persists_deterministically_calculated_nutrition(
         clean_postgres_url,
         clock,
         template=template,
-        nutrition_calculator=calculator,
+        nutrition_enricher=calculator,
     )
     with sessions.begin() as database:
         source_id = uuid4()
@@ -231,7 +252,7 @@ def test_creator_facts_are_applied_before_nutrition_calculation(
         basis="creatorStated",
         evidence="model copy with incorrect serving basis",
     )
-    calculator = FakeNutritionCalculator()
+    calculator = FakeNutritionEnricher()
     template = RecipeTemplate.from_recipe(manual_recipe(uuid4())).model_copy(
         update={
             "servings": Decimal(1),
@@ -244,7 +265,7 @@ def test_creator_facts_are_applied_before_nutrition_calculation(
         clean_postgres_url,
         clock,
         template=template,
-        nutrition_calculator=calculator,
+        nutrition_enricher=calculator,
     )
     acquirer.transcript_text = (
         "Add 2 cups orzo and simmer for 10 minutes. Makes 6 servings. "
@@ -279,7 +300,7 @@ def test_usda_failure_completes_import_with_nutrition_review_uncertainty(
 ) -> None:
     command.upgrade(alembic_config(clean_postgres_url), "head")
     clock = FrozenClock(datetime(2026, 8, 24, 12, 0, tzinfo=UTC))
-    calculator = FakeNutritionCalculator(
+    calculator = FakeNutritionEnricher(
         failure=ProviderTransientError("USDA unavailable")
     )
     template = RecipeTemplate.from_recipe(manual_recipe(uuid4())).model_copy(
@@ -289,7 +310,7 @@ def test_usda_failure_completes_import_with_nutrition_review_uncertainty(
         clean_postgres_url,
         clock,
         template=template,
-        nutrition_calculator=calculator,
+        nutrition_enricher=calculator,
     )
     with sessions.begin() as database:
         source_id = uuid4()
@@ -337,7 +358,7 @@ def test_verification_runs_after_nutrition_with_text_evidence_before_persistence
         basis="usdaCalculated",
         evidence="USDA FDC 123",
     )
-    calculator = FakeNutritionCalculator(result=nutrition)
+    calculator = FakeNutritionEnricher(result=nutrition)
     verifier = FakeRecipeVerifier()
     template = RecipeTemplate.from_recipe(manual_recipe(uuid4())).model_copy(
         update={"nutrition": None, "servings_basis": "stated"}
@@ -346,7 +367,7 @@ def test_verification_runs_after_nutrition_with_text_evidence_before_persistence
         clean_postgres_url,
         clock,
         template=template,
-        nutrition_calculator=calculator,
+        nutrition_enricher=calculator,
         verifier=verifier,
     )
     with sessions.begin() as database:

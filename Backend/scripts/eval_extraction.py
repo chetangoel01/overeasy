@@ -16,6 +16,7 @@ import statistics
 import sys
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -74,6 +75,13 @@ from ladle.extraction.verification import (
 )
 from ladle.nutrition.calculator import NutritionCalculator
 from ladle.nutrition.creator import apply_creator_facts
+from ladle.nutrition.normalization import (
+    NutritionNormalizationClient,
+    NutritionNormalizationResponse,
+    OpenRouterNutritionNormalizationClient,
+    RecipeNutritionNormalizer,
+)
+from ladle.nutrition.service import RecipeNutritionService
 from ladle.nutrition.usda import USDAClient
 from ladle.recipes.template_clone import RecipeTemplate
 
@@ -92,16 +100,20 @@ class EvaluationPipeline:
     client: ClaudeStructuredClient
     model_id: str
     max_tokens: int
-    nutrition: NutritionCalculator
+    nutrition: RecipeNutritionService
     verifier: TargetedRecipeVerifier | None
     verification_recorder: "RecordingVerificationClient | None"
+    nutrition_recorder: "RecordingNutritionClient | None"
 
     def run(
         self,
         context: AcquiredVideoContext,
+        progress: Callable[[str, str], None] | None = None,
     ) -> tuple[ClaudeStructuredResponse, RecipeExtraction, RecipeTemplate]:
         if self.verification_recorder is not None:
             self.verification_recorder.reset()
+        if self.nutrition_recorder is not None:
+            self.nutrition_recorder.reset()
         response = self.client.parse_recipe(
             model=self.model_id,
             max_tokens=self.max_tokens,
@@ -117,9 +129,15 @@ class EvaluationPipeline:
             template,
             (value.text for value in text_evidence),
         )
-        nutrition = self.nutrition.calculate(template)
-        if nutrition is not None:
-            template = template.model_copy(update={"nutrition": nutrition})
+        if progress is not None:
+            progress("normalizing", "Estimating servings and ingredient masses")
+        template = self.nutrition.enrich(
+            template,
+            context=context,
+            job_id=uuid.uuid4(),
+        )
+        if progress is not None:
+            progress("nutrition", "Calculating calories and macros with USDA")
         if self.verifier is not None:
             template = self.verifier.verify(
                 template,
@@ -188,6 +206,39 @@ class RecordingVerificationClient:
         return response
 
 
+class RecordingNutritionClient:
+    def __init__(self, client: NutritionNormalizationClient) -> None:
+        self._client = client
+        self._usage = VerificationUsage()
+
+    @property
+    def usage(self) -> VerificationUsage:
+        return self._usage
+
+    def reset(self) -> None:
+        self._usage = VerificationUsage()
+
+    def normalize(self, **kwargs: Any) -> NutritionNormalizationResponse:
+        try:
+            response = self._client.normalize(**kwargs)
+        except Exception:
+            self._usage = VerificationUsage(
+                calls=self._usage.calls + 1,
+                reported_cost_complete=False,
+            )
+            raise
+        self._usage = VerificationUsage(
+            calls=self._usage.calls + 1,
+            input_tokens=self._usage.input_tokens + response.input_tokens,
+            output_tokens=self._usage.output_tokens + response.output_tokens,
+            cost_usd=self._usage.cost_usd + (response.cost_usd or Decimal(0)),
+            reported_cost_complete=(
+                self._usage.reported_cost_complete and response.cost_usd is not None
+            ),
+        )
+        return response
+
+
 def _pipeline(
     settings: Settings,
     *,
@@ -197,8 +248,22 @@ def _pipeline(
         raise RuntimeError(
             "evaluation requires LADLE_USDA_API_KEY for calculated-nutrition cases"
         )
+    if settings.openrouter_api_key is None:
+        raise RuntimeError(
+            "evaluation nutrition normalization requires LADLE_OPENROUTER_API_KEY"
+        )
     verifier: TargetedRecipeVerifier | None = None
     verification_recorder: RecordingVerificationClient | None = None
+    nutrition_recorder = RecordingNutritionClient(
+        OpenRouterNutritionNormalizationClient(
+            http=httpx.Client(
+                timeout=settings.openrouter_timeout_seconds,
+                trust_env=False,
+            ),
+            api_key=settings.openrouter_api_key.get_secret_value(),
+            base_url=str(settings.openrouter_base_url),
+        )
+    )
     if settings.extraction_provider == "openrouter":
         if settings.openrouter_api_key is None:
             raise RuntimeError("evaluation requires LADLE_OPENROUTER_API_KEY")
@@ -254,19 +319,27 @@ def _pipeline(
         client=client,
         model_id=model_id,
         max_tokens=max_tokens,
-        nutrition=NutritionCalculator(
-            USDAClient(
-                http=httpx.Client(
-                    timeout=settings.usda_timeout_seconds,
-                    trust_env=False,
-                ),
-                api_key=settings.usda_api_key.get_secret_value(),
-                base_url=str(settings.usda_base_url),
-                maximum_candidates=settings.usda_maximum_candidates,
-            )
+        nutrition=RecipeNutritionService(
+            normalizer=RecipeNutritionNormalizer(
+                client=nutrition_recorder,
+                model_id=settings.nutrition_normalization_model_id,
+                max_tokens=settings.nutrition_normalization_max_tokens,
+            ),
+            calculator=NutritionCalculator(
+                USDAClient(
+                    http=httpx.Client(
+                        timeout=settings.usda_timeout_seconds,
+                        trust_env=False,
+                    ),
+                    api_key=settings.usda_api_key.get_secret_value(),
+                    base_url=str(settings.usda_base_url),
+                    maximum_candidates=settings.usda_maximum_candidates,
+                )
+            ),
         ),
         verifier=verifier,
         verification_recorder=verification_recorder,
+        nutrition_recorder=nutrition_recorder,
     )
 
 
@@ -409,11 +482,19 @@ def _benchmark_summary(cases: list[dict[str, Any]]) -> dict[str, Any]:
     verification_input = sum(value["verificationInputTokens"] for value in usages)
     verification_output = sum(value["verificationOutputTokens"] for value in usages)
     verification_calls = sum(value["verificationCalls"] for value in usages)
+    normalization_input = sum(
+        value.get("normalizationInputTokens", 0) for value in usages
+    )
+    normalization_output = sum(
+        value.get("normalizationOutputTokens", 0) for value in usages
+    )
+    normalization_calls = sum(value.get("normalizationCalls", 0) for value in usages)
     cost_complete = all(value["reportedCostComplete"] for value in usages)
     reported_cost = sum(
         (
             Decimal(value["extractionCostUSD"] or 0)
             + Decimal(value["verificationCostUSD"] or 0)
+            + Decimal(value.get("normalizationCostUSD") or 0)
         )
         for value in usages
     )
@@ -444,8 +525,15 @@ def _benchmark_summary(cases: list[dict[str, Any]]) -> dict[str, Any]:
             "verificationCalls": verification_calls,
             "verificationInputTokens": verification_input,
             "verificationOutputTokens": verification_output,
-            "totalInputTokens": extraction_input + verification_input,
-            "totalOutputTokens": extraction_output + verification_output,
+            "normalizationCalls": normalization_calls,
+            "normalizationInputTokens": normalization_input,
+            "normalizationOutputTokens": normalization_output,
+            "totalInputTokens": (
+                extraction_input + verification_input + normalization_input
+            ),
+            "totalOutputTokens": (
+                extraction_output + verification_output + normalization_output
+            ),
             "reportedCostUSD": str(reported_cost),
             "reportedCostComplete": cost_complete,
             "costPerSuccessfulCaseUSD": (
@@ -460,7 +548,9 @@ def _benchmark_summary(cases: list[dict[str, Any]]) -> dict[str, Any]:
 def _case_usage(
     response: ClaudeStructuredResponse | None,
     verification: VerificationUsage,
+    normalization: VerificationUsage | None = None,
 ) -> dict[str, object]:
+    normalization = normalization or VerificationUsage()
     return {
         "extractionInputTokens": response.input_tokens if response else 0,
         "extractionOutputTokens": response.output_tokens if response else 0,
@@ -473,10 +563,15 @@ def _case_usage(
         "verificationInputTokens": verification.input_tokens,
         "verificationOutputTokens": verification.output_tokens,
         "verificationCostUSD": str(verification.cost_usd),
+        "normalizationCalls": normalization.calls,
+        "normalizationInputTokens": normalization.input_tokens,
+        "normalizationOutputTokens": normalization.output_tokens,
+        "normalizationCostUSD": str(normalization.cost_usd),
         "reportedCostComplete": (
             response is not None
             and response.cost_usd is not None
             and verification.reported_cost_complete
+            and normalization.reported_cost_complete
         ),
     }
 
@@ -582,6 +677,12 @@ def extract(
                 if pipeline.verification_recorder is not None
                 else VerificationUsage()
             )
+            nutrition_recorder = getattr(pipeline, "nutrition_recorder", None)
+            normalization = (
+                nutrition_recorder.usage
+                if nutrition_recorder is not None
+                else VerificationUsage()
+            )
             print(
                 f"FAILED   {reference.cache_key}: "
                 f"{type(error).__name__}: {error}"
@@ -604,7 +705,7 @@ def extract(
                     ),
                     "structure": None,
                     "latencyMs": latency_ms,
-                    "usage": _case_usage(None, verification),
+                    "usage": _case_usage(None, verification, normalization),
                     "error": f"{type(error).__name__}: {error}",
                 }
             )
@@ -613,6 +714,12 @@ def extract(
         verification = (
             pipeline.verification_recorder.usage
             if pipeline.verification_recorder is not None
+            else VerificationUsage()
+        )
+        nutrition_recorder = getattr(pipeline, "nutrition_recorder", None)
+        normalization = (
+            nutrition_recorder.usage
+            if nutrition_recorder is not None
             else VerificationUsage()
         )
         prediction = whole_recipe_prediction(template)
@@ -680,7 +787,7 @@ def extract(
                 "title": extraction.title,
                 "latencyMs": latency_ms,
                 "promptCharacters": len(build_user_prompt(context)),
-                "usage": _case_usage(response, verification),
+                "usage": _case_usage(response, verification, normalization),
                 "transcriptProvenance": score.transcript_provenance,
                 "ingredients": [
                     {

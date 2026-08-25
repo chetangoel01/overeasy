@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Protocol
 from uuid import UUID
 
+from ladle.acquisition.errors import ProviderUnavailable
 from ladle.acquisition.models import AcquiredVideoContext
 from ladle.contracts.recipes import FieldUncertaintyDTO, RecipeReviewStatus
 from ladle.nutrition.calculator import (
@@ -62,6 +63,8 @@ class RecipeNutritionService:
 
         try:
             nutrition = self._calculator.calculate_required(normalized.template)
+        except ProviderUnavailable:
+            return _blocked(normalized.template, "usdaUnavailable")
         except NutritionCalculationUnavailable as error:
             reason = error.code
             if error.ingredient_index is not None:

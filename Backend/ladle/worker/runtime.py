@@ -63,6 +63,11 @@ from ladle.imports.thumbnails import OEmbedThumbnailFetcher
 from ladle.imports.transitions import ImportTransitionService
 from ladle.infrastructure.object_storage import S3ObjectStorage
 from ladle.nutrition.calculator import NutritionCalculator
+from ladle.nutrition.normalization import (
+    OpenRouterNutritionNormalizationClient,
+    RecipeNutritionNormalizer,
+)
+from ladle.nutrition.service import RecipeNutritionService
 from ladle.nutrition.usda import USDAClient
 from ladle.observability.metrics import MetricsRegistry, RedisMetricsBackend
 from ladle.observability.operations import OperationalMetricsCollector
@@ -279,6 +284,37 @@ def _nutrition_calculator(settings: Settings) -> NutritionCalculator | None:
     )
 
 
+def _nutrition_service(
+    settings: Settings,
+    *,
+    usage: ProviderUsageSink | None,
+) -> RecipeNutritionService | None:
+    calculator = _nutrition_calculator(settings)
+    if calculator is None or not settings.nutrition_normalization_enabled:
+        return None
+    if settings.openrouter_api_key is None:
+        raise RuntimeError(
+            "nutrition normalization requires an OpenRouter API key"
+        )
+    normalizer = RecipeNutritionNormalizer(
+        client=OpenRouterNutritionNormalizationClient(
+            http=httpx.Client(
+                timeout=settings.openrouter_timeout_seconds,
+                trust_env=False,
+            ),
+            api_key=settings.openrouter_api_key.get_secret_value(),
+            base_url=str(settings.openrouter_base_url),
+        ),
+        model_id=settings.nutrition_normalization_model_id,
+        max_tokens=settings.nutrition_normalization_max_tokens,
+        usage=usage,
+    )
+    return RecipeNutritionService(
+        normalizer=normalizer,
+        calculator=calculator,
+    )
+
+
 def _recipe_verifier(
     settings: Settings,
     *,
@@ -471,7 +507,7 @@ def runtime_orchestrator() -> ImportOrchestrator:
     )
     acquirer: VideoAcquirer
     extractor: RecipeExtractor
-    nutrition_calculator: NutritionCalculator | None = None
+    nutrition_service: RecipeNutritionService | None = None
     verifier: RecipeVerifier | None = None
     if settings.worker_provider_mode == "fake":
         acquirer = FakeRuntimeAcquirer(
@@ -479,7 +515,6 @@ def runtime_orchestrator() -> ImportOrchestrator:
         )
         extractor = FakeRuntimeExtractor()
     else:
-        nutrition_calculator = _nutrition_calculator(settings)
         extraction_key = (
             settings.openrouter_api_key
             if settings.extraction_provider == "openrouter"
@@ -504,6 +539,7 @@ def runtime_orchestrator() -> ImportOrchestrator:
             reservation_units=settings.provider_reservation_billed_units,
             metrics=metrics,
         )
+        nutrition_service = _nutrition_service(settings, usage=usage)
         verifier = _recipe_verifier(settings, usage=usage)
         acquirer = ProviderChain(
             primary=(
@@ -592,7 +628,7 @@ def runtime_orchestrator() -> ImportOrchestrator:
         acquirer=acquirer,
         extractor=extractor,
         clock=clock,
-        nutrition_calculator=nutrition_calculator,
+        nutrition_enricher=nutrition_service,
         verifier=verifier,
         thumbnails=thumbnails,
         private_text=build_private_text_cipher(
