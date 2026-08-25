@@ -14,6 +14,14 @@
 - Use a suitable source with clear licensing and retain source attribution details when required.
 - Do not generate replacement imagery unless the user explicitly requests image generation.
 
+## Clarify fuzzy product intent before implementation
+
+- Before changing product behavior or design, identify any detail that has more than one materially different interpretation.
+- When the request uses open-ended language such as "explore," "maybe," "fix," or "alternate view," ask focused clarifying questions and wait for the answers before editing code.
+- Do not treat permission to explore as permission to select and implement a product direction on the user's behalf.
+- Briefly restate the resolved direction before implementation so the user can correct it.
+- Make independent assumptions only for low-impact implementation details that do not change the user-visible concept or interaction.
+
 ## Keep implementations concise
 
 - Prefer the fewest lines that preserve clarity, correctness, and maintainability.
