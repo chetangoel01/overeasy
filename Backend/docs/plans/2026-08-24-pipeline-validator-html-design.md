@@ -64,3 +64,10 @@ records: their ingredients, steps, servings and basis, review state,
 uncertainties, processing time, and known cost. An artifact test verifies all
 five canonical sources, the $0.0783866 aggregate known cost, responsive and
 reduced-motion hooks, and the absence of external scripts or key prefixes.
+
+The interactive page submits a single source URL to the same-origin helper,
+polls a typed in-memory job, and renders every returned string through DOM text
+nodes. It highlights servings and their stated/estimated basis, then exposes
+ingredients, steps, timers, review status, field uncertainties, elapsed time,
+and reported cost. Direct `file://` use is disabled with a local launch command
+because the live API is intentionally available only through loopback.

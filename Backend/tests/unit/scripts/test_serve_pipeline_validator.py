@@ -209,3 +209,43 @@ def test_results_page_embeds_five_safe_complete_recipe_records() -> None:
         assert recipe["ingredients"]
         assert recipe["steps"]
         assert record["processSeconds"] > 0
+
+
+def test_validator_page_has_accessible_safe_live_pipeline_contract() -> None:
+    html = (TOOLS / "pipeline-validator.html").read_text()
+
+    assert '<meta name="viewport"' in html
+    assert "<main" in html and "<form" in html
+    assert '<label for="source-url"' in html
+    assert 'id="source-url"' in html and 'type="url"' in html
+    assert 'id="run-validation"' in html and 'type="submit"' in html
+    assert 'aria-live="polite"' in html
+    for output_id in (
+        "stage-status",
+        "servings-output",
+        "servings-basis",
+        "ingredients-output",
+        "steps-output",
+        "uncertainties-output",
+    ):
+        assert f'id="{output_id}"' in html
+    assert "api/validate" in html and "api/jobs/" in html
+    assert "AbortController" in html
+    assert "location.protocol === 'file:'" in html
+    assert "textContent" in html
+    assert "innerHTML" not in html
+    assert '<script src=' not in html
+    assert "sk-or-v1" not in html
+
+
+def test_server_serves_both_html_pages_without_secrets() -> None:
+    with TestClient(
+        serve_pipeline_validator.create_app(service(SuccessfulRunner()))
+    ) as client:
+        validator = client.get("/")
+        results = client.get("/pipeline-results.html")
+
+    assert validator.status_code == results.status_code == 200
+    assert validator.headers["content-type"].startswith("text/html")
+    assert results.headers["content-type"].startswith("text/html")
+    assert "sk-or-v1" not in validator.text + results.text
