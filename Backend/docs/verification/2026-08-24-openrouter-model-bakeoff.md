@@ -2,13 +2,16 @@
 
 ## Outcome
 
-`google/gemini-3.7-flash` is the best new challenger, but it does not replace
-the incumbent `google/gemini-3.6-flash`. Across two clean 80-recipe runs, 3.7
-kept 100% schema validity, 95% whole-recipe nutrition accuracy, 100% stated
-cook-time accuracy, and 67.5–70% exact ordered-step phrase recall. The
-protocol-compatible historical 3.6 run scored 73.75% on that step probe.
-Because the bake-off did not repeat 3.6 under the new accounting runner, a
-production switch is not justified; Ladle retains 3.6 by default.
+`google/gemini-3.7-flash` is the best new challenger. Across two clean
+80-recipe runs, 3.7 kept 100% schema validity, 95% whole-recipe nutrition
+accuracy, 100% stated cook-time accuracy, and 67.5–70% exact ordered-step
+phrase recall. The protocol-compatible historical 3.6 run scored 73.75% on
+that step probe, so the bake-off alone did not establish a head-to-head win.
+
+On 2026-08-24 the user explicitly selected 3.7 as Ladle's quality-first live
+default despite that unresolved historical comparison. This is a product
+choice for live validation, not a claim that the measurements prove 3.7 beats
+3.6 on step preservation.
 
 Gemini 3.7's average reported run cost was $1.2403, or about $0.0155 per
 successful recipe, with a 7.3-second median latency. The historical 3.6
@@ -95,8 +98,8 @@ metadata. No further live model calls were made after the user stopped spend.
 
 ## Product behavior and affected components
 
-- `ladle/config.py` and `.env.example` retain
-  `google/gemini-3.6-flash` as the extraction and verification default.
+- `ladle/config.py` and `.env.example` use the user-selected
+  `google/gemini-3.7-flash` extraction and verification default.
 - `ladle/extraction/openrouter.py` recovers boundedly from HTTP 429 responses.
 - The evaluator records per-case latency, provider usage/cost, hard-gate
   summaries, and flushed progress markers.
@@ -104,8 +107,9 @@ metadata. No further live model calls were made after the user stopped spend.
   gates, ranks quality lexicographically, and selects value only within the
   quality-equivalence band.
 
-Deployments can still opt into 3.7 through `LADLE_OPENROUTER_MODEL_ID`. A default
-switch requires a fresh, repeated 3.6-versus-3.7 head-to-head run.
+Deployments can still choose another model through `LADLE_OPENROUTER_MODEL_ID`.
+A claim that 3.7 outperforms 3.6 still requires a fresh, repeated head-to-head
+run.
 
 ## Evidence artifacts
 

@@ -219,13 +219,9 @@ class Settings(BaseSettings):
     openrouter_base_url: AnyHttpUrl = AnyHttpUrl("https://openrouter.ai/api/v1")
     openrouter_timeout_seconds: float = Field(default=90, gt=0)
     openrouter_api_key: SecretStr | None = None
-    # Picked on the quality of the recipe, not the price of the call. It names
-    # ingredients precisely and, in a recipe with several sub-preparations,
-    # says which one each amount belongs to — "soy sauce (for the marinade)"
-    # against three other soy sauce lines. The previous model listed the same
-    # four amounts unlabelled and double-counted batter it had already listed.
-    # It costs about a quarter more per import; see scripts/measure_cost.py.
-    openrouter_model_id: str = "google/gemini-3.6-flash"
+    # User-selected quality-first default after the 2026-08-24 bake-off. The
+    # explicit environment override remains available for reproducible runs.
+    openrouter_model_id: str = "google/gemini-3.7-flash"
     # A 35-ingredient recipe with four sub-preparations ran past 8192 and came
     # back truncated, which the extractor can only report as a failed import.
     # Cost is charged per token emitted, not per token allowed, so a headroom
