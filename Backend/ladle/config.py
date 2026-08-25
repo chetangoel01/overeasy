@@ -228,6 +228,10 @@ class Settings(BaseSettings):
     # that is never reached is free — and stopping mid-recipe never is.
     openrouter_max_tokens: int = Field(default=32_768, gt=0)
 
+    nutrition_normalization_enabled: bool = True
+    nutrition_normalization_model_id: str = "google/gemini-3.7-flash"
+    nutrition_normalization_max_tokens: int = Field(default=5_000, gt=0)
+
     apple_enabled: bool = False
     apple_bundle_id: str = "com.ladle.ios"
     apple_team_id: str | None = None

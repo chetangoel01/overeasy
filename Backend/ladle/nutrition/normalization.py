@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import json
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from decimal import Decimal
-from typing import Protocol
+from decimal import Decimal, InvalidOperation
+from typing import Any, Protocol
 from uuid import UUID
 
-from pydantic import Field
+import httpx
+from pydantic import Field, ValidationError
 
 from ladle.acquisition.models import AcquiredVideoContext
 from ladle.contracts.common import WireModel
@@ -62,6 +66,127 @@ class NutritionNormalizationClient(Protocol):
         template: RecipeTemplate,
         context: AcquiredVideoContext,
     ) -> NutritionNormalizationResponse: ...
+
+
+_SYSTEM_PROMPT = """You normalize recipes for a deterministic USDA calculation.
+Use only the supplied creator evidence and reviewed recipe. Preserve creator-stated
+servings and raw quantities. When yield or an amount is missing, make a conservative
+culinary estimate and expose it. Convert every energy-bearing ingredient to grams,
+including liquids by applying a reasonable density. Use a short generic USDA search
+term. Exclude only water and genuinely nutritionally immaterial to-taste ingredients.
+Return no nutrient totals. Never hide an assumption."""
+
+
+class OpenRouterNutritionNormalizationClient:
+    def __init__(
+        self,
+        *,
+        http: httpx.Client,
+        api_key: str,
+        base_url: str,
+        sleep: Callable[[float], None] = time.sleep,
+    ) -> None:
+        self._http = http
+        self._api_key = api_key
+        self._base_url = base_url.rstrip("/")
+        self._sleep = sleep
+
+    def normalize(
+        self,
+        *,
+        model: str,
+        max_tokens: int,
+        template: RecipeTemplate,
+        context: AcquiredVideoContext,
+    ) -> NutritionNormalizationResponse:
+        schema = NutritionNormalization.model_json_schema()
+        payload = {
+            "model": model,
+            "max_tokens": max_tokens,
+            "temperature": 0,
+            "provider": {"require_parameters": True},
+            "messages": [
+                {"role": "system", "content": _SYSTEM_PROMPT},
+                {
+                    "role": "user",
+                    "content": json.dumps(
+                        _normalization_input(template, context),
+                        ensure_ascii=False,
+                    ),
+                },
+            ],
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "nutrition_normalization",
+                    "strict": True,
+                    "schema": schema,
+                },
+            },
+        }
+        response: httpx.Response | None = None
+        for attempt in range(2):
+            try:
+                response = self._http.post(
+                    f"{self._base_url}/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {self._api_key}",
+                        "X-Title": "Ladle",
+                    },
+                    json=payload,
+                )
+            except httpx.HTTPError as error:
+                raise NutritionNormalizationUnavailable(
+                    "OpenRouter nutrition normalization unavailable"
+                ) from error
+            if response.status_code != 429 or attempt == 1:
+                break
+            self._sleep(2)
+        assert response is not None
+        if response.status_code >= 400:
+            raise NutritionNormalizationUnavailable(
+                "OpenRouter nutrition normalization failed with "
+                f"HTTP {response.status_code}"
+            )
+        try:
+            data = response.json()
+            content = data["choices"][0]["message"]["content"]
+            parsed = NutritionNormalization.model_validate_json(content)
+        except (json.JSONDecodeError, LookupError, TypeError, ValidationError) as error:
+            raise NutritionNormalizationUnavailable(
+                "OpenRouter returned invalid nutrition normalization"
+            ) from error
+        usage = data.get("usage") or {}
+        return NutritionNormalizationResponse(
+            parsed_output=parsed,
+            input_tokens=int(usage.get("prompt_tokens") or 0),
+            output_tokens=int(usage.get("completion_tokens") or 0),
+            cost_usd=_cost(usage.get("cost")),
+        )
+
+
+def _normalization_input(
+    template: RecipeTemplate,
+    context: AcquiredVideoContext,
+) -> dict[str, Any]:
+    return {
+        "sourceURL": template.original_url,
+        "title": context.title,
+        "description": context.description,
+        "transcript": [item.text for item in context.transcript],
+        "linkedDocuments": [item.text for item in context.linked_documents],
+        "recipe": template.model_dump(mode="json", exclude={"nutrition"}),
+    }
+
+
+def _cost(value: object) -> Decimal | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        result = Decimal(str(value))
+    except InvalidOperation:
+        return None
+    return result if result.is_finite() and result >= 0 else None
 
 
 class RecipeNutritionNormalizer:

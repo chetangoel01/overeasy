@@ -156,6 +156,17 @@ def test_default_openrouter_model_is_user_selected_gemini_3_7() -> None:
     assert settings.openrouter_model_id == "google/gemini-3.7-flash"
 
 
+def test_nutrition_normalization_defaults_to_selected_gemini() -> None:
+    settings = Settings(_env_file=None)
+
+    assert settings.nutrition_normalization_enabled
+    assert (
+        settings.nutrition_normalization_model_id
+        == "google/gemini-3.7-flash"
+    )
+    assert settings.nutrition_normalization_max_tokens == 5000
+
+
 def test_empty_provider_environment_values_are_unconfigured(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
