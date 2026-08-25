@@ -1,10 +1,15 @@
+import json
+import re
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 
 from scripts import serve_pipeline_validator
+
+TOOLS = Path(__file__).resolve().parents[3] / "tools"
 
 
 class ImmediateExecutor:
@@ -167,3 +172,40 @@ def test_api_returns_typed_invalid_input(payload: dict[str, str], status: int) -
 
     assert response.status_code == status
     assert response.json()["error"] == "invalidSourceURL"
+
+
+def test_results_page_embeds_five_safe_complete_recipe_records() -> None:
+    page = TOOLS / "pipeline-results.html"
+    html = page.read_text()
+    match = re.search(
+        r'<script id="pipeline-results-data" type="application/json">(.*?)</script>',
+        html,
+        re.DOTALL,
+    )
+
+    assert '<meta name="viewport"' in html
+    assert "<main" in html and "<nav" in html
+    assert "@media (prefers-reduced-motion: reduce)" in html
+    assert '<script src=' not in html
+    assert "sk-or-v1" not in html
+    assert match is not None
+    records = json.loads(match.group(1))
+    assert len(records) == 5
+    assert {record["sourceURL"] for record in records} == {
+        "https://www.tiktok.com/@zachs.foods/video/7612708181004799263",
+        "https://www.tiktok.com/@iankyo/video/7436430114910506271",
+        "https://www.tiktok.com/@alexcookjoy/video/7574621199519567136",
+        "https://www.tiktok.com/@foodiligence/video/7581152180174966030",
+        "https://www.instagram.com/p/DbbHIKHM3xr/",
+    }
+    assert sum(float(record["knownCostUSD"]) for record in records) == pytest.approx(
+        0.0783865776875
+    )
+    for record in records:
+        recipe = record["recipe"]
+        assert recipe["servings"]
+        assert recipe["servings_basis"] in {"stated", "estimatedFromYield"}
+        assert recipe["review_status"] in {"ready", "needsReview"}
+        assert recipe["ingredients"]
+        assert recipe["steps"]
+        assert record["processSeconds"] > 0

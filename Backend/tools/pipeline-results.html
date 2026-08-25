@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Ladle · Gemini 3.7 field notes</title>
+  <style>
+    :root {
+      --paper: #f2eadb;
+      --paper-high: #fffaf0;
+      --ink: #201d19;
+      --muted: #746b5e;
+      --rule: #b8aa97;
+      --accent: #d3482f;
+      --accent-dark: #932b1f;
+      --green: #245d44;
+      --warning: #8d4c12;
+      --shadow: 0 18px 55px rgb(51 35 18 / 10%);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 15% 5%, rgb(255 255 255 / 70%), transparent 31rem),
+        repeating-linear-gradient(90deg, transparent 0 39px, rgb(53 37 19 / 2%) 40px),
+        var(--paper);
+      font: 16px/1.55 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    a { color: inherit; }
+    a:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
+    .masthead, .summary, main, .index-inner, footer { width: min(1180px, calc(100% - 40px)); margin-inline: auto; }
+    .masthead {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 28px;
+      align-items: end;
+      padding: 64px 0 32px;
+      border-bottom: 2px solid var(--ink);
+    }
+    .kicker, .eyebrow, .label, .index-label {
+      margin: 0 0 9px;
+      color: var(--accent-dark);
+      font-size: .72rem;
+      font-weight: 800;
+      letter-spacing: .15em;
+      text-transform: uppercase;
+    }
+    h1, h2, .serving-number { font-family: Georgia, "Times New Roman", serif; }
+    h1 { max-width: 780px; margin: 0; font-size: clamp(3rem, 8vw, 7.4rem); font-weight: 500; letter-spacing: -.065em; line-height: .82; }
+    .stamp { width: 148px; aspect-ratio: 1; display: grid; place-content: center; border: 2px solid var(--accent); border-radius: 50%; color: var(--accent-dark); text-align: center; font: 800 .74rem/1.35 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .11em; text-transform: uppercase; transform: rotate(6deg); }
+    .lede { max-width: 710px; margin: 28px 0 0; color: var(--muted); font-size: 1.05rem; }
+    .summary { display: grid; grid-template-columns: repeat(4, 1fr); margin-block: 36px 48px; border-block: 1px solid var(--rule); }
+    .metric { padding: 22px 20px; border-right: 1px solid var(--rule); }
+    .metric:last-child { border-right: 0; }
+    .metric strong { display: block; font: 500 clamp(1.6rem, 4vw, 2.8rem)/1 Georgia, serif; }
+    .metric span { color: var(--muted); font-size: .78rem; text-transform: uppercase; letter-spacing: .09em; }
+    .index { position: sticky; top: 0; z-index: 5; background: rgb(242 234 219 / 94%); border-block: 1px solid var(--rule); backdrop-filter: blur(12px); }
+    .index-inner { display: flex; align-items: center; gap: 16px; overflow-x: auto; padding-block: 12px; }
+    .index-label { flex: 0 0 auto; margin: 0 8px 0 0; }
+    .index a { flex: 0 0 auto; padding: 7px 12px; border-radius: 999px; text-decoration: none; font-size: .82rem; }
+    .index a:hover { color: var(--paper-high); background: var(--ink); }
+    main { padding-block: 48px 96px; }
+    .recipe {
+      position: relative;
+      margin-bottom: 42px;
+      padding: clamp(24px, 5vw, 58px);
+      overflow: hidden;
+      background: var(--paper-high);
+      border: 1px solid var(--rule);
+      box-shadow: var(--shadow);
+      animation: rise .6s both;
+    }
+    .recipe::after { content: attr(data-number); position: absolute; right: -12px; top: -45px; color: rgb(211 72 47 / 7%); font: 500 12rem/1 Georgia, serif; pointer-events: none; }
+    .recipe:nth-child(2) { animation-delay: .06s; }
+    .recipe:nth-child(3) { animation-delay: .12s; }
+    .recipe:nth-child(4) { animation-delay: .18s; }
+    .recipe:nth-child(5) { animation-delay: .24s; }
+    .recipe-head { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0, 1fr) 190px; gap: clamp(28px, 6vw, 72px); align-items: start; }
+    h2 { margin: 0; max-width: 760px; font-size: clamp(2.3rem, 6vw, 5.4rem); font-weight: 500; letter-spacing: -.05em; line-height: .95; }
+    .description { max-width: 670px; margin: 18px 0 16px; color: var(--muted); }
+    .source-link { display: inline-block; max-width: 100%; overflow: hidden; color: var(--accent-dark); font-size: .8rem; text-overflow: ellipsis; white-space: nowrap; }
+    .serving-card { padding: 18px; border: 1px solid var(--ink); text-align: center; background: #fffdf7; }
+    .serving-number { display: block; color: var(--accent); font-size: 5rem; line-height: .85; }
+    .serving-unit { display: block; margin-top: 8px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+    .basis { display: block; margin-top: 9px; color: var(--muted); font-size: .72rem; }
+    .run-strip { display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 28px 0 0; padding: 13px 0; border-block: 1px solid var(--rule); color: var(--muted); font: .75rem ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .status { color: var(--green); font-weight: 800; text-transform: uppercase; }
+    .status.review { color: var(--warning); }
+    .warning-box { margin-top: 22px; padding: 15px 18px; border-left: 4px solid var(--warning); background: #f8ead5; }
+    .warning-box p { margin: 4px 0; }
+    .recipe-body { display: grid; grid-template-columns: minmax(260px, .8fr) minmax(340px, 1.2fr); gap: clamp(34px, 7vw, 88px); margin-top: 42px; }
+    h3 { margin: 0 0 18px; padding-bottom: 9px; border-bottom: 2px solid var(--ink); font-size: .78rem; letter-spacing: .16em; text-transform: uppercase; }
+    .ingredients, .steps, .notes { margin: 0; padding: 0; list-style: none; }
+    .ingredients li { display: grid; grid-template-columns: minmax(84px, .38fr) 1fr; gap: 14px; padding: 10px 0; border-bottom: 1px dotted var(--rule); }
+    .quantity { color: var(--accent-dark); font-weight: 750; }
+    .prep { color: var(--muted); font-size: .84rem; }
+    .steps { counter-reset: steps; }
+    .steps li { position: relative; min-height: 52px; padding: 0 0 24px 58px; counter-increment: steps; }
+    .steps li::before { content: counter(steps, decimal-leading-zero); position: absolute; left: 0; top: -4px; color: var(--accent); font: 500 1.7rem Georgia, serif; }
+    .timer { display: inline-block; margin-top: 8px; padding: 3px 8px; border: 1px solid var(--rule); border-radius: 999px; color: var(--muted); font-size: .74rem; }
+    .notes-wrap { grid-column: 1 / -1; }
+    .notes li { margin: 7px 0; color: var(--muted); }
+    footer { padding: 0 0 50px; color: var(--muted); font-size: .78rem; }
+    @keyframes rise { from { opacity: 0; transform: translateY(18px); } }
+    @media (max-width: 760px) {
+      .masthead { grid-template-columns: 1fr; padding-top: 42px; }
+      .stamp { display: none; }
+      .summary { grid-template-columns: 1fr 1fr; }
+      .metric:nth-child(2) { border-right: 0; }
+      .metric:nth-child(-n+2) { border-bottom: 1px solid var(--rule); }
+      .recipe-head, .recipe-body { grid-template-columns: 1fr; }
+      .serving-card { width: 150px; }
+      .notes-wrap { grid-column: auto; }
+    }
+    @media (max-width: 430px) {
+      .masthead, .summary, main, .index-inner, footer { width: min(100% - 24px, 1180px); }
+      .recipe { padding: 22px 18px; }
+      h1 { font-size: 3.5rem; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      .recipe { animation: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="masthead">
+    <div>
+      <p class="kicker">Ladle extraction lab · run 24.08.26</p>
+      <h1>Five field notes.</h1>
+      <p class="lede">Real TikTok and Instagram imports, acquired from public creator evidence and extracted with one model: Gemini 3.7 Flash. This file freezes exactly what we got so the serving decisions can be inspected recipe by recipe.</p>
+    </div>
+    <div class="stamp" aria-label="Five of five imports succeeded">5 / 5<br>recipes<br>landed</div>
+  </header>
+
+  <section class="summary" aria-label="Run summary">
+    <div class="metric"><strong>5 / 5</strong><span>recipes produced</span></div>
+    <div class="metric"><strong>2 stated</strong><span>serving counts</span></div>
+    <div class="metric"><strong>3 estimated</strong><span>serving counts</span></div>
+    <div class="metric"><strong>$0.0784</strong><span>known lower-bound cost</span></div>
+  </section>
+
+  <nav class="index" aria-label="Recipe index">
+    <div class="index-inner" id="recipe-index"><span class="index-label">Jump to</span></div>
+  </nav>
+
+  <main id="recipes" aria-label="Extracted recipes"></main>
+
+  <footer>
+    Known cost includes extraction, verification, and reported Whisper use. Creator-search billing was not reported, so $0.0784 is a lower bound. Processing time excludes acquisition. No provider key or signed media URL is stored in this report.
+  </footer>
+
+  <script id="pipeline-results-data" type="application/json">[{"sourceURL":"https://www.tiktok.com/@zachs.foods/video/7612708181004799263","modelID":"google/gemini-3.7-flash","processSeconds":7.34,"knownCostUSD":"0.015761085","recipe":{"title":"One Pot Creamy French Onion Pasta","description":"A rich and savory one-pot pasta combining caramelized onions, crispy pancetta, beef broth, heavy cream, and melted cheese inspired by classic French onion soup.","creator_name":"zachs.foods","source":"tiktok","original_url":"https://www.tiktok.com/@zachs.foods/video/7612708181004799263","preparation_minutes":null,"cooking_minutes":null,"total_minutes":null,"servings":"4","servings_basis":"estimatedFromYield","ingredients":[{"quantity_text":"3 large","name":"yellow onions","preparation":"sliced","uncertainty":null},{"quantity_text":"2 tbsp","name":"butter","preparation":null,"uncertainty":null},{"quantity_text":"1 tbsp","name":"vegetable oil","preparation":null,"uncertainty":null},{"quantity_text":"a little bit","name":"water","preparation":"for deglazing","uncertainty":null},{"quantity_text":"8 oz","name":"pancetta","preparation":null,"uncertainty":null},{"quantity_text":"2","name":"garlic cloves","preparation":null,"uncertainty":null},{"quantity_text":"2 tbsp","name":"white wine","preparation":null,"uncertainty":null},{"quantity_text":"1 tsp","name":"salt","preparation":null,"uncertainty":null},{"quantity_text":"1/2 tsp","name":"thyme","preparation":null,"uncertainty":null},{"quantity_text":"1/2 tsp","name":"fresh rosemary","preparation":null,"uncertainty":null},{"quantity_text":"8-10 oz","name":"pasta","preparation":"dry","uncertainty":null},{"quantity_text":"3 cups","name":"beef broth","preparation":null,"uncertainty":null},{"quantity_text":"1 cup","name":"heavy cream","preparation":null,"uncertainty":null},{"quantity_text":"1 cup","name":"fresh Parmigiano-Reggiano","preparation":"grated","uncertainty":null},{"quantity_text":"1/2 cup","name":"fresh Gruyère","preparation":"shredded","uncertainty":null}],"steps":[{"instruction":"Slice the yellow onions and add them to a pot with the vegetable oil and butter.","timers":[],"uncertainty":null},{"instruction":"Caramelize the onions for 10 to 15 minutes, allowing them to brown on the bottom of the pot and deglazing periodically with a small splash of water.","timers":[{"label":"Caramelize onions","duration_seconds":600}],"uncertainty":null},{"instruction":"Add the pancetta and cook until crispy, then stir in the garlic and deglaze the pot with the white wine.","timers":[],"uncertainty":null},{"instruction":"Season with salt, thyme, and fresh rosemary, then stir in the dry pasta and beef broth, cooking until the pasta is tender and liquid has reduced.","timers":[],"uncertainty":null},{"instruction":"Stir in the heavy cream and Parmigiano-Reggiano, then top with a layer of fresh Gruyère cheese before serving.","timers":[],"uncertainty":null}],"notes":[],"review_status":"ready","uncertainties":[{"field":"servings","reason":"Serving count was absent; estimated from the total ingredient yield.","confidence":null}]}},{"sourceURL":"https://www.tiktok.com/@iankyo/video/7436430114910506271","modelID":"google/gemini-3.7-flash","processSeconds":12.345,"knownCostUSD":"0.0185821125","recipe":{"title":"\"Wife me up!\" Chili Garlic Noodles","description":"Quick and flavorful 10-minute chili garlic noodles with browned ground pork, aromatic garlic, ginger, green onions, and a spicy-tangy sauce.","creator_name":"iankyo","source":"tiktok","original_url":"https://www.tiktok.com/@iankyo/video/7436430114910506271","preparation_minutes":null,"cooking_minutes":null,"total_minutes":10,"servings":"2","servings_basis":"stated","ingredients":[{"quantity_text":"2 portions","name":"Noodles","preparation":null,"uncertainty":null},{"quantity_text":"¼ cup","name":"Neutral oil","preparation":null,"uncertainty":null},{"quantity_text":"3 tbsp","name":"Chili flakes or gochugaru","preparation":null,"uncertainty":null},{"quantity_text":"2 tbsp","name":"Soy sauce","preparation":null,"uncertainty":null},{"quantity_text":"1 tbsp","name":"Black vinegar","preparation":null,"uncertainty":null},{"quantity_text":"1 tbsp","name":"Sugar","preparation":null,"uncertainty":null},{"quantity_text":"4 cloves","name":"Garlic","preparation":"roughly chopped","uncertainty":null},{"quantity_text":"½ in knob","name":"Ginger","preparation":"grated","uncertainty":null},{"quantity_text":"4 stalks","name":"Green onions","preparation":"diced","uncertainty":null},{"quantity_text":null,"name":"Sesame seeds","preparation":null,"uncertainty":null},{"quantity_text":"½ lb","name":"Ground pork","preparation":null,"uncertainty":null},{"quantity_text":"a little bit","name":"Salt","preparation":null,"uncertainty":null}],"steps":[{"instruction":"Roughly chop the garlic, grate the ginger, and dice the green onions.","timers":[],"uncertainty":null},{"instruction":"Mix together the soy sauce, black vinegar, sugar, chili flakes (or gochugaru), and sesame seeds to prepare the sauce.","timers":[],"uncertainty":null},{"instruction":"Heat the neutral oil in a hot pan, then add the prepared garlic, ginger, and green onions. Sauté until fragrant.","timers":[],"uncertainty":null},{"instruction":"Add the ground pork along with a little bit of salt and cook until nicely browned.","timers":[],"uncertainty":null},{"instruction":"Pour in the prepared sauce mixture and simmer with the meat for about 1 minute.","timers":[{"label":"Simmer sauce with pork","duration_seconds":60}],"uncertainty":null},{"instruction":"Add the noodles to the pan and toss to coat completely in the sauce.","timers":[],"uncertainty":null}],"notes":["Gochugaru is recommended for the chili flakes, but regular chili flakes can be used as a substitute."],"review_status":"needsReview","uncertainties":[{"field":"servings_basis","reason":"The stated serving basis has no explicit yield text.","confidence":null}]}},{"sourceURL":"https://www.tiktok.com/@alexcookjoy/video/7574621199519567136","modelID":"google/gemini-3.7-flash","processSeconds":10.544,"knownCostUSD":"0.01648779","recipe":{"title":"Creamy Chicken & Gnocchi","description":"A quick and rich one-pan creamy chicken and potato gnocchi dish cooked with garlic, onions, spinach, and Parmesan cheese.","creator_name":"alexcookjoy","source":"tiktok","original_url":"https://www.tiktok.com/@alexcookjoy/video/7574621199519567136","preparation_minutes":13,"cooking_minutes":17,"total_minutes":30,"servings":"2","servings_basis":"stated","ingredients":[{"quantity_text":"1 lb","name":"chicken breast","preparation":"cut into bite-size pieces","uncertainty":null},{"quantity_text":"1 tbsp","name":"olive oil","preparation":null,"uncertainty":null},{"quantity_text":"1 tbsp","name":"butter","preparation":null,"uncertainty":null},{"quantity_text":"1 small","name":"yellow onion","preparation":"diced","uncertainty":null},{"quantity_text":"3 cloves","name":"garlic","preparation":"minced","uncertainty":null},{"quantity_text":"1 cup","name":"heavy cream","preparation":null,"uncertainty":null},{"quantity_text":"1 cup","name":"chicken broth","preparation":null,"uncertainty":null},{"quantity_text":"1 tsp","name":"Italian seasoning","preparation":null,"uncertainty":null},{"quantity_text":"½ cup","name":"grated Parmesan","preparation":"grated","uncertainty":null},{"quantity_text":"1 lb","name":"potato gnocchi","preparation":"shelf-stable or fresh","uncertainty":null},{"quantity_text":"2 cups","name":"fresh spinach","preparation":null,"uncertainty":null},{"quantity_text":null,"name":"salt & black pepper","preparation":null,"uncertainty":null},{"quantity_text":null,"name":"white wine or water","preparation":"for deglazing","uncertainty":{"field":"ingredients[12]","reason":"The creator does not specify the exact volume of wine or water to deglaze the pan.","confidence":0.9}},{"quantity_text":null,"name":"crushed red pepper, fresh parsley, lemon zest (optional)","preparation":null,"uncertainty":null}],"steps":[{"instruction":"Heat olive oil and butter in a large pan over medium-high heat (375°F / 190°C). Season chicken pieces with salt and pepper, then cook until golden on all sides, about 5–6 minutes. Remove the chicken to a plate.","timers":[{"label":"Cook chicken","duration_seconds":300}],"uncertainty":null},{"instruction":"In the same pan, add the diced onion and cook until soft, about 3 minutes. Add the minced garlic and cook for 30 seconds. Deglaze the pan with a splash of white wine or water, then pour in chicken broth and heavy cream, stir in Italian seasoning, and bring to a gentle simmer.","timers":[{"label":"Cook onion","duration_seconds":180},{"label":"Cook garlic","duration_seconds":30}],"uncertainty":null},{"instruction":"Drop gnocchi directly into the simmering sauce without boiling first. Cook for 4–5 minutes, stirring occasionally, until the sauce thickens as the gnocchi releases starch.","timers":[{"label":"Cook gnocchi","duration_seconds":240}],"uncertainty":null},{"instruction":"Stir in the grated Parmesan cheese, then add the fresh spinach and allow it to wilt. Return the cooked chicken to the pan and simmer for 1–2 minutes. Taste and adjust salt and pepper, adding crushed red pepper, fresh parsley, or lemon zest if desired.","timers":[{"label":"Simmer chicken and sauce","duration_seconds":60}],"uncertainty":null}],"notes":["Serve hot, preferably with crusty bread for wiping the pan.","Potato gnocchi can be either shelf-stable or fresh."],"review_status":"ready","uncertainties":[]}},{"sourceURL":"https://www.tiktok.com/@foodiligence/video/7581152180174966030","modelID":"google/gemini-3.7-flash","processSeconds":8.427,"knownCostUSD":"0.0163920225","recipe":{"title":"Hoisin Garlic Noodles","description":"Crispy and savory hoisin garlic noodles adapted from Hetty McKinnon's New York Times Cooking recipe.","creator_name":"foodiligence","source":"tiktok","original_url":"https://www.tiktok.com/@foodiligence/video/7581152180174966030","preparation_minutes":null,"cooking_minutes":null,"total_minutes":null,"servings":"1","servings_basis":"estimatedFromYield","ingredients":[{"quantity_text":"14 oz","name":"dried wheat or egg noodles","preparation":null,"uncertainty":null},{"quantity_text":"¼ cup","name":"hoisin sauce","preparation":null,"uncertainty":null},{"quantity_text":"2 tbsp","name":"soy sauce","preparation":null,"uncertainty":null},{"quantity_text":"1 tbsp","name":"sesame oil","preparation":null,"uncertainty":null},{"quantity_text":"2 tsp","name":"maple syrup or honey","preparation":null,"uncertainty":null},{"quantity_text":null,"name":"vegetable oil","preparation":null,"uncertainty":{"field":"ingredients[5]","reason":"The creator does not specify the amount of vegetable oil needed for sautéing.","confidence":0.85}},{"quantity_text":"6","name":"garlic","preparation":"finely chopped","uncertainty":null},{"quantity_text":"6","name":"scallions","preparation":"white & green parts sliced and separated","uncertainty":null},{"quantity_text":"4 tbsp","name":"toasted sesame seeds","preparation":null,"uncertainty":null},{"quantity_text":null,"name":"salt & pepper","preparation":null,"uncertainty":null}],"steps":[{"instruction":"Cook the noodles in salted boiling water until al dente, pulling them as soon as they soften so they remain bouncy. Drain and rinse to cool.","timers":[],"uncertainty":null},{"instruction":"In a small bowl, mix together the hoisin sauce, soy sauce, sesame oil, and maple syrup (or honey).","timers":[],"uncertainty":null},{"instruction":"Heat vegetable oil in a large skillet, add the finely chopped garlic and the sliced white parts of the scallions, and cook until fragrant.","timers":[],"uncertainty":null},{"instruction":"Quickly pour in the sauce mixture and add the cooked noodles, tossing thoroughly to coat.","timers":[],"uncertainty":null},{"instruction":"Let the noodles cook undisturbed for 2 to 3 minutes until the bottom layer turns crispy, then season with salt and pepper to taste.","timers":[{"label":"Crisp noodle bottom","duration_seconds":120}],"uncertainty":null},{"instruction":"Serve topped with the toasted sesame seeds and the reserved green parts of the sliced scallions.","timers":[],"uncertainty":null}],"notes":["Original recipe by Hetty McKinnon for New York Times Cooking."],"review_status":"ready","uncertainties":[{"field":"ingredients[5].quantityText","reason":"The creator does not specify the amount of vegetable oil needed for sautéing.","confidence":0.85},{"field":"servings","reason":"Serving count was absent; estimated from the total ingredient yield.","confidence":null}]}},{"sourceURL":"https://www.instagram.com/p/DbbHIKHM3xr/","modelID":"google/gemini-3.7-flash","processSeconds":10.353,"knownCostUSD":"0.0111635671875","recipe":{"title":"Cucumber Ribbon Salad with Crispy Chilli Oil","description":"Crisp cucumber ribbons rolled into a spiral and marinated in a savory, spicy soy and chilli oil dressing.","creator_name":"itsu","source":"instagram","original_url":"https://www.instagram.com/p/DbbHIKHM3xr/","preparation_minutes":null,"cooking_minutes":null,"total_minutes":null,"servings":"1","servings_basis":"estimatedFromYield","ingredients":[{"quantity_text":"4","name":"cucumbers","preparation":null,"uncertainty":null},{"quantity_text":"1/2 cup","name":"soy sauce","preparation":null,"uncertainty":null},{"quantity_text":"1/4 cup","name":"mirin or water","preparation":null,"uncertainty":null},{"quantity_text":"2 tbsp","name":"itsu crispy chilli oil","preparation":null,"uncertainty":null},{"quantity_text":"1 tbsp","name":"honey","preparation":null,"uncertainty":null},{"quantity_text":"1 stalk","name":"green onion","preparation":"minced","uncertainty":null},{"quantity_text":"1/2 clove","name":"garlic","preparation":null,"uncertainty":null}],"steps":[{"instruction":"Mix together the soy sauce, mirin or water, crispy chilli oil, honey, minced green onion, and garlic to make the dressing.","timers":[],"uncertainty":null},{"instruction":"Use a peeler to slice the cucumbers into thin strips, avoiding the soggy middle core.","timers":[],"uncertainty":null},{"instruction":"Arrange the cucumber strips on top of each other and roll them into a spiral.","timers":[],"uncertainty":null},{"instruction":"Pour the dressing over the cucumber spiral and let it marinate for at least 1 hour before serving.","timers":[{"label":"Marinate","duration_seconds":3600}],"uncertainty":null}],"notes":["Adjust the crispy chilli oil amount to your preferred spice level.","Recipe inspired by @cook_18_."],"review_status":"ready","uncertainties":[{"field":"servings","reason":"Serving count was absent; estimated from the total ingredient yield.","confidence":null}]}}]</script>
+  <script>
+    const records = JSON.parse(document.getElementById('pipeline-results-data').textContent);
+    const make = (tag, className, text) => {
+      const node = document.createElement(tag);
+      if (className) node.className = className;
+      if (text !== undefined) node.textContent = text;
+      return node;
+    };
+    const basisLabel = value => value === 'stated' ? 'creator stated' : 'estimated from yield';
+    const timerLabel = seconds => seconds >= 60 ? `${seconds / 60} min` : `${seconds} sec`;
+    const index = document.getElementById('recipe-index');
+    const main = document.getElementById('recipes');
+
+    records.forEach((record, position) => {
+      const recipe = record.recipe;
+      const id = `recipe-${position + 1}`;
+      const jump = make('a', '', `${position + 1}. ${recipe.title}`);
+      jump.href = `#${id}`;
+      index.append(jump);
+
+      const article = make('article', 'recipe');
+      article.id = id;
+      article.dataset.number = String(position + 1).padStart(2, '0');
+      const head = make('div', 'recipe-head');
+      const identity = make('div');
+      identity.append(make('p', 'eyebrow', `${recipe.source} · @${recipe.creator_name}`));
+      identity.append(make('h2', '', recipe.title));
+      identity.append(make('p', 'description', recipe.description));
+      const source = make('a', 'source-link', record.sourceURL);
+      source.href = record.sourceURL;
+      source.target = '_blank';
+      source.rel = 'noreferrer';
+      identity.append(source);
+      head.append(identity);
+
+      const serving = make('div', 'serving-card');
+      serving.append(make('span', 'label', 'Output yield'));
+      serving.append(make('strong', 'serving-number', recipe.servings));
+      serving.append(make('span', 'serving-unit', Number(recipe.servings) === 1 ? 'serving' : 'servings'));
+      serving.append(make('small', 'basis', basisLabel(recipe.servings_basis)));
+      head.append(serving);
+      article.append(head);
+
+      const run = make('div', 'run-strip');
+      const status = make('span', `status ${recipe.review_status === 'needsReview' ? 'review' : ''}`, recipe.review_status === 'needsReview' ? 'Needs review' : 'Ready');
+      run.append(status);
+      run.append(make('span', '', `${recipe.ingredients.length} ingredients`));
+      run.append(make('span', '', `${recipe.steps.length} steps`));
+      run.append(make('span', '', `${record.processSeconds.toFixed(2)}s processing`));
+      run.append(make('span', '', `$${Number(record.knownCostUSD).toFixed(4)} known cost`));
+      run.append(make('span', '', record.modelID));
+      article.append(run);
+
+      if (recipe.uncertainties.length) {
+        const warning = make('aside', 'warning-box');
+        warning.append(make('strong', '', 'Check before cooking'));
+        recipe.uncertainties.forEach(item => warning.append(make('p', '', `${item.field}: ${item.reason}`)));
+        article.append(warning);
+      }
+
+      const body = make('div', 'recipe-body');
+      const ingredientSection = make('section');
+      ingredientSection.append(make('h3', '', 'Ingredients'));
+      const ingredients = make('ul', 'ingredients');
+      recipe.ingredients.forEach(item => {
+        const row = make('li');
+        row.append(make('span', 'quantity', item.quantity_text || 'to taste'));
+        const detail = make('span');
+        detail.append(make('span', '', item.name));
+        if (item.preparation) detail.append(make('span', 'prep', ` · ${item.preparation}`));
+        row.append(detail);
+        ingredients.append(row);
+      });
+      ingredientSection.append(ingredients);
+      body.append(ingredientSection);
+
+      const stepSection = make('section');
+      stepSection.append(make('h3', '', 'Method'));
+      const steps = make('ol', 'steps');
+      recipe.steps.forEach(item => {
+        const row = make('li', '', item.instruction);
+        item.timers.forEach(timer => row.append(make('span', 'timer', `${timer.label} · ${timerLabel(timer.duration_seconds)}`)));
+        steps.append(row);
+      });
+      stepSection.append(steps);
+      body.append(stepSection);
+
+      if (recipe.notes.length) {
+        const notesSection = make('section', 'notes-wrap');
+        notesSection.append(make('h3', '', 'Kitchen notes'));
+        const notes = make('ul', 'notes');
+        recipe.notes.forEach(note => notes.append(make('li', '', `— ${note}`)));
+        notesSection.append(notes);
+        body.append(notesSection);
+      }
+      article.append(body);
+      main.append(article);
+    });
+  </script>
+</body>
+</html>

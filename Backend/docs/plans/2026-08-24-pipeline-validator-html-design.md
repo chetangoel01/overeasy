@@ -58,3 +58,9 @@ The localhost job service is covered by eight focused unit tests. The tests
 exercise canonical URLs, invalid input, job admission and polling, one-active-
 job enforcement, typed failures, and configured-secret redaction. On
 2026-08-24 those tests passed together with focused Ruff and mypy checks.
+
+The standalone report embeds sanitized copies of all five successful recipe
+records: their ingredients, steps, servings and basis, review state,
+uncertainties, processing time, and known cost. An artifact test verifies all
+five canonical sources, the $0.0783866 aggregate known cost, responsive and
+reduced-motion hooks, and the absence of external scripts or key prefixes.
