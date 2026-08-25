@@ -67,11 +67,15 @@ respectively. Search runs with no image or video understanding parameters.
 `LADLE_CREATOR_SEARCH_MAXIMUM_RESULTS` bound latency and response size, not
 price. Enabling this rung in a live worker requires an OpenRouter key.
 
-After all text enrichment and user corrections, an evidence gate requires a
+After all text enrichment and user corrections, an evidence gate accepts a
 transcript or creator-linked page containing both a quantified ingredient and
-a cooking action. Titles, promotional captions, and platform sticker/alt text
-cannot satisfy this gate by themselves. A rejection happens before thumbnail
-download and model extraction, persists no recipe, and completes the import as
+a cooking action. It also accepts a recipe-dense creator caption with at least
+three quantified ingredient mentions when the combined caption and transcript
+contain a cooking action. This covers complete written captions and captions
+whose ingredient amounts complement the spoken method without treating a
+single promo amount as a recipe. Titles and platform sticker/alt text cannot
+satisfy the gate. A rejection happens before thumbnail download and model
+extraction, persists no recipe, and completes the import as
 `failed(insufficientTextEvidence)` with the same diagnostic code.
 
 The iOS recovery surfaces this as missing written recipe detail and directs the
@@ -86,7 +90,7 @@ and malformed successful output retains its separate one-repeat policy.
 
 ## Nutrition provenance
 
-Prompt version `recipe-2026-08-24-v11` requires the extraction model to return
+Prompt version `recipe-2026-08-24-v12` requires the extraction model to return
 nutrition as null. It cannot estimate nutrition, claim that it ran USDA
 calculations, invent a serving count to divide totals, or copy a publisher
 panel into another field. Explicit panels and missing values are handled only
@@ -94,7 +98,7 @@ by the deterministic nutrition stages below.
 
 The review boundary retains backward compatibility for old cached model
 output: only `creatorStated` nutrition can survive, while `unknown` and
-`usdaCalculated` claims are discarded. New v11 extraction calls always return
+`usdaCalculated` claims are discarded. New v12 extraction calls always return
 nutrition null. Only the deterministic stages assign `creatorStated` or
 `usdaCalculated`, preserving the internal basis and evidence without changing
 the public iOS nutrition contract.

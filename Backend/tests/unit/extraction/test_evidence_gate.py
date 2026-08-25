@@ -110,6 +110,28 @@ def test_recipe_bearing_text_is_accepted(context: AcquiredVideoContext) -> None:
     require_recipe_evidence(context)
 
 
+def test_recipe_dense_caption_with_method_is_accepted() -> None:
+    require_recipe_evidence(
+        _context(
+            description=(
+                "Ingredients: 2 cups pasta, 1 tbsp butter, and 3 cloves garlic. "
+                "Method: boil the pasta, then mix it with the butter and garlic."
+            )
+        )
+    )
+
+
+def test_recipe_dense_caption_can_supply_amounts_for_spoken_method() -> None:
+    require_recipe_evidence(
+        _context(
+            description="2 cups pasta, 1 tbsp butter, and 3 cloves garlic.",
+            transcript=(
+                "Boil the pasta. Fry the garlic in butter, then mix everything."
+            ),
+        )
+    )
+
+
 def test_quantity_noun_alone_is_not_mistaken_for_a_cooking_action() -> None:
     with pytest.raises(InsufficientTextEvidence):
         require_recipe_evidence(_context(transcript="1 slice bread."))

@@ -3,7 +3,7 @@ from typing import Any
 
 from ladle.acquisition.models import AcquiredVideoContext
 
-PROMPT_VERSION = "recipe-2026-08-24-v11"
+PROMPT_VERSION = "recipe-2026-08-24-v12"
 
 SYSTEM_PROMPT = (
     "You extract faithful cooking recipes from social-video evidence.\n"

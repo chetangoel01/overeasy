@@ -23,6 +23,10 @@ def has_quantities(text: str) -> bool:
     return _QUANTITY.search(text) is not None
 
 
+def quantity_mention_count(text: str) -> int:
+    return len(_QUANTITY.findall(text))
+
+
 def has_instructions(text: str) -> bool:
     # A count such as "1 slice bread" names an ingredient amount; `slice`
     # must not double as the action that makes the same line recipe-bearing.
