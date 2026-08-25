@@ -124,3 +124,7 @@ USDA-friendly food names. USDA remains the source of calories and macros.
   ingredient-level blockers for missing or ambiguous food matches, missing
   mass, inconsistent nutrient records, and invalid yield. Its compatibility
   method still returns `None` for callers that have not adopted diagnostics.
+- The enrichment service gives creator panels precedence, composes model
+  normalization with deterministic USDA arithmetic, appends serving confidence
+  and assumptions to the audit evidence, and converts either boundary's failure
+  into a visible `nutrition` uncertainty with `needsReview` status.
