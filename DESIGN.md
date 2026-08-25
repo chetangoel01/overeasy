@@ -92,6 +92,15 @@ tracking.
 - Watch is a vertically paged, full-viewport feed. Each swipe settles on one
   video recipe with full-bleed artwork, source and creator attribution, and
   direct Play, Favorite, Share, Open, and Start Cooking actions.
+- Play replaces that recipe's artwork with the provider's supported inline
+  player while Watch controls, recipe context, and the tab bar remain visible.
+  It never opens a browser. Only the visible recipe owns a player; paging away,
+  closing the player, or backgrounding the app suspends playback.
+- TikTok uses Player for Web, YouTube uses the IFrame player, and Instagram uses
+  its reel/post embed. These are in-app web players, not raw media URLs or
+  `AVPlayer`, because the providers do not expose a durable direct-video
+  contract. Unknown URL shapes show an unavailable state instead of falling
+  back to a social webpage.
 - Video recipes are shuffled once when the library session loads. Refreshes
   preserve the active order so favorite and sync updates never move content
   beneath the user.

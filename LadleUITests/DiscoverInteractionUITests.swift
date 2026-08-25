@@ -67,4 +67,40 @@ final class DiscoverInteractionUITests: XCTestCase {
         screenshot.lifetime = .keepAlways
         add(screenshot)
     }
+
+    @MainActor
+    func testWatchPlaysVideoInlineWithoutOpeningSafari() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-ui-testing",
+            "-onboarding-complete",
+            "-reset-library-preferences",
+        ]
+        app.launch()
+
+        app.tabBars.buttons["Watch"].tap()
+
+        let playButton = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'watch.'")
+        ).firstMatch
+        XCTAssertTrue(playButton.waitForExistence(timeout: 3))
+        playButton.tap()
+
+        XCTAssertTrue(app.buttons["Close video"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.webViews.firstMatch.waitForExistence(timeout: 3))
+
+        let loadingIndicator = app.descendants(matching: .any)[
+            "watch.player.loading"
+        ]
+        if loadingIndicator.waitForExistence(timeout: 1) {
+            XCTAssertTrue(
+                loadingIndicator.waitForNonExistence(timeout: 12),
+                "The inline player should finish its main navigation."
+            )
+        }
+
+        let safari = XCUIApplication(bundleIdentifier: "com.apple.mobilesafari")
+        XCTAssertNotEqual(safari.state, .runningForeground)
+        XCTAssertEqual(app.state, .runningForeground)
+    }
 }

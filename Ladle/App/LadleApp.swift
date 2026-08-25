@@ -242,6 +242,13 @@ struct LadleApp: App {
         _libraryViewModel = State(
             initialValue: LibraryViewModel(
                 repository: environment.recipeRepository,
+                shuffleRecipeIDs: runtimeConfiguration.usesInMemoryStore
+                    ? { ids in
+                        ids.sorted {
+                            $0.uuidString < $1.uuidString
+                        }
+                    }
+                    : { $0.shuffled() },
                 didMutate: {
                     try? await syncService?.synchronize()
                 }

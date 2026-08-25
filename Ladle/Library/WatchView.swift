@@ -8,6 +8,8 @@ struct WatchView: View {
     let openAccount: () -> Void
 
     @State private var cookingViewModel: CookingViewModel?
+    @State private var playingRecipeID: UUID?
+    @State private var visibleRecipeID: UUID?
 
     var body: some View {
         Group {
@@ -20,6 +22,13 @@ struct WatchView: View {
                             WatchRecipePage(
                                 recipe: recipe,
                                 viewportSize: viewportSize,
+                                isVideoPlaying: playingRecipeID == recipe.id,
+                                playVideo: {
+                                    playingRecipeID = recipe.id
+                                },
+                                stopVideo: {
+                                    playingRecipeID = nil
+                                },
                                 openRecipe: { openRecipe(recipe) },
                                 openAccount: openAccount,
                                 startCooking: {
@@ -34,18 +43,28 @@ struct WatchView: View {
                                 }
                             )
                             .clipped()
+                            .id(recipe.id)
                         }
                     }
                     .scrollTargetLayout()
                 }
                 .scrollIndicators(.hidden)
                 .scrollTargetBehavior(.paging)
+                .scrollPosition(id: $visibleRecipeID)
                 .ignoresSafeArea()
+                .onChange(of: visibleRecipeID) { _, recipeID in
+                    if playingRecipeID != recipeID {
+                        playingRecipeID = nil
+                    }
+                }
             }
         }
         .background(LadleTheme.plum)
         .fullScreenCover(item: $cookingViewModel) {
             FullRecipeView(viewModel: $0)
+        }
+        .onDisappear {
+            playingRecipeID = nil
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("library.watch.root")
@@ -85,14 +104,33 @@ struct WatchView: View {
 private struct WatchRecipePage: View {
     let recipe: Recipe
     let viewportSize: CGSize
+    let isVideoPlaying: Bool
+    let playVideo: () -> Void
+    let stopVideo: () -> Void
     let openRecipe: () -> Void
     let openAccount: () -> Void
     let startCooking: () -> Void
     let toggleFavorite: () -> Void
 
-    @State private var isVideoPresented = false
-
     var body: some View {
+        Group {
+            if isVideoPlaying {
+                videoLayout
+            } else {
+                posterLayout
+            }
+        }
+        .frame(width: viewportSize.width, height: viewportSize.height)
+        .background(LadleTheme.plum)
+        .recipeContextMenu(
+            recipe: recipe,
+            openRecipe: openRecipe,
+            toggleFavorite: toggleFavorite
+        )
+        .sensoryFeedback(.selection, trigger: recipe.isFavorite)
+    }
+
+    private var posterLayout: some View {
         ZStack {
             WatchRecipeImage(recipe: recipe)
                 .frame(
@@ -103,7 +141,7 @@ private struct WatchRecipePage: View {
                 .accessibilityHidden(true)
 
             Button {
-                isVideoPresented = true
+                playVideo()
             } label: {
                 Image(systemName: "play.fill")
                     .font(.system(size: 23, weight: .bold))
@@ -128,20 +166,59 @@ private struct WatchRecipePage: View {
                 height: viewportSize.height
             )
         }
-        .frame(width: viewportSize.width, height: viewportSize.height)
-        .background(LadleTheme.plum)
-        .recipeContextMenu(
-            recipe: recipe,
-            openRecipe: openRecipe,
-            toggleFavorite: toggleFavorite
-        )
-        .sheet(isPresented: $isVideoPresented) {
-            VideoEmbedSheet(recipe: recipe)
-        }
-        .sensoryFeedback(.selection, trigger: recipe.isFavorite)
     }
 
-    private func topBar(topInset: CGFloat) -> some View {
+    private var videoLayout: some View {
+        VStack(spacing: 0) {
+            topBar(topInset: 48, showsCloseVideo: true)
+            playerStage
+            recipePanel(bottomInset: 88)
+        }
+        .background(.black)
+    }
+
+    private var playerStage: some View {
+        GeometryReader { proxy in
+            let size = fittedPlayerSize(in: proxy.size)
+            InlineVideoPlayer(recipe: recipe)
+                .frame(width: size.width, height: size.height)
+                .clipShape(
+                    RoundedRectangle(
+                        cornerRadius: LadleTheme.Corner.card,
+                        style: .continuous
+                    )
+                )
+                .position(
+                    x: proxy.size.width / 2,
+                    y: proxy.size.height / 2
+                )
+        }
+        .padding(.horizontal, LadleTheme.Spacing.regular)
+        .padding(.vertical, LadleTheme.Spacing.compact)
+        .background(.black)
+    }
+
+    private func fittedPlayerSize(in available: CGSize) -> CGSize {
+        let aspectRatio: CGFloat = recipe.source == .youtube
+            ? 16 / 9
+            : 9 / 16
+        let availableRatio = available.width / max(available.height, 1)
+        if availableRatio > aspectRatio {
+            return CGSize(
+                width: available.height * aspectRatio,
+                height: available.height
+            )
+        }
+        return CGSize(
+            width: available.width,
+            height: available.width / aspectRatio
+        )
+    }
+
+    private func topBar(
+        topInset: CGFloat,
+        showsCloseVideo: Bool = false
+    ) -> some View {
         HStack(spacing: LadleTheme.Spacing.medium) {
             Text("Watch")
                 .ladleFont(.section)
@@ -151,6 +228,16 @@ private struct WatchRecipePage: View {
                 .background(.black.opacity(0.56), in: Capsule())
 
             Spacer()
+
+            if showsCloseVideo {
+                LadleIconButton(
+                    systemImage: "xmark",
+                    accessibilityLabel: "Close video",
+                    tone: .onDark,
+                    action: stopVideo
+                )
+                .background(.black.opacity(0.48), in: Circle())
+            }
 
             LadleIconButton(
                 systemImage: "person.crop.circle",

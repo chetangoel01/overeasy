@@ -8,7 +8,7 @@ enum PreviewFixtures {
         makeRecipe(
             id: "B54D0E5B-8B10-410F-ADE7-7B0F12F94E01",
             title: "Crispy Chili Oil Smash Burgers",
-            creator: "@pepperandpan",
+            creator: "@chebbo",
             source: .tiktok,
             slug: "smash-burgers",
             imageName: "RecipeBurger",
@@ -27,7 +27,7 @@ enum PreviewFixtures {
         makeRecipe(
             id: "B54D0E5B-8B10-410F-ADE7-7B0F12F94E03",
             title: "15-Minute Garlic Butter Udon",
-            creator: "@noodlehouse",
+            creator: "@iankyo",
             source: .tiktok,
             slug: "garlic-udon",
             imageName: "RecipeUdon",
@@ -37,7 +37,7 @@ enum PreviewFixtures {
         makeRecipe(
             id: "B54D0E5B-8B10-410F-ADE7-7B0F12F94E04",
             title: "Sheet-Pan Gochujang Chicken",
-            creator: "June's Kitchen",
+            creator: "JZ Eats",
             source: .youtube,
             slug: "gochujang-chicken",
             imageName: "RecipeChicken",
@@ -55,7 +55,7 @@ enum PreviewFixtures {
         makeRecipe(
             id: "B54D0E5B-8B10-410F-ADE7-7B0F12F94E06",
             title: "Brown Butter Miso Cookies",
-            creator: "@bakeslow",
+            creator: "@iramsfoodstory",
             source: .tiktok,
             slug: "miso-cookies",
             imageName: "RecipeCookies",
@@ -110,7 +110,7 @@ enum PreviewFixtures {
             description: content.description,
             creatorName: creator,
             source: source,
-            originalURL: URL(string: "https://example.com/\(slug)")!,
+            originalURL: previewVideoURL(for: slug),
             images: [RecipeImage(localName: imageName)],
             preparationMinutes: min(10, minutes),
             cookingMinutes: max(minutes - 10, 0),
@@ -125,6 +125,24 @@ enum PreviewFixtures {
             ),
             updatedAt: baseDate
         )
+    }
+
+    private static func previewVideoURL(for slug: String) -> URL {
+        let value = switch slug {
+        case "smash-burgers":
+            "https://www.tiktok.com/@chebbo/video/7364345055881989392"
+        case "garlic-udon":
+            "https://www.tiktok.com/@iankyo/video/7436430114910506271"
+        case "miso-cookies":
+            "https://www.tiktok.com/@iramsfoodstory/video/7445012169432763690"
+        case "lemon-orzo", "ricotta-toast":
+            "https://www.instagram.com/reel/DbbHIKHM3xr/"
+        case "gochujang-chicken":
+            "https://www.youtube.com/shorts/Cb0wIOhTQsE"
+        default:
+            "https://example.com/\(slug)"
+        }
+        return URL(string: value)!
     }
 
     private static func nutrition(

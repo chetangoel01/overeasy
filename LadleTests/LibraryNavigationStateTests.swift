@@ -114,4 +114,50 @@ final class LibraryNavigationStateTests: XCTestCase {
         XCTAssertEqual(presentation.openTitle, "Open Recipe")
         XCTAssertEqual(presentation.favoriteTitle, "Add to Favorites")
     }
+
+    func testVideoEmbedBuildsInlinePlayerURLsForEveryVideoSource() {
+        XCTAssertEqual(
+            VideoEmbed.embedURL(
+                for: URL(
+                    string: "https://www.tiktok.com/@cook/video/7612708181004799263"
+                )!,
+                source: .tiktok
+            ),
+            URL(
+                string:
+                    "https://www.tiktok.com/player/v1/7612708181004799263?controls=1&rel=0&native_context_menu=0"
+            )
+        )
+        XCTAssertEqual(
+            VideoEmbed.embedURL(
+                for: URL(
+                    string: "https://www.youtube.com/watch?v=M7lc1UVf-VE"
+                )!,
+                source: .youtube
+            ),
+            URL(
+                string:
+                    "https://www.youtube.com/embed/M7lc1UVf-VE?playsinline=1&enablejsapi=1&rel=0"
+            )
+        )
+        XCTAssertEqual(
+            VideoEmbed.embedURL(
+                for: URL(
+                    string: "https://www.instagram.com/reel/DbbHIKHM3xr/"
+                )!,
+                source: .instagram
+            ),
+            URL(
+                string:
+                    "https://www.instagram.com/reel/DbbHIKHM3xr/embed/"
+            )
+        )
+    }
+
+    func testVideoEmbedNeverFallsBackToTheOriginalBrowserPage() {
+        var recipe = PreviewFixtures.recipes[0]
+        recipe.originalURL = URL(string: "https://example.com/not-a-video")!
+
+        XCTAssertNil(VideoEmbed.url(for: recipe))
+    }
 }
