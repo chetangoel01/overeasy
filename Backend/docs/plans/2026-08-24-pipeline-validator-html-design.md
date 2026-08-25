@@ -52,6 +52,14 @@ back to another model. The helper pins extraction and verification to
   desktop and mobile widths, and inspect screenshots for overflow, hierarchy,
   loading, success, and error states.
 
+The in-app browser refused loopback navigation under its URL security policy,
+so the visual screenshot portion could not be performed in-session. The final
+verification instead exercised the loopback server over HTTP, completed a demo
+job through the real JSON admission/polling boundary, syntax-checked both
+inline JavaScript programs, and retained explicit responsive, reduced-motion,
+focus, and semantic page-contract assertions. Manual visual inspection remains
+available by running the launch command below in a normal local browser.
+
 ## Implementation record
 
 The localhost job service is covered by eight focused unit tests. The tests
