@@ -45,31 +45,73 @@ _UNIT_ALIASES = {
 _QUANTUM = Decimal("0.1")
 
 
+class NutritionCalculationUnavailable(Exception):
+    """A deterministic nutrition calculation could not be completed."""
+
+    def __init__(
+        self,
+        code: str,
+        *,
+        ingredient_index: int | None = None,
+        ingredient_name: str | None = None,
+    ) -> None:
+        self.code = code
+        self.ingredient_index = ingredient_index
+        self.ingredient_name = ingredient_name
+        location = (
+            f" for ingredient {ingredient_index} ({ingredient_name})"
+            if ingredient_index is not None and ingredient_name is not None
+            else ""
+        )
+        super().__init__(f"{code}{location}")
+
+
 class NutritionCalculator:
     def __init__(self, source: FoodDataSource) -> None:
         self._source = source
 
     def calculate(self, template: RecipeTemplate) -> TemplateNutrition | None:
+        try:
+            return self.calculate_required(template)
+        except NutritionCalculationUnavailable:
+            return None
+
+    def calculate_required(self, template: RecipeTemplate) -> TemplateNutrition:
         if (
             template.nutrition is not None
             and template.nutrition.basis == "creatorStated"
         ):
             return template.nutrition
-        if template.servings_basis != "stated" or template.servings <= 0:
-            return None
+        if (
+            template.servings_basis not in {"stated", "estimatedFromYield"}
+            or template.servings <= 0
+        ):
+            raise NutritionCalculationUnavailable("invalidYield")
 
         totals = [Decimal(0), Decimal(0), Decimal(0), Decimal(0)]
         food_ids: list[int] = []
-        material = [value for value in template.ingredients if not value.is_to_taste]
+        material = [
+            (index, value)
+            for index, value in enumerate(template.ingredients)
+            if not value.is_to_taste and not value.exclude_from_nutrition
+        ]
         if not material:
-            return None
-        for ingredient in material:
-            food = self._food(ingredient)
-            if food is None or not _consistent(food):
-                return None
+            raise NutritionCalculationUnavailable("noMaterialIngredients")
+        for index, ingredient in material:
+            food = self._food_required(ingredient, index=index)
+            if not _consistent(food):
+                raise NutritionCalculationUnavailable(
+                    "inconsistentNutrients",
+                    ingredient_index=index,
+                    ingredient_name=ingredient.name,
+                )
             grams = _grams(ingredient, food.portions)
             if grams is None or grams <= 0:
-                return None
+                raise NutritionCalculationUnavailable(
+                    "missingMass",
+                    ingredient_index=index,
+                    ingredient_name=ingredient.name,
+                )
             scale = grams / Decimal(100)
             values = (
                 food.calories_per_100g,
@@ -99,13 +141,26 @@ class NutritionCalculator:
             evidence=evidence,
         )
 
-    def _food(self, ingredient: TemplateIngredient) -> FoodNutrients | None:
+    def _food_required(
+        self,
+        ingredient: TemplateIngredient,
+        *,
+        index: int,
+    ) -> FoodNutrients:
         query = ingredient.usda_search_term
         if query is None:
-            return None
+            raise NutritionCalculationUnavailable(
+                "foodNotFound",
+                ingredient_index=index,
+                ingredient_name=ingredient.name,
+            )
         query_tokens = set(_tokens(query))
         if not query_tokens:
-            return None
+            raise NutritionCalculationUnavailable(
+                "foodNotFound",
+                ingredient_index=index,
+                ingredient_name=ingredient.name,
+            )
         ranked: list[tuple[tuple[int, int, int], FoodNutrients]] = []
         normalized_query = " ".join(_tokens(query))
         for candidate in self._source.candidates(query):
@@ -121,9 +176,17 @@ class NutritionCalculator:
             ranked.append((rank, candidate))
         ranked.sort(key=lambda value: (value[0], value[1].fdc_id))
         if not ranked:
-            return None
+            raise NutritionCalculationUnavailable(
+                "foodNotFound",
+                ingredient_index=index,
+                ingredient_name=ingredient.name,
+            )
         if len(ranked) > 1 and ranked[0][0] == ranked[1][0]:
-            return None
+            raise NutritionCalculationUnavailable(
+                "ambiguousFoodMatch",
+                ingredient_index=index,
+                ingredient_name=ingredient.name,
+            )
         return ranked[0][1]
 
 

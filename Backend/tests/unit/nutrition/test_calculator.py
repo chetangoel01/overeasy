@@ -4,7 +4,10 @@ from decimal import Decimal
 import pytest
 
 from ladle.contracts.recipes import RecipeReviewStatus, RecipeSource
-from ladle.nutrition.calculator import NutritionCalculator
+from ladle.nutrition.calculator import (
+    NutritionCalculationUnavailable,
+    NutritionCalculator,
+)
 from ladle.nutrition.usda import FoodNutrients, FoodPortion
 from ladle.recipes.template_clone import (
     RecipeTemplate,
@@ -72,6 +75,7 @@ def ingredient(
     metric_amount: str | None = "200",
     metric_unit: str | None = "g",
     is_to_taste: bool = False,
+    exclude_from_nutrition: bool = False,
     order_index: int = 0,
 ) -> TemplateIngredient:
     return TemplateIngredient.model_validate(
@@ -84,6 +88,7 @@ def ingredient(
             "metric_unit": metric_unit,
             "usda_search_term": query,
             "is_to_taste": is_to_taste,
+            "exclude_from_nutrition": exclude_from_nutrition,
             "order_index": order_index,
         }
     )
@@ -214,6 +219,13 @@ def test_equally_specific_generic_matches_are_ambiguous() -> None:
 
     assert NutritionCalculator(source).calculate(recipe([value])) is None
 
+    with pytest.raises(NutritionCalculationUnavailable) as error:
+        NutritionCalculator(source).calculate_required(recipe([value]))
+
+    assert error.value.code == "ambiguousFoodMatch"
+    assert error.value.ingredient_index == 0
+    assert error.value.ingredient_name == "rice"
+
 
 @pytest.mark.parametrize(
     "value",
@@ -231,16 +243,27 @@ def test_missing_material_mass_returns_no_nutrition(
     assert NutritionCalculator(source).calculate(recipe([value])) is None
 
 
-def test_unknown_or_estimated_servings_are_not_used_for_division() -> None:
+def test_estimated_servings_are_used_for_division() -> None:
     source = Foods({"chickpeas drained": [food()]})
 
-    for basis in ("unknown", "estimatedFromYield"):
-        assert (
-            NutritionCalculator(source).calculate(
-                recipe([ingredient()], servings_basis=basis)
-            )
-            is None
+    result = NutritionCalculator(source).calculate(
+        recipe([ingredient()], servings_basis="estimatedFromYield")
+    )
+
+    assert result is not None
+    assert result.calories == Decimal("70.0")
+
+
+def test_unknown_servings_exposes_diagnostic() -> None:
+    calculator = NutritionCalculator(Foods({"chickpeas drained": [food()]}))
+
+    with pytest.raises(NutritionCalculationUnavailable) as error:
+        calculator.calculate_required(
+            recipe([ingredient()], servings_basis="unknown")
         )
+
+    assert error.value.code == "invalidYield"
+    assert error.value.ingredient_index is None
 
 
 def test_to_taste_ingredient_is_excluded_without_a_lookup() -> None:
@@ -262,8 +285,30 @@ def test_to_taste_ingredient_is_excluded_without_a_lookup() -> None:
     assert source.calls == ["chickpeas drained"]
 
 
+def test_explicitly_excluded_water_is_not_looked_up() -> None:
+    water = ingredient(
+        name="water",
+        query="water",
+        exclude_from_nutrition=True,
+        order_index=1,
+    )
+    source = Foods({"chickpeas drained": [food()]})
+
+    result = NutritionCalculator(source).calculate(recipe([ingredient(), water]))
+
+    assert result is not None
+    assert source.calls == ["chickpeas drained"]
+
+
 def test_missing_food_match_returns_no_nutrition() -> None:
     assert NutritionCalculator(Foods({})).calculate(recipe([ingredient()])) is None
+
+    with pytest.raises(NutritionCalculationUnavailable) as error:
+        NutritionCalculator(Foods({})).calculate_required(recipe([ingredient()]))
+
+    assert error.value.code == "foodNotFound"
+    assert error.value.ingredient_index == 0
+    assert error.value.ingredient_name == "chickpeas"
 
 
 def test_gross_calorie_macro_inconsistency_is_rejected() -> None:
@@ -271,3 +316,26 @@ def test_gross_calorie_macro_inconsistency_is_rejected() -> None:
     source = Foods({"chickpeas drained": [inconsistent]})
 
     assert NutritionCalculator(source).calculate(recipe([ingredient()])) is None
+
+    with pytest.raises(NutritionCalculationUnavailable) as error:
+        NutritionCalculator(source).calculate_required(recipe([ingredient()]))
+
+    assert error.value.code == "inconsistentNutrients"
+    assert error.value.ingredient_index == 0
+
+
+def test_missing_mass_exposes_ingredient_diagnostic() -> None:
+    value = ingredient(
+        quantity=None,
+        unit=None,
+        metric_amount=None,
+        metric_unit=None,
+    )
+    calculator = NutritionCalculator(Foods({"chickpeas drained": [food()]}))
+
+    with pytest.raises(NutritionCalculationUnavailable) as error:
+        calculator.calculate_required(recipe([value]))
+
+    assert error.value.code == "missingMass"
+    assert error.value.ingredient_index == 0
+    assert error.value.ingredient_name == "chickpeas"

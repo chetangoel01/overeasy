@@ -148,6 +148,24 @@ def test_stated_servings_and_raw_quantities_are_protected() -> None:
     assert result.servings_confidence == 1
 
 
+def test_explicit_normalizer_exclusions_are_applied_for_calculation() -> None:
+    value = response().model_copy(
+        update={
+            "ingredients": response().ingredients[:1],
+            "excluded_ingredient_indexes": [1],
+        }
+    )
+
+    result = normalizer(value).normalize(
+        template(servings="1", basis="estimatedFromYield"),
+        context=context(),
+        job_id=uuid4(),
+    )
+
+    assert result.template.ingredients[1].exclude_from_nutrition
+    assert not result.template.ingredients[0].exclude_from_nutrition
+
+
 @pytest.mark.parametrize(
     "value",
     [

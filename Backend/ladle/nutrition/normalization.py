@@ -247,11 +247,16 @@ class RecipeNutritionNormalizer:
             ) from error
 
         by_index = {item.ingredient_index: item for item in value.ingredients}
+        excluded = set(value.excluded_ingredient_indexes)
         ingredients = []
         for index, ingredient in enumerate(template.ingredients):
             normalized = by_index.get(index)
             if normalized is None:
-                ingredients.append(ingredient)
+                ingredients.append(
+                    ingredient.model_copy(
+                        update={"exclude_from_nutrition": index in excluded}
+                    )
+                )
                 continue
             uncertainty = ingredient.uncertainty
             if normalized.was_inferred:
@@ -265,6 +270,7 @@ class RecipeNutritionNormalizer:
                         "metric_amount": normalized.grams,
                         "metric_unit": "g",
                         "usda_search_term": normalized.usda_search_term,
+                        "exclude_from_nutrition": False,
                         "uncertainty": uncertainty,
                     }
                 )

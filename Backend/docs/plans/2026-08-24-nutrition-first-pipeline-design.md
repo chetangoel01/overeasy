@@ -54,7 +54,7 @@ USDA-friendly food names. USDA remains the source of calories and macros.
 3. Run the Gemini 3.7 normalization pass for recipes without a complete creator
    panel. Give it the creator evidence plus the reviewed recipe template.
 4. Return one record per ingredient keyed by ingredient index, including a
-   simple USDA search term, normalized grams or milliliters, whether the value
+   simple USDA search term, normalized grams, whether the value
    was inferred, and a concise rationale. Return yield, confidence, rationale,
    and a bounded list of assumptions.
 5. Preserve creator-stated amounts and yield. Model values fill missing
@@ -112,3 +112,15 @@ USDA-friendly food names. USDA remains the source of calories and macros.
 - Run the five preserved real-link cases once against the approved normalizer
   and USDA path. Report per-serving and whole-recipe values, confidence,
   assumptions, latency, and spend; do not invent labeled reference answers.
+
+## Implementation record
+
+- The normalization boundary now has a strict schema, protects stated facts,
+  requires complete material-ingredient coverage, persists explicit exclusions,
+  and records inferred quantity uncertainty.
+- The OpenRouter adapter is pinned by default to Gemini 3.7 Flash, requests no
+  nutrient totals, records usage, and permits one retry only for HTTP 429.
+- The USDA calculator now accepts `estimatedFromYield` and exposes stable
+  ingredient-level blockers for missing or ambiguous food matches, missing
+  mass, inconsistent nutrient records, and invalid yield. Its compatibility
+  method still returns `None` for callers that have not adopted diagnostics.

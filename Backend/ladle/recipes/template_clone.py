@@ -39,6 +39,7 @@ class TemplateIngredient(WireModel):
     metric_unit: Literal["g", "ml"] | None = None
     usda_search_term: str | None = Field(default=None, min_length=1)
     is_to_taste: bool = False
+    exclude_from_nutrition: bool = False
     order_index: int = Field(ge=0)
     uncertainty: FieldUncertaintyDTO | None = None
 
