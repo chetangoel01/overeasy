@@ -118,19 +118,84 @@ private struct EmbedNavigationDecider: WebPage.NavigationDeciding {
     ]
 }
 
+private enum EmbeddedMediaControl {
+    static let observerScript = """
+        (() => {
+            if (window.__ladleMediaControlsInstalled) return;
+            window.__ladleMediaControlsInstalled = true;
+
+            let muted = false;
+            const applyMutedState = () => {
+                document.querySelectorAll('video, audio').forEach((media) => {
+                    media.muted = muted;
+                    media.defaultMuted = muted;
+                });
+            };
+            const forwardToChildFrames = (message) => {
+                document.querySelectorAll('iframe').forEach((frame) => {
+                    frame.contentWindow?.postMessage(message, '*');
+                });
+            };
+
+            window.addEventListener('message', (event) => {
+                const message = event.data;
+                if (message?.source !== 'ladle'
+                    || message.command !== 'set-muted') return;
+                muted = Boolean(message.muted);
+                applyMutedState();
+                forwardToChildFrames(message);
+            });
+
+            new MutationObserver(applyMutedState).observe(
+                document.documentElement,
+                { childList: true, subtree: true }
+            );
+            applyMutedState();
+        })();
+        """
+
+    static let setMutedScript = """
+        const message = {
+            source: 'ladle',
+            command: 'set-muted',
+            muted: Boolean(muted)
+        };
+        window.postMessage(message, '*');
+        document.querySelectorAll('iframe').forEach((frame) => {
+            frame.contentWindow?.postMessage(message, '*');
+        });
+        """
+}
+
 @MainActor
 struct InlineVideoPlayer: View {
     @Environment(\.scenePhase) private var scenePhase
 
     let recipe: Recipe
+    let isPaused: Bool
+    let isMuted: Bool
 
     @State private var page: WebPage
+    @State private var didLoad = false
 
-    init(recipe: Recipe) {
+    init(
+        recipe: Recipe,
+        isPaused: Bool = false,
+        isMuted: Bool = false
+    ) {
         self.recipe = recipe
+        self.isPaused = isPaused
+        self.isMuted = isMuted
         var configuration = WebPage.Configuration()
         configuration.mediaPlaybackBehavior = .allowsInlinePlayback
         configuration.allowsAirPlayForMediaPlayback = true
+        configuration.userContentController.addUserScript(
+            WKUserScript(
+                source: EmbeddedMediaControl.observerScript,
+                injectionTime: .atDocumentStart,
+                forMainFrameOnly: false
+            )
+        )
         _page = State(
             initialValue: WebPage(
                 configuration: configuration,
@@ -149,16 +214,30 @@ struct InlineVideoPlayer: View {
                     )
                     .overlay {
                         if page.isLoading {
-                            ProgressView()
-                                .tint(LadleTheme.onAccent)
-                                .padding(18)
-                                .background(.black.opacity(0.66), in: Circle())
-                                .allowsHitTesting(false)
-                                .accessibilityIdentifier("watch.player.loading")
+                            ZStack {
+                                Color.black
+
+                                ProgressView()
+                                    .tint(LadleTheme.onAccent)
+                                    .padding(18)
+                                    .background(
+                                        .black.opacity(0.66),
+                                        in: Circle()
+                                    )
+                                    .accessibilityIdentifier(
+                                        "watch.player.loading"
+                                    )
+                            }
+                            .allowsHitTesting(false)
                         }
                     }
                     .onAppear {
-                        page.load(URLRequest(url: url))
+                        if !didLoad {
+                            didLoad = true
+                            page.load(URLRequest(url: url))
+                        }
+                        updatePlaybackSuspension()
+                        applyMutedState()
                     }
             } else {
                 ContentUnavailableView(
@@ -172,17 +251,43 @@ struct InlineVideoPlayer: View {
             }
         }
         .background(.black)
-        .onChange(of: scenePhase) { _, phase in
-            setPlaybackSuspended(phase != .active)
+        .onChange(of: page.isLoading) { _, isLoading in
+            guard !isLoading else { return }
+            updatePlaybackSuspension()
+            applyMutedState()
+        }
+        .onChange(of: isPaused) { _, _ in
+            updatePlaybackSuspension()
+        }
+        .onChange(of: isMuted) { _, _ in
+            applyMutedState()
+        }
+        .onChange(of: scenePhase) { _, _ in
+            updatePlaybackSuspension()
         }
         .onDisappear {
             setPlaybackSuspended(true)
         }
     }
 
+    private func updatePlaybackSuspension() {
+        setPlaybackSuspended(
+            isPaused || scenePhase != .active
+        )
+    }
+
     private func setPlaybackSuspended(_ suspended: Bool) {
         Task {
             await page.setAllMediaPlaybackSuspended(suspended)
+        }
+    }
+
+    private func applyMutedState() {
+        Task {
+            _ = try? await page.callJavaScript(
+                EmbeddedMediaControl.setMutedScript,
+                arguments: ["muted": isMuted]
+            )
         }
     }
 }

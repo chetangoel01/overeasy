@@ -17,7 +17,8 @@ SwiftData persistence layer and a separate `LadleCore` domain package.
   states
 - Discover from aggregate saves of public recipe-video sources
 - Full-screen, shuffled Watch feed with inline TikTok, Instagram, and YouTube
-  playback, creator attribution, and vertical paging
+  playback, native pause and mute controls, creator attribution, and vertical
+  paging
 - Creator-account attribution in the Import Inbox
 - Search, sorting, filters, grid/list display, and favorites
 - Structured recipe detail, editing, and safe re-import

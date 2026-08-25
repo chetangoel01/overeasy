@@ -5,17 +5,19 @@ Date: August 25, 2026
 ## Purpose
 
 Keep saved TikTok, Instagram, and YouTube videos inside the Watch experience.
-Pressing Play must not present a browser or a browser-like sheet.
+Entering Watch must present the active provider player without a separate Ladle
+Play step or a browser-like sheet.
 
 ## User-visible behavior
 
-- Play replaces the current recipe artwork with a full-bleed platform player in
-  the same vertically paged Watch screen.
-- The Watch title, close and account controls, recipe attribution and actions,
-  and floating tab bar remain native and visible over the player. Top and
-  bottom scrims keep that chrome readable without shrinking the video.
-- Closing the player restores the poster. Paging to another recipe removes the
-  prior player, and backgrounding the app suspends its media.
+- The visible recipe starts with a full-bleed platform player in the vertically
+  paged Watch screen. A provider may still require its own first Play gesture.
+- The Watch title, Pause or Resume, Mute or Unmute, and account controls, recipe
+  attribution and actions, and floating tab bar remain native and visible over
+  the player. Top and bottom scrims keep that chrome readable without shrinking
+  the video.
+- Mute state follows the user across recipes. Paging removes and suspends the
+  prior player; backgrounding the app suspends the active player.
 - Provider links and unsupported main-frame navigations are cancelled. A saved
   URL without a supported video identifier shows an unavailable state instead
   of opening the original social page.
@@ -27,6 +29,9 @@ Pressing Play must not present a browser or a browser-like sheet.
   a stable raw-media contract suitable for `AVPlayer`.
 - Only the active recipe creates a web view. This preserves the native paging
   gesture and avoids keeping a player alive in every lazy feed cell.
+- Pause and Resume use WebKit's reversible media suspension. Mute and Unmute use
+  a small all-frame media bridge so the same controls work across the supported
+  provider embeds without navigating away from Watch.
 - Every provider owns the full viewport and preserves its own media aspect
   treatment. TikTok's redundant transport controls are hidden individually so
   its center Play and engagement rail remain without colliding with recipe
@@ -55,13 +60,16 @@ Pressing Play must not present a browser or a browser-like sheet.
 - `LibraryNavigationStateTests` verifies platform-player URLs for TikTok,
   YouTube, and Instagram and verifies that unsupported URLs never fall back to
   the browser page.
-- `testWatchPlaysVideoInlineWithoutOpeningSafari` taps Watch Play, finds the
-  in-app web view and native close control, confirms the player matches the full
-  app frame, confirms Mobile Safari is not foregrounded, and verifies that an
-  upward swipe still advances to a different recipe.
+- `testWatchDefaultsToInlinePlayerWithPlaybackControls` enters Watch and finds
+  the in-app player without tapping a Ladle Play button, confirms it matches the
+  full app frame, exercises Pause or Resume and Mute or Unmute, confirms Mobile
+  Safari is not foregrounded, and verifies that an upward swipe advances to a
+  different recipe.
 - The iPhone 17 Pro simulator screenshot was visually inspected at 402 by 874
-  points. The TikTok player fills Watch edge to edge while the compact native
-  title, recipe actions, and tab bar remain legible over the video.
+  points. The TikTok player is the default edge-to-edge Watch surface; native
+  Pause or Resume, Mute or Unmute, recipe actions, and the tab bar remain
+  legible over the video. A dark loading surface prevents a white provider-page
+  flash before the embed finishes loading.
 - The live TikTok Player for Web, YouTube embed, and Instagram reel embed used
   by the fixtures each returned HTTP 200 during verification.
 - The focused unit and no-Safari UI tests pass on the iPhone 17 Pro iOS 26.5
