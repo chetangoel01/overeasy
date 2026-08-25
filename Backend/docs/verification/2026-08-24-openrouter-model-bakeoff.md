@@ -2,18 +2,25 @@
 
 ## Outcome
 
-`google/gemini-3.7-flash` is the quality and value winner and is now Ladle's
-default OpenRouter extraction model. Across two clean 80-recipe runs it kept
-100% schema validity, 95% whole-recipe nutrition accuracy, 100% stated cook-time
-accuracy, and 67.5–70% exact ordered-step phrase recall. The average reported
-run cost was $1.2403, or about $0.0155 per successful recipe, with a 7.3-second
-median latency.
+`google/gemini-3.7-flash` is the best new challenger, but it does not replace
+the incumbent `google/gemini-3.6-flash`. Across two clean 80-recipe runs, 3.7
+kept 100% schema validity, 95% whole-recipe nutrition accuracy, 100% stated
+cook-time accuracy, and 67.5–70% exact ordered-step phrase recall. The
+protocol-compatible historical 3.6 run scored 73.75% on that step probe.
+Because the bake-off did not repeat 3.6 under the new accounting runner, a
+production switch is not justified; Ladle retains 3.6 by default.
+
+Gemini 3.7's average reported run cost was $1.2403, or about $0.0155 per
+successful recipe, with a 7.3-second median latency. The historical 3.6
+artifact recorded at least $1.3038 of extraction cost but predates complete
+verification-cost and latency capture, so its end-to-end cost is not directly
+comparable.
 
 Claude Opus 5 is the quality-first fallback when Gemini is unavailable. It was
 schema-reliable but reproduced only 20% exact ordered-step phrase recall while
 costing at least $8.20 per run. Grok 4.6 was also schema-reliable, but its 15%
 step recall, $3.53 cost, and 63.4-second median made it strictly worse than
-Gemini for this source-faithful extraction task.
+Gemini 3.7 for this source-faithful extraction task.
 
 ## Protocol
 
@@ -38,20 +45,24 @@ meaning.
 
 | Model | Clean runs | Gate | Valid | Nutrition | Ingredient | Steps | Cook time | Reported cost/run | Median | p95 |
 |---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Gemini 3.6 Flash (incumbent historical baseline) | 1 | PASS | 100% | 95% | 3.8% | 73.8% | 100% | at least $1.3038* | not recorded | not recorded |
 | Gemini 3.7 Flash | 2 | PASS | 100% | 95% | 5.6% | 68.8% | 100% | $1.2403 | 7.3s | 16.1s |
 | Claude Opus 5 | 2 | PASS | 100% | 95% | 5.0% | 20.0% | 100% | at least $8.20* | 24.4s | 37.1s |
 | Grok 4.6 | 1 | PASS | 100% | 95% | 3.8% | 15.0% | 100% | $3.5274 | 63.4s | 110.4s |
 | Qwen3 235B 2507 | 1 | FAIL | 22.5% | 21.2% | 0% | 61.1%** | 100% | $0.0483* | 3.1s | 26.7s |
 
 \* Provider cost reporting was incomplete, so the value is a lower bound and
-was excluded from price-based selection.
+was excluded from price-based selection. The 3.6 aggregate was reconstructed
+from its saved case-level fields because that artifact predates the new
+`benchmark` summary.
 
 \** Qwen step recall is measured only across its 18 schema-valid cases. Sixty-two
 of 80 cases failed structured output, so it is not a viable candidate.
 
 Gemini's individual clean runs scored 70.0% and 67.5% on ordered-step phrases,
 with costs of $1.2401 and $1.2405. Opus scored exactly 20.0% on both clean runs.
-The repeat evidence therefore supports a stable, material Gemini advantage.
+The repeat evidence therefore supports a stable, material 3.7 advantage over
+the new challengers, but not over the incumbent on step preservation.
 
 ## Operational failures and excluded runs
 
@@ -70,9 +81,10 @@ The repeat evidence therefore supports a stable, material Gemini advantage.
   live spend. The completed 80-case Grok run remains valid evidence, but Grok
   does not have repeat evidence.
 
-These deviations do not change the winner: Gemini has two clean runs, Opus has
-two controls, and Gemini leads Opus by 48.8 percentage points in aggregate
-ordered-step recall while also costing substantially less and returning faster.
+These deviations do not change the challenger result: Gemini 3.7 has two clean
+runs, Opus has two controls, and 3.7 leads Opus by 48.8 percentage points in
+aggregate ordered-step recall while also costing substantially less and
+returning faster. They also do not establish that 3.7 beats Gemini 3.6.
 
 ## Cost accounting
 
@@ -83,8 +95,8 @@ metadata. No further live model calls were made after the user stopped spend.
 
 ## Product behavior and affected components
 
-- `ladle/config.py` and `.env.example` now default extraction and verification
-  to `google/gemini-3.7-flash`.
+- `ladle/config.py` and `.env.example` retain
+  `google/gemini-3.6-flash` as the extraction and verification default.
 - `ladle/extraction/openrouter.py` recovers boundedly from HTTP 429 responses.
 - The evaluator records per-case latency, provider usage/cost, hard-gate
   summaries, and flushed progress markers.
@@ -92,8 +104,8 @@ metadata. No further live model calls were made after the user stopped spend.
   gates, ranks quality lexicographically, and selects value only within the
   quality-equivalence band.
 
-Deployments that explicitly set `LADLE_OPENROUTER_MODEL_ID` keep their override;
-only the default changes.
+Deployments can still opt into 3.7 through `LADLE_OPENROUTER_MODEL_ID`. A default
+switch requires a fresh, repeated 3.6-versus-3.7 head-to-head run.
 
 ## Evidence artifacts
 
@@ -102,6 +114,7 @@ Generated evidence is intentionally ignored by Git and remains under
 
 - `2026-08-24-bakeoff-round1-gemini-3.7-flash.json`
 - `2026-08-24-bakeoff-finalist-repeat2-gemini-3.7-flash.json`
+- `2026-08-24-v11-held-out-regression.json`
 - `2026-08-24-bakeoff-round1-claude-opus-5.json`
 - `2026-08-24-bakeoff-finalist-repeat-claude-opus-5.json`
 - `2026-08-24-bakeoff-round1-grok-4.6.json`

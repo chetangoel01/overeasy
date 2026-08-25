@@ -150,10 +150,10 @@ def test_live_worker_requires_only_its_extraction_provider_key() -> None:
     assert settings.soscripted_api_key is None
 
 
-def test_default_openrouter_model_is_quality_bakeoff_winner() -> None:
+def test_default_openrouter_model_remains_incumbent_until_head_to_head_win() -> None:
     settings = Settings(_env_file=None)
 
-    assert settings.openrouter_model_id == "google/gemini-3.7-flash"
+    assert settings.openrouter_model_id == "google/gemini-3.6-flash"
 
 
 def test_empty_provider_environment_values_are_unconfigured(

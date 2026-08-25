@@ -225,7 +225,7 @@ class Settings(BaseSettings):
     # against three other soy sauce lines. The previous model listed the same
     # four amounts unlabelled and double-counted batter it had already listed.
     # It costs about a quarter more per import; see scripts/measure_cost.py.
-    openrouter_model_id: str = "google/gemini-3.7-flash"
+    openrouter_model_id: str = "google/gemini-3.6-flash"
     # A 35-ingredient recipe with four sub-preparations ran past 8192 and came
     # back truncated, which the extractor can only report as a failed import.
     # Cost is charged per token emitted, not per token allowed, so a headroom
