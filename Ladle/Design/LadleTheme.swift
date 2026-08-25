@@ -1,8 +1,86 @@
 import SwiftUI
+import UIKit
+
+enum LadleAccentColor: String, CaseIterable, Identifiable {
+    case tomato
+    case orange
+    case sage
+    case blue
+    case purple
+
+    static let preferenceKey = "ladle.appearance.accent-color"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .tomato: "Tomato"
+        case .orange: "Orange"
+        case .sage: "Sage"
+        case .blue: "Blue"
+        case .purple: "Purple"
+        }
+    }
+
+    var actionColor: Color {
+        switch self {
+        case .tomato:
+            Color("Brick")
+        case .orange:
+            Self.dynamicColor(light: 0xB85C00, dark: 0xC76600)
+        case .sage:
+            Self.dynamicColor(light: 0x3C7650, dark: 0x47865C)
+        case .blue:
+            Self.dynamicColor(light: 0x2368AD, dark: 0x2A72BC)
+        case .purple:
+            Self.dynamicColor(light: 0x7652A7, dark: 0x805BB2)
+        }
+    }
+
+    var textColor: Color {
+        switch self {
+        case .tomato:
+            Color("AccentText")
+        case .orange:
+            Self.dynamicColor(light: 0xA75000, dark: 0xFFB36A)
+        case .sage:
+            Self.dynamicColor(light: 0x2F6B44, dark: 0x76C98C)
+        case .blue:
+            Self.dynamicColor(light: 0x1D5F9F, dark: 0x72B5FF)
+        case .purple:
+            Self.dynamicColor(light: 0x70489E, dark: 0xC8A7F5)
+        }
+    }
+
+    static func resolve(storedValue: String?) -> Self {
+        Self(rawValue: storedValue ?? "") ?? .tomato
+    }
+
+    private static func dynamicColor(light: Int, dark: Int) -> Color {
+        Color(
+            uiColor: UIColor { traits in
+                UIColor(
+                    rgb: traits.userInterfaceStyle == .dark ? dark : light
+                )
+            }
+        )
+    }
+}
+
+private extension UIColor {
+    convenience init(rgb: Int) {
+        self.init(
+            red: CGFloat((rgb >> 16) & 0xFF) / 255,
+            green: CGFloat((rgb >> 8) & 0xFF) / 255,
+            blue: CGFloat(rgb & 0xFF) / 255,
+            alpha: 1
+        )
+    }
+}
 
 enum LadleTheme {
-    // Porcelain library surfaces, graphite Focus Mode, and a single signal-red
-    // action color. Legacy token names remain while their semantic roles settle.
+    // Porcelain library surfaces, graphite Focus Mode, and a configurable
+    // action accent. Legacy token names remain while their semantic roles settle.
     static let plumHex = "#14181B"
     static let paperHex = "#F2F4F6"
     static let oatHex = "#E3E7EA"
@@ -30,11 +108,11 @@ enum LadleTheme {
     static let oat = Color("Oat")
     static let butter = Color("Butter")
     static let ink = Color("Ink")
-    static let brick = Color("Brick")
+    static var brick: Color { selectedAccent.actionColor }
     static let celery = Color("Celery")
     static let ube = Color("Ube")
     static let mutedInk = Color("MutedInk")
-    static let accentText = Color("AccentText")
+    static var accentText: Color { selectedAccent.textColor }
     static let onAccent = Color(
         red: 250 / 255,
         green: 251 / 255,
@@ -52,9 +130,17 @@ enum LadleTheme {
     )
 
     static let field = oat
-    static let paprika = accentText
+    static var paprika: Color { accentText }
     static let review = ube
     static let success = celery
+
+    private static var selectedAccent: LadleAccentColor {
+        LadleAccentColor.resolve(
+            storedValue: UserDefaults.standard.string(
+                forKey: LadleAccentColor.preferenceKey
+            )
+        )
+    }
 
     enum Spacing {
         static let tight: CGFloat = 4

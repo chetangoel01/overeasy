@@ -3,6 +3,8 @@ import SwiftUI
 struct AccountSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @AppStorage(LadleAccentColor.preferenceKey)
+    private var accentColor = LadleAccentColor.tomato.rawValue
 
     let accountSession: AccountSession
     let library: LibraryViewModel
@@ -24,6 +26,7 @@ struct AccountSheet: View {
                 ) {
                     accountSummary
                     librarySection
+                    appearanceSection
                     privacySection
                     accountActionsSection
                 }
@@ -33,7 +36,7 @@ struct AccountSheet: View {
             }
             .scrollIndicators(.hidden)
             .background(LadleTheme.paper)
-            .navigationTitle("Account")
+            .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -147,6 +150,48 @@ struct AccountSheet: View {
             .buttonStyle(.plain)
             .accessibilityIdentifier("account.privacy")
         }
+    }
+
+    private var appearanceSection: some View {
+        VStack(alignment: .leading, spacing: LadleTheme.Spacing.medium) {
+            LadleSectionHeader(
+                title: "Appearance",
+                detail: "Accent color"
+            )
+
+            HStack(spacing: LadleTheme.Spacing.compact) {
+                ForEach(LadleAccentColor.allCases) { accent in
+                    Button {
+                        accentColor = accent.rawValue
+                    } label: {
+                        ZStack {
+                            Circle()
+                                .fill(accent.actionColor)
+                            if selectedAccent == accent {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundStyle(LadleTheme.onAccent)
+                            }
+                        }
+                        .frame(width: 44, height: 44)
+                        .frame(maxWidth: .infinity)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(LadlePressButtonStyle())
+                    .accessibilityLabel(accent.title)
+                    .accessibilityValue(
+                        selectedAccent == accent ? "Selected" : ""
+                    )
+                }
+            }
+            .padding(LadleTheme.Spacing.medium)
+            .background(LadleTheme.field, in: accountShape)
+            .overlay {
+                accountShape
+                    .stroke(LadleTheme.ink.opacity(0.08), lineWidth: 1)
+            }
+        }
+        .sensoryFeedback(.selection, trigger: accentColor)
     }
 
     private var accountActionsSection: some View {
@@ -378,7 +423,7 @@ struct AccountSheet: View {
             Image(systemName: icon)
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(
-                    isDestructive ? LadleTheme.brick : LadleTheme.ink
+                    isDestructive ? Color.red : LadleTheme.ink
                 )
                 .frame(width: 34, height: 34)
                 .background(LadleTheme.review, in: Circle())
@@ -388,7 +433,7 @@ struct AccountSheet: View {
                 Text(title)
                     .ladleFont(.bodyStrong)
                     .foregroundStyle(
-                        isDestructive ? LadleTheme.brick : LadleTheme.ink
+                        isDestructive ? Color.red : LadleTheme.ink
                     )
                 Text(detail)
                     .ladleFont(.metadata)
@@ -418,6 +463,10 @@ struct AccountSheet: View {
             cornerRadius: LadleTheme.Corner.control,
             style: .continuous
         )
+    }
+
+    private var selectedAccent: LadleAccentColor {
+        LadleAccentColor.resolve(storedValue: accentColor)
     }
 
 }

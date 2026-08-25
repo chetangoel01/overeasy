@@ -6,7 +6,8 @@ Status: approved implementation source of truth
 
 Overeasy should feel like a focused iPhone utility, not a themed recipe app.
 Cool porcelain surfaces recede behind food photography, graphite makes cooking
-calm and legible, and signal red marks actions or items that need attention.
+calm and legible, and a user-selected accent marks actions or active items.
+Signal red remains the default.
 
 ## Scene
 
@@ -21,8 +22,9 @@ familiar. Cooking is high contrast and readable at a glance.
 - Show the object and the action before explaining either one. Instructional
   copy appears only when a consequence or recovery path is not obvious.
 - Food photography is the most saturated element in the library.
-- Signal red appears for primary actions, favorites, active navigation, and
-  attention badges—never as decoration.
+- The selected accent appears for primary actions, favorites, active
+  navigation, and attention badges, never as decoration. Destructive actions
+  continue to use the system destructive role.
 - Use flat or material-backed native surfaces without decorative gradients,
   outlines, or ornamental shadows.
 - Preserve Dynamic Type, VoiceOver, Reduce Motion, and 44-point targets.
@@ -38,16 +40,17 @@ Legacy token names remain in code while their semantic roles settle.
 | Steel | `butter`, `ube` | `#D7DDE2` | `#252A2F` | Inactive and review surfaces |
 | Graphite ink | `ink` | `#14181B` | `#F2F4F5` | Primary text and controls |
 | Graphite ground | `plum` | `#14181B` | `#101214` | Welcome and Focus Mode |
-| Signal red | `brick` | `#EE4B2F` | `#FF674E` | Primary action and active state |
-| Accessible red text | `accentText` | `#C73924` | `#FF7562` | Favorites and tinted icons |
+| Selected accent fill | `brick` | `#EE4B2F` default | `#FF674E` default | Primary action and active state |
+| Accessible accent text | `accentText` | `#C73924` default | `#FF7562` default | Favorites and tinted icons |
 | Sage success | `celery` | `#83A18A` | `#294233` | Success state |
 | Secondary ink | `mutedInk` | `#64707A` | `#A6AFB7` | Metadata |
 | On-signal | `onAccent` | `#FAFBFC` fixed | same | Content on signal red or graphite |
 | Fixed graphite | `fixedInk` | `#14181B` fixed | same | Content on fixed pale surfaces |
 | Focus signal | `focusAccent` | `#FF5A3D` fixed | same | Focus progress and advance action |
 
-Signal-red fills always carry `onAccent`. Errors use the system destructive
-role.
+Accent fills always carry `onAccent`. Settings offers Tomato, Orange, Sage,
+Blue, and Purple. The selected value is local and persistent. Focus Mode keeps
+its fixed `focusAccent`, and errors use the system destructive role.
 
 ## Typography
 
@@ -80,6 +83,8 @@ tracking.
 - Recipes owns the large title, an always-visible search field, compact sort,
   filter, and grid/list controls, an image-led recipe archive, and generated
   collections below the archive.
+- Grid/List is an explicit menu and persists locally. The grid uses adaptive
+  columns with square artwork, then becomes one column for large Dynamic Type.
 - Selecting a tab returns to that workspace root instead of pushing a faux
   destination onto the recipe navigation path.
 - Recipe detail remains a pushed destination. Import and account flows remain
@@ -115,6 +120,8 @@ tracking.
   a passive feature tour.
 - The Share Extension mirrors the porcelain/graphite palette and says only what
   is needed to confirm saving or explain recovery.
+- Recipe processing remains owned by the app when its sheet is dismissed. Close
+  and Keep browsing return to the library without cancelling the durable job.
 
 ## Discover and account
 
@@ -123,17 +130,20 @@ tracking.
   the complete shared extraction as a read-only recipe preview. Saving clones
   that already-resolved extraction into the current account. Neither action
   resubmits the video to the import, transcription, or model pipeline.
+- Discover excludes sources already saved by the current account and removes a
+  row as soon as its direct save completes.
 - Recipe cards and Discover results use the native long-press context menu as
   the modern replacement for 3D Touch. The menu previews the recipe and exposes
   Open plus a non-destructive Save or Favorite action.
-- Account presents the connected provider, saved-recipe count, and sync state.
-  Internal installation identifiers and provider profile details stay hidden.
+- Settings presents accent color, connected provider, saved-recipe count, and
+  sync state. Internal installation identifiers and provider profile details
+  stay hidden.
 
 ## Accessibility and verification
 
 - Test default, extra-large, and accessibility Dynamic Type sizes.
 - Verify light and dark cooking surfaces and VoiceOver labels.
 - Verify 44-point targets and WCAG AA contrast for small text.
-- Capture Recipes, Discover, Watch, Inbox, Account, recipe detail, Focus Mode,
+- Capture Recipes, Discover, Watch, Inbox, Settings, recipe detail, Focus Mode,
   welcome, and Share Extension at the project simulator size before a design
   checkpoint.

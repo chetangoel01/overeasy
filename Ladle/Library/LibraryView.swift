@@ -246,7 +246,7 @@ struct LibraryView: View {
         } label: {
             Image(systemName: "person.crop.circle")
         }
-        .accessibilityLabel("Account")
+        .accessibilityLabel("Settings and account")
     }
 
     private var addRecipeButton: some View {

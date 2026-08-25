@@ -27,8 +27,9 @@ sign-in configuration.
   collections in one archive rather than splitting them across Home and All.
 - Discover ranks public social-recipe sources by aggregate saves from other
   accounts. Rows show creator account, source image, summary, save count, and a
-  Save action that stores the already-resolved recipe immediately. The button
-  shows progress during the request and becomes Saved when complete.
+  Save action that stores the already-resolved recipe immediately. Sources
+  already saved by the current account are excluded, and a newly saved row
+  leaves the feed when the request completes.
 - Tapping a Discover result loads its complete shared recipe and pushes a
   read-only detail screen without saving it. A long press previews Discover and
   saved recipes with native Open and Save/Favorite context-menu actions.
@@ -63,11 +64,12 @@ sign-in configuration.
 normalized source-video record and ranks them by distinct saving accounts. The
 response is rebuilt from the shared extraction cache and contains public source
 metadata plus an aggregate count only. It excludes account IDs, private
-ingredients and steps, user edits, and correction notes. Saving uses the opaque
-source ID to instantiate the ready shared extraction as a new account-owned
-recipe. It does not copy another user's recipe and does not create an import
-job, download media, transcribe audio, or call an extraction model. Repeated
-save requests return the same active account recipe.
+ingredients and steps, user edits, correction notes, and sources already saved
+by the requesting account. Saving uses the opaque source ID to instantiate the
+ready shared extraction as a new account-owned recipe. It does not copy another
+user's recipe and does not create an import job, download media, transcribe
+audio, or call an extraction model. Repeated save requests return the same
+active account recipe.
 
 ## Authentication configuration
 

@@ -48,7 +48,11 @@ struct RecipeOptionsSheet: View {
                             HStack(spacing: 13) {
                                 Image(systemName: option.systemImage)
                                     .font(.system(size: 16, weight: .semibold))
-                                    .foregroundStyle(LadleTheme.paprika)
+                                    .foregroundStyle(
+                                        option == .delete
+                                            ? Color.red
+                                            : LadleTheme.paprika
+                                    )
                                     .frame(width: 36, height: 36)
                                     .background(
                                         LadleTheme.review,

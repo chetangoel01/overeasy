@@ -29,6 +29,25 @@ final class DesignTokenTests: XCTestCase {
         XCTAssertEqual(LadleTheme.focusAccentHex, "#FF5A3D")
     }
 
+    func testAccentPreferenceHasStableChoicesAndFallback() {
+        XCTAssertEqual(
+            LadleAccentColor.allCases.map(\.rawValue),
+            ["tomato", "orange", "sage", "blue", "purple"]
+        )
+        XCTAssertEqual(
+            LadleAccentColor.resolve(storedValue: "blue"),
+            .blue
+        )
+        XCTAssertEqual(
+            LadleAccentColor.resolve(storedValue: "unknown"),
+            .tomato
+        )
+        XCTAssertEqual(
+            LadleAccentColor.resolve(storedValue: nil),
+            .tomato
+        )
+    }
+
     func testSpacingScaleIncreasesPredictably() {
         XCTAssertEqual(LadleTheme.Spacing.compact, 8)
         XCTAssertEqual(LadleTheme.Spacing.regular, 16)

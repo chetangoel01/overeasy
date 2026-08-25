@@ -127,17 +127,37 @@ struct AllRecipesView: View {
             .accessibilityLabel(filterButtonTitle)
             .buttonStyle(LadlePressButtonStyle())
 
-            Button(action: toggleDisplayMode) {
+            Menu {
+                Button {
+                    setDisplayMode(.grid)
+                } label: {
+                    Label(
+                        "Grid",
+                        systemImage: viewModel.displayMode == .grid
+                            ? "checkmark"
+                            : "square.grid.2x2"
+                    )
+                }
+                Button {
+                    setDisplayMode(.list)
+                } label: {
+                    Label(
+                        "List",
+                        systemImage: viewModel.displayMode == .list
+                            ? "checkmark"
+                            : "list.bullet"
+                    )
+                }
+            } label: {
                 controlIcon(
                     viewModel.displayMode == .grid
-                        ? "list.bullet"
-                        : "square.grid.2x2"
+                        ? "square.grid.2x2"
+                        : "list.bullet"
                 )
             }
-            .accessibilityLabel(
-                viewModel.displayMode == .grid
-                    ? "Show recipes as a list"
-                    : "Show recipes as a grid"
+            .accessibilityLabel("Recipe view")
+            .accessibilityValue(
+                viewModel.displayMode == .grid ? "Grid" : "List"
             )
             .buttonStyle(LadlePressButtonStyle())
         }
@@ -271,10 +291,13 @@ struct AllRecipesView: View {
 
     private var columns: [GridItem] {
         dynamicTypeSize >= .xxxLarge
-            ? [GridItem(.flexible())]
+            ? [GridItem(.flexible(), alignment: .top)]
             : [
-                GridItem(.flexible(), spacing: LadleTheme.Spacing.regular),
-                GridItem(.flexible(), spacing: LadleTheme.Spacing.regular),
+                GridItem(
+                    .adaptive(minimum: 150, maximum: 220),
+                    spacing: LadleTheme.Spacing.regular,
+                    alignment: .top
+                ),
             ]
     }
 
@@ -340,9 +363,8 @@ struct AllRecipesView: View {
             .frame(width: 44, height: 44)
     }
 
-    private func toggleDisplayMode() {
-        let mode: LibraryDisplayMode =
-            viewModel.displayMode == .grid ? .list : .grid
+    private func setDisplayMode(_ mode: LibraryDisplayMode) {
+        guard viewModel.displayMode != mode else { return }
         if reduceMotion {
             viewModel.displayMode = mode
         } else {

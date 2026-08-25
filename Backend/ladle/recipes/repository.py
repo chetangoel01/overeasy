@@ -5,7 +5,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import delete, distinct, func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from ladle.contracts.recipes import (
     DetectedTimerDTO,
@@ -71,6 +71,12 @@ class RecipeRepository:
         user_id: UUID,
         limit: int,
     ) -> DiscoverPageDTO:
+        saved_recipe = aliased(Recipe)
+        saved_source_ids = select(saved_recipe.source_video_id).where(
+            saved_recipe.user_id == user_id,
+            saved_recipe.deleted_at.is_(None),
+            saved_recipe.source_video_id.is_not(None),
+        )
         ranked = database.execute(
             select(
                 Recipe.source_video_id,
@@ -84,6 +90,7 @@ class RecipeRepository:
                 Recipe.source != RecipeSource.OTHER.value,
                 Recipe.source_video_id.is_not(None),
                 Recipe.source_cache_id.is_not(None),
+                Recipe.source_video_id.not_in(saved_source_ids),
             )
             .group_by(Recipe.source_video_id)
             .order_by(
@@ -111,16 +118,6 @@ class RecipeRepository:
             )
             if cache is None:
                 continue
-            saved_recipe_id = database.scalar(
-                select(Recipe.id)
-                .where(
-                    Recipe.user_id == user_id,
-                    Recipe.source_video_id == source_video_id,
-                    Recipe.deleted_at.is_(None),
-                )
-                .order_by(Recipe.updated_at.desc(), Recipe.id)
-                .limit(1)
-            )
             template = cache.template_json
             image_url = self.extraction_thumbnail_url(cache)
             items.append(
@@ -133,7 +130,7 @@ class RecipeRepository:
                     original_url=source.canonical_url,
                     image_url=image_url,
                     saved_count=saved_count,
-                    saved_recipe_id=saved_recipe_id,
+                    saved_recipe_id=None,
                 )
             )
         return DiscoverPageDTO(items=items)

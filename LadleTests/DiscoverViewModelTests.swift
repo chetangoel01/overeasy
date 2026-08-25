@@ -15,6 +15,25 @@ final class DiscoverViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.state, .loaded([recipe]))
     }
 
+    func testLoadOmitsRecipesAlreadySavedByTheCurrentCook() async {
+        let unsaved = discoveredRecipe()
+        let saved = discoveredRecipe(
+            sourceID: UUID(
+                uuidString: "90000000-0000-4000-8000-000000000002"
+            )!,
+            savedRecipeID: UUID()
+        )
+        let viewModel = DiscoverViewModel(
+            service: DiscoverTestService(
+                result: .success([saved, unsaved])
+            )
+        )
+
+        await viewModel.load()
+
+        XCTAssertEqual(viewModel.state, .loaded([unsaved]))
+    }
+
     func testLoadOffersRetryWhenDiscoveryFails() async {
         let viewModel = DiscoverViewModel(
             service: DiscoverTestService(result: .failure(TestError.failed))
@@ -37,10 +56,12 @@ final class DiscoverViewModelTests: XCTestCase {
         )
         let viewModel = DiscoverViewModel(service: service)
 
+        await viewModel.load()
         let result = await viewModel.save(recipe)
 
         XCTAssertEqual(result, saved)
         XCTAssertTrue(viewModel.isSaved(recipe))
+        XCTAssertEqual(viewModel.state, .loaded([]))
         XCTAssertEqual(service.savedSourceIDs, [recipe.sourceID])
     }
 
@@ -114,10 +135,13 @@ private enum TestError: Error {
 }
 
 private func discoveredRecipe(
+    sourceID: UUID = UUID(
+        uuidString: "90000000-0000-4000-8000-000000000001"
+    )!,
     savedRecipeID: UUID? = nil
 ) -> DiscoverRecipe {
     DiscoverRecipe(
-        sourceID: UUID(uuidString: "90000000-0000-4000-8000-000000000001")!,
+        sourceID: sourceID,
         title: "Lemon Orzo",
         description: "Creamy lemon orzo with spinach.",
         creatorName: "@mia_cooks",

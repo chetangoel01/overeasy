@@ -19,6 +19,7 @@ SwiftData persistence layer and a separate `LadleCore` domain package.
 - Full-screen, shuffled Watch feed with creator attribution and vertical paging
 - Creator-account attribution in the Import Inbox
 - Search, sorting, filters, grid/list display, and favorites
+- A persistent user-selected accent color in Settings
 - Structured recipe detail, editing, and safe re-import
 - Clearly labeled estimated nutrition and serving-basis details
 - Explicit, review-first Apple Health nutrition export

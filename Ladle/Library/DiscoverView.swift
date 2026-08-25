@@ -34,7 +34,9 @@ final class DiscoverViewModel {
                     recipe.savedRecipeID == nil ? nil : recipe.sourceID
                 }
             )
-            state = .loaded(recipes)
+            state = .loaded(
+                recipes.filter { $0.savedRecipeID == nil }
+            )
         } catch is CancellationError {
             state = .idle
         } catch {
@@ -85,6 +87,11 @@ final class DiscoverViewModel {
                 sourceID: recipe.sourceID
             )
             savedSourceIDs.insert(recipe.sourceID)
+            if case let .loaded(recipes) = state {
+                state = .loaded(
+                    recipes.filter { $0.sourceID != recipe.sourceID }
+                )
+            }
             saveErrorMessage = nil
             detailErrorMessage = nil
             return saved

@@ -277,7 +277,7 @@ def test_discover_returns_aggregated_public_source_data(
     assert repeated.status_code == 200
     assert repeated.json()["id"] == saved.json()["id"]
     assert refreshed.status_code == 200
-    assert refreshed.json()["items"][0]["savedRecipeID"] == saved.json()["id"]
+    assert refreshed.json()["items"] == []
     assert sync.status_code == 200
     assert sync.json()["changes"][-1]["recipe"]["id"] == saved.json()["id"]
     with Session(engine) as database:

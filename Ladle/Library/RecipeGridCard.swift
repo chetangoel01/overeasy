@@ -65,8 +65,8 @@ struct RecipeGridCard: View {
             recipeID: recipe.id,
             image: recipe.images.first
         )
-        .frame(height: 146)
         .frame(maxWidth: .infinity)
+        .aspectRatio(1, contentMode: .fit)
         .clipShape(
             RoundedRectangle(
                 cornerRadius: LadleTheme.Corner.card,

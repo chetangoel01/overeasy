@@ -137,6 +137,7 @@ final class LibraryViewModel {
             "ladle.library.inbox-dismissed",
             PreferenceKey.savedCollapsed,
             PreferenceKey.comeBackCollapsed,
+            LadleAccentColor.preferenceKey,
         ].forEach {
             preferenceStore.removeObject(forKey: $0)
         }
