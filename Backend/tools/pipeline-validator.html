@@ -98,6 +98,22 @@
     .review-banner { padding: 15px 20px; color: var(--sheet); background: var(--green); font-size: .82rem; }
     .review-banner.needs-review { background: var(--amber); }
     .result-meta { display: flex; flex-wrap: wrap; gap: 8px 24px; padding: 15px 20px; border: 1px solid var(--rule); border-top: 0; color: var(--muted); font: .75rem ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--sheet); }
+    .nutrition-panel { display: grid; grid-template-columns: minmax(180px, .55fr) minmax(280px, 1.45fr); gap: clamp(24px, 6vw, 70px); padding: clamp(26px, 5vw, 48px); border: 1px solid var(--ink); border-top: 0; color: var(--sheet); background: var(--red-dark); }
+    .nutrition-panel.unavailable { color: var(--ink); background: #f8ead5; border-color: var(--amber); }
+    .calorie-kicker { display: block; color: #f4b9a7; font-size: .72rem; font-weight: 900; letter-spacing: .16em; text-transform: uppercase; }
+    .unavailable .calorie-kicker { color: var(--amber); }
+    .calorie-value { display: block; margin: 5px 0 0; font: 500 clamp(4.8rem, 11vw, 8rem)/.8 Georgia, serif; letter-spacing: -.06em; }
+    .calorie-unit { display: block; margin-top: 16px; font-weight: 850; letter-spacing: .1em; text-transform: uppercase; }
+    .macro-grid { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid rgb(255 255 255 / 42%); border-bottom: 1px solid rgb(255 255 255 / 42%); }
+    .unavailable .macro-grid { border-color: var(--rule); }
+    .macro { padding: 16px 12px; border-right: 1px solid rgb(255 255 255 / 26%); }
+    .macro:last-child { border-right: 0; }
+    .macro strong, .macro span { display: block; }
+    .macro strong { font: 500 1.8rem Georgia, serif; }
+    .macro span { margin-top: 4px; font-size: .7rem; letter-spacing: .1em; text-transform: uppercase; }
+    #whole-recipe-nutrition, #nutrition-evidence { margin: 13px 0 0; font-size: .8rem; }
+    #nutrition-evidence { color: #e2d4c8; }
+    .unavailable #nutrition-evidence { color: var(--amber); }
     .result-body { display: grid; grid-template-columns: minmax(260px, .8fr) minmax(340px, 1.2fr); gap: clamp(34px, 7vw, 86px); padding: clamp(28px, 6vw, 58px); border: 1px solid var(--rule); border-top: 0; background: var(--sheet); box-shadow: var(--shadow); }
     h3 { margin: 0 0 18px; padding-bottom: 9px; border-bottom: 2px solid var(--ink); }
     #ingredients-output, #steps-output, #uncertainties-output, #notes-output { margin: 0; padding: 0; list-style: none; }
@@ -117,7 +133,7 @@
     @keyframes orbit { to { transform: rotate(360deg); } }
     @keyframes reveal { from { opacity: 0; transform: translateY(18px); } }
     @media (max-width: 760px) {
-      .hero, .progress-panel, .result-head, .result-body { grid-template-columns: 1fr; }
+      .hero, .progress-panel, .result-head, .nutrition-panel, .result-body { grid-template-columns: 1fr; }
       .model-card { transform: none; }
       form { grid-template-columns: 1fr; }
       button { width: 100%; }
@@ -181,7 +197,7 @@
           <p class="field-label">Pipeline status</p>
           <p id="stage-status">Ready for a link.</p>
           <div class="stage-track" aria-hidden="true">
-            <span id="stage-1"></span><span id="stage-2"></span><span id="stage-3"></span><span id="stage-4"></span>
+            <span id="stage-1"></span><span id="stage-2"></span><span id="stage-3"></span><span id="stage-4"></span><span id="stage-5"></span><span id="stage-6"></span>
           </div>
         </div>
       </div>
@@ -204,6 +220,22 @@
       </header>
       <div class="review-banner" id="review-status">Review status</div>
       <div class="result-meta" id="run-metadata"></div>
+      <section class="nutrition-panel" id="nutrition-output" aria-labelledby="nutrition-heading">
+        <div>
+          <span class="calorie-kicker" id="nutrition-heading">Per serving</span>
+          <strong class="calorie-value" id="calories-output">—</strong>
+          <span class="calorie-unit">Calories</span>
+        </div>
+        <div>
+          <div class="macro-grid">
+            <div class="macro"><strong id="protein-output">—</strong><span>Protein</span></div>
+            <div class="macro"><strong id="carbohydrates-output">—</strong><span>Carbohydrates</span></div>
+            <div class="macro"><strong id="fat-output">—</strong><span>Fat</span></div>
+          </div>
+          <p id="whole-recipe-nutrition">Whole recipe —</p>
+          <p id="nutrition-evidence">Nutrition unavailable until the pipeline completes.</p>
+        </div>
+      </section>
       <div class="result-body">
         <section>
           <h3>Ingredients</h3>
@@ -231,7 +263,7 @@
     const statusMark = document.getElementById('status-mark');
     const errorBox = document.getElementById('error-output');
     const result = document.getElementById('recipe-output');
-    const stages = [1, 2, 3, 4].map(number => document.getElementById(`stage-${number}`));
+    const stages = [1, 2, 3, 4, 5, 6].map(number => document.getElementById(`stage-${number}`));
     let controller = null;
 
     const make = (tag, className, text) => {
@@ -243,7 +275,7 @@
     const clear = node => {
       while (node.firstChild) node.removeChild(node.firstChild);
     };
-    const stageIndex = stage => ({ queued: 0, starting: 0, acquiring: 1, checking: 2, extracting: 3, complete: 4, failed: 4 }[stage] ?? 0);
+    const stageIndex = stage => ({ queued: 0, starting: 0, acquiring: 1, checking: 2, extracting: 3, normalizing: 4, nutrition: 5, complete: 6, failed: 6 }[stage] ?? 0);
     const setStage = (stage, message) => {
       const running = !['complete', 'failed', 'idle'].includes(stage);
       panel.classList.toggle('is-running', running);
@@ -259,6 +291,36 @@
     const snakeOrCamel = (object, snake, camel) => object?.[snake] ?? object?.[camel];
 
     const appendMeta = text => document.getElementById('run-metadata').append(make('span', '', text));
+    const amount = value => value === null || value === undefined ? null : Number(value);
+    const grams = value => value === null ? '—' : `${Math.round(value * 10) / 10}g`;
+
+    const renderNutrition = recipe => {
+      const nutrition = recipe.nutrition;
+      const section = document.getElementById('nutrition-output');
+      const servings = amount(recipe.servings);
+      const blockers = (recipe.uncertainties || []).filter(item => item.field === 'nutrition');
+      section.classList.toggle('unavailable', !nutrition);
+      if (!nutrition) {
+        document.getElementById('calories-output').textContent = '—';
+        document.getElementById('protein-output').textContent = '—';
+        document.getElementById('carbohydrates-output').textContent = '—';
+        document.getElementById('fat-output').textContent = '—';
+        document.getElementById('whole-recipe-nutrition').textContent = 'Whole recipe — nutrition blocked';
+        document.getElementById('nutrition-evidence').textContent = blockers[0]?.reason || 'Nutrition unavailable: no complete calorie and macro panel was produced.';
+        return;
+      }
+      const calories = amount(nutrition.calories);
+      const protein = amount(snakeOrCamel(nutrition, 'protein_grams', 'proteinGrams'));
+      const carbohydrate = amount(snakeOrCamel(nutrition, 'carbohydrate_grams', 'carbohydrateGrams'));
+      const fat = amount(snakeOrCamel(nutrition, 'fat_grams', 'fatGrams'));
+      document.getElementById('calories-output').textContent = calories === null ? '—' : String(Math.round(calories));
+      document.getElementById('protein-output').textContent = grams(protein);
+      document.getElementById('carbohydrates-output').textContent = grams(carbohydrate);
+      document.getElementById('fat-output').textContent = grams(fat);
+      const whole = calories !== null && servings !== null ? Math.round(calories * servings) : null;
+      document.getElementById('whole-recipe-nutrition').textContent = whole === null ? 'Whole recipe calories unavailable' : `Whole recipe · ${whole} calories across ${servings} servings`;
+      document.getElementById('nutrition-evidence').textContent = nutrition.evidence || (snakeOrCamel(nutrition, 'is_estimated', 'isEstimated') ? 'USDA-calculated estimate.' : 'Creator-stated nutrition.');
+    };
 
     const renderRecipe = payload => {
       const recipe = payload.recipe;
@@ -269,6 +331,7 @@
       document.getElementById('servings-output').textContent = servings;
       document.querySelector('.serving-word').textContent = Number(servings) === 1 ? 'serving' : 'servings';
       document.getElementById('servings-basis').textContent = basisLabel(snakeOrCamel(recipe, 'servings_basis', 'servingsBasis'));
+      renderNutrition(recipe);
 
       const review = snakeOrCamel(recipe, 'review_status', 'reviewStatus') || 'needsReview';
       const reviewNode = document.getElementById('review-status');

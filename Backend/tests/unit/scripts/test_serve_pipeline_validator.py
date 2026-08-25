@@ -227,6 +227,13 @@ def test_validator_page_has_accessible_safe_live_pipeline_contract() -> None:
         "ingredients-output",
         "steps-output",
         "uncertainties-output",
+        "nutrition-output",
+        "calories-output",
+        "protein-output",
+        "carbohydrates-output",
+        "fat-output",
+        "whole-recipe-nutrition",
+        "nutrition-evidence",
     ):
         assert f'id="{output_id}"' in html
     assert "api/validate" in html and "api/jobs/" in html
@@ -236,6 +243,21 @@ def test_validator_page_has_accessible_safe_live_pipeline_contract() -> None:
     assert "innerHTML" not in html
     assert '<script src=' not in html
     assert "sk-or-v1" not in html
+
+
+def test_both_pages_render_nutrition_and_visible_blockers() -> None:
+    validator = (TOOLS / "pipeline-validator.html").read_text()
+    results = (TOOLS / "pipeline-results.html").read_text()
+
+    for html in (validator, results):
+        assert "Calories" in html
+        assert "Protein" in html
+        assert "Carbohydrates" in html
+        assert "Fat" in html
+        assert "Per serving" in html
+        assert "Whole recipe" in html
+        assert "nutrition" in html
+        assert "needsReview" in html
 
 
 def test_server_serves_both_html_pages_without_secrets() -> None:

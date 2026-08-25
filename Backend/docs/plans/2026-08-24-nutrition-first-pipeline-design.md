@@ -132,3 +132,7 @@ USDA-friendly food names. USDA remains the source of calories and macros.
   enrichment service. Live construction requires both provider credentials,
   fake imports remain free, validator progress exposes normalization and USDA
   stages, and reported usage includes the normalization call and cost.
+- Both HTML artifacts now lead with per-serving calories and primary macros,
+  derive a whole-recipe calorie total from yield, show the nutrition evidence,
+  and render a prominent blocker when no complete panel exists. Local browser
+  checks passed at 1280 px and 390 px without horizontal overflow.
