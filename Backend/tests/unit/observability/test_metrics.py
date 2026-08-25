@@ -3,6 +3,17 @@ import pytest
 from ladle.observability.metrics import MetricsRegistry
 
 
+def test_openrouter_search_provider_is_a_bounded_metric_label() -> None:
+    metrics = MetricsRegistry()
+
+    metrics.record_provider("openrouterSearch", "success")
+
+    assert (
+        'ladle_provider_total{outcome="success",provider="openrouterSearch"} 1'
+        in metrics.render()
+    )
+
+
 def test_product_metrics_use_only_bounded_labels_and_render_prometheus_text() -> None:
     metrics = MetricsRegistry()
 

@@ -17,6 +17,7 @@ _PROVIDERS = frozenset(
         "serverFallback",
         "claude",
         "openrouter",
+        "openrouterSearch",
         "anthropic",
         "apple",
         "google",
