@@ -10,6 +10,7 @@ struct RootView: View {
     let googleSignIn: (any GoogleSignInProviding)?
     let discoverService: any DiscoverServing
     let installationID: String
+    let notificationNavigation: NotificationNavigation
     let onAuthenticated: @MainActor () async -> Void
     let onSignOut: @MainActor () async -> Void
     let onDeleteAccount: @MainActor () async throws -> Void
@@ -22,6 +23,7 @@ struct RootView: View {
         googleSignIn: (any GoogleSignInProviding)? = nil,
         discoverService: any DiscoverServing = DemoDiscoverService(),
         installationID: String = "preview-installation",
+        notificationNavigation: NotificationNavigation = .shared,
         onAuthenticated: @escaping @MainActor () async -> Void = {},
         onSignOut: @escaping @MainActor () async -> Void = {},
         onDeleteAccount:
@@ -34,6 +36,7 @@ struct RootView: View {
         self.googleSignIn = googleSignIn
         self.discoverService = discoverService
         self.installationID = installationID
+        self.notificationNavigation = notificationNavigation
         self.onAuthenticated = onAuthenticated
         self.onSignOut = onSignOut
         self.onDeleteAccount = onDeleteAccount
@@ -62,6 +65,7 @@ struct RootView: View {
                     accountSession: accountSession,
                     discoverService: discoverService,
                     installationID: installationID,
+                    notificationNavigation: notificationNavigation,
                     canImport:
                         authClient == nil
                         || accountSession.isRemoteSessionReady,

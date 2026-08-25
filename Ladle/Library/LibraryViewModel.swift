@@ -5,6 +5,7 @@ import Observation
 enum LibraryDisplayMode: String, CaseIterable {
     case grid
     case list
+    case gallery
 }
 
 enum LibraryRecipeCollection: Equatable {
@@ -236,6 +237,10 @@ final class LibraryViewModel {
         job.reviewCandidate?.creatorName
             ?? recipeForReview(job)?.creatorName
             ?? job.sourceAccountLabel
+    }
+
+    func title(for job: ImportJob) -> String? {
+        job.reviewCandidate?.title ?? recipeForReview(job)?.title
     }
 
     var actionableImportJobs: [ImportJob] {

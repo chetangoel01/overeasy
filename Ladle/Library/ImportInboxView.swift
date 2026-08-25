@@ -6,7 +6,11 @@ struct ImportInboxView: View {
 
     @Bindable var viewModel: LibraryViewModel
     let recoverImport: (ImportJob) -> Void
+    let openProcessing: (ImportJob) -> Void
+    let cancelImport: (UUID) -> Void
     let openReview: (Recipe, String) -> Void
+
+    @State private var importAwaitingCancellation: ImportJob?
 
     var body: some View {
         List {
@@ -22,6 +26,22 @@ struct ImportInboxView: View {
             value: viewModel.actionableImportJobs.map(\.id)
         )
         .accessibilityIdentifier("library.import-inbox.root")
+        .confirmationDialog(
+            "Cancel this import?",
+            isPresented: cancelConfirmationIsPresented,
+            titleVisibility: .visible
+        ) {
+            Button("Cancel Import", role: .destructive) {
+                guard let job = importAwaitingCancellation else { return }
+                cancelImport(job.id)
+                importAwaitingCancellation = nil
+            }
+            Button("Keep Processing", role: .cancel) {
+                importAwaitingCancellation = nil
+            }
+        } message: {
+            Text("The recipe will stop processing and disappear from Inbox.")
+        }
     }
 
     @ViewBuilder
@@ -49,11 +69,10 @@ struct ImportInboxView: View {
                                 openReview(recipe, "Check details")
                             }
                         )
+                    } else if case .parsing = job.status {
+                        importButton(job, action: { openProcessing(job) })
                     } else {
-                        PendingImportCard(
-                            job: job,
-                            creatorName: viewModel.creatorName(for: job)
-                        )
+                        importButton(job, action: { recoverImport(job) })
                     }
                 }
                 .listRowInsets(
@@ -66,11 +85,22 @@ struct ImportInboxView: View {
                 )
                 .listRowBackground(LadleTheme.paper)
                 .listRowSeparator(.hidden)
-                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                    Button(role: .destructive) {
-                        _ = viewModel.deleteImport(jobID: job.id)
-                    } label: {
-                        Label("Delete", systemImage: "trash")
+                .swipeActions(
+                    edge: .trailing,
+                    allowsFullSwipe: job.status != .parsing
+                ) {
+                    if case .parsing = job.status {
+                        Button(role: .destructive) {
+                            importAwaitingCancellation = job
+                        } label: {
+                            Label("Cancel", systemImage: "xmark")
+                        }
+                    } else {
+                        Button(role: .destructive) {
+                            _ = viewModel.deleteImport(jobID: job.id)
+                        } label: {
+                            Label("Discard", systemImage: "trash")
+                        }
                     }
                 }
             }
@@ -84,10 +114,18 @@ struct ImportInboxView: View {
         Button(action: action) {
             PendingImportCard(
                 job: job,
-                creatorName: viewModel.creatorName(for: job)
+                creatorName: viewModel.creatorName(for: job),
+                recipeTitle: viewModel.title(for: job)
             )
         }
         .buttonStyle(.plain)
+    }
+
+    private var cancelConfirmationIsPresented: Binding<Bool> {
+        Binding(
+            get: { importAwaitingCancellation != nil },
+            set: { if !$0 { importAwaitingCancellation = nil } }
+        )
     }
 
 }

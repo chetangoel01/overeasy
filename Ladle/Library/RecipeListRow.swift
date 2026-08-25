@@ -18,13 +18,13 @@ struct RecipeListRow: View {
                 Text(recipe.title)
                     .ladleFont(.recipeTitle)
                     .foregroundStyle(LadleTheme.ink)
-                    .lineLimit(2)
+                    .lineLimit(1)
 
                 if !recipe.libraryFacts.isEmpty {
                     Text(recipe.libraryFacts)
                         .ladleFont(.metadata)
                         .foregroundStyle(LadleTheme.ink.opacity(0.58))
-                        .lineLimit(2)
+                        .lineLimit(1)
                 }
             }
 
@@ -51,7 +51,7 @@ struct RecipeListRow: View {
                     : "Add \(recipe.title) to favorites"
             )
         }
-        .padding(10)
+        .padding(8)
         .ladleCard()
         .contentShape(Rectangle())
         .onTapGesture(perform: openRecipe)
@@ -73,7 +73,7 @@ struct RecipeListRow: View {
             recipeID: recipe.id,
             image: recipe.images.first
         )
-        .frame(width: 96, height: 96)
+        .frame(width: 72, height: 72)
         .clipShape(
             RoundedRectangle(
                 cornerRadius: 12,

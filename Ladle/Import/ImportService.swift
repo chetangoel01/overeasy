@@ -38,4 +38,10 @@ protocol ImportService: Sendable {
         correctionNotes: String?,
         pastedRecipeText: String?
     ) async throws -> ImportServiceUpdate
+
+    func cancel(remoteJobID: String) async throws
+}
+
+extension ImportService {
+    func cancel(remoteJobID: String) async throws {}
 }

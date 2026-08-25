@@ -96,6 +96,11 @@ struct RecipeDetailView: View {
                     heroImage
                     recipeHeader
                     RecipeMetadataBand(recipe: displayedRecipe)
+                    if let nutrition = displayedRecipe.nutrition {
+                        RecipeNutritionSummary(nutrition: nutrition) {
+                            isNutritionPresented = true
+                        }
+                    }
                     if showsReviewNotice {
                         reviewNotice
                             .id("recipe-review")
@@ -105,10 +110,6 @@ struct RecipeDetailView: View {
 
                     if !displayedRecipe.notes.isEmpty {
                         creatorNotes
-                    }
-
-                    if displayedRecipe.nutrition?.isEstimated == true {
-                        estimateNote
                     }
 
                     cookingAction {

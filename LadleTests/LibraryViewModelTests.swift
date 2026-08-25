@@ -348,7 +348,7 @@ final class LibraryViewModelTests: XCTestCase {
     func testDenseArchiveFactsLeadWithProtein() {
         XCTAssertEqual(
             PreviewFixtures.recipes[0].libraryFacts,
-            "38 g P · 25 min · ≈ 680 cal"
+            "38 g P · ≈ 680 cal"
         )
     }
 
@@ -403,7 +403,24 @@ final class LibraryViewModelTests: XCTestCase {
         )
 
         XCTAssertNil(recipe.libraryNutrition)
-        XCTAssertEqual(recipe.libraryFacts, "25 min")
+        XCTAssertEqual(recipe.libraryFacts, "")
+    }
+
+    func testDenseArchiveFactsOnlyMarkEstimatedCaloriesApproximate() {
+        let recipe = Recipe(
+            title: "Labelled Soup",
+            source: .other,
+            originalURL: URL(string: "https://example.com/labelled-soup")!,
+            servings: 2,
+            nutrition: Nutrition(
+                calories: 600,
+                proteinGrams: 40,
+                servingBasis: 2,
+                isEstimated: false
+            )
+        )
+
+        XCTAssertEqual(recipe.libraryFacts, "20 g P · 300 cal")
     }
 
     func testDisplayModePersistsAcrossViewModels() {
@@ -420,6 +437,22 @@ final class LibraryViewModelTests: XCTestCase {
         )
 
         XCTAssertEqual(returning.displayMode, .list)
+    }
+
+    func testGalleryDisplayModePersistsAcrossViewModels() {
+        let preferences = LibraryTestPreferenceStore()
+        let first = LibraryViewModel(
+            repository: LibraryTestRepository(),
+            preferenceStore: preferences
+        )
+
+        first.displayMode = .gallery
+        let returning = LibraryViewModel(
+            repository: LibraryTestRepository(),
+            preferenceStore: preferences
+        )
+
+        XCTAssertEqual(returning.displayMode, .gallery)
     }
 
     func testResetPreferencesRestoresDefaultLibraryPresentation() {

@@ -15,19 +15,25 @@ SwiftData persistence layer and a separate `LadleCore` domain package.
 - Durable Share Extension queue reconciliation through an App Group
 - Parsing, exceptional check-details, ready, duplicate, and recoverable failure
   states
-- Discover from aggregate saves of public recipe-video sources
-- Full-screen, shuffled Watch feed with inline TikTok, Instagram, and YouTube
-  playback, native pause and mute controls, creator attribution, and vertical
-  paging
-- Creator-account attribution in the Import Inbox
-- Search, sorting, filters, grid/list display, and favorites
+- Discover from aggregate saves of public recipe-video sources, with permanent
+  account-level suppression after a source has been saved
+- Full-screen Watch with remembered My Recipes/Discover segments, inline
+  TikTok, Instagram, and YouTube playback, native pause and mute controls,
+  creator attribution, and vertical paging
+- A durable Import Inbox that can reopen active processing, confirm true
+  cancellation, discard terminal exceptions, and stay quiet after success
+- Search, sorting, filters, aligned compact Grid, List, image-first Gallery,
+  and favorites
 - A persistent user-selected accent color in Settings
 - Structured recipe detail, editing, and safe re-import
-- Clearly labeled estimated nutrition and serving-basis details
+- Per-serving calories and protein in library surfaces, a complete macro strip
+  on recipe detail, and full macro/micronutrient drill-down with estimates
+  labeled only when values are estimated
 - Explicit, review-first Apple Health nutrition export
 - Full Recipe and Focus cooking modes with shared completion state
 - Detected timers, local timer notifications, and opt-in keep-awake behavior
-- Ready-only import completion notifications requested in context
+- Ready-only import completion notifications requested in context; tapping one
+  opens the completed recipe directly
 - Dynamic Type layouts, Reduce Motion behavior, semantic controls, and
   44-point primary hit regions
 
@@ -182,7 +188,8 @@ server configuration.
 ## Product and verification notes
 
 - Conservative inferred ingredient amounts and nutrition remain visibly
-  estimated wherever the source is uncertain.
+  estimated wherever the source is uncertain. Missing nutrition alone never
+  turns an otherwise cookable recipe into an Inbox review task.
 - Apple Health authorization is deferred until the user reviews values and
   confirms an export.
 - Notification denial never changes a successfully persisted recipe or import

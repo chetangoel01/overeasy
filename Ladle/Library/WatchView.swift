@@ -2,59 +2,162 @@ import LadleCore
 import SwiftUI
 import UIKit
 
+private enum WatchFeed: String, CaseIterable, Identifiable {
+    case myRecipes = "My Recipes"
+    case discover = "Discover"
+
+    var id: Self { self }
+}
+
 struct WatchView: View {
     @Bindable var viewModel: LibraryViewModel
-    let openRecipe: (Recipe) -> Void
+    let refreshVersion: Int
+    let openSavedRecipe: (Recipe) -> Void
+    let openDiscoverRecipe: (Recipe) -> Void
+    let saveRecipe: (SavedDiscoverRecipe) -> Void
     let openAccount: () -> Void
 
+    @State private var discoverViewModel: DiscoverViewModel
     @State private var cookingViewModel: CookingViewModel?
     @State private var isMuted = false
     @State private var visibleRecipeID: UUID?
+    @State private var feed = WatchFeed.discover
+
+    init(
+        viewModel: LibraryViewModel,
+        discoverService: any DiscoverServing,
+        refreshVersion: Int,
+        openSavedRecipe: @escaping (Recipe) -> Void,
+        openDiscoverRecipe: @escaping (Recipe) -> Void,
+        saveRecipe: @escaping (SavedDiscoverRecipe) -> Void,
+        openAccount: @escaping () -> Void
+    ) {
+        self.viewModel = viewModel
+        self.refreshVersion = refreshVersion
+        self.openSavedRecipe = openSavedRecipe
+        self.openDiscoverRecipe = openDiscoverRecipe
+        self.saveRecipe = saveRecipe
+        self.openAccount = openAccount
+        _discoverViewModel = State(
+            initialValue: DiscoverViewModel(
+                service: discoverService,
+                removesSavedRecipeImmediately: false
+            )
+        )
+    }
 
     var body: some View {
         Group {
-            if viewModel.watchRecipes.isEmpty {
-                emptyState
+            if feed == .discover {
+                discoverContent
+            } else if viewModel.watchRecipes.isEmpty {
+                emptyState(
+                    title: "No saved videos",
+                    message: "Saved video recipes appear here."
+                )
             } else {
-                ScrollView(.vertical) {
-                    LazyVStack(spacing: 0) {
-                        ForEach(viewModel.watchRecipes) { recipe in
-                            WatchRecipePage(
-                                recipe: recipe,
-                                viewportSize: viewportSize,
-                                isVideoActive: activeRecipeID == recipe.id,
-                                isMuted: $isMuted,
-                                openRecipe: { openRecipe(recipe) },
-                                openAccount: openAccount,
-                                startCooking: {
-                                    cookingViewModel = CookingViewModel(
-                                        recipe: recipe
-                                    )
-                                },
-                                toggleFavorite: {
-                                    viewModel.toggleFavorite(
-                                        recipeID: recipe.id
-                                    )
-                                }
-                            )
-                            .clipped()
-                            .id(recipe.id)
-                        }
-                    }
-                    .scrollTargetLayout()
-                }
-                .scrollIndicators(.hidden)
-                .scrollTargetBehavior(.paging)
-                .scrollPosition(id: $visibleRecipeID)
-                .ignoresSafeArea()
+                recipeFeed(viewModel.watchRecipes)
             }
         }
         .background(LadleTheme.plum)
         .fullScreenCover(item: $cookingViewModel) {
             FullRecipeView(viewModel: $0)
         }
+        .task(id: refreshVersion) {
+            await discoverViewModel.load()
+        }
+        .onChange(of: feed) { _, _ in
+            visibleRecipeID = nil
+        }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("library.watch.root")
+    }
+
+    @ViewBuilder
+    private var discoverContent: some View {
+        switch discoverViewModel.state {
+        case .idle, .loading:
+            loadingState
+        case .failed:
+            emptyState(
+                title: "Couldn’t load Discover",
+                message: "Your saved recipe videos are still available."
+            )
+        case let .loaded(recipes) where recipes.isEmpty:
+            emptyState(
+                title: "Nothing new to watch",
+                message: "Saved discoveries stay out of your feed."
+            )
+        case let .loaded(recipes):
+            recipeFeed(recipes.map(\.watchPreview))
+        }
+    }
+
+    private func recipeFeed(_ recipes: [Recipe]) -> some View {
+        ScrollView(.vertical) {
+            LazyVStack(spacing: 0) {
+                ForEach(recipes) { recipe in
+                    WatchRecipePage(
+                        recipe: recipe,
+                        viewportSize: viewportSize,
+                        isVideoActive: activeRecipeID(in: recipes) == recipe.id,
+                        isMuted: $isMuted,
+                        feed: $feed,
+                        discoverRecipe: discoverRecipe(id: recipe.id),
+                        isSaving: discoverRecipe(id: recipe.id).map(
+                            discoverViewModel.isSaving
+                        ) ?? false,
+                        isSaved: discoverRecipe(id: recipe.id).map(
+                            discoverViewModel.isSaved
+                        ) ?? false,
+                        openRecipe: { open(recipe) },
+                        openAccount: openAccount,
+                        save: { save(recipe) },
+                        startCooking: {
+                            cookingViewModel = CookingViewModel(recipe: recipe)
+                        },
+                        toggleFavorite: {
+                            viewModel.toggleFavorite(recipeID: recipe.id)
+                        }
+                    )
+                    .clipped()
+                    .id(recipe.id)
+                }
+            }
+            .scrollTargetLayout()
+        }
+        .scrollIndicators(.hidden)
+        .scrollTargetBehavior(.paging)
+        .scrollPosition(id: $visibleRecipeID)
+        .ignoresSafeArea()
+    }
+
+    private func open(_ recipe: Recipe) {
+        guard let discovered = discoverRecipe(id: recipe.id) else {
+            openSavedRecipe(recipe)
+            return
+        }
+        Task {
+            if let detail = await discoverViewModel.detail(for: discovered) {
+                openDiscoverRecipe(detail)
+            }
+        }
+    }
+
+    private func save(_ recipe: Recipe) {
+        guard let discovered = discoverRecipe(id: recipe.id) else { return }
+        Task {
+            if let saved = await discoverViewModel.save(discovered) {
+                saveRecipe(saved)
+            }
+        }
+    }
+
+    private func discoverRecipe(id: UUID) -> DiscoverRecipe? {
+        guard case let .loaded(recipes) = discoverViewModel.state else {
+            return nil
+        }
+        return recipes.first { $0.sourceID == id }
     }
 
     private var viewportSize: CGSize {
@@ -77,18 +180,59 @@ struct WatchView: View {
         )
     }
 
-    private var activeRecipeID: UUID? {
-        visibleRecipeID ?? viewModel.watchRecipes.first?.id
+    private func activeRecipeID(in recipes: [Recipe]) -> UUID? {
+        visibleRecipeID ?? recipes.first?.id
     }
 
-    private var emptyState: some View {
-        ContentUnavailableView(
-            "No saved videos",
-            systemImage: "play.rectangle",
-            description: Text("Saved video recipes appear here.")
+    private func emptyState(title: String, message: String) -> some View {
+        ZStack(alignment: .top) {
+            ContentUnavailableView(
+                title,
+                systemImage: "play.rectangle",
+                description: Text(message)
+            )
+            .foregroundStyle(LadleTheme.onAccent)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            feedPicker
+                .padding(.top, 60)
+        }
+    }
+
+    private var loadingState: some View {
+        ZStack(alignment: .top) {
+            ProgressView("Loading Discover")
+                .tint(LadleTheme.onAccent)
+                .foregroundStyle(LadleTheme.onAccent)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            feedPicker
+                .padding(.top, 60)
+        }
+    }
+
+    private var feedPicker: some View {
+        Picker("Watch feed", selection: $feed) {
+            ForEach(WatchFeed.allCases) { feed in
+                Text(feed.rawValue).tag(feed)
+            }
+        }
+        .pickerStyle(.segmented)
+        .frame(maxWidth: 230)
+    }
+}
+
+private extension DiscoverRecipe {
+    var watchPreview: Recipe {
+        Recipe(
+            id: sourceID,
+            title: title,
+            description: description,
+            creatorName: creatorName,
+            source: source,
+            originalURL: originalURL,
+            images: imageURL.map { [RecipeImage(id: sourceID, remoteURL: $0)] } ?? [],
+            servings: 1
         )
-        .foregroundStyle(LadleTheme.onAccent)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -97,23 +241,45 @@ private struct WatchRecipePage: View {
     let viewportSize: CGSize
     let isVideoActive: Bool
     @Binding var isMuted: Bool
+    @Binding var feed: WatchFeed
+    let discoverRecipe: DiscoverRecipe?
+    let isSaving: Bool
+    let isSaved: Bool
     let openRecipe: () -> Void
     let openAccount: () -> Void
+    let save: () -> Void
     let startCooking: () -> Void
     let toggleFavorite: () -> Void
 
     @State private var isPlaybackPaused = false
 
     var body: some View {
-        videoLayout
+        contextualVideoLayout
             .frame(width: viewportSize.width, height: viewportSize.height)
             .background(LadleTheme.plum)
-            .recipeContextMenu(
-                recipe: recipe,
-                openRecipe: openRecipe,
-                toggleFavorite: toggleFavorite
-            )
             .sensoryFeedback(.selection, trigger: recipe.isFavorite)
+    }
+
+    @ViewBuilder
+    private var contextualVideoLayout: some View {
+        if discoverRecipe != nil {
+            videoLayout
+                .contextMenu {
+                    Button("View Recipe", systemImage: "book.pages", action: openRecipe)
+                    if !isSaved {
+                        Button("Save Recipe", systemImage: "plus", action: save)
+                    }
+                } preview: {
+                    WatchRecipeContextPreview(recipe: recipe)
+                }
+        } else {
+            videoLayout
+                .recipeContextMenu(
+                    recipe: recipe,
+                    openRecipe: openRecipe,
+                    toggleFavorite: toggleFavorite
+                )
+        }
     }
 
     private var videoLayout: some View {
@@ -206,7 +372,25 @@ private struct WatchRecipePage: View {
     @ViewBuilder
     private var playbackActions: some View {
         HStack(spacing: LadleTheme.Spacing.compact) {
-            if recipe.canStartCooking {
+            if discoverRecipe != nil {
+                Button(action: save) {
+                    Group {
+                        if isSaving {
+                            ProgressView()
+                        } else {
+                            Label(
+                                isSaved ? "Saved" : "Save",
+                                systemImage: isSaved ? "checkmark" : "plus"
+                            )
+                        }
+                    }
+                }
+                .buttonStyle(LadlePrimaryButtonStyle())
+                .disabled(isSaving || isSaved)
+
+                Button("View recipe", action: openRecipe)
+                    .buttonStyle(LadlePrimaryButtonStyle(isProminent: false))
+            } else if recipe.canStartCooking {
                 Button("Open recipe", action: openRecipe)
                     .buttonStyle(LadlePrimaryButtonStyle(isProminent: false))
                 Button("Start cooking", action: startCooking)
@@ -220,12 +404,13 @@ private struct WatchRecipePage: View {
 
     private func topBar(topInset: CGFloat) -> some View {
         HStack(spacing: LadleTheme.Spacing.medium) {
-            Text("Watch")
-                .ladleFont(.section)
-                .foregroundStyle(LadleTheme.onAccent)
-                .padding(.horizontal, 14)
-                .frame(minHeight: 44)
-                .background(.black.opacity(0.56), in: Capsule())
+            Picker("Watch feed", selection: $feed) {
+                ForEach(WatchFeed.allCases) { feed in
+                    Text(feed.rawValue).tag(feed)
+                }
+            }
+            .pickerStyle(.segmented)
+            .frame(maxWidth: 220)
 
             Spacer()
 
@@ -286,8 +471,18 @@ private struct WatchRecipePage: View {
     }
 
     private var metadata: String {
-        [
-            recipe.totalMinutes.map { "\($0) min" },
+        if let discoverRecipe {
+            return discoverRecipe.savedCount == 1
+                ? "Saved by 1 cook"
+                : "Saved by \(discoverRecipe.savedCount) cooks"
+        }
+        return [
+            recipe.libraryNutrition?.calories.map {
+                let prefix = recipe.libraryNutrition?.isEstimated == true
+                    ? "≈ "
+                    : ""
+                return "\(prefix)\(ladleNumber($0, maximumFractionDigits: 0)) cal"
+            },
             recipe.libraryNutrition?.proteinGrams.map {
                 "\(ladleNumber($0)) g protein"
             },
@@ -295,6 +490,36 @@ private struct WatchRecipePage: View {
         ]
         .compactMap(\.self)
         .joined(separator: " · ")
+    }
+}
+
+private struct WatchRecipeContextPreview: View {
+    let recipe: Recipe
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            RecipeArtworkView(
+                recipeID: recipe.id,
+                image: recipe.images.first
+            )
+            .frame(height: 210)
+            .clipShape(
+                RoundedRectangle(
+                    cornerRadius: LadleTheme.Corner.card,
+                    style: .continuous
+                )
+            )
+            Text(recipe.creatorAccountLabel)
+                .ladleFont(.metadata)
+                .foregroundStyle(LadleTheme.accentText)
+            Text(recipe.title)
+                .ladleFont(.section)
+                .foregroundStyle(LadleTheme.ink)
+                .lineLimit(2)
+        }
+        .padding(16)
+        .frame(width: 300)
+        .background(LadleTheme.paper)
     }
 }
 

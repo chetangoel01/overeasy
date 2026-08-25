@@ -72,6 +72,14 @@ struct RemoteImportService: ImportService {
         return try await update(from: response)
     }
 
+    func cancel(remoteJobID: String) async throws {
+        let jobID = try validatedJobID(remoteJobID)
+        try await api.requestWithoutResponse(
+            path: "/v1/imports/\(jobID.uuidString)",
+            method: .delete
+        )
+    }
+
     private func update(
         from response: RemoteImportJobDTO
     ) async throws -> ImportServiceUpdate {

@@ -6,6 +6,7 @@ struct PendingImportCard: View {
 
     let job: ImportJob
     var creatorName: String?
+    var recipeTitle: String?
 
     var body: some View {
         Group {
@@ -102,16 +103,11 @@ struct PendingImportCard: View {
     }
 
     private var title: String {
-        let component = job.sourceURL.lastPathComponent
-            .removingPercentEncoding
-            ?? job.sourceURL.lastPathComponent
-        guard !component.isEmpty else {
-            return "Recipe import"
+        if let recipeTitle,
+           !recipeTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return recipeTitle
         }
-        return component
-            .replacingOccurrences(of: "-", with: " ")
-            .replacingOccurrences(of: "_", with: " ")
-            .localizedCapitalized
+        return "\(job.source.libraryTitle) recipe"
     }
 
     private var statusText: String {

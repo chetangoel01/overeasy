@@ -13,15 +13,11 @@ struct RecipeMetadataBand: View {
                 VStack(spacing: 0) {
                     totalTimeItem
                     horizontalDivider
-                    calorieItem
-                    horizontalDivider
                     yieldItem
                 }
             } else {
                 HStack(spacing: 0) {
                     totalTimeItem
-                    verticalDivider
-                    calorieItem
                     verticalDivider
                     yieldItem
                 }
@@ -50,14 +46,6 @@ struct RecipeMetadataBand: View {
             value: recipe.ladleYieldText,
             label: "Yield",
             systemImage: "person.2"
-        )
-    }
-
-    private var calorieItem: some View {
-        metadataItem(
-            value: calorieText,
-            label: "Per serving",
-            systemImage: "flame"
         )
     }
 
@@ -101,15 +89,99 @@ struct RecipeMetadataBand: View {
             .accessibilityHidden(true)
     }
 
-    private var calorieText: String {
-        guard let calories = recipe.libraryNutrition?.calories else {
-            return "—"
-        }
-        return "≈ \(ladleNumber(calories, maximumFractionDigits: 0)) cal"
-    }
-
     private var usesVerticalLayout: Bool {
         dynamicTypeSize >= .xxxLarge
+    }
+}
+
+struct RecipeNutritionSummary: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    let nutrition: Nutrition
+    let openDetails: () -> Void
+
+    var body: some View {
+        Button(action: openDetails) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("Nutrition per serving")
+                        .ladleFont(.bodyStrong)
+                        .foregroundStyle(LadleTheme.ink)
+                    if displayed.isEstimated {
+                        Text("Estimated")
+                            .ladleFont(.metadata)
+                            .foregroundStyle(LadleTheme.accentText)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(LadleTheme.review, in: Capsule())
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(LadleTheme.mutedInk)
+                }
+
+                Group {
+                    if dynamicTypeSize.isAccessibilitySize {
+                        LazyVGrid(
+                            columns: [GridItem(.flexible()), GridItem(.flexible())],
+                            spacing: 12
+                        ) {
+                            nutritionItems
+                        }
+                    } else {
+                        HStack(spacing: 8) {
+                            nutritionItems
+                        }
+                    }
+                }
+            }
+            .padding(16)
+            .background(
+                LadleTheme.field,
+                in: RoundedRectangle(
+                    cornerRadius: LadleTheme.Corner.card,
+                    style: .continuous
+                )
+            )
+        }
+        .buttonStyle(LadlePressButtonStyle())
+        .accessibilityHint("Opens full nutrition details")
+    }
+
+    @ViewBuilder
+    private var nutritionItems: some View {
+        nutritionItem(
+            value: displayed.calories.map {
+                ladleNumber($0, maximumFractionDigits: 0)
+            },
+            label: "Calories"
+        )
+        nutritionItem(value: grams(displayed.proteinGrams), label: "Protein")
+        nutritionItem(value: grams(displayed.carbohydrateGrams), label: "Carbs")
+        nutritionItem(value: grams(displayed.fatGrams), label: "Fat")
+    }
+
+    private func nutritionItem(value: String?, label: String) -> some View {
+        VStack(spacing: 3) {
+            Text(value ?? "—")
+                .ladleFont(.bodyStrong)
+                .foregroundStyle(LadleTheme.ink)
+            Text(label)
+                .ladleFont(.metadata)
+                .foregroundStyle(LadleTheme.mutedInk)
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
+    }
+
+    private func grams(_ value: Decimal?) -> String? {
+        value.map { "\(ladleNumber($0)) g" }
+    }
+
+    private var displayed: Nutrition {
+        nutrition.perServing
+            ?? Nutrition(servingBasis: 1, isEstimated: nutrition.isEstimated)
     }
 }
 

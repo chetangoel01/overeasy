@@ -87,6 +87,7 @@ final class ImportCoordinator {
     private var pendingSubmission: Submission?
     private var pendingManualSubmission: ManualSubmission?
     private var isResolvingReplacement = false
+    private var processingTasks: [UUID: Task<Void, Never>] = [:]
 
     private(set) var state: ImportCoordinatorState = .idle
     private(set) var operation: ImportOperation?
@@ -189,7 +190,7 @@ final class ImportCoordinator {
             )
             try repository.save(job)
             operation = .importJob(job.id)
-            await process(
+            await runProcess(
                 job,
                 operation: .submit(
                     allowingDuplicate: allowingDuplicate
@@ -273,7 +274,7 @@ final class ImportCoordinator {
                 job = try job.transitioning(to: .parsing)
             }
             try repository.save(job)
-            await process(job, operation: .retry)
+            await runProcess(job, operation: .retry)
         } catch {
             state = .persistenceFailed
         }
@@ -372,7 +373,7 @@ final class ImportCoordinator {
         )
         do {
             try repository.save(job)
-            await process(
+            await runProcess(
                 job,
                 operation: .submit(allowingDuplicate: true)
             )
@@ -388,7 +389,10 @@ final class ImportCoordinator {
             }
             for job in pendingJobs {
                 try Task.checkCancellation()
-                await process(job, operation: .resume)
+                operation = job.currentRecipeID.map {
+                    .reimport(jobID: job.id, currentRecipeID: $0)
+                } ?? .importJob(job.id)
+                await runProcess(job, operation: .resume)
             }
         } catch is CancellationError {
             state = .idle
@@ -405,6 +409,45 @@ final class ImportCoordinator {
         pendingSubmission = nil
         pendingManualSubmission = nil
         isResolvingReplacement = false
+    }
+
+    func attach(to jobID: UUID) -> Bool {
+        if owns(jobID: jobID), isImporting {
+            return true
+        }
+        do {
+            guard let job = try repository.fetchImportJobs().first(
+                where: { $0.id == jobID && $0.status == .parsing }
+            ) else {
+                return false
+            }
+            operation = job.currentRecipeID.map {
+                .reimport(jobID: job.id, currentRecipeID: $0)
+            } ?? .importJob(job.id)
+            state = .importing(jobID: job.id)
+            return true
+        } catch {
+            state = .persistenceFailed
+            return false
+        }
+    }
+
+    func cancelImport(jobID: UUID) async {
+        processingTasks[jobID]?.cancel()
+        do {
+            let job = try repository.fetchImportJobs().first {
+                $0.id == jobID
+            }
+            try repository.deleteImportJob(id: jobID)
+            if let remoteJobID = job?.remoteJobID {
+                try await service.cancel(remoteJobID: remoteJobID)
+            }
+            if owns(jobID: jobID) {
+                reset()
+            }
+        } catch {
+            state = .persistenceFailed
+        }
     }
 
     func resumePendingReimport(for currentRecipeID: UUID) {
@@ -505,6 +548,27 @@ final class ImportCoordinator {
         } catch {
             state = .persistenceFailed
         }
+    }
+
+    private func runProcess(
+        _ job: ImportJob,
+        operation: RemoteOperation
+    ) async {
+        if let running = processingTasks[job.id] {
+            await running.value
+            return
+        }
+        let task = Task { [weak self] in
+            guard let self else { return }
+            await self.process(job, operation: operation)
+        }
+        processingTasks[job.id] = task
+        await withTaskCancellationHandler {
+            await task.value
+        } onCancel: {
+            task.cancel()
+        }
+        processingTasks[job.id] = nil
     }
 
     private func process(

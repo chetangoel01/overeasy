@@ -15,6 +15,7 @@ struct AddRecipeSheet: View {
     @State private var selectedDetent: PresentationDetent = .medium
     @State private var recoveryInputMode: RecoveryInputMode?
     @State private var isRetrying = false
+    @State private var isCancelConfirmationPresented = false
 
     init(
         coordinator: ImportCoordinator,
@@ -60,7 +61,11 @@ struct AddRecipeSheet: View {
             .background(LadleTheme.paper)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close", action: close)
+                    Button(action: close) {
+                        Image(systemName: "xmark")
+                            .frame(width: 44, height: 44)
+                    }
+                    .accessibilityLabel("Close")
                 }
             }
         }
@@ -70,6 +75,18 @@ struct AddRecipeSheet: View {
         )
         .presentationDragIndicator(.visible)
         .presentationBackground(LadleTheme.paper)
+        .confirmationDialog(
+            "Cancel this import?",
+            isPresented: $isCancelConfirmationPresented,
+            titleVisibility: .visible
+        ) {
+            Button("Cancel Import", role: .destructive) {
+                cancelImport()
+            }
+            Button("Keep Processing", role: .cancel) {}
+        } message: {
+            Text("The recipe will stop processing and disappear from Inbox.")
+        }
         .sheet(item: $recoveryInputMode) { mode in
             CorrectionNotesView(mode: mode) { notes, pastedText in
                 guard case let .failed(jobID, _) = coordinator.state else {
@@ -87,6 +104,9 @@ struct AddRecipeSheet: View {
             if coordinator.operation == nil {
                 coordinator.reset()
             }
+            if coordinator.isImporting {
+                selectedDetent = .large
+            }
         }
         .onChange(of: accountSession.state) { _, state in
             guard state == .freeAccount
@@ -101,6 +121,8 @@ struct AddRecipeSheet: View {
         }
         .onChange(of: coordinator.state) { _, state in
             if case .failed = state {
+                selectedDetent = .large
+            } else if case .importing = state {
                 selectedDetent = .large
             }
         }
@@ -277,10 +299,12 @@ struct AddRecipeSheet: View {
                     .multilineTextAlignment(.center)
             }
 
-            Button("Keep browsing") {
-                dismiss()
+            Button("Cancel Import", role: .destructive) {
+                isCancelConfirmationPresented = true
             }
-            .buttonStyle(LadlePrimaryButtonStyle(isProminent: false))
+            .ladleFont(.bodyStrong)
+            .foregroundStyle(.red)
+            .frame(maxWidth: .infinity, minHeight: 48)
         }
         .padding(LadleTheme.Spacing.generous)
     }
@@ -505,6 +529,16 @@ struct AddRecipeSheet: View {
             coordinator.reset()
         }
         dismiss()
+    }
+
+    private func cancelImport() {
+        guard let jobID = coordinator.operation?.jobID else {
+            return
+        }
+        Task {
+            await coordinator.cancelImport(jobID: jobID)
+            dismiss()
+        }
     }
 }
 

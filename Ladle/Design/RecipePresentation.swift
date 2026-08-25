@@ -15,9 +15,9 @@ extension Recipe {
     var libraryFacts: String {
         [
             libraryNutrition?.proteinGrams.map { "\(ladleNumber($0)) g P" },
-            totalMinutes.map { "\($0) min" },
             libraryNutrition?.calories.map {
-                "≈ \(ladleNumber($0, maximumFractionDigits: 0)) cal"
+                let prefix = libraryNutrition?.isEstimated == true ? "≈ " : ""
+                return "\(prefix)\(ladleNumber($0, maximumFractionDigits: 0)) cal"
             },
         ]
         .compactMap(\.self)

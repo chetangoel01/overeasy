@@ -34,17 +34,15 @@ struct RecipeGridCard: View {
             Text(recipe.title)
                 .ladleFont(.recipeTitle)
                 .foregroundStyle(LadleTheme.ink)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
+                .lineLimit(2, reservesSpace: true)
 
-            if !recipe.libraryFacts.isEmpty {
-                Text(recipe.libraryFacts)
-                    .ladleFont(.metadata)
-                    .foregroundStyle(LadleTheme.ink.opacity(0.58))
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            Text(recipe.libraryFacts.isEmpty ? " " : recipe.libraryFacts)
+                .ladleFont(.metadata)
+                .foregroundStyle(LadleTheme.ink.opacity(0.58))
+                .lineLimit(2, reservesSpace: true)
+                .accessibilityHidden(recipe.libraryFacts.isEmpty)
         }
+        .frame(maxWidth: 146, alignment: .leading)
         .contentShape(Rectangle())
         .onTapGesture(perform: openRecipe)
         .recipeContextMenu(
@@ -81,5 +79,37 @@ struct RecipeGridCard: View {
         recipe.isFavorite
             ? "Remove \(recipe.title) from favorites"
             : "Add \(recipe.title) to favorites"
+    }
+}
+
+struct RecipeGalleryCard: View {
+    let recipe: Recipe
+    let openRecipe: () -> Void
+    let toggleFavorite: () -> Void
+
+    var body: some View {
+        RecipeArtworkView(
+            recipeID: recipe.id,
+            image: recipe.images.first
+        )
+        .aspectRatio(1, contentMode: .fill)
+        .clipShape(
+            RoundedRectangle(
+                cornerRadius: LadleTheme.Corner.control,
+                style: .continuous
+            )
+        )
+        .contentShape(Rectangle())
+        .onTapGesture(perform: openRecipe)
+        .recipeContextMenu(
+            recipe: recipe,
+            openRecipe: openRecipe,
+            toggleFavorite: toggleFavorite
+        )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(recipe.title)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction(named: "Open recipe", openRecipe)
+        .accessibilityIdentifier("recipe.gallery.\(recipe.librarySlug)")
     }
 }

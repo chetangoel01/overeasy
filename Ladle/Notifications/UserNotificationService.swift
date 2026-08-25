@@ -1,5 +1,48 @@
 import LadleCore
+import Observation
+import UIKit
 import UserNotifications
+
+@MainActor
+@Observable
+final class NotificationNavigation {
+    static let shared = NotificationNavigation()
+
+    private(set) var recipeID: UUID?
+
+    func open(recipeID: UUID) {
+        self.recipeID = recipeID
+    }
+
+    func clear() {
+        recipeID = nil
+    }
+}
+
+final class LadleAppDelegate: NSObject, UIApplicationDelegate,
+    UNUserNotificationCenterDelegate {
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions:
+            [UIApplication.LaunchOptionsKey: Any]? = nil
+    ) -> Bool {
+        UNUserNotificationCenter.current().delegate = self
+        return true
+    }
+
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse
+    ) async {
+        guard let value = response.notification.request.content.userInfo[
+            "recipeID"
+        ] as? String,
+        let recipeID = UUID(uuidString: value) else {
+            return
+        }
+        await NotificationNavigation.shared.open(recipeID: recipeID)
+    }
+}
 
 @MainActor
 final class UserNotificationService: NotificationService {

@@ -65,6 +65,27 @@ final class DiscoverViewModelTests: XCTestCase {
         XCTAssertEqual(service.savedSourceIDs, [recipe.sourceID])
     }
 
+    func testWatchSaveKeepsCurrentSessionVisibleUntilReload() async {
+        let recipe = discoveredRecipe()
+        let saved = SavedDiscoverRecipe(
+            recipe: PreviewFixtures.recipes[0],
+            revision: 3
+        )
+        let viewModel = DiscoverViewModel(
+            service: DiscoverTestService(
+                result: .success([recipe]),
+                savedResult: .success(saved)
+            ),
+            removesSavedRecipeImmediately: false
+        )
+
+        await viewModel.load()
+        _ = await viewModel.save(recipe)
+
+        XCTAssertEqual(viewModel.state, .loaded([recipe]))
+        XCTAssertTrue(viewModel.isSaved(recipe))
+    }
+
     func testSaveIsIdempotentWhileRecipeIsMarkedSaved() async {
         let recipe = discoveredRecipe(savedRecipeID: UUID())
         let service = DiscoverTestService(result: .success([recipe]))

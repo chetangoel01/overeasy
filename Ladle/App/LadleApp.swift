@@ -64,6 +64,8 @@ struct LadleApp: App {
     private static let installationIDKey = "ladle.installation.id"
 
     @Environment(\.scenePhase) private var scenePhase
+    @UIApplicationDelegateAdaptor(LadleAppDelegate.self)
+    private var appDelegate
     @AppStorage(LadleAccentColor.preferenceKey)
     private var accentColor = LadleAccentColor.tomato.rawValue
 
@@ -279,6 +281,7 @@ struct LadleApp: App {
                 googleSignIn: googleSignIn,
                 discoverService: discoverService,
                 installationID: installationID,
+                notificationNavigation: .shared,
                 onAuthenticated: {
                     if let syncService {
                         try? await syncService.resetAndSynchronize()

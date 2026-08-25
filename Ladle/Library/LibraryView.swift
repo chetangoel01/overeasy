@@ -42,6 +42,7 @@ struct LibraryView: View {
     let accountSession: AccountSession
     var discoverService: any DiscoverServing = DemoDiscoverService()
     var installationID: String = "preview-installation"
+    var notificationNavigation: NotificationNavigation = .shared
     var canImport = true
     var onSignOut: @MainActor () async -> Void = {}
     var onDeleteAccount: @MainActor () async throws -> Void = {}
@@ -52,6 +53,7 @@ struct LibraryView: View {
     @State private var isAccountPresented = false
     @State private var failedImportJob: ImportJob?
     @State private var pendingDestination: LibraryRecipeDestination?
+    @State private var watchRefreshVersion = 0
 
     var body: some View {
         NavigationStack(path: $navigation.path) {
@@ -66,7 +68,7 @@ struct LibraryView: View {
             .navigationTitle(navigation.tab.title)
             .navigationBarTitleDisplayMode(.large)
             .toolbar(
-                navigation.tab == .watch && !viewModel.watchRecipes.isEmpty
+                navigation.tab == .watch
                     ? .hidden
                     : .visible,
                 for: .navigationBar
@@ -81,10 +83,11 @@ struct LibraryView: View {
             }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("library.root")
-            .task {
+            .task(id: notificationNavigation.recipeID) {
                 if viewModel.loadState == .idle {
                     viewModel.load()
                 }
+                openNotificationRecipeIfNeeded()
             }
             .sheet(isPresented: $isFilterSheetPresented) {
                 FilterSheet(viewModel: viewModel)
@@ -137,6 +140,11 @@ struct LibraryView: View {
             .onChange(of: importCoordinator.state) { _, state in
                 if state.refreshesLibrary {
                     viewModel.load()
+                }
+            }
+            .onChange(of: navigation.tab) { oldTab, newTab in
+                if newTab == .watch, oldTab != .watch {
+                    watchRefreshVersion += 1
                 }
             }
             .libraryOperationAlert(
@@ -192,7 +200,7 @@ struct LibraryView: View {
     private var discoverTab: some View {
         discover
             .tabItem {
-                Label("Discover", systemImage: "sparkles")
+                Label("Discover", systemImage: "fork.knife")
             }
             .tag(LibraryTab.discover)
     }
@@ -200,7 +208,19 @@ struct LibraryView: View {
     private var watchTab: some View {
         WatchView(
             viewModel: viewModel,
-            openRecipe: openRecipe,
+            discoverService: discoverService,
+            refreshVersion: watchRefreshVersion,
+            openSavedRecipe: openRecipe,
+            openDiscoverRecipe: { recipe in
+                showRecipe(
+                    recipe,
+                    statusText: "Discover recipe",
+                    access: .discover
+                )
+            },
+            saveRecipe: { saved in
+                viewModel.storeDiscoveredRecipe(saved)
+            },
             openAccount: { isAccountPresented = true }
         )
         .tabItem {
@@ -213,6 +233,13 @@ struct LibraryView: View {
         ImportInboxView(
             viewModel: viewModel,
             recoverImport: { failedImportJob = $0 },
+            openProcessing: presentProcessing,
+            cancelImport: { jobID in
+                Task {
+                    await importCoordinator.cancelImport(jobID: jobID)
+                    viewModel.load()
+                }
+            },
             openReview: { recipe, statusText in
                 showRecipe(recipe, statusText: statusText)
             }
@@ -262,6 +289,26 @@ struct LibraryView: View {
 
     private func presentAddRecipe() {
         isAddSheetPresented = true
+    }
+
+    private func presentProcessing(_ job: ImportJob) {
+        guard importCoordinator.attach(to: job.id) else {
+            viewModel.load()
+            return
+        }
+        isAddSheetPresented = true
+    }
+
+    private func openNotificationRecipeIfNeeded() {
+        guard let recipeID = notificationNavigation.recipeID,
+              let recipe = viewModel.recipes.first(
+                  where: { $0.id == recipeID }
+              ) else {
+            return
+        }
+        navigation.select(.recipes)
+        showRecipe(recipe, statusText: "Imported recipe")
+        notificationNavigation.clear()
     }
 
     private func recipeDetail(

@@ -148,17 +148,21 @@ struct AllRecipesView: View {
                             : "list.bullet"
                     )
                 }
+                Button {
+                    setDisplayMode(.gallery)
+                } label: {
+                    Label(
+                        "Gallery",
+                        systemImage: viewModel.displayMode == .gallery
+                            ? "checkmark"
+                            : "photo.on.rectangle.angled"
+                    )
+                }
             } label: {
-                controlIcon(
-                    viewModel.displayMode == .grid
-                        ? "square.grid.2x2"
-                        : "list.bullet"
-                )
+                controlIcon(displayModeSystemImage)
             }
             .accessibilityLabel("Recipe view")
-            .accessibilityValue(
-                viewModel.displayMode == .grid ? "Grid" : "List"
-            )
+            .accessibilityValue(displayModeTitle)
             .buttonStyle(LadlePressButtonStyle())
         }
     }
@@ -242,9 +246,16 @@ struct AllRecipesView: View {
             LazyVGrid(columns: columns, spacing: LadleTheme.Spacing.generous) {
                 recipeCards
             }
-        } else {
+        } else if viewModel.displayMode == .list {
             LazyVStack(spacing: 12) {
                 recipeRows
+            }
+        } else {
+            LazyVGrid(
+                columns: galleryColumns,
+                spacing: LadleTheme.Spacing.compact
+            ) {
+                recipeGalleryCards
             }
         }
     }
@@ -273,6 +284,18 @@ struct AllRecipesView: View {
         }
     }
 
+    private var recipeGalleryCards: some View {
+        ForEach(viewModel.visibleRecipes) { recipe in
+            RecipeGalleryCard(
+                recipe: recipe,
+                openRecipe: { openRecipe(recipe) },
+                toggleFavorite: {
+                    viewModel.toggleFavorite(recipeID: recipe.id)
+                }
+            )
+        }
+    }
+
     private var emptyState: some View {
         VStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
@@ -291,14 +314,31 @@ struct AllRecipesView: View {
 
     private var columns: [GridItem] {
         dynamicTypeSize >= .xxxLarge
-            ? [GridItem(.flexible(), alignment: .top)]
+            ? [GridItem(.flexible(maximum: 146), alignment: .top)]
             : [
                 GridItem(
-                    .adaptive(minimum: 150, maximum: 220),
+                    .flexible(minimum: 130, maximum: 146),
+                    spacing: LadleTheme.Spacing.regular,
+                    alignment: .top
+                ),
+                GridItem(
+                    .flexible(minimum: 130, maximum: 146),
                     spacing: LadleTheme.Spacing.regular,
                     alignment: .top
                 ),
             ]
+    }
+
+    private var galleryColumns: [GridItem] {
+        dynamicTypeSize.isAccessibilitySize
+            ? [GridItem(.flexible()), GridItem(.flexible())]
+            : Array(
+                repeating: GridItem(
+                    .flexible(),
+                    spacing: LadleTheme.Spacing.compact
+                ),
+                count: 3
+            )
     }
 
     private var filterChips: [LibraryFilterChip] {
@@ -373,6 +413,22 @@ struct AllRecipesView: View {
             ) {
                 viewModel.displayMode = mode
             }
+        }
+    }
+
+    private var displayModeSystemImage: String {
+        switch viewModel.displayMode {
+        case .grid: "square.grid.2x2"
+        case .list: "list.bullet"
+        case .gallery: "photo.on.rectangle.angled"
+        }
+    }
+
+    private var displayModeTitle: String {
+        switch viewModel.displayMode {
+        case .grid: "Grid"
+        case .list: "List"
+        case .gallery: "Gallery"
         }
     }
 

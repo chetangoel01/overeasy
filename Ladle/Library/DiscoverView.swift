@@ -13,6 +13,7 @@ final class DiscoverViewModel {
     }
 
     private let service: any DiscoverServing
+    private let removesSavedRecipeImmediately: Bool
     private(set) var state: State = .idle
     private(set) var savingSourceIDs: Set<UUID> = []
     private(set) var loadingDetailSourceIDs: Set<UUID> = []
@@ -20,8 +21,12 @@ final class DiscoverViewModel {
     private(set) var saveErrorMessage: String?
     private(set) var detailErrorMessage: String?
 
-    init(service: any DiscoverServing) {
+    init(
+        service: any DiscoverServing,
+        removesSavedRecipeImmediately: Bool = true
+    ) {
         self.service = service
+        self.removesSavedRecipeImmediately = removesSavedRecipeImmediately
     }
 
     func load() async {
@@ -87,7 +92,8 @@ final class DiscoverViewModel {
                 sourceID: recipe.sourceID
             )
             savedSourceIDs.insert(recipe.sourceID)
-            if case let .loaded(recipes) = state {
+            if removesSavedRecipeImmediately,
+               case let .loaded(recipes) = state {
                 state = .loaded(
                     recipes.filter { $0.sourceID != recipe.sourceID }
                 )
@@ -339,17 +345,7 @@ private struct DiscoverRecipeRow: View {
     }
 
     private var artwork: some View {
-        AsyncImage(url: recipe.imageURL) { phase in
-            if case let .success(image) = phase {
-                image.resizable().scaledToFill()
-            } else {
-                ZStack {
-                    LadleTheme.oat
-                    Image(systemName: "play.rectangle")
-                        .foregroundStyle(LadleTheme.paprika)
-                }
-            }
-        }
+        DiscoverArtwork(recipe: recipe)
         .frame(width: 96, height: 96)
         .clipShape(
             RoundedRectangle(
@@ -413,18 +409,7 @@ private struct DiscoverRecipeContextPreview: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            AsyncImage(url: recipe.imageURL) { phase in
-                if case let .success(image) = phase {
-                    image.resizable().scaledToFill()
-                } else {
-                    Rectangle()
-                        .fill(LadleTheme.oat)
-                        .overlay {
-                            Image(systemName: "fork.knife")
-                                .foregroundStyle(LadleTheme.paprika)
-                        }
-                }
-            }
+            DiscoverArtwork(recipe: recipe)
             .frame(height: 210)
             .clipShape(
                 RoundedRectangle(
@@ -450,6 +435,19 @@ private struct DiscoverRecipeContextPreview: View {
         .padding(16)
         .frame(width: 300)
         .background(LadleTheme.paper)
+    }
+}
+
+private struct DiscoverArtwork: View {
+    let recipe: DiscoverRecipe
+
+    var body: some View {
+        RecipeArtworkView(
+            recipeID: recipe.sourceID,
+            image: recipe.imageURL.map {
+                RecipeImage(id: recipe.sourceID, remoteURL: $0)
+            }
+        )
     }
 }
 

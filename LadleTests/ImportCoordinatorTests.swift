@@ -411,6 +411,37 @@ final class ImportCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.state, .idle)
     }
 
+    func testConfirmedCancellationTerminatesRemoteAndRemovesDurableJob() async throws {
+        let service = CancellablePollingImportService()
+        let repository = ImportTestRepository()
+        let coordinator = ImportCoordinator(
+            repository: repository,
+            service: service,
+            accountSession: AccountSession(
+                store: ImportTestPreferenceStore()
+            ),
+            clock: ImmediateImportClock()
+        )
+        let task = Task {
+            await coordinator.submit(
+                urlText: "https://youtu.be/cancel-this-import"
+            )
+        }
+
+        while repository.importJobs.first?.remoteJobID == nil {
+            await Task.yield()
+        }
+        let jobID = try XCTUnwrap(repository.importJobs.first?.id)
+
+        await coordinator.cancelImport(jobID: jobID)
+        await task.value
+
+        XCTAssertTrue(repository.importJobs.isEmpty)
+        XCTAssertEqual(coordinator.state, .idle)
+        let cancelCount = await service.cancelCount
+        XCTAssertEqual(cancelCount, 1)
+    }
+
     func testAuthenticationExpiryMakesAdmissionJobDurablyFailed() async {
         let repository = ImportTestRepository()
         let coordinator = ImportCoordinator(
@@ -547,6 +578,42 @@ private actor SlowPollingImportService: ImportService {
             remoteJobID: remoteJobID,
             progress: .parsing
         )
+    }
+}
+
+private actor CancellablePollingImportService: ImportService {
+    private(set) var cancelCount = 0
+
+    func submit(
+        _ job: ImportJob,
+        allowingDuplicate: Bool
+    ) async throws -> ImportServiceUpdate {
+        ImportServiceUpdate(
+            remoteJobID: job.id.uuidString,
+            progress: .parsing
+        )
+    }
+
+    func status(remoteJobID: String) async throws -> ImportServiceUpdate {
+        while !Task.isCancelled {
+            await Task.yield()
+        }
+        throw CancellationError()
+    }
+
+    func retry(
+        remoteJobID: String,
+        correctionNotes: String?,
+        pastedRecipeText: String?
+    ) async throws -> ImportServiceUpdate {
+        ImportServiceUpdate(
+            remoteJobID: remoteJobID,
+            progress: .parsing
+        )
+    }
+
+    func cancel(remoteJobID: String) async throws {
+        cancelCount += 1
     }
 }
 

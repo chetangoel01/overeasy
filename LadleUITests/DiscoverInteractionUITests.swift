@@ -34,7 +34,7 @@ final class DiscoverInteractionUITests: XCTestCase {
         XCTAssertTrue(firstPageControl.waitForExistence(timeout: 3))
         XCTAssertTrue(firstPageControl.isHittable)
         XCTAssertTrue(app.buttons["Account"].firstMatch.isHittable)
-        XCTAssertTrue(app.buttons["Start cooking"].firstMatch.isHittable)
+        XCTAssertTrue(app.buttons["Save"].firstMatch.isHittable)
 
         app.swipeUp()
 
@@ -95,9 +95,10 @@ final class DiscoverInteractionUITests: XCTestCase {
         )
         app.buttons["Import from link"].tap()
 
-        let keepBrowsing = app.buttons["Keep browsing"]
-        XCTAssertTrue(keepBrowsing.waitForExistence(timeout: 2))
-        keepBrowsing.tap()
+        let close = app.buttons["Close"]
+        XCTAssertTrue(close.waitForExistence(timeout: 2))
+        XCTAssertTrue(app.buttons["Cancel Import"].isHittable)
+        close.tap()
 
         XCTAssertTrue(
             app.descendants(matching: .any)["library.all-recipes"]
