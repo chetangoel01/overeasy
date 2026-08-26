@@ -127,7 +127,7 @@ Xcode consumes it by catalog name.
 
 | Area | Required final states | Status |
 | --- | --- | --- |
-| Bootstrap | preparing, ready, local-store failure, invalid release configuration | open, Task 9 |
+| Bootstrap | preparing, ready, local-store failure, invalid release configuration | closed in Task 9 |
 | Local library | loading, content, true empty, filtered empty, cached-content reload failure, large library | closed in Task 6 |
 | Connectivity and sync | current, syncing, offline, degraded, rate limited, quota, expired auth, conflict | shared failure vocabulary and observable status closed in Tasks 4-5; conflict handling remains open |
 | Discover and remote Watch | initial load, content, empty, content-preserving refresh, stale/offline, classified remote failures, per-item operation | closed in Task 7 |
@@ -285,6 +285,39 @@ Verification on August 26, 2026:
   live App Attest test was intentionally skipped;
 - a final 20-test coordinator and UI check passed after adding the live
   retry-date transition.
+
+### Explicit startup bootstrap
+
+Task 9 removes both production `fatalError` startup paths. App construction
+now begins with a visible preparing state and creates the SwiftData store,
+release service configuration, and existing runtime dependency graph behind a
+single bootstrap result. The ready result preserves the previous account,
+queue reconciliation, notification, import, Discover, sync, image-cache, and
+scene lifecycle behavior.
+
+A local-store failure never constructs a replacement repository or presents a
+false empty library. It blocks the workspace, states that the library was not
+cleared, exposes diagnostic `OE-BOOT-STORE-001`, and retries the same real
+bootstrap. Invalid live API configuration blocks startup with diagnostic
+`OE-BOOT-CONFIG-001` and directs the user to a valid build rather than offering
+a retry that cannot succeed. Both failure surfaces use the approved semantic
+theme and expose stable accessibility identifiers for deterministic scenarios.
+
+Verification on August 26, 2026:
+
+- the initial focused build failed because `AppBootstrap` did not exist,
+  proving the red contract;
+- 4 `AppBootstrapTests` passed for store failure, invalid configuration,
+  complete ready dependencies, and a failure-then-success retry;
+- 45 focused bootstrap, project-smoke, persistence, shared-queue, and account
+  tests passed;
+- the complete `LadleTests` target passed 218 tests: 217 passed and the one
+  live App Attest test was intentionally skipped;
+- a generic simulator build passed for the Ladle app and embedded Share
+  Extension;
+- the Settings navigation UI test launched through the new bootstrap and
+  passed;
+- a production-source search found no remaining `fatalError` call.
 
 ## Final release gates
 

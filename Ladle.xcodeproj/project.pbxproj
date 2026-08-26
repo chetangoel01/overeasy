@@ -20,6 +20,7 @@
 		13A8E77CA71DE564C79A291E /* ShareURLExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A93A16FCFB7610C2A4F09D4 /* ShareURLExtractor.swift */; };
 		19817C767CFBCAA88DFC31C5 /* HealthExportSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 673D9EEE813C58368B614A0F /* HealthExportSheet.swift */; };
 		1D7AE199157D84F1562E6C95 /* ReimportSafetyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2461B3FDEC6CF3119C4548A /* ReimportSafetyTests.swift */; };
+		1E030826FAE0A2B854964CA7 /* AppBootstrap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EC3E6A7C19F7CCCF1033B3A /* AppBootstrap.swift */; };
 		1FA4683FAEA2F3B99EECAE54 /* SyncStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 610D0835A1815DB23436E411 /* SyncStatus.swift */; };
 		202BABB63D7F671836CD4F1A /* ShareURLExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A93A16FCFB7610C2A4F09D4 /* ShareURLExtractor.swift */; };
 		224F559012E7DF26C228AF43 /* APIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC34B6B51E6AF6B47D8FC45D /* APIClientTests.swift */; };
@@ -37,6 +38,7 @@
 		3D212F33DC8232C5C1A8FAA7 /* OnboardingWalkthroughView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0370D3E55CB7D0FD1314AF8 /* OnboardingWalkthroughView.swift */; };
 		3D9722FAFEB6B970AAB73DAF /* DiscoverService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9795563629F29EFC955E4CEE /* DiscoverService.swift */; };
 		3EAD52B961E44399FA89F41E /* RecipeEditorViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EA2657D0BA391951AC9AB8A /* RecipeEditorViewModel.swift */; };
+		40E9F40421BC4A40D32746A3 /* AppBootstrapTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 168A0A47134E3312FBAD080E /* AppBootstrapTests.swift */; };
 		48D0EBCF569C98CD7A92CD0E /* ShareURLExtractorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E19326D8562639EDF5FA97E /* ShareURLExtractorTests.swift */; };
 		4C65FD233947DB0E38831B40 /* LadleCore in Frameworks */ = {isa = PBXBuildFile; productRef = ACB5208FC83F92BD0A208E0F /* LadleCore */; };
 		4CE3214444DC464505688E43 /* ScreenAwakeController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 614CB64D3827AB1339095FC2 /* ScreenAwakeController.swift */; };
@@ -165,6 +167,8 @@
 		09B260DA499835E89F84D468 /* HealthExportViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthExportViewModelTests.swift; sourceTree = "<group>"; };
 		0CFAA18EE2255DC832AF47E2 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		0E19326D8562639EDF5FA97E /* ShareURLExtractorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareURLExtractorTests.swift; sourceTree = "<group>"; };
+		0EC3E6A7C19F7CCCF1033B3A /* AppBootstrap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppBootstrap.swift; sourceTree = "<group>"; };
+		168A0A47134E3312FBAD080E /* AppBootstrapTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppBootstrapTests.swift; sourceTree = "<group>"; };
 		1AE99C267EF3E47EF936C777 /* RecipeTimer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeTimer.swift; sourceTree = "<group>"; };
 		2027095EF76748A9CC4DE10F /* NotificationServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationServiceTests.swift; sourceTree = "<group>"; };
 		2256E64AD0B3ACFDB22A837E /* AuthClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthClientTests.swift; sourceTree = "<group>"; };
@@ -452,6 +456,7 @@
 				B38BC487172BD4E150410E78 /* AccountSessionTests.swift */,
 				AC34B6B51E6AF6B47D8FC45D /* APIClientTests.swift */,
 				30A84A5F8B238E1FDC631926 /* AppAttestClientTests.swift */,
+				168A0A47134E3312FBAD080E /* AppBootstrapTests.swift */,
 				2256E64AD0B3ACFDB22A837E /* AuthClientTests.swift */,
 				96B58AC391122DA6ADD686C9 /* CookingViewModelTests.swift */,
 				ADCDE2C252635C3E9076C6DD /* DemoImportServiceTests.swift */,
@@ -498,6 +503,7 @@
 		C211D04B23F90F493F5777D1 /* App */ = {
 			isa = PBXGroup;
 			children = (
+				0EC3E6A7C19F7CCCF1033B3A /* AppBootstrap.swift */,
 				C620D1903E80465BDA8FE60F /* AppEnvironment.swift */,
 				398FE0A6194867671568AF86 /* LadleApp.swift */,
 				7CAD674446D07BDCDBFD2F66 /* RootView.swift */,
@@ -763,6 +769,7 @@
 				FED8F6252BF9482B0F17209C /* AddRecipeSheet.swift in Sources */,
 				DFC659D823A4B7AA5BFD3E4E /* AllRecipesView.swift in Sources */,
 				B8666103939A1C937D3007CF /* AppAttestClient.swift in Sources */,
+				1E030826FAE0A2B854964CA7 /* AppBootstrap.swift in Sources */,
 				93A83D9AD673751E50FE0D16 /* AppEnvironment.swift in Sources */,
 				9E6908D535A27DA7429230D5 /* AuthClient.swift in Sources */,
 				04F10BBF44F7962FD24A6ADD /* CookingViewModel.swift in Sources */,
@@ -849,6 +856,7 @@
 				224F559012E7DF26C228AF43 /* APIClientTests.swift in Sources */,
 				9C16EF897125A7B0B4CBF604 /* AccountSessionTests.swift in Sources */,
 				8E8D469AEBAD18304870D64B /* AppAttestClientTests.swift in Sources */,
+				40E9F40421BC4A40D32746A3 /* AppBootstrapTests.swift in Sources */,
 				4CE9B8C981FF6E36E6152685 /* AuthClientTests.swift in Sources */,
 				582D38A667F6429C2DAD53C9 /* CookingViewModelTests.swift in Sources */,
 				39BB9D3C3EC14FFDCE622491 /* DemoImportServiceTests.swift in Sources */,
