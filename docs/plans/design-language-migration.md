@@ -50,22 +50,48 @@ Densest files first — these six hold about half the off-scale values:
 Replace the alias pairs, then the palette names, with semantic roles. No colour
 values change; `Surface.badge` is the only new value.
 
-| Replace | With | Uses |
-| --- | --- | --- |
-| `paprika` | `Label.accent` | 51 |
-| `field` | `Surface.raised` | 28 |
-| `review` | `Surface.steel` | 28 |
-| `success` | `Intent.success` | 10 |
-| `ink` | `Label.primary` | 176 |
-| `onAccent` | `Label.onAccent` | 51 |
-| `paper` | `Surface.porcelain` | 45 |
-| `mutedInk` | `Label.secondary` | 30 |
+The four alias pairs are done, one commit each. Every alias bound the very same
+`Color` its role names, so the swap is value-preserving by construction, and the
+Recipes screen is pixel-identical before and after. Each commit also deleted its
+alias definition, which makes the compiler prove the migration is total rather
+than leaving a name for a later grep to miss.
+
+| Replace | With | Uses | Status |
+| --- | --- | --- | --- |
+| ~~`paprika`~~ | `Label.accent` | 51 | done, `68f8324` |
+| ~~`field`~~ | `Surface.raised` | 28 | done, `378a6c5` |
+| ~~`review`~~ | `Surface.steel` | 28 | done, `2630682` |
+| ~~`success`~~ | `Intent.success` | 10 | done, `41a62a3` |
+| `ink` | `Label.primary` | 176 | |
+| `onAccent` | `Label.onAccent` | 51 | |
+| `paper` | `Surface.porcelain` | 45 | |
+| `mutedInk` | `Label.secondary` | 30 | |
+
+The remaining four are palette names rather than aliases, so they cannot be
+deleted the same way — the roles are defined in terms of them.
 
 `butter` has zero uses. Its `butterHex` constant is asserted in
 `DesignTokenTests`, so remove both together or neither.
 
-Icon badges drawn on a raised card move to `Surface.badge`; badges on the
-porcelain ground may stay on `Surface.steel`.
+### Left behind by the mechanical pass
+
+Both groups below change pixels, which is why they stayed out of the alias
+commits.
+
+Nine `Label.accent` sites tint or fill rather than colour a foreground.
+`Intent.accent` is a different value — `brick`, not `accentText` — so each site
+needs deciding on its own. `FullRecipeView:100`, `PendingImportCard:72`,
+`ReimportSheet:143`, `RecipeEditorView:313` and `:358`, and `AddRecipeSheet:288`
+tint controls. `PrivacyDetailView:76`, `IngredientList:21` and
+`RecipeDetailView:330` fill bullets — and a bullet is decoration, which `Intent`
+explicitly excludes, so those three may want no accent at all.
+
+Thirteen sites draw a circular icon badge in `Surface.steel`. On a `raised` card
+steel sits about four percent off the card behind it, which is the
+invisible-badge finding; those move to `Surface.badge`. Badges on the porcelain
+ground may stay. `AccountSheet:58`, `:126`, `:384`, `:429`;
+`AddRecipeSheet:290`, `:373`, `:431`, `:504`; `ReimportSheet:236`, `:356`;
+`HealthExportSheet:90`; `GuestLimitView:17`; `FailedImportSheet:81`.
 
 ## Buttons
 
@@ -101,7 +127,7 @@ Outstanding, each with a role that now exists to express the fix:
 
 ## Sequencing
 
-1. Colour aliases (mechanical, no visual change).
+1. ~~Colour aliases~~ — done. The four alias pairs are gone.
 2. Off-scale spacing, densest files first.
 3. Button roles, which carries the two behaviour fixes above.
 4. The layout defects, which are call-site changes rather than token changes.
