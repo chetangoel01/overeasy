@@ -1,4 +1,19 @@
-# Design language migration
+# Design Language Migration Implementation Plan
+
+> **For Codex:** Use the executing-plans and test-driven-development skills to
+> implement this plan task by task.
+
+**Goal:** Move Overeasy onto semantic colour, spacing, and button roles while
+fixing the visual defects those roles expose.
+
+**Architecture:** `LadleTheme`, `LadleTypography`, and `LadleComponents` own the
+shared vocabulary. Screens state intent through those roles and keep any
+screen-specific composition local. `LadleShare` mirrors tokens it cannot import
+from the app target.
+
+**Tech stack:** Swift 6, SwiftUI, XCTest, XCUITest, and iOS 26.5 simulators.
+
+---
 
 Companion to the semantic design roles added in `LadleTheme`,
 `LadleTypography` and `LadleComponents`. The roles are defined and the app
@@ -185,3 +200,67 @@ Outstanding, each with a role that now exists to express the fix:
 Steps 1 and 2 should be visually identical where they only round to a
 neighbouring step; capture Recipes, a sheet, and Focus Mode before and after
 each file to confirm.
+
+## Step 3, batch 1: semantic actions
+
+This batch makes the first production uses of `LadleButtonRole` and fixes the
+two button defects identified by the audit. The saved `b2/after/10-options.png`
+capture is the recipe-options before-state from `51dbe8f`; capture the failed
+import state during the red UI test so its three label origins are measured on
+the same build.
+
+### Task 1: prove the two defects
+
+**Files:**
+
+- Modify `LadleTests/DesignTokenTests.swift`.
+- Modify `LadleUITests/DiscoverInteractionUITests.swift`.
+
+1. Add a unit test requiring `.delete` to resolve to `.destructive`, benign
+   recipe options to resolve to `.tertiary`, and a full-width tertiary style to
+   add no implicit horizontal inset.
+2. Run only that unit test. It must fail because `RecipeOption.buttonRole` and
+   `LadleButtonStyle.horizontalPadding` do not exist yet.
+3. Add a UI test that drives the demo importer with a `parser-failed` URL and
+   compares the `minX` values of “Add correction notes”, “Paste recipe details”,
+   and “Create manually”.
+4. Run only that UI test. It must fail on the existing centred labels; save a
+   simulator screenshot under `~/Desktop/overeasy-ui-scratch/step3/before/`.
+
+### Task 2: distinguish the destructive recipe option
+
+**Files:**
+
+- Modify `Ladle/Design/LadleComponents.swift`.
+- Modify `Ladle/RecipeDetail/RecipeOptionsSheet.swift`.
+- Test `LadleTests/DesignTokenTests.swift`.
+
+1. Make full-width tertiary rows opt out of the hugging tertiary inset while
+   preserving the inset for the default hugging form.
+2. Give `RecipeOption` a semantic role: `.delete` is `.destructive`; every
+   other option is `.tertiary`.
+3. Apply `LadleButtonStyle(role:isFullWidth:)` to every option. Keep benign rows
+   otherwise unchanged and let the destructive role provide the delete fill;
+   its rich row content must use destructive-safe foregrounds.
+4. Run the focused unit test, then `DesignTokenTests`; both must pass.
+5. Run `git diff --check`, update this document with the verification result,
+   and commit the coherent change.
+
+### Task 3: align failed-import recovery labels
+
+**Files:**
+
+- Modify `Ladle/Import/ImportRecoveryActions.swift`.
+- Test `LadleUITests/DiscoverInteractionUITests.swift`.
+
+1. Replace the legacy primary wrapper with
+   `LadleButtonStyle(role: .primary)`.
+2. Build each recovery action from a leading `HStack` with one shared icon
+   column, `Layout.iconGap`, and one horizontal content inset. Apply
+   `LadleButtonStyle(role: .secondary)` and remove the hand-built background,
+   height, font, and foreground modifiers the role now owns.
+3. Re-run the alignment UI test. All three text origins must match within one
+   point; save the after screenshot beside the before-state.
+4. Run the focused unit and UI tests, then all `LadleTests`.
+5. Run `git diff --check`, record verification here, and commit the coherent
+   change.
