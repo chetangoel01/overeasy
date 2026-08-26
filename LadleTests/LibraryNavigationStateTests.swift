@@ -93,6 +93,32 @@ final class LibraryNavigationStateTests: XCTestCase {
         XCTAssertEqual(LibraryTab.inbox.toolbarActions, [.account])
     }
 
+    func testInitialLoadFailureBlocksEveryWorkspaceTab() {
+        let presentation = LibraryWorkspacePresentation(
+            loadState: .failed("Your recipes couldn’t be loaded."),
+            reloadErrorMessage: nil
+        )
+
+        XCTAssertEqual(
+            presentation,
+            .blockingFailure("Your recipes couldn’t be loaded.")
+        )
+        XCTAssertFalse(presentation.displaysTabs)
+    }
+
+    func testReloadFailureKeepsEveryWorkspaceTabAvailable() {
+        let presentation = LibraryWorkspacePresentation(
+            loadState: .loaded,
+            reloadErrorMessage: "Your recipes couldn’t be refreshed."
+        )
+
+        XCTAssertEqual(
+            presentation,
+            .content(reloadError: "Your recipes couldn’t be refreshed.")
+        )
+        XCTAssertTrue(presentation.displaysTabs)
+    }
+
     func testDiscoverRecipeDestinationIsReadOnly() {
         let destination = LibraryRecipeDestination(
             recipe: PreviewFixtures.recipes[0],

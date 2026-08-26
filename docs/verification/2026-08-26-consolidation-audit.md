@@ -128,7 +128,7 @@ Xcode consumes it by catalog name.
 | Area | Required final states | Status |
 | --- | --- | --- |
 | Bootstrap | preparing, ready, local-store failure, invalid release configuration | open, Task 9 |
-| Local library | loading, content, true empty, filtered empty, cached-content reload failure, large library | open, Task 6 |
+| Local library | loading, content, true empty, filtered empty, cached-content reload failure, large library | closed in Task 6 |
 | Connectivity and sync | current, syncing, offline, degraded, rate limited, quota, expired auth, conflict | shared failure vocabulary and observable status closed in Tasks 4-5; conflict handling remains open |
 | Discover and remote Watch | initial load, content, empty, content-preserving refresh, stale/offline, classified remote failures, per-item operation | open, Task 7 |
 | Imports | validation, duplicate, guest limit, queued, processing, review, completion, cancellation, concurrency, classified recovery | open, Task 8 |
@@ -192,6 +192,35 @@ Verification on August 26, 2026:
 - the complete `LadleTests` target passed 203 tests: 202 passed and the one
   live App Attest test was intentionally skipped;
 - XcodeGen regenerated the checked-in project with the new source and test.
+
+### Local snapshot and reload semantics
+
+Task 6 separates a failed first read from a failed refresh. Until the local
+repository returns one complete recipes-and-imports snapshot, the workspace
+shows one blocking load or retry surface and constructs none of its four tabs.
+This prevents Inbox and saved Watch from presenting false empty states when the
+store is unavailable. Settings remains reachable; add/import actions remain
+hidden until the first snapshot succeeds.
+
+After a successful snapshot, a later repository error preserves recipes,
+imports, Watch ordering, and the known-empty case. The workspace remains fully
+usable and shows a compact inline "Showing saved recipes" message with a retry
+action. A successful retry atomically replaces both arrays and clears the
+message. The existing true-empty and filtered-empty presentations remain
+distinct. The centralized workspace gate made duplicate changes inside
+`ImportInboxView` and `WatchView` unnecessary.
+
+Verification on August 26, 2026:
+
+- focused tests first failed because the new snapshot error and workspace
+  presentation did not exist, proving the red state;
+- 42 `LibraryViewModelTests` and `LibraryNavigationStateTests` passed;
+- a deterministic 1,000-recipe test covered exact search, cooking-time sort,
+  favorite/time filters, collection counts, and stable Watch ordering;
+- `AllRecipesView` retains `LazyVGrid`/`LazyVStack`, and `WatchView` retains
+  `LazyVStack`; no eager large-data container was added;
+- the complete `LadleTests` target passed 207 tests: 206 passed and the one
+  live App Attest test was intentionally skipped.
 
 ## Final release gates
 

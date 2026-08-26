@@ -585,6 +585,74 @@ final class LibraryViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.visibleRecipes.isEmpty)
     }
 
+    func testReloadFailurePreservesLastSuccessfulSnapshot() {
+        let recipes = PreviewFixtures.recipes
+        let importJobs = PreviewFixtures.importJobs
+        let repository = LibraryTestRepository(
+            recipes: recipes,
+            importJobs: importJobs
+        )
+        let viewModel = LibraryViewModel(
+            repository: repository,
+            preferenceStore: LibraryTestPreferenceStore()
+        )
+        viewModel.load()
+
+        repository.recipes = []
+        repository.importJobs = []
+        repository.fetchError = LibraryTestError.unavailable
+        viewModel.load()
+
+        XCTAssertEqual(viewModel.loadState, .loaded)
+        XCTAssertEqual(viewModel.recipes, recipes)
+        XCTAssertEqual(viewModel.importJobs, importJobs)
+        XCTAssertEqual(
+            viewModel.reloadErrorMessage,
+            "Your recipes couldn’t be refreshed."
+        )
+
+        repository.fetchError = nil
+        repository.recipes = [recipes[0]]
+        repository.importJobs = []
+        viewModel.load()
+
+        XCTAssertEqual(viewModel.recipes, [recipes[0]])
+        XCTAssertTrue(viewModel.importJobs.isEmpty)
+        XCTAssertNil(viewModel.reloadErrorMessage)
+    }
+
+    func testLargeLibraryRemainsDeterministicAcrossCorePresentations() {
+        let recipes = largeLibrary(count: 1_000)
+        let viewModel = LibraryViewModel(
+            repository: LibraryTestRepository(recipes: recipes),
+            preferenceStore: LibraryTestPreferenceStore(),
+            shuffleRecipeIDs: { Array($0.reversed()) }
+        )
+        viewModel.load()
+
+        XCTAssertEqual(viewModel.recipes.count, 1_000)
+        XCTAssertEqual(viewModel.quickRecipes.count, 510)
+        XCTAssertEqual(viewModel.favoriteRecipes.count, 100)
+        XCTAssertEqual(viewModel.uncookedRecipes.count, 750)
+        XCTAssertEqual(viewModel.watchRecipes.count, 666)
+        XCTAssertEqual(
+            viewModel.watchRecipes.prefix(3).map(\.title),
+            ["Recipe 0998", "Recipe 0997", "Recipe 0995"]
+        )
+
+        viewModel.searchText = "Recipe 0042"
+        viewModel.sort = .alphabetical
+        XCTAssertEqual(viewModel.visibleRecipes.map(\.title), ["Recipe 0042"])
+
+        viewModel.searchText = ""
+        viewModel.sort = .cookingTime
+        viewModel.favoritesOnly = true
+        viewModel.maximumTotalMinutes = 30
+        XCTAssertEqual(viewModel.visibleRecipes.count, 51)
+        XCTAssertEqual(viewModel.visibleRecipes.first?.totalMinutes, 1)
+        XCTAssertEqual(viewModel.visibleRecipes.last?.totalMinutes, 21)
+    }
+
     private func makeViewModel() -> LibraryViewModel {
         LibraryViewModel(
             repository: LibraryTestRepository(
@@ -607,6 +675,45 @@ final class LibraryViewModelTests: XCTestCase {
             to: .ready,
             at: Date(timeIntervalSince1970: 20)
         )
+    }
+
+    private func largeLibrary(count: Int) -> [Recipe] {
+        let date = Date(timeIntervalSince1970: 1_800_000_000)
+        var recipes: [Recipe] = []
+        recipes.reserveCapacity(count)
+        for index in 0..<count {
+            let idText = String(
+                format: "00000000-0000-0000-0000-%012d",
+                index
+            )
+            let nutrition = Nutrition(
+                calories: Decimal(250 + (index % 500)),
+                proteinGrams: Decimal(index % 50),
+                carbohydrateGrams: Decimal(index % 80),
+                fatGrams: Decimal(index % 30),
+                servingBasis: 1,
+                isEstimated: true
+            )
+            recipes.append(
+                Recipe(
+                    id: UUID(uuidString: idText)!,
+                    title: String(format: "Recipe %04d", index),
+                    creatorName: "@cook\(index % 20)",
+                    source: index.isMultiple(of: 3) ? .other : .tiktok,
+                    originalURL: URL(
+                        string: "https://example.com/recipes/\(index)"
+                    )!,
+                    totalMinutes: (index % 60) + 1,
+                    servings: 1,
+                    nutrition: nutrition,
+                    isFavorite: index.isMultiple(of: 10),
+                    lastCookedAt: index.isMultiple(of: 4) ? date : nil,
+                    createdAt: date.addingTimeInterval(TimeInterval(index)),
+                    updatedAt: date
+                )
+            )
+        }
+        return recipes
     }
 }
 

@@ -36,6 +36,31 @@ struct LibraryNavigationState: Equatable {
     }
 }
 
+enum LibraryWorkspacePresentation: Equatable {
+    case loading
+    case blockingFailure(String)
+    case content(reloadError: String?)
+
+    init(
+        loadState: LibraryViewModel.LoadState,
+        reloadErrorMessage: String?
+    ) {
+        switch loadState {
+        case .idle:
+            self = .loading
+        case let .failed(message):
+            self = .blockingFailure(message)
+        case .loaded:
+            self = .content(reloadError: reloadErrorMessage)
+        }
+    }
+
+    var displaysTabs: Bool {
+        guard case .content = self else { return false }
+        return true
+    }
+}
+
 struct LibraryView: View {
     @Bindable var viewModel: LibraryViewModel
     @Bindable var importCoordinator: ImportCoordinator
@@ -58,15 +83,7 @@ struct LibraryView: View {
 
     var body: some View {
         NavigationStack(path: $navigation.path) {
-            TabView(selection: $navigation.tab) {
-                recipesTab
-                discoverTab
-                watchTab
-                inboxTab
-            }
-            .safeAreaInset(edge: .top, spacing: 0) {
-                SyncStatusBanner(status: syncStatus)
-            }
+            workspace
             .background(LadleTheme.paper)
             .tint(LadleTheme.brick)
             .navigationTitle(navigation.tab.title)
@@ -80,7 +97,8 @@ struct LibraryView: View {
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     accountButton
-                    if navigation.tab == .recipes {
+                    if workspacePresentation.displaysTabs,
+                       navigation.tab == .recipes {
                         addRecipeButton
                     }
                 }
@@ -177,21 +195,52 @@ struct LibraryView: View {
     }
 
     @ViewBuilder
-    private var recipes: some View {
-        switch viewModel.loadState {
-        case .idle:
+    private var workspace: some View {
+        switch workspacePresentation {
+        case .loading:
             LibraryLoadStateView(message: nil, retry: viewModel.load)
-        case let .failed(message):
+        case let .blockingFailure(message):
             LibraryLoadStateView(message: message, retry: viewModel.load)
-        case .loaded:
-            AllRecipesView(
-                viewModel: viewModel,
-                addRecipe: { presentAddRecipe() },
-                openRecipe: openRecipe,
-                openCollection: openCollection,
-                presentFilters: { isFilterSheetPresented = true }
-            )
+        case let .content(reloadError):
+            workspaceTabs(reloadError: reloadError)
         }
+    }
+
+    private var workspacePresentation: LibraryWorkspacePresentation {
+        LibraryWorkspacePresentation(
+            loadState: viewModel.loadState,
+            reloadErrorMessage: viewModel.reloadErrorMessage
+        )
+    }
+
+    private func workspaceTabs(reloadError: String?) -> some View {
+        TabView(selection: $navigation.tab) {
+            recipesTab
+            discoverTab
+            watchTab
+            inboxTab
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            VStack(spacing: 0) {
+                if let reloadError {
+                    LibraryReloadErrorBanner(
+                        message: reloadError,
+                        retry: viewModel.load
+                    )
+                }
+                SyncStatusBanner(status: syncStatus)
+            }
+        }
+    }
+
+    private var recipes: some View {
+        AllRecipesView(
+            viewModel: viewModel,
+            addRecipe: { presentAddRecipe() },
+            openRecipe: openRecipe,
+            openCollection: openCollection,
+            presentFilters: { isFilterSheetPresented = true }
+        )
     }
 
     private var recipesTab: some View {
@@ -486,6 +535,45 @@ private struct SyncStatusBanner: View {
     }
 }
 
+private struct LibraryReloadErrorBanner: View {
+    let message: String
+    let retry: () -> Void
+
+    var body: some View {
+        HStack(alignment: .center, spacing: LadleTheme.Layout.iconGap) {
+            Image(systemName: "externaldrive.badge.exclamationmark")
+                .font(.system(
+                    size: LadleTheme.IconSize.medium,
+                    weight: .semibold
+                ))
+                .foregroundStyle(LadleTheme.Label.primary)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
+                Text("Showing saved recipes")
+                    .ladleFont(.bodyStrong)
+                    .foregroundStyle(LadleTheme.Label.primary)
+                Text(message)
+                    .ladleFont(.metadata)
+                    .foregroundStyle(LadleTheme.Label.secondary)
+            }
+            Spacer(minLength: LadleTheme.Spacing.compact)
+            Button("Try Again", action: retry)
+                .ladleFont(.bodyStrong)
+                .foregroundStyle(LadleTheme.accentText)
+                .buttonStyle(.plain)
+        }
+        .padding(.horizontal, LadleTheme.Layout.screenMargin)
+        .padding(.vertical, LadleTheme.Spacing.compact)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(LadleTheme.Surface.steel)
+        .overlay(alignment: .bottom) {
+            Divider().overlay(LadleTheme.Stroke.separator)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("library.reload-error")
+    }
+}
+
 private struct LibraryLoadStateView: View {
     let message: String?
     let retry: () -> Void
@@ -513,6 +601,8 @@ private struct LibraryLoadStateView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(32)
         .background(LadleTheme.paper)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("library.load-state")
     }
 }
 

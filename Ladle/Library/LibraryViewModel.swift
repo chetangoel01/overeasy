@@ -60,6 +60,7 @@ final class LibraryViewModel {
     private(set) var recipes: [Recipe] = []
     private(set) var importJobs: [ImportJob] = []
     private(set) var loadState: LoadState = .idle
+    private(set) var reloadErrorMessage: String?
     private(set) var operationErrorMessage: String?
 
     var searchText = ""
@@ -280,15 +281,23 @@ final class LibraryViewModel {
 
     func load() {
         do {
-            recipes = try repository.fetchRecipes()
+            let loadedRecipes = try repository.fetchRecipes()
+            let loadedImportJobs = try repository.fetchImportJobs()
+            recipes = loadedRecipes
+            importJobs = loadedImportJobs
             refreshWatchRecipeOrder()
-            importJobs = try repository.fetchImportJobs()
             loadState = .loaded
+            reloadErrorMessage = nil
         } catch {
-            recipes = []
-            watchRecipeOrder = []
-            importJobs = []
-            loadState = .failed("Your recipes couldn’t be loaded.")
+            if loadState == .loaded {
+                reloadErrorMessage = "Your recipes couldn’t be refreshed."
+            } else {
+                recipes = []
+                watchRecipeOrder = []
+                importJobs = []
+                loadState = .failed("Your recipes couldn’t be loaded.")
+                reloadErrorMessage = nil
+            }
         }
     }
 
