@@ -92,7 +92,7 @@ struct RecipeDetailView: View {
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                VStack(alignment: .leading, spacing: 26) {
+                VStack(alignment: .leading, spacing: LadleTheme.Layout.sectionGap) {
                     heroImage
                     recipeHeader
                     RecipeMetadataBand(recipe: displayedRecipe)
@@ -261,13 +261,13 @@ struct RecipeDetailView: View {
     }
 
     private var recipeHeader: some View {
-        VStack(alignment: .leading, spacing: 11) {
+        VStack(alignment: .leading, spacing: LadleTheme.Spacing.medium) {
             Text(displayedRecipe.title)
                 .ladleFont(.title)
                 .foregroundStyle(LadleTheme.ink)
                 .fixedSize(horizontal: false, vertical: true)
 
-            HStack(spacing: 7) {
+            HStack(spacing: LadleTheme.Spacing.compact) {
                 if let creatorName = displayedRecipe.creatorName {
                     Text(creatorName)
                 }
@@ -320,16 +320,16 @@ struct RecipeDetailView: View {
         VStack(alignment: .leading, spacing: 12) {
             LadleSectionHeader(title: "Notes from the source")
 
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: LadleTheme.Layout.rowGap) {
                 ForEach(
                     Array(displayedRecipe.notes.enumerated()),
                     id: \.offset
                 ) { _, note in
-                    HStack(alignment: .top, spacing: 10) {
+                    HStack(alignment: .top, spacing: LadleTheme.Layout.iconGap) {
                         Circle()
                             .fill(LadleTheme.Label.accent)
                             .frame(width: 5, height: 5)
-                            .padding(.top, 7)
+                            .padding(.top, LadleTheme.Spacing.compact)
                             .accessibilityHidden(true)
                         Text(note)
                             .ladleFont(.body)

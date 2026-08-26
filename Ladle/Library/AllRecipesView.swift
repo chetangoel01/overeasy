@@ -43,7 +43,7 @@ struct AllRecipesView: View {
     }
 
     private var searchField: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: LadleTheme.Layout.iconGap) {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(LadleTheme.mutedInk)
             TextField("Search recipes", text: $viewModel.searchText)
@@ -63,7 +63,7 @@ struct AllRecipesView: View {
         }
         .ladleFont(.body)
         .foregroundStyle(LadleTheme.ink)
-        .padding(.horizontal, 14)
+        .padding(.horizontal, LadleTheme.Layout.cardPadding)
         .frame(minHeight: 48)
         .background(
             LadleTheme.oat,
@@ -88,7 +88,7 @@ struct AllRecipesView: View {
 
     private var recipeHeader: some View {
         HStack(alignment: .center, spacing: 8) {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
                 Text(sectionTitle)
                     .ladleFont(.section)
                     .foregroundStyle(LadleTheme.ink)
@@ -168,7 +168,7 @@ struct AllRecipesView: View {
     }
 
     private var collections: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: LadleTheme.Layout.rowGap) {
             Text("Collections")
                 .ladleFont(.section)
                 .foregroundStyle(LadleTheme.ink)
@@ -182,7 +182,7 @@ struct AllRecipesView: View {
                             Image(systemName: row.systemImage)
                                 .font(.system(size: 15, weight: .semibold))
                                 .foregroundStyle(LadleTheme.accentText)
-                                .frame(width: 28)
+                                .frame(width: Self.collectionIconWidth)
                             Text(row.title)
                                 .ladleFont(.body)
                                 .foregroundStyle(LadleTheme.ink)
@@ -201,7 +201,13 @@ struct AllRecipesView: View {
 
                     if row.showsDivider {
                         Divider()
-                            .padding(.leading, 52)
+                            .padding(
+                                .leading,
+                                LadleTheme.dividerInset(
+                                    iconWidth: Self.collectionIconWidth,
+                                    leadingPadding: LadleTheme.Spacing.medium
+                                )
+                            )
                     }
                 }
             }
@@ -297,7 +303,7 @@ struct AllRecipesView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: LadleTheme.Spacing.medium) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 28))
                 .foregroundStyle(LadleTheme.Label.accent)
@@ -309,8 +315,14 @@ struct AllRecipesView: View {
                 .foregroundStyle(LadleTheme.mutedInk)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 36)
+        .padding(.vertical, LadleTheme.Spacing.cooking)
     }
+
+    /// Width of a collection row's leading icon. The row dividers derive
+    /// their inset from this. The literal it replaces already matched the
+    /// label origin, so this keeps a correct alignment correct rather than
+    /// fixing a broken one.
+    private static let collectionIconWidth: CGFloat = 28
 
     private var columns: [GridItem] {
         // No maximum. A capped column cannot fill the content width, and

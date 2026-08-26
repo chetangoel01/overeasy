@@ -61,7 +61,7 @@ struct NutritionView: View {
     }
 
     private var calorieHero: some View {
-        VStack(spacing: 5) {
+        VStack(spacing: LadleTheme.Spacing.tight) {
             Text(calorieText)
                 .ladleFont(.display)
                 .foregroundStyle(LadleTheme.ink)
@@ -89,11 +89,11 @@ struct NutritionView: View {
     private var macroGrid: some View {
         Group {
             if dynamicTypeSize.isAccessibilitySize {
-                VStack(spacing: 10) {
+                VStack(spacing: LadleTheme.Layout.rowGap) {
                     macros
                 }
             } else {
-                HStack(spacing: 10) {
+                HStack(spacing: LadleTheme.Layout.rowGap) {
                     macros
                 }
             }
@@ -136,7 +136,7 @@ struct NutritionView: View {
     }
 
     private var servingNote: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: LadleTheme.Layout.rowGap) {
             Label(
                 hasValidServingBasis
                     ? "Per serving"
@@ -193,7 +193,7 @@ struct NutritionView: View {
     ) -> some View {
         let valueText = value.map { "\(ladleNumber($0)) g" } ?? "Unavailable"
 
-        return VStack(spacing: 7) {
+        return VStack(spacing: LadleTheme.Spacing.compact) {
             Circle()
                 .fill(color)
                 .frame(width: 8, height: 8)
@@ -224,7 +224,7 @@ struct NutritionView: View {
                 .ladleFont(.bodyStrong)
         }
         .foregroundStyle(LadleTheme.ink)
-        .padding(.vertical, 14)
+        .padding(.vertical, LadleTheme.Spacing.medium)
     }
 
     private var nutrientDivider: some View {
