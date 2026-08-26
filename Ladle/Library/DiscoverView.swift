@@ -287,9 +287,9 @@ private struct DiscoverRecipeRow: View {
                     saveButton
                 }
             } else {
-                HStack(alignment: .top, spacing: 14) {
+                HStack(alignment: .top, spacing: LadleTheme.Spacing.medium) {
                     Button(action: open) {
-                        HStack(alignment: .top, spacing: 14) {
+                        HStack(alignment: .top, spacing: LadleTheme.Spacing.medium) {
                             artwork
                             details
                         }
@@ -300,7 +300,7 @@ private struct DiscoverRecipeRow: View {
                 }
             }
         }
-        .padding(.vertical, 14)
+        .padding(.vertical, LadleTheme.Spacing.medium)
         .contextMenu {
             Button("View Recipe", systemImage: "book.pages", action: open)
             if !isSaved {
@@ -317,11 +317,11 @@ private struct DiscoverRecipeRow: View {
     }
 
     private var details: some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .top, spacing: LadleTheme.Spacing.medium) {
             if dynamicTypeSize.isAccessibilitySize {
                 artwork
             }
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
                 Text(recipe.creatorName ?? recipe.source.libraryTitle)
                     .ladleFont(.metadata)
                     .foregroundStyle(LadleTheme.Label.accent)
@@ -383,7 +383,7 @@ private struct DiscoverRecipeRow: View {
                 .foregroundStyle(
                     isSaved ? LadleTheme.ink : LadleTheme.onAccent
                 )
-                .padding(.horizontal, 13)
+                .padding(.horizontal, LadleTheme.Spacing.medium)
                 .frame(minHeight: 44)
                 .background(
                     isSaved ? LadleTheme.celery : LadleTheme.brick,
@@ -453,11 +453,11 @@ private struct DiscoverArtwork: View {
 
 private struct DiscoverLoadingRow: View {
     var body: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: LadleTheme.Spacing.medium) {
             RoundedRectangle(cornerRadius: LadleTheme.Corner.control)
                 .fill(LadleTheme.oat)
                 .frame(width: 96, height: 96)
-            VStack(alignment: .leading, spacing: 9) {
+            VStack(alignment: .leading, spacing: LadleTheme.Spacing.compact) {
                 RoundedRectangle(cornerRadius: 4)
                     .fill(LadleTheme.ube)
                     .frame(width: 90, height: 12)
@@ -469,7 +469,7 @@ private struct DiscoverLoadingRow: View {
                     .frame(width: 150, height: 12)
             }
         }
-        .padding(.vertical, 14)
+        .padding(.vertical, LadleTheme.Spacing.medium)
         .redacted(reason: .placeholder)
         .accessibilityHidden(true)
     }
