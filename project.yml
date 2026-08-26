@@ -106,3 +106,8 @@ schemes:
       targets:
         - LadleTests
         - LadleUITests
+
+  LadleShare:
+    build:
+      targets:
+        LadleShare: all

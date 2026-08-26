@@ -408,6 +408,25 @@ Verification on August 26, 2026:
 - the focused non-quiet build log contains no Google Sign-In sendability
   warning, compared with the repeated warning in the Task 11 generic build.
 
+### Standalone Share Extension build scheme
+
+The final build audit found that Xcode's direct-target invocation does not
+resolve the local `LadleCore` package graph, even though the main `Ladle`
+scheme correctly builds and embeds `LadleShare.appex`. The project manifest
+now declares a shared `LadleShare` scheme so the extension can be compiled and
+linked independently through the supported package-aware scheme path.
+
+Verification on August 26, 2026:
+
+- the focused project test first failed because the manifest had no standalone
+  Share scheme, proving the red state;
+- the generated shared scheme builds only `LadleShare` and its declared
+  `LadleCore` dependency;
+- the focused project test passed after regeneration;
+- `xcodebuild build -project Ladle.xcodeproj -scheme LadleShare -destination
+  'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO` passed for both
+  simulator architectures.
+
 ### Health and media failure states
 
 The second Task 10 checkpoint makes secondary media failures explicit without
@@ -468,7 +487,8 @@ Verification on August 26, 2026:
 
 Task 12 classified every tracked path rather than treating line count or a
 default linter profile as a deletion instruction. The final inventory contains
-612 tracked files after the three deterministic-scenario files are added:
+613 tracked files after the three deterministic-scenario files and standalone
+Share scheme are added:
 
 | Subsystem | Exact path scope | Files | Disposition and evidence |
 | --- | --- | ---: | --- |
@@ -477,7 +497,7 @@ default linter profile as a deletion instruction. The final inventory contains
 | App configuration | `Config/**` | 8 | plist/privacy syntax passes; build settings and entitlements are consumed by declared targets |
 | App tests | `LadleTests/**` | 28 | owned by `LadleTests`; complete suite is a final release gate |
 | UI tests | `LadleUITests/**` | 2 | owned by `LadleUITests`; both interaction and deterministic state suites execute |
-| Share Extension | `LadleShare/**` | 3 | owned by `LadleShare`; direct build and embedded-product checks are release gates |
+| Share Extension | `LadleShare/**` | 3 | owned by `LadleShare`; standalone-scheme and embedded-product builds are release gates |
 | LadleCore source | `Packages/LadleCore/Sources/**` | 14 | owned by the package target; 45 tests pass |
 | LadleCore tests | `Packages/LadleCore/Tests/**` | 9 | all discovered by SwiftPM |
 | LadleCore support | other `Packages/LadleCore/**` | 1 | package manifest parses and resolves |
@@ -488,7 +508,7 @@ default linter profile as a deletion instruction. The final inventory contains
 | Deployment and operations | `Backend/deploy/**`, `Backend/scripts/**`, `Backend/systemd/**` | 38 | shell syntax, deployment tests, and Compose rendering cover the scripts and units |
 | Backend manifests/support | remaining `Backend/**` | 32 | Compose, container, environment, dependency, and tool manifests are consumed by CI/local workflows |
 | Contracts | `Contracts/**` | 8 | shared JSON examples/schemas parse and backend contract tests consume them |
-| Generated project/manifest | `Ladle.xcodeproj/**`, `project.yml`, `Package.resolved` | 5 | clean XcodeGen reproduction; checked-in workspace SwiftPM directory is intentional |
+| Generated project/manifest | `Ladle.xcodeproj/**`, `project.yml`, `Package.resolved` | 6 | clean XcodeGen reproduction; the shared app and Share schemes and checked-in workspace SwiftPM directory are intentional |
 | Plans | `docs/plans/**` | 22 | dated design/implementation history retained; current consolidation plan owns open work |
 | Verification | `docs/verification/**` | 25 | dated immutable evidence retained; this ledger is the current truth surface |
 | Other documentation | other `docs/**` | 3 | current handoff, privacy, and backend design references retained |

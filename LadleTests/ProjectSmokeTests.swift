@@ -132,6 +132,19 @@ final class ProjectSmokeTests: XCTestCase {
         XCTAssertTrue(specification.contains("CODE_SIGN_STYLE: Automatic"))
     }
 
+    func testProjectDefinesStandaloneShareExtensionScheme() throws {
+        let project = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let specification = try String(
+            contentsOf: project.appendingPathComponent("project.yml"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(specification.contains("  LadleShare:\n    build:"))
+        XCTAssertTrue(specification.contains("        LadleShare: all"))
+    }
+
     func testRuntimeConfigurationReadsSharedKeychainAccessGroup() {
         let configuration = LadleRuntimeConfiguration(
             launchArguments: [],
