@@ -126,7 +126,7 @@ struct RecipeDetailView: View {
             }
             .scrollIndicators(.hidden)
         }
-        .background(LadleTheme.paper)
+        .background(LadleTheme.Surface.porcelain)
         .sensoryFeedback(.selection, trigger: isFavorite)
         .sensoryFeedback(.success, trigger: reviewIsPending) {
             wasPending,
@@ -158,7 +158,7 @@ struct RecipeDetailView: View {
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
-        .toolbarBackground(LadleTheme.paper, for: .navigationBar)
+        .toolbarBackground(LadleTheme.Surface.porcelain, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbar {
             if allowsLibraryEdits {
@@ -170,7 +170,7 @@ struct RecipeDetailView: View {
                         Image(systemName: "ellipsis")
                             .frame(width: 44, height: 44)
                     }
-                    .foregroundStyle(LadleTheme.ink)
+                    .foregroundStyle(LadleTheme.Label.primary)
                     .buttonStyle(LadlePressButtonStyle())
                     .accessibilityLabel("Recipe options")
                 }
@@ -180,7 +180,7 @@ struct RecipeDetailView: View {
                     Image(systemName: "person.crop.circle")
                         .frame(width: 44, height: 44)
                 }
-                .foregroundStyle(LadleTheme.ink)
+                .foregroundStyle(LadleTheme.Label.primary)
                 .buttonStyle(LadlePressButtonStyle())
                 .accessibilityLabel("Account")
             }
@@ -264,7 +264,7 @@ struct RecipeDetailView: View {
         VStack(alignment: .leading, spacing: LadleTheme.Spacing.medium) {
             Text(displayedRecipe.title)
                 .ladleFont(.title)
-                .foregroundStyle(LadleTheme.ink)
+                .foregroundStyle(LadleTheme.Label.primary)
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: LadleTheme.Spacing.compact) {
@@ -278,18 +278,18 @@ struct RecipeDetailView: View {
                 Text(displayedRecipe.source.libraryTitle)
             }
             .ladleFont(.metadata)
-            .foregroundStyle(LadleTheme.ink.opacity(0.58))
+            .foregroundStyle(LadleTheme.Label.primary.opacity(0.58))
 
             if !allowsLibraryEdits {
                 Label("Discover preview", systemImage: "sparkles")
                     .ladleFont(.metadata)
-                    .foregroundStyle(LadleTheme.accentText)
+                    .foregroundStyle(LadleTheme.Label.accent)
             }
 
             if !displayedRecipe.description.isEmpty {
                 Text(displayedRecipe.description)
                     .ladleFont(.body)
-                    .foregroundStyle(LadleTheme.ink.opacity(0.7))
+                    .foregroundStyle(LadleTheme.Label.primary.opacity(0.7))
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -333,7 +333,7 @@ struct RecipeDetailView: View {
                             .accessibilityHidden(true)
                         Text(note)
                             .ladleFont(.body)
-                            .foregroundStyle(LadleTheme.ink.opacity(0.75))
+                            .foregroundStyle(LadleTheme.Label.primary.opacity(0.75))
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -350,12 +350,12 @@ struct RecipeDetailView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Estimated nutrition")
                     .ladleFont(.bodyStrong)
-                    .foregroundStyle(LadleTheme.ink)
+                    .foregroundStyle(LadleTheme.Label.primary)
                 Text(
                     "Values are estimated from the imported recipe and may vary by ingredients or serving size."
                 )
                 .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.ink.opacity(0.62))
+                .foregroundStyle(LadleTheme.Label.primary.opacity(0.62))
             }
         }
         .padding(16)
@@ -379,13 +379,13 @@ struct RecipeDetailView: View {
                 systemImage: "pencil.and.list.clipboard"
             )
             .ladleFont(.bodyStrong)
-            .foregroundStyle(LadleTheme.ink)
+            .foregroundStyle(LadleTheme.Label.primary)
 
             Text(
                 "Some details are missing or inferred. Check them before cooking."
             )
             .ladleFont(.metadata)
-            .foregroundStyle(LadleTheme.mutedInk)
+            .foregroundStyle(LadleTheme.Label.secondary)
             .fixedSize(horizontal: false, vertical: true)
 
             reviewAction
@@ -408,7 +408,7 @@ struct RecipeDetailView: View {
                 systemImage: systemImage
             )
             .ladleFont(.bodyStrong)
-            .foregroundStyle(LadleTheme.ink)
+            .foregroundStyle(LadleTheme.Label.primary)
             .frame(maxWidth: .infinity, minHeight: 52)
             .background(
                 LadleTheme.Intent.success.opacity(0.62),
@@ -449,7 +449,7 @@ struct RecipeDetailView: View {
         } label: {
             Image(systemName: isFavorite ? "heart.fill" : "heart")
                 .foregroundStyle(
-                    isFavorite ? LadleTheme.Label.accent : LadleTheme.ink
+                    isFavorite ? LadleTheme.Label.accent : LadleTheme.Label.primary
                 )
                 .frame(width: 44, height: 44)
         }
@@ -520,7 +520,7 @@ struct RecipeDetailView: View {
     private func previewUnavailable(_ message: String) -> some View {
         Text(message)
             .ladleFont(.metadata)
-            .foregroundStyle(LadleTheme.mutedInk)
+            .foregroundStyle(LadleTheme.Label.secondary)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 

@@ -97,7 +97,7 @@ struct RecipeOptionsSheet: View {
                 .padding(.horizontal, LadleTheme.Spacing.generous)
             }
             .scrollIndicators(.hidden)
-            .background(LadleTheme.paper)
+            .background(LadleTheme.Surface.porcelain)
             .navigationTitle("Recipe options")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -108,6 +108,6 @@ struct RecipeOptionsSheet: View {
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
-        .presentationBackground(LadleTheme.paper)
+        .presentationBackground(LadleTheme.Surface.porcelain)
     }
 }

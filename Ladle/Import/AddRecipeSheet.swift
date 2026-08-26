@@ -58,7 +58,7 @@ struct AddRecipeSheet: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(LadleTheme.paper)
+            .background(LadleTheme.Surface.porcelain)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(action: close) {
@@ -74,7 +74,7 @@ struct AddRecipeSheet: View {
             selection: $selectedDetent
         )
         .presentationDragIndicator(.visible)
-        .presentationBackground(LadleTheme.paper)
+        .presentationBackground(LadleTheme.Surface.porcelain)
         .confirmationDialog(
             "Cancel this import?",
             isPresented: $isCancelConfirmationPresented,
@@ -140,7 +140,7 @@ struct AddRecipeSheet: View {
                 VStack(alignment: .leading, spacing: LadleTheme.Spacing.compact) {
                     Text("Recipe link")
                         .ladleFont(.bodyStrong)
-                        .foregroundStyle(LadleTheme.ink)
+                        .foregroundStyle(LadleTheme.Label.primary)
 
                     TextField(
                         "TikTok, Instagram, or YouTube link",
@@ -150,7 +150,7 @@ struct AddRecipeSheet: View {
                     .keyboardType(.URL)
                     .autocorrectionDisabled()
                     .ladleFont(.body)
-                    .foregroundStyle(LadleTheme.ink)
+                    .foregroundStyle(LadleTheme.Label.primary)
                     .padding(.horizontal, LadleTheme.Layout.cardPadding)
                     .frame(minHeight: 52)
                     .background(
@@ -186,14 +186,14 @@ struct AddRecipeSheet: View {
                         .frame(maxWidth: .infinity, minHeight: 48)
                 }
                 .ladleFont(.bodyStrong)
-                .foregroundStyle(LadleTheme.ink)
+                .foregroundStyle(LadleTheme.Label.primary)
 
                 HStack(spacing: LadleTheme.Layout.iconGap) {
                     Image(systemName: "square.and.arrow.up")
                         .foregroundStyle(LadleTheme.Label.accent)
                     Text("Tip: sharing a video to Overeasy is even faster.")
                         .ladleFont(.metadata)
-                        .foregroundStyle(LadleTheme.ink.opacity(0.62))
+                        .foregroundStyle(LadleTheme.Label.primary.opacity(0.62))
                 }
                 .padding(LadleTheme.Layout.cardPadding)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -272,10 +272,10 @@ struct AddRecipeSheet: View {
                     selectedDetent = .medium
                 }
                 .ladleFont(.bodyStrong)
-                .foregroundStyle(LadleTheme.ink)
+                .foregroundStyle(LadleTheme.Label.primary)
                 .frame(maxWidth: .infinity, minHeight: 44)
             }
-            .foregroundStyle(LadleTheme.ink)
+            .foregroundStyle(LadleTheme.Label.primary)
             .padding(LadleTheme.Spacing.generous)
         }
         .scrollIndicators(.hidden)
@@ -292,10 +292,10 @@ struct AddRecipeSheet: View {
             VStack(spacing: 8) {
                 Text("Cracking this one open")
                     .ladleFont(.title)
-                    .foregroundStyle(LadleTheme.ink)
+                    .foregroundStyle(LadleTheme.Label.primary)
                 Text("Overeasy is pulling out the useful parts. You can keep browsing while it works.")
                     .ladleFont(.body)
-                    .foregroundStyle(LadleTheme.ink.opacity(0.64))
+                    .foregroundStyle(LadleTheme.Label.primary.opacity(0.64))
                     .multilineTextAlignment(.center)
             }
 
@@ -318,7 +318,7 @@ struct AddRecipeSheet: View {
             )
             .font(.system(size: 25, weight: .bold))
             .foregroundStyle(
-                LadleTheme.ink
+                LadleTheme.Label.primary
             )
             .frame(width: 62, height: 62)
             .background(
@@ -329,14 +329,14 @@ struct AddRecipeSheet: View {
             VStack(spacing: 8) {
                 Text(needsReview ? "Check a few details" : "Recipe saved")
                     .ladleFont(.title)
-                    .foregroundStyle(LadleTheme.ink)
+                    .foregroundStyle(LadleTheme.Label.primary)
                     .multilineTextAlignment(.center)
                 Text(
                     coordinator.completedRecipe?.title
                         ?? "Your recipe is ready."
                 )
                 .ladleFont(.body)
-                .foregroundStyle(LadleTheme.ink.opacity(0.64))
+                .foregroundStyle(LadleTheme.Label.primary.opacity(0.64))
                 .multilineTextAlignment(.center)
             }
 
@@ -358,7 +358,7 @@ struct AddRecipeSheet: View {
                 dismiss()
             }
             .ladleFont(.bodyStrong)
-            .foregroundStyle(LadleTheme.ink)
+            .foregroundStyle(LadleTheme.Label.primary)
             .frame(minHeight: 44)
         }
         .padding(LadleTheme.Spacing.generous)
@@ -375,14 +375,14 @@ struct AddRecipeSheet: View {
             VStack(spacing: 8) {
                 Text("Already in your recipes")
                     .ladleFont(.title)
-                    .foregroundStyle(LadleTheme.ink)
+                    .foregroundStyle(LadleTheme.Label.primary)
                     .multilineTextAlignment(.center)
                 Text(
                     coordinator.existingDuplicate?.title
                         ?? "This link has already been rescued."
                 )
                 .ladleFont(.body)
-                .foregroundStyle(LadleTheme.ink.opacity(0.64))
+                .foregroundStyle(LadleTheme.Label.primary.opacity(0.64))
                 .multilineTextAlignment(.center)
             }
 
@@ -437,10 +437,10 @@ struct AddRecipeSheet: View {
                     .background(LadleTheme.Surface.steel, in: Circle())
                 Text(failure.title)
                     .ladleFont(.title)
-                    .foregroundStyle(LadleTheme.ink)
+                    .foregroundStyle(LadleTheme.Label.primary)
                 Text(failure.message)
                     .ladleFont(.body)
-                    .foregroundStyle(LadleTheme.ink.opacity(0.64))
+                    .foregroundStyle(LadleTheme.Label.primary.opacity(0.64))
                     .multilineTextAlignment(.center)
 
                 ImportRecoveryActions(
@@ -455,7 +455,7 @@ struct AddRecipeSheet: View {
                     dismiss()
                 }
                 .ladleFont(.bodyStrong)
-                .foregroundStyle(LadleTheme.ink)
+                .foregroundStyle(LadleTheme.Label.primary)
                 .frame(minHeight: 44)
             }
             .padding(LadleTheme.Spacing.generous)
@@ -511,10 +511,10 @@ struct AddRecipeSheet: View {
                 .background(LadleTheme.Surface.steel, in: Circle())
             Text(title)
                 .ladleFont(.title)
-                .foregroundStyle(LadleTheme.ink)
+                .foregroundStyle(LadleTheme.Label.primary)
             Text(message)
                 .ladleFont(.body)
-                .foregroundStyle(LadleTheme.ink.opacity(0.64))
+                .foregroundStyle(LadleTheme.Label.primary.opacity(0.64))
         }
     }
 
@@ -526,7 +526,7 @@ struct AddRecipeSheet: View {
                 "Finish reviewing that replacement before adding another recipe."
             )
         )
-        .foregroundStyle(LadleTheme.ink)
+        .foregroundStyle(LadleTheme.Label.primary)
         .padding(LadleTheme.Spacing.generous)
     }
 

@@ -38,7 +38,7 @@ struct OnboardingWalkthroughView: View {
 
     var body: some View {
         ZStack {
-            LadleTheme.paper
+            LadleTheme.Surface.porcelain
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
@@ -56,13 +56,13 @@ struct OnboardingWalkthroughView: View {
                         VStack(spacing: LadleTheme.Spacing.medium) {
                             Text(step.title)
                                 .ladleFont(.title)
-                                .foregroundStyle(LadleTheme.ink)
+                                .foregroundStyle(LadleTheme.Label.primary)
                                 .multilineTextAlignment(.center)
                                 .fixedSize(horizontal: false, vertical: true)
 
                             Text(step.message)
                                 .ladleFont(.body)
-                                .foregroundStyle(LadleTheme.mutedInk)
+                                .foregroundStyle(LadleTheme.Label.secondary)
                                 .multilineTextAlignment(.center)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
@@ -88,7 +88,7 @@ struct OnboardingWalkthroughView: View {
         HStack {
             Text("\(step.rawValue + 1) of \(Step.allCases.count)")
                 .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.mutedInk)
+                .foregroundStyle(LadleTheme.Label.secondary)
                 .accessibilityLabel(
                     "Step \(step.rawValue + 1) of \(Step.allCases.count)"
                 )
@@ -98,7 +98,7 @@ struct OnboardingWalkthroughView: View {
             Button(action: onComplete) {
                 Text("Skip")
                     .ladleFont(.bodyStrong)
-                    .foregroundStyle(LadleTheme.ink)
+                    .foregroundStyle(LadleTheme.Label.primary)
                     .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
             }
@@ -123,7 +123,7 @@ struct OnboardingWalkthroughView: View {
     private var shareIllustration: some View {
         ZStack {
             Circle()
-                .fill(LadleTheme.celery.opacity(0.58))
+                .fill(LadleTheme.Intent.success.opacity(0.58))
                 .frame(width: 230, height: 230)
 
             VStack(spacing: LadleTheme.Spacing.medium) {
@@ -133,23 +133,23 @@ struct OnboardingWalkthroughView: View {
                             cornerRadius: LadleTheme.Corner.control,
                             style: .continuous
                         )
-                        .fill(LadleTheme.plum)
+                        .fill(LadleTheme.Surface.graphite)
 
                         Image(systemName: "play.fill")
                             .font(.system(size: 20, weight: .bold))
-                            .foregroundStyle(LadleTheme.onAccent)
+                            .foregroundStyle(LadleTheme.Label.onAccent)
                     }
                     .frame(width: 52, height: 64)
 
                     VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
                         Text("Lemon orzo tonight")
                             .ladleFont(.bodyStrong)
-                            .foregroundStyle(LadleTheme.ink)
+                            .foregroundStyle(LadleTheme.Label.primary)
                             .fixedSize(horizontal: false, vertical: true)
 
                         Text("Instagram · @miacooks")
                             .ladleFont(.metadata)
-                            .foregroundStyle(LadleTheme.mutedInk)
+                            .foregroundStyle(LadleTheme.Label.secondary)
                     }
 
                     Spacer(minLength: LadleTheme.Spacing.compact)
@@ -161,7 +161,7 @@ struct OnboardingWalkthroughView: View {
                 }
                 .padding(LadleTheme.Spacing.regular)
                 .background(
-                    LadleTheme.paper,
+                    LadleTheme.Surface.porcelain,
                     in: RoundedRectangle(
                         cornerRadius: LadleTheme.Corner.card,
                         style: .continuous
@@ -187,17 +187,17 @@ struct OnboardingWalkthroughView: View {
 
                     Text("Add to Overeasy")
                         .ladleFont(.bodyStrong)
-                        .foregroundStyle(LadleTheme.ink)
+                        .foregroundStyle(LadleTheme.Label.primary)
 
                     Spacer()
 
                     Image(systemName: "chevron.right")
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(LadleTheme.mutedInk)
+                        .foregroundStyle(LadleTheme.Label.secondary)
                 }
                 .padding(LadleTheme.Spacing.regular)
                 .background(
-                    LadleTheme.paper,
+                    LadleTheme.Surface.porcelain,
                     in: RoundedRectangle(
                         cornerRadius: LadleTheme.Corner.card,
                         style: .continuous
@@ -205,7 +205,7 @@ struct OnboardingWalkthroughView: View {
                 )
             }
             .frame(maxWidth: 340)
-            .shadow(color: LadleTheme.ink.opacity(0.08), radius: 18, y: 8)
+            .shadow(color: LadleTheme.Label.primary.opacity(0.08), radius: 18, y: 8)
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(
@@ -224,7 +224,7 @@ struct OnboardingWalkthroughView: View {
                     LadlePill(
                         text: "Review",
                         systemImage: "sparkles",
-                        tint: LadleTheme.ube
+                        tint: LadleTheme.Surface.steel
                     )
                     .padding(LadleTheme.Spacing.medium)
                 }
@@ -232,32 +232,32 @@ struct OnboardingWalkthroughView: View {
             VStack(alignment: .leading, spacing: LadleTheme.Spacing.medium) {
                 Text("One-Pot Lemon Orzo with Feta")
                     .ladleFont(.recipeTitle)
-                    .foregroundStyle(LadleTheme.ink)
+                    .foregroundStyle(LadleTheme.Label.primary)
                     .fixedSize(horizontal: false, vertical: true)
 
                 Text("35 min · 8 ingredients")
                     .ladleFont(.metadata)
-                    .foregroundStyle(LadleTheme.mutedInk)
+                    .foregroundStyle(LadleTheme.Label.secondary)
 
                 Divider()
-                    .overlay(LadleTheme.ink.opacity(0.1))
+                    .overlay(LadleTheme.Label.primary.opacity(0.1))
 
                 reviewRow(
                     icon: "checkmark.circle.fill",
                     text: "Lemon, feta, orzo, and spinach",
-                    tint: LadleTheme.celery
+                    tint: LadleTheme.Intent.success
                 )
                 reviewRow(
                     icon: "questionmark.circle.fill",
                     text: "Check the amount of vegetable stock",
-                    tint: LadleTheme.ube
+                    tint: LadleTheme.Surface.steel
                 )
             }
             .padding(LadleTheme.Spacing.regular)
         }
         .frame(maxWidth: 340)
         .background(
-            LadleTheme.oat,
+            LadleTheme.Surface.raised,
             in: RoundedRectangle(
                 cornerRadius: LadleTheme.Corner.card,
                 style: .continuous
@@ -274,7 +274,7 @@ struct OnboardingWalkthroughView: View {
                 cornerRadius: LadleTheme.Corner.card,
                 style: .continuous
             )
-            .stroke(LadleTheme.ink.opacity(0.08), lineWidth: 1)
+            .stroke(LadleTheme.Label.primary.opacity(0.08), lineWidth: 1)
         }
         .accessibilityElement(children: .contain)
     }
@@ -286,13 +286,13 @@ struct OnboardingWalkthroughView: View {
     ) -> some View {
         HStack(alignment: .top, spacing: LadleTheme.Spacing.compact) {
             Image(systemName: icon)
-                .foregroundStyle(LadleTheme.plum)
+                .foregroundStyle(LadleTheme.Surface.graphite)
                 .frame(width: 22, height: 22)
                 .background(tint, in: Circle())
 
             Text(text)
                 .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.ink)
+                .foregroundStyle(LadleTheme.Label.primary)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -302,7 +302,7 @@ struct OnboardingWalkthroughView: View {
             HStack {
                 Text("STEP 3 OF 6")
                     .ladleFont(.eyebrow)
-                    .foregroundStyle(LadleTheme.focusAccent)
+                    .foregroundStyle(LadleTheme.Intent.focus)
 
                 Spacer()
 
@@ -312,35 +312,35 @@ struct OnboardingWalkthroughView: View {
 
             Text("Simmer the orzo")
                 .ladleFont(.title)
-                .foregroundStyle(LadleTheme.onAccent)
+                .foregroundStyle(LadleTheme.Label.onAccent)
                 .fixedSize(horizontal: false, vertical: true)
 
             Text(
                 "Stir in the stock and orzo. Simmer gently until tender, stirring often."
             )
             .ladleFont(.body)
-            .foregroundStyle(LadleTheme.onAccent.opacity(0.84))
+            .foregroundStyle(LadleTheme.Label.onAccent.opacity(0.84))
             .fixedSize(horizontal: false, vertical: true)
 
             HStack {
                 Label("12:00", systemImage: "timer")
                     .ladleFont(.section)
-                    .foregroundStyle(LadleTheme.onAccent)
+                    .foregroundStyle(LadleTheme.Label.onAccent)
 
                 Spacer()
 
                 Text("Start timer")
                     .ladleFont(.metadata)
-                    .foregroundStyle(LadleTheme.ink)
+                    .foregroundStyle(LadleTheme.Label.primary)
                     .padding(.horizontal, LadleTheme.Spacing.medium)
                     .frame(minHeight: 44)
-                    .background(LadleTheme.celery, in: Capsule())
+                    .background(LadleTheme.Intent.success, in: Capsule())
             }
         }
         .padding(LadleTheme.Spacing.generous)
         .frame(maxWidth: 340, minHeight: 270, alignment: .leading)
         .background(
-            LadleTheme.plum,
+            LadleTheme.Surface.graphite,
             in: RoundedRectangle(
                 cornerRadius: LadleTheme.Corner.card,
                 style: .continuous
@@ -352,8 +352,8 @@ struct OnboardingWalkthroughView: View {
                     Capsule()
                         .fill(
                             index < 3
-                                ? LadleTheme.focusAccent
-                                : LadleTheme.onAccent.opacity(0.18)
+                                ? LadleTheme.Intent.focus
+                                : LadleTheme.Label.onAccent.opacity(0.18)
                         )
                         .frame(maxWidth: .infinity)
                 }
@@ -362,7 +362,7 @@ struct OnboardingWalkthroughView: View {
             .padding(LadleTheme.Spacing.regular)
             .accessibilityHidden(true)
         }
-        .shadow(color: LadleTheme.ink.opacity(0.12), radius: 18, y: 8)
+        .shadow(color: LadleTheme.Label.primary.opacity(0.12), radius: 18, y: 8)
         .accessibilityElement(children: .contain)
     }
 
@@ -373,8 +373,8 @@ struct OnboardingWalkthroughView: View {
                     Capsule()
                         .fill(
                             item == step
-                                ? LadleTheme.brick
-                                : LadleTheme.ink.opacity(0.14)
+                                ? LadleTheme.Intent.accent
+                                : LadleTheme.Label.primary.opacity(0.14)
                         )
                         .frame(
                             width: item == step ? 24 : 8,
@@ -397,7 +397,7 @@ struct OnboardingWalkthroughView: View {
         .padding(.horizontal, LadleTheme.Spacing.generous)
         .padding(.top, LadleTheme.Spacing.medium)
         .padding(.bottom, LadleTheme.Spacing.regular)
-        .background(LadleTheme.paper)
+        .background(LadleTheme.Surface.porcelain)
     }
 
     private func advance() {

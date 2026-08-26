@@ -59,7 +59,8 @@ name a call site may use.
 Badges on the porcelain ground may keep using steel.
 
 The four compatibility aliases — `field`, `review`, `success` and `paprika` —
-are gone; every call site is on the role. `butter` is unused.
+are gone; every call site is on the role. The duplicate, unused `butter` palette
+entry is removed as well.
 
 
 Accent fills always carry `onAccent`. Settings offers Tomato, Orange, Sage,

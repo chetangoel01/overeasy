@@ -79,7 +79,7 @@ struct RootView: View {
                 .transition(.opacity)
             }
         }
-        .background(LadleTheme.paper)
+        .background(LadleTheme.Surface.porcelain)
         .animation(
             reduceMotion ? nil : .easeOut(duration: 0.2),
             value: accountSession.shouldPresentWelcome

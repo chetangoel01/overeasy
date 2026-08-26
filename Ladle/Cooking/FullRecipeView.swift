@@ -16,8 +16,8 @@ struct FullRecipeView: View {
         }
         .background(
             (viewModel.mode == .focus
-                ? LadleTheme.plum
-                : LadleTheme.paper)
+                ? LadleTheme.Surface.graphite
+                : LadleTheme.Surface.porcelain)
                 .ignoresSafeArea()
         )
         .onAppear {
@@ -41,10 +41,10 @@ struct FullRecipeView: View {
                 .padding(.bottom, LadleTheme.Layout.scrollTail)
             }
             .scrollIndicators(.hidden)
-            .background(LadleTheme.paper)
+            .background(LadleTheme.Surface.porcelain)
             .accessibilityIdentifier("cooking.full-recipe")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(LadleTheme.paper, for: .navigationBar)
+            .toolbarBackground(LadleTheme.Surface.porcelain, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -53,9 +53,9 @@ struct FullRecipeView: View {
                     } label: {
                         Image(systemName: "xmark")
                             .font(.system(size: 15, weight: .bold))
-                            .foregroundStyle(LadleTheme.ink)
+                            .foregroundStyle(LadleTheme.Label.primary)
                             .frame(width: 44, height: 44)
-                            .background(LadleTheme.ube, in: Circle())
+                            .background(LadleTheme.Surface.steel, in: Circle())
                     }
                     .accessibilityLabel("Close cooking")
                 }
@@ -66,7 +66,7 @@ struct FullRecipeView: View {
     private var recipeHeader: some View {
         Text(viewModel.recipe.title)
             .ladleFont(.title)
-            .foregroundStyle(LadleTheme.ink)
+            .foregroundStyle(LadleTheme.Label.primary)
             .fixedSize(horizontal: false, vertical: true)
             .padding(.top, 12)
     }
@@ -96,7 +96,7 @@ struct FullRecipeView: View {
                 )
             )
             .ladleFont(.bodyStrong)
-            .foregroundStyle(LadleTheme.ink)
+            .foregroundStyle(LadleTheme.Label.primary)
             .tint(LadleTheme.Label.accent)
             .padding(.horizontal, 16)
             .frame(minHeight: 56)
@@ -136,10 +136,10 @@ struct FullRecipeView: View {
         } label: {
             Label("Focus mode", systemImage: "rectangle.expand.vertical")
                 .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.onAccent)
+                .foregroundStyle(LadleTheme.Label.onAccent)
                 .padding(.horizontal, 12)
                 .frame(minHeight: 44)
-                .background(LadleTheme.brick, in: Capsule())
+                .background(LadleTheme.Intent.accent, in: Capsule())
         }
         .buttonStyle(LadlePressButtonStyle())
     }
@@ -158,7 +158,7 @@ struct FullRecipeView: View {
                     if index
                         < viewModel.recipe.orderedIngredients.count - 1 {
                         Divider()
-                            .overlay(LadleTheme.ink.opacity(0.08))
+                            .overlay(LadleTheme.Label.primary.opacity(0.08))
                             .padding(
                                 .leading,
                                 LadleTheme.dividerInset(
@@ -205,7 +205,7 @@ struct FullRecipeView: View {
                 Text(ingredient.cookingDetailText)
                     .ladleFont(.body)
                     .foregroundStyle(
-                        LadleTheme.ink.opacity(isCompleted ? 0.48 : 1)
+                        LadleTheme.Label.primary.opacity(isCompleted ? 0.48 : 1)
                     )
                     .strikethrough(isCompleted)
                 Spacer(minLength: 0)
@@ -248,7 +248,7 @@ struct FullRecipeView: View {
                     Text(step.instruction)
                         .ladleFont(.recipeTitle)
                         .foregroundStyle(
-                            LadleTheme.ink.opacity(
+                            LadleTheme.Label.primary.opacity(
                                 isCompleted ? 0.48 : 1
                             )
                         )
@@ -309,7 +309,7 @@ struct FullRecipeView: View {
                         .stroke(
                             isCompleted
                                 ? LadleTheme.Intent.success
-                                : LadleTheme.ink.opacity(0.24),
+                                : LadleTheme.Label.primary.opacity(0.24),
                             lineWidth: 1.5
                         )
                 }
@@ -317,11 +317,11 @@ struct FullRecipeView: View {
             if isCompleted {
                 Image(systemName: "checkmark")
                     .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(LadleTheme.ink)
+                    .foregroundStyle(LadleTheme.Label.primary)
             } else if let number {
                 Text("\(number)")
                     .ladleFont(.metadata)
-                    .foregroundStyle(LadleTheme.ink.opacity(0.58))
+                    .foregroundStyle(LadleTheme.Label.primary.opacity(0.58))
             }
         }
         .frame(

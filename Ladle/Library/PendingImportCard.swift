@@ -42,12 +42,12 @@ struct PendingImportCard: View {
         VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
             Text(title)
                 .ladleFont(.bodyStrong)
-                .foregroundStyle(LadleTheme.ink)
+                .foregroundStyle(LadleTheme.Label.primary)
                 .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
 
             Text(byline)
                 .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.ink.opacity(0.56))
+                .foregroundStyle(LadleTheme.Label.primary.opacity(0.56))
                 .lineLimit(usesStackedLayout ? 2 : 1)
                 .minimumScaleFactor(
                     usesStackedLayout ? 1 : 0.82
@@ -196,7 +196,7 @@ struct PendingImportCard: View {
         case .ready:
             LadleTheme.Intent.success
         case .parsing, .needsReview:
-            LadleTheme.ink
+            LadleTheme.Label.primary
         }
     }
 }

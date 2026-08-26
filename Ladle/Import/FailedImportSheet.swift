@@ -16,7 +16,7 @@ struct FailedImportSheet: View {
     var body: some View {
         NavigationStack {
             content
-            .background(LadleTheme.paper)
+            .background(LadleTheme.Surface.porcelain)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close", action: close)
@@ -26,7 +26,7 @@ struct FailedImportSheet: View {
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
-        .presentationBackground(LadleTheme.paper)
+        .presentationBackground(LadleTheme.Surface.porcelain)
         .interactiveDismissDisabled(
             isRetrying || isOwnedImporting || isDecisionPending
         )
@@ -86,11 +86,11 @@ struct FailedImportSheet: View {
 
             Text(currentFailure.title)
                 .ladleFont(.title)
-                .foregroundStyle(LadleTheme.ink)
+                .foregroundStyle(LadleTheme.Label.primary)
 
             Text(failureMessage)
                 .ladleFont(.body)
-                .foregroundStyle(LadleTheme.ink.opacity(0.64))
+                .foregroundStyle(LadleTheme.Label.primary.opacity(0.64))
         }
     }
 
@@ -98,10 +98,10 @@ struct FailedImportSheet: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Saved link")
                 .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.ink.opacity(0.56))
+                .foregroundStyle(LadleTheme.Label.primary.opacity(0.56))
             Text(job.sourceURL.absoluteString)
                 .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.ink)
+                .foregroundStyle(LadleTheme.Label.primary)
                 .textSelection(.enabled)
         }
         .padding(LadleTheme.Layout.cardPadding)
@@ -159,7 +159,7 @@ struct FailedImportSheet: View {
                 "Finish or review that import before retrying this one."
             )
         )
-        .foregroundStyle(LadleTheme.ink)
+        .foregroundStyle(LadleTheme.Label.primary)
         .padding(LadleTheme.Spacing.generous)
     }
 

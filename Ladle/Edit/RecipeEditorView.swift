@@ -34,7 +34,7 @@ struct RecipeEditorView: View {
                 .scrollDismissesKeyboard(.interactively)
                 .scrollIndicators(.hidden)
             }
-            .background(LadleTheme.paper)
+            .background(LadleTheme.Surface.porcelain)
             .accessibilityIdentifier("recipe.editor")
             .navigationTitle("Edit recipe")
             .navigationBarTitleDisplayMode(.inline)
@@ -57,7 +57,7 @@ struct RecipeEditorView: View {
             }
         }
         .presentationDetents([.large])
-        .presentationBackground(LadleTheme.paper)
+        .presentationBackground(LadleTheme.Surface.porcelain)
         .interactiveDismissDisabled(viewModel.hasChanges)
     }
 
@@ -72,8 +72,8 @@ struct RecipeEditorView: View {
                             .ladleFont(.metadata)
                             .foregroundStyle(
                                 selectedSection == section
-                                    ? LadleTheme.onAccent
-                                    : LadleTheme.ink
+                                    ? LadleTheme.Label.onAccent
+                                    : LadleTheme.Label.primary
                             )
                             .padding(.horizontal, LadleTheme.Spacing.medium)
                             .frame(minHeight: 44)
@@ -91,10 +91,10 @@ struct RecipeEditorView: View {
             .padding(.vertical, LadleTheme.Spacing.medium)
         }
         .scrollIndicators(.hidden)
-        .background(LadleTheme.paper)
+        .background(LadleTheme.Surface.porcelain)
         .overlay(alignment: .bottom) {
             Divider()
-                .overlay(LadleTheme.ink.opacity(0.08))
+                .overlay(LadleTheme.Label.primary.opacity(0.08))
         }
     }
 
@@ -185,10 +185,10 @@ struct RecipeEditorView: View {
             VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
                 Text("Original source")
                     .ladleFont(.metadata)
-                    .foregroundStyle(LadleTheme.ink.opacity(0.56))
+                    .foregroundStyle(LadleTheme.Label.primary.opacity(0.56))
                 Text(viewModel.draft.originalURL.absoluteString)
                     .ladleFont(.body)
-                    .foregroundStyle(LadleTheme.ink)
+                    .foregroundStyle(LadleTheme.Label.primary)
                     .textSelection(.enabled)
                 Text(viewModel.draft.source.libraryTitle)
                     .ladleFont(.metadata)
@@ -456,7 +456,7 @@ struct RecipeEditorView: View {
             .padding(LadleTheme.Spacing.medium)
             .frame(minHeight: 120)
             .background(
-                LadleTheme.paper,
+                LadleTheme.Surface.porcelain,
                 in: RoundedRectangle(
                     cornerRadius: LadleTheme.Corner.control,
                     style: .continuous
@@ -486,10 +486,10 @@ struct RecipeEditorView: View {
             VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
                 Text(title)
                     .ladleFont(.title)
-                    .foregroundStyle(LadleTheme.ink)
+                    .foregroundStyle(LadleTheme.Label.primary)
                 Text(message)
                     .ladleFont(.body)
-                    .foregroundStyle(LadleTheme.ink.opacity(0.62))
+                    .foregroundStyle(LadleTheme.Label.primary.opacity(0.62))
             }
 
             content()
@@ -511,7 +511,7 @@ struct RecipeEditorView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
                 .ladleFont(.bodyStrong)
-                .foregroundStyle(LadleTheme.ink)
+                .foregroundStyle(LadleTheme.Label.primary)
             HStack(spacing: 8) {
                 TextField(title, text: text)
                     .ladleFont(.body)
@@ -525,7 +525,7 @@ struct RecipeEditorView: View {
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundStyle(
-                                LadleTheme.ink.opacity(0.42)
+                                LadleTheme.Label.primary.opacity(0.42)
                             )
                             .frame(width: 44, height: 44)
                     }
@@ -545,13 +545,13 @@ struct RecipeEditorView: View {
         VStack(alignment: .leading, spacing: LadleTheme.Spacing.compact) {
             Text(title)
                 .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.ink.opacity(0.58))
+                .foregroundStyle(LadleTheme.Label.primary.opacity(0.58))
             TextField(title, text: text)
                 .ladleFont(.body)
                 .padding(.horizontal, 12)
                 .frame(minHeight: 46)
                 .background(
-                    LadleTheme.paper,
+                    LadleTheme.Surface.porcelain,
                     in: RoundedRectangle(
                         cornerRadius: LadleTheme.Corner.control,
                         style: .continuous
@@ -618,7 +618,7 @@ struct RecipeEditorView: View {
     private func itemTitle(_ title: String) -> some View {
         Text(title)
             .ladleFont(.section)
-            .foregroundStyle(LadleTheme.ink)
+            .foregroundStyle(LadleTheme.Label.primary)
     }
 
     @ViewBuilder

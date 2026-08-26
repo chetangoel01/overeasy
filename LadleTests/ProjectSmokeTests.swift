@@ -44,10 +44,10 @@ final class ProjectSmokeTests: XCTestCase {
 
         XCTAssertTrue(
             source.contains(
-                ".foregroundStyle(LadleTheme.onAccent)"
+                ".foregroundStyle(LadleTheme.Label.onAccent)"
             )
         )
-        XCTAssertTrue(source.contains("LadleTheme.focusAccent"))
+        XCTAssertTrue(source.contains("LadleTheme.Intent.focus"))
     }
 
     func testRuntimeConfigurationUsesInMemoryStoreForUnitTests() {

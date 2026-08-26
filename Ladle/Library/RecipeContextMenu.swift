@@ -63,20 +63,20 @@ private struct RecipeContextPreview: View {
 
             Text(recipe.creatorAccountLabel)
                 .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.accentText)
+                .foregroundStyle(LadleTheme.Label.accent)
             Text(recipe.title)
                 .ladleFont(.section)
-                .foregroundStyle(LadleTheme.ink)
+                .foregroundStyle(LadleTheme.Label.primary)
                 .lineLimit(2)
             if !recipe.libraryFacts.isEmpty {
                 Text(recipe.libraryFacts)
                     .ladleFont(.metadata)
-                    .foregroundStyle(LadleTheme.mutedInk)
+                    .foregroundStyle(LadleTheme.Label.secondary)
                     .lineLimit(2)
             }
         }
         .padding(16)
         .frame(width: 300)
-        .background(LadleTheme.paper)
+        .background(LadleTheme.Surface.porcelain)
     }
 }

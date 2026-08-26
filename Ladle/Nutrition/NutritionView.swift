@@ -37,7 +37,7 @@ struct NutritionView: View {
                 .padding(LadleTheme.Spacing.generous)
             }
             .scrollIndicators(.hidden)
-            .background(LadleTheme.paper)
+            .background(LadleTheme.Surface.porcelain)
             .accessibilityIdentifier("nutrition.detail")
             .navigationTitle("Nutrition")
             .navigationBarTitleDisplayMode(.inline)
@@ -50,7 +50,7 @@ struct NutritionView: View {
             }
         }
         .presentationDetents([.large])
-        .presentationBackground(LadleTheme.paper)
+        .presentationBackground(LadleTheme.Surface.porcelain)
         .sheet(isPresented: $isHealthExportPresented) {
             HealthExportSheet(
                 recipeTitle: recipeTitle,
@@ -64,10 +64,10 @@ struct NutritionView: View {
         VStack(spacing: LadleTheme.Spacing.tight) {
             Text(calorieText)
                 .ladleFont(.display)
-                .foregroundStyle(LadleTheme.ink)
+                .foregroundStyle(LadleTheme.Label.primary)
             Text("Calories")
                 .ladleFont(.bodyStrong)
-                .foregroundStyle(LadleTheme.ink.opacity(0.58))
+                .foregroundStyle(LadleTheme.Label.primary.opacity(0.58))
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 24)
@@ -115,7 +115,7 @@ struct NutritionView: View {
         macro(
             name: "Fat",
             value: displayedNutrition.fatGrams,
-            color: LadleTheme.ink
+            color: LadleTheme.Label.primary
         )
     }
 
@@ -146,21 +146,21 @@ struct NutritionView: View {
                     : "exclamationmark.circle"
             )
             .ladleFont(.bodyStrong)
-            .foregroundStyle(LadleTheme.ink)
+            .foregroundStyle(LadleTheme.Label.primary)
 
             if !hasValidServingBasis {
                 Text(
                     "Set a valid serving basis before using these values or exporting them."
                 )
                 .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.ink.opacity(0.64))
+                .foregroundStyle(LadleTheme.Label.primary.opacity(0.64))
             } else if displayedNutrition.isEstimated {
                 Label(
                     "Nutrition is estimated from the imported recipe.",
                     systemImage: "info.circle"
                 )
                 .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.ink.opacity(0.64))
+                .foregroundStyle(LadleTheme.Label.primary.opacity(0.64))
             }
         }
         .padding(16)
@@ -200,10 +200,10 @@ struct NutritionView: View {
                 .accessibilityHidden(true)
             Text(valueText)
                 .ladleFont(.bodyStrong)
-                .foregroundStyle(LadleTheme.ink)
+                .foregroundStyle(LadleTheme.Label.primary)
             Text(name)
                 .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.ink.opacity(0.58))
+                .foregroundStyle(LadleTheme.Label.primary.opacity(0.58))
                 .lineLimit(1)
                 .minimumScaleFactor(0.72)
         }
@@ -223,13 +223,13 @@ struct NutritionView: View {
             Text("\(ladleNumber(nutrient.amount)) \(nutrient.unit)")
                 .ladleFont(.bodyStrong)
         }
-        .foregroundStyle(LadleTheme.ink)
+        .foregroundStyle(LadleTheme.Label.primary)
         .padding(.vertical, LadleTheme.Spacing.medium)
     }
 
     private var nutrientDivider: some View {
         Divider()
-            .overlay(LadleTheme.ink.opacity(0.08))
+            .overlay(LadleTheme.Label.primary.opacity(0.08))
     }
 
     private var nutrientRows: [NutritionDisplayRow] {

@@ -222,7 +222,7 @@ struct InlineVideoPlayer: View {
                                 Color.black
 
                                 ProgressView()
-                                    .tint(LadleTheme.onAccent)
+                                    .tint(LadleTheme.Label.onAccent)
                                     .padding(LadleTheme.Spacing.regular)
                                     .background(
                                         .black.opacity(0.66),
@@ -249,7 +249,7 @@ struct InlineVideoPlayer: View {
                     systemImage: "play.slash",
                     description: Text(VideoEmbed.unavailableMessage)
                 )
-                .foregroundStyle(LadleTheme.onAccent)
+                .foregroundStyle(LadleTheme.Label.onAccent)
             }
         }
         .background(.black)
@@ -303,7 +303,7 @@ struct VideoEmbedSheet: View {
         NavigationStack {
             InlineVideoPlayer(recipe: recipe)
                 .ignoresSafeArea(edges: .bottom)
-                .background(LadleTheme.ink)
+                .background(LadleTheme.Label.primary)
                 .navigationTitle(recipe.source.libraryTitle)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {

@@ -36,7 +36,7 @@ struct HealthExportSheet: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(LadleTheme.paper)
+            .background(LadleTheme.Surface.porcelain)
             .accessibilityIdentifier("health.export")
             .navigationTitle("Apple Health")
             .navigationBarTitleDisplayMode(.inline)
@@ -49,7 +49,7 @@ struct HealthExportSheet: View {
             }
         }
         .presentationDetents([.large])
-        .presentationBackground(LadleTheme.paper)
+        .presentationBackground(LadleTheme.Surface.porcelain)
     }
 
     private var confirmationContent: some View {
@@ -67,7 +67,7 @@ struct HealthExportSheet: View {
                 } label: {
                     if viewModel.state == .exporting {
                         ProgressView()
-                            .tint(LadleTheme.onAccent)
+                            .tint(LadleTheme.Label.onAccent)
                             .frame(maxWidth: .infinity)
                     } else {
                         Text("Confirm & Export")
@@ -91,13 +91,13 @@ struct HealthExportSheet: View {
 
             Text("Add nutrition to Apple Health")
                 .ladleFont(.title)
-                .foregroundStyle(LadleTheme.ink)
+                .foregroundStyle(LadleTheme.Label.primary)
 
             Text(
                 "Choose how much you ate, review the values, then confirm the export."
             )
             .ladleFont(.body)
-            .foregroundStyle(LadleTheme.ink.opacity(0.64))
+            .foregroundStyle(LadleTheme.Label.primary.opacity(0.64))
         }
     }
 
@@ -106,10 +106,10 @@ struct HealthExportSheet: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Servings eaten")
                     .ladleFont(.metadata)
-                    .foregroundStyle(LadleTheme.ink.opacity(0.58))
+                    .foregroundStyle(LadleTheme.Label.primary.opacity(0.58))
                 Text(servingText)
                     .ladleFont(.recipeTitle)
-                    .foregroundStyle(LadleTheme.ink)
+                    .foregroundStyle(LadleTheme.Label.primary)
             }
 
             Spacer()
@@ -150,17 +150,17 @@ struct HealthExportSheet: View {
                     HStack {
                         Text(metric.kind.displayName)
                             .ladleFont(.body)
-                            .foregroundStyle(LadleTheme.ink)
+                            .foregroundStyle(LadleTheme.Label.primary)
                         Spacer()
                         Text(metricText(metric))
                             .ladleFont(.bodyStrong)
-                            .foregroundStyle(LadleTheme.ink)
+                            .foregroundStyle(LadleTheme.Label.primary)
                     }
                     .padding(.vertical, 12)
 
                     if index < viewModel.payload.metrics.count - 1 {
                         Divider()
-                            .overlay(LadleTheme.ink.opacity(0.08))
+                            .overlay(LadleTheme.Label.primary.opacity(0.08))
                     }
                 }
             }
@@ -175,7 +175,7 @@ struct HealthExportSheet: View {
             systemImage: "lock.shield"
         )
         .ladleFont(.metadata)
-        .foregroundStyle(LadleTheme.ink.opacity(0.64))
+        .foregroundStyle(LadleTheme.Label.primary.opacity(0.64))
         .padding(LadleTheme.Layout.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
@@ -249,18 +249,18 @@ struct HealthExportSheet: View {
         VStack(spacing: LadleTheme.Spacing.regular) {
             Image(systemName: icon)
                 .font(.system(size: 24, weight: .bold))
-                .foregroundStyle(LadleTheme.onAccent)
+                .foregroundStyle(LadleTheme.Label.onAccent)
                 .frame(width: 62, height: 62)
-                .background(LadleTheme.brick, in: Circle())
+                .background(LadleTheme.Intent.accent, in: Circle())
 
             Text(title)
                 .ladleFont(.title)
-                .foregroundStyle(LadleTheme.ink)
+                .foregroundStyle(LadleTheme.Label.primary)
                 .multilineTextAlignment(.center)
 
             Text(message)
                 .ladleFont(.body)
-                .foregroundStyle(LadleTheme.ink.opacity(0.64))
+                .foregroundStyle(LadleTheme.Label.primary.opacity(0.64))
                 .multilineTextAlignment(.center)
 
             if let primaryTitle {
@@ -272,7 +272,7 @@ struct HealthExportSheet: View {
                 dismiss()
             }
             .ladleFont(.bodyStrong)
-            .foregroundStyle(LadleTheme.ink)
+            .foregroundStyle(LadleTheme.Label.primary)
             .frame(minHeight: 44)
         }
         .padding(LadleTheme.Spacing.generous)

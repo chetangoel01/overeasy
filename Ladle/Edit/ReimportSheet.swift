@@ -14,7 +14,7 @@ struct ReimportSheet: View {
         NavigationStack {
             content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(LadleTheme.paper)
+            .background(LadleTheme.Surface.porcelain)
             .accessibilityIdentifier("recipe.reimport")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -24,7 +24,7 @@ struct ReimportSheet: View {
             }
         }
         .presentationDetents([.large])
-        .presentationBackground(LadleTheme.paper)
+        .presentationBackground(LadleTheme.Surface.porcelain)
         .interactiveDismissDisabled(
             isOwnedImporting || isDecisionPending
         )
@@ -81,10 +81,10 @@ struct ReimportSheet: View {
                 VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
                     Text("Original source")
                         .ladleFont(.metadata)
-                        .foregroundStyle(LadleTheme.ink.opacity(0.56))
+                        .foregroundStyle(LadleTheme.Label.primary.opacity(0.56))
                     Text(currentRecipe.originalURL.absoluteString)
                         .ladleFont(.body)
-                        .foregroundStyle(LadleTheme.ink)
+                        .foregroundStyle(LadleTheme.Label.primary)
                         .textSelection(.enabled)
                 }
                 .padding(16)
@@ -100,7 +100,7 @@ struct ReimportSheet: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Correction notes")
                         .ladleFont(.bodyStrong)
-                        .foregroundStyle(LadleTheme.ink)
+                        .foregroundStyle(LadleTheme.Label.primary)
                     TextEditor(text: $correctionNotes)
                         .ladleFont(.body)
                         .scrollContentBackground(.hidden)
@@ -118,7 +118,7 @@ struct ReimportSheet: View {
                         "Optional: mention anything the first import missed or misunderstood."
                     )
                     .ladleFont(.metadata)
-                    .foregroundStyle(LadleTheme.ink.opacity(0.56))
+                    .foregroundStyle(LadleTheme.Label.primary.opacity(0.56))
                 }
 
                 Button("Start safe re-import") {
@@ -143,12 +143,12 @@ struct ReimportSheet: View {
                 .tint(LadleTheme.Label.accent)
             Text("Building a replacement")
                 .ladleFont(.title)
-                .foregroundStyle(LadleTheme.ink)
+                .foregroundStyle(LadleTheme.Label.primary)
             Text(
                 "\(currentRecipe.title) is still saved and ready to use while Overeasy checks the source."
             )
             .ladleFont(.body)
-            .foregroundStyle(LadleTheme.ink.opacity(0.64))
+            .foregroundStyle(LadleTheme.Label.primary.opacity(0.64))
             .multilineTextAlignment(.center)
         }
         .padding(LadleTheme.Spacing.generous)
@@ -206,16 +206,16 @@ struct ReimportSheet: View {
         VStack(spacing: LadleTheme.Layout.sectionGap) {
             Image(systemName: icon)
                 .font(.system(size: 24, weight: .bold))
-                .foregroundStyle(LadleTheme.onAccent)
+                .foregroundStyle(LadleTheme.Label.onAccent)
                 .frame(width: 62, height: 62)
-                .background(LadleTheme.brick, in: Circle())
+                .background(LadleTheme.Intent.accent, in: Circle())
             Text(title)
                 .ladleFont(.title)
-                .foregroundStyle(LadleTheme.ink)
+                .foregroundStyle(LadleTheme.Label.primary)
                 .multilineTextAlignment(.center)
             Text(message)
                 .ladleFont(.body)
-                .foregroundStyle(LadleTheme.ink.opacity(0.64))
+                .foregroundStyle(LadleTheme.Label.primary.opacity(0.64))
                 .multilineTextAlignment(.center)
             Button(buttonTitle, action: action)
                 .buttonStyle(LadleButtonStyle(role: .primary))
@@ -236,10 +236,10 @@ struct ReimportSheet: View {
                 .background(LadleTheme.Surface.steel, in: Circle())
             Text(title)
                 .ladleFont(.title)
-                .foregroundStyle(LadleTheme.ink)
+                .foregroundStyle(LadleTheme.Label.primary)
             Text(message)
                 .ladleFont(.body)
-                .foregroundStyle(LadleTheme.ink.opacity(0.64))
+                .foregroundStyle(LadleTheme.Label.primary.opacity(0.64))
         }
     }
 
@@ -311,7 +311,7 @@ struct ReimportDecisionView: View {
                 if let candidate {
                     Text(candidate.title)
                         .ladleFont(.title)
-                        .foregroundStyle(LadleTheme.ink)
+                        .foregroundStyle(LadleTheme.Label.primary)
                     RecipeMetadataBand(recipe: candidate)
                     IngredientList(
                         ingredients: candidate.orderedIngredients
@@ -334,7 +334,7 @@ struct ReimportDecisionView: View {
                     keepCurrent()
                 }
                     .ladleFont(.bodyStrong)
-                    .foregroundStyle(LadleTheme.ink)
+                    .foregroundStyle(LadleTheme.Label.primary)
                     .frame(maxWidth: .infinity, minHeight: 44)
             }
             .padding(LadleTheme.Spacing.generous)
@@ -360,12 +360,12 @@ struct ReimportDecisionView: View {
                     : "Updated recipe ready"
             )
             .ladleFont(.title)
-            .foregroundStyle(LadleTheme.ink)
+            .foregroundStyle(LadleTheme.Label.primary)
             Text(
                 "Your current recipe stays available until you accept this candidate."
             )
             .ladleFont(.body)
-            .foregroundStyle(LadleTheme.ink.opacity(0.64))
+            .foregroundStyle(LadleTheme.Label.primary.opacity(0.64))
         }
     }
 
@@ -376,10 +376,10 @@ struct ReimportDecisionView: View {
             VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
                 Text("Current recipe is safe")
                     .ladleFont(.bodyStrong)
-                    .foregroundStyle(LadleTheme.ink)
+                    .foregroundStyle(LadleTheme.Label.primary)
                 Text(currentRecipe.title)
                     .ladleFont(.metadata)
-                    .foregroundStyle(LadleTheme.mutedInk)
+                    .foregroundStyle(LadleTheme.Label.secondary)
             }
         }
         .padding(LadleTheme.Layout.cardPadding)

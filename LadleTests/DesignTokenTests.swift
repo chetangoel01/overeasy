@@ -44,11 +44,93 @@ final class DesignTokenTests: XCTestCase {
         XCTAssertEqual(offenders.sorted(), [])
     }
 
+    func testProductionScreensUseSemanticColorRoles() throws {
+        let project = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let sources = project.appendingPathComponent("Ladle")
+        let enumerator = try XCTUnwrap(
+            FileManager.default.enumerator(
+                at: sources,
+                includingPropertiesForKeys: nil
+            )
+        )
+        let paletteNames = [
+            "paper", "oat", "ube", "plum", "ink", "mutedInk",
+            "onAccent", "fixedInk", "accentText", "brick", "celery",
+            "focusAccent", "butter",
+        ]
+        var offenders: [String] = []
+
+        for case let file as URL in enumerator
+        where file.pathExtension == "swift"
+            && file.lastPathComponent != "LadleTheme.swift" {
+            let source = try String(contentsOf: file, encoding: .utf8)
+            let usedNames = paletteNames.filter {
+                source.contains("LadleTheme.\($0)")
+            }
+            if !usedNames.isEmpty {
+                let relativePath = file.path.replacingOccurrences(
+                    of: project.path + "/",
+                    with: ""
+                )
+                offenders.append("\(relativePath): \(usedNames.joined(separator: ", "))")
+            }
+        }
+
+        XCTAssertEqual(offenders.sorted(), [])
+    }
+
+    func testShareUsesSemanticSurfaceNames() throws {
+        let project = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: project.appendingPathComponent(
+                "LadleShare/ShareConfirmationView.swift"
+            ),
+            encoding: .utf8
+        )
+
+        XCTAssertFalse(source.contains("ShareTheme.field"))
+        XCTAssertFalse(source.contains("ShareTheme.review"))
+        XCTAssertTrue(source.contains("ShareTheme.Surface.raised"))
+        XCTAssertTrue(source.contains("ShareTheme.Surface.steel"))
+    }
+
+    func testCompatibilityColorAssetsAreRemoved() {
+        let assets = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Ladle/Resources/Assets.xcassets")
+        let compatibilityAssets = [
+            "Butter", "Field", "Paprika", "Review", "Success",
+        ]
+
+        for name in compatibilityAssets {
+            XCTAssertFalse(
+                FileManager.default.fileExists(
+                    atPath: assets
+                        .appendingPathComponent("\(name).colorset")
+                        .path
+                ),
+                "\(name) is a retired compatibility asset"
+            )
+        }
+        XCTAssertTrue(
+            FileManager.default.fileExists(
+                atPath: assets
+                    .appendingPathComponent("AccentColor.colorset")
+                    .path
+            ),
+            "Xcode consumes AccentColor by catalog name"
+        )
+    }
+
     func testPorcelainPaletteUsesApprovedHexValues() {
         XCTAssertEqual(LadleTheme.plumHex, "#14181B")
         XCTAssertEqual(LadleTheme.paperHex, "#F2F4F6")
         XCTAssertEqual(LadleTheme.oatHex, "#E3E7EA")
-        XCTAssertEqual(LadleTheme.butterHex, "#D7DDE2")
         XCTAssertEqual(LadleTheme.inkHex, "#14181B")
         XCTAssertEqual(LadleTheme.brickHex, "#EE4B2F")
         XCTAssertEqual(LadleTheme.celeryHex, "#83A18A")
@@ -59,7 +141,6 @@ final class DesignTokenTests: XCTestCase {
     func testDarkPaletteUsesNeutralGraphiteSurfaces() {
         XCTAssertEqual(LadleTheme.darkPaperHex, "#101214")
         XCTAssertEqual(LadleTheme.darkOatHex, "#1C2024")
-        XCTAssertEqual(LadleTheme.darkButterHex, "#252A2F")
         XCTAssertEqual(LadleTheme.darkInkHex, "#F2F4F5")
         XCTAssertEqual(LadleTheme.darkMutedInkHex, "#A6AFB7")
         XCTAssertEqual(LadleTheme.darkUbeHex, "#252A2F")

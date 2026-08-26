@@ -26,7 +26,7 @@ struct FocusModeView: View {
                 navigationControls
             }
         }
-        .background(LadleTheme.plum)
+        .background(LadleTheme.Surface.graphite)
         .contentShape(Rectangle())
         .accessibilityIdentifier("cooking.focus-mode")
         .simultaneousGesture(
@@ -49,10 +49,10 @@ struct FocusModeView: View {
                 } label: {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(LadleTheme.onAccent)
+                        .foregroundStyle(LadleTheme.Label.onAccent)
                         .frame(width: 44, height: 44)
                         .background(
-                            LadleTheme.onAccent.opacity(0.1),
+                            LadleTheme.Label.onAccent.opacity(0.1),
                             in: Circle()
                         )
                 }
@@ -62,11 +62,11 @@ struct FocusModeView: View {
 
                 Text(viewModel.progressText)
                     .ladleFont(.metadata)
-                    .foregroundStyle(LadleTheme.onAccent.opacity(0.82))
+                    .foregroundStyle(LadleTheme.Label.onAccent.opacity(0.82))
             }
 
             ProgressView(value: viewModel.progress)
-                .tint(LadleTheme.focusAccent)
+                .tint(LadleTheme.Intent.focus)
                 .accessibilityLabel(
                     "\(viewModel.progressText) cooking progress"
                 )
@@ -85,7 +85,7 @@ struct FocusModeView: View {
                         : "Timer finished"
                 )
                 .ladleFont(.eyebrow)
-                .foregroundStyle(LadleTheme.focusAccent)
+                .foregroundStyle(LadleTheme.Intent.focus)
 
                 Text(
                     viewModel.finishedTimerForCurrentStep.map {
@@ -97,7 +97,7 @@ struct FocusModeView: View {
                         relativeTo: .largeTitle,
                         weight: .semibold
                     )
-                    .foregroundStyle(LadleTheme.onAccent)
+                    .foregroundStyle(LadleTheme.Label.onAccent)
                     .minimumScaleFactor(
                         dynamicTypeSize.isAccessibilitySize ? 1 : 0.72
                     )
@@ -118,11 +118,11 @@ struct FocusModeView: View {
                     )
                 }
                 .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.onAccent)
+                .foregroundStyle(LadleTheme.Label.onAccent)
                 .padding(.horizontal, 12)
                 .frame(minHeight: 44)
                 .background(
-                    LadleTheme.onAccent.opacity(0.1),
+                    LadleTheme.Label.onAccent.opacity(0.1),
                     in: Capsule()
                 )
                 .buttonStyle(LadlePressButtonStyle())
@@ -149,7 +149,7 @@ struct FocusModeView: View {
                     .joined(separator: " · ")
             )
             .ladleFont(.body)
-            .foregroundStyle(LadleTheme.onAccent.opacity(0.8))
+            .foregroundStyle(LadleTheme.Label.onAccent.opacity(0.8))
             .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -175,10 +175,10 @@ struct FocusModeView: View {
             } label: {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 17, weight: .bold))
-                    .foregroundStyle(LadleTheme.onAccent)
+                    .foregroundStyle(LadleTheme.Label.onAccent)
                     .frame(width: 52, height: 52)
                     .background(
-                        LadleTheme.onAccent.opacity(0.1),
+                        LadleTheme.Label.onAccent.opacity(0.1),
                         in: Circle()
                     )
             }
@@ -189,10 +189,10 @@ struct FocusModeView: View {
             Button(action: advance) {
                 Text(nextButtonTitle)
                     .ladleFont(.bodyStrong)
-                    .foregroundStyle(LadleTheme.onAccent)
+                    .foregroundStyle(LadleTheme.Label.onAccent)
                     .frame(maxWidth: .infinity, minHeight: 52)
                     .background(
-                        LadleTheme.focusAccent,
+                        LadleTheme.Intent.focus,
                         in: RoundedRectangle(
                             cornerRadius: LadleTheme.Corner.control,
                             style: .continuous
@@ -205,7 +205,7 @@ struct FocusModeView: View {
         .padding(.horizontal, LadleTheme.Spacing.regular)
         .padding(.top, 12)
         .padding(.bottom, LadleTheme.Spacing.medium)
-        .background(LadleTheme.plum)
+        .background(LadleTheme.Surface.graphite)
     }
 
     private var nextButtonTitle: String {

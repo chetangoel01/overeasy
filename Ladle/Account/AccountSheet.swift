@@ -80,7 +80,7 @@ struct AccountSheet: View {
                 .padding(.bottom, LadleTheme.Spacing.cooking)
             }
             .scrollIndicators(.hidden)
-            .background(LadleTheme.paper)
+            .background(LadleTheme.Surface.porcelain)
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -91,7 +91,7 @@ struct AccountSheet: View {
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
-        .presentationBackground(LadleTheme.paper)
+        .presentationBackground(LadleTheme.Surface.porcelain)
     }
 
     private var accountSummary: some View {
@@ -106,11 +106,11 @@ struct AccountSheet: View {
             VStack(alignment: .leading, spacing: LadleTheme.Spacing.compact) {
                 Text(Self.accountTitle(for: accountSession.state))
                     .ladleFont(.section)
-                    .foregroundStyle(LadleTheme.ink)
+                    .foregroundStyle(LadleTheme.Label.primary)
 
                 Text(Self.accountDetail(for: accountSession.state))
                     .ladleFont(.body)
-                    .foregroundStyle(LadleTheme.mutedInk)
+                    .foregroundStyle(LadleTheme.Label.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
                 LadlePill(
@@ -126,7 +126,7 @@ struct AccountSheet: View {
         .background(LadleTheme.Surface.raised, in: accountShape)
         .overlay {
             accountShape
-                .stroke(LadleTheme.ink.opacity(0.08), lineWidth: 1)
+                .stroke(LadleTheme.Label.primary.opacity(0.08), lineWidth: 1)
         }
         .accessibilityElement(children: .combine)
     }
@@ -154,7 +154,7 @@ struct AccountSheet: View {
             .background(LadleTheme.Surface.raised, in: accountShape)
             .overlay {
                 accountShape
-                    .stroke(LadleTheme.ink.opacity(0.08), lineWidth: 1)
+                    .stroke(LadleTheme.Label.primary.opacity(0.08), lineWidth: 1)
             }
         }
     }
@@ -175,15 +175,15 @@ struct AccountSheet: View {
                     VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
                         Text("Privacy & data")
                             .ladleFont(.body)
-                            .foregroundStyle(LadleTheme.ink)
+                            .foregroundStyle(LadleTheme.Label.primary)
                         Text("What Overeasy stores, and what it never does")
                             .ladleFont(.metadata)
-                            .foregroundStyle(LadleTheme.mutedInk)
+                            .foregroundStyle(LadleTheme.Label.secondary)
                     }
                     Spacer()
                     Image(systemName: "chevron.right")
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(LadleTheme.mutedInk)
+                        .foregroundStyle(LadleTheme.Label.secondary)
                 }
                 .padding(.horizontal, LadleTheme.Layout.cardPadding)
                 .padding(.vertical, LadleTheme.Spacing.medium)
@@ -191,7 +191,7 @@ struct AccountSheet: View {
                 .background(LadleTheme.Surface.raised, in: accountShape)
                 .overlay {
                     accountShape
-                        .stroke(LadleTheme.ink.opacity(0.08), lineWidth: 1)
+                        .stroke(LadleTheme.Label.primary.opacity(0.08), lineWidth: 1)
                 }
                 .contentShape(Rectangle())
             }
@@ -218,7 +218,7 @@ struct AccountSheet: View {
                             if selectedAccent == accent {
                                 Image(systemName: "checkmark")
                                     .font(.system(size: 14, weight: .bold))
-                                    .foregroundStyle(LadleTheme.onAccent)
+                                    .foregroundStyle(LadleTheme.Label.onAccent)
                             }
                         }
                         .frame(width: 44, height: 44)
@@ -236,7 +236,7 @@ struct AccountSheet: View {
             .background(LadleTheme.Surface.raised, in: accountShape)
             .overlay {
                 accountShape
-                    .stroke(LadleTheme.ink.opacity(0.08), lineWidth: 1)
+                    .stroke(LadleTheme.Label.primary.opacity(0.08), lineWidth: 1)
             }
         }
         .sensoryFeedback(.selection, trigger: accentColor)
@@ -281,7 +281,7 @@ struct AccountSheet: View {
             .background(LadleTheme.Surface.raised, in: accountShape)
             .overlay {
                 accountShape
-                    .stroke(LadleTheme.ink.opacity(0.08), lineWidth: 1)
+                    .stroke(LadleTheme.Label.primary.opacity(0.08), lineWidth: 1)
             }
         }
         .confirmationDialog(
@@ -413,7 +413,7 @@ struct AccountSheet: View {
 
     private var accountDivider: some View {
         Divider()
-            .overlay(LadleTheme.ink.opacity(0.08))
+            .overlay(LadleTheme.Label.primary.opacity(0.08))
             .padding(
                 .leading,
                 LadleTheme.dividerInset(
@@ -458,13 +458,13 @@ struct AccountSheet: View {
     private func infoTitle(_ title: String) -> some View {
         Text(title)
             .ladleFont(.body)
-            .foregroundStyle(LadleTheme.ink)
+            .foregroundStyle(LadleTheme.Label.primary)
     }
 
     private func infoValue(_ value: String) -> some View {
         Text(value)
             .ladleFont(.bodyStrong)
-            .foregroundStyle(LadleTheme.ink.opacity(0.75))
+            .foregroundStyle(LadleTheme.Label.primary.opacity(0.75))
     }
 
     private func accountActionRow(
@@ -478,7 +478,7 @@ struct AccountSheet: View {
             Image(systemName: icon)
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(
-                    isDestructive ? Color.red : LadleTheme.ink
+                    isDestructive ? Color.red : LadleTheme.Label.primary
                 )
                 .frame(width: Self.rowIconWidth, height: Self.rowIconWidth)
                 .background(LadleTheme.Surface.steel, in: Circle())
@@ -488,11 +488,11 @@ struct AccountSheet: View {
                 Text(title)
                     .ladleFont(.bodyStrong)
                     .foregroundStyle(
-                        isDestructive ? Color.red : LadleTheme.ink
+                        isDestructive ? Color.red : LadleTheme.Label.primary
                     )
                 Text(detail)
                     .ladleFont(.metadata)
-                    .foregroundStyle(LadleTheme.mutedInk)
+                    .foregroundStyle(LadleTheme.Label.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -503,7 +503,7 @@ struct AccountSheet: View {
             } else {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(LadleTheme.mutedInk)
+                    .foregroundStyle(LadleTheme.Label.secondary)
                     .accessibilityHidden(true)
             }
         }

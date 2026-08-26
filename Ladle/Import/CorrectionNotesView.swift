@@ -24,10 +24,10 @@ struct CorrectionNotesView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(mode.title)
                             .ladleFont(.title)
-                            .foregroundStyle(LadleTheme.ink)
+                            .foregroundStyle(LadleTheme.Label.primary)
                         Text(mode.message)
                             .ladleFont(.body)
-                            .foregroundStyle(LadleTheme.ink.opacity(0.64))
+                            .foregroundStyle(LadleTheme.Label.primary.opacity(0.64))
                     }
 
                     if mode == .manual {
@@ -86,7 +86,7 @@ struct CorrectionNotesView: View {
                 .padding(LadleTheme.Spacing.generous)
             }
             .scrollIndicators(.hidden)
-            .background(LadleTheme.paper)
+            .background(LadleTheme.Surface.porcelain)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
@@ -96,7 +96,7 @@ struct CorrectionNotesView: View {
             }
         }
         .presentationDetents([.large])
-        .presentationBackground(LadleTheme.paper)
+        .presentationBackground(LadleTheme.Surface.porcelain)
     }
 }
 

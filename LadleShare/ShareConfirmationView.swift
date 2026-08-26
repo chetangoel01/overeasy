@@ -15,7 +15,7 @@ struct ShareConfirmationView: View {
 
     var body: some View {
         ZStack {
-            ShareTheme.paper.ignoresSafeArea()
+            ShareTheme.Surface.porcelain.ignoresSafeArea()
 
             ScrollView {
                 VStack(spacing: ShareTheme.Spacing.generous) {
@@ -42,9 +42,9 @@ struct ShareConfirmationView: View {
                 .font(.headline.weight(.semibold))
         } icon: {
             Image(systemName: "frying.pan.fill")
-                .foregroundStyle(ShareTheme.accentText)
+                .foregroundStyle(ShareTheme.Label.accent)
         }
-        .foregroundStyle(ShareTheme.ink)
+        .foregroundStyle(ShareTheme.Label.primary)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -56,24 +56,24 @@ struct ShareConfirmationView: View {
                 Text(title)
                     .font(.title.bold())
                     .multilineTextAlignment(.center)
-                    .foregroundStyle(ShareTheme.ink)
+                    .foregroundStyle(ShareTheme.Label.primary)
                     .fixedSize(horizontal: false, vertical: true)
 
                 Text(message)
                     .font(.body)
                     .multilineTextAlignment(.center)
-                    .foregroundStyle(ShareTheme.ink.opacity(0.62))
+                    .foregroundStyle(ShareTheme.Label.primary.opacity(0.62))
                     .fixedSize(horizontal: false, vertical: true)
             }
 
             if case let .success(sourceName) = state {
                 Label(sourceName, systemImage: "link")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(ShareTheme.ink.opacity(0.72))
+                    .foregroundStyle(ShareTheme.Label.primary.opacity(0.72))
                     .padding(.horizontal, ShareTheme.Spacing.regular)
                     .frame(minHeight: 44)
                     .background(
-                        ShareTheme.field,
+                        ShareTheme.Surface.raised,
                         in: Capsule()
                     )
             }
@@ -86,23 +86,23 @@ struct ShareConfirmationView: View {
         case .loading:
             ProgressView()
                 .controlSize(.large)
-                .tint(ShareTheme.accentText)
+                .tint(ShareTheme.Label.accent)
                 .frame(width: 86, height: 86)
-                .background(ShareTheme.review, in: Circle())
+                .background(ShareTheme.Surface.steel, in: Circle())
                 .accessibilityLabel("Saving shared recipe")
         case .success:
             Image(systemName: "checkmark")
                 .font(.system(size: 34, weight: .bold))
-                .foregroundStyle(ShareTheme.onAccent)
+                .foregroundStyle(ShareTheme.Label.onAccent)
                 .frame(width: 86, height: 86)
-                .background(ShareTheme.brick, in: Circle())
+                .background(ShareTheme.Intent.accent, in: Circle())
                 .accessibilityLabel("Recipe link saved")
         case .failure:
             Image(systemName: "exclamationmark")
                 .font(.system(size: 34, weight: .bold))
-                .foregroundStyle(ShareTheme.accentText)
+                .foregroundStyle(ShareTheme.Label.accent)
                 .frame(width: 86, height: 86)
-                .background(ShareTheme.review, in: Circle())
+                .background(ShareTheme.Surface.steel, in: Circle())
                 .accessibilityLabel("Recipe link was not saved")
         }
     }
@@ -145,10 +145,10 @@ private struct SharePrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.body.weight(.semibold))
-            .foregroundStyle(ShareTheme.onAccent)
+            .foregroundStyle(ShareTheme.Label.onAccent)
             .frame(maxWidth: .infinity, minHeight: 52)
             .background(
-                ShareTheme.brick.opacity(
+                ShareTheme.Intent.accent.opacity(
                     configuration.isPressed ? 0.78 : 1
                 ),
                 in: RoundedRectangle(cornerRadius: 15)
@@ -167,36 +167,46 @@ private enum ShareTheme {
         static let generous: CGFloat = 24
     }
 
-    // Mirrors LadleTheme's porcelain and graphite palette.
-    static let paper = adaptive(
-        light: (0.949, 0.957, 0.965),
-        dark: (0.063, 0.071, 0.078)
-    )
-    static let field = adaptive(
-        light: (0.890, 0.906, 0.918),
-        dark: (0.110, 0.125, 0.141)
-    )
-    static let review = adaptive(
-        light: (0.843, 0.867, 0.886),
-        dark: (0.145, 0.165, 0.184)
-    )
-    static let brick = adaptive(
-        light: (0.933, 0.294, 0.184),
-        dark: (1.0, 0.404, 0.306)
-    )
-    static let accentText = adaptive(
-        light: (0.780, 0.224, 0.141),
-        dark: (1.0, 0.459, 0.384)
-    )
-    static let ink = adaptive(
-        light: (0.078, 0.094, 0.106),
-        dark: (0.949, 0.957, 0.961)
-    )
-    static let onAccent = Color(
-        red: 250 / 255,
-        green: 251 / 255,
-        blue: 252 / 255
-    )
+    // Mirrors LadleTheme's semantic color roles. The extension is a separate
+    // target, so keeping the same role names is the drift check available to
+    // its call sites until the palette can move into a shared module.
+    enum Surface {
+        static let porcelain = adaptive(
+            light: (0.949, 0.957, 0.965),
+            dark: (0.063, 0.071, 0.078)
+        )
+        static let raised = adaptive(
+            light: (0.890, 0.906, 0.918),
+            dark: (0.110, 0.125, 0.141)
+        )
+        static let steel = adaptive(
+            light: (0.843, 0.867, 0.886),
+            dark: (0.145, 0.165, 0.184)
+        )
+    }
+
+    enum Label {
+        static let primary = adaptive(
+            light: (0.078, 0.094, 0.106),
+            dark: (0.949, 0.957, 0.961)
+        )
+        static let accent = adaptive(
+            light: (0.780, 0.224, 0.141),
+            dark: (1.0, 0.459, 0.384)
+        )
+        static let onAccent = Color(
+            red: 250 / 255,
+            green: 251 / 255,
+            blue: 252 / 255
+        )
+    }
+
+    enum Intent {
+        static let accent = adaptive(
+            light: (0.933, 0.294, 0.184),
+            dark: (1.0, 0.404, 0.306)
+        )
+    }
 
     private static func adaptive(
         light: (CGFloat, CGFloat, CGFloat),

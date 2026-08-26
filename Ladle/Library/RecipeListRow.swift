@@ -13,17 +13,17 @@ struct RecipeListRow: View {
             VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
                 Text(recipe.source.libraryTitle)
                     .ladleFont(.metadata)
-                    .foregroundStyle(LadleTheme.ink.opacity(0.5))
+                    .foregroundStyle(LadleTheme.Label.primary.opacity(0.5))
 
                 Text(recipe.title)
                     .ladleFont(.recipeTitle)
-                    .foregroundStyle(LadleTheme.ink)
+                    .foregroundStyle(LadleTheme.Label.primary)
                     .lineLimit(1)
 
                 if !recipe.libraryFacts.isEmpty {
                     Text(recipe.libraryFacts)
                         .ladleFont(.metadata)
-                        .foregroundStyle(LadleTheme.ink.opacity(0.58))
+                        .foregroundStyle(LadleTheme.Label.primary.opacity(0.58))
                         .lineLimit(1)
                 }
             }
@@ -40,7 +40,7 @@ struct RecipeListRow: View {
                 .foregroundStyle(
                     recipe.isFavorite
                         ? LadleTheme.Label.accent
-                        : LadleTheme.ink.opacity(0.52)
+                        : LadleTheme.Label.primary.opacity(0.52)
                 )
                 .frame(width: 44, height: 44)
             }

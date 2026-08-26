@@ -73,7 +73,7 @@ struct WatchView: View {
                     .zIndex(1)
             }
         }
-        .background(LadleTheme.plum)
+        .background(LadleTheme.Surface.graphite)
         .fullScreenCover(item: $cookingViewModel) {
             FullRecipeView(viewModel: $0)
         }
@@ -226,7 +226,7 @@ struct WatchView: View {
                 systemImage: systemImage,
                 description: Text(message)
             )
-            .foregroundStyle(LadleTheme.onAccent)
+            .foregroundStyle(LadleTheme.Label.onAccent)
 
             if let retry {
                 Button("Try again", action: retry)
@@ -285,8 +285,8 @@ struct WatchView: View {
 
     private var loadingState: some View {
         ProgressView("Loading Discover")
-            .tint(LadleTheme.onAccent)
-            .foregroundStyle(LadleTheme.onAccent)
+            .tint(LadleTheme.Label.onAccent)
+            .foregroundStyle(LadleTheme.Label.onAccent)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
@@ -339,7 +339,7 @@ private struct WatchRecipePage: View {
     var body: some View {
         contextualVideoLayout
             .frame(width: viewportSize.width, height: viewportSize.height)
-            .background(LadleTheme.plum)
+            .background(LadleTheme.Surface.graphite)
             .sensoryFeedback(.selection, trigger: recipe.isFavorite)
     }
 
@@ -404,21 +404,21 @@ private struct WatchRecipePage: View {
         LinearGradient(
             stops: [
                 .init(
-                    color: LadleTheme.fixedInk.opacity(0.98),
+                    color: LadleTheme.Label.onFixedPale.opacity(0.98),
                     location: 0
                 ),
                 .init(
-                    color: LadleTheme.fixedInk.opacity(0.92),
+                    color: LadleTheme.Label.onFixedPale.opacity(0.92),
                     location: 0.16
                 ),
                 .init(color: .clear, location: 0.3),
                 .init(color: .clear, location: 0.56),
                 .init(
-                    color: LadleTheme.fixedInk.opacity(0.58),
+                    color: LadleTheme.Label.onFixedPale.opacity(0.58),
                     location: 0.72
                 ),
                 .init(
-                    color: LadleTheme.fixedInk.opacity(0.98),
+                    color: LadleTheme.Label.onFixedPale.opacity(0.98),
                     location: 1
                 ),
             ],
@@ -434,14 +434,14 @@ private struct WatchRecipePage: View {
 
             Text(recipe.title)
                 .ladleFont(.recipeTitle)
-                .foregroundStyle(LadleTheme.onAccent)
+                .foregroundStyle(LadleTheme.Label.onAccent)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
 
             if !metadata.isEmpty {
                 Text(metadata)
                     .ladleFont(.metadata)
-                    .foregroundStyle(LadleTheme.onAccent.opacity(0.78))
+                    .foregroundStyle(LadleTheme.Label.onAccent.opacity(0.78))
                     .lineLimit(1)
             }
 
@@ -509,7 +509,7 @@ private struct WatchRecipePage: View {
             systemImage: report.failure.systemImage
         )
         .ladleFont(.metadata)
-        .foregroundStyle(LadleTheme.focusAccent)
+        .foregroundStyle(LadleTheme.Intent.focus)
         .fixedSize(horizontal: false, vertical: true)
     }
 
@@ -557,16 +557,16 @@ private struct WatchRecipePage: View {
     private var sourceBar: some View {
         HStack(spacing: LadleTheme.Spacing.compact) {
             Image(systemName: "play.rectangle.fill")
-                .foregroundStyle(LadleTheme.focusAccent)
+                .foregroundStyle(LadleTheme.Intent.focus)
 
             Text(recipe.creatorAccountLabel)
                 .ladleFont(.bodyStrong)
-                .foregroundStyle(LadleTheme.onAccent)
+                .foregroundStyle(LadleTheme.Label.onAccent)
                 .lineLimit(1)
 
             Text(recipe.source.libraryTitle)
                 .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.onAccent.opacity(0.66))
+                .foregroundStyle(LadleTheme.Label.onAccent.opacity(0.66))
                 .lineLimit(1)
 
             Spacer(minLength: LadleTheme.Spacing.compact)
@@ -614,15 +614,15 @@ private struct WatchRecipeContextPreview: View {
             )
             Text(recipe.creatorAccountLabel)
                 .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.accentText)
+                .foregroundStyle(LadleTheme.Label.accent)
             Text(recipe.title)
                 .ladleFont(.section)
-                .foregroundStyle(LadleTheme.ink)
+                .foregroundStyle(LadleTheme.Label.primary)
                 .lineLimit(2)
         }
         .padding(16)
         .frame(width: 300)
-        .background(LadleTheme.paper)
+        .background(LadleTheme.Surface.porcelain)
     }
 }
 
@@ -638,11 +638,11 @@ private struct WatchRecipeImage: View {
             )
         } else {
             Rectangle()
-                .fill(LadleTheme.plum)
+                .fill(LadleTheme.Surface.graphite)
                 .overlay {
                     Image(systemName: "play.rectangle")
                         .font(.system(size: 38))
-                        .foregroundStyle(LadleTheme.onAccent.opacity(0.72))
+                        .foregroundStyle(LadleTheme.Label.onAccent.opacity(0.72))
                 }
         }
     }
@@ -650,7 +650,7 @@ private struct WatchRecipeImage: View {
 
 private extension View {
     func watchStatusStyle() -> some View {
-        foregroundStyle(LadleTheme.onAccent)
+        foregroundStyle(LadleTheme.Label.onAccent)
             .padding(.horizontal, LadleTheme.Spacing.medium)
             .padding(.vertical, LadleTheme.Spacing.compact)
             .frame(maxWidth: .infinity, alignment: .leading)

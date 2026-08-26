@@ -173,7 +173,7 @@ struct DiscoverView: View {
                 failedContent(report)
             }
         }
-        .background(LadleTheme.paper)
+        .background(LadleTheme.Surface.porcelain)
         .task {
             if viewModel.state == .idle {
                 await viewModel.load()
@@ -188,7 +188,7 @@ struct DiscoverView: View {
                 ForEach(0..<4, id: \.self) { _ in
                     DiscoverLoadingRow()
                     Divider()
-                        .overlay(LadleTheme.ink.opacity(0.08))
+                        .overlay(LadleTheme.Label.primary.opacity(0.08))
                 }
             }
             .padding(.horizontal, LadleTheme.Spacing.regular)
@@ -205,7 +205,7 @@ struct DiscoverView: View {
                 "Public recipe saves will collect here as more cooks use Overeasy."
             )
         )
-        .foregroundStyle(LadleTheme.ink)
+        .foregroundStyle(LadleTheme.Label.primary)
     }
 
     @ViewBuilder
@@ -247,7 +247,7 @@ struct DiscoverView: View {
                 .buttonStyle(LadleButtonStyle(role: .secondary))
             }
         }
-        .foregroundStyle(LadleTheme.ink)
+        .foregroundStyle(LadleTheme.Label.primary)
         .accessibilityIdentifier("discover.initial-failure")
     }
 
@@ -257,10 +257,10 @@ struct DiscoverView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Saved by cooks")
                         .ladleFont(.section)
-                        .foregroundStyle(LadleTheme.ink)
+                        .foregroundStyle(LadleTheme.Label.primary)
                     Text("Popular public recipe videos, ranked by saves.")
                         .ladleFont(.metadata)
-                        .foregroundStyle(LadleTheme.mutedInk)
+                        .foregroundStyle(LadleTheme.Label.secondary)
                 }
                 .padding(.vertical, LadleTheme.Spacing.medium)
 
@@ -290,7 +290,7 @@ struct DiscoverView: View {
                         }
                     )
                     Divider()
-                        .overlay(LadleTheme.ink.opacity(0.08))
+                        .overlay(LadleTheme.Label.primary.opacity(0.08))
                 }
             }
             .padding(.horizontal, LadleTheme.Spacing.regular)
@@ -450,17 +450,17 @@ private struct DiscoverRecipeRow: View {
                     .lineLimit(1)
                 Text(recipe.title)
                     .ladleFont(.bodyStrong)
-                    .foregroundStyle(LadleTheme.ink)
+                    .foregroundStyle(LadleTheme.Label.primary)
                     .lineLimit(2)
                 if !recipe.description.isEmpty {
                     Text(recipe.description)
                         .ladleFont(.metadata)
-                        .foregroundStyle(LadleTheme.mutedInk)
+                        .foregroundStyle(LadleTheme.Label.secondary)
                         .lineLimit(2)
                 }
                 Text(saveCountText)
                     .ladleFont(.metadata)
-                    .foregroundStyle(LadleTheme.mutedInk)
+                    .foregroundStyle(LadleTheme.Label.secondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -480,7 +480,7 @@ private struct DiscoverRecipeRow: View {
                 ZStack {
                     Rectangle().fill(.thinMaterial)
                     ProgressView()
-                        .tint(LadleTheme.brick)
+                        .tint(LadleTheme.Intent.accent)
                 }
             }
         }
@@ -493,7 +493,7 @@ private struct DiscoverRecipeRow: View {
                 if isSaving {
                     ProgressView()
                         .controlSize(.small)
-                        .tint(LadleTheme.onAccent)
+                        .tint(LadleTheme.Label.onAccent)
                 } else {
                     Label(
                         isSaved ? "Saved" : "Save",
@@ -503,12 +503,12 @@ private struct DiscoverRecipeRow: View {
             }
                 .ladleFont(.metadata)
                 .foregroundStyle(
-                    isSaved ? LadleTheme.ink : LadleTheme.onAccent
+                    isSaved ? LadleTheme.Label.primary : LadleTheme.Label.onAccent
                 )
                 .padding(.horizontal, LadleTheme.Spacing.medium)
                 .frame(minHeight: 44)
                 .background(
-                    isSaved ? LadleTheme.celery : LadleTheme.brick,
+                    isSaved ? LadleTheme.Intent.success : LadleTheme.Intent.accent,
                     in: Capsule()
                 )
         }
@@ -542,21 +542,21 @@ private struct DiscoverRecipeContextPreview: View {
 
             Text(recipe.creatorName ?? recipe.source.libraryTitle)
                 .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.accentText)
+                .foregroundStyle(LadleTheme.Label.accent)
             Text(recipe.title)
                 .ladleFont(.section)
-                .foregroundStyle(LadleTheme.ink)
+                .foregroundStyle(LadleTheme.Label.primary)
                 .lineLimit(2)
             if !recipe.description.isEmpty {
                 Text(recipe.description)
                     .ladleFont(.metadata)
-                    .foregroundStyle(LadleTheme.mutedInk)
+                    .foregroundStyle(LadleTheme.Label.secondary)
                     .lineLimit(3)
             }
         }
         .padding(16)
         .frame(width: 300)
-        .background(LadleTheme.paper)
+        .background(LadleTheme.Surface.porcelain)
     }
 }
 
@@ -577,17 +577,17 @@ private struct DiscoverLoadingRow: View {
     var body: some View {
         HStack(spacing: LadleTheme.Spacing.medium) {
             RoundedRectangle(cornerRadius: LadleTheme.Corner.control)
-                .fill(LadleTheme.oat)
+                .fill(LadleTheme.Surface.raised)
                 .frame(width: 96, height: 96)
             VStack(alignment: .leading, spacing: LadleTheme.Spacing.compact) {
                 RoundedRectangle(cornerRadius: 4)
-                    .fill(LadleTheme.ube)
+                    .fill(LadleTheme.Surface.steel)
                     .frame(width: 90, height: 12)
                 RoundedRectangle(cornerRadius: 4)
-                    .fill(LadleTheme.oat)
+                    .fill(LadleTheme.Surface.raised)
                     .frame(height: 18)
                 RoundedRectangle(cornerRadius: 4)
-                    .fill(LadleTheme.oat)
+                    .fill(LadleTheme.Surface.raised)
                     .frame(width: 150, height: 12)
             }
         }

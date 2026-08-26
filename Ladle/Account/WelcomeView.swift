@@ -75,7 +75,7 @@ struct WelcomeView: View {
 
     var body: some View {
         ZStack {
-            LadleTheme.plum
+            LadleTheme.Surface.graphite
                 .ignoresSafeArea()
 
             GeometryReader { proxy in
@@ -171,14 +171,14 @@ struct WelcomeView: View {
                 )
                 .lineSpacing(2)
                 .multilineTextAlignment(.center)
-                .foregroundStyle(LadleTheme.onAccent)
+                .foregroundStyle(LadleTheme.Label.onAccent)
 
             Text(
                 "Save recipe videos as something you can actually cook."
             )
             .ladleFont(.body)
             .multilineTextAlignment(.center)
-            .foregroundStyle(LadleTheme.onAccent.opacity(0.82))
+            .foregroundStyle(LadleTheme.Label.onAccent.opacity(0.82))
             .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: 360)
@@ -222,7 +222,7 @@ struct WelcomeView: View {
             } label: {
                 Text("Try as a guest")
                     .ladleFont(.bodyStrong)
-                    .foregroundStyle(LadleTheme.ink)
+                    .foregroundStyle(LadleTheme.Label.primary)
                     .frame(maxWidth: .infinity, minHeight: 44)
                     .contentShape(Rectangle())
             }
@@ -233,7 +233,7 @@ struct WelcomeView: View {
                 "Guests can save up to 10 recipes. Sign in later without losing them."
             )
             .ladleFont(.metadata)
-            .foregroundStyle(LadleTheme.onAccent.opacity(0.72))
+            .foregroundStyle(LadleTheme.Label.onAccent.opacity(0.72))
             .multilineTextAlignment(.center)
             .fixedSize(horizontal: false, vertical: true)
             .padding(.top, LadleTheme.Spacing.compact)
@@ -241,8 +241,8 @@ struct WelcomeView: View {
             if isAuthenticating {
                 ProgressView("Setting up Overeasy")
                     .ladleFont(.metadata)
-                    .tint(LadleTheme.brick)
-                    .foregroundStyle(LadleTheme.onAccent.opacity(0.8))
+                    .tint(LadleTheme.Intent.accent)
+                    .foregroundStyle(LadleTheme.Label.onAccent.opacity(0.8))
                     .padding(.top, LadleTheme.Spacing.medium)
             }
 
@@ -260,13 +260,13 @@ struct WelcomeView: View {
     private var guestSeparator: some View {
         HStack(spacing: LadleTheme.Spacing.medium) {
             Rectangle()
-                .fill(LadleTheme.onAccent.opacity(0.24))
+                .fill(LadleTheme.Label.onAccent.opacity(0.24))
                 .frame(height: 1)
             Text("or")
                 .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.onAccent.opacity(0.7))
+                .foregroundStyle(LadleTheme.Label.onAccent.opacity(0.7))
             Rectangle()
-                .fill(LadleTheme.onAccent.opacity(0.24))
+                .fill(LadleTheme.Label.onAccent.opacity(0.24))
                 .frame(height: 1)
         }
         .accessibilityHidden(true)
@@ -474,7 +474,7 @@ private struct GoogleSignInButtonStyle: ButtonStyle {
         configuration.label
             .frame(maxWidth: .infinity, minHeight: 52)
             .background(
-                LadleTheme.onAccent,
+                LadleTheme.Label.onAccent,
                 in: RoundedRectangle(
                     cornerRadius: LadleTheme.Corner.control,
                     style: .continuous

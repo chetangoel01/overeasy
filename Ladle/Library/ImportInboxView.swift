@@ -19,7 +19,7 @@ struct ImportInboxView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
-        .background(LadleTheme.paper)
+        .background(LadleTheme.Surface.porcelain)
         .animation(
             reduceMotion
                 ? nil
@@ -53,8 +53,8 @@ struct ImportInboxView: View {
                 systemImage: "checkmark.circle",
                 description: Text("New imports appear here.")
             )
-            .foregroundStyle(LadleTheme.ink)
-            .listRowBackground(LadleTheme.paper)
+            .foregroundStyle(LadleTheme.Label.primary)
+            .listRowBackground(LadleTheme.Surface.porcelain)
             .listRowSeparator(.hidden)
         } else {
             ForEach(viewModel.actionableImportJobs) { job in
@@ -84,7 +84,7 @@ struct ImportInboxView: View {
                         trailing: LadleTheme.Spacing.regular
                     )
                 )
-                .listRowBackground(LadleTheme.paper)
+                .listRowBackground(LadleTheme.Surface.porcelain)
                 .listRowSeparator(.hidden)
                 .swipeActions(
                     edge: .trailing,

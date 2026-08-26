@@ -118,10 +118,10 @@ repository's current conventions. Three TODO findings were generated SwiftPM
 runner code under `.build`, not repository source. SwiftLint is not a project
 gate until a reviewed configuration is deliberately adopted.
 
-Current asset candidates with no direct source call are `Field`, `Review`,
-`Success`, and `Paprika`. `Butter` has one compatibility reference in
-`LadleTheme`. `AccentColor` has no direct source call but is retained because
-Xcode consumes it by catalog name.
+Task 11 removed the unused `Field`, `Review`, `Success`, `Paprika`, and duplicate
+`Butter` assets after structural tests proved their absence. `AccentColor` has
+no direct source call but is retained because Xcode consumes it by catalog
+name.
 
 ## State coverage ledger
 
@@ -143,7 +143,7 @@ Xcode consumes it by catalog name.
 | Semantic components | every button and compatibility style classified; valid call sites migrated | 126 controls classified; legacy primary wrapper removed; remaining hand-built semantic actions open, Task 11 |
 | Layout and safe areas | sheet margins and Watch safe-area behavior use approved semantics | open, Task 11 |
 | Typography and controls | raw typography/control values are intentional or semantic | open, Task 11 |
-| Palette and assets | every role/asset has a live consumer or is removed | open, Task 11 |
+| Palette and assets | every role/asset has a live consumer or is removed | raw palette calls confined to theme definitions and five dead compatibility assets removed; final role-consumer audit remains open, Task 11 |
 | Production source | every file and declaration has a live responsibility | open, Task 12 |
 | Tests and fixtures | every fixture is used and every scenario is deterministic | open, Tasks 12-13 |
 | Config and targets | manifests regenerate cleanly; target memberships are intentional | open, Tasks 12-14 |

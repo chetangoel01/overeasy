@@ -61,12 +61,12 @@ struct RecipeMetadataBand: View {
                 .accessibilityHidden(true)
             Text(value)
                 .ladleFont(.bodyStrong)
-                .foregroundStyle(LadleTheme.ink)
+                .foregroundStyle(LadleTheme.Label.primary)
                 .lineLimit(usesVerticalLayout ? 2 : 1)
                 .minimumScaleFactor(usesVerticalLayout ? 1 : 0.78)
             Text(label)
                 .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.ink.opacity(0.56))
+                .foregroundStyle(LadleTheme.Label.primary.opacity(0.56))
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, LadleTheme.Spacing.compact)
@@ -76,14 +76,14 @@ struct RecipeMetadataBand: View {
 
     private var verticalDivider: some View {
         Rectangle()
-            .fill(LadleTheme.ink.opacity(0.1))
+            .fill(LadleTheme.Label.primary.opacity(0.1))
             .frame(width: 1, height: 48)
             .accessibilityHidden(true)
     }
 
     private var horizontalDivider: some View {
         Rectangle()
-            .fill(LadleTheme.ink.opacity(0.1))
+            .fill(LadleTheme.Label.primary.opacity(0.1))
             .frame(height: 1)
             .padding(.horizontal, LadleTheme.Spacing.regular)
             .accessibilityHidden(true)
@@ -106,11 +106,11 @@ struct RecipeNutritionSummary: View {
                 HStack {
                     Text("Nutrition per serving")
                         .ladleFont(.bodyStrong)
-                        .foregroundStyle(LadleTheme.ink)
+                        .foregroundStyle(LadleTheme.Label.primary)
                     if displayed.isEstimated {
                         Text("Estimated")
                             .ladleFont(.metadata)
-                            .foregroundStyle(LadleTheme.accentText)
+                            .foregroundStyle(LadleTheme.Label.accent)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
                             .background(LadleTheme.Surface.steel, in: Capsule())
@@ -118,7 +118,7 @@ struct RecipeNutritionSummary: View {
                     Spacer()
                     Image(systemName: "chevron.right")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(LadleTheme.mutedInk)
+                        .foregroundStyle(LadleTheme.Label.secondary)
                 }
 
                 Group {
@@ -166,10 +166,10 @@ struct RecipeNutritionSummary: View {
         VStack(spacing: LadleTheme.Spacing.tight) {
             Text(value ?? "—")
                 .ladleFont(.bodyStrong)
-                .foregroundStyle(LadleTheme.ink)
+                .foregroundStyle(LadleTheme.Label.primary)
             Text(label)
                 .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.mutedInk)
+                .foregroundStyle(LadleTheme.Label.secondary)
         }
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)

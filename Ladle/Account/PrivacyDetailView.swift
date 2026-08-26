@@ -33,7 +33,7 @@ struct PrivacyDetailView: View {
             .padding(.bottom, LadleTheme.Spacing.cooking)
         }
         .scrollIndicators(.hidden)
-        .background(LadleTheme.paper)
+        .background(LadleTheme.Surface.porcelain)
         .navigationTitle("Privacy & data")
         .navigationBarTitleDisplayMode(.inline)
         .accessibilityIdentifier("account.privacy-detail")
@@ -50,7 +50,7 @@ struct PrivacyDetailView: View {
             if let introduction {
                 Text(introduction)
                     .ladleFont(.body)
-                    .foregroundStyle(LadleTheme.ink.opacity(0.75))
+                    .foregroundStyle(LadleTheme.Label.primary.opacity(0.75))
             }
 
             VStack(alignment: .leading, spacing: 0) {
@@ -62,7 +62,7 @@ struct PrivacyDetailView: View {
 
                     if index < items.count - 1 {
                         Divider()
-                            .overlay(LadleTheme.ink.opacity(0.08))
+                            .overlay(LadleTheme.Label.primary.opacity(0.08))
                             .padding(
                                 .leading,
                                 LadleTheme.dividerInset(
@@ -90,7 +90,7 @@ struct PrivacyDetailView: View {
 
             Text(item)
                 .ladleFont(.body)
-                .foregroundStyle(LadleTheme.ink.opacity(0.75))
+                .foregroundStyle(LadleTheme.Label.primary.opacity(0.75))
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.vertical, LadleTheme.Spacing.medium)

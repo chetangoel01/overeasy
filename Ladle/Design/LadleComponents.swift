@@ -239,7 +239,7 @@ struct LadlePill: View {
     let text: String
     var systemImage: String?
     var tint = LadleTheme.Surface.raised
-    var foreground = LadleTheme.ink
+    var foreground = LadleTheme.Label.primary
 
     var body: some View {
         HStack(spacing: LadleTheme.Spacing.compact) {
@@ -278,7 +278,7 @@ struct LadleSectionHeader: View {
                 }
             }
         }
-        .foregroundStyle(LadleTheme.ink)
+        .foregroundStyle(LadleTheme.Label.primary)
         .accessibilityElement(children: .combine)
     }
 
@@ -292,7 +292,7 @@ struct LadleSectionHeader: View {
         if let detail {
             Text(detail)
                 .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.mutedInk)
+                .foregroundStyle(LadleTheme.Label.secondary)
         }
     }
 }
@@ -301,7 +301,7 @@ struct EstimateLabel: View {
     var body: some View {
         Label("Estimated", systemImage: "info.circle")
             .ladleFont(.metadata)
-            .foregroundStyle(LadleTheme.ink.opacity(0.62))
+            .foregroundStyle(LadleTheme.Label.primary.opacity(0.62))
             .accessibilityHint(
                 "Nutrition and uncertain imported values may be estimates."
             )
@@ -311,7 +311,7 @@ struct EstimateLabel: View {
 struct LadleSheetHandle: View {
     var body: some View {
         Capsule()
-            .fill(LadleTheme.ink.opacity(0.18))
+            .fill(LadleTheme.Label.primary.opacity(0.18))
             .frame(width: 42, height: 5)
             .accessibilityHidden(true)
     }
@@ -325,22 +325,22 @@ enum LadleIconButtonTone {
     var background: Color {
         switch self {
         case .quiet:
-            LadleTheme.ube
+            LadleTheme.Surface.steel
         case .primary:
-            LadleTheme.brick
+            LadleTheme.Intent.accent
         case .onDark:
-            LadleTheme.onAccent.opacity(0.12)
+            LadleTheme.Label.onAccent.opacity(0.12)
         }
     }
 
     var foreground: Color {
         switch self {
         case .quiet:
-            LadleTheme.ink
+            LadleTheme.Label.primary
         case .primary:
-            LadleTheme.onAccent
+            LadleTheme.Label.onAccent
         case .onDark:
-            LadleTheme.onAccent
+            LadleTheme.Label.onAccent
         }
     }
 }
@@ -373,9 +373,9 @@ struct LadleStateView: View {
         var background: Color {
             switch self {
             case .neutral, .warning:
-                LadleTheme.ube
+                LadleTheme.Surface.steel
             case .success:
-                LadleTheme.celery
+                LadleTheme.Intent.success
             }
         }
     }
@@ -393,7 +393,7 @@ struct LadleStateView: View {
         VStack(spacing: LadleTheme.Spacing.regular) {
             Image(systemName: systemImage)
                 .font(.system(size: 24, weight: .semibold))
-                .foregroundStyle(LadleTheme.ink)
+                .foregroundStyle(LadleTheme.Label.primary)
                 .frame(width: 60, height: 60)
                 .background(tone.background, in: Circle())
                 .accessibilityHidden(true)
@@ -402,12 +402,12 @@ struct LadleStateView: View {
                 Text(title)
                     .ladleFont(.title)
                     .multilineTextAlignment(.center)
-                    .foregroundStyle(LadleTheme.ink)
+                    .foregroundStyle(LadleTheme.Label.primary)
 
                 Text(message)
                     .ladleFont(.body)
                     .multilineTextAlignment(.center)
-                    .foregroundStyle(LadleTheme.mutedInk)
+                    .foregroundStyle(LadleTheme.Label.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -433,7 +433,7 @@ private struct LadleCardModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .background(
-                LadleTheme.oat,
+                LadleTheme.Surface.raised,
                 in: RoundedRectangle(
                     cornerRadius: LadleTheme.Corner.card,
                     style: .continuous

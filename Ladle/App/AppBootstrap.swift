@@ -458,16 +458,16 @@ struct AppBootstrapFailureView: View {
             VStack(spacing: LadleTheme.Spacing.compact) {
                 Text(failure.title)
                     .ladleFont(.title)
-                    .foregroundStyle(LadleTheme.ink)
+                    .foregroundStyle(LadleTheme.Label.primary)
                 Text(failure.message)
                     .ladleFont(.body)
-                    .foregroundStyle(LadleTheme.ink.opacity(0.64))
+                    .foregroundStyle(LadleTheme.Label.primary.opacity(0.64))
                     .multilineTextAlignment(.center)
             }
 
             Text("Diagnostic: \(failure.diagnosticIdentifier)")
                 .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.ink.opacity(0.56))
+                .foregroundStyle(LadleTheme.Label.primary.opacity(0.56))
                 .textSelection(.enabled)
                 .accessibilityIdentifier("bootstrap.diagnostic")
 
@@ -479,7 +479,7 @@ struct AppBootstrapFailureView: View {
         }
         .padding(LadleTheme.Spacing.generous)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(LadleTheme.paper)
+        .background(LadleTheme.Surface.porcelain)
         .accessibilityIdentifier("bootstrap.failure")
     }
 }
@@ -491,10 +491,10 @@ struct AppBootstrapPreparingView: View {
                 .tint(LadleTheme.Label.accent)
             Text("Preparing Overeasy")
                 .ladleFont(.bodyStrong)
-                .foregroundStyle(LadleTheme.ink)
+                .foregroundStyle(LadleTheme.Label.primary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(LadleTheme.paper)
+        .background(LadleTheme.Surface.porcelain)
         .accessibilityIdentifier("bootstrap.preparing")
     }
 }

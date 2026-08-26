@@ -68,7 +68,7 @@ struct FilterSheet: View {
                 .padding(.vertical, LadleTheme.Spacing.regular)
             }
             .scrollIndicators(.hidden)
-            .background(LadleTheme.paper)
+            .background(LadleTheme.Surface.porcelain)
             .navigationTitle("Filter recipes")
             .navigationBarTitleDisplayMode(.inline)
             .safeAreaInset(edge: .bottom) {
@@ -89,14 +89,14 @@ struct FilterSheet: View {
             }
         }
         .presentationDetents([.large])
-        .presentationBackground(LadleTheme.paper)
+        .presentationBackground(LadleTheme.Surface.porcelain)
     }
 
     private var favoritesSection: some View {
         Toggle("Favorites only", isOn: $favoritesOnly)
             .ladleFont(.bodyStrong)
-            .foregroundStyle(LadleTheme.ink)
-            .tint(LadleTheme.plum)
+            .foregroundStyle(LadleTheme.Label.primary)
+            .tint(LadleTheme.Surface.graphite)
             .padding(.horizontal, LadleTheme.Layout.cardPadding)
             .frame(minHeight: 52)
             .background(
@@ -230,11 +230,11 @@ private struct FilterChoiceButton: View {
             Text(title)
                 .ladleFont(.metadata)
                 .foregroundStyle(
-                    isSelected ? LadleTheme.onAccent : LadleTheme.ink
+                    isSelected ? LadleTheme.Label.onAccent : LadleTheme.Label.primary
                 )
                 .frame(maxWidth: .infinity, minHeight: 44)
                 .background(
-                    isSelected ? LadleTheme.plum : LadleTheme.Surface.raised,
+                    isSelected ? LadleTheme.Surface.graphite : LadleTheme.Surface.raised,
                     in: RoundedRectangle(
                         cornerRadius: LadleTheme.Corner.control,
                         style: .continuous

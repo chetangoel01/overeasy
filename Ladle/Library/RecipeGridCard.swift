@@ -21,7 +21,7 @@ struct RecipeGridCard: View {
                     .foregroundStyle(
                         recipe.isFavorite
                             ? LadleTheme.Label.accent
-                            : LadleTheme.ink
+                            : LadleTheme.Label.primary
                     )
                     .frame(width: 38, height: 38)
                     .background(.ultraThinMaterial, in: Circle())
@@ -33,12 +33,12 @@ struct RecipeGridCard: View {
 
             Text(recipe.title)
                 .ladleFont(.recipeTitle)
-                .foregroundStyle(LadleTheme.ink)
+                .foregroundStyle(LadleTheme.Label.primary)
                 .lineLimit(2, reservesSpace: true)
 
             Text(recipe.libraryFacts.isEmpty ? " " : recipe.libraryFacts)
                 .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.ink.opacity(0.58))
+                .foregroundStyle(LadleTheme.Label.primary.opacity(0.58))
                 .lineLimit(2, reservesSpace: true)
                 .accessibilityHidden(recipe.libraryFacts.isEmpty)
         }

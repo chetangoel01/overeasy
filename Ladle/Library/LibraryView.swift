@@ -84,8 +84,8 @@ struct LibraryView: View {
     var body: some View {
         NavigationStack(path: $navigation.path) {
             workspace
-            .background(LadleTheme.paper)
-            .tint(LadleTheme.brick)
+            .background(LadleTheme.Surface.porcelain)
+            .tint(LadleTheme.Intent.accent)
             .navigationTitle(navigation.tab.title)
             .navigationBarTitleDisplayMode(.large)
             .toolbar(
@@ -544,7 +544,7 @@ private struct LibraryReloadErrorBanner: View {
             Spacer(minLength: LadleTheme.Spacing.compact)
             Button("Try Again", action: retry)
                 .ladleFont(.bodyStrong)
-                .foregroundStyle(LadleTheme.accentText)
+                .foregroundStyle(LadleTheme.Label.accent)
                 .buttonStyle(.plain)
         }
         .padding(.horizontal, LadleTheme.Layout.screenMargin)
@@ -568,24 +568,24 @@ private struct LibraryLoadStateView: View {
             if let message {
                 Image(systemName: "fork.knife.circle")
                     .font(.system(size: 34))
-                    .foregroundStyle(LadleTheme.accentText)
+                    .foregroundStyle(LadleTheme.Label.accent)
                 Text("Couldn’t load recipes")
                     .ladleFont(.section)
-                    .foregroundStyle(LadleTheme.ink)
+                    .foregroundStyle(LadleTheme.Label.primary)
                 Text(message)
                     .ladleFont(.body)
-                    .foregroundStyle(LadleTheme.mutedInk)
+                    .foregroundStyle(LadleTheme.Label.secondary)
                     .multilineTextAlignment(.center)
                 Button("Try Again", action: retry)
                     .buttonStyle(LadleButtonStyle(role: .secondary))
             } else {
                 ProgressView("Loading recipes")
-                    .tint(LadleTheme.brick)
+                    .tint(LadleTheme.Intent.accent)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(32)
-        .background(LadleTheme.paper)
+        .background(LadleTheme.Surface.porcelain)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("library.load-state")
     }

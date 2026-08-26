@@ -116,16 +116,17 @@ than leaving a name for a later grep to miss.
 | ~~`field`~~ | `Surface.raised` | 28 | done, `378a6c5` |
 | ~~`review`~~ | `Surface.steel` | 28 | done, `2630682` |
 | ~~`success`~~ | `Intent.success` | 10 | done, `41a62a3` |
-| `ink` | `Label.primary` | 176 | |
-| `onAccent` | `Label.onAccent` | 51 | |
-| `paper` | `Surface.porcelain` | 45 | |
-| `mutedInk` | `Label.secondary` | 30 | |
+| ~~`ink`~~ | `Label.primary` | 176 | done in consolidation Task 11 |
+| ~~`onAccent`~~ | `Label.onAccent` | 51 | done in consolidation Task 11 |
+| ~~`paper`~~ | `Surface.porcelain` | 45 | done in consolidation Task 11 |
+| ~~`mutedInk`~~ | `Label.secondary` | 30 | done in consolidation Task 11 |
 
 The remaining four are palette names rather than aliases, so they cannot be
-deleted the same way — the roles are defined in terms of them.
+deleted from `LadleTheme` — the roles are defined in terms of them. Production
+screens no longer call them directly.
 
-`butter` has zero uses. Its `butterHex` constant is asserted in
-`DesignTokenTests`, so remove both together or neither.
+`butter`, its light/dark constants, and its duplicate catalog entry were
+removed together in consolidation Task 11.
 
 ### Left behind by the mechanical pass
 
@@ -372,3 +373,37 @@ Verification on August 26, 2026:
   `~/Desktop/overeasy-ui-scratch/consolidated-step11/button-wrapper-20260826-1425/`;
   visual review confirms the recovery labels and destructive option remain
   unchanged.
+
+## Step 4, batch 1: semantic color consumers and asset cleanup
+
+Every app screen now consumes `Surface`, `Label`, `Intent`, or `Stroke`; raw
+palette names remain only inside `LadleTheme`, where the semantic roles are
+defined. The migration covers porcelain/raised/steel/graphite surfaces,
+primary/secondary/on-accent/fixed/accent labels, and accent/success/focus
+intent. It is value-preserving: each new expression resolves through the same
+theme value the call site previously addressed directly.
+
+The Share Extension cannot import the app target, so its local mirror now uses
+the same `Surface`, `Label`, and `Intent` namespaces instead of the stale
+`field` and `review` aliases. Structural tests protect both targets. The
+duplicate `Butter` asset and the retired `Field`, `Paprika`, `Review`, and
+`Success` compatibility assets are deleted; `AccentColor` remains because
+Xcode consumes that catalog name even though Swift source does not.
+
+Verification on August 26, 2026:
+
+- three structural tests first failed on raw palette consumers, Share aliases,
+  and all five catalog directories, proving the red state;
+- the same tests pass with raw app palette calls confined to
+  `Ladle/Design/LadleTheme.swift` and no retired asset directories present;
+- 22 `DesignTokenTests`, 7 rendered Share tests, and 3 focused UI tests pass;
+- the complete `LadleTests` target passes 231 tests: 230 passed and the one
+  live App Attest test was intentionally skipped;
+- a generic simulator build passes for the Ladle app and its embedded Share
+  Extension; the remaining Google Sign-In sendability warning is tracked for
+  the repository completion pass;
+- nine retained captures cover Recipes grid/list, Settings, Watch, recipe
+  options, and Share loading/success/failure including dark and accessibility
+  appearances at
+  `~/Desktop/overeasy-ui-scratch/consolidated-step11/semantic-colors-20260826-1437/`;
+  visual review found no unintended color or contrast drift.

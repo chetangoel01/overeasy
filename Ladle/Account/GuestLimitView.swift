@@ -19,11 +19,11 @@ struct GuestLimitView: View {
             VStack(spacing: LadleTheme.Spacing.compact) {
                 Text(title)
                     .ladleFont(.title)
-                    .foregroundStyle(LadleTheme.ink)
+                    .foregroundStyle(LadleTheme.Label.primary)
                     .multilineTextAlignment(.center)
                 Text(message)
                     .ladleFont(.body)
-                    .foregroundStyle(LadleTheme.ink.opacity(0.65))
+                    .foregroundStyle(LadleTheme.Label.primary.opacity(0.65))
                     .multilineTextAlignment(.center)
             }
 
@@ -35,11 +35,11 @@ struct GuestLimitView: View {
             if decision == .allowWithAccountPrompt {
                 Button("Save recipe and continue", action: continueAction)
                     .ladleFont(.bodyStrong)
-                    .foregroundStyle(LadleTheme.ink)
+                    .foregroundStyle(LadleTheme.Label.primary)
             }
         }
         .padding(LadleTheme.Spacing.generous)
-        .background(LadleTheme.paper)
+        .background(LadleTheme.Surface.porcelain)
     }
 
     private var title: String {

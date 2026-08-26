@@ -79,12 +79,11 @@ private extension UIColor {
 }
 
 enum LadleTheme {
-    // Porcelain library surfaces, graphite Focus Mode, and a configurable
-    // action accent. Legacy token names remain while their semantic roles settle.
+    // Palette values are private vocabulary for the semantic roles below.
+    // Production screens consume Surface, Label, Intent, and Stroke instead.
     static let plumHex = "#14181B"
     static let paperHex = "#F2F4F6"
     static let oatHex = "#E3E7EA"
-    static let butterHex = "#D7DDE2"
     static let inkHex = "#14181B"
     static let brickHex = "#EE4B2F"
     static let celeryHex = "#83A18A"
@@ -92,7 +91,6 @@ enum LadleTheme {
     static let mutedInkHex = "#64707A"
     static let darkPaperHex = "#101214"
     static let darkOatHex = "#1C2024"
-    static let darkButterHex = "#252A2F"
     static let darkInkHex = "#F2F4F5"
     static let darkMutedInkHex = "#A6AFB7"
     static let darkUbeHex = "#252A2F"
@@ -106,7 +104,6 @@ enum LadleTheme {
     static let plum = Color("Plum")
     static let paper = Color("Paper")
     static let oat = Color("Oat")
-    static let butter = Color("Butter")
     static let ink = Color("Ink")
     static var brick: Color { selectedAccent.actionColor }
     static let celery = Color("Celery")

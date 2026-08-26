@@ -244,13 +244,13 @@ struct RecipeTimerButton: View {
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundStyle(
                                 onDark
-                                    ? LadleTheme.onAccent
+                                    ? LadleTheme.Label.onAccent
                                     : LadleTheme.Label.accent
                             )
                             .frame(width: 48, height: 48)
                             .background(
                                 onDark
-                                    ? LadleTheme.onAccent.opacity(0.12)
+                                    ? LadleTheme.Label.onAccent.opacity(0.12)
                                     : LadleTheme.Surface.raised,
                                 in: Circle()
                             )
@@ -300,9 +300,9 @@ struct RecipeTimerButton: View {
 
     private var cardBackground: Color {
         if phase == .finished {
-            LadleTheme.celery
+            LadleTheme.Intent.success
         } else {
-            onDark ? LadleTheme.onAccent : LadleTheme.Surface.steel
+            onDark ? LadleTheme.Label.onAccent : LadleTheme.Surface.steel
         }
     }
 
@@ -310,9 +310,9 @@ struct RecipeTimerButton: View {
     // a fixed dark foreground rather than the adaptive ink.
     private var cardForeground: Color {
         if onDark, phase != .finished {
-            LadleTheme.fixedInk
+            LadleTheme.Label.onFixedPale
         } else {
-            LadleTheme.ink
+            LadleTheme.Label.primary
         }
     }
 
@@ -327,7 +327,7 @@ struct RecipeTimerButton: View {
                 .stroke(
                     phase == .finished
                         ? cardForeground
-                        : LadleTheme.brick,
+                        : LadleTheme.Intent.accent,
                     style: StrokeStyle(lineWidth: 3, lineCap: .round)
                 )
                 .rotationEffect(.degrees(-90))

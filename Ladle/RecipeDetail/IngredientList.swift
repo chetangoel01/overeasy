@@ -33,7 +33,7 @@ struct IngredientList: View {
 
                         Text(ingredient.cookingDetailText)
                             .ladleFont(.body)
-                            .foregroundStyle(LadleTheme.ink)
+                            .foregroundStyle(LadleTheme.Label.primary)
 
                         Spacer(minLength: 0)
                     }
@@ -55,7 +55,7 @@ struct IngredientList: View {
 
                 if index < ingredients.count - 1 {
                     Divider()
-                        .overlay(LadleTheme.ink.opacity(0.08))
+                        .overlay(LadleTheme.Label.primary.opacity(0.08))
                         .padding(.leading, Self.labelOrigin)
                 }
             }

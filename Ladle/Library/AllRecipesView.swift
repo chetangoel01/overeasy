@@ -30,7 +30,7 @@ struct AllRecipesView: View {
             .padding(.bottom, LadleTheme.Layout.scrollTail)
         }
         .scrollIndicators(.hidden)
-        .background(LadleTheme.paper)
+        .background(LadleTheme.Surface.porcelain)
         .sensoryFeedback(
             .selection,
             trigger: viewModel.displayMode
@@ -45,7 +45,7 @@ struct AllRecipesView: View {
     private var searchField: some View {
         HStack(spacing: LadleTheme.Layout.iconGap) {
             Image(systemName: "magnifyingglass")
-                .foregroundStyle(LadleTheme.mutedInk)
+                .foregroundStyle(LadleTheme.Label.secondary)
             TextField("Search recipes", text: $viewModel.searchText)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
@@ -54,7 +54,7 @@ struct AllRecipesView: View {
                     viewModel.searchText = ""
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(LadleTheme.mutedInk)
+                        .foregroundStyle(LadleTheme.Label.secondary)
                         .frame(width: 32, height: 44)
                 }
                 .buttonStyle(.plain)
@@ -62,11 +62,11 @@ struct AllRecipesView: View {
             }
         }
         .ladleFont(.body)
-        .foregroundStyle(LadleTheme.ink)
+        .foregroundStyle(LadleTheme.Label.primary)
         .padding(.horizontal, LadleTheme.Layout.cardPadding)
         .frame(minHeight: 48)
         .background(
-            LadleTheme.oat,
+            LadleTheme.Surface.raised,
             in: RoundedRectangle(
                 cornerRadius: LadleTheme.Corner.control,
                 style: .continuous
@@ -91,10 +91,10 @@ struct AllRecipesView: View {
             VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
                 Text(sectionTitle)
                     .ladleFont(.section)
-                    .foregroundStyle(LadleTheme.ink)
+                    .foregroundStyle(LadleTheme.Label.primary)
                 Text(recipeCountText)
                     .ladleFont(.metadata)
-                    .foregroundStyle(LadleTheme.mutedInk)
+                    .foregroundStyle(LadleTheme.Label.secondary)
             }
 
             Spacer()
@@ -171,7 +171,7 @@ struct AllRecipesView: View {
         VStack(alignment: .leading, spacing: LadleTheme.Layout.rowGap) {
             Text("Collections")
                 .ladleFont(.section)
-                .foregroundStyle(LadleTheme.ink)
+                .foregroundStyle(LadleTheme.Label.primary)
 
             VStack(spacing: 0) {
                 ForEach(viewModel.collectionRows, id: \.identifier) { row in
@@ -181,18 +181,18 @@ struct AllRecipesView: View {
                         HStack(spacing: 12) {
                             Image(systemName: row.systemImage)
                                 .font(.system(size: 15, weight: .semibold))
-                                .foregroundStyle(LadleTheme.accentText)
+                                .foregroundStyle(LadleTheme.Label.accent)
                                 .frame(width: Self.collectionIconWidth)
                             Text(row.title)
                                 .ladleFont(.body)
-                                .foregroundStyle(LadleTheme.ink)
+                                .foregroundStyle(LadleTheme.Label.primary)
                             Spacer()
                             Text(row.count.formatted())
                                 .ladleFont(.metadata)
-                                .foregroundStyle(LadleTheme.mutedInk)
+                                .foregroundStyle(LadleTheme.Label.secondary)
                             Image(systemName: "chevron.right")
                                 .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(LadleTheme.mutedInk)
+                                .foregroundStyle(LadleTheme.Label.secondary)
                         }
                         .frame(minHeight: 52)
                         .padding(.horizontal, 12)
@@ -212,7 +212,7 @@ struct AllRecipesView: View {
                 }
             }
             .background(
-                LadleTheme.oat,
+                LadleTheme.Surface.raised,
                 in: RoundedRectangle(
                     cornerRadius: LadleTheme.Corner.control,
                     style: .continuous
@@ -309,10 +309,10 @@ struct AllRecipesView: View {
                 .foregroundStyle(LadleTheme.Label.accent)
             Text("No recipes found")
                 .ladleFont(.section)
-                .foregroundStyle(LadleTheme.ink)
+                .foregroundStyle(LadleTheme.Label.primary)
             Text("Try another filter or return to all recipes.")
                 .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.mutedInk)
+                .foregroundStyle(LadleTheme.Label.secondary)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, LadleTheme.Spacing.cooking)
@@ -410,7 +410,7 @@ struct AllRecipesView: View {
     private func controlIcon(_ systemImage: String) -> some View {
         Image(systemName: systemImage)
             .font(.system(size: 15, weight: .semibold))
-            .foregroundStyle(LadleTheme.ink)
+            .foregroundStyle(LadleTheme.Label.primary)
             .frame(width: 44, height: 44)
     }
 

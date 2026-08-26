@@ -18,15 +18,15 @@ struct MethodList: View {
                 HStack(alignment: .top, spacing: LadleTheme.Layout.iconGap) {
                     Text("\(index + 1)")
                         .ladleFont(.metadata)
-                        .foregroundStyle(LadleTheme.onAccent)
+                        .foregroundStyle(LadleTheme.Label.onAccent)
                         .frame(width: 30, height: 30)
-                        .background(LadleTheme.brick, in: Circle())
+                        .background(LadleTheme.Intent.accent, in: Circle())
                         .accessibilityHidden(true)
 
                     VStack(alignment: .leading, spacing: LadleTheme.Layout.rowGap) {
                         Text(step.instruction)
                             .ladleFont(.body)
-                            .foregroundStyle(LadleTheme.ink)
+                            .foregroundStyle(LadleTheme.Label.primary)
                             .fixedSize(horizontal: false, vertical: true)
 
                         if !step.timers.isEmpty {
