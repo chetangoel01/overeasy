@@ -31,25 +31,26 @@ familiar. Cooking is high contrast and readable at a glance.
 
 ## Color
 
-Every colour has a semantic role in `LadleTheme`. New code reaches for the
-role, which says what the colour is *for*; the palette name says only what it
-*is* and stays in place so existing call sites keep compiling.
+Every colour has a semantic role in `LadleTheme`. Call sites reach for the
+role, which says what the colour is *for*. The palette name says only what it
+*is*; it stays because the roles are defined in terms of it, not as a second
+name a call site may use.
 
 | Role | Semantic name | Palette name | Light | Dark | Use |
 | --- | --- | --- | --- | --- | --- |
 | Porcelain | `Surface.porcelain` | `paper` | `#F2F4F6` | `#101214` | Primary surface |
-| Raised neutral | `Surface.raised` | `oat`, `field` | `#E3E7EA` | `#1C2024` | Fields and quiet grouping |
-| Steel | `Surface.steel` | `ube`, `review` | `#D7DDE2` | `#252A2F` | Inactive and review surfaces |
+| Raised neutral | `Surface.raised` | `oat` | `#E3E7EA` | `#1C2024` | Fields and quiet grouping |
+| Steel | `Surface.steel` | `ube` | `#D7DDE2` | `#252A2F` | Inactive and review surfaces |
 | Graphite ground | `Surface.graphite` | `plum` | `#14181B` | `#101214` | Welcome and Focus Mode |
 | Badge | `Surface.badge` | — | `#CDD5DC` | `#303840` | Icon badge on a raised card |
 | Graphite ink | `Label.primary` | `ink` | `#14181B` | `#F2F4F5` | Primary text and controls |
 | Secondary ink | `Label.secondary` | `mutedInk` | `#64707A` | `#A6AFB7` | Metadata |
 | On-signal | `Label.onAccent` | `onAccent` | `#FAFBFC` fixed | same | Content on accent or graphite |
 | Fixed graphite | `Label.onFixedPale` | `fixedInk` | `#14181B` fixed | same | Content on fixed pale surfaces |
-| Accessible accent text | `Label.accent` | `accentText`, `paprika` | `#C73924` default | `#FF7562` default | Favorites and tinted icons |
+| Accessible accent text | `Label.accent` | `accentText` | `#C73924` default | `#FF7562` default | Favorites and tinted icons |
 | Selected accent fill | `Intent.accent` | `brick` | `#EE4B2F` default | `#FF674E` default | Primary action and active state |
 | Destructive | `Intent.destructive` | — | system red | system red | Delete and discard |
-| Sage success | `Intent.success` | `celery`, `success` | `#83A18A` | `#294233` | Success state |
+| Sage success | `Intent.success` | `celery` | `#83A18A` | `#294233` | Success state |
 | Focus signal | `Intent.focus` | `focusAccent` | `#FF5A3D` fixed | same | Focus progress and advance |
 | Disabled | `Intent.disabledFill` / `disabledLabel` | — | steel / secondary ink | same | Any disabled control |
 
@@ -57,9 +58,8 @@ role, which says what the colour is *for*; the palette name says only what it
 `Surface.raised`: a badge drawn in steel on a raised card disappears into it.
 Badges on the porcelain ground may keep using steel.
 
-Superseded palette names, kept only for compatibility: `field` (use
-`Surface.raised`), `review` (use `Surface.steel`), `success` (use
-`Intent.success`), `paprika` (use `Label.accent`). `butter` is unused.
+The four compatibility aliases — `field`, `review`, `success` and `paprika` —
+are gone; every call site is on the role. `butter` is unused.
 
 
 Accent fills always carry `onAccent`. Settings offers Tomato, Orange, Sage,
