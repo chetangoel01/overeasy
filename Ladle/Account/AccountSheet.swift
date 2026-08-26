@@ -118,13 +118,13 @@ struct AccountSheet: View {
             NavigationLink {
                 PrivacyDetailView()
             } label: {
-                HStack(spacing: 13) {
+                HStack(spacing: LadleTheme.Layout.iconGap) {
                     Image(systemName: "hand.raised")
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundStyle(LadleTheme.Label.accent)
-                        .frame(width: 34, height: 34)
+                        .frame(width: Self.rowIconWidth, height: Self.rowIconWidth)
                         .background(LadleTheme.Surface.steel, in: Circle())
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
                         Text("Privacy & data")
                             .ladleFont(.body)
                             .foregroundStyle(LadleTheme.ink)
@@ -137,8 +137,8 @@ struct AccountSheet: View {
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(LadleTheme.mutedInk)
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
+                .padding(.horizontal, LadleTheme.Layout.cardPadding)
+                .padding(.vertical, LadleTheme.Spacing.medium)
                 .frame(minHeight: 56)
                 .background(LadleTheme.Surface.raised, in: accountShape)
                 .overlay {
@@ -365,7 +365,13 @@ struct AccountSheet: View {
     private var accountDivider: some View {
         Divider()
             .overlay(LadleTheme.ink.opacity(0.08))
-            .padding(.leading, 61)
+            .padding(
+                .leading,
+                LadleTheme.dividerInset(
+                    iconWidth: Self.rowIconWidth,
+                    leadingPadding: LadleTheme.Layout.cardPadding
+                )
+            )
     }
 
     private func infoRow(
@@ -375,16 +381,16 @@ struct AccountSheet: View {
     ) -> some View {
         HStack(
             alignment: dynamicTypeSize.isAccessibilitySize ? .top : .center,
-            spacing: 13
+            spacing: LadleTheme.Layout.iconGap
         ) {
             Image(systemName: icon)
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(LadleTheme.Label.accent)
-                .frame(width: 34, height: 34)
+                .frame(width: Self.rowIconWidth, height: Self.rowIconWidth)
                 .background(LadleTheme.Surface.steel, in: Circle())
 
             if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
                     infoTitle(title)
                     infoValue(value)
                 }
@@ -394,8 +400,8 @@ struct AccountSheet: View {
                 infoValue(value)
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(.horizontal, LadleTheme.Layout.cardPadding)
+        .padding(.vertical, LadleTheme.Spacing.medium)
         .frame(minHeight: 56)
         .accessibilityElement(children: .combine)
     }
@@ -419,17 +425,17 @@ struct AccountSheet: View {
         isDestructive: Bool = false,
         isLoading: Bool
     ) -> some View {
-        HStack(spacing: 13) {
+        HStack(spacing: LadleTheme.Layout.iconGap) {
             Image(systemName: icon)
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(
                     isDestructive ? Color.red : LadleTheme.ink
                 )
-                .frame(width: 34, height: 34)
+                .frame(width: Self.rowIconWidth, height: Self.rowIconWidth)
                 .background(LadleTheme.Surface.steel, in: Circle())
                 .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
                 Text(title)
                     .ladleFont(.bodyStrong)
                     .foregroundStyle(
@@ -452,11 +458,16 @@ struct AccountSheet: View {
                     .accessibilityHidden(true)
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(.horizontal, LadleTheme.Layout.cardPadding)
+        .padding(.vertical, LadleTheme.Spacing.medium)
         .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
         .contentShape(Rectangle())
     }
+
+    /// Width of a row's leading icon badge. `accountDivider` derives its
+    /// inset from this so the divider tracks the label origin instead of
+    /// restating it as a literal that nothing keeps in step.
+    private static let rowIconWidth: CGFloat = 34
 
     private var accountShape: RoundedRectangle {
         RoundedRectangle(
