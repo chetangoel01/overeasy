@@ -70,7 +70,7 @@ struct ReimportSheet: View {
 
     private var formContent: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
+            VStack(alignment: .leading, spacing: LadleTheme.Layout.sectionGap) {
                 sheetHeader(
                     icon: "arrow.triangle.2.circlepath",
                     title: "Re-import safely",
@@ -78,7 +78,7 @@ struct ReimportSheet: View {
                         "Your current recipe stays available until the replacement is ready."
                 )
 
-                VStack(alignment: .leading, spacing: 7) {
+                VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
                     Text("Original source")
                         .ladleFont(.metadata)
                         .foregroundStyle(LadleTheme.ink.opacity(0.56))
@@ -104,7 +104,7 @@ struct ReimportSheet: View {
                     TextEditor(text: $correctionNotes)
                         .ladleFont(.body)
                         .scrollContentBackground(.hidden)
-                        .padding(10)
+                        .padding(LadleTheme.Spacing.medium)
                         .frame(minHeight: 150)
                         .background(
                             LadleTheme.Surface.raised,
@@ -137,7 +137,7 @@ struct ReimportSheet: View {
     }
 
     private var importingContent: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: LadleTheme.Layout.sectionGap) {
             ProgressView()
                 .controlSize(.large)
                 .tint(LadleTheme.Label.accent)
@@ -203,7 +203,7 @@ struct ReimportSheet: View {
         buttonTitle: String,
         action: @escaping () -> Void
     ) -> some View {
-        VStack(spacing: 20) {
+        VStack(spacing: LadleTheme.Layout.sectionGap) {
             Image(systemName: icon)
                 .font(.system(size: 24, weight: .bold))
                 .foregroundStyle(LadleTheme.onAccent)
@@ -228,7 +228,7 @@ struct ReimportSheet: View {
         title: String,
         message: String
     ) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: LadleTheme.Spacing.medium) {
             Image(systemName: icon)
                 .font(.system(size: 21, weight: .semibold))
                 .foregroundStyle(LadleTheme.Label.accent)
@@ -304,7 +304,7 @@ struct ReimportDecisionView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
+            VStack(alignment: .leading, spacing: LadleTheme.Layout.sectionGap) {
                 header
                 currentRecipeNotice
 
@@ -344,7 +344,7 @@ struct ReimportDecisionView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: LadleTheme.Spacing.medium) {
             Image(
                 systemName: requiresReview
                     ? "pencil.and.list.clipboard"
@@ -373,7 +373,7 @@ struct ReimportDecisionView: View {
         HStack(spacing: 12) {
             Image(systemName: "shield.checkered")
                 .foregroundStyle(LadleTheme.Label.accent)
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
                 Text("Current recipe is safe")
                     .ladleFont(.bodyStrong)
                     .foregroundStyle(LadleTheme.ink)
@@ -382,7 +382,7 @@ struct ReimportDecisionView: View {
                     .foregroundStyle(LadleTheme.mutedInk)
             }
         }
-        .padding(14)
+        .padding(LadleTheme.Layout.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             LadleTheme.Surface.steel,
