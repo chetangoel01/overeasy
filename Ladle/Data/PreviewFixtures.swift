@@ -63,6 +63,33 @@ enum PreviewFixtures {
         ),
     ]
 
+    static let largeLibraryRecipes: [Recipe] = {
+        let slugs = [
+            "smash-burgers",
+            "lemon-orzo",
+            "garlic-udon",
+            "gochujang-chicken",
+            "ricotta-toast",
+            "miso-cookies",
+        ]
+        return (1...80).map { index in
+            let template = recipes[(index - 1) % recipes.count]
+            return makeRecipe(
+                id: String(
+                    format: "C54D0E5B-8B10-410F-ADE7-%012X",
+                    index
+                ),
+                title: String(format: "Weeknight Recipe %02d", index),
+                creator: template.creatorName ?? "Overeasy Kitchen",
+                source: template.source,
+                slug: slugs[(index - 1) % slugs.count],
+                imageName: template.images.first?.localName ?? "RecipeBurger",
+                minutes: template.totalMinutes ?? 30,
+                favorite: index.isMultiple(of: 7)
+            )
+        }
+    }()
+
     static let importJobs: [ImportJob] = {
         let parsing = ImportJob.queued(
             sourceURL: URL(

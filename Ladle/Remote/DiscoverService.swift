@@ -47,8 +47,20 @@ struct RemoteDiscoverService: DiscoverServing {
 }
 
 struct DemoDiscoverService: DiscoverServing {
+    let scenario: DemoLaunchScenario
+
+    init(scenario: DemoLaunchScenario = .standard) {
+        self.scenario = scenario
+    }
+
     func fetchDiscoverRecipes() async throws -> [DiscoverRecipe] {
-        PreviewFixtures.recipes.enumerated().map { index, recipe in
+        if scenario == .discoverEmpty {
+            return []
+        }
+        if scenario == .discoverRateLimited {
+            throw DemoRemoteError.rateLimited
+        }
+        return PreviewFixtures.recipes.enumerated().map { index, recipe in
             DiscoverRecipe(
                 sourceID: recipe.id,
                 title: recipe.title,

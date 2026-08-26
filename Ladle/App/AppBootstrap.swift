@@ -82,6 +82,10 @@ struct AppBootstrap {
     }
 
     func run() -> AppBootstrapResult {
+        if configuration.demoScenario == .storeFailure {
+            return .failed(AppBootstrapFailure(kind: .localStore))
+        }
+
         let resetsBackendSession = configuration.launchArguments.contains(
             "-reset-backend-session"
         )
@@ -95,7 +99,9 @@ struct AppBootstrap {
                 configuration.usesInMemoryStore
             )
             if configuration.seedsPreviewData {
-                try environment.seedPreviewDataIfNeeded()
+                try environment.seedPreviewDataIfNeeded(
+                    recipes: configuration.demoScenario.recipes
+                )
             } else if !configuration.usesInMemoryStore {
                 if resetsBackendSession {
                     try environment.recipeRepository.wipeAllData()
@@ -230,17 +236,19 @@ final class LadleRuntime {
         let discoverService: any DiscoverServing
         switch services {
         case .demo:
+            let scenario = configuration.demoScenario
             notificationService = DisabledNotificationService()
             authClient = nil
             googleSignIn = nil
             importService = DemoImportService(
                 slowDelay: launchArguments.contains("-ui-testing")
                     ? .seconds(30)
-                    : .seconds(3)
+                    : .seconds(3),
+                forcedFailure: scenario.importFailure
             )
             syncService = nil
             remoteImageCache = nil
-            discoverService = DemoDiscoverService()
+            discoverService = DemoDiscoverService(scenario: scenario)
         case let .remote(baseURL):
             notificationService = UserNotificationService()
             googleSignIn = GoogleSignInProvider()
@@ -289,6 +297,9 @@ final class LadleRuntime {
         }
 
         let syncStatus = SyncStatus()
+        if let failure = configuration.demoScenario.syncFailure {
+            syncStatus.fail(failure)
+        }
         let libraryViewModel = LibraryViewModel(
             repository: appEnvironment.recipeRepository,
             shuffleRecipeIDs: configuration.usesInMemoryStore

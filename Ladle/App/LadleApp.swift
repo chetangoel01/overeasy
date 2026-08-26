@@ -22,8 +22,15 @@ struct LadleRuntimeConfiguration {
             || environment["XCTestConfigurationFilePath"] != nil
     }
 
+    var demoScenario: DemoLaunchScenario {
+        guard launchArguments.contains("-ui-testing")
+                || launchArguments.contains("-empty-library")
+        else { return .standard }
+        return DemoLaunchScenario(launchArguments: launchArguments)
+    }
+
     var seedsPreviewData: Bool {
-        usesInMemoryStore && !launchArguments.contains("-empty-library")
+        usesInMemoryStore && demoScenario.seedsRecipes
     }
 
     var usesAppAttest: Bool {

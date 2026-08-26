@@ -191,6 +191,15 @@ These tokens apply only to the demo service. The normal app composition uses
 the remote backend; local Compose selects deterministic fake providers through
 server configuration.
 
+UI tests can also select exactly one whole-app state with
+`-demo-scenario <name>`. Supported names are `empty`, `offline-content`,
+`offline-empty`, `store-failure`, `discover-empty`,
+`discover-rate-limited`, `import-quota`, `import-rate-limited`,
+`authentication-expired`, and `large-library`. These switches are ignored
+outside an explicit `-ui-testing` launch. Missing, unknown, duplicated, or
+conflicting scenario arguments fall back to the standard demo, so fixtures
+cannot construct contradictory product states.
+
 ## Product and verification notes
 
 - Conservative inferred ingredient amounts and nutrition remain visibly

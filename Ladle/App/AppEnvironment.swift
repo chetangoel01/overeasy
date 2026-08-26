@@ -1,3 +1,4 @@
+import LadleCore
 import SwiftData
 
 @MainActor
@@ -20,10 +21,13 @@ final class AppEnvironment {
         )
     }
 
-    func seedPreviewDataIfNeeded() throws {
+    func seedPreviewDataIfNeeded(
+        recipes: [Recipe] = PreviewFixtures.recipes,
+        importJobs: [ImportJob] = PreviewFixtures.importJobs
+    ) throws {
         try recipeRepository.seedIfNeeded(
-            recipes: PreviewFixtures.recipes,
-            importJobs: PreviewFixtures.importJobs
+            recipes: recipes,
+            importJobs: importJobs
         )
     }
 

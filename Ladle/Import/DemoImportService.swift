@@ -14,11 +14,16 @@ actor DemoImportService: ImportService {
     }
 
     let slowDelay: Duration
+    private let forcedFailure: APIError?
     private var jobs: [String: ImportJob] = [:]
     private var updates: [String: ImportServiceUpdate] = [:]
 
-    init(slowDelay: Duration = .seconds(3)) {
+    init(
+        slowDelay: Duration = .seconds(3),
+        forcedFailure: APIError? = nil
+    ) {
         self.slowDelay = slowDelay
+        self.forcedFailure = forcedFailure
     }
 
     func submit(
@@ -67,6 +72,9 @@ actor DemoImportService: ImportService {
     private func progress(
         for job: ImportJob
     ) async throws -> ImportServiceProgress {
+        if let forcedFailure {
+            throw forcedFailure
+        }
         let slug = job.sourceURL.absoluteString.lowercased()
 
         if slug.contains("slow") {

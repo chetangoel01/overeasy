@@ -141,7 +141,7 @@ above remains the fixed before-state rather than being rewritten as work lands.
 | Discover and remote Watch | initial load, content, empty, content-preserving refresh, stale/offline, classified remote failures, per-item operation | closed in Task 7 |
 | Imports | validation, duplicate, guest limit, queued, processing, review, completion, cancellation, concurrency, classified recovery | closed in Task 8 |
 | Secondary flows | account, health, image, video, editor, timer, Share handoff, destructive actions | closed in Task 10; missing Health/media/account states added without regressing established editor, timer, Share, or destructive-action behavior |
-| Deterministic launch scenarios | empty, offline, failure, overload, expired auth, large data | open, Task 13 |
+| Deterministic launch scenarios | empty, offline, failure, overload, expired auth, large data | closed in Task 13 with ten named state scenarios and default, XXX Large, and accessibility-size captures |
 
 ## Design and cleanup ledger
 
@@ -152,10 +152,10 @@ above remains the fixed before-state rather than being rewritten as work lands.
 | Layout and safe areas | sheet margins and Watch safe-area behavior use approved semantics | closed in Task 11: 11 sheet toolbars aligned and Watch consumes live safe-area insets |
 | Typography and controls | raw typography/control values are intentional or semantic | closed in Task 11: numeric symbol sizes eliminated, interactive heights named, and remaining fixed geometry classified as layout/provider art |
 | Palette and assets | every role/asset has a live consumer or is removed | closed in Task 11: raw palette calls confined to theme definitions, all 17 roles have live consumers, and five dead compatibility assets were removed |
-| Production source | every file and declaration has a live responsibility | open, Task 12 |
-| Tests and fixtures | every fixture is used and every scenario is deterministic | open, Tasks 12-13 |
-| Config and targets | manifests regenerate cleanly; target memberships are intentional | open, Tasks 12-14 |
-| Documentation | plans and verification records reflect current behavior or are marked historical | open, Tasks 12-14 |
+| Production source | every file and declaration has a live responsibility | closed in Task 12: every source path is target-owned and compiled; focused symbol/asset searches found no orphaned production implementation |
+| Tests and fixtures | every fixture is used and every scenario is deterministic | closed in Tasks 12-13: fixtures are consumed by demo/runtime tests and one scenario enum owns every whole-app substitution |
+| Config and targets | manifests regenerate cleanly; target memberships are intentional | closed in Task 12: XcodeGen reproduces the checked-in project and all three new scenario files have exactly one intended source membership |
+| Documentation | plans and verification records reflect current behavior or are marked historical | closed in Task 12: current root/product/design references agree that Ladle is the internal project name and Overeasy is the shipped product name; dated records remain historical evidence |
 
 ## Completed state foundations
 
@@ -463,6 +463,99 @@ Verification on August 26, 2026:
   live App Attest test was intentionally skipped;
 - the focused Settings navigation UI test passed through the updated account
   presentation.
+
+## Repository-wide completion pass
+
+Task 12 classified every tracked path rather than treating line count or a
+default linter profile as a deletion instruction. The final inventory contains
+612 tracked files after the three deterministic-scenario files are added:
+
+| Subsystem | Exact path scope | Files | Disposition and evidence |
+| --- | --- | ---: | --- |
+| App source | `Ladle/**` except `Ladle/Resources/**` | 76 | owned by the Ladle target; complete app build and unit suite compile every file |
+| App assets and resources | `Ladle/Resources/**` | 32 | all named image sets have source consumers; `AppIcon` and `AccentColor` are Xcode-consumed; privacy manifest parses |
+| App configuration | `Config/**` | 8 | plist/privacy syntax passes; build settings and entitlements are consumed by declared targets |
+| App tests | `LadleTests/**` | 28 | owned by `LadleTests`; complete suite is a final release gate |
+| UI tests | `LadleUITests/**` | 2 | owned by `LadleUITests`; both interaction and deterministic state suites execute |
+| Share Extension | `LadleShare/**` | 3 | owned by `LadleShare`; direct build and embedded-product checks are release gates |
+| LadleCore source | `Packages/LadleCore/Sources/**` | 14 | owned by the package target; 45 tests pass |
+| LadleCore tests | `Packages/LadleCore/Tests/**` | 9 | all discovered by SwiftPM |
+| LadleCore support | other `Packages/LadleCore/**` | 1 | package manifest parses and resolves |
+| Backend source | `Backend/ladle/**` | 121 | authoritative mypy checks all 121 files; Ruff and pytest cover the package |
+| Backend tests | `Backend/tests/**` | 113 | 613 selected unit tests pass at baseline; final rerun remains a release gate |
+| Backend documentation | `Backend/docs/**` | 48 | current integration/deployment references retained; dated records are evidence, not live configuration |
+| Backend migrations | `Backend/alembic/**`, `Backend/alembic.ini` | 17 | migration graph and contract tests retain every revision |
+| Deployment and operations | `Backend/deploy/**`, `Backend/scripts/**`, `Backend/systemd/**` | 38 | shell syntax, deployment tests, and Compose rendering cover the scripts and units |
+| Backend manifests/support | remaining `Backend/**` | 32 | Compose, container, environment, dependency, and tool manifests are consumed by CI/local workflows |
+| Contracts | `Contracts/**` | 8 | shared JSON examples/schemas parse and backend contract tests consume them |
+| Generated project/manifest | `Ladle.xcodeproj/**`, `project.yml`, `Package.resolved` | 5 | clean XcodeGen reproduction; checked-in workspace SwiftPM directory is intentional |
+| Plans | `docs/plans/**` | 22 | dated design/implementation history retained; current consolidation plan owns open work |
+| Verification | `docs/verification/**` | 25 | dated immutable evidence retained; this ledger is the current truth surface |
+| Other documentation | other `docs/**` | 3 | current handoff, privacy, and backend design references retained |
+| Repository support/root | root files and `.github/**` | 7 | README, product/design contracts, instructions, ignore rules, and CI/dependency workflows are live |
+
+Authoritative static results on August 26, 2026:
+
+- every tracked shell script passes `bash -n`, every tracked JSON file passes
+  `jq empty`, and every tracked plist/privacy manifest passes `plutil -lint`;
+- Ruff passes the entire backend, and mypy passes all 121 files under
+  `Backend/ladle`;
+- regenerating the project in a temporary copy with XcodeGen 2.46.0 produces
+  the checked-in `project.pbxproj` byte-for-byte; the scenario source, unit
+  test, and UI test each have one intended source membership;
+- `swift test --package-path Packages/LadleCore` passes 45 tests in 9 suites;
+- no production TODO, FIXME, HACK, or XXX marker remains; the only deliberate
+  crash guards are three `preconditionFailure` calls in deterministic preview
+  fixture construction;
+- no named image set is orphaned, and the five earlier compatibility assets
+  remain removed;
+- Periphery and Lychee are not installed. The unused-code audit therefore uses
+  compiler target ownership, tests, asset-reference searches, and focused
+  declaration searches rather than claiming output from unavailable tools.
+
+The tracked-Swift-only default SwiftLint audit reports 285 findings: 107
+trailing commas, 31 type-body length, 26 file length, 22 closure-parameter
+position, 21 force-try, 20 function-body length, 20 opening-brace, 11 line
+length, and smaller default-style groups. Production "errors" are 18 size or
+large-tuple thresholds in cohesive views/coordinators; force operations are
+primarily deterministic test construction. These unreviewed defaults conflict
+with the repository's established format, so no `.swiftlint.yml` is adopted
+merely to suppress them. SwiftLint remains an audit input, not a release gate.
+
+## Deterministic launch scenarios
+
+Task 13 adds one test-only `DemoLaunchScenario` parser. Production launches
+ignore it. Exactly one `-demo-scenario <name>` can select empty, offline with
+content, offline empty, store failure, Discover empty, Discover rate limiting,
+import quota, import rate limiting, authentication expiry, or an 80-recipe
+library. Unknown, duplicated, legacy-plus-new, or otherwise contradictory
+arguments fall back to the standard demo. The legacy `-empty-library` switch
+remains compatible.
+
+The initial focused build failed because the parser and runtime hook did not
+exist, proving the red state. Four parser/configuration unit tests then passed.
+The final `StateScenarioUITests` run executed 13 tests with zero failures and
+retained captures for all ten named state families plus:
+
+- Inbox, recipe detail, Full Recipe cooking, and Focus Mode in one real
+  navigation journey;
+- the 80-recipe library at default size and XXX Large, where the grid becomes
+  a single readable column;
+- welcome at accessibility XXX Large, with the guest path still present;
+- explicit offline content preservation, offline empty, initial store failure,
+  Discover empty/rate-limited, import quota/rate-limited, and expired-session
+  surfaces.
+
+Existing interaction coverage retains default-size captures for Recipes grid
+and list, Discover, Watch, Settings, import recovery, and destructive recipe
+actions. The seven Share confirmation renderer tests cover the extension
+states with balanced UIKit appearance lifecycle.
+
+At the Task 13 checkpoint, the complete `LadleUITests` target passed all 21
+tests, and the complete `LadleTests` target executed 249 tests: 248 passed and
+the one live App Attest test was intentionally skipped. The test logs contain
+only Apple simulator/runtime and AppIntents metadata diagnostics, not app
+source warnings or Share lifecycle imbalance.
 
 ## Final release gates
 
