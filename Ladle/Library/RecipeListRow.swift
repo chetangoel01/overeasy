@@ -7,10 +7,10 @@ struct RecipeListRow: View {
     let toggleFavorite: () -> Void
 
     var body: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: LadleTheme.Spacing.medium) {
             recipeImage
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
                 Text(recipe.source.libraryTitle)
                     .ladleFont(.metadata)
                     .foregroundStyle(LadleTheme.ink.opacity(0.5))

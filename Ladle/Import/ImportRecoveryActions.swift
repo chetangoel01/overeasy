@@ -6,7 +6,7 @@ struct ImportRecoveryActions: View {
     let chooseInput: (RecoveryInputMode) -> Void
 
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: LadleTheme.Layout.rowGap) {
             Button(action: retry) {
                 if isRetrying {
                     ProgressView()

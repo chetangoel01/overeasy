@@ -27,7 +27,7 @@ struct PendingImportCard: View {
                 }
             }
         }
-        .padding(14)
+        .padding(LadleTheme.Layout.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .ladleCard()
         .accessibilityElement(children: .combine)
@@ -38,7 +38,7 @@ struct PendingImportCard: View {
     }
 
     private var importDescription: some View {
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
             Text(title)
                 .ladleFont(.bodyStrong)
                 .foregroundStyle(LadleTheme.ink)

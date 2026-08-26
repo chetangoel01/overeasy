@@ -63,18 +63,28 @@ struct PrivacyDetailView: View {
                     if index < items.count - 1 {
                         Divider()
                             .overlay(LadleTheme.ink.opacity(0.08))
-                            .padding(.leading, 22)
+                            .padding(
+                                .leading,
+                                LadleTheme.dividerInset(
+                                    iconWidth: Self.bulletWidth
+                                )
+                            )
                     }
                 }
             }
         }
     }
 
+    /// Width of the bullet leading a transparency row. The divider between
+    /// rows derives its inset from this; it used to be a literal 22 against
+    /// a label origin of 18.
+    private static let bulletWidth: CGFloat = 6
+
     private func transparencyRow(_ item: String) -> some View {
         HStack(alignment: .top, spacing: LadleTheme.Spacing.medium) {
             Circle()
                 .fill(LadleTheme.Label.accent)
-                .frame(width: 6, height: 6)
+                .frame(width: Self.bulletWidth, height: Self.bulletWidth)
                 .padding(.top, 8)
                 .accessibilityHidden(true)
 

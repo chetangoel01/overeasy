@@ -97,7 +97,7 @@ struct FilterSheet: View {
             .ladleFont(.bodyStrong)
             .foregroundStyle(LadleTheme.ink)
             .tint(LadleTheme.plum)
-            .padding(.horizontal, 14)
+            .padding(.horizontal, LadleTheme.Layout.cardPadding)
             .frame(minHeight: 52)
             .background(
                 LadleTheme.Surface.raised,
@@ -181,7 +181,7 @@ private struct FilterSection<Content: View>: View {
     @ViewBuilder let content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: LadleTheme.Layout.rowGap) {
             LadleSectionHeader(title: title, detail: detail)
             content
         }

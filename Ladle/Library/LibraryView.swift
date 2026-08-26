@@ -402,7 +402,7 @@ private struct LibraryLoadStateView: View {
     let retry: () -> Void
 
     var body: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: LadleTheme.Spacing.medium) {
             if let message {
                 Image(systemName: "fork.knife.circle")
                     .font(.system(size: 34))

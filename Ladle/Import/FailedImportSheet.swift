@@ -57,7 +57,7 @@ struct FailedImportSheet: View {
             unavailableContent
         } else {
             ScrollView {
-                VStack(alignment: .leading, spacing: 22) {
+                VStack(alignment: .leading, spacing: LadleTheme.Layout.sectionGap) {
                     header
                     savedLink
                     ImportRecoveryActions(
@@ -100,7 +100,7 @@ struct FailedImportSheet: View {
                 .foregroundStyle(LadleTheme.ink)
                 .textSelection(.enabled)
         }
-        .padding(14)
+        .padding(LadleTheme.Layout.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(LadleTheme.Surface.raised, in: RoundedRectangle(cornerRadius: 14))
     }

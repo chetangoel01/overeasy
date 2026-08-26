@@ -219,7 +219,7 @@ struct InlineVideoPlayer: View {
 
                                 ProgressView()
                                     .tint(LadleTheme.onAccent)
-                                    .padding(18)
+                                    .padding(LadleTheme.Spacing.regular)
                                     .background(
                                         .black.opacity(0.66),
                                         in: Circle()

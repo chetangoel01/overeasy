@@ -45,7 +45,7 @@ struct RecipeOptionsSheet: View {
                             select(option)
                             dismiss()
                         } label: {
-                            HStack(spacing: 13) {
+                            HStack(spacing: LadleTheme.Layout.iconGap) {
                                 Image(systemName: option.systemImage)
                                     .font(.system(size: 16, weight: .semibold))
                                     .foregroundStyle(

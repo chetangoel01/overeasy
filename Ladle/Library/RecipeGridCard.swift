@@ -7,7 +7,7 @@ struct RecipeGridCard: View {
     let toggleFavorite: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: LadleTheme.Spacing.medium) {
             ZStack(alignment: .topTrailing) {
                 recipeImage
 
