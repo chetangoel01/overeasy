@@ -31,7 +31,7 @@ struct FullRecipeView: View {
     private var fullRecipeContent: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 28) {
+                VStack(alignment: .leading, spacing: LadleTheme.Layout.sectionGap) {
                     recipeHeader
                     cookingControls
                     ingredientsSection
@@ -159,11 +159,16 @@ struct FullRecipeView: View {
                         < viewModel.recipe.orderedIngredients.count - 1 {
                         Divider()
                             .overlay(LadleTheme.ink.opacity(0.08))
-                            .padding(.leading, 52)
+                            .padding(
+                                .leading,
+                                LadleTheme.dividerInset(
+                                    iconWidth: Self.completionIconWidth
+                                )
+                            )
                     }
                 }
             }
-            .padding(.horizontal, 14)
+            .padding(.horizontal, LadleTheme.Layout.cardPadding)
             .background(
                 LadleTheme.Surface.raised,
                 in: RoundedRectangle(
@@ -175,7 +180,7 @@ struct FullRecipeView: View {
     }
 
     private var methodSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: LadleTheme.Layout.rowGap) {
             LadleSectionHeader(title: "Method")
 
             ForEach(
@@ -195,7 +200,7 @@ struct FullRecipeView: View {
         return Button {
             viewModel.toggleCompletedIngredient(ingredient.id)
         } label: {
-            HStack(spacing: 13) {
+            HStack(spacing: LadleTheme.Layout.iconGap) {
                 completionIcon(isCompleted: isCompleted)
                 Text(ingredient.cookingDetailText)
                     .ladleFont(.body)
@@ -205,7 +210,7 @@ struct FullRecipeView: View {
                     .strikethrough(isCompleted)
                 Spacer(minLength: 0)
             }
-            .padding(.vertical, 14)
+            .padding(.vertical, LadleTheme.Spacing.medium)
             .contentShape(Rectangle())
         }
         .buttonStyle(LadlePressButtonStyle())
@@ -231,11 +236,11 @@ struct FullRecipeView: View {
         let isCompleted = viewModel.isStepCompleted(step.id)
         let isCurrent = index == viewModel.currentStepIndex
 
-        return VStack(alignment: .leading, spacing: 14) {
+        return VStack(alignment: .leading, spacing: LadleTheme.Layout.rowGap) {
             Button {
                 viewModel.toggleCompletedStep(step.id)
             } label: {
-                HStack(alignment: .top, spacing: 13) {
+                HStack(alignment: .top, spacing: LadleTheme.Layout.iconGap) {
                     completionIcon(
                         isCompleted: isCompleted,
                         number: index + 1
@@ -285,6 +290,11 @@ struct FullRecipeView: View {
         )
     }
 
+    /// Width of the tick or step number leading each checklist row. The
+    /// row dividers derive their inset from this so they cannot drift
+    /// away from the labels they separate.
+    private static let completionIconWidth: CGFloat = 30
+
     private func completionIcon(
         isCompleted: Bool,
         number: Int? = nil
@@ -314,7 +324,10 @@ struct FullRecipeView: View {
                     .foregroundStyle(LadleTheme.ink.opacity(0.58))
             }
         }
-        .frame(width: 30, height: 30)
+        .frame(
+            width: Self.completionIconWidth,
+            height: Self.completionIconWidth
+        )
         .accessibilityHidden(true)
     }
 }
