@@ -23,30 +23,19 @@ Measured on `codex/notifications-preferences-discover-grid` at `f2ceb74`:
 
 ## Spacing: the shadow scale
 
-`10` and `14` together account for 64 uses. They are not typos; they are a
+`10` and `14` together accounted for 64 uses. They were not typos; they were a
 second scale that grew because nothing named the first one's roles.
 
-The six densest files are done — 62 off-scale literals removed, one commit
-each. Counting `.padding(...)` and `spacing:` literals that are not a step,
-the app is at **82, down from 144**. All six files are now clean apart from
-the scroll insets described below.
-
-| Found | Uses | Move to |
-| --- | --- | --- |
-| 10 | 33 | 8 (`compact`) or 12 (`medium`) |
-| 14 | 31 | 12 (`medium`) or 16 (`regular`) |
-| 13 | 10 | 12 (`medium`) |
-| 22 | 10 | 24 (`generous`) |
-| 6 | 9 | 4 (`tight`) or 8 (`compact`) |
-| 7 | 6 | 8 (`compact`) |
-| 20 | 6 | 16 (`regular`) or 24 (`generous`) |
-| 5, 3, 2 | 12 | 4 (`tight`) |
-| 26, 28, 30, 36, 40, 48, 52, 60, 61 | 12 | Nearest step, or a `Layout` role |
+**Done.** The app is at **1 off-scale literal, from 83.** Every file is on the
+scale except one deliberate exception, described below. The original count of
+138 was measured with a looser pattern than the one used since; the comparable
+starting figure is 83, and even that missed a literal hidden inside a ternary
+in `RecipeMetadataBand`.
 
 Control heights fold into three: 46 and 48 to `Control.field`; 50, 52 and 56 to
 `Control.primary`; 44 stays `Control.hitTarget`. **Not started** — a settings
 row moving from 56 to 48 is a visible change rather than a rounding, so it
-wants its own pass with screenshots, not to ride along with the spacing.
+wants its own pass with screenshots.
 
 ### The rules the first six files settled
 
@@ -67,19 +56,33 @@ migration should follow them so the app does not grow a third scale:
   and unit fields sit in a `ViewThatFits`, so their gap rounds down; widening
   it would push more cases into the stacked fallback.
 
-### Still to place: scroll clearance
+### Scroll clearance: two roles, not one
 
-`RecipeEditorView:32` and `DiscoverView:251` pad a scroll view's bottom by 40,
-`FullRecipeView:41` by 48. These are not gaps between two things — they are
-clearance for what floats over the content, and no role names them. Folding
-them to `cooking` (32) would cut 8 to 16 points of clearance and risks tucking
-content under the floating bars, so all three are left as literals.
+Measured rather than guessed, as this document asked. At full scroll the
+Recipes list already clears the floating tab bar by about 45 points, because
+the system insets a tab screen's scroll view on its own. So the 30 to 48 those
+six screens carried was never bar clearance — it was breathing room on top of
+it, and they now share `Layout.scrollTail`.
 
-They want a `Layout` role of their own — something like `scrollBottomInset` —
-whose value should be measured against the floating tab bar rather than guessed.
+Watch is the exception and the reason a single role would have been wrong. Its
+content runs full-bleed under the bar, the system insets nothing, and the
+`88 + medium` it added by hand is real clearance. That is
+`Layout.overlayBarClearance`, and it is the one layout value allowed off the
+spacing scale, because it is the height of a bar rather than a chosen distance.
 
-Densest files still to do: `AllRecipesView` 8, `RecipeDetailView` 7,
-`ShareConfirmationView` 6, `NutritionView` 6, `HealthExportSheet` 5.
+`WatchView:66` still pads its overlay control down by a literal 60 for the same
+reason at the top of the screen. It is the one off-scale literal left in the
+app. Both it and `overlayBarClearance` would be better read from the safe-area
+insets than stated as constants; that is a different change from this one.
+
+### A second design system
+
+`LadleShare` is its own target and cannot see `LadleTheme`, so
+`ShareConfirmationView` hand-mirrors the palette in a private `ShareTheme`. The
+spacing scale is now mirrored there too, which is consistent but doubles what
+can drift — and it already has: `ShareTheme` still defines `field` and `review`,
+two alias names the app deleted. Sharing the tokens through `LadleCore` is the
+real fix.
 
 ## Colour
 
@@ -151,6 +154,16 @@ Fixed:
 - ~~Cooking checklist dividers hardcoded to 52 against labels at 43~~ — fixed
   in `2f6df35`. Both now derive from one named icon width, measured on device
   at the same pixel.
+- ~~Privacy detail dividers hardcoded to 22 against labels at 18~~ — fixed in
+  `3b6d3bf`. The same defect four points wide. Measured on device: the divider
+  moved from x=138 to x=126, where the labels are.
+
+Four row-and-divider pairs were audited in total. Two were adrift — the cooking
+checklist by 9 points and the privacy list by 4. Two were already correct,
+`AllRecipesView`'s collections and `IngredientList`, and both now derive their
+inset anyway: IngredientList would otherwise have *become* misaligned when its
+icon gap moved onto `iconGap`, which is the argument for deriving rather than
+rounding.
 
 Outstanding, each with a role that now exists to express the fix:
 
@@ -165,7 +178,7 @@ Outstanding, each with a role that now exists to express the fix:
 ## Sequencing
 
 1. ~~Colour aliases~~ — done. The four alias pairs are gone.
-2. Off-scale spacing — the six densest files are done; 82 literals remain.
+2. ~~Off-scale spacing~~ — done. 83 literals to 1.
 3. Button roles, which carries the two behaviour fixes above.
 4. The layout defects, which are call-site changes rather than token changes.
 
