@@ -252,6 +252,47 @@ final class AuthClientTests: XCTestCase {
         XCTAssertTrue(account.shouldPresentWelcome)
     }
 
+    func testDeleteAccountRateLimitPreservesLocalSession() async throws {
+        let retryAt = Date(timeIntervalSince1970: 1_800_000_000)
+        URLProtocolStub.install { request in
+            (
+                Self.response(request, status: 429),
+                Self.errorJSON(
+                    code: "rateLimited",
+                    details: [
+                        "retryAt": "2027-01-15T08:00:00.000Z",
+                    ]
+                )
+            )
+        }
+        let tokens = AuthTokens.fixture(accessToken: "delete-access")
+        let tokenStore = InMemoryAuthTokenStore(tokens: tokens)
+        let account = AccountSession(store: InMemoryAuthPreferenceStore())
+        account.applyRemoteUserKind("google")
+        let auth = AuthClient(
+            api: APIClient(
+                baseURL: URL(string: "https://api.ladle.test")!,
+                session: URLProtocolStub.session(),
+                tokenStore: tokenStore
+            ),
+            tokenStore: tokenStore,
+            accountSession: account
+        )
+
+        do {
+            try await auth.deleteAccount()
+            XCTFail("Expected deletion rate limit")
+        } catch {
+            XCTAssertEqual(
+                RemoteFailure(error),
+                .rateLimited(retryAt: retryAt)
+            )
+        }
+        XCTAssertEqual(try tokenStore.load(), tokens)
+        XCTAssertEqual(account.state, .signedInWithGoogle)
+        XCTAssertFalse(account.shouldPresentWelcome)
+    }
+
     nonisolated private static func response(
         _ request: URLRequest,
         status: Int
@@ -275,6 +316,21 @@ final class AuthClientTests: XCTestCase {
             "userID": "10000000-0000-4000-8000-000000000001",
             "deviceID": "10000000-0000-4000-8000-000000000002",
             "userKind": userKind,
+        ])
+    }
+
+    nonisolated private static func errorJSON(
+        code: String,
+        details: [String: String]
+    ) -> Data {
+        try! JSONSerialization.data(withJSONObject: [
+            "error": [
+                "code": code,
+                "details": details,
+                "message": "Try again later.",
+                "requestID": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+                "retryable": true,
+            ],
         ])
     }
 }

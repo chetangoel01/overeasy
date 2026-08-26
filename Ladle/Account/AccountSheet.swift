@@ -1,5 +1,49 @@
 import SwiftUI
 
+struct AccountDeletionFailure: Equatable {
+    let failure: RemoteFailure
+    let requestID: UUID?
+
+    init(failure: RemoteFailure, requestID: UUID? = nil) {
+        self.failure = failure
+        self.requestID = requestID
+    }
+
+    init?(_ error: any Error) {
+        guard !(error is CancellationError) else {
+            return nil
+        }
+        let report = RemoteFailureReport(error)
+        self.init(failure: report.failure, requestID: report.requestID)
+    }
+
+    var retryAt: Date? { failure.retryAt }
+
+    func canRetry(at date: Date = .now) -> Bool {
+        failure.canRetry(at: date)
+    }
+
+    var message: String {
+        let unchanged = "Your account and recipes are unchanged."
+        switch failure {
+        case .offline:
+            return "\(unchanged) Reconnect and try again."
+        case .serviceUnavailable:
+            return "\(unchanged) The service is temporarily unavailable. Try again in a moment."
+        case let .rateLimited(retryAt):
+            return "\(unchanged) Try again after \(retryAt.formatted(date: .omitted, time: .shortened))."
+        case .quotaExceeded:
+            return "\(unchanged) Account deletion has reached its current limit."
+        case .authenticationExpired:
+            return "\(unchanged) Sign in again before deleting the account."
+        case .invalidResponse:
+            return "\(unchanged) Overeasy couldn’t read the service response. Try again."
+        case .unknown:
+            return "\(unchanged) Please try again."
+        }
+    }
+}
+
 struct AccountSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -16,7 +60,7 @@ struct AccountSheet: View {
     @State private var isDeleteConfirmationPresented = false
     @State private var isSigningOut = false
     @State private var isDeletingAccount = false
-    @State private var deletionErrorMessage: String?
+    @State private var deletionFailure: AccountDeletionFailure?
 
     var body: some View {
         NavigationStack {
@@ -214,7 +258,7 @@ struct AccountSheet: View {
                     )
                 }
                 .buttonStyle(.plain)
-                .disabled(isSigningOut)
+                .disabled(isSigningOut || isDeletingAccount)
                 .accessibilityIdentifier("account.sign-out")
 
                 accountDivider
@@ -231,7 +275,7 @@ struct AccountSheet: View {
                     )
                 }
                 .buttonStyle(.plain)
-                .disabled(isDeletingAccount)
+                .disabled(isDeletingAccount || isSigningOut)
                 .accessibilityIdentifier("account.delete")
             }
             .background(LadleTheme.Surface.raised, in: accountShape)
@@ -270,21 +314,18 @@ struct AccountSheet: View {
         .alert(
             "Account could not be deleted",
             isPresented: Binding(
-                get: { deletionErrorMessage != nil },
-                set: { if !$0 { deletionErrorMessage = nil } }
+                get: { deletionFailure != nil },
+                set: { if !$0 { deletionFailure = nil } }
             )
         ) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text(
-                deletionErrorMessage
-                    ?? "Please check your connection and try again."
-            )
+            Text(deletionFailure?.message ?? "Please try again.")
         }
     }
 
     private func performSignOut() {
-        guard !isSigningOut else {
+        guard !isSigningOut, !isDeletingAccount else {
             return
         }
         isSigningOut = true
@@ -296,18 +337,18 @@ struct AccountSheet: View {
     }
 
     private func performAccountDeletion() {
-        guard !isDeletingAccount else {
+        guard !isDeletingAccount, !isSigningOut else {
             return
         }
         isDeletingAccount = true
+        deletionFailure = nil
         Task { @MainActor in
+            defer { isDeletingAccount = false }
             do {
                 try await deleteAccount()
                 dismiss()
             } catch {
-                isDeletingAccount = false
-                deletionErrorMessage =
-                    "Please check your connection and try again."
+                deletionFailure = AccountDeletionFailure(error)
             }
         }
     }

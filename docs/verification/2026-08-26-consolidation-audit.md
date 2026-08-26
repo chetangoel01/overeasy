@@ -132,7 +132,7 @@ Xcode consumes it by catalog name.
 | Connectivity and sync | current, syncing, offline, degraded, rate limited, quota, expired auth, conflict | shared failure vocabulary and observable status closed in Tasks 4-5; conflict handling remains open |
 | Discover and remote Watch | initial load, content, empty, content-preserving refresh, stale/offline, classified remote failures, per-item operation | closed in Task 7 |
 | Imports | validation, duplicate, guest limit, queued, processing, review, completion, cancellation, concurrency, classified recovery | closed in Task 8 |
-| Secondary flows | account, health, image, video, editor, timer, Share handoff, destructive actions | open, Task 10 |
+| Secondary flows | account, health, image, video, editor, timer, Share handoff, destructive actions | closed in Task 10; missing Health/media/account states added without regressing established editor, timer, Share, or destructive-action behavior |
 | Deterministic launch scenarios | empty, offline, failure, overload, expired auth, large data | open, Task 13 |
 
 ## Design and cleanup ledger
@@ -366,6 +366,34 @@ Verification on August 26, 2026:
   to the successful refresh and cache-hit paths;
 - the complete `LadleTests` target passed 224 tests: 223 passed and the one
   live App Attest test was intentionally skipped.
+
+### Recoverable account entry and deletion
+
+The final Task 10 checkpoint gives welcome authentication and account deletion
+typed failure states. Welcome now distinguishes offline transport, temporary
+service failure, an exact server rate-limit time, quota, expired
+authentication, malformed responses, missing Google configuration, and an
+ordinary provider failure. User and task cancellation remain silent instead
+of appearing as errors.
+
+A failed deletion no longer implies that local state may have changed. Its
+alert states that the account and recipes are unchanged, classifies the same
+remote failures, and preserves an exact rate-limit retry time. Sign-out and
+deletion controls are mutually disabled while either destructive operation is
+running. `AuthClient` already cleared credentials only after a successful
+server response; the new regression test proves a rate-limited deletion keeps
+both the original token and signed-in account state.
+
+Verification on August 26, 2026:
+
+- the focused build first failed because the typed welcome and deletion
+  failures did not exist, proving the red contract;
+- all welcome/account smoke, `AuthClientTests`, and `AccountSessionTests`
+  passed;
+- the complete `LadleTests` target passed 227 tests: 226 passed and the one
+  live App Attest test was intentionally skipped;
+- the focused Settings navigation UI test passed through the updated account
+  presentation.
 
 ## Final release gates
 

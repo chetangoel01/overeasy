@@ -301,6 +301,51 @@ final class ProjectSmokeTests: XCTestCase {
             "Processing capacity is exhausted. Retry after your quota or provider capacity resets. The saved link is safe."
         )
     }
+
+    func testWelcomeAuthenticationFailureDistinguishesOfflineAndCancellation() throws {
+        let offline = try XCTUnwrap(
+            WelcomeAuthenticationFailure(
+                APIError.transport,
+                fallback: "Account setup didn’t complete."
+            )
+        )
+
+        XCTAssertEqual(
+            offline,
+            .remote(RemoteFailureReport(APIError.transport))
+        )
+        XCTAssertEqual(
+            offline.message,
+            "You’re offline. Reconnect and try again."
+        )
+        XCTAssertNil(
+            WelcomeAuthenticationFailure(
+                GoogleSignInProviderError.cancelled,
+                fallback: "Sign-in failed."
+            )
+        )
+        XCTAssertNil(
+            WelcomeAuthenticationFailure(
+                CancellationError(),
+                fallback: "Sign-in failed."
+            )
+        )
+    }
+
+    func testAccountDeletionFailurePreservesRateLimitTiming() throws {
+        let retryAt = Date(timeIntervalSince1970: 1_800_000_000)
+        let failure = AccountDeletionFailure(
+            failure: .rateLimited(retryAt: retryAt)
+        )
+
+        XCTAssertEqual(failure.retryAt, retryAt)
+        XCTAssertFalse(
+            failure.canRetry(at: retryAt.addingTimeInterval(-1))
+        )
+        XCTAssertTrue(failure.canRetry(at: retryAt))
+        XCTAssertTrue(failure.message.contains("Try again after"))
+        XCTAssertNil(AccountDeletionFailure(CancellationError()))
+    }
 }
 
 private enum GoogleAppCheckTestError: Error {

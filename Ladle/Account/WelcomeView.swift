@@ -3,6 +3,63 @@ import CryptoKit
 import Security
 import SwiftUI
 
+enum WelcomeAuthenticationFailure: Equatable {
+    case missingConfiguration
+    case remote(RemoteFailureReport)
+    case other(String)
+
+    init?(_ error: any Error, fallback: String) {
+        if error is CancellationError {
+            return nil
+        }
+        if let googleError = error as? GoogleSignInProviderError {
+            switch googleError {
+            case .cancelled:
+                return nil
+            case .missingConfiguration:
+                self = .missingConfiguration
+                return
+            case .missingPresenter, .missingIdentityToken:
+                break
+            }
+        }
+        if (error as? ASAuthorizationError)?.code == .canceled {
+            return nil
+        }
+        if error is APIError {
+            self = .remote(RemoteFailureReport(error))
+        } else {
+            self = .other(fallback)
+        }
+    }
+
+    var message: String {
+        switch self {
+        case .missingConfiguration:
+            "Google sign-in isn’t configured for this build."
+        case let .remote(report):
+            switch report.failure {
+            case .offline:
+                "You’re offline. Reconnect and try again."
+            case .serviceUnavailable:
+                "Overeasy is temporarily unavailable. Try again in a moment."
+            case let .rateLimited(retryAt):
+                "Too many attempts. Try again after \(retryAt.formatted(date: .omitted, time: .shortened))."
+            case .quotaExceeded:
+                "Account setup has reached its current limit. Try again later."
+            case .authenticationExpired:
+                "That sign-in session expired. Start sign-in again."
+            case .invalidResponse:
+                "Overeasy couldn’t read the sign-in response. Try again."
+            case .unknown:
+                "Account setup didn’t complete. Please try again."
+            }
+        case let .other(message):
+            message
+        }
+    }
+}
+
 struct WelcomeView: View {
     let accountSession: AccountSession
     let authClient: AuthClient?
@@ -14,7 +71,7 @@ struct WelcomeView: View {
 
     @State private var rawNonce: String?
     @State private var isAuthenticating = false
-    @State private var authenticationError: String?
+    @State private var authenticationFailure: WelcomeAuthenticationFailure?
 
     var body: some View {
         ZStack {
@@ -130,6 +187,7 @@ struct WelcomeView: View {
     private var accountActions: some View {
         VStack(spacing: 0) {
             SignInWithAppleButton(.continue) { request in
+                authenticationFailure = nil
                 let nonce = Self.randomNonce()
                 rawNonce = nonce
                 request.requestedScopes = [.email, .fullName]
@@ -188,8 +246,8 @@ struct WelcomeView: View {
                     .padding(.top, LadleTheme.Spacing.medium)
             }
 
-            if let authenticationError {
-                Text(authenticationError)
+            if let authenticationFailure {
+                Text(authenticationFailure.message)
                     .ladleFont(.metadata)
                     .foregroundStyle(LadleTheme.Label.accent)
                     .multilineTextAlignment(.center)
@@ -224,7 +282,7 @@ struct WelcomeView: View {
             return
         }
         isAuthenticating = true
-        authenticationError = nil
+        authenticationFailure = nil
         Task { @MainActor in
             defer { isAuthenticating = false }
             do {
@@ -245,14 +303,11 @@ struct WelcomeView: View {
                     accountSession.signInWithGoogle()
                 }
                 await onAuthenticated()
-            } catch GoogleSignInProviderError.cancelled {
-                return
-            } catch GoogleSignInProviderError.missingConfiguration {
-                authenticationError =
-                    "Google sign-in isn’t configured for this build."
             } catch {
-                authenticationError =
-                    "Sign in with Google didn’t complete. Please try again."
+                authenticationFailure = WelcomeAuthenticationFailure(
+                    error,
+                    fallback: "Sign in with Google didn’t complete. Please try again."
+                )
             }
         }
     }
@@ -262,7 +317,7 @@ struct WelcomeView: View {
             return
         }
         isAuthenticating = true
-        authenticationError = nil
+        authenticationFailure = nil
         Task { @MainActor in
             defer { isAuthenticating = false }
             do {
@@ -276,8 +331,10 @@ struct WelcomeView: View {
                 }
                 await onAuthenticated()
             } catch {
-                authenticationError =
-                    "Overeasy couldn’t connect. Check your connection and try again."
+                authenticationFailure = WelcomeAuthenticationFailure(
+                    error,
+                    fallback: "Account setup didn’t complete. Please try again."
+                )
             }
         }
     }
@@ -290,10 +347,10 @@ struct WelcomeView: View {
         }
         switch result {
         case let .failure(error):
-            if (error as? ASAuthorizationError)?.code != .canceled {
-                authenticationError =
-                    "Sign in with Apple didn’t complete. Please try again."
-            }
+            authenticationFailure = WelcomeAuthenticationFailure(
+                error,
+                fallback: "Sign in with Apple didn’t complete. Please try again."
+            )
         case let .success(authorization):
             guard
                 let credential =
@@ -311,8 +368,9 @@ struct WelcomeView: View {
                 ),
                 let nonce = rawNonce
             else {
-                authenticationError =
+                authenticationFailure = .other(
                     "Apple didn’t return a complete credential. Please try again."
+                )
                 return
             }
             authenticateWithApple(
@@ -334,7 +392,7 @@ struct WelcomeView: View {
             return
         }
         isAuthenticating = true
-        authenticationError = nil
+        authenticationFailure = nil
         Task { @MainActor in
             defer { isAuthenticating = false }
             do {
@@ -353,8 +411,10 @@ struct WelcomeView: View {
                 )
                 await onAuthenticated()
             } catch {
-                authenticationError =
-                    "Sign in with Apple didn’t complete. Please try again."
+                authenticationFailure = WelcomeAuthenticationFailure(
+                    error,
+                    fallback: "Sign in with Apple didn’t complete. Please try again."
+                )
             }
         }
     }
