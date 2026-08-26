@@ -1,11 +1,11 @@
 # Consolidated Final Design
 
-**Status:** approved; implementation in progress
+**Status:** complete and verified
 
 Execution is tracked in
 [`docs/verification/2026-08-26-consolidation-audit.md`](../verification/2026-08-26-consolidation-audit.md).
-The audit records branch disposition, baseline debt, state coverage, and every
-verification gate required before this design can be marked complete.
+The audit records branch disposition, baseline debt, state coverage, and the
+completed verification matrix for this design.
 
 ## Purpose
 

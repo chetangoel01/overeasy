@@ -6,7 +6,9 @@
 
 **Started:** August 26, 2026
 
-**Status:** in progress
+**Completed:** August 26, 2026
+
+**Status:** complete
 
 ## Completion rule
 
@@ -577,20 +579,56 @@ the one live App Attest test was intentionally skipped. The test logs contain
 only Apple simulator/runtime and AppIntents metadata diagnostics, not app
 source warnings or Share lifecycle imbalance.
 
+## Final verification
+
+The release matrix completed on August 26, 2026:
+
+| Gate | Final result |
+| --- | --- |
+| LadleCore | 45 tests in 9 suites passed |
+| Backend static checks | Ruff passed; mypy found no issues in 121 source files |
+| Backend unit selection | 616 passed, 84 deselected |
+| Backend integration selection | 79 passed, 621 deselected |
+| Deployment configuration | base and `device-tunnel` Compose profiles rendered successfully |
+| App unit target | 250 executed, 249 passed, 1 intentional live App Attest skip |
+| UI target | 21 of 21 passed, including all 13 state-scenario tests |
+| App build | generic iOS Simulator build passed and validated the embedded `LadleShare.appex` |
+| Share build | standalone `LadleShare` generic iOS Simulator scheme passed for both architectures |
+| Generated project | XcodeGen 2.46.0 regenerated without a tracked diff |
+| Repository checks | shell, JSON, plist/privacy, asset, incomplete-marker, target-ownership, and `git diff --check` audits passed |
+| Branch recovery | all 13 feature branches plus `main` are checked out in clean Mac mini worktrees |
+| Remote recovery | `codex/consolidated-final` was pushed to `origin` and its remote ref was verified |
+
+The five external-only backend cases behind live-provider or chaos markers are
+not release gates: they require private provider credentials or intentional
+fault injection against external infrastructure. The two selected backend
+runs cover every deterministic local unit and integration test. Their only
+warning is the classified third-party `testcontainers` Redis deprecation.
+Apple simulator duplicate-class messages and AppIntents metadata skips are
+toolchain diagnostics rather than app-source warnings.
+
+The final MacBook Pro recheck found no new tracked implementation. The Desktop
+repository remains ahead of `origin/main` by the same three already mirrored
+commits. Its only untracked file remains the deliberately excluded 22,053-byte
+ingredient-art comparison board with SHA-1
+`1136091d3002e20431869b98434029cadd5d3204`. The Documents repository remains
+clean. Historical branches remain on the MacBook Pro because this audit's
+preservation rule requires separate user authorization before deletion.
+
 ## Final release gates
 
-- [ ] LadleCore tests
-- [ ] Backend Ruff
-- [ ] Backend mypy
-- [ ] Backend unit tests
-- [ ] Relevant backend integration and deployment tests
-- [ ] Complete `LadleTests`
-- [ ] Relevant `LadleUITests`
-- [ ] Ladle app build
-- [ ] Share Extension build
-- [ ] Deterministic state captures across required appearance/accessibility modes
-- [ ] Repository-wide dead/incomplete-code audit closed
-- [ ] Branch consolidation table closed
-- [ ] MacBook Pro rechecked for new tracked or untracked work
-- [ ] `git diff --check`
-- [ ] Clean pushed `codex/consolidated-final`
+- [x] LadleCore tests
+- [x] Backend Ruff
+- [x] Backend mypy
+- [x] Backend unit tests
+- [x] Relevant backend integration and deployment tests
+- [x] Complete `LadleTests`
+- [x] Relevant `LadleUITests`
+- [x] Ladle app build
+- [x] Share Extension build
+- [x] Deterministic state captures across required appearance/accessibility modes
+- [x] Repository-wide dead/incomplete-code audit closed
+- [x] Branch consolidation table closed
+- [x] MacBook Pro rechecked for new tracked or untracked work
+- [x] `git diff --check`
+- [x] Clean pushed `codex/consolidated-final`
