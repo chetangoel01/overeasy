@@ -144,9 +144,21 @@ LADLE_API_BASE_URL = http:/$()/127.0.0.1:4112
 
 The value becomes `LadleAPIBaseURL` in `Config/Ladle-Info.plist`, then
 `APIConfiguration` reads it when the app starts. This loopback route works on
-the Mac and iOS Simulator. A physical iPhone resolves `.localhost` to itself,
-so use the guarded release endpoint or the opt-in device tunnel described in
-the deployment documentation.
+the Mac and iOS Simulator. A physical iPhone resolves `.localhost` to itself.
+Release builds use the guarded VPS. For a Debug device build backed by local
+Docker, run:
+
+```bash
+cd Backend
+./scripts/device_tunnel.sh rotate
+```
+
+The command creates `.private/DeviceTunnel.xcconfig` with the current HTTPS
+URL, a fresh per-build access key, and App Attest disabled to match local
+Compose. Pass that file to `xcodebuild` with `-xcconfig`. Run `start` instead
+of `rotate` while serving an already-installed build, and run `stop` when
+device testing ends. Neither the access key nor generated xcconfig is
+committed.
 
 ## Wire-format rules
 

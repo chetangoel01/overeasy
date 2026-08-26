@@ -48,7 +48,7 @@ The divergence column is `base-only / branch-only` commit count relative to
 | Branch | Tip | Divergence | Disposition | Proof |
 | --- | --- | ---: | --- | --- |
 | `codex/notifications-preferences-discover-grid` | `b262862` | `0 / 0` | consolidation base; approved final design | source-identical starting tree |
-| `codex/guarded-device-tunnel` | `fa34486` | `84 / 3` | port current guarded tunnel and Docker prerequisite | Docker prerequisite ported; tunnel open in Task 3 |
+| `codex/guarded-device-tunnel` | `fa34486` | `84 / 3` | port current guarded tunnel and Docker prerequisite | ported and verified in Tasks 2-3, closed |
 | `codex/local-docker-reliability` | `6b2268b` | `84 / 2` | capability is a strict subset of guarded tunnel history | ported and verified in Task 2, closed |
 | `codex/testflight-20260823-3` | `0cba6e7` | `84 / 2` | exclude obsolete `20260823.3` build bump; current base is `20260825.2` | version comparison, closed |
 | `codex/iphone-deploy-2026-07-29` | `8ba1908` | `211 / 1` | scale-slot declaration already present in base assets | asset comparison, closed |
@@ -87,7 +87,9 @@ before this record contain documentation only.
 The backend run emits one third-party `testcontainers` deprecation warning.
 The simulator emits duplicate AuthKit class warnings. Four Share Confirmation
 rendered tests leave unbalanced appearance-transition warnings after they
-pass. Those warnings are baseline debt, not ignored completion evidence.
+pass. A generic device build reports a non-Sendable completion capture in
+`GoogleSignInProvider`. Those warnings are baseline debt, not ignored
+completion evidence.
 
 ## Baseline completion signals
 
@@ -137,7 +139,7 @@ Xcode consumes it by catalog name.
 
 | Area | Completion criterion | Status |
 | --- | --- | --- |
-| Historical capability integration | guarded tunnel and bounded worker verified on current base | bounded worker closed; tunnel open in Task 3 |
+| Historical capability integration | guarded tunnel and bounded worker verified on current base | closed in Tasks 2-3 |
 | Semantic components | every button and compatibility style classified; valid call sites migrated | open, Task 11 |
 | Layout and safe areas | sheet margins and Watch safe-area behavior use approved semantics | open, Task 11 |
 | Typography and controls | raw typography/control values are intentional or semantic | open, Task 11 |

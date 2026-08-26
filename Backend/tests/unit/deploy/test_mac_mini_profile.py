@@ -113,7 +113,26 @@ def test_mac_mini_ngrok_launcher_requires_a_device_key() -> None:
     assert "http://127.0.0.1:4114" in script
     assert "public_url" in script
     assert "req.url.path.startsWith('/ladle-private/')" in script
+    assert "Library/Application Support/ngrok/ngrok.yml" in script
+    assert "rotate-key" in script
+    assert "launchctl submit" in script
+    assert "launchctl remove" in script
     assert 'cat "$access_key_file"' not in script
+
+
+def test_local_device_tunnel_writes_a_private_build_configuration() -> None:
+    script = (BACKEND / "scripts" / "device_tunnel.sh").read_text()
+
+    assert "--profile device-tunnel" in script
+    assert "LADLE_OBJECT_STORAGE_PUBLIC_ENDPOINT_URL" in script
+    assert ".private/DeviceTunnel.xcconfig" in script
+    assert "LADLE_API_BASE_URL" in script
+    assert "LADLE_APP_ATTEST_ENABLED" in script
+    assert "LADLE_TUNNEL_ACCESS_KEY" in script
+    assert "chmod 600" in script
+    assert "X-Ladle-Tunnel-Key" in script
+    assert "ngrok-skip-browser-warning" in script
+    assert "/metrics" in script
 
 
 def test_mac_mini_worker_egress_allows_dependencies_and_public_https_only() -> None:
