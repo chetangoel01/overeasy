@@ -1,0 +1,166 @@
+# Consolidation Audit
+
+**Branch:** `codex/consolidated-final`
+
+**Base:** `codex/notifications-preferences-discover-grid` at `b262862`
+
+**Started:** August 26, 2026
+
+**Status:** in progress
+
+## Completion rule
+
+This ledger is the proof surface for the final consolidation. A row may be
+closed only with a commit, test, source comparison, or explicit product
+decision. Historical branches remain intact until every row is closed and the
+user separately authorizes branch deletion.
+
+## Machine and repository inventory
+
+The active implementation worktree is on **Chetan's Mac mini** at:
+
+```text
+/Users/chetangoel/Documents/recipe-app/.worktrees/consolidated-final
+```
+
+The MacBook Pro was queried over SSH on August 26, 2026. Its two repositories
+had these states:
+
+| MacBook Pro repository | State | Unique untracked work |
+| --- | --- | --- |
+| `~/Desktop/Repositories/recipe-app` | `main` ahead of `origin/main` by 3; all tracked commits mirrored locally | `design/board/ingredient-icon-directions.html` |
+| `~/Documents/recipe-app` | clean `main`; all tracked commits mirrored locally | none |
+
+The comparison board is unapproved visual research containing externally
+hosted evaluation art. It is deliberately excluded from the release branch;
+the approved Porcelain & Graphite direction in `DESIGN.md` remains final.
+
+Every MacBook branch tip exists as a local branch and as a
+`macbook-desktop/*` or `macbook-documents/*` tracking ref. Every historical
+local branch is checked out in its own clean worktree on the Mac mini. There
+is therefore no tracked implementation that exists only on the MacBook Pro.
+
+## Branch disposition
+
+The divergence column is `base-only / branch-only` commit count relative to
+`b262862`. A branch-only count of zero proves the base contains the branch.
+
+| Branch | Tip | Divergence | Disposition | Proof |
+| --- | --- | ---: | --- | --- |
+| `codex/notifications-preferences-discover-grid` | `b262862` | `0 / 0` | consolidation base; approved final design | source-identical starting tree |
+| `codex/guarded-device-tunnel` | `fa34486` | `84 / 3` | port current guarded tunnel and Docker prerequisite | Tasks 2-3, open |
+| `codex/local-docker-reliability` | `6b2268b` | `84 / 2` | capability is a strict subset of guarded tunnel history | Task 2, open |
+| `codex/testflight-20260823-3` | `0cba6e7` | `84 / 2` | exclude obsolete `20260823.3` build bump; current base is `20260825.2` | version comparison, closed |
+| `codex/iphone-deploy-2026-07-29` | `8ba1908` | `211 / 1` | scale-slot declaration already present in base assets | asset comparison, closed |
+| `codex/inline-watch-video-demo` | `cab67cc` | `35 / 0` | contained in base | ancestry check, closed |
+| `codex/ladle-v1` | `a89d48b` | `366 / 0` | contained in base | ancestry check, closed |
+| `codex/library-interaction-polish` | `f863bf1` | `201 / 0` | contained in base | ancestry check, closed |
+| `codex/visual-direction-refresh` | `1e79457` | `356 / 0` | contained in base | ancestry check, closed |
+| `codex/vps-live-provider` | `e41de52` | `140 / 0` | contained in base | ancestry check, closed |
+| `codex/watch-full-screen-feed` | `9820121` | `85 / 0` | contained in base | ancestry check, closed |
+| `codex/wip-handoff-2026-08-02` | `65fb8fa` | `132 / 0` | contained in base | ancestry check, closed |
+
+Unique commits requiring a decision:
+
+```text
+fa34486 feat: add guarded local device tunnel
+6b2268b docs: record live Docker import verification
+a2787d4 fix: keep local Docker worker healthy
+0cba6e7 docs: record TestFlight upload
+97c5284 chore: prepare TestFlight build 20260823.3
+8ba1908 chore: declare asset catalog scale slots
+```
+
+## Baseline verification
+
+The code baseline is unchanged from `b262862`; the two consolidation commits
+before this record contain documentation only.
+
+| Gate | Result on August 26, 2026 |
+| --- | --- |
+| `swift test --package-path Packages/LadleCore` | passed, 45 tests in 9 suites |
+| Backend Ruff | passed |
+| Backend mypy | passed, 121 source files |
+| Backend tests excluding integration, chaos, and live-provider markers | passed, 613 tests; 84 deselected |
+| `LadleTests` on iOS 26.5 simulator | passed, 195 tests; 1 intentional live App Attest skip |
+
+The backend run emits one third-party `testcontainers` deprecation warning.
+The simulator emits duplicate AuthKit class warnings. Four Share Confirmation
+rendered tests leave unbalanced appearance-transition warnings after they
+pass. Those warnings are baseline debt, not ignored completion evidence.
+
+## Baseline completion signals
+
+These are audit inputs rather than arbitrary cleanup targets:
+
+| Signal | Baseline |
+| --- | ---: |
+| Swift production lines across app, extension, and LadleCore sources | 19,729 |
+| Swift files over 400 lines | 19 |
+| largest file, `ImportCoordinator.swift` | 822 lines |
+| Button declarations | 122 |
+| `LadlePrimaryButtonStyle` symbol references | 34 |
+| direct `LadleButtonStyle` symbol references | 5 |
+| raw `.font(.system(size:))` calls | 44 |
+| raw frame-height signals | 75 |
+| semantic `Surface` calls | 56 |
+| semantic `Label` calls | 58 |
+| semantic `Intent` calls | 14 |
+| semantic `Layout` calls | 68 |
+| semantic `Control` calls | 1 |
+| semantic `IconSize` calls | 2 |
+
+The unconfigured default SwiftLint run reported 282 violations. Ninety-three
+are trailing-comma findings and many length/style findings conflict with the
+repository's current conventions. Three TODO findings were generated SwiftPM
+runner code under `.build`, not repository source. SwiftLint is not a project
+gate until a reviewed configuration is deliberately adopted.
+
+Current asset candidates with no direct source call are `Field`, `Review`,
+`Success`, and `Paprika`. `Butter` has one compatibility reference in
+`LadleTheme`. `AccentColor` has no direct source call but is retained because
+Xcode consumes it by catalog name.
+
+## State coverage ledger
+
+| Area | Required final states | Status |
+| --- | --- | --- |
+| Bootstrap | preparing, ready, local-store failure, invalid release configuration | open, Task 9 |
+| Local library | loading, content, true empty, filtered empty, cached-content reload failure, large library | open, Task 6 |
+| Connectivity and sync | current, syncing, offline, degraded, rate limited, quota, expired auth, conflict | open, Tasks 4-5 |
+| Discover and remote Watch | initial load, content, empty, content-preserving refresh, stale/offline, classified remote failures, per-item operation | open, Task 7 |
+| Imports | validation, duplicate, guest limit, queued, processing, review, completion, cancellation, concurrency, classified recovery | open, Task 8 |
+| Secondary flows | account, health, image, video, editor, timer, Share handoff, destructive actions | open, Task 10 |
+| Deterministic launch scenarios | empty, offline, failure, overload, expired auth, large data | open, Task 13 |
+
+## Design and cleanup ledger
+
+| Area | Completion criterion | Status |
+| --- | --- | --- |
+| Historical capability integration | guarded tunnel and bounded worker verified on current base | open, Tasks 2-3 |
+| Semantic components | every button and compatibility style classified; valid call sites migrated | open, Task 11 |
+| Layout and safe areas | sheet margins and Watch safe-area behavior use approved semantics | open, Task 11 |
+| Typography and controls | raw typography/control values are intentional or semantic | open, Task 11 |
+| Palette and assets | every role/asset has a live consumer or is removed | open, Task 11 |
+| Production source | every file and declaration has a live responsibility | open, Task 12 |
+| Tests and fixtures | every fixture is used and every scenario is deterministic | open, Tasks 12-13 |
+| Config and targets | manifests regenerate cleanly; target memberships are intentional | open, Tasks 12-14 |
+| Documentation | plans and verification records reflect current behavior or are marked historical | open, Tasks 12-14 |
+
+## Final release gates
+
+- [ ] LadleCore tests
+- [ ] Backend Ruff
+- [ ] Backend mypy
+- [ ] Backend unit tests
+- [ ] Relevant backend integration and deployment tests
+- [ ] Complete `LadleTests`
+- [ ] Relevant `LadleUITests`
+- [ ] Ladle app build
+- [ ] Share Extension build
+- [ ] Deterministic state captures across required appearance/accessibility modes
+- [ ] Repository-wide dead/incomplete-code audit closed
+- [ ] Branch consolidation table closed
+- [ ] MacBook Pro rechecked for new tracked or untracked work
+- [ ] `git diff --check`
+- [ ] Clean pushed `codex/consolidated-final`

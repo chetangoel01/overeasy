@@ -1,6 +1,11 @@
 # Consolidated Final Design
 
-**Status:** approved implementation direction
+**Status:** approved; implementation in progress
+
+Execution is tracked in
+[`docs/verification/2026-08-26-consolidation-audit.md`](../verification/2026-08-26-consolidation-audit.md).
+The audit records branch disposition, baseline debt, state coverage, and every
+verification gate required before this design can be marked complete.
 
 ## Purpose
 
@@ -178,4 +183,3 @@ record. The final gate includes:
 - `git diff --check` before every task-sized commit;
 - a requirement-by-requirement audit proving every historical branch and
   explicit product state has a final disposition.
-
