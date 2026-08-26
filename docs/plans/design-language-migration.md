@@ -289,3 +289,19 @@ complete `LadleTests` run contains 195 tests: 194 passed, 1 skipped, 0 failed.
 4. Run the focused unit and UI tests, then all `LadleTests`.
 5. Run `git diff --check`, record verification here, and commit the coherent
    change.
+
+### Batch 1 checkpoint
+
+- `acbf7d3` makes the recipe-options rows semantic and visually distinguishes
+  Delete without changing the four benign rows.
+- `1b75087` moves the failed-import stack onto primary/secondary roles and one
+  shared leading label edge.
+- Nine button declarations are covered by the two reusable call sites in this
+  batch. Recount the remaining bypasses before planning batch 2 because the
+  baseline inventory predates three Watch commits.
+- MacBook Pro verification at `1b75087`: 195 `LadleTests` total, 194 passed,
+  1 skipped, 0 failed; both focused UI tests passed; the full Ladle build
+  succeeded and contains `Ladle.app/PlugIns/LadleShare.appex`.
+- The MacBook-generated evidence is
+  `~/Desktop/overeasy-ui-scratch/step3/after/{failed-import,options}-macbook.png`;
+  the matching before captures sit in the sibling `before` directory.
