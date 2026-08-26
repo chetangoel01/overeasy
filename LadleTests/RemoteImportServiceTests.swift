@@ -143,6 +143,44 @@ final class RemoteImportServiceTests: XCTestCase {
         XCTAssertEqual(body.snapshot?["pastedText"] as? String, "Soup\nSimmer.")
     }
 
+    func testSubmitPreservesStructuredCapacityErrors() async throws {
+        let retryAt = Date(timeIntervalSince1970: 1_800_000_000)
+        let cases: [(Int, String, [String: String]?, RemoteFailure)] = [
+            (503, "providerUnavailable", nil, .serviceUnavailable),
+            (429, "quotaExceeded", nil, .quotaExceeded),
+            (
+                429,
+                "rateLimited",
+                ["retryAt": "2027-01-15T08:00:00.000Z"],
+                .rateLimited(retryAt: retryAt)
+            ),
+        ]
+
+        for value in cases {
+            URLProtocolStub.reset()
+            URLProtocolStub.install { request in
+                (
+                    Self.response(request, status: value.0),
+                    Self.errorJSON(code: value.1, details: value.2)
+                )
+            }
+            let job = ImportJob.queued(
+                sourceURL: URL(string: "https://youtu.be/capacity")!,
+                source: .youtube
+            )
+
+            do {
+                _ = try await makeService().submit(
+                    job,
+                    allowingDuplicate: false
+                )
+                XCTFail("Expected structured remote error")
+            } catch {
+                XCTAssertEqual(RemoteFailure(error), value.3)
+            }
+        }
+    }
+
     private func makeService() -> RemoteImportService {
         RemoteImportService(
             api: APIClient(
@@ -181,6 +219,24 @@ final class RemoteImportServiceTests: XCTestCase {
             "status": status,
             "updatedAt": "2026-07-23T20:15:00.000Z",
         ])
+    }
+
+    private static func errorJSON(
+        code: String,
+        details: [String: String]?
+    ) -> Data {
+        var error: [String: Any] = [
+            "code": code,
+            "message": "Remote capacity failure.",
+            "retryable": true,
+            "requestID": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+        ]
+        if let details {
+            error["details"] = details
+        }
+        return try! JSONSerialization.data(
+            withJSONObject: ["error": error]
+        )
     }
 
     private static func fixture(named name: String) throws -> Data {

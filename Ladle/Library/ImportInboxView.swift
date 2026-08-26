@@ -9,6 +9,7 @@ struct ImportInboxView: View {
     let openProcessing: (ImportJob) -> Void
     let cancelImport: (UUID) -> Void
     let openReview: (Recipe, String) -> Void
+    var operationFailure: (ImportJob) -> ImportOperationFailure? = { _ in nil }
 
     @State private var importAwaitingCancellation: ImportJob?
 
@@ -115,7 +116,8 @@ struct ImportInboxView: View {
             PendingImportCard(
                 job: job,
                 creatorName: viewModel.creatorName(for: job),
-                recipeTitle: viewModel.title(for: job)
+                recipeTitle: viewModel.title(for: job),
+                operationFailure: operationFailure(job)
             )
         }
         .buttonStyle(.plain)

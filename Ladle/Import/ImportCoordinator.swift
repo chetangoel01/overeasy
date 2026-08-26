@@ -7,6 +7,102 @@ enum ImportValidationError: Error, Equatable {
     case unsupportedSource
 }
 
+enum ImportRetryAvailability: Equatable {
+    case available
+    case after(Date)
+    case afterCapacityResets
+    case afterSignIn
+    case manualRecovery
+
+    func allowsRetry(at date: Date = .now) -> Bool {
+        switch self {
+        case .available:
+            true
+        case let .after(retryAt):
+            date >= retryAt
+        case .afterCapacityResets, .afterSignIn, .manualRecovery:
+            false
+        }
+    }
+
+    func buttonTitle(at date: Date = .now) -> String {
+        switch self {
+        case .available:
+            "Retry import"
+        case let .after(retryAt):
+            if date >= retryAt {
+                "Retry import"
+            } else {
+                "Retry after \(retryAt.formatted(date: .omitted, time: .shortened))"
+            }
+        case .afterCapacityResets:
+            "Retry after capacity resets"
+        case .afterSignIn:
+            "Sign in to retry"
+        case .manualRecovery:
+            "Use a recovery option"
+        }
+    }
+}
+
+struct ImportOperationFailure: Equatable {
+    let jobID: UUID
+    let reason: ImportFailure
+    let report: RemoteFailureReport?
+
+    init(
+        jobID: UUID,
+        reason: ImportFailure,
+        report: RemoteFailureReport? = nil
+    ) {
+        self.jobID = jobID
+        self.reason = reason
+        self.report = report
+    }
+
+    func retryAvailability(at date: Date = .now) -> ImportRetryAvailability {
+        if reason == .invalidURL || reason == .unsupportedSource {
+            return .manualRecovery
+        }
+        return switch report?.failure {
+        case let .rateLimited(retryAt):
+            date >= retryAt ? .available : .after(retryAt)
+        case .quotaExceeded:
+            .afterCapacityResets
+        case .authenticationExpired:
+            .afterSignIn
+        case .none where reason == .quotaExceeded:
+            .afterCapacityResets
+        case .none where reason == .authenticationExpired:
+            .afterSignIn
+        default:
+            .available
+        }
+    }
+
+    var title: String {
+        if reason == .invalidURL { return "Incomplete link" }
+        if reason == .unsupportedSource { return "Unsupported source" }
+        return report?.failure.title ?? reason.recoveryTitle
+    }
+
+    var message: String {
+        if let report {
+            switch report.failure {
+            case let .rateLimited(retryAt):
+                return "\(report.failure.message) Try again after \(retryAt.formatted(date: .omitted, time: .shortened)). The saved link is safe."
+            case .quotaExceeded:
+                return "Processing capacity is exhausted. Retry after your quota or provider capacity resets. The saved link is safe."
+            case .authenticationExpired:
+                return "Sign in again before retrying. The saved link is safe."
+            default:
+                return "\(report.failure.message) The saved link is safe."
+            }
+        }
+        return reason.recoveryMessage
+    }
+}
+
 enum ImportCoordinatorState: Equatable {
     case idle
     case validationFailed(ImportValidationError)
@@ -93,6 +189,7 @@ final class ImportCoordinator {
     private(set) var operation: ImportOperation?
     private(set) var existingDuplicate: Recipe?
     private(set) var completedRecipe: Recipe?
+    private(set) var operationFailure: ImportOperationFailure?
 
     init(
         repository: RecipeRepository,
@@ -133,6 +230,14 @@ final class ImportCoordinator {
         return currentRecipeID == recipeID
     }
 
+    func failure(for job: ImportJob) -> ImportOperationFailure? {
+        if let operationFailure, operationFailure.jobID == job.id {
+            return operationFailure
+        }
+        guard case let .failed(reason) = job.status else { return nil }
+        return ImportOperationFailure(jobID: job.id, reason: reason)
+    }
+
     func submit(
         urlText: String,
         allowingDuplicate: Bool = false,
@@ -143,6 +248,7 @@ final class ImportCoordinator {
         }
         existingDuplicate = nil
         completedRecipe = nil
+        operationFailure = nil
         pendingManualSubmission = nil
 
         let submission: Submission
@@ -238,6 +344,7 @@ final class ImportCoordinator {
             return
         }
         completedRecipe = nil
+        operationFailure = nil
 
         do {
             guard var job = try repository.fetchImportJobs().first(
@@ -355,6 +462,7 @@ final class ImportCoordinator {
         }
         existingDuplicate = nil
         completedRecipe = nil
+        operationFailure = nil
         pendingSubmission = nil
         pendingManualSubmission = nil
         isResolvingReplacement = false
@@ -406,6 +514,7 @@ final class ImportCoordinator {
         operation = nil
         existingDuplicate = nil
         completedRecipe = nil
+        operationFailure = nil
         pendingSubmission = nil
         pendingManualSubmission = nil
         isResolvingReplacement = false
@@ -577,6 +686,7 @@ final class ImportCoordinator {
     ) async {
         var job = initialJob
         state = .importing(jobID: job.id)
+        operationFailure = nil
 
         do {
             var update = try await firstUpdate(
@@ -602,12 +712,18 @@ final class ImportCoordinator {
             try await apply(update, to: &job)
         } catch is CancellationError {
             state = .idle
+            operationFailure = nil
         } catch let APIError.remote(error) {
             handleRemoteError(error, job: &job)
-        } catch APIError.authenticationExpired {
-            finishRemoteFailure(.authenticationExpired, job: &job)
+        } catch let error as APIError {
+            let report = RemoteFailureReport(error)
+            finishRemoteFailure(
+                durableReason(for: report.failure),
+                report: report,
+                job: &job
+            )
         } catch {
-            finishRemoteFailure(.networkUnavailable, job: &job)
+            state = .persistenceFailed
         }
     }
 
@@ -703,6 +819,10 @@ final class ImportCoordinator {
             try repository.save(job)
             completedRecipe = nil
             state = .failed(jobID: job.id, reason: reason)
+            operationFailure = ImportOperationFailure(
+                jobID: job.id,
+                reason: reason
+            )
         }
     }
 
@@ -732,24 +852,56 @@ final class ImportCoordinator {
                 state = .persistenceFailed
             }
         case (.invalidURL, _):
-            finishRemoteFailure(.invalidURL, job: &job)
+            finishRemoteFailure(
+                .invalidURL,
+                report: RemoteFailureReport(APIError.remote(error)),
+                job: &job
+            )
         case (.unsupportedSource, _):
-            finishRemoteFailure(.unsupportedSource, job: &job)
+            finishRemoteFailure(
+                .unsupportedSource,
+                report: RemoteFailureReport(APIError.remote(error)),
+                job: &job
+            )
         default:
-            finishRemoteFailure(.networkUnavailable, job: &job)
+            let report = RemoteFailureReport(APIError.remote(error))
+            finishRemoteFailure(
+                durableReason(for: report.failure),
+                report: report,
+                job: &job
+            )
         }
     }
 
     private func finishRemoteFailure(
         _ reason: ImportFailure,
+        report: RemoteFailureReport? = nil,
         job: inout ImportJob
     ) {
         do {
             job = try job.transitioning(to: .failed(reason))
             try repository.save(job)
             state = .failed(jobID: job.id, reason: reason)
+            operationFailure = ImportOperationFailure(
+                jobID: job.id,
+                reason: reason,
+                report: report
+            )
         } catch {
             state = .persistenceFailed
+        }
+    }
+
+    private func durableReason(for failure: RemoteFailure) -> ImportFailure {
+        switch failure {
+        case .offline:
+            .networkUnavailable
+        case .serviceUnavailable, .invalidResponse, .unknown:
+            .parserUnavailable
+        case .rateLimited, .quotaExceeded:
+            .quotaExceeded
+        case .authenticationExpired:
+            .authenticationExpired
         }
     }
 
@@ -807,6 +959,50 @@ final class ImportCoordinator {
             return nil
         }
         return value
+    }
+}
+
+extension ImportFailure {
+    var recoveryTitle: String {
+        switch self {
+        case .privateOrDeleted:
+            "Post unavailable"
+        case .unsupportedSource:
+            "Unsupported source"
+        case .invalidURL:
+            "Incomplete link"
+        case .networkUnavailable:
+            "You're offline"
+        case .authenticationExpired:
+            "Sign in again"
+        case .parserUnavailable:
+            "Couldn't read the recipe"
+        case .insufficientTextEvidence:
+            "More recipe detail needed"
+        case .quotaExceeded:
+            "Processing limit reached"
+        }
+    }
+
+    var recoveryMessage: String {
+        switch self {
+        case .privateOrDeleted:
+            "The post may be private or deleted. Add details you can see, or create the recipe manually."
+        case .unsupportedSource:
+            "That source isn’t supported. Keep the saved link and create the recipe manually."
+        case .invalidURL:
+            "The saved link is incomplete. Paste recipe details or create the recipe manually."
+        case .networkUnavailable:
+            "The connection dropped. The saved link is safe to retry."
+        case .authenticationExpired:
+            "Sign in again before retrying. The saved link is safe."
+        case .parserUnavailable:
+            "Overeasy couldn’t read the recipe. Retry, add a note, paste details, or create it manually."
+        case .insufficientTextEvidence:
+            "The post lacks enough written detail. Paste the recipe or create it manually."
+        case .quotaExceeded:
+            "Processing capacity is exhausted. Retry after your quota or provider capacity resets. The saved link is safe."
+        }
     }
 }
 

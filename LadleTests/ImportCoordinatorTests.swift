@@ -464,6 +464,14 @@ final class ImportCoordinatorTests: XCTestCase {
         guard case .failed = coordinator.state else {
             return XCTFail("Expected a visible terminal failure")
         }
+        XCTAssertEqual(
+            coordinator.operationFailure?.report?.failure,
+            .authenticationExpired
+        )
+        XCTAssertEqual(
+            coordinator.operationFailure?.retryAvailability(at: .now),
+            .afterSignIn
+        )
     }
 
     func testTransportFailureMakesAdmissionJobDurablyFailed() async {
@@ -485,6 +493,131 @@ final class ImportCoordinatorTests: XCTestCase {
             repository.importJobs.first?.status,
             .failed(.networkUnavailable)
         )
+        XCTAssertEqual(
+            coordinator.operationFailure?.report?.failure,
+            .offline
+        )
+        XCTAssertEqual(
+            coordinator.operationFailure?.retryAvailability(at: .now),
+            .available
+        )
+    }
+
+    func testCapacityErrorsKeepPreciseOperationStateAndSavedLink() async throws {
+        let retryAt = Date(timeIntervalSince1970: 1_800_000_000)
+        let cases: [(String, [String: String]?, RemoteFailure, ImportFailure)] = [
+            (
+                "providerUnavailable",
+                nil,
+                .serviceUnavailable,
+                .parserUnavailable
+            ),
+            ("quotaExceeded", nil, .quotaExceeded, .quotaExceeded),
+            (
+                "rateLimited",
+                ["retryAt": "2027-01-15T08:00:00.000Z"],
+                .rateLimited(retryAt: retryAt),
+                .quotaExceeded
+            ),
+        ]
+
+        for (index, value) in cases.enumerated() {
+            let repository = ImportTestRepository()
+            let coordinator = ImportCoordinator(
+                repository: repository,
+                service: ThrowingImportService(
+                    error: try remoteAPIError(
+                        code: value.0,
+                        details: value.1
+                    )
+                ),
+                accountSession: AccountSession(
+                    store: ImportTestPreferenceStore()
+                ),
+                clock: ImmediateImportClock()
+            )
+            let url = URL(
+                string: "https://youtu.be/capacity-\(index)"
+            )!
+
+            await coordinator.submit(urlText: url.absoluteString)
+
+            let job = try XCTUnwrap(repository.importJobs.first)
+            XCTAssertEqual(job.sourceURL, url)
+            XCTAssertEqual(job.status, .failed(value.3))
+            XCTAssertEqual(
+                coordinator.operationFailure?.report?.failure,
+                value.2
+            )
+            XCTAssertEqual(coordinator.operationFailure?.jobID, job.id)
+        }
+    }
+
+    func testRetryEligibilityExplainsCapacityAuthAndManualRecovery() throws {
+        let jobID = UUID()
+        let retryAt = Date(timeIntervalSince1970: 1_800_000_000)
+        let limitedError = try remoteAPIError(
+            code: "rateLimited",
+            details: ["retryAt": "2027-01-15T08:00:00.000Z"]
+        )
+        let limited = ImportOperationFailure(
+            jobID: jobID,
+            reason: .quotaExceeded,
+            report: RemoteFailureReport(limitedError)
+        )
+
+        XCTAssertEqual(
+            limited.retryAvailability(
+                at: retryAt.addingTimeInterval(-1)
+            ),
+            .after(retryAt)
+        )
+        XCTAssertEqual(
+            limited.retryAvailability(at: retryAt),
+            .available
+        )
+        XCTAssertNotEqual(
+            ImportRetryAvailability.after(retryAt).buttonTitle(
+                at: retryAt.addingTimeInterval(-1)
+            ),
+            "Retry import"
+        )
+        XCTAssertEqual(
+            ImportRetryAvailability.after(retryAt).buttonTitle(at: retryAt),
+            "Retry import"
+        )
+
+        let quota = ImportOperationFailure(
+            jobID: jobID,
+            reason: .quotaExceeded
+        )
+        XCTAssertEqual(
+            quota.retryAvailability(at: retryAt),
+            .afterCapacityResets
+        )
+        XCTAssertTrue(quota.message.contains("capacity"))
+
+        let auth = ImportOperationFailure(
+            jobID: jobID,
+            reason: .authenticationExpired
+        )
+        XCTAssertEqual(
+            auth.retryAvailability(at: retryAt),
+            .afterSignIn
+        )
+        XCTAssertTrue(auth.message.contains("Sign in"))
+
+        for reason in [ImportFailure.invalidURL, .unsupportedSource] {
+            let failure = ImportOperationFailure(
+                jobID: jobID,
+                reason: reason
+            )
+            XCTAssertEqual(
+                failure.retryAvailability(at: retryAt),
+                .manualRecovery
+            )
+            XCTAssertTrue(failure.message.contains("manually"))
+        }
     }
 
     private func makeCoordinator(

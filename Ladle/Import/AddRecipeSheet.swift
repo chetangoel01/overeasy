@@ -129,7 +129,7 @@ struct AddRecipeSheet: View {
     }
 
     private var linkContent: some View {
-        ScrollView {
+        return ScrollView {
             VStack(alignment: .leading, spacing: LadleTheme.Layout.sectionGap) {
                 sheetIntro(
                     icon: "link",
@@ -422,23 +422,30 @@ struct AddRecipeSheet: View {
         jobID: UUID,
         reason: ImportFailure
     ) -> some View {
-        ScrollView {
+        let failure = coordinator.operationFailure.flatMap {
+            $0.jobID == jobID ? $0 : nil
+        } ?? ImportOperationFailure(jobID: jobID, reason: reason)
+        return ScrollView {
             VStack(spacing: LadleTheme.Layout.sectionGap) {
-                Image(systemName: "exclamationmark.triangle.fill")
+                Image(
+                    systemName: failure.report?.failure.systemImage
+                        ?? "exclamationmark.triangle.fill"
+                )
                     .font(.system(size: 24))
                     .foregroundStyle(LadleTheme.Label.accent)
                     .frame(width: 60, height: 60)
                     .background(LadleTheme.Surface.steel, in: Circle())
-                Text("We saved the link")
+                Text(failure.title)
                     .ladleFont(.title)
                     .foregroundStyle(LadleTheme.ink)
-                Text(reason.addRecipeMessage)
+                Text(failure.message)
                     .ladleFont(.body)
                     .foregroundStyle(LadleTheme.ink.opacity(0.64))
                     .multilineTextAlignment(.center)
 
                 ImportRecoveryActions(
                     isRetrying: isRetrying,
+                    retryAvailability: failure.retryAvailability(),
                     retry: { runRetry(jobID: jobID) },
                     chooseInput: { recoveryInputMode = $0 }
                 )
@@ -549,29 +556,6 @@ private extension ImportValidationError {
             "Paste a complete link that starts with http or https."
         case .unsupportedSource:
             "Use a TikTok, Instagram, or YouTube link."
-        }
-    }
-}
-
-private extension ImportFailure {
-    var addRecipeMessage: String {
-        switch self {
-        case .privateOrDeleted:
-            "The post may be private or deleted. Your link is still saved."
-        case .unsupportedSource:
-            "That source isn’t supported yet."
-        case .invalidURL:
-            "That link doesn’t look complete."
-        case .networkUnavailable:
-            "The network dropped out. The import is safe to retry."
-        case .authenticationExpired:
-            "Your session ended. Sign in again to retry this import."
-        case .parserUnavailable:
-            "Overeasy couldn’t read the video, but the link is still saved."
-        case .insufficientTextEvidence:
-            "The post didn’t include enough written recipe detail. Paste it or add the recipe manually."
-        case .quotaExceeded:
-            "Overeasy has reached its processing limit. Your link is safe to retry later."
         }
     }
 }

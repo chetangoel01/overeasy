@@ -296,7 +296,8 @@ struct LibraryView: View {
             },
             openReview: { recipe, statusText in
                 showRecipe(recipe, statusText: statusText)
-            }
+            },
+            operationFailure: importCoordinator.failure
         )
         .tabItem {
             Label("Inbox", systemImage: "tray")

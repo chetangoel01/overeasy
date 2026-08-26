@@ -131,7 +131,7 @@ Xcode consumes it by catalog name.
 | Local library | loading, content, true empty, filtered empty, cached-content reload failure, large library | closed in Task 6 |
 | Connectivity and sync | current, syncing, offline, degraded, rate limited, quota, expired auth, conflict | shared failure vocabulary and observable status closed in Tasks 4-5; conflict handling remains open |
 | Discover and remote Watch | initial load, content, empty, content-preserving refresh, stale/offline, classified remote failures, per-item operation | closed in Task 7 |
-| Imports | validation, duplicate, guest limit, queued, processing, review, completion, cancellation, concurrency, classified recovery | open, Task 8 |
+| Imports | validation, duplicate, guest limit, queued, processing, review, completion, cancellation, concurrency, classified recovery | closed in Task 8 |
 | Secondary flows | account, health, image, video, editor, timer, Share handoff, destructive actions | open, Task 10 |
 | Deterministic launch scenarios | empty, offline, failure, overload, expired auth, large data | open, Task 13 |
 
@@ -252,6 +252,39 @@ Verification on August 26, 2026:
   full-screen feed" screenshots at 1,206 by 2,622 pixels;
 - the complete `LadleTests` target passed 211 tests: 210 passed and the one
   live App Attest test was intentionally skipped.
+
+### Precise import overload and recovery
+
+Task 8 preserves the exact transient cause of an import failure without
+changing the stable `ImportFailure` persistence vocabulary. Provider outage,
+quota exhaustion, rate limiting with its server-supplied retry date,
+authentication expiry, and offline transport now remain distinct in the
+active coordinator and across the add, Inbox-card, and failed-import
+surfaces. Their durable mappings stay truthful and compatible: rate and quota
+persist as capacity exhaustion, provider failure as parser unavailability,
+offline as network unavailability, and authentication expiry unchanged.
+
+Every failed admission job is saved before the failure is exposed, so its
+original source URL and recovery path survive. Rate-limited retry remains
+disabled until the exact retry date and updates while the failure view is
+open. Quota and authentication failures explain their prerequisites, while
+invalid and unsupported links favor correction, pasted details, or manual
+entry. Existing idempotency keys, bounded status polling, cancellation, and
+reimport replacement safeguards were not weakened.
+
+Verification on August 26, 2026:
+
+- the focused tests first failed on the missing precise operation-failure
+  state, proving the red contract;
+- 24 focused coordinator, remote-service, and recovery-copy tests passed;
+- 67 adjacent reimport, demo service, library, shared-queue, and smoke tests
+  passed;
+- 2 focused UI tests passed for dismissible background processing and the
+  failed-import recovery actions;
+- the complete `LadleTests` target passed 214 tests: 213 passed and the one
+  live App Attest test was intentionally skipped;
+- a final 20-test coordinator and UI check passed after adding the live
+  retry-date transition.
 
 ## Final release gates
 

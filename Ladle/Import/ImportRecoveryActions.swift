@@ -2,21 +2,19 @@ import SwiftUI
 
 struct ImportRecoveryActions: View {
     let isRetrying: Bool
+    let retryAvailability: ImportRetryAvailability
     let retry: () -> Void
     let chooseInput: (RecoveryInputMode) -> Void
 
     var body: some View {
         VStack(spacing: LadleTheme.Layout.rowGap) {
-            Button(action: retry) {
-                if isRetrying {
-                    ProgressView()
-                        .tint(LadleTheme.Label.onAccent)
-                        .frame(maxWidth: .infinity)
-                } else {
-                    Text("Retry import")
+            if case .after = retryAvailability {
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    retryButton(at: context.date)
                 }
+            } else {
+                retryButton(at: .now)
             }
-            .buttonStyle(LadleButtonStyle(role: .primary))
 
             recoveryButton(
                 "Add correction notes",
@@ -34,7 +32,22 @@ struct ImportRecoveryActions: View {
                 mode: .manual
             )
         }
-        .disabled(isRetrying)
+    }
+
+    private func retryButton(at date: Date) -> some View {
+        Button(action: retry) {
+            if isRetrying {
+                ProgressView()
+                    .tint(LadleTheme.Label.onAccent)
+                    .frame(maxWidth: .infinity)
+            } else {
+                Text(retryAvailability.buttonTitle(at: date))
+            }
+        }
+        .buttonStyle(LadleButtonStyle(role: .primary))
+        .disabled(
+            isRetrying || !retryAvailability.allowsRetry(at: date)
+        )
     }
 
     private func recoveryButton(
@@ -63,5 +76,6 @@ struct ImportRecoveryActions: View {
             .padding(.horizontal, LadleTheme.Layout.cardPadding)
         }
         .buttonStyle(LadleButtonStyle(role: .secondary))
+        .disabled(isRetrying)
     }
 }

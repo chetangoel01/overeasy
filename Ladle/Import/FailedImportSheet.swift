@@ -62,6 +62,7 @@ struct FailedImportSheet: View {
                     savedLink
                     ImportRecoveryActions(
                         isRetrying: isRetrying,
+                        retryAvailability: currentFailure.retryAvailability(),
                         retry: { runRetry() },
                         chooseInput: { recoveryInputMode = $0 }
                     )
@@ -74,13 +75,16 @@ struct FailedImportSheet: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Image(systemName: "exclamationmark.triangle.fill")
+            Image(
+                systemName: currentFailure.report?.failure.systemImage
+                    ?? "exclamationmark.triangle.fill"
+            )
                 .font(.system(size: 22))
                 .foregroundStyle(LadleTheme.Label.accent)
                 .frame(width: 52, height: 52)
                 .background(LadleTheme.Surface.steel, in: Circle())
 
-            Text("This recipe needs a hand")
+            Text(currentFailure.title)
                 .ladleFont(.title)
                 .foregroundStyle(LadleTheme.ink)
 
@@ -193,32 +197,16 @@ struct FailedImportSheet: View {
            coordinator.state == .persistenceFailed {
             return "Overeasy couldn’t save the retry. The original link and current recipe are unchanged."
         }
-        let reason: ImportFailure
-        if coordinator.owns(jobID: job.id),
-           case let .failed(_, latestReason) = coordinator.state {
-            reason = latestReason
-        } else if case let .failed(originalReason) = job.status {
-            reason = originalReason
-        } else {
-            return "The import stopped, but the original link is safe."
+        return currentFailure.message
+    }
+
+    private var currentFailure: ImportOperationFailure {
+        if let failure = coordinator.failure(for: job) {
+            return failure
         }
-        switch reason {
-        case .privateOrDeleted:
-            return "The post may be private or deleted. Add any details you can see, or create the recipe manually."
-        case .networkUnavailable:
-            return "The connection dropped while Overeasy was working. Retrying is safe."
-        case .authenticationExpired:
-            return "Your session ended while Overeasy was working. Sign in again, then retry this import."
-        case .unsupportedSource:
-            return "That source isn’t supported yet, but you can keep the link and create the recipe manually."
-        case .invalidURL:
-            return "The saved link is incomplete. Paste the recipe details or create it manually."
-        case .parserUnavailable:
-            return "Overeasy couldn’t read this video. Retry, add a note, paste the details, or create it manually."
-        case .insufficientTextEvidence:
-            return "The post didn’t include enough written recipe detail. Paste the recipe or create it manually."
-        case .quotaExceeded:
-            return "Overeasy has reached its processing limit. Your link is safe; try again later."
-        }
+        return ImportOperationFailure(
+            jobID: job.id,
+            reason: .parserUnavailable
+        )
     }
 }

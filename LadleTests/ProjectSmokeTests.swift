@@ -289,16 +289,16 @@ final class ProjectSmokeTests: XCTestCase {
 
     func testImportFailuresExplainTheRecoveryPathInTheInbox() {
         XCTAssertEqual(
-            ImportFailure.parserUnavailable.importInboxMessage,
-            "Couldn’t read the video. Open for recovery options."
+            ImportFailure.parserUnavailable.recoveryMessage,
+            "Overeasy couldn’t read the recipe. Retry, add a note, paste details, or create it manually."
         )
         XCTAssertEqual(
-            ImportFailure.networkUnavailable.importInboxMessage,
-            "Connection interrupted. Open to retry."
+            ImportFailure.networkUnavailable.recoveryMessage,
+            "The connection dropped. The saved link is safe to retry."
         )
         XCTAssertEqual(
-            ImportFailure.quotaExceeded.importInboxMessage,
-            "Processing limit reached. Try again later."
+            ImportFailure.quotaExceeded.recoveryMessage,
+            "Processing capacity is exhausted. Retry after your quota or provider capacity resets. The saved link is safe."
         )
     }
 }

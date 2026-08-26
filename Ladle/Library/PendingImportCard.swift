@@ -7,6 +7,7 @@ struct PendingImportCard: View {
     let job: ImportJob
     var creatorName: String?
     var recipeTitle: String?
+    var operationFailure: ImportOperationFailure?
 
     var body: some View {
         Group {
@@ -66,27 +67,34 @@ struct PendingImportCard: View {
 
     @ViewBuilder
     private var statusIcon: some View {
-        switch job.status {
-        case .parsing:
-            ProgressView()
-                .tint(LadleTheme.Label.accent)
-                .frame(width: 28, height: 28)
-                .accessibilityHidden(true)
-        case .needsReview:
-            Image(systemName: "questionmark.circle.fill")
+        if let systemImage = operationFailure?.report?.failure.systemImage {
+            Image(systemName: systemImage)
                 .foregroundStyle(LadleTheme.Label.accent)
                 .frame(width: 28, height: 28)
                 .accessibilityHidden(true)
-        case .failed:
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(LadleTheme.Label.accent)
-                .frame(width: 28, height: 28)
-                .accessibilityHidden(true)
-        case .ready:
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(LadleTheme.Intent.success)
-                .frame(width: 28, height: 28)
-                .accessibilityHidden(true)
+        } else {
+            switch job.status {
+            case .parsing:
+                ProgressView()
+                    .tint(LadleTheme.Label.accent)
+                    .frame(width: 28, height: 28)
+                    .accessibilityHidden(true)
+            case .needsReview:
+                Image(systemName: "questionmark.circle.fill")
+                    .foregroundStyle(LadleTheme.Label.accent)
+                    .frame(width: 28, height: 28)
+                    .accessibilityHidden(true)
+            case .failed:
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(LadleTheme.Label.accent)
+                    .frame(width: 28, height: 28)
+                    .accessibilityHidden(true)
+            case .ready:
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(LadleTheme.Intent.success)
+                    .frame(width: 28, height: 28)
+                    .accessibilityHidden(true)
+            }
         }
     }
 
@@ -111,7 +119,17 @@ struct PendingImportCard: View {
     }
 
     private var statusText: String {
-        switch job.status {
+        if let failure = operationFailure?.report?.failure {
+            return switch failure {
+            case .offline: "Offline"
+            case .serviceUnavailable: "Unavailable"
+            case .rateLimited: "Try later"
+            case .quotaExceeded: "Limit reached"
+            case .authenticationExpired: "Sign in again"
+            case .invalidResponse, .unknown: "Needs attention"
+            }
+        }
+        return switch job.status {
         case .parsing:
             "Parsing"
         case .needsReview:
@@ -141,7 +159,7 @@ struct PendingImportCard: View {
                 ? "Check a few details"
                 : "Open the current recipe"
         case let .failed(reason):
-            reason.importInboxMessage
+            operationFailure?.message ?? reason.recoveryMessage
         case .ready:
             "Recipe ready"
         }
@@ -179,29 +197,6 @@ struct PendingImportCard: View {
             LadleTheme.Intent.success
         case .parsing, .needsReview:
             LadleTheme.ink
-        }
-    }
-}
-
-extension ImportFailure {
-    var importInboxMessage: String {
-        switch self {
-        case .privateOrDeleted:
-            "Post is private or unavailable. Add details manually."
-        case .unsupportedSource:
-            "This source isn’t supported yet."
-        case .invalidURL:
-            "The saved link is incomplete."
-        case .networkUnavailable:
-            "Connection interrupted. Open to retry."
-        case .authenticationExpired:
-            "Sign in again, then retry."
-        case .parserUnavailable:
-            "Couldn’t read the video. Open for recovery options."
-        case .insufficientTextEvidence:
-            "Not enough written recipe detail. Add details manually."
-        case .quotaExceeded:
-            "Processing limit reached. Try again later."
         }
     }
 }
