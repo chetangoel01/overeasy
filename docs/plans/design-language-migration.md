@@ -211,6 +211,11 @@ the same build.
 
 ### Task 1: prove the two defects
 
+**Complete.** The unit test failed first on the absent semantic role and inset
+APIs. Once the visible recovery text was independently addressable, the UI test
+measured x-origins of 137.3, 142.2, and 154.5 points: a 17.2-point spread on the
+iPhone 17 simulator.
+
 **Files:**
 
 - Modify `LadleTests/DesignTokenTests.swift`.
@@ -258,6 +263,15 @@ test was observed failing first on the missing `buttonRole` and
    and commit the coherent change.
 
 ### Task 3: align failed-import recovery labels
+
+**Implemented.** Retry now states `.primary` directly. The three recovery
+actions state `.secondary` and share a 28-point icon column, 12-point icon gap,
+and 16-point content inset, so label position no longer depends on title width.
+
+**Verification:** The alignment UI test and recipe-options screenshot test both
+pass. Before/after captures live under
+`~/Desktop/overeasy-ui-scratch/step3/{before,after}/` on the MacBook Pro. The
+complete `LadleTests` run contains 195 tests: 194 passed, 1 skipped, 0 failed.
 
 **Files:**
 

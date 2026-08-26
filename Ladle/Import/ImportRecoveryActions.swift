@@ -10,13 +10,13 @@ struct ImportRecoveryActions: View {
             Button(action: retry) {
                 if isRetrying {
                     ProgressView()
-                        .tint(LadleTheme.onAccent)
+                        .tint(LadleTheme.Label.onAccent)
                         .frame(maxWidth: .infinity)
                 } else {
                     Text("Retry import")
                 }
             }
-            .buttonStyle(LadlePrimaryButtonStyle())
+            .buttonStyle(LadleButtonStyle(role: .primary))
 
             recoveryButton(
                 "Add correction notes",
@@ -45,17 +45,23 @@ struct ImportRecoveryActions: View {
         Button {
             chooseInput(mode)
         } label: {
-            Label(title, systemImage: systemImage)
-                .ladleFont(.bodyStrong)
-                .foregroundStyle(LadleTheme.ink)
-                .frame(maxWidth: .infinity, minHeight: 48)
-                .background(
-                    LadleTheme.Surface.raised,
-                    in: RoundedRectangle(
-                        cornerRadius: LadleTheme.Corner.control,
-                        style: .continuous
+            HStack(spacing: LadleTheme.Layout.iconGap) {
+                Image(systemName: systemImage)
+                    .font(
+                        .system(
+                            size: LadleTheme.IconSize.large,
+                            weight: .semibold
+                        )
                     )
-                )
+                    .frame(width: LadleTheme.IconSize.feature)
+                Text(title)
+                    .accessibilityIdentifier(
+                        "import.recovery.\(mode.rawValue).label"
+                    )
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, LadleTheme.Layout.cardPadding)
         }
+        .buttonStyle(LadleButtonStyle(role: .secondary))
     }
 }

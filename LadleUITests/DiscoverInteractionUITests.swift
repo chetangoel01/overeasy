@@ -164,6 +164,59 @@ final class DiscoverInteractionUITests: XCTestCase {
     }
 
     @MainActor
+    func testFailedImportRecoveryActionsShareLabelOrigin() throws {
+        let app = launchApp()
+
+        app.buttons["Add recipe"].tap()
+        let link = app.textFields["Recipe link"]
+        XCTAssertTrue(link.waitForExistence(timeout: 2))
+        link.tap()
+        link.typeText(
+            "https://www.tiktok.com/@ladle/video/parser-failed"
+        )
+        app.buttons["Import from link"].tap()
+
+        let labels = [
+            app.staticTexts["import.recovery.correctionNotes.label"],
+            app.staticTexts["import.recovery.pastedDetails.label"],
+            app.staticTexts["import.recovery.manual.label"],
+        ]
+        XCTAssertTrue(labels[0].waitForExistence(timeout: 3))
+        XCTAssertTrue(labels[1].exists)
+        XCTAssertTrue(labels[2].exists)
+        attachScreenshot(of: app, named: "Failed import recovery alignment")
+
+        let expectedOrigin = labels[0].frame.minX
+        for label in labels.dropFirst() {
+            XCTAssertEqual(
+                label.frame.minX,
+                expectedOrigin,
+                accuracy: 1,
+                "Recovery labels should share one leading edge"
+            )
+        }
+    }
+
+    @MainActor
+    func testRecipeOptionsExposeTheDeleteAction() throws {
+        let app = launchApp()
+
+        let recipe = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'recipe.grid.'")
+        ).firstMatch
+        XCTAssertTrue(recipe.waitForExistence(timeout: 3))
+        recipe.tap()
+
+        let options = app.buttons["Recipe options"]
+        XCTAssertTrue(options.waitForExistence(timeout: 2))
+        options.tap()
+        XCTAssertTrue(
+            app.buttons["Delete recipe"].waitForExistence(timeout: 2)
+        )
+        attachScreenshot(of: app, named: "Recipe options destructive action")
+    }
+
+    @MainActor
     private func launchApp() -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = [
