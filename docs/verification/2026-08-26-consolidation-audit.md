@@ -129,7 +129,7 @@ Xcode consumes it by catalog name.
 | --- | --- | --- |
 | Bootstrap | preparing, ready, local-store failure, invalid release configuration | open, Task 9 |
 | Local library | loading, content, true empty, filtered empty, cached-content reload failure, large library | open, Task 6 |
-| Connectivity and sync | current, syncing, offline, degraded, rate limited, quota, expired auth, conflict | open, Tasks 4-5 |
+| Connectivity and sync | current, syncing, offline, degraded, rate limited, quota, expired auth, conflict | shared failure vocabulary closed in Task 4; observable sync open in Task 5 |
 | Discover and remote Watch | initial load, content, empty, content-preserving refresh, stale/offline, classified remote failures, per-item operation | open, Task 7 |
 | Imports | validation, duplicate, guest limit, queued, processing, review, completion, cancellation, concurrency, classified recovery | open, Task 8 |
 | Secondary flows | account, health, image, video, editor, timer, Share handoff, destructive actions | open, Task 10 |
@@ -148,6 +148,24 @@ Xcode consumes it by catalog name.
 | Tests and fixtures | every fixture is used and every scenario is deterministic | open, Tasks 12-13 |
 | Config and targets | manifests regenerate cleanly; target memberships are intentional | open, Tasks 12-14 |
 | Documentation | plans and verification records reflect current behavior or are marked historical | open, Tasks 12-14 |
+
+## Completed state foundations
+
+### Shared remote failure vocabulary
+
+Task 4 added one typed mapping for offline transport, provider/server outage,
+rate limiting with its retry time, quota exhaustion, authentication expiry,
+invalid responses, and unknown failures. Titles, messages, and retry policy are
+stable and server messages do not enter primary user copy. A separate report
+retains the server request ID for diagnostics.
+
+Verification on August 26, 2026:
+
+- 4 `RemoteFailureTests` passed after the missing-type compile failure proved
+  the red state;
+- 7 `APIClientTests` passed;
+- 18 `ProjectSmokeTests` passed;
+- XcodeGen regenerated the checked-in project with both new Swift files.
 
 ## Final release gates
 
