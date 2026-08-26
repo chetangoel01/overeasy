@@ -75,7 +75,7 @@ struct RecipeEditorView: View {
                                     ? LadleTheme.onAccent
                                     : LadleTheme.ink
                             )
-                            .padding(.horizontal, 13)
+                            .padding(.horizontal, LadleTheme.Spacing.medium)
                             .frame(minHeight: 44)
                             .background(
                                 selectedSection == section
@@ -88,7 +88,7 @@ struct RecipeEditorView: View {
                 }
             }
             .padding(.horizontal, LadleTheme.Spacing.regular)
-            .padding(.vertical, 10)
+            .padding(.vertical, LadleTheme.Spacing.medium)
         }
         .scrollIndicators(.hidden)
         .background(LadleTheme.paper)
@@ -147,7 +147,7 @@ struct RecipeEditorView: View {
                 TextEditor(text: $viewModel.draft.description)
                     .ladleFont(.body)
                     .scrollContentBackground(.hidden)
-                    .padding(10)
+                    .padding(LadleTheme.Spacing.medium)
                     .frame(minHeight: 130)
                     .editorSurface()
                     .accessibilityLabel("Recipe description")
@@ -182,7 +182,7 @@ struct RecipeEditorView: View {
                 .accessibilityLabel("Current recipe photo")
             }
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
                 Text("Original source")
                     .ladleFont(.metadata)
                     .foregroundStyle(LadleTheme.ink.opacity(0.56))
@@ -393,12 +393,12 @@ struct RecipeEditorView: View {
             )
 
             ViewThatFits(in: .horizontal) {
-                HStack(spacing: 10) {
+                HStack(spacing: LadleTheme.Spacing.compact) {
                     ingredientQuantityField(at: index)
                     ingredientUnitField(at: index)
                 }
 
-                VStack(spacing: 10) {
+                VStack(spacing: LadleTheme.Spacing.compact) {
                     ingredientQuantityField(at: index)
                     ingredientUnitField(at: index)
                 }
@@ -453,7 +453,7 @@ struct RecipeEditorView: View {
             )
             .ladleFont(.body)
             .scrollContentBackground(.hidden)
-            .padding(10)
+            .padding(LadleTheme.Spacing.medium)
             .frame(minHeight: 120)
             .background(
                 LadleTheme.paper,
@@ -482,8 +482,8 @@ struct RecipeEditorView: View {
         message: String,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        VStack(alignment: .leading, spacing: 18) {
-            VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: LadleTheme.Spacing.regular) {
+            VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
                 Text(title)
                     .ladleFont(.title)
                     .foregroundStyle(LadleTheme.ink)
@@ -532,7 +532,7 @@ struct RecipeEditorView: View {
                     .accessibilityLabel("Clear \(title)")
                 }
             }
-                .padding(.horizontal, 14)
+                .padding(.horizontal, LadleTheme.Layout.cardPadding)
                 .frame(minHeight: 50)
                 .editorSurface()
         }
@@ -542,7 +542,7 @@ struct RecipeEditorView: View {
         _ title: String,
         text: Binding<String>
     ) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: LadleTheme.Spacing.compact) {
             Text(title)
                 .ladleFont(.metadata)
                 .foregroundStyle(LadleTheme.ink.opacity(0.58))
