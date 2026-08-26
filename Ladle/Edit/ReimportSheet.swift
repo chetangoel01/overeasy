@@ -233,7 +233,7 @@ struct ReimportSheet: View {
                 .font(.system(size: 21, weight: .semibold))
                 .foregroundStyle(LadleTheme.paprika)
                 .frame(width: 50, height: 50)
-                .background(LadleTheme.review, in: Circle())
+                .background(LadleTheme.Surface.steel, in: Circle())
             Text(title)
                 .ladleFont(.title)
                 .foregroundStyle(LadleTheme.ink)
@@ -353,7 +353,7 @@ struct ReimportDecisionView: View {
             .font(.system(size: 21, weight: .semibold))
             .foregroundStyle(LadleTheme.paprika)
             .frame(width: 50, height: 50)
-            .background(LadleTheme.review, in: Circle())
+            .background(LadleTheme.Surface.steel, in: Circle())
             Text(
                 requiresReview
                     ? "Review the replacement"
@@ -385,7 +385,7 @@ struct ReimportDecisionView: View {
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            LadleTheme.review,
+            LadleTheme.Surface.steel,
             in: RoundedRectangle(
                 cornerRadius: LadleTheme.Corner.control,
                 style: .continuous

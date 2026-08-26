@@ -277,7 +277,7 @@ struct FullRecipeView: View {
         }
         .padding(16)
         .background(
-            isCurrent ? LadleTheme.review : LadleTheme.field,
+            isCurrent ? LadleTheme.Surface.steel : LadleTheme.field,
             in: RoundedRectangle(
                 cornerRadius: LadleTheme.Corner.card,
                 style: .continuous

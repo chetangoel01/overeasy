@@ -198,7 +198,7 @@ struct AddRecipeSheet: View {
                 .padding(14)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(
-                    LadleTheme.review,
+                    LadleTheme.Surface.steel,
                     in: RoundedRectangle(cornerRadius: 14)
                 )
             }
@@ -287,7 +287,7 @@ struct AddRecipeSheet: View {
                 .controlSize(.large)
                 .tint(LadleTheme.paprika)
                 .frame(width: 64, height: 64)
-                .background(LadleTheme.review, in: Circle())
+                .background(LadleTheme.Surface.steel, in: Circle())
 
             VStack(spacing: 8) {
                 Text("Cracking this one open")
@@ -322,7 +322,7 @@ struct AddRecipeSheet: View {
             )
             .frame(width: 62, height: 62)
             .background(
-                needsReview ? LadleTheme.review : LadleTheme.Intent.success,
+                needsReview ? LadleTheme.Surface.steel : LadleTheme.Intent.success,
                 in: Circle()
             )
 
@@ -370,7 +370,7 @@ struct AddRecipeSheet: View {
                 .font(.system(size: 24, weight: .semibold))
                 .foregroundStyle(LadleTheme.paprika)
                 .frame(width: 60, height: 60)
-                .background(LadleTheme.review, in: Circle())
+                .background(LadleTheme.Surface.steel, in: Circle())
 
             VStack(spacing: 8) {
                 Text("Already in your recipes")
@@ -428,7 +428,7 @@ struct AddRecipeSheet: View {
                     .font(.system(size: 24))
                     .foregroundStyle(LadleTheme.paprika)
                     .frame(width: 60, height: 60)
-                    .background(LadleTheme.review, in: Circle())
+                    .background(LadleTheme.Surface.steel, in: Circle())
                 Text("We saved the link")
                     .ladleFont(.title)
                     .foregroundStyle(LadleTheme.ink)
@@ -501,7 +501,7 @@ struct AddRecipeSheet: View {
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundStyle(LadleTheme.paprika)
                 .frame(width: 48, height: 48)
-                .background(LadleTheme.review, in: Circle())
+                .background(LadleTheme.Surface.steel, in: Circle())
             Text(title)
                 .ladleFont(.title)
                 .foregroundStyle(LadleTheme.ink)

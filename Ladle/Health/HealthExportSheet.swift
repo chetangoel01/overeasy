@@ -87,7 +87,7 @@ struct HealthExportSheet: View {
                 .font(.system(size: 22, weight: .semibold))
                 .foregroundStyle(LadleTheme.paprika)
                 .frame(width: 52, height: 52)
-                .background(LadleTheme.review, in: Circle())
+                .background(LadleTheme.Surface.steel, in: Circle())
 
             Text("Add nutrition to Apple Health")
                 .ladleFont(.title)
@@ -179,7 +179,7 @@ struct HealthExportSheet: View {
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            LadleTheme.review,
+            LadleTheme.Surface.steel,
             in: RoundedRectangle(
                 cornerRadius: LadleTheme.Corner.card,
                 style: .continuous

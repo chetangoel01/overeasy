@@ -55,7 +55,7 @@ struct AccountSheet: View {
                 .font(.system(size: 24, weight: .semibold))
                 .foregroundStyle(LadleTheme.paprika)
                 .frame(width: 52, height: 52)
-                .background(LadleTheme.review, in: Circle())
+                .background(LadleTheme.Surface.steel, in: Circle())
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: LadleTheme.Spacing.compact) {
@@ -123,7 +123,7 @@ struct AccountSheet: View {
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundStyle(LadleTheme.paprika)
                         .frame(width: 34, height: 34)
-                        .background(LadleTheme.review, in: Circle())
+                        .background(LadleTheme.Surface.steel, in: Circle())
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Privacy & data")
                             .ladleFont(.body)
@@ -355,8 +355,8 @@ struct AccountSheet: View {
 
     private var accountStatusTint: Color {
         switch accountSession.state {
-        case .undecided: LadleTheme.review
-        case .guest: LadleTheme.review
+        case .undecided: LadleTheme.Surface.steel
+        case .guest: LadleTheme.Surface.steel
         case .freeAccount, .signedInWithApple, .signedInWithGoogle:
             LadleTheme.Intent.success
         }
@@ -381,7 +381,7 @@ struct AccountSheet: View {
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(LadleTheme.paprika)
                 .frame(width: 34, height: 34)
-                .background(LadleTheme.review, in: Circle())
+                .background(LadleTheme.Surface.steel, in: Circle())
 
             if dynamicTypeSize.isAccessibilitySize {
                 VStack(alignment: .leading, spacing: 3) {
@@ -426,7 +426,7 @@ struct AccountSheet: View {
                     isDestructive ? Color.red : LadleTheme.ink
                 )
                 .frame(width: 34, height: 34)
-                .background(LadleTheme.review, in: Circle())
+                .background(LadleTheme.Surface.steel, in: Circle())
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {

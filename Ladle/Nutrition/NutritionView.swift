@@ -72,7 +72,7 @@ struct NutritionView: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 24)
         .background(
-            LadleTheme.review,
+            LadleTheme.Surface.steel,
             in: RoundedRectangle(
                 cornerRadius: LadleTheme.Corner.card,
                 style: .continuous

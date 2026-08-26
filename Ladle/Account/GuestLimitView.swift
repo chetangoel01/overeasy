@@ -14,7 +14,7 @@ struct GuestLimitView: View {
                 .font(.system(size: 24, weight: .semibold))
                 .foregroundStyle(LadleTheme.paprika)
                 .frame(width: 54, height: 54)
-                .background(LadleTheme.review, in: Circle())
+                .background(LadleTheme.Surface.steel, in: Circle())
 
             VStack(spacing: LadleTheme.Spacing.compact) {
                 Text(title)

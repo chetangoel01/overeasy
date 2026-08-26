@@ -78,7 +78,7 @@ struct FailedImportSheet: View {
                 .font(.system(size: 22))
                 .foregroundStyle(LadleTheme.paprika)
                 .frame(width: 52, height: 52)
-                .background(LadleTheme.review, in: Circle())
+                .background(LadleTheme.Surface.steel, in: Circle())
 
             Text("This recipe needs a hand")
                 .ladleFont(.title)

@@ -131,7 +131,6 @@ enum LadleTheme {
 
     static let field = oat
     static var paprika: Color { accentText }
-    static let review = ube
 
     // MARK: - Semantic roles
     //

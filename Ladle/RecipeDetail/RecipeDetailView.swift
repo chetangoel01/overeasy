@@ -360,7 +360,7 @@ struct RecipeDetailView: View {
         }
         .padding(16)
         .background(
-            LadleTheme.review,
+            LadleTheme.Surface.steel,
             in: RoundedRectangle(
                 cornerRadius: LadleTheme.Corner.card,
                 style: .continuous
@@ -392,7 +392,7 @@ struct RecipeDetailView: View {
         }
         .padding(16)
         .background(
-            LadleTheme.review,
+            LadleTheme.Surface.steel,
             in: RoundedRectangle(
                 cornerRadius: LadleTheme.Corner.card,
                 style: .continuous

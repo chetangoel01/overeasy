@@ -65,7 +65,7 @@ struct MethodList: View {
             LadlePill(
                 text: timer.detailText,
                 systemImage: "timer",
-                tint: LadleTheme.review
+                tint: LadleTheme.Surface.steel
             )
             .accessibilityLabel(
                 "\(timer.label), \(timer.detailText)"

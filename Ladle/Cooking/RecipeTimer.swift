@@ -302,7 +302,7 @@ struct RecipeTimerButton: View {
         if phase == .finished {
             LadleTheme.celery
         } else {
-            onDark ? LadleTheme.onAccent : LadleTheme.review
+            onDark ? LadleTheme.onAccent : LadleTheme.Surface.steel
         }
     }
 

@@ -163,7 +163,7 @@ struct PendingImportCard: View {
     private var statusTint: Color {
         switch job.status {
         case .parsing, .needsReview:
-            LadleTheme.review
+            LadleTheme.Surface.steel
         case .failed:
             LadleTheme.paprika.opacity(0.11)
         case .ready:

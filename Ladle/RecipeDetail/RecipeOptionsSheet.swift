@@ -55,7 +55,7 @@ struct RecipeOptionsSheet: View {
                                     )
                                     .frame(width: 36, height: 36)
                                     .background(
-                                        LadleTheme.review,
+                                        LadleTheme.Surface.steel,
                                         in: Circle()
                                     )
                                 Text(option.title)

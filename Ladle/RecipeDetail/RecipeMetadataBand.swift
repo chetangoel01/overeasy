@@ -113,7 +113,7 @@ struct RecipeNutritionSummary: View {
                             .foregroundStyle(LadleTheme.accentText)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
-                            .background(LadleTheme.review, in: Capsule())
+                            .background(LadleTheme.Surface.steel, in: Capsule())
                     }
                     Spacer()
                     Image(systemName: "chevron.right")
