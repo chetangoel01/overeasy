@@ -8,6 +8,7 @@ struct AccountSheet: View {
 
     let accountSession: AccountSession
     let library: LibraryViewModel
+    let syncStatus: SyncStatus
     let signOut: @MainActor () async -> Void
     let deleteAccount: @MainActor () async throws -> Void
 
@@ -100,7 +101,10 @@ struct AccountSheet: View {
                 infoRow(
                     icon: "arrow.triangle.2.circlepath",
                     title: "Sync",
-                    value: Self.syncValue(for: accountSession.state)
+                    value: Self.syncValue(
+                        for: accountSession.state,
+                        status: syncStatus.state
+                    )
                 )
             }
             .background(LadleTheme.Surface.raised, in: accountShape)
@@ -329,10 +333,14 @@ struct AccountSheet: View {
         }
     }
 
-    static func syncValue(for state: AccountState) -> String {
+    static func syncValue(
+        for state: AccountState,
+        status: SyncStatus.State
+    ) -> String {
         switch state {
         case .undecided, .guest: "This device"
-        case .freeAccount, .signedInWithApple, .signedInWithGoogle: "On"
+        case .freeAccount, .signedInWithApple, .signedInWithGoogle:
+            status.shortLabel
         }
     }
 

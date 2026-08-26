@@ -78,6 +78,7 @@ struct LadleApp: App {
     private let discoverService: any DiscoverServing
     private let installationID: String
     @State private var accountSession: AccountSession
+    @State private var syncStatus: SyncStatus
     @State private var libraryViewModel: LibraryViewModel
     @State private var importCoordinator: ImportCoordinator
 
@@ -232,6 +233,7 @@ struct LadleApp: App {
                 )
             }
         }
+        let syncStatus = SyncStatus()
         appEnvironment = environment
         self.sharedQueueReconciler = sharedQueueReconciler
         self.authClient = authClient
@@ -243,6 +245,7 @@ struct LadleApp: App {
         _accountSession = State(
             initialValue: accountSession
         )
+        _syncStatus = State(initialValue: syncStatus)
         _libraryViewModel = State(
             initialValue: LibraryViewModel(
                 repository: environment.recipeRepository,
@@ -254,7 +257,10 @@ struct LadleApp: App {
                     }
                     : { $0.shuffled() },
                 didMutate: {
-                    try? await syncService?.synchronize()
+                    await Self.performSync(
+                        using: syncService,
+                        status: syncStatus
+                    )
                 }
             )
         )
@@ -265,7 +271,10 @@ struct LadleApp: App {
                 accountSession: accountSession,
                 notificationService: notificationService,
                 didCompleteRemoteImport: {
-                    try? await syncService?.synchronize()
+                    await Self.performSync(
+                        using: syncService,
+                        status: syncStatus
+                    )
                 }
             )
         )
@@ -280,16 +289,22 @@ struct LadleApp: App {
                 authClient: authClient,
                 googleSignIn: googleSignIn,
                 discoverService: discoverService,
+                syncStatus: syncStatus,
                 installationID: installationID,
                 notificationNavigation: .shared,
                 onAuthenticated: {
                     if let syncService {
-                        try? await syncService.resetAndSynchronize()
+                        await Self.performSync(
+                            using: syncService,
+                            status: syncStatus,
+                            resetsCursor: true
+                        )
                         await importCoordinator.resumePendingImports()
                     }
                     libraryViewModel.load()
                 },
-                onSignOut: { [authClient, accountSession, libraryViewModel] in
+                onSignOut: {
+                    [authClient, accountSession, libraryViewModel, syncStatus] in
                     if let authClient {
                         await authClient.signOut()
                     } else {
@@ -298,9 +313,10 @@ struct LadleApp: App {
                     googleSignIn?.signOut()
                     libraryViewModel.clearLocalLibrary()
                     try? SyncCursorStore().reset()
+                    syncStatus.reset()
                 },
                 onDeleteAccount: {
-                    [authClient, accountSession, libraryViewModel] in
+                    [authClient, accountSession, libraryViewModel, syncStatus] in
                     if let authClient {
                         try await authClient.deleteAccount()
                     } else {
@@ -309,6 +325,7 @@ struct LadleApp: App {
                     await googleSignIn?.disconnect()
                     libraryViewModel.clearLocalLibrary()
                     try? SyncCursorStore().reset()
+                    syncStatus.reset()
                 }
             )
                 .tint(
@@ -340,7 +357,10 @@ struct LadleApp: App {
                         return
                     }
                     if let syncService {
-                        try? await syncService.synchronize()
+                        await Self.performSync(
+                            using: syncService,
+                            status: syncStatus
+                        )
                         await importCoordinator.resumePendingImports()
                     }
                     libraryViewModel.load()
@@ -361,7 +381,10 @@ struct LadleApp: App {
                             }
                         }
                         Task {
-                            try? await syncService?.synchronize()
+                            await Self.performSync(
+                                using: syncService,
+                                status: syncStatus
+                            )
                             libraryViewModel.load()
                         }
                     } catch {
@@ -387,5 +410,27 @@ struct LadleApp: App {
         try? KeychainTokenStore().clear()
         try? SyncCursorStore().reset()
         UserDefaults.standard.removeObject(forKey: installationIDKey)
+    }
+
+    @MainActor
+    private static func performSync(
+        using service: RecipeSyncService?,
+        status: SyncStatus,
+        resetsCursor: Bool = false
+    ) async {
+        guard let service else { return }
+        status.begin()
+        do {
+            if resetsCursor {
+                try await service.resetAndSynchronize()
+            } else {
+                try await service.synchronize()
+            }
+            status.succeed()
+        } catch is CancellationError {
+            status.cancel()
+        } catch {
+            status.fail(error)
+        }
     }
 }

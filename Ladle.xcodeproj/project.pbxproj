@@ -20,6 +20,7 @@
 		13A8E77CA71DE564C79A291E /* ShareURLExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A93A16FCFB7610C2A4F09D4 /* ShareURLExtractor.swift */; };
 		19817C767CFBCAA88DFC31C5 /* HealthExportSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 673D9EEE813C58368B614A0F /* HealthExportSheet.swift */; };
 		1D7AE199157D84F1562E6C95 /* ReimportSafetyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2461B3FDEC6CF3119C4548A /* ReimportSafetyTests.swift */; };
+		1FA4683FAEA2F3B99EECAE54 /* SyncStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 610D0835A1815DB23436E411 /* SyncStatus.swift */; };
 		202BABB63D7F671836CD4F1A /* ShareURLExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A93A16FCFB7610C2A4F09D4 /* ShareURLExtractor.swift */; };
 		224F559012E7DF26C228AF43 /* APIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC34B6B51E6AF6B47D8FC45D /* APIClientTests.swift */; };
 		24197E5B542EB0789077028F /* PrivacyDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F27EE9D08B4AD704ED77330A /* PrivacyDetailView.swift */; };
@@ -81,6 +82,7 @@
 		9E6908D535A27DA7429230D5 /* AuthClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9C01DA218666D762AB16E8A /* AuthClient.swift */; };
 		9EA61B78797A9FB6B166408C /* RecipeOptionsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D071E3D400501F481FB31EEE /* RecipeOptionsSheet.swift */; };
 		A4AB27B7287BE0F0CFD3B690 /* HealthExportViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09B260DA499835E89F84D468 /* HealthExportViewModelTests.swift */; };
+		A52F5EA121F20FC690F20742 /* SyncStatusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65C5AAF5AD8FED1D8EAD6FE9 /* SyncStatusTests.swift */; };
 		A8723B3DB23725605D7D4B61 /* FocusModeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B9102B1B2F7CE3AAB88544A /* FocusModeView.swift */; };
 		ADFA32D4AFDD16210863F59F /* NutritionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA9412596DCD6FFCA28EC55D /* NutritionView.swift */; };
 		AE4B668CBE0E318875AF01EA /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72AE00384EB09CFD40366417 /* ShareViewController.swift */; };
@@ -188,8 +190,10 @@
 		58A808844E9A9278B9DBE227 /* DiscoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscoverView.swift; sourceTree = "<group>"; };
 		5BB8A28AE010B51E06742584 /* IngredientList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngredientList.swift; sourceTree = "<group>"; };
 		5BDEAB572C83A392AED5C622 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		610D0835A1815DB23436E411 /* SyncStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncStatus.swift; sourceTree = "<group>"; };
 		614CB64D3827AB1339095FC2 /* ScreenAwakeController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenAwakeController.swift; sourceTree = "<group>"; };
 		659DEB801C4C5EC75C6F09EC /* CookingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CookingViewModel.swift; sourceTree = "<group>"; };
+		65C5AAF5AD8FED1D8EAD6FE9 /* SyncStatusTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncStatusTests.swift; sourceTree = "<group>"; };
 		65FAD8FFBD627A1E6F1824E0 /* URLProtocolStub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLProtocolStub.swift; sourceTree = "<group>"; };
 		6638D8D4EFDAA359DD3B8348 /* LibraryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryViewModel.swift; sourceTree = "<group>"; };
 		673D9EEE813C58368B614A0F /* HealthExportSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthExportSheet.swift; sourceTree = "<group>"; };
@@ -329,6 +333,7 @@
 			children = (
 				E3E83CF891E137AB8EEEC5D5 /* RecipeSyncService.swift */,
 				72BCED0B970235948B037494 /* SyncCursorStore.swift */,
+				610D0835A1815DB23436E411 /* SyncStatus.swift */,
 			);
 			path = Sync;
 			sourceTree = "<group>";
@@ -468,6 +473,7 @@
 				57ED21827A8B76FEB98FDB19 /* SharedQueueReconcilerTests.swift */,
 				0E19326D8562639EDF5FA97E /* ShareURLExtractorTests.swift */,
 				C39A167F8EA2C188D03B1BE6 /* SwiftDataRecipeRepositoryTests.swift */,
+				65C5AAF5AD8FED1D8EAD6FE9 /* SyncStatusTests.swift */,
 			);
 			path = LadleTests;
 			sourceTree = "<group>";
@@ -818,6 +824,7 @@
 				292CA6391C0A45751E5542C2 /* StoredRecipe.swift in Sources */,
 				0DC711210058792227742BE8 /* SwiftDataRecipeRepository.swift in Sources */,
 				69F3BF71002411F36B049F9F /* SyncCursorStore.swift in Sources */,
+				1FA4683FAEA2F3B99EECAE54 /* SyncStatus.swift in Sources */,
 				D2AE2661212614060C337885 /* UserNotificationService.swift in Sources */,
 				714A88DB30214D7AD579E338 /* VideoEmbedSheet.swift in Sources */,
 				CDEDA9C0CB7E9BBDDBCF08F9 /* WatchView.swift in Sources */,
@@ -865,6 +872,7 @@
 				48D0EBCF569C98CD7A92CD0E /* ShareURLExtractorTests.swift in Sources */,
 				DA89A97C3E062E6E81CA8E40 /* SharedQueueReconcilerTests.swift in Sources */,
 				C82C0B6359C8D10E2983CC1B /* SwiftDataRecipeRepositoryTests.swift in Sources */,
+				A52F5EA121F20FC690F20742 /* SyncStatusTests.swift in Sources */,
 				8969E7AE92F6AAC232E3E2A8 /* URLProtocolStub.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

@@ -129,7 +129,7 @@ Xcode consumes it by catalog name.
 | --- | --- | --- |
 | Bootstrap | preparing, ready, local-store failure, invalid release configuration | open, Task 9 |
 | Local library | loading, content, true empty, filtered empty, cached-content reload failure, large library | open, Task 6 |
-| Connectivity and sync | current, syncing, offline, degraded, rate limited, quota, expired auth, conflict | shared failure vocabulary closed in Task 4; observable sync open in Task 5 |
+| Connectivity and sync | current, syncing, offline, degraded, rate limited, quota, expired auth, conflict | shared failure vocabulary and observable status closed in Tasks 4-5; conflict handling remains open |
 | Discover and remote Watch | initial load, content, empty, content-preserving refresh, stale/offline, classified remote failures, per-item operation | open, Task 7 |
 | Imports | validation, duplicate, guest limit, queued, processing, review, completion, cancellation, concurrency, classified recovery | open, Task 8 |
 | Secondary flows | account, health, image, video, editor, timer, Share handoff, destructive actions | open, Task 10 |
@@ -166,6 +166,32 @@ Verification on August 26, 2026:
 - 7 `APIClientTests` passed;
 - 18 `ProjectSmokeTests` passed;
 - XcodeGen regenerated the checked-in project with both new Swift files.
+
+### Observable sync and connectivity
+
+Task 5 added a single observable status model for every app-level sync trigger.
+The model records idle, in-progress, current, and classified failure states
+while preserving the last successful sync time. Local library content remains
+visible during remote failures: a compact workspace banner explains offline,
+service, rate-limit, quota, authentication, response, and unknown failures,
+and Settings now reports that same live state instead of a static "On" value.
+Signing out or deleting an account resets the status.
+
+All startup, foreground, authentication, import, and local-mutation sync calls
+now pass through one helper. A source search found no remaining silent
+`try? await syncService` call; cancellation is handled separately from failure,
+and later success clears an earlier error.
+
+Verification on August 26, 2026:
+
+- the initial focused build failed because `SyncStatus` did not exist, proving
+  the state-model red test;
+- the account-presentation test then failed to compile until it received the
+  new live status, proving the integration red test;
+- 4 `SyncStatusTests` plus focused Account and root-view smoke tests passed;
+- the complete `LadleTests` target passed 203 tests: 202 passed and the one
+  live App Attest test was intentionally skipped;
+- XcodeGen regenerated the checked-in project with the new source and test.
 
 ## Final release gates
 

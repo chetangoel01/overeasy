@@ -41,6 +41,7 @@ struct LibraryView: View {
     @Bindable var importCoordinator: ImportCoordinator
     let accountSession: AccountSession
     var discoverService: any DiscoverServing = DemoDiscoverService()
+    var syncStatus: SyncStatus = SyncStatus()
     var installationID: String = "preview-installation"
     var notificationNavigation: NotificationNavigation = .shared
     var canImport = true
@@ -62,6 +63,9 @@ struct LibraryView: View {
                 discoverTab
                 watchTab
                 inboxTab
+            }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                SyncStatusBanner(status: syncStatus)
             }
             .background(LadleTheme.paper)
             .tint(LadleTheme.brick)
@@ -96,6 +100,7 @@ struct LibraryView: View {
                 AccountSheet(
                     accountSession: accountSession,
                     library: viewModel,
+                    syncStatus: syncStatus,
                     signOut: onSignOut,
                     deleteAccount: onDeleteAccount
                 )
@@ -394,6 +399,90 @@ struct LibraryView: View {
 
     private var operationErrorText: String {
         viewModel.operationErrorMessage ?? "Please try again."
+    }
+}
+
+private struct SyncStatusBanner: View {
+    let status: SyncStatus
+
+    @ViewBuilder
+    var body: some View {
+        switch status.state {
+        case .idle, .current:
+            EmptyView()
+        case .syncing:
+            banner(systemImage: nil) {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Syncing recipes…")
+                    .ladleFont(.bodyStrong)
+                    .foregroundStyle(LadleTheme.Label.primary)
+            }
+        case let .failed(report):
+            banner(systemImage: symbol(for: report.failure)) {
+                VStack(
+                    alignment: .leading,
+                    spacing: LadleTheme.Spacing.tight
+                ) {
+                    Text(report.failure.title)
+                        .ladleFont(.bodyStrong)
+                        .foregroundStyle(LadleTheme.Label.primary)
+                    Text(report.failure.message)
+                        .ladleFont(.metadata)
+                        .foregroundStyle(LadleTheme.Label.secondary)
+                    if let retryAt = report.failure.retryAt {
+                        Text("Try again after \(retryAt, style: .time).")
+                            .ladleFont(.metadata)
+                            .foregroundStyle(LadleTheme.Label.secondary)
+                    }
+                }
+            }
+        }
+    }
+
+    private func banner<Content: View>(
+        systemImage: String?,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        HStack(alignment: .top, spacing: LadleTheme.Layout.iconGap) {
+            if let systemImage {
+                Image(systemName: systemImage)
+                    .font(.system(
+                        size: LadleTheme.IconSize.medium,
+                        weight: .semibold
+                    ))
+                    .foregroundStyle(LadleTheme.Label.primary)
+                    .accessibilityHidden(true)
+            }
+            content()
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, LadleTheme.Layout.screenMargin)
+        .padding(.vertical, LadleTheme.Spacing.compact)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(LadleTheme.Surface.steel)
+        .overlay(alignment: .bottom) {
+            Divider().overlay(LadleTheme.Stroke.separator)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("sync.status")
+    }
+
+    private func symbol(for failure: RemoteFailure) -> String {
+        switch failure {
+        case .offline:
+            "wifi.slash"
+        case .serviceUnavailable:
+            "server.rack"
+        case .rateLimited:
+            "clock.badge.exclamationmark"
+        case .quotaExceeded:
+            "exclamationmark.circle"
+        case .authenticationExpired:
+            "person.crop.circle.badge.exclamationmark"
+        case .invalidResponse, .unknown:
+            "exclamationmark.triangle"
+        }
     }
 }
 

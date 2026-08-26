@@ -173,6 +173,8 @@ final class ProjectSmokeTests: XCTestCase {
     }
 
     func testAccountPresentationExplainsProviderAndSyncScope() {
+        let syncStatus = SyncStatus()
+        syncStatus.succeed(at: Date(timeIntervalSince1970: 100))
         XCTAssertEqual(
             AccountSheet.accountTitle(for: .signedInWithGoogle),
             "Signed in with Google"
@@ -182,12 +184,24 @@ final class ProjectSmokeTests: XCTestCase {
             "Your recipes stay synced across your devices."
         )
         XCTAssertEqual(
-            AccountSheet.syncValue(for: .signedInWithGoogle),
-            "On"
+            AccountSheet.syncValue(
+                for: .signedInWithGoogle,
+                status: syncStatus.state
+            ),
+            "Up to date"
         )
         XCTAssertEqual(
-            AccountSheet.syncValue(for: .guest),
+            AccountSheet.syncValue(for: .guest, status: syncStatus.state),
             "This device"
+        )
+
+        syncStatus.fail(APIError.transport)
+        XCTAssertEqual(
+            AccountSheet.syncValue(
+                for: .signedInWithGoogle,
+                status: syncStatus.state
+            ),
+            "Offline"
         )
     }
 
