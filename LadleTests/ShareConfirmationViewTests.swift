@@ -57,6 +57,18 @@ final class ShareConfirmationViewTests: XCTestCase {
         )
     }
 
+    func testRenderWindowDetachesItsHostDuringTeardown() throws {
+        let window = try makeRenderWindow(
+            size: CGSize(width: 402, height: 620)
+        )
+        window.rootViewController = UIViewController()
+        window.makeKeyAndVisible()
+
+        tearDownRenderWindow(window)
+
+        XCTAssertNil(window.rootViewController)
+    }
+
     private func assertRenders(
         state: ShareConfirmationState,
         dynamicTypeSize: DynamicTypeSize = .large,
@@ -69,7 +81,7 @@ final class ShareConfirmationViewTests: XCTestCase {
             .frame(width: 402, height: 620)
         let size = CGSize(width: 402, height: 620)
         let host = UIHostingController(rootView: content)
-        let window = UIWindow(frame: CGRect(origin: .zero, size: size))
+        let window = try makeRenderWindow(size: size)
         window.rootViewController = host
         window.makeKeyAndVisible()
         host.view.frame = window.bounds
@@ -82,7 +94,7 @@ final class ShareConfirmationViewTests: XCTestCase {
                 afterScreenUpdates: true
             )
         }
-        window.isHidden = true
+        tearDownRenderWindow(window)
 
         XCTAssertTrue(didDraw)
         XCTAssertEqual(image.size.width, 402)
@@ -93,6 +105,22 @@ final class ShareConfirmationViewTests: XCTestCase {
         attachment.name = attachmentName
         attachment.lifetime = .keepAlways
         add(attachment)
+    }
+
+    private func tearDownRenderWindow(_ window: UIWindow) {
+        window.rootViewController = nil
+        window.isHidden = true
+    }
+
+    private func makeRenderWindow(size: CGSize) throws -> UIWindow {
+        let scene = try XCTUnwrap(
+            UIApplication.shared.connectedScenes
+                .compactMap { $0 as? UIWindowScene }
+                .first
+        )
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(origin: .zero, size: size)
+        return window
     }
 
     private func sampledColorCount(in image: UIImage) -> Int {

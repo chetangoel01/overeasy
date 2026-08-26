@@ -85,11 +85,11 @@ before this record contain documentation only.
 | `LadleTests` on iOS 26.5 simulator | passed, 195 tests; 1 intentional live App Attest skip |
 
 The backend run emits one third-party `testcontainers` deprecation warning.
-The simulator emits duplicate AuthKit class warnings. Four Share Confirmation
-rendered tests leave unbalanced appearance-transition warnings after they
-pass. A generic device build reports a non-Sendable completion capture in
-`GoogleSignInProvider`. Those warnings are baseline debt, not ignored
-completion evidence.
+The simulator emits duplicate AuthKit class warnings. At baseline, four Share
+Confirmation rendered tests left unbalanced appearance-transition warnings;
+Task 10 resolved that harness defect. A generic device build reports a
+non-Sendable completion capture in `GoogleSignInProvider`. The remaining
+warnings are tracked debt, not ignored completion evidence.
 
 ## Baseline completion signals
 
@@ -318,6 +318,26 @@ Verification on August 26, 2026:
 - the Settings navigation UI test launched through the new bootstrap and
   passed;
 - a production-source search found no remaining `fatalError` call.
+
+### Balanced Share rendering harness
+
+The first Task 10 checkpoint traced four unbalanced appearance-transition
+warnings to the four rendered Share Confirmation tests. Their temporary
+windows were hidden while still retaining their hosting controllers, so UIKit
+began disappearance during suite teardown without completing it. The shared
+teardown now detaches the root controller before hiding the window. The
+renderer also constructs windows from the active `UIWindowScene`, removing
+the iOS 26 `UIWindow(frame:)` deprecation.
+
+Verification on August 26, 2026:
+
+- the new lifecycle regression test failed because the root controller
+  remained attached, proving the red state;
+- all 7 `ShareConfirmationViewTests` passed after the one-line lifecycle fix;
+- the complete non-quiet test log contains no unbalanced appearance-transition
+  warning, compared with exactly four before the fix;
+- the final focused run emitted neither the lifecycle warning nor the
+  deprecated-window warning.
 
 ## Final release gates
 
