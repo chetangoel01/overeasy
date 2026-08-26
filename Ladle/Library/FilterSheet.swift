@@ -100,7 +100,7 @@ struct FilterSheet: View {
             .padding(.horizontal, 14)
             .frame(minHeight: 52)
             .background(
-                LadleTheme.field,
+                LadleTheme.Surface.raised,
                 in: RoundedRectangle(
                     cornerRadius: LadleTheme.Corner.control,
                     style: .continuous
@@ -234,7 +234,7 @@ private struct FilterChoiceButton: View {
                 )
                 .frame(maxWidth: .infinity, minHeight: 44)
                 .background(
-                    isSelected ? LadleTheme.plum : LadleTheme.field,
+                    isSelected ? LadleTheme.plum : LadleTheme.Surface.raised,
                     in: RoundedRectangle(
                         cornerRadius: LadleTheme.Corner.control,
                         style: .continuous

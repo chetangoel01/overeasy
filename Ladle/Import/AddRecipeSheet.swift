@@ -154,7 +154,7 @@ struct AddRecipeSheet: View {
                     .padding(.horizontal, 14)
                     .frame(minHeight: 52)
                     .background(
-                        LadleTheme.field,
+                        LadleTheme.Surface.raised,
                         in: RoundedRectangle(
                             cornerRadius: LadleTheme.Corner.control,
                             style: .continuous
@@ -224,7 +224,7 @@ struct AddRecipeSheet: View {
                         .padding(.horizontal, 14)
                         .frame(minHeight: 50)
                         .background(
-                            LadleTheme.field,
+                            LadleTheme.Surface.raised,
                             in: RoundedRectangle(
                                 cornerRadius: LadleTheme.Corner.control,
                                 style: .continuous
@@ -242,7 +242,7 @@ struct AddRecipeSheet: View {
                         .padding(10)
                         .frame(minHeight: 130)
                         .background(
-                            LadleTheme.field,
+                            LadleTheme.Surface.raised,
                             in: RoundedRectangle(
                                 cornerRadius: LadleTheme.Corner.control,
                                 style: .continuous

@@ -102,7 +102,7 @@ struct FailedImportSheet: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(LadleTheme.field, in: RoundedRectangle(cornerRadius: 14))
+        .background(LadleTheme.Surface.raised, in: RoundedRectangle(cornerRadius: 14))
     }
 
     private func runRetry(

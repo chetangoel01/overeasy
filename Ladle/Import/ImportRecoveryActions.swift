@@ -50,7 +50,7 @@ struct ImportRecoveryActions: View {
                 .foregroundStyle(LadleTheme.ink)
                 .frame(maxWidth: .infinity, minHeight: 48)
                 .background(
-                    LadleTheme.field,
+                    LadleTheme.Surface.raised,
                     in: RoundedRectangle(
                         cornerRadius: LadleTheme.Corner.control,
                         style: .continuous

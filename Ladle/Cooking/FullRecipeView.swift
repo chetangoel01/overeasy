@@ -101,7 +101,7 @@ struct FullRecipeView: View {
             .padding(.horizontal, 16)
             .frame(minHeight: 56)
             .background(
-                LadleTheme.field,
+                LadleTheme.Surface.raised,
                 in: RoundedRectangle(
                     cornerRadius: LadleTheme.Corner.control,
                     style: .continuous
@@ -165,7 +165,7 @@ struct FullRecipeView: View {
             }
             .padding(.horizontal, 14)
             .background(
-                LadleTheme.field,
+                LadleTheme.Surface.raised,
                 in: RoundedRectangle(
                     cornerRadius: LadleTheme.Corner.card,
                     style: .continuous
@@ -277,7 +277,7 @@ struct FullRecipeView: View {
         }
         .padding(16)
         .background(
-            isCurrent ? LadleTheme.Surface.steel : LadleTheme.field,
+            isCurrent ? LadleTheme.Surface.steel : LadleTheme.Surface.raised,
             in: RoundedRectangle(
                 cornerRadius: LadleTheme.Corner.card,
                 style: .continuous

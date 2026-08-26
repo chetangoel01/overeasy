@@ -36,7 +36,7 @@ struct CorrectionNotesView: View {
                             .padding(.horizontal, 14)
                             .frame(minHeight: 50)
                             .background(
-                                LadleTheme.field,
+                                LadleTheme.Surface.raised,
                                 in: RoundedRectangle(
                                     cornerRadius: LadleTheme.Corner.control,
                                     style: .continuous
@@ -51,7 +51,7 @@ struct CorrectionNotesView: View {
                         .padding(10)
                         .frame(minHeight: 180)
                         .background(
-                            LadleTheme.field,
+                            LadleTheme.Surface.raised,
                             in: RoundedRectangle(
                                 cornerRadius: LadleTheme.Corner.control,
                                 style: .continuous

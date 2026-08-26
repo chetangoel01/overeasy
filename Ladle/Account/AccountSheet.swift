@@ -78,7 +78,7 @@ struct AccountSheet: View {
             Spacer(minLength: 0)
         }
         .padding(LadleTheme.Spacing.regular)
-        .background(LadleTheme.field, in: accountShape)
+        .background(LadleTheme.Surface.raised, in: accountShape)
         .overlay {
             accountShape
                 .stroke(LadleTheme.ink.opacity(0.08), lineWidth: 1)
@@ -103,7 +103,7 @@ struct AccountSheet: View {
                     value: Self.syncValue(for: accountSession.state)
                 )
             }
-            .background(LadleTheme.field, in: accountShape)
+            .background(LadleTheme.Surface.raised, in: accountShape)
             .overlay {
                 accountShape
                     .stroke(LadleTheme.ink.opacity(0.08), lineWidth: 1)
@@ -140,7 +140,7 @@ struct AccountSheet: View {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
                 .frame(minHeight: 56)
-                .background(LadleTheme.field, in: accountShape)
+                .background(LadleTheme.Surface.raised, in: accountShape)
                 .overlay {
                     accountShape
                         .stroke(LadleTheme.ink.opacity(0.08), lineWidth: 1)
@@ -185,7 +185,7 @@ struct AccountSheet: View {
                 }
             }
             .padding(LadleTheme.Spacing.medium)
-            .background(LadleTheme.field, in: accountShape)
+            .background(LadleTheme.Surface.raised, in: accountShape)
             .overlay {
                 accountShape
                     .stroke(LadleTheme.ink.opacity(0.08), lineWidth: 1)
@@ -230,7 +230,7 @@ struct AccountSheet: View {
                 .disabled(isDeletingAccount)
                 .accessibilityIdentifier("account.delete")
             }
-            .background(LadleTheme.field, in: accountShape)
+            .background(LadleTheme.Surface.raised, in: accountShape)
             .overlay {
                 accountShape
                     .stroke(LadleTheme.ink.opacity(0.08), lineWidth: 1)

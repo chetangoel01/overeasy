@@ -80,7 +80,7 @@ struct RecipeEditorView: View {
                             .background(
                                 selectedSection == section
                                     ? LadleTheme.paprika
-                                    : LadleTheme.field,
+                                    : LadleTheme.Surface.raised,
                                 in: Capsule()
                             )
                     }
@@ -677,7 +677,7 @@ struct RecipeEditorView: View {
 private extension View {
     func editorSurface() -> some View {
         background(
-            LadleTheme.field,
+            LadleTheme.Surface.raised,
             in: RoundedRectangle(
                 cornerRadius: LadleTheme.Corner.control,
                 style: .continuous

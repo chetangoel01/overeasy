@@ -25,7 +25,7 @@ struct RecipeMetadataBand: View {
         }
         .padding(.vertical, 16)
         .background(
-            LadleTheme.field,
+            LadleTheme.Surface.raised,
             in: RoundedRectangle(
                 cornerRadius: LadleTheme.Corner.card,
                 style: .continuous
@@ -138,7 +138,7 @@ struct RecipeNutritionSummary: View {
             }
             .padding(16)
             .background(
-                LadleTheme.field,
+                LadleTheme.Surface.raised,
                 in: RoundedRectangle(
                     cornerRadius: LadleTheme.Corner.card,
                     style: .continuous

@@ -251,7 +251,7 @@ struct RecipeTimerButton: View {
                             .background(
                                 onDark
                                     ? LadleTheme.onAccent.opacity(0.12)
-                                    : LadleTheme.field,
+                                    : LadleTheme.Surface.raised,
                                 in: Circle()
                             )
                     }

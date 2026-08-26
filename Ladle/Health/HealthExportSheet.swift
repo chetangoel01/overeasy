@@ -127,7 +127,7 @@ struct HealthExportSheet: View {
         }
         .padding(16)
         .background(
-            LadleTheme.field,
+            LadleTheme.Surface.raised,
             in: RoundedRectangle(
                 cornerRadius: LadleTheme.Corner.card,
                 style: .continuous

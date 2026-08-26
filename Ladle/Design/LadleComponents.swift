@@ -238,7 +238,7 @@ struct LadlePrimaryButtonStyle: ButtonStyle {
 struct LadlePill: View {
     let text: String
     var systemImage: String?
-    var tint = LadleTheme.field
+    var tint = LadleTheme.Surface.raised
     var foreground = LadleTheme.ink
 
     var body: some View {
