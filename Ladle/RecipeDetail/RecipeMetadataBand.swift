@@ -56,7 +56,7 @@ struct RecipeMetadataBand: View {
     ) -> some View {
         VStack(spacing: LadleTheme.Spacing.compact) {
             Image(systemName: systemImage)
-                .font(.system(size: 15, weight: .semibold))
+                .font(.system(size: LadleTheme.IconSize.small, weight: .semibold))
                 .foregroundStyle(LadleTheme.Label.accent)
                 .accessibilityHidden(true)
             Text(value)
@@ -117,7 +117,7 @@ struct RecipeNutritionSummary: View {
                     }
                     Spacer()
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.system(size: LadleTheme.IconSize.small, weight: .semibold))
                         .foregroundStyle(LadleTheme.Label.secondary)
                 }
 

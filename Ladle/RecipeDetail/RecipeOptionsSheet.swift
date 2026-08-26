@@ -51,7 +51,7 @@ struct RecipeOptionsSheet: View {
                         } label: {
                             HStack(spacing: LadleTheme.Layout.iconGap) {
                                 Image(systemName: option.systemImage)
-                                    .font(.system(size: 16, weight: .semibold))
+                                    .font(.system(size: LadleTheme.IconSize.medium, weight: .semibold))
                                     .foregroundStyle(
                                         option == .delete
                                             ? option.buttonRole.label

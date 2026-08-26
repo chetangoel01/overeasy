@@ -488,7 +488,7 @@ struct AppBootstrapPreparingView: View {
     var body: some View {
         VStack(spacing: LadleTheme.Spacing.regular) {
             ProgressView()
-                .tint(LadleTheme.Label.accent)
+                .tint(LadleTheme.Intent.accent)
             Text("Preparing Overeasy")
                 .ladleFont(.bodyStrong)
                 .foregroundStyle(LadleTheme.Label.primary)

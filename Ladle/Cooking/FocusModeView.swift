@@ -48,9 +48,9 @@ struct FocusModeView: View {
                     viewModel.exitFocusMode()
                 } label: {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: 17, weight: .semibold))
+                        .font(.system(size: LadleTheme.IconSize.medium, weight: .semibold))
                         .foregroundStyle(LadleTheme.Label.onAccent)
-                        .frame(width: 44, height: 44)
+                        .frame(width: LadleTheme.Control.hitTarget, height: LadleTheme.Control.hitTarget)
                         .background(
                             LadleTheme.Label.onAccent.opacity(0.1),
                             in: Circle()
@@ -120,7 +120,7 @@ struct FocusModeView: View {
                 .ladleFont(.metadata)
                 .foregroundStyle(LadleTheme.Label.onAccent)
                 .padding(.horizontal, 12)
-                .frame(minHeight: 44)
+                .frame(minHeight: LadleTheme.Control.hitTarget)
                 .background(
                     LadleTheme.Label.onAccent.opacity(0.1),
                     in: Capsule()
@@ -174,9 +174,12 @@ struct FocusModeView: View {
                 viewModel.movePrevious()
             } label: {
                 Image(systemName: "chevron.left")
-                    .font(.system(size: 17, weight: .bold))
+                    .font(.system(size: LadleTheme.IconSize.medium, weight: .bold))
                     .foregroundStyle(LadleTheme.Label.onAccent)
-                    .frame(width: 52, height: 52)
+                    .frame(
+                        width: LadleTheme.Control.primary,
+                        height: LadleTheme.Control.primary
+                    )
                     .background(
                         LadleTheme.Label.onAccent.opacity(0.1),
                         in: Circle()
@@ -190,7 +193,7 @@ struct FocusModeView: View {
                 Text(nextButtonTitle)
                     .ladleFont(.bodyStrong)
                     .foregroundStyle(LadleTheme.Label.onAccent)
-                    .frame(maxWidth: .infinity, minHeight: 52)
+                    .frame(maxWidth: .infinity, minHeight: LadleTheme.Control.primary)
                     .background(
                         LadleTheme.Intent.focus,
                         in: RoundedRectangle(

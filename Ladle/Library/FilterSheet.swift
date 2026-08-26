@@ -106,7 +106,7 @@ struct FilterSheet: View {
             .foregroundStyle(LadleTheme.Label.primary)
             .tint(LadleTheme.Surface.graphite)
             .padding(.horizontal, LadleTheme.Layout.cardPadding)
-            .frame(minHeight: 52)
+            .frame(minHeight: LadleTheme.Control.primary)
             .background(
                 LadleTheme.Surface.raised,
                 in: RoundedRectangle(
@@ -240,7 +240,7 @@ private struct FilterChoiceButton: View {
                 .foregroundStyle(
                     isSelected ? LadleTheme.Label.onAccent : LadleTheme.Label.primary
                 )
-                .frame(maxWidth: .infinity, minHeight: 44)
+                .frame(maxWidth: .infinity, minHeight: LadleTheme.Control.hitTarget)
                 .background(
                     isSelected ? LadleTheme.Surface.graphite : LadleTheme.Surface.raised,
                     in: RoundedRectangle(

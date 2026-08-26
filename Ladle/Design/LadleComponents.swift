@@ -354,9 +354,9 @@ struct LadleIconButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(.system(size: 16, weight: .bold))
+                .font(.system(size: LadleTheme.IconSize.medium, weight: .bold))
                 .foregroundStyle(tone.foreground)
-                .frame(width: 44, height: 44)
+                .frame(width: LadleTheme.Control.hitTarget, height: LadleTheme.Control.hitTarget)
                 .background(tone.background, in: Circle())
         }
         .buttonStyle(LadlePressButtonStyle())
@@ -392,7 +392,7 @@ struct LadleStateView: View {
     var body: some View {
         VStack(spacing: LadleTheme.Spacing.regular) {
             Image(systemName: systemImage)
-                .font(.system(size: 24, weight: .semibold))
+                .font(.system(size: LadleTheme.IconSize.feature, weight: .semibold))
                 .foregroundStyle(LadleTheme.Label.primary)
                 .frame(width: 60, height: 60)
                 .background(tone.background, in: Circle())

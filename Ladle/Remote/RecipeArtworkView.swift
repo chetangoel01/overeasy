@@ -111,7 +111,7 @@ struct RecipeArtworkView: View {
     private var artworkPlaceholder: some View {
         if loadState == .loading {
             ProgressView()
-                .tint(LadleTheme.Label.accent)
+                .tint(LadleTheme.Intent.accent)
                 .accessibilityLabel(loadState.accessibilityLabel)
         } else {
             Image(systemName: loadState.systemImage)

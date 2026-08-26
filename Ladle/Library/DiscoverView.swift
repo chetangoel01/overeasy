@@ -506,7 +506,7 @@ private struct DiscoverRecipeRow: View {
                     isSaved ? LadleTheme.Label.primary : LadleTheme.Label.onAccent
                 )
                 .padding(.horizontal, LadleTheme.Spacing.medium)
-                .frame(minHeight: 44)
+                .frame(minHeight: LadleTheme.Control.hitTarget)
                 .background(
                     isSaved ? LadleTheme.Intent.success : LadleTheme.Intent.accent,
                     in: Capsule()

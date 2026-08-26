@@ -17,7 +17,7 @@ struct RecipeGridCard: View {
                             ? "heart.fill"
                             : "heart"
                     )
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.system(size: LadleTheme.IconSize.small, weight: .semibold))
                     .foregroundStyle(
                         recipe.isFavorite
                             ? LadleTheme.Label.accent

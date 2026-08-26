@@ -695,7 +695,7 @@ private struct WatchRecipeImage: View {
                 .fill(LadleTheme.Surface.graphite)
                 .overlay {
                     Image(systemName: "play.rectangle")
-                        .font(.system(size: 38))
+                        .font(.system(size: LadleTheme.IconSize.hero))
                         .foregroundStyle(LadleTheme.Label.onAccent.opacity(0.72))
                 }
         }

@@ -76,7 +76,7 @@ struct PendingImportCard: View {
             switch job.status {
             case .parsing:
                 ProgressView()
-                    .tint(LadleTheme.Label.accent)
+                    .tint(LadleTheme.Intent.accent)
                     .frame(width: 28, height: 28)
                     .accessibilityHidden(true)
             case .needsReview:
@@ -183,7 +183,7 @@ struct PendingImportCard: View {
         case .parsing, .needsReview:
             LadleTheme.Surface.steel
         case .failed:
-            LadleTheme.Label.accent.opacity(0.11)
+            LadleTheme.Intent.destructive.opacity(0.11)
         case .ready:
             LadleTheme.Intent.success.opacity(0.12)
         }
@@ -192,7 +192,7 @@ struct PendingImportCard: View {
     private var statusForeground: Color {
         switch job.status {
         case .failed:
-            LadleTheme.Label.accent
+            LadleTheme.Intent.destructive
         case .ready:
             LadleTheme.Intent.success
         case .parsing, .needsReview:

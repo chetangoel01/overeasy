@@ -144,7 +144,7 @@ struct ReimportSheet: View {
         VStack(spacing: LadleTheme.Layout.sectionGap) {
             ProgressView()
                 .controlSize(.large)
-                .tint(LadleTheme.Label.accent)
+                .tint(LadleTheme.Intent.accent)
             Text("Building a replacement")
                 .ladleFont(.title)
                 .foregroundStyle(LadleTheme.Label.primary)
@@ -209,7 +209,7 @@ struct ReimportSheet: View {
     ) -> some View {
         VStack(spacing: LadleTheme.Layout.sectionGap) {
             Image(systemName: icon)
-                .font(.system(size: 24, weight: .bold))
+                .font(.system(size: LadleTheme.IconSize.feature, weight: .bold))
                 .foregroundStyle(LadleTheme.Label.onAccent)
                 .frame(width: 62, height: 62)
                 .background(LadleTheme.Intent.accent, in: Circle())
@@ -234,10 +234,10 @@ struct ReimportSheet: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: LadleTheme.Spacing.medium) {
             Image(systemName: icon)
-                .font(.system(size: 21, weight: .semibold))
+                .font(.system(size: LadleTheme.IconSize.large, weight: .semibold))
                 .foregroundStyle(LadleTheme.Label.accent)
                 .frame(width: 50, height: 50)
-                .background(LadleTheme.Surface.steel, in: Circle())
+                .background(LadleTheme.Surface.badge, in: Circle())
             Text(title)
                 .ladleFont(.title)
                 .foregroundStyle(LadleTheme.Label.primary)
@@ -337,9 +337,7 @@ struct ReimportDecisionView: View {
                     isResolving = true
                     keepCurrent()
                 }
-                    .ladleFont(.bodyStrong)
-                    .foregroundStyle(LadleTheme.Label.primary)
-                    .frame(maxWidth: .infinity, minHeight: 44)
+                .buttonStyle(LadleButtonStyle(role: .secondary))
             }
             .padding(LadleTheme.Spacing.generous)
             .disabled(isResolving)
@@ -354,10 +352,10 @@ struct ReimportDecisionView: View {
                     ? "pencil.and.list.clipboard"
                     : "checkmark"
             )
-            .font(.system(size: 21, weight: .semibold))
+            .font(.system(size: LadleTheme.IconSize.large, weight: .semibold))
             .foregroundStyle(LadleTheme.Label.accent)
             .frame(width: 50, height: 50)
-            .background(LadleTheme.Surface.steel, in: Circle())
+            .background(LadleTheme.Surface.badge, in: Circle())
             Text(
                 requiresReview
                     ? "Review the replacement"

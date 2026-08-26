@@ -27,7 +27,7 @@ struct IngredientList: View {
                 VStack(alignment: .leading, spacing: LadleTheme.Spacing.compact) {
                     HStack(alignment: .firstTextBaseline, spacing: LadleTheme.Layout.iconGap) {
                         Circle()
-                            .fill(LadleTheme.Label.accent)
+                            .fill(LadleTheme.Label.secondary)
                             .frame(width: Self.bulletWidth, height: Self.bulletWidth)
                             .accessibilityHidden(true)
 

@@ -127,6 +127,118 @@ final class DesignTokenTests: XCTestCase {
         )
     }
 
+    func testRaisedCardBadgesUseTheDistinctBadgeSurface() throws {
+        let expectedCounts = [
+            "Ladle/Account/AccountSheet.swift": 4,
+            "Ladle/Account/GuestLimitView.swift": 1,
+            "Ladle/Edit/ReimportSheet.swift": 2,
+            "Ladle/Health/HealthExportSheet.swift": 1,
+            "Ladle/Import/AddRecipeSheet.swift": 4,
+            "Ladle/Import/FailedImportSheet.swift": 1,
+        ]
+        let project = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+
+        for (path, expectedCount) in expectedCounts {
+            let source = try String(
+                contentsOf: project.appendingPathComponent(path),
+                encoding: .utf8
+            )
+            let count = source.components(
+                separatedBy: "LadleTheme.Surface.badge, in: Circle()"
+            ).count - 1
+            XCTAssertEqual(count, expectedCount, path)
+        }
+    }
+
+    func testControlTintsUseIntentAndDecorativeBulletsStayNeutral() throws {
+        let project = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let sources = try productionSwiftSources(
+            under: project.appendingPathComponent("Ladle")
+        )
+        var offenders: [String] = []
+
+        for file in sources {
+            let source = try String(contentsOf: file, encoding: .utf8)
+            if source.contains(".tint(LadleTheme.Label.accent)")
+                || source.contains(".fill(LadleTheme.Label.accent)") {
+                offenders.append(file.lastPathComponent)
+            }
+        }
+
+        XCTAssertEqual(offenders.sorted(), [])
+        let editor = try String(
+            contentsOf: project.appendingPathComponent(
+                "Ladle/Edit/RecipeEditorView.swift"
+            ),
+            encoding: .utf8
+        )
+        XCTAssertTrue(editor.contains("? LadleTheme.Intent.accent"))
+    }
+
+    func testProductionUsesNamedControlHeights() throws {
+        let project = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let sourceRoots = [
+            project.appendingPathComponent("Ladle"),
+            project.appendingPathComponent("LadleShare"),
+        ]
+        let rawPatterns = [
+            ".frame(minHeight: 44)",
+            ".frame(minHeight: 46)",
+            ".frame(minHeight: 48)",
+            ".frame(minHeight: 50)",
+            ".frame(minHeight: 52)",
+            ".frame(minHeight: 56)",
+            ".frame(height: 52)",
+            ".frame(width: 32, height: 44)",
+            ".frame(width: 44, height: 44)",
+        ]
+        var offenders: [String] = []
+
+        for root in sourceRoots {
+            for file in try productionSwiftSources(under: root) {
+                let source = try String(contentsOf: file, encoding: .utf8)
+                let patterns = rawPatterns.filter(source.contains)
+                if !patterns.isEmpty {
+                    offenders.append(file.lastPathComponent)
+                }
+            }
+        }
+
+        XCTAssertEqual(offenders.sorted(), [])
+    }
+
+    func testProductionUsesNamedIconSizes() throws {
+        let project = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let sourceRoots = [
+            project.appendingPathComponent("Ladle"),
+            project.appendingPathComponent("LadleShare"),
+        ]
+        let rawIconSize = try NSRegularExpression(
+            pattern: #"\.font\(\.system\(size: [0-9]"#
+        )
+        var offenders: [String] = []
+
+        for root in sourceRoots {
+            for file in try productionSwiftSources(under: root) {
+                let source = try String(contentsOf: file, encoding: .utf8)
+                let range = NSRange(source.startIndex..., in: source)
+                if rawIconSize.firstMatch(in: source, range: range) != nil {
+                    offenders.append(file.lastPathComponent)
+                }
+            }
+        }
+
+        XCTAssertEqual(offenders.sorted(), [])
+    }
+
     func testPorcelainPaletteUsesApprovedHexValues() {
         XCTAssertEqual(LadleTheme.plumHex, "#14181B")
         XCTAssertEqual(LadleTheme.paperHex, "#F2F4F6")
@@ -512,5 +624,23 @@ final class DesignTokenTests: XCTestCase {
             ),
             .zero
         )
+    }
+
+    private func productionSwiftSources(under root: URL) throws -> [URL] {
+        let enumerator = try XCTUnwrap(
+            FileManager.default.enumerator(
+                at: root,
+                includingPropertiesForKeys: nil
+            )
+        )
+        return enumerator.compactMap { entry in
+            guard
+                let file = entry as? URL,
+                file.pathExtension == "swift"
+            else {
+                return nil
+            }
+            return file
+        }
     }
 }

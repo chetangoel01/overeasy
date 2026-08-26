@@ -123,6 +123,13 @@ Task 11 removed the unused `Field`, `Review`, `Success`, `Paprika`, and duplicat
 no direct source call but is retained because Xcode consumes it by catalog
 name.
 
+The Task 11 completion pass reduced numeric production symbol-size calls from
+44 to zero, moved the six observed control heights onto three named roles, and
+gave the undersized search-clear action a 44-by-44 target. All 17 semantic
+surface, label, intent, and stroke roles have live screen consumers. Thirteen
+raised-card icon badges now use the distinct badge surface. The baseline table
+above remains the fixed before-state rather than being rewritten as work lands.
+
 ## State coverage ledger
 
 | Area | Required final states | Status |
@@ -140,10 +147,10 @@ name.
 | Area | Completion criterion | Status |
 | --- | --- | --- |
 | Historical capability integration | guarded tunnel and bounded worker verified on current base | closed in Tasks 2-3 |
-| Semantic components | every button and compatibility style classified; valid call sites migrated | 126 controls classified; legacy primary wrapper removed; remaining hand-built semantic actions open, Task 11 |
+| Semantic components | every button and compatibility style classified; valid call sites migrated | closed in Task 11: 126 controls classified, legacy wrapper removed, ordinary semantic actions use explicit roles, and provider/Focus/inline/native exceptions are recorded |
 | Layout and safe areas | sheet margins and Watch safe-area behavior use approved semantics | closed in Task 11: 11 sheet toolbars aligned and Watch consumes live safe-area insets |
-| Typography and controls | raw typography/control values are intentional or semantic | open, Task 11 |
-| Palette and assets | every role/asset has a live consumer or is removed | raw palette calls confined to theme definitions and five dead compatibility assets removed; final role-consumer audit remains open, Task 11 |
+| Typography and controls | raw typography/control values are intentional or semantic | closed in Task 11: numeric symbol sizes eliminated, interactive heights named, and remaining fixed geometry classified as layout/provider art |
+| Palette and assets | every role/asset has a live consumer or is removed | closed in Task 11: raw palette calls confined to theme definitions, all 17 roles have live consumers, and five dead compatibility assets were removed |
 | Production source | every file and declaration has a live responsibility | open, Task 12 |
 | Tests and fixtures | every fixture is used and every scenario is deterministic | open, Tasks 12-13 |
 | Config and targets | manifests regenerate cleanly; target memberships are intentional | open, Tasks 12-14 |

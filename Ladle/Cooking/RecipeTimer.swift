@@ -241,13 +241,16 @@ struct RecipeTimerButton: View {
                         viewModel.resetTimer(id: detectedTimer.id)
                     } label: {
                         Image(systemName: "arrow.counterclockwise")
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(.system(size: LadleTheme.IconSize.medium, weight: .semibold))
                             .foregroundStyle(
                                 onDark
                                     ? LadleTheme.Label.onAccent
                                     : LadleTheme.Label.accent
                             )
-                            .frame(width: 48, height: 48)
+                            .frame(
+                                width: LadleTheme.Control.field,
+                                height: LadleTheme.Control.field
+                            )
                             .background(
                                 onDark
                                     ? LadleTheme.Label.onAccent.opacity(0.12)
@@ -333,7 +336,7 @@ struct RecipeTimerButton: View {
                 .rotationEffect(.degrees(-90))
 
             Image(systemName: timerIcon)
-                .font(.system(size: 11, weight: .bold))
+                .font(.system(size: LadleTheme.IconSize.small, weight: .bold))
         }
         .frame(width: 32, height: 32)
         .accessibilityHidden(true)

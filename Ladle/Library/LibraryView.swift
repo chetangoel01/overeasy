@@ -336,7 +336,7 @@ struct LibraryView: View {
             isAddSheetPresented = true
         } label: {
             Image(systemName: "plus.circle.fill")
-                .font(.system(size: 20, weight: .semibold))
+                .font(.system(size: LadleTheme.IconSize.large, weight: .semibold))
         }
         .accessibilityLabel("Add recipe")
         .disabled(!canImport)
@@ -567,7 +567,7 @@ private struct LibraryLoadStateView: View {
         VStack(spacing: LadleTheme.Spacing.medium) {
             if let message {
                 Image(systemName: "fork.knife.circle")
-                    .font(.system(size: 34))
+                    .font(.system(size: LadleTheme.IconSize.hero))
                     .foregroundStyle(LadleTheme.Label.accent)
                 Text("Couldn’t load recipes")
                     .ladleFont(.section)

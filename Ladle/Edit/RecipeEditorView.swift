@@ -88,10 +88,10 @@ struct RecipeEditorView: View {
                                     : LadleTheme.Label.primary
                             )
                             .padding(.horizontal, LadleTheme.Spacing.medium)
-                            .frame(minHeight: 44)
+                            .frame(minHeight: LadleTheme.Control.hitTarget)
                             .background(
                                 selectedSection == section
-                                    ? LadleTheme.Label.accent
+                                    ? LadleTheme.Intent.accent
                                     : LadleTheme.Surface.raised,
                                 in: Capsule()
                             )
@@ -322,7 +322,7 @@ struct RecipeEditorView: View {
                 isOn: $viewModel.draft.nutrition.isIncluded
             )
             .ladleFont(.bodyStrong)
-            .tint(LadleTheme.Label.accent)
+            .tint(LadleTheme.Intent.accent)
 
             if viewModel.draft.nutrition.isIncluded {
                 nutritionField(
@@ -367,7 +367,7 @@ struct RecipeEditorView: View {
                     isOn: $viewModel.draft.nutrition.isEstimated
                 )
                 .ladleFont(.bodyStrong)
-                .tint(LadleTheme.Label.accent)
+                .tint(LadleTheme.Intent.accent)
 
                 let nutritionIssues = viewModel.validationIssues.filter {
                     if case .nutritionValueInvalid = $0 {
@@ -529,7 +529,7 @@ struct RecipeEditorView: View {
                     .ladleFont(.body)
                     .keyboardType(keyboardType)
                     .accessibilityLabel(title)
-                    .frame(minHeight: 44)
+                    .frame(minHeight: LadleTheme.Control.hitTarget)
 
                 if showsClearButton, !text.wrappedValue.isEmpty {
                     Button {
@@ -539,13 +539,13 @@ struct RecipeEditorView: View {
                             .foregroundStyle(
                                 LadleTheme.Label.primary.opacity(0.42)
                             )
-                            .frame(width: 44, height: 44)
+                            .frame(width: LadleTheme.Control.hitTarget, height: LadleTheme.Control.hitTarget)
                     }
                     .accessibilityLabel("Clear \(title)")
                 }
             }
                 .padding(.horizontal, LadleTheme.Layout.cardPadding)
-                .frame(minHeight: 50)
+                .frame(minHeight: LadleTheme.Control.primary)
                 .editorSurface()
         }
     }
@@ -561,7 +561,7 @@ struct RecipeEditorView: View {
             TextField(title, text: text)
                 .ladleFont(.body)
                 .padding(.horizontal, 12)
-                .frame(minHeight: 46)
+                .frame(minHeight: LadleTheme.Control.field)
                 .background(
                     LadleTheme.Surface.porcelain,
                     in: RoundedRectangle(
@@ -645,21 +645,21 @@ struct RecipeEditorView: View {
         Group {
             Button(action: moveUp) {
                 Image(systemName: "arrow.up")
-                    .frame(width: 44, height: 44)
+                    .frame(width: LadleTheme.Control.hitTarget, height: LadleTheme.Control.hitTarget)
             }
             .disabled(index == 0)
             .accessibilityLabel("Move \(title) up")
 
             Button(action: moveDown) {
                 Image(systemName: "arrow.down")
-                    .frame(width: 44, height: 44)
+                    .frame(width: LadleTheme.Control.hitTarget, height: LadleTheme.Control.hitTarget)
             }
             .disabled(index == count - 1)
             .accessibilityLabel("Move \(title) down")
 
             Button(role: .destructive, action: delete) {
                 Image(systemName: "trash")
-                    .frame(width: 44, height: 44)
+                    .frame(width: LadleTheme.Control.hitTarget, height: LadleTheme.Control.hitTarget)
             }
             .accessibilityLabel("Delete \(title)")
         }

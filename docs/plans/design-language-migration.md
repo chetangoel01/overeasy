@@ -48,9 +48,10 @@ starting figure is 83, and even that missed a literal hidden inside a ternary
 in `RecipeMetadataBand`.
 
 Control heights fold into three: 46 and 48 to `Control.field`; 50, 52 and 56 to
-`Control.primary`; 44 stays `Control.hitTarget`. **Not started** — a settings
-row moving from 56 to 48 is a visible change rather than a rounding, so it
-wants its own pass with screenshots.
+`Control.primary`; 44 stays `Control.hitTarget`. **Done.** Production controls
+in both the app and Share Extension use those names. Fixed illustration, badge,
+divider, and provider-art dimensions remain layout geometry rather than being
+mislabelled as control heights.
 
 ### The rules the first six files settled
 
@@ -350,10 +351,11 @@ The first migration in this batch is value-preserving. Thirty-two call sites
 now state `.primary` or `.secondary` directly through `LadleButtonStyle`; the
 compatibility `LadlePrimaryButtonStyle` type is deleted. Native menu/dialog
 actions, icon controls, and row/card interactions retain their native or press
-styles. Later Task 11 batches will review the remaining hand-built semantic
-actions individually, because Focus Mode, Sign in with Apple, and compact
-inline recovery actions have intentional presentations that should not be
-mechanically flattened into the filled-button shape.
+styles. The final Task 11 pass moved the remaining ordinary alternatives,
+destructive action, and low-commitment escapes onto explicit secondary,
+destructive, and tertiary roles. Focus Mode's fixed-signal cooking action,
+Apple and Google provider controls, and compact inline recovery actions retain
+their intentional system, provider, or space-constrained presentations.
 
 Verification on August 26, 2026:
 
@@ -433,3 +435,42 @@ Verification on August 26, 2026:
   tab bar;
 - the representative Settings and recipe-options captures confirm toolbar and
   content edges align at the approved sheet margin.
+
+## Step 4, batch 3: control scale, icon scale, badges, and action intent
+
+Production symbol sizes now use the approved five-name `IconSize` scale; no
+numeric `.font(.system(size:))` call remains in the app or Share Extension.
+Interactive heights use `Control.hitTarget`, `Control.field`, or
+`Control.primary`, including the provider containers. The search clear action
+also gained a full 44-by-44 target instead of its previous 32-point width.
+
+Thirteen icon badges across account, guest limit, re-import, Health, Add
+Recipe, and failed-import screens now use `Surface.badge`. Progress and
+selection controls use `Intent.accent`, while decorative bullets and the
+nutrition visualization use neutral label roles. Eight ordinary hand-built
+semantic actions moved to `LadleButtonStyle`; the intentional provider,
+Focus Mode, compact-inline, icon, navigation, row, menu, dialog, and context
+controls retain the presentations recorded in the complete 126-control
+inventory.
+
+Verification on August 26, 2026:
+
+- four structural tests first failed on steel-on-raised badges, label colours
+  carrying control intent, numeric control heights, and numeric symbol sizes;
+- a strengthened control test then failed on the Apple control and 32-point
+  search-clear target before both moved to named 52- and 44-point roles;
+- all 29 `DesignTokenTests` and the focused Share, Settings, failed-import,
+  recipe-options, and Watch tests pass;
+- the complete `LadleTests` target passes 238 tests: 237 passed and the one
+  live App Attest test was intentionally skipped;
+- a generic simulator build passes for the Ladle app and its embedded Share
+  Extension;
+- ten retained captures cover Share success/failure/loading, dark and
+  accessibility appearances, Settings, grid/list, failed import, recipe
+  options, and Watch at
+  `~/Desktop/overeasy-ui-scratch/consolidated-step11/control-scale-20260826-1508/`;
+  visual review found no crowding, hierarchy regression, or safe-area overlap.
+
+The generic build still reports the Google Sign-In completion sendability
+warning, and the full unit run can emit delayed UIKit appearance-transition
+messages after rendered Share tests. Both are explicit Task 12 cleanup inputs.

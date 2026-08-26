@@ -71,7 +71,7 @@ struct ShareConfirmationView: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(ShareTheme.Label.primary.opacity(0.72))
                     .padding(.horizontal, ShareTheme.Spacing.regular)
-                    .frame(minHeight: 44)
+                    .frame(minHeight: ShareTheme.Control.hitTarget)
                     .background(
                         ShareTheme.Surface.raised,
                         in: Capsule()
@@ -92,14 +92,14 @@ struct ShareConfirmationView: View {
                 .accessibilityLabel("Saving shared recipe")
         case .success:
             Image(systemName: "checkmark")
-                .font(.system(size: 34, weight: .bold))
+                .font(.system(size: ShareTheme.IconSize.hero, weight: .bold))
                 .foregroundStyle(ShareTheme.Label.onAccent)
                 .frame(width: 86, height: 86)
                 .background(ShareTheme.Intent.accent, in: Circle())
                 .accessibilityLabel("Recipe link saved")
         case .failure:
             Image(systemName: "exclamationmark")
-                .font(.system(size: 34, weight: .bold))
+                .font(.system(size: ShareTheme.IconSize.hero, weight: .bold))
                 .foregroundStyle(ShareTheme.Label.accent)
                 .frame(width: 86, height: 86)
                 .background(ShareTheme.Surface.steel, in: Circle())
@@ -146,7 +146,10 @@ private struct SharePrimaryButtonStyle: ButtonStyle {
         configuration.label
             .font(.body.weight(.semibold))
             .foregroundStyle(ShareTheme.Label.onAccent)
-            .frame(maxWidth: .infinity, minHeight: 52)
+            .frame(
+                maxWidth: .infinity,
+                minHeight: ShareTheme.Control.primary
+            )
             .background(
                 ShareTheme.Intent.accent.opacity(
                     configuration.isPressed ? 0.78 : 1
@@ -165,6 +168,15 @@ private enum ShareTheme {
         static let compact: CGFloat = 8
         static let regular: CGFloat = 16
         static let generous: CGFloat = 24
+    }
+
+    enum Control {
+        static let hitTarget: CGFloat = 44
+        static let primary: CGFloat = 52
+    }
+
+    enum IconSize {
+        static let hero: CGFloat = 38
     }
 
     // Mirrors LadleTheme's semantic color roles. The extension is a separate

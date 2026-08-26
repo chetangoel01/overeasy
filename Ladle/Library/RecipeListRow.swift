@@ -36,13 +36,13 @@ struct RecipeListRow: View {
                         ? "heart.fill"
                         : "heart"
                 )
-                .font(.system(size: 17, weight: .semibold))
+                .font(.system(size: LadleTheme.IconSize.medium, weight: .semibold))
                 .foregroundStyle(
                     recipe.isFavorite
                         ? LadleTheme.Label.accent
                         : LadleTheme.Label.primary.opacity(0.52)
                 )
-                .frame(width: 44, height: 44)
+                .frame(width: LadleTheme.Control.hitTarget, height: LadleTheme.Control.hitTarget)
             }
             .buttonStyle(LadlePressButtonStyle())
             .accessibilityLabel(

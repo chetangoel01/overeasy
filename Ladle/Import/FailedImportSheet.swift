@@ -83,10 +83,10 @@ struct FailedImportSheet: View {
                 systemName: currentFailure.report?.failure.systemImage
                     ?? "exclamationmark.triangle.fill"
             )
-                .font(.system(size: 22))
+                .font(.system(size: LadleTheme.IconSize.large))
                 .foregroundStyle(LadleTheme.Label.accent)
                 .frame(width: 52, height: 52)
-                .background(LadleTheme.Surface.steel, in: Circle())
+                .background(LadleTheme.Surface.badge, in: Circle())
 
             Text(currentFailure.title)
                 .ladleFont(.title)

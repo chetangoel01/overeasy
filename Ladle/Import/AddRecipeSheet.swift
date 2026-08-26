@@ -63,7 +63,7 @@ struct AddRecipeSheet: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(action: close) {
                         Image(systemName: "xmark")
-                            .frame(width: 44, height: 44)
+                            .frame(width: LadleTheme.Control.hitTarget, height: LadleTheme.Control.hitTarget)
                     }
                     .accessibilityLabel("Close")
                     .padding(
@@ -156,7 +156,7 @@ struct AddRecipeSheet: View {
                     .ladleFont(.body)
                     .foregroundStyle(LadleTheme.Label.primary)
                     .padding(.horizontal, LadleTheme.Layout.cardPadding)
-                    .frame(minHeight: 52)
+                    .frame(minHeight: LadleTheme.Control.primary)
                     .background(
                         LadleTheme.Surface.raised,
                         in: RoundedRectangle(
@@ -187,10 +187,8 @@ struct AddRecipeSheet: View {
                     selectedDetent = .large
                 } label: {
                     Label("Create manually", systemImage: "square.and.pencil")
-                        .frame(maxWidth: .infinity, minHeight: 48)
                 }
-                .ladleFont(.bodyStrong)
-                .foregroundStyle(LadleTheme.Label.primary)
+                .buttonStyle(LadleButtonStyle(role: .secondary))
 
                 HStack(spacing: LadleTheme.Layout.iconGap) {
                     Image(systemName: "square.and.arrow.up")
@@ -226,7 +224,7 @@ struct AddRecipeSheet: View {
                     TextField("Recipe title", text: $manualTitle)
                         .ladleFont(.body)
                         .padding(.horizontal, LadleTheme.Layout.cardPadding)
-                        .frame(minHeight: 50)
+                        .frame(minHeight: LadleTheme.Control.primary)
                         .background(
                             LadleTheme.Surface.raised,
                             in: RoundedRectangle(
@@ -275,9 +273,7 @@ struct AddRecipeSheet: View {
                     isManualEntry = false
                     selectedDetent = .medium
                 }
-                .ladleFont(.bodyStrong)
-                .foregroundStyle(LadleTheme.Label.primary)
-                .frame(maxWidth: .infinity, minHeight: 44)
+                .buttonStyle(LadleButtonStyle(role: .secondary))
             }
             .foregroundStyle(LadleTheme.Label.primary)
             .padding(LadleTheme.Spacing.generous)
@@ -289,9 +285,9 @@ struct AddRecipeSheet: View {
         VStack(spacing: LadleTheme.Layout.sectionGap) {
             ProgressView()
                 .controlSize(.large)
-                .tint(LadleTheme.Label.accent)
+                .tint(LadleTheme.Intent.accent)
                 .frame(width: 64, height: 64)
-                .background(LadleTheme.Surface.steel, in: Circle())
+                .background(LadleTheme.Surface.badge, in: Circle())
 
             VStack(spacing: 8) {
                 Text("Cracking this one open")
@@ -306,9 +302,7 @@ struct AddRecipeSheet: View {
             Button("Cancel Import", role: .destructive) {
                 isCancelConfirmationPresented = true
             }
-            .ladleFont(.bodyStrong)
-            .foregroundStyle(.red)
-            .frame(maxWidth: .infinity, minHeight: 48)
+            .buttonStyle(LadleButtonStyle(role: .destructive))
         }
         .padding(LadleTheme.Spacing.generous)
     }
@@ -320,7 +314,7 @@ struct AddRecipeSheet: View {
                     ? "pencil.and.list.clipboard"
                     : "checkmark"
             )
-            .font(.system(size: 25, weight: .bold))
+            .font(.system(size: LadleTheme.IconSize.feature, weight: .bold))
             .foregroundStyle(
                 LadleTheme.Label.primary
             )
@@ -361,9 +355,7 @@ struct AddRecipeSheet: View {
                 coordinator.reset()
                 dismiss()
             }
-            .ladleFont(.bodyStrong)
-            .foregroundStyle(LadleTheme.Label.primary)
-            .frame(minHeight: 44)
+            .buttonStyle(LadleButtonStyle(role: .tertiary))
         }
         .padding(LadleTheme.Spacing.generous)
     }
@@ -371,10 +363,10 @@ struct AddRecipeSheet: View {
     private var duplicateContent: some View {
         VStack(spacing: LadleTheme.Layout.sectionGap) {
             Image(systemName: "rectangle.on.rectangle")
-                .font(.system(size: 24, weight: .semibold))
+                .font(.system(size: LadleTheme.IconSize.feature, weight: .semibold))
                 .foregroundStyle(LadleTheme.Label.accent)
                 .frame(width: 60, height: 60)
-                .background(LadleTheme.Surface.steel, in: Circle())
+                .background(LadleTheme.Surface.badge, in: Circle())
 
             VStack(spacing: 8) {
                 Text("Already in your recipes")
@@ -435,10 +427,10 @@ struct AddRecipeSheet: View {
                     systemName: failure.report?.failure.systemImage
                         ?? "exclamationmark.triangle.fill"
                 )
-                    .font(.system(size: 24))
+                    .font(.system(size: LadleTheme.IconSize.feature))
                     .foregroundStyle(LadleTheme.Label.accent)
                     .frame(width: 60, height: 60)
-                    .background(LadleTheme.Surface.steel, in: Circle())
+                    .background(LadleTheme.Surface.badge, in: Circle())
                 Text(failure.title)
                     .ladleFont(.title)
                     .foregroundStyle(LadleTheme.Label.primary)
@@ -458,9 +450,7 @@ struct AddRecipeSheet: View {
                     coordinator.reset()
                     dismiss()
                 }
-                .ladleFont(.bodyStrong)
-                .foregroundStyle(LadleTheme.Label.primary)
-                .frame(minHeight: 44)
+                .buttonStyle(LadleButtonStyle(role: .tertiary))
             }
             .padding(LadleTheme.Spacing.generous)
         }
@@ -509,10 +499,10 @@ struct AddRecipeSheet: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 20, weight: .semibold))
+                .font(.system(size: LadleTheme.IconSize.large, weight: .semibold))
                 .foregroundStyle(LadleTheme.Label.accent)
                 .frame(width: 48, height: 48)
-                .background(LadleTheme.Surface.steel, in: Circle())
+                .background(LadleTheme.Surface.badge, in: Circle())
             Text(title)
                 .ladleFont(.title)
                 .foregroundStyle(LadleTheme.Label.primary)

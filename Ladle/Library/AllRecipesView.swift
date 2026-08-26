@@ -55,7 +55,10 @@ struct AllRecipesView: View {
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(LadleTheme.Label.secondary)
-                        .frame(width: 32, height: 44)
+                        .frame(
+                            width: LadleTheme.Control.hitTarget,
+                            height: LadleTheme.Control.hitTarget
+                        )
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Clear search")
@@ -64,7 +67,7 @@ struct AllRecipesView: View {
         .ladleFont(.body)
         .foregroundStyle(LadleTheme.Label.primary)
         .padding(.horizontal, LadleTheme.Layout.cardPadding)
-        .frame(minHeight: 48)
+        .frame(minHeight: LadleTheme.Control.field)
         .background(
             LadleTheme.Surface.raised,
             in: RoundedRectangle(
@@ -180,7 +183,7 @@ struct AllRecipesView: View {
                     } label: {
                         HStack(spacing: 12) {
                             Image(systemName: row.systemImage)
-                                .font(.system(size: 15, weight: .semibold))
+                                .font(.system(size: LadleTheme.IconSize.small, weight: .semibold))
                                 .foregroundStyle(LadleTheme.Label.accent)
                                 .frame(width: Self.collectionIconWidth)
                             Text(row.title)
@@ -191,10 +194,10 @@ struct AllRecipesView: View {
                                 .ladleFont(.metadata)
                                 .foregroundStyle(LadleTheme.Label.secondary)
                             Image(systemName: "chevron.right")
-                                .font(.system(size: 12, weight: .semibold))
+                                .font(.system(size: LadleTheme.IconSize.small, weight: .semibold))
                                 .foregroundStyle(LadleTheme.Label.secondary)
                         }
-                        .frame(minHeight: 52)
+                        .frame(minHeight: LadleTheme.Control.primary)
                         .padding(.horizontal, 12)
                     }
                     .buttonStyle(.plain)
@@ -305,7 +308,7 @@ struct AllRecipesView: View {
     private var emptyState: some View {
         VStack(spacing: LadleTheme.Spacing.medium) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 28))
+                .font(.system(size: LadleTheme.IconSize.feature))
                 .foregroundStyle(LadleTheme.Label.accent)
             Text("No recipes found")
                 .ladleFont(.section)
@@ -409,9 +412,9 @@ struct AllRecipesView: View {
 
     private func controlIcon(_ systemImage: String) -> some View {
         Image(systemName: systemImage)
-            .font(.system(size: 15, weight: .semibold))
+            .font(.system(size: LadleTheme.IconSize.small, weight: .semibold))
             .foregroundStyle(LadleTheme.Label.primary)
-            .frame(width: 44, height: 44)
+            .frame(width: LadleTheme.Control.hitTarget, height: LadleTheme.Control.hitTarget)
     }
 
     private func setDisplayMode(_ mode: LibraryDisplayMode) {

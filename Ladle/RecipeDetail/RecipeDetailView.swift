@@ -168,7 +168,7 @@ struct RecipeDetailView: View {
                         isOptionsPresented = true
                     } label: {
                         Image(systemName: "ellipsis")
-                            .frame(width: 44, height: 44)
+                            .frame(width: LadleTheme.Control.hitTarget, height: LadleTheme.Control.hitTarget)
                     }
                     .foregroundStyle(LadleTheme.Label.primary)
                     .buttonStyle(LadlePressButtonStyle())
@@ -178,7 +178,7 @@ struct RecipeDetailView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Button(action: openAccount) {
                     Image(systemName: "person.crop.circle")
-                        .frame(width: 44, height: 44)
+                        .frame(width: LadleTheme.Control.hitTarget, height: LadleTheme.Control.hitTarget)
                 }
                 .foregroundStyle(LadleTheme.Label.primary)
                 .buttonStyle(LadlePressButtonStyle())
@@ -327,7 +327,7 @@ struct RecipeDetailView: View {
                 ) { _, note in
                     HStack(alignment: .top, spacing: LadleTheme.Layout.iconGap) {
                         Circle()
-                            .fill(LadleTheme.Label.accent)
+                            .fill(LadleTheme.Label.secondary)
                             .frame(width: 5, height: 5)
                             .padding(.top, LadleTheme.Spacing.compact)
                             .accessibilityHidden(true)
@@ -409,7 +409,7 @@ struct RecipeDetailView: View {
             )
             .ladleFont(.bodyStrong)
             .foregroundStyle(LadleTheme.Label.primary)
-            .frame(maxWidth: .infinity, minHeight: 52)
+            .frame(maxWidth: .infinity, minHeight: LadleTheme.Control.primary)
             .background(
                 LadleTheme.Intent.success.opacity(0.62),
                 in: RoundedRectangle(
@@ -451,7 +451,7 @@ struct RecipeDetailView: View {
                 .foregroundStyle(
                     isFavorite ? LadleTheme.Label.accent : LadleTheme.Label.primary
                 )
-                .frame(width: 44, height: 44)
+                .frame(width: LadleTheme.Control.hitTarget, height: LadleTheme.Control.hitTarget)
         }
         .buttonStyle(LadlePressButtonStyle())
         .accessibilityLabel(

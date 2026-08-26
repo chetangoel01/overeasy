@@ -99,7 +99,7 @@ struct OnboardingWalkthroughView: View {
                 Text("Skip")
                     .ladleFont(.bodyStrong)
                     .foregroundStyle(LadleTheme.Label.primary)
-                    .frame(minWidth: 44, minHeight: 44)
+                    .frame(minWidth: 44, minHeight: LadleTheme.Control.hitTarget)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -136,7 +136,7 @@ struct OnboardingWalkthroughView: View {
                         .fill(LadleTheme.Surface.graphite)
 
                         Image(systemName: "play.fill")
-                            .font(.system(size: 20, weight: .bold))
+                            .font(.system(size: LadleTheme.IconSize.large, weight: .bold))
                             .foregroundStyle(LadleTheme.Label.onAccent)
                     }
                     .frame(width: 52, height: 64)
@@ -155,9 +155,9 @@ struct OnboardingWalkthroughView: View {
                     Spacer(minLength: LadleTheme.Spacing.compact)
 
                     Image(systemName: "square.and.arrow.up")
-                        .font(.system(size: 22, weight: .semibold))
+                        .font(.system(size: LadleTheme.IconSize.large, weight: .semibold))
                         .foregroundStyle(LadleTheme.Label.accent)
-                        .frame(width: 44, height: 44)
+                        .frame(width: LadleTheme.Control.hitTarget, height: LadleTheme.Control.hitTarget)
                 }
                 .padding(LadleTheme.Spacing.regular)
                 .background(
@@ -169,7 +169,7 @@ struct OnboardingWalkthroughView: View {
                 )
 
                 Image(systemName: "arrow.down")
-                    .font(.system(size: 18, weight: .bold))
+                    .font(.system(size: LadleTheme.IconSize.medium, weight: .bold))
                     .foregroundStyle(LadleTheme.Label.accent)
                     .accessibilityHidden(true)
 
@@ -177,7 +177,7 @@ struct OnboardingWalkthroughView: View {
                     Image("OvereasyMark")
                         .resizable()
                         .scaledToFit()
-                        .frame(width: 44, height: 44)
+                        .frame(width: LadleTheme.Control.hitTarget, height: LadleTheme.Control.hitTarget)
                         .clipShape(
                             RoundedRectangle(
                                 cornerRadius: 12,
@@ -192,7 +192,7 @@ struct OnboardingWalkthroughView: View {
                     Spacer()
 
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.system(size: LadleTheme.IconSize.small, weight: .bold))
                         .foregroundStyle(LadleTheme.Label.secondary)
                 }
                 .padding(LadleTheme.Spacing.regular)
@@ -333,7 +333,7 @@ struct OnboardingWalkthroughView: View {
                     .ladleFont(.metadata)
                     .foregroundStyle(LadleTheme.Label.primary)
                     .padding(.horizontal, LadleTheme.Spacing.medium)
-                    .frame(minHeight: 44)
+                    .frame(minHeight: LadleTheme.Control.hitTarget)
                     .background(LadleTheme.Intent.success, in: Capsule())
             }
         }

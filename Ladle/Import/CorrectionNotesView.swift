@@ -34,7 +34,7 @@ struct CorrectionNotesView: View {
                         TextField("Recipe title", text: $title)
                             .ladleFont(.body)
                             .padding(.horizontal, LadleTheme.Layout.cardPadding)
-                            .frame(minHeight: 50)
+                            .frame(minHeight: LadleTheme.Control.primary)
                             .background(
                                 LadleTheme.Surface.raised,
                                 in: RoundedRectangle(

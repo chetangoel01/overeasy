@@ -11,10 +11,10 @@ struct GuestLimitView: View {
             LadleSheetHandle()
 
             Image(systemName: "books.vertical")
-                .font(.system(size: 24, weight: .semibold))
+                .font(.system(size: LadleTheme.IconSize.feature, weight: .semibold))
                 .foregroundStyle(LadleTheme.Label.accent)
                 .frame(width: 54, height: 54)
-                .background(LadleTheme.Surface.steel, in: Circle())
+                .background(LadleTheme.Surface.badge, in: Circle())
 
             VStack(spacing: LadleTheme.Spacing.compact) {
                 Text(title)
@@ -34,8 +34,7 @@ struct GuestLimitView: View {
 
             if decision == .allowWithAccountPrompt {
                 Button("Save recipe and continue", action: continueAction)
-                    .ladleFont(.bodyStrong)
-                    .foregroundStyle(LadleTheme.Label.primary)
+                    .buttonStyle(LadleButtonStyle(role: .secondary))
             }
         }
         .padding(LadleTheme.Spacing.generous)

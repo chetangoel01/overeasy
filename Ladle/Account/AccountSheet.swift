@@ -101,10 +101,10 @@ struct AccountSheet: View {
     private var accountSummary: some View {
         HStack(alignment: .top, spacing: LadleTheme.Spacing.regular) {
             Image(systemName: "person.crop.circle.badge.checkmark")
-                .font(.system(size: 24, weight: .semibold))
+                .font(.system(size: LadleTheme.IconSize.feature, weight: .semibold))
                 .foregroundStyle(LadleTheme.Label.accent)
                 .frame(width: 52, height: 52)
-                .background(LadleTheme.Surface.steel, in: Circle())
+                .background(LadleTheme.Surface.badge, in: Circle())
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: LadleTheme.Spacing.compact) {
@@ -172,10 +172,10 @@ struct AccountSheet: View {
             } label: {
                 HStack(spacing: LadleTheme.Layout.iconGap) {
                     Image(systemName: "hand.raised")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.system(size: LadleTheme.IconSize.medium, weight: .semibold))
                         .foregroundStyle(LadleTheme.Label.accent)
                         .frame(width: Self.rowIconWidth, height: Self.rowIconWidth)
-                        .background(LadleTheme.Surface.steel, in: Circle())
+                        .background(LadleTheme.Surface.badge, in: Circle())
                     VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
                         Text("Privacy & data")
                             .ladleFont(.body)
@@ -186,12 +186,12 @@ struct AccountSheet: View {
                     }
                     Spacer()
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(size: LadleTheme.IconSize.small, weight: .semibold))
                         .foregroundStyle(LadleTheme.Label.secondary)
                 }
                 .padding(.horizontal, LadleTheme.Layout.cardPadding)
                 .padding(.vertical, LadleTheme.Spacing.medium)
-                .frame(minHeight: 56)
+                .frame(minHeight: LadleTheme.Control.primary)
                 .background(LadleTheme.Surface.raised, in: accountShape)
                 .overlay {
                     accountShape
@@ -221,11 +221,11 @@ struct AccountSheet: View {
                                 .fill(accent.actionColor)
                             if selectedAccent == accent {
                                 Image(systemName: "checkmark")
-                                    .font(.system(size: 14, weight: .bold))
+                                    .font(.system(size: LadleTheme.IconSize.small, weight: .bold))
                                     .foregroundStyle(LadleTheme.Label.onAccent)
                             }
                         }
-                        .frame(width: 44, height: 44)
+                        .frame(width: LadleTheme.Control.hitTarget, height: LadleTheme.Control.hitTarget)
                         .frame(maxWidth: .infinity)
                         .contentShape(Rectangle())
                     }
@@ -437,10 +437,10 @@ struct AccountSheet: View {
             spacing: LadleTheme.Layout.iconGap
         ) {
             Image(systemName: icon)
-                .font(.system(size: 16, weight: .semibold))
+                .font(.system(size: LadleTheme.IconSize.medium, weight: .semibold))
                 .foregroundStyle(LadleTheme.Label.accent)
                 .frame(width: Self.rowIconWidth, height: Self.rowIconWidth)
-                .background(LadleTheme.Surface.steel, in: Circle())
+                .background(LadleTheme.Surface.badge, in: Circle())
 
             if dynamicTypeSize.isAccessibilitySize {
                 VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
@@ -455,7 +455,7 @@ struct AccountSheet: View {
         }
         .padding(.horizontal, LadleTheme.Layout.cardPadding)
         .padding(.vertical, LadleTheme.Spacing.medium)
-        .frame(minHeight: 56)
+        .frame(minHeight: LadleTheme.Control.primary)
         .accessibilityElement(children: .combine)
     }
 
@@ -480,12 +480,12 @@ struct AccountSheet: View {
     ) -> some View {
         HStack(spacing: LadleTheme.Layout.iconGap) {
             Image(systemName: icon)
-                .font(.system(size: 16, weight: .semibold))
+                .font(.system(size: LadleTheme.IconSize.medium, weight: .semibold))
                 .foregroundStyle(
                     isDestructive ? Color.red : LadleTheme.Label.primary
                 )
                 .frame(width: Self.rowIconWidth, height: Self.rowIconWidth)
-                .background(LadleTheme.Surface.steel, in: Circle())
+                .background(LadleTheme.Surface.badge, in: Circle())
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
@@ -506,7 +506,7 @@ struct AccountSheet: View {
                 ProgressView()
             } else {
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: LadleTheme.IconSize.small, weight: .semibold))
                     .foregroundStyle(LadleTheme.Label.secondary)
                     .accessibilityHidden(true)
             }

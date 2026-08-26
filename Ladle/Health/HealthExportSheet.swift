@@ -88,10 +88,10 @@ struct HealthExportSheet: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: LadleTheme.Spacing.medium) {
             Image(systemName: "heart.text.clipboard")
-                .font(.system(size: 22, weight: .semibold))
+                .font(.system(size: LadleTheme.IconSize.large, weight: .semibold))
                 .foregroundStyle(LadleTheme.Label.accent)
                 .frame(width: 52, height: 52)
-                .background(LadleTheme.Surface.steel, in: Circle())
+                .background(LadleTheme.Surface.badge, in: Circle())
 
             Text("Add nutrition to Apple Health")
                 .ladleFont(.title)
@@ -252,7 +252,7 @@ struct HealthExportSheet: View {
     ) -> some View {
         VStack(spacing: LadleTheme.Spacing.regular) {
             Image(systemName: icon)
-                .font(.system(size: 24, weight: .bold))
+                .font(.system(size: LadleTheme.IconSize.feature, weight: .bold))
                 .foregroundStyle(LadleTheme.Label.onAccent)
                 .frame(width: 62, height: 62)
                 .background(LadleTheme.Intent.accent, in: Circle())
@@ -275,9 +275,7 @@ struct HealthExportSheet: View {
             Button("Close") {
                 dismiss()
             }
-            .ladleFont(.bodyStrong)
-            .foregroundStyle(LadleTheme.Label.primary)
-            .frame(minHeight: 44)
+            .buttonStyle(LadleButtonStyle(role: .tertiary))
         }
         .padding(LadleTheme.Spacing.generous)
     }

@@ -52,9 +52,9 @@ struct FullRecipeView: View {
                         dismiss()
                     } label: {
                         Image(systemName: "xmark")
-                            .font(.system(size: 15, weight: .bold))
+                            .font(.system(size: LadleTheme.IconSize.small, weight: .bold))
                             .foregroundStyle(LadleTheme.Label.primary)
-                            .frame(width: 44, height: 44)
+                            .frame(width: LadleTheme.Control.hitTarget, height: LadleTheme.Control.hitTarget)
                             .background(LadleTheme.Surface.steel, in: Circle())
                     }
                     .accessibilityLabel("Close cooking")
@@ -97,9 +97,9 @@ struct FullRecipeView: View {
             )
             .ladleFont(.bodyStrong)
             .foregroundStyle(LadleTheme.Label.primary)
-            .tint(LadleTheme.Label.accent)
+            .tint(LadleTheme.Intent.accent)
             .padding(.horizontal, 16)
-            .frame(minHeight: 56)
+            .frame(minHeight: LadleTheme.Control.primary)
             .background(
                 LadleTheme.Surface.raised,
                 in: RoundedRectangle(
@@ -125,7 +125,7 @@ struct FullRecipeView: View {
                 text: viewModel.progressText,
                 systemImage: "chevron.down"
             )
-            .frame(minHeight: 44)
+            .frame(minHeight: LadleTheme.Control.hitTarget)
         }
         .accessibilityLabel("\(viewModel.progressText) cooking progress")
     }
@@ -138,7 +138,7 @@ struct FullRecipeView: View {
                 .ladleFont(.metadata)
                 .foregroundStyle(LadleTheme.Label.onAccent)
                 .padding(.horizontal, 12)
-                .frame(minHeight: 44)
+                .frame(minHeight: LadleTheme.Control.hitTarget)
                 .background(LadleTheme.Intent.accent, in: Capsule())
         }
         .buttonStyle(LadlePressButtonStyle())
@@ -316,7 +316,7 @@ struct FullRecipeView: View {
 
             if isCompleted {
                 Image(systemName: "checkmark")
-                    .font(.system(size: 12, weight: .bold))
+                    .font(.system(size: LadleTheme.IconSize.small, weight: .bold))
                     .foregroundStyle(LadleTheme.Label.primary)
             } else if let number {
                 Text("\(number)")

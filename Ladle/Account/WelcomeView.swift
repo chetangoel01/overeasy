@@ -201,7 +201,7 @@ struct WelcomeView: View {
             // `.environment(\.colorScheme, .dark)`, so on a light-mode device
             // it picked `.black` and painted a black button onto #14181B.
             .signInWithAppleButtonStyle(.white)
-            .frame(height: 52)
+            .frame(height: LadleTheme.Control.primary)
             .clipShape(
                 RoundedRectangle(
                     cornerRadius: LadleTheme.Corner.control
@@ -223,7 +223,7 @@ struct WelcomeView: View {
                 Text("Try as a guest")
                     .ladleFont(.bodyStrong)
                     .foregroundStyle(LadleTheme.Label.primary)
-                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .frame(maxWidth: .infinity, minHeight: LadleTheme.Control.hitTarget)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -472,7 +472,7 @@ private struct GoogleSignInButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .frame(maxWidth: .infinity, minHeight: 52)
+            .frame(maxWidth: .infinity, minHeight: LadleTheme.Control.primary)
             .background(
                 LadleTheme.Label.onAccent,
                 in: RoundedRectangle(
