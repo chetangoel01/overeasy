@@ -130,14 +130,14 @@ struct AddRecipeSheet: View {
 
     private var linkContent: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
+            VStack(alignment: .leading, spacing: LadleTheme.Layout.sectionGap) {
                 sheetIntro(
                     icon: "link",
                     title: "Add a recipe",
                     message: "Paste a recipe video link and Overeasy will turn it into something you can actually cook."
                 )
 
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: LadleTheme.Spacing.compact) {
                     Text("Recipe link")
                         .ladleFont(.bodyStrong)
                         .foregroundStyle(LadleTheme.ink)
@@ -151,7 +151,7 @@ struct AddRecipeSheet: View {
                     .autocorrectionDisabled()
                     .ladleFont(.body)
                     .foregroundStyle(LadleTheme.ink)
-                    .padding(.horizontal, 14)
+                    .padding(.horizontal, LadleTheme.Layout.cardPadding)
                     .frame(minHeight: 52)
                     .background(
                         LadleTheme.Surface.raised,
@@ -188,14 +188,14 @@ struct AddRecipeSheet: View {
                 .ladleFont(.bodyStrong)
                 .foregroundStyle(LadleTheme.ink)
 
-                HStack(spacing: 10) {
+                HStack(spacing: LadleTheme.Layout.iconGap) {
                     Image(systemName: "square.and.arrow.up")
                         .foregroundStyle(LadleTheme.Label.accent)
                     Text("Tip: sharing a video to Overeasy is even faster.")
                         .ladleFont(.metadata)
                         .foregroundStyle(LadleTheme.ink.opacity(0.62))
                 }
-                .padding(14)
+                .padding(LadleTheme.Layout.cardPadding)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(
                     LadleTheme.Surface.steel,
@@ -209,7 +209,7 @@ struct AddRecipeSheet: View {
 
     private var manualContent: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: LadleTheme.Layout.sectionGap) {
                 sheetIntro(
                     icon: "square.and.pencil",
                     title: "Create manually",
@@ -221,7 +221,7 @@ struct AddRecipeSheet: View {
                         .ladleFont(.bodyStrong)
                     TextField("Recipe title", text: $manualTitle)
                         .ladleFont(.body)
-                        .padding(.horizontal, 14)
+                        .padding(.horizontal, LadleTheme.Layout.cardPadding)
                         .frame(minHeight: 50)
                         .background(
                             LadleTheme.Surface.raised,
@@ -239,7 +239,7 @@ struct AddRecipeSheet: View {
                     TextEditor(text: $manualDetails)
                         .ladleFont(.body)
                         .scrollContentBackground(.hidden)
-                        .padding(10)
+                        .padding(LadleTheme.Spacing.medium)
                         .frame(minHeight: 130)
                         .background(
                             LadleTheme.Surface.raised,
@@ -282,7 +282,7 @@ struct AddRecipeSheet: View {
     }
 
     private var importingContent: some View {
-        VStack(spacing: 22) {
+        VStack(spacing: LadleTheme.Layout.sectionGap) {
             ProgressView()
                 .controlSize(.large)
                 .tint(LadleTheme.Label.accent)
@@ -310,7 +310,7 @@ struct AddRecipeSheet: View {
     }
 
     private func successContent(needsReview: Bool) -> some View {
-        VStack(spacing: 22) {
+        VStack(spacing: LadleTheme.Layout.sectionGap) {
             Image(
                 systemName: needsReview
                     ? "pencil.and.list.clipboard"
@@ -365,7 +365,7 @@ struct AddRecipeSheet: View {
     }
 
     private var duplicateContent: some View {
-        VStack(spacing: 22) {
+        VStack(spacing: LadleTheme.Layout.sectionGap) {
             Image(systemName: "rectangle.on.rectangle")
                 .font(.system(size: 24, weight: .semibold))
                 .foregroundStyle(LadleTheme.Label.accent)
@@ -423,7 +423,7 @@ struct AddRecipeSheet: View {
         reason: ImportFailure
     ) -> some View {
         ScrollView {
-            VStack(spacing: 22) {
+            VStack(spacing: LadleTheme.Layout.sectionGap) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.system(size: 24))
                     .foregroundStyle(LadleTheme.Label.accent)
