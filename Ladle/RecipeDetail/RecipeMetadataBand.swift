@@ -54,7 +54,7 @@ struct RecipeMetadataBand: View {
         label: String,
         systemImage: String
     ) -> some View {
-        VStack(spacing: 6) {
+        VStack(spacing: LadleTheme.Spacing.compact) {
             Image(systemName: systemImage)
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(LadleTheme.Label.accent)
@@ -69,8 +69,8 @@ struct RecipeMetadataBand: View {
                 .foregroundStyle(LadleTheme.ink.opacity(0.56))
         }
         .frame(maxWidth: .infinity)
-        .padding(.horizontal, 6)
-        .padding(.vertical, usesVerticalLayout ? 10 : 0)
+        .padding(.horizontal, LadleTheme.Spacing.compact)
+        .padding(.vertical, usesVerticalLayout ? LadleTheme.Spacing.medium : 0)
         .accessibilityElement(children: .combine)
     }
 
@@ -85,7 +85,7 @@ struct RecipeMetadataBand: View {
         Rectangle()
             .fill(LadleTheme.ink.opacity(0.1))
             .frame(height: 1)
-            .padding(.horizontal, 18)
+            .padding(.horizontal, LadleTheme.Spacing.regular)
             .accessibilityHidden(true)
     }
 
@@ -163,7 +163,7 @@ struct RecipeNutritionSummary: View {
     }
 
     private func nutritionItem(value: String?, label: String) -> some View {
-        VStack(spacing: 3) {
+        VStack(spacing: LadleTheme.Spacing.tight) {
             Text(value ?? "—")
                 .ladleFont(.bodyStrong)
                 .foregroundStyle(LadleTheme.ink)

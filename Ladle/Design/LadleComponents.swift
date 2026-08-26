@@ -242,7 +242,7 @@ struct LadlePill: View {
     var foreground = LadleTheme.ink
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: LadleTheme.Spacing.compact) {
             if let systemImage {
                 Image(systemName: systemImage)
             }
@@ -251,8 +251,8 @@ struct LadlePill: View {
         .ladleFont(.metadata)
             .foregroundStyle(foreground)
         .fixedSize(horizontal: true, vertical: false)
-        .padding(.horizontal, 11)
-        .padding(.vertical, 7)
+        .padding(.horizontal, LadleTheme.Spacing.medium)
+        .padding(.vertical, LadleTheme.Spacing.compact)
         .background(tint, in: Capsule())
     }
 }
@@ -266,7 +266,7 @@ struct LadleSectionHeader: View {
     var body: some View {
         Group {
             if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
                     titleLabel
                     detailLabel
                 }

@@ -54,7 +54,7 @@ struct HealthExportSheet: View {
 
     private var confirmationContent: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
+            VStack(alignment: .leading, spacing: LadleTheme.Layout.sectionGap) {
                 header
                 servingPicker
                 exportPreview
@@ -82,7 +82,7 @@ struct HealthExportSheet: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: LadleTheme.Spacing.medium) {
             Image(systemName: "heart.text.clipboard")
                 .font(.system(size: 22, weight: .semibold))
                 .foregroundStyle(LadleTheme.Label.accent)
@@ -164,7 +164,7 @@ struct HealthExportSheet: View {
                     }
                 }
             }
-            .padding(.horizontal, 14)
+            .padding(.horizontal, LadleTheme.Layout.cardPadding)
             .ladleCard()
         }
     }
@@ -176,7 +176,7 @@ struct HealthExportSheet: View {
         )
         .ladleFont(.metadata)
         .foregroundStyle(LadleTheme.ink.opacity(0.64))
-        .padding(14)
+        .padding(LadleTheme.Layout.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             LadleTheme.Surface.steel,
@@ -231,7 +231,7 @@ struct HealthExportSheet: View {
         primaryTitle: String,
         primaryAction: @escaping () -> Void
     ) -> some View {
-        VStack(spacing: 20) {
+        VStack(spacing: LadleTheme.Spacing.regular) {
             Image(systemName: icon)
                 .font(.system(size: 24, weight: .bold))
                 .foregroundStyle(LadleTheme.onAccent)
