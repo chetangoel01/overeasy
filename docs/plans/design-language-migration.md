@@ -26,6 +26,11 @@ Measured on `codex/notifications-preferences-discover-grid` at `f2ceb74`:
 `10` and `14` together account for 64 uses. They are not typos; they are a
 second scale that grew because nothing named the first one's roles.
 
+The six densest files are done — 62 off-scale literals removed, one commit
+each. Counting `.padding(...)` and `spacing:` literals that are not a step,
+the app is at **82, down from 144**. All six files are now clean apart from
+the scroll insets described below.
+
 | Found | Uses | Move to |
 | --- | --- | --- |
 | 10 | 33 | 8 (`compact`) or 12 (`medium`) |
@@ -39,11 +44,42 @@ second scale that grew because nothing named the first one's roles.
 | 26, 28, 30, 36, 40, 48, 52, 60, 61 | 12 | Nearest step, or a `Layout` role |
 
 Control heights fold into three: 46 and 48 to `Control.field`; 50, 52 and 56 to
-`Control.primary`; 44 stays `Control.hitTarget`.
+`Control.primary`; 44 stays `Control.hitTarget`. **Not started** — a settings
+row moving from 56 to 48 is a visible change rather than a rounding, so it
+wants its own pass with screenshots, not to ride along with the spacing.
 
-Densest files first — these six hold about half the off-scale values:
-`AccountSheet` 13, `AddRecipeSheet` 12, `RecipeEditorView` 12, `ReimportSheet`
-10, `DiscoverView` 9, `FullRecipeView` 9.
+### The rules the first six files settled
+
+Where the table offers two neighbours, these broke the tie, and the rest of the
+migration should follow them so the app does not grow a third scale:
+
+- **Text to text** — a title and the line supporting it — rounds to `tight`.
+- **Label to control** — a field label above its field — rounds to `compact`.
+- **A row's inner padding** goes to `cardPadding` horizontally and `medium`
+  vertically. Matching `cardPadding` on both axes would grow every row by 12.
+- **Icon to label** is `iconGap`, and a divider separating such rows derives
+  its inset with `dividerInset` rather than restating the sum.
+- **A sibling in the same file wins over the table.** ReimportSheet's Original
+  source card takes `tight` to match RecipeEditorView's copy of the same card;
+  AddRecipeSheet's lone `10` label gap takes `compact` because its two
+  neighbours already used 8.
+- **Round in the direction that keeps behaviour.** RecipeEditorView's quantity
+  and unit fields sit in a `ViewThatFits`, so their gap rounds down; widening
+  it would push more cases into the stacked fallback.
+
+### Still to place: scroll clearance
+
+`RecipeEditorView:32` and `DiscoverView:251` pad a scroll view's bottom by 40,
+`FullRecipeView:41` by 48. These are not gaps between two things — they are
+clearance for what floats over the content, and no role names them. Folding
+them to `cooking` (32) would cut 8 to 16 points of clearance and risks tucking
+content under the floating bars, so all three are left as literals.
+
+They want a `Layout` role of their own — something like `scrollBottomInset` —
+whose value should be measured against the floating tab bar rather than guessed.
+
+Densest files still to do: `AllRecipesView` 8, `RecipeDetailView` 7,
+`ShareConfirmationView` 6, `NutritionView` 6, `HealthExportSheet` 5.
 
 ## Colour
 
@@ -112,11 +148,12 @@ Fixed:
   places, `AllRecipesView`'s `GridItem` columns *and* `RecipeGridCard`'s own
   frame; removing only the first leaves the card centred in its cell.
 - ~~Sign in with Apple black on graphite~~ — fixed in `0c12ea7`.
+- ~~Cooking checklist dividers hardcoded to 52 against labels at 43~~ — fixed
+  in `2f6df35`. Both now derive from one named icon width, measured on device
+  at the same pixel.
 
 Outstanding, each with a role that now exists to express the fix:
 
-- Cooking checklist dividers are hardcoded to 52 while their rows put labels at
-  43. `FullRecipeView.swift:162` — use `dividerInset(iconWidth:gap:)`.
 - Sheet close controls sit on 16 while sheet bodies sit on 24, across seven
   screens. Focus Mode is the only one already correct — use
   `Layout.sheetMargin` for both.
@@ -128,7 +165,7 @@ Outstanding, each with a role that now exists to express the fix:
 ## Sequencing
 
 1. ~~Colour aliases~~ — done. The four alias pairs are gone.
-2. Off-scale spacing, densest files first.
+2. Off-scale spacing — the six densest files are done; 82 literals remain.
 3. Button roles, which carries the two behaviour fixes above.
 4. The layout defects, which are call-site changes rather than token changes.
 
