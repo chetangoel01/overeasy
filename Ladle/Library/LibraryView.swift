@@ -468,7 +468,7 @@ private struct SyncStatusBanner: View {
                     .foregroundStyle(LadleTheme.Label.primary)
             }
         case let .failed(report):
-            banner(systemImage: symbol(for: report.failure)) {
+            banner(systemImage: report.failure.systemImage) {
                 VStack(
                     alignment: .leading,
                     spacing: LadleTheme.Spacing.tight
@@ -517,22 +517,6 @@ private struct SyncStatusBanner: View {
         .accessibilityIdentifier("sync.status")
     }
 
-    private func symbol(for failure: RemoteFailure) -> String {
-        switch failure {
-        case .offline:
-            "wifi.slash"
-        case .serviceUnavailable:
-            "server.rack"
-        case .rateLimited:
-            "clock.badge.exclamationmark"
-        case .quotaExceeded:
-            "exclamationmark.circle"
-        case .authenticationExpired:
-            "person.crop.circle.badge.exclamationmark"
-        case .invalidResponse, .unknown:
-            "exclamationmark.triangle"
-        }
-    }
 }
 
 private struct LibraryReloadErrorBanner: View {

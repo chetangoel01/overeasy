@@ -47,6 +47,7 @@ final class RemoteFailureTests: XCTestCase {
 
     func testPresentationCopyAndRetryPolicyAreDeterministic() {
         XCTAssertEqual(RemoteFailure.offline.title, "You're offline")
+        XCTAssertEqual(RemoteFailure.offline.systemImage, "wifi.slash")
         XCTAssertTrue(RemoteFailure.offline.message.contains("saved recipes"))
         XCTAssertTrue(RemoteFailure.offline.canRetry(at: .distantPast))
 

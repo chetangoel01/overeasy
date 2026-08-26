@@ -9,17 +9,24 @@ final class DiscoverViewModel {
         case idle
         case loading
         case loaded([DiscoverRecipe])
-        case failed
+        case failed(RemoteFailureReport)
+    }
+
+    enum RefreshState: Equatable {
+        case current
+        case refreshing
+        case failed(RemoteFailureReport)
     }
 
     private let service: any DiscoverServing
     private let removesSavedRecipeImmediately: Bool
     private(set) var state: State = .idle
+    private(set) var refreshState: RefreshState = .current
     private(set) var savingSourceIDs: Set<UUID> = []
     private(set) var loadingDetailSourceIDs: Set<UUID> = []
     private(set) var savedSourceIDs: Set<UUID> = []
-    private(set) var saveErrorMessage: String?
-    private(set) var detailErrorMessage: String?
+    private var saveFailures: [UUID: RemoteFailureReport] = [:]
+    private var detailFailures: [UUID: RemoteFailureReport] = [:]
 
     init(
         service: any DiscoverServing,
@@ -30,8 +37,15 @@ final class DiscoverViewModel {
     }
 
     func load() async {
-        guard state != .loading else { return }
-        state = .loading
+        guard state != .loading, refreshState != .refreshing else { return }
+        let cachedRecipes: [DiscoverRecipe]?
+        if case let .loaded(recipes) = state {
+            cachedRecipes = recipes
+            refreshState = .refreshing
+        } else {
+            cachedRecipes = nil
+            state = .loading
+        }
         do {
             let recipes = try await service.fetchDiscoverRecipes()
             savedSourceIDs = Set(
@@ -42,10 +56,22 @@ final class DiscoverViewModel {
             state = .loaded(
                 recipes.filter { $0.savedRecipeID == nil }
             )
+            refreshState = .current
         } catch is CancellationError {
-            state = .idle
+            if let cachedRecipes {
+                state = .loaded(cachedRecipes)
+                refreshState = .current
+            } else {
+                state = .idle
+            }
         } catch {
-            state = .failed
+            let report = RemoteFailureReport(error)
+            if let cachedRecipes {
+                state = .loaded(cachedRecipes)
+                refreshState = .failed(report)
+            } else {
+                state = .failed(report)
+            }
         }
     }
 
@@ -62,19 +88,28 @@ final class DiscoverViewModel {
         loadingDetailSourceIDs.contains(recipe.sourceID)
     }
 
+    func saveFailure(for recipe: DiscoverRecipe) -> RemoteFailureReport? {
+        saveFailures[recipe.sourceID]
+    }
+
+    func detailFailure(for recipe: DiscoverRecipe) -> RemoteFailureReport? {
+        detailFailures[recipe.sourceID]
+    }
+
     func detail(for recipe: DiscoverRecipe) async -> Recipe? {
         guard !isLoadingDetail(recipe) else { return nil }
+        detailFailures[recipe.sourceID] = nil
         loadingDetailSourceIDs.insert(recipe.sourceID)
         defer { loadingDetailSourceIDs.remove(recipe.sourceID) }
         do {
             let detail = try await service.fetchDiscoverRecipe(
                 sourceID: recipe.sourceID
             )
-            detailErrorMessage = nil
             return detail
+        } catch is CancellationError {
+            return nil
         } catch {
-            saveErrorMessage = nil
-            detailErrorMessage = "That recipe couldn’t be opened."
+            detailFailures[recipe.sourceID] = RemoteFailureReport(error)
             return nil
         }
     }
@@ -85,6 +120,7 @@ final class DiscoverViewModel {
         guard !isSaving(recipe), !isSaved(recipe) else {
             return nil
         }
+        saveFailures[recipe.sourceID] = nil
         savingSourceIDs.insert(recipe.sourceID)
         defer { savingSourceIDs.remove(recipe.sourceID) }
         do {
@@ -98,20 +134,15 @@ final class DiscoverViewModel {
                     recipes.filter { $0.sourceID != recipe.sourceID }
                 )
             }
-            saveErrorMessage = nil
-            detailErrorMessage = nil
             return saved
+        } catch is CancellationError {
+            return nil
         } catch {
-            detailErrorMessage = nil
-            saveErrorMessage = "That recipe couldn’t be saved."
+            saveFailures[recipe.sourceID] = RemoteFailureReport(error)
             return nil
         }
     }
 
-    func clearOperationError() {
-        saveErrorMessage = nil
-        detailErrorMessage = nil
-    }
 }
 
 struct DiscoverView: View {
@@ -136,12 +167,10 @@ struct DiscoverView: View {
             switch viewModel.state {
             case .idle, .loading:
                 loadingContent
-            case let .loaded(recipes) where recipes.isEmpty:
-                emptyContent
             case let .loaded(recipes):
-                recipeList(recipes)
-            case .failed:
-                failedContent
+                loadedContent(recipes)
+            case let .failed(report):
+                failedContent(report)
             }
         }
         .background(LadleTheme.paper)
@@ -151,20 +180,6 @@ struct DiscoverView: View {
             }
         }
         .accessibilityIdentifier("library.discover")
-        .alert(
-            viewModel.detailErrorMessage == nil
-                ? "Couldn’t save recipe"
-                : "Couldn’t open recipe",
-            isPresented: operationErrorIsPresented
-        ) {
-            Button("OK", action: viewModel.clearOperationError)
-        } message: {
-            Text(
-                viewModel.detailErrorMessage
-                    ?? viewModel.saveErrorMessage
-                    ?? "Please try again."
-            )
-        }
     }
 
     private var loadingContent: some View {
@@ -193,18 +208,47 @@ struct DiscoverView: View {
         .foregroundStyle(LadleTheme.ink)
     }
 
-    private var failedContent: some View {
-        ContentUnavailableView {
-            Label("Couldn’t load Discover", systemImage: "wifi.exclamationmark")
-        } description: {
-            Text("Your saved recipes are still available.")
-        } actions: {
-            Button("Try again") {
-                Task { await viewModel.load() }
+    @ViewBuilder
+    private func loadedContent(_ recipes: [DiscoverRecipe]) -> some View {
+        Group {
+            if recipes.isEmpty {
+                emptyContent
+            } else {
+                recipeList(recipes)
             }
-            .buttonStyle(LadlePrimaryButtonStyle(isProminent: false))
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            DiscoverRefreshBanner(
+                state: viewModel.refreshState,
+                retry: { Task { await viewModel.load() } }
+            )
+        }
+    }
+
+    private func failedContent(_ report: RemoteFailureReport) -> some View {
+        ContentUnavailableView {
+            Label(
+                report.failure.title,
+                systemImage: report.failure.systemImage
+            )
+        } description: {
+            VStack(spacing: LadleTheme.Spacing.tight) {
+                Text(report.failure.message)
+                Text("Your saved recipes are still available.")
+                if let retryAt = report.failure.retryAt {
+                    Text("Try again after \(retryAt, style: .time).")
+                }
+            }
+        } actions: {
+            if report.failure.canRetry() {
+                Button("Try again") {
+                    Task { await viewModel.load() }
+                }
+                .buttonStyle(LadlePrimaryButtonStyle(isProminent: false))
+            }
         }
         .foregroundStyle(LadleTheme.ink)
+        .accessibilityIdentifier("discover.initial-failure")
     }
 
     private func recipeList(_ recipes: [DiscoverRecipe]) -> some View {
@@ -226,6 +270,8 @@ struct DiscoverView: View {
                         isLoadingDetail: viewModel.isLoadingDetail(recipe),
                         isSaving: viewModel.isSaving(recipe),
                         isSaved: viewModel.isSaved(recipe),
+                        openFailure: viewModel.detailFailure(for: recipe),
+                        saveFailure: viewModel.saveFailure(for: recipe),
                         open: {
                             Task {
                                 if let detail = await viewModel.detail(
@@ -253,15 +299,70 @@ struct DiscoverView: View {
         .scrollIndicators(.hidden)
         .refreshable { await viewModel.load() }
     }
+}
 
-    private var operationErrorIsPresented: Binding<Bool> {
-        Binding(
-            get: {
-                viewModel.saveErrorMessage != nil
-                    || viewModel.detailErrorMessage != nil
-            },
-            set: { if !$0 { viewModel.clearOperationError() } }
-        )
+private struct DiscoverRefreshBanner: View {
+    let state: DiscoverViewModel.RefreshState
+    let retry: () -> Void
+
+    @ViewBuilder
+    var body: some View {
+        switch state {
+        case .current:
+            EmptyView()
+        case .refreshing:
+            content(systemImage: nil) {
+                ProgressView().controlSize(.small)
+                Text("Refreshing Discover…")
+                    .ladleFont(.bodyStrong)
+            }
+        case let .failed(report):
+            content(systemImage: report.failure.systemImage) {
+                VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
+                    Text("Showing earlier Discover results")
+                        .ladleFont(.bodyStrong)
+                    Text(report.failure.message)
+                        .ladleFont(.metadata)
+                    if let retryAt = report.failure.retryAt {
+                        Text("Try again after \(retryAt, style: .time).")
+                            .ladleFont(.metadata)
+                    }
+                }
+                Spacer(minLength: LadleTheme.Spacing.compact)
+                if report.failure.canRetry() {
+                    Button("Try Again", action: retry)
+                        .ladleFont(.bodyStrong)
+                        .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    private func content<Content: View>(
+        systemImage: String?,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        HStack(alignment: .top, spacing: LadleTheme.Layout.iconGap) {
+            if let systemImage {
+                Image(systemName: systemImage)
+                    .font(.system(
+                        size: LadleTheme.IconSize.medium,
+                        weight: .semibold
+                    ))
+                    .accessibilityHidden(true)
+            }
+            content()
+        }
+        .foregroundStyle(LadleTheme.Label.primary)
+        .padding(.horizontal, LadleTheme.Layout.screenMargin)
+        .padding(.vertical, LadleTheme.Spacing.compact)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(LadleTheme.Surface.steel)
+        .overlay(alignment: .bottom) {
+            Divider().overlay(LadleTheme.Stroke.separator)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("discover.refresh-status")
     }
 }
 
@@ -272,11 +373,13 @@ private struct DiscoverRecipeRow: View {
     let isLoadingDetail: Bool
     let isSaving: Bool
     let isSaved: Bool
+    let openFailure: RemoteFailureReport?
+    let saveFailure: RemoteFailureReport?
     let open: () -> Void
     let save: () -> Void
 
     var body: some View {
-        Group {
+        VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
             if dynamicTypeSize.isAccessibilitySize {
                 VStack(alignment: .leading, spacing: 12) {
                     Button(action: open) {
@@ -299,6 +402,12 @@ private struct DiscoverRecipeRow: View {
                     saveButton
                 }
             }
+            if let openFailure {
+                operationFailure("Open", report: openFailure)
+            }
+            if let saveFailure {
+                operationFailure("Save", report: saveFailure)
+            }
         }
         .padding(.vertical, LadleTheme.Spacing.medium)
         .contextMenu {
@@ -314,6 +423,19 @@ private struct DiscoverRecipeRow: View {
         .accessibilityIdentifier(
             "discover.\(recipe.originalURL.absoluteString)"
         )
+    }
+
+    private func operationFailure(
+        _ action: String,
+        report: RemoteFailureReport
+    ) -> some View {
+        Label(
+            "\(action): \(report.failure.title). \(report.failure.message)",
+            systemImage: report.failure.systemImage
+        )
+        .ladleFont(.metadata)
+        .foregroundStyle(LadleTheme.Label.accent)
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private var details: some View {

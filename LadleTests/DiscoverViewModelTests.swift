@@ -34,14 +34,79 @@ final class DiscoverViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.state, .loaded([unsaved]))
     }
 
-    func testLoadOffersRetryWhenDiscoveryFails() async {
+    func testInitialLoadClassifiesRemoteFailures() async throws {
+        let retryAt = Date(timeIntervalSince1970: 1_800_000_000)
+        let rateLimit = try remoteError(
+            code: .rateLimited,
+            details: "\"retryAt\":\"2027-01-15T08:00:00.000Z\""
+        )
+        let provider = try remoteError(code: .providerUnavailable)
+        let cases: [(APIError, RemoteFailure)] = [
+            (.transport, .offline),
+            (.remote(rateLimit), .rateLimited(retryAt: retryAt)),
+            (.remote(provider), .serviceUnavailable),
+        ]
+
+        for (error, expected) in cases {
+            let viewModel = DiscoverViewModel(
+                service: DiscoverTestService(result: .failure(error))
+            )
+
+            await viewModel.load()
+
+            guard case let .failed(report) = viewModel.state else {
+                return XCTFail("Expected classified first-load failure")
+            }
+            XCTAssertEqual(report.failure, expected)
+        }
+    }
+
+    func testRefreshKeepsContentThenExposesStaleFailureAndRecovers() async {
+        let recipe = discoveredRecipe()
+        let service = DiscoverTestService(result: .success([recipe]))
+        let viewModel = DiscoverViewModel(service: service)
+        await viewModel.load()
+
+        service.result = .failure(APIError.transport)
+        service.pausesFetch = true
+        let refresh = Task { await viewModel.load() }
+        while !service.fetchIsSuspended { await Task.yield() }
+
+        XCTAssertEqual(viewModel.state, .loaded([recipe]))
+        XCTAssertEqual(viewModel.refreshState, .refreshing)
+
+        service.resumeFetch()
+        await refresh.value
+
+        XCTAssertEqual(viewModel.state, .loaded([recipe]))
+        XCTAssertEqual(
+            viewModel.refreshState,
+            .failed(RemoteFailureReport(APIError.transport))
+        )
+
+        let replacement = discoveredRecipe(
+            sourceID: UUID(
+                uuidString: "90000000-0000-4000-8000-000000000009"
+            )!
+        )
+        service.result = .success([replacement])
+        await viewModel.load()
+
+        XCTAssertEqual(viewModel.state, .loaded([replacement]))
+        XCTAssertEqual(viewModel.refreshState, .current)
+    }
+
+    func testInitialLoadOffersRetryWhenDiscoveryFails() async {
         let viewModel = DiscoverViewModel(
-            service: DiscoverTestService(result: .failure(TestError.failed))
+            service: DiscoverTestService(result: .failure(APIError.transport))
         )
 
         await viewModel.load()
 
-        XCTAssertEqual(viewModel.state, .failed)
+        XCTAssertEqual(
+            viewModel.state,
+            .failed(RemoteFailureReport(APIError.transport))
+        )
     }
 
     func testSaveClonesLoadedRecipeWithoutSubmittingAnImport() async {
@@ -114,14 +179,90 @@ final class DiscoverViewModelTests: XCTestCase {
         XCTAssertEqual(service.detailSourceIDs, [recipe.sourceID])
         XCTAssertFalse(viewModel.isLoadingDetail(recipe))
     }
+
+    func testOpenAndSaveExposeIndependentProgress() async {
+        let recipe = discoveredRecipe()
+        let saved = SavedDiscoverRecipe(
+            recipe: PreviewFixtures.recipes[0],
+            revision: 3
+        )
+        let service = DiscoverTestService(
+            result: .success([recipe]),
+            savedResult: .success(saved),
+            detailResult: .success(PreviewFixtures.recipes[0])
+        )
+        service.pausesDetail = true
+        service.pausesSave = true
+        let viewModel = DiscoverViewModel(service: service)
+
+        let open = Task { await viewModel.detail(for: recipe) }
+        while !service.detailIsSuspended { await Task.yield() }
+        XCTAssertTrue(viewModel.isLoadingDetail(recipe))
+        XCTAssertFalse(viewModel.isSaving(recipe))
+
+        let save = Task { await viewModel.save(recipe) }
+        while !service.saveIsSuspended { await Task.yield() }
+        XCTAssertTrue(viewModel.isLoadingDetail(recipe))
+        XCTAssertTrue(viewModel.isSaving(recipe))
+
+        service.resumeDetail()
+        _ = await open.value
+        XCTAssertFalse(viewModel.isLoadingDetail(recipe))
+        XCTAssertTrue(viewModel.isSaving(recipe))
+
+        service.resumeSave()
+        _ = await save.value
+        XCTAssertFalse(viewModel.isSaving(recipe))
+    }
+
+    func testOpenAndSaveKeepIndependentClassifiedFailures() async throws {
+        let recipe = discoveredRecipe()
+        let provider = try remoteError(code: .providerUnavailable)
+        let service = DiscoverTestService(
+            result: .success([recipe]),
+            savedResult: .failure(APIError.remote(provider)),
+            detailResult: .failure(APIError.transport)
+        )
+        let viewModel = DiscoverViewModel(service: service)
+
+        _ = await viewModel.detail(for: recipe)
+        _ = await viewModel.save(recipe)
+
+        XCTAssertEqual(
+            viewModel.detailFailure(for: recipe)?.failure,
+            .offline
+        )
+        XCTAssertEqual(
+            viewModel.saveFailure(for: recipe)?.failure,
+            .serviceUnavailable
+        )
+
+        service.detailResult = .success(PreviewFixtures.recipes[0])
+        _ = await viewModel.detail(for: recipe)
+
+        XCTAssertNil(viewModel.detailFailure(for: recipe))
+        XCTAssertEqual(
+            viewModel.saveFailure(for: recipe)?.failure,
+            .serviceUnavailable
+        )
+    }
 }
 
 private final class DiscoverTestService: DiscoverServing {
-    let result: Result<[DiscoverRecipe], any Error>
-    let savedResult: Result<SavedDiscoverRecipe, any Error>
-    let detailResult: Result<Recipe, any Error>
+    var result: Result<[DiscoverRecipe], any Error>
+    var savedResult: Result<SavedDiscoverRecipe, any Error>
+    var detailResult: Result<Recipe, any Error>
+    var pausesFetch = false
+    var pausesSave = false
+    var pausesDetail = false
+    private(set) var fetchIsSuspended = false
+    private(set) var saveIsSuspended = false
+    private(set) var detailIsSuspended = false
     private(set) var savedSourceIDs: [UUID] = []
     private(set) var detailSourceIDs: [UUID] = []
+    private var fetchContinuation: CheckedContinuation<Void, Never>?
+    private var saveContinuation: CheckedContinuation<Void, Never>?
+    private var detailContinuation: CheckedContinuation<Void, Never>?
 
     init(
         result: Result<[DiscoverRecipe], any Error>,
@@ -135,19 +276,52 @@ private final class DiscoverTestService: DiscoverServing {
     }
 
     func fetchDiscoverRecipes() async throws -> [DiscoverRecipe] {
-        try result.get()
+        if pausesFetch {
+            fetchIsSuspended = true
+            await withCheckedContinuation { fetchContinuation = $0 }
+            fetchIsSuspended = false
+            pausesFetch = false
+        }
+        return try result.get()
     }
 
     func saveDiscoverRecipe(
         sourceID: UUID
     ) async throws -> SavedDiscoverRecipe {
         savedSourceIDs.append(sourceID)
+        if pausesSave {
+            saveIsSuspended = true
+            await withCheckedContinuation { saveContinuation = $0 }
+            saveIsSuspended = false
+            pausesSave = false
+        }
         return try savedResult.get()
     }
 
     func fetchDiscoverRecipe(sourceID: UUID) async throws -> Recipe {
         detailSourceIDs.append(sourceID)
+        if pausesDetail {
+            detailIsSuspended = true
+            await withCheckedContinuation { detailContinuation = $0 }
+            detailIsSuspended = false
+            pausesDetail = false
+        }
         return try detailResult.get()
+    }
+
+    func resumeFetch() {
+        fetchContinuation?.resume()
+        fetchContinuation = nil
+    }
+
+    func resumeSave() {
+        saveContinuation?.resume()
+        saveContinuation = nil
+    }
+
+    func resumeDetail() {
+        detailContinuation?.resume()
+        detailContinuation = nil
     }
 }
 
@@ -174,4 +348,24 @@ private func discoveredRecipe(
         savedCount: 12,
         savedRecipeID: savedRecipeID
     )
+}
+
+private func remoteError(
+    code: RemoteErrorCode,
+    details: String? = nil
+) throws -> RemoteErrorDTO {
+    let detailsJSON = details.map { ",\"details\":{\($0)}" } ?? ""
+    let json = """
+    {
+      "error": {
+        "code": "\(code.rawValue)",
+        "message": "server detail",
+        "retryable": true,
+        "requestID": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"\(detailsJSON)
+      }
+    }
+    """
+    return try RemoteContractJSON.decoder()
+        .decode(RemoteErrorEnvelope.self, from: Data(json.utf8))
+        .error
 }

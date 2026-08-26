@@ -8,6 +8,7 @@ final class DiscoverInteractionUITests: XCTestCase {
         app.tabBars.buttons["Discover"].tap()
         let title = app.staticTexts["Crispy Chili Oil Smash Burgers"]
         XCTAssertTrue(title.waitForExistence(timeout: 3))
+        attachScreenshot(of: app, named: "Discover loaded results")
 
         let row = app.descendants(matching: .any).matching(
             NSPredicate(format: "identifier BEGINSWITH 'discover.'")

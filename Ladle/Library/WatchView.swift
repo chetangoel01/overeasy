@@ -65,6 +65,13 @@ struct WatchView: View {
                 .padding(.leading, LadleTheme.Spacing.regular)
                 .padding(.top, 60)
                 .zIndex(1)
+
+            if feed == .discover {
+                discoverRefreshOverlay
+                    .padding(.horizontal, LadleTheme.Spacing.regular)
+                    .padding(.top, 112)
+                    .zIndex(1)
+            }
         }
         .background(LadleTheme.plum)
         .fullScreenCover(item: $cookingViewModel) {
@@ -88,11 +95,14 @@ struct WatchView: View {
         switch discoverViewModel.state {
         case .idle, .loading:
             loadingState
-        case .failed:
+        case let .failed(report):
             emptyState(
-                title: "Couldn’t load Discover",
-                message: "Your saved recipe videos are still available.",
-                retry: { Task { await discoverViewModel.load() } }
+                title: report.failure.title,
+                message: watchFailureMessage(report),
+                systemImage: report.failure.systemImage,
+                retry: report.failure.canRetry()
+                    ? { Task { await discoverViewModel.load() } }
+                    : nil
             )
         case let .loaded(recipes) where recipes.isEmpty:
             emptyState(
@@ -120,6 +130,15 @@ struct WatchView: View {
                         isSaved: discoverRecipe(id: recipe.id).map(
                             discoverViewModel.isSaved
                         ) ?? false,
+                        isLoadingDetail: discoverRecipe(id: recipe.id).map(
+                            discoverViewModel.isLoadingDetail
+                        ) ?? false,
+                        openFailure: discoverRecipe(id: recipe.id).flatMap(
+                            discoverViewModel.detailFailure
+                        ),
+                        saveFailure: discoverRecipe(id: recipe.id).flatMap(
+                            discoverViewModel.saveFailure
+                        ),
                         openRecipe: { open(recipe) },
                         openAccount: openAccount,
                         save: { save(recipe) },
@@ -198,12 +217,13 @@ struct WatchView: View {
     private func emptyState(
         title: String,
         message: String,
+        systemImage: String = "play.rectangle",
         retry: (() -> Void)? = nil
     ) -> some View {
         VStack(spacing: LadleTheme.Spacing.medium) {
             ContentUnavailableView(
                 title,
-                systemImage: "play.rectangle",
+                systemImage: systemImage,
                 description: Text(message)
             )
             .foregroundStyle(LadleTheme.onAccent)
@@ -216,6 +236,51 @@ struct WatchView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func watchFailureMessage(_ report: RemoteFailureReport) -> String {
+        let timing = report.failure.retryAt.map {
+            " Try again after \($0.formatted(date: .omitted, time: .shortened))."
+        } ?? ""
+        return "\(report.failure.message)\(timing) Your saved recipe videos are still available."
+    }
+
+    @ViewBuilder
+    private var discoverRefreshOverlay: some View {
+        switch discoverViewModel.refreshState {
+        case .current:
+            EmptyView()
+        case .refreshing:
+            Label {
+                Text("Refreshing Discover")
+                    .ladleFont(.metadata)
+            } icon: {
+                ProgressView().controlSize(.small)
+            }
+            .watchStatusStyle()
+        case let .failed(report):
+            VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
+                Label(
+                    "Showing earlier results",
+                    systemImage: report.failure.systemImage
+                )
+                .ladleFont(.bodyStrong)
+                Text(report.failure.message)
+                    .ladleFont(.metadata)
+                if let retryAt = report.failure.retryAt {
+                    Text("Try again after \(retryAt, style: .time).")
+                        .ladleFont(.metadata)
+                }
+                if report.failure.canRetry() {
+                    Button("Try Again") {
+                        Task { await discoverViewModel.load() }
+                    }
+                    .ladleFont(.bodyStrong)
+                    .buttonStyle(.plain)
+                }
+            }
+            .watchStatusStyle()
+        }
     }
 
     private var loadingState: some View {
@@ -260,6 +325,9 @@ private struct WatchRecipePage: View {
     let discoverRecipe: DiscoverRecipe?
     let isSaving: Bool
     let isSaved: Bool
+    let isLoadingDetail: Bool
+    let openFailure: RemoteFailureReport?
+    let saveFailure: RemoteFailureReport?
     let openRecipe: () -> Void
     let openAccount: () -> Void
     let save: () -> Void
@@ -281,6 +349,7 @@ private struct WatchRecipePage: View {
             videoLayout
                 .contextMenu {
                     Button("View Recipe", systemImage: "book.pages", action: openRecipe)
+                        .disabled(isLoadingDetail)
                     if !isSaved {
                         Button("Save Recipe", systemImage: "plus", action: save)
                     }
@@ -376,6 +445,13 @@ private struct WatchRecipePage: View {
                     .lineLimit(1)
             }
 
+            if let openFailure {
+                operationFailure("Open", report: openFailure)
+            }
+            if let saveFailure {
+                operationFailure("Save", report: saveFailure)
+            }
+
             playbackActions
         }
         .padding(.horizontal, LadleTheme.Spacing.regular)
@@ -403,8 +479,15 @@ private struct WatchRecipePage: View {
                 .buttonStyle(LadlePrimaryButtonStyle())
                 .disabled(isSaving || isSaved)
 
-                Button("View recipe", action: openRecipe)
-                    .buttonStyle(LadlePrimaryButtonStyle(isProminent: false))
+                Button(action: openRecipe) {
+                    if isLoadingDetail {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Text("View recipe")
+                    }
+                }
+                .buttonStyle(LadlePrimaryButtonStyle(isProminent: false))
+                .disabled(isLoadingDetail)
             } else if recipe.canStartCooking {
                 Button("Open recipe", action: openRecipe)
                     .buttonStyle(LadlePrimaryButtonStyle(isProminent: false))
@@ -415,6 +498,19 @@ private struct WatchRecipePage: View {
                     .buttonStyle(LadlePrimaryButtonStyle())
             }
         }
+    }
+
+    private func operationFailure(
+        _ action: String,
+        report: RemoteFailureReport
+    ) -> some View {
+        Label(
+            "\(action): \(report.failure.title)",
+            systemImage: report.failure.systemImage
+        )
+        .ladleFont(.metadata)
+        .foregroundStyle(LadleTheme.focusAccent)
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private func topBar(topInset: CGFloat) -> some View {
@@ -549,5 +645,20 @@ private struct WatchRecipeImage: View {
                         .foregroundStyle(LadleTheme.onAccent.opacity(0.72))
                 }
         }
+    }
+}
+
+private extension View {
+    func watchStatusStyle() -> some View {
+        foregroundStyle(LadleTheme.onAccent)
+            .padding(.horizontal, LadleTheme.Spacing.medium)
+            .padding(.vertical, LadleTheme.Spacing.compact)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.black.opacity(0.72), in: RoundedRectangle(
+                cornerRadius: LadleTheme.Corner.control,
+                style: .continuous
+            ))
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("watch.discover-refresh-status")
     }
 }

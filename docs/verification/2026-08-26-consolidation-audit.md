@@ -130,7 +130,7 @@ Xcode consumes it by catalog name.
 | Bootstrap | preparing, ready, local-store failure, invalid release configuration | open, Task 9 |
 | Local library | loading, content, true empty, filtered empty, cached-content reload failure, large library | closed in Task 6 |
 | Connectivity and sync | current, syncing, offline, degraded, rate limited, quota, expired auth, conflict | shared failure vocabulary and observable status closed in Tasks 4-5; conflict handling remains open |
-| Discover and remote Watch | initial load, content, empty, content-preserving refresh, stale/offline, classified remote failures, per-item operation | open, Task 7 |
+| Discover and remote Watch | initial load, content, empty, content-preserving refresh, stale/offline, classified remote failures, per-item operation | closed in Task 7 |
 | Imports | validation, duplicate, guest limit, queued, processing, review, completion, cancellation, concurrency, classified recovery | open, Task 8 |
 | Secondary flows | account, health, image, video, editor, timer, Share handoff, destructive actions | open, Task 10 |
 | Deterministic launch scenarios | empty, offline, failure, overload, expired auth, large data | open, Task 13 |
@@ -220,6 +220,37 @@ Verification on August 26, 2026:
 - `AllRecipesView` retains `LazyVGrid`/`LazyVStack`, and `WatchView` retains
   `LazyVStack`; no eager large-data container was added;
 - the complete `LadleTests` target passed 207 tests: 206 passed and the one
+  live App Attest test was intentionally skipped.
+
+### Discover and remote Watch resilience
+
+Task 7 separates Discover's first load from subsequent refreshes. A first load
+uses the existing skeleton, then produces content, a genuine empty state, or a
+typed offline/service/rate-limit/quota/authentication/response failure. Once
+content has loaded, refresh leaves it in place and exposes an independent
+refreshing, stale-failure, or current status. A later success replaces the
+stale results and clears the refresh message.
+
+Opening and saving are tracked independently for each Discover recipe. Both
+the list and Watch show their own progress and classified inline errors; a
+save result never clears an open error and an open result never clears a save
+error. Watch also keeps its local "My Recipes" feed selectable through every
+remote state. `RemoteDiscoverService` required no translation change because
+it already propagates `APIError` intact to the view model.
+
+Verification on August 26, 2026:
+
+- focused tests first failed on the missing associated failure, refresh, and
+  per-operation state, proving the red contract;
+- all 11 `DiscoverViewModelTests` passed, including suspended in-flight checks
+  for independent open/save progress;
+- first-load offline, provider-unavailable, and rate-limited failures were
+  classified, including the exact retry time;
+- 3 focused `DiscoverInteractionUITests` passed for Discover interaction,
+  Watch paging, and switching between saved and remote feeds;
+- the test result contains reviewed "Discover loaded results" and "Watch
+  full-screen feed" screenshots at 1,206 by 2,622 pixels;
+- the complete `LadleTests` target passed 211 tests: 210 passed and the one
   live App Attest test was intentionally skipped.
 
 ## Final release gates

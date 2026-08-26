@@ -85,6 +85,23 @@ enum RemoteFailure: Equatable, Sendable {
         }
     }
 
+    var systemImage: String {
+        switch self {
+        case .offline:
+            "wifi.slash"
+        case .serviceUnavailable:
+            "server.rack"
+        case .rateLimited:
+            "clock.badge.exclamationmark"
+        case .quotaExceeded:
+            "exclamationmark.circle"
+        case .authenticationExpired:
+            "person.crop.circle.badge.exclamationmark"
+        case .invalidResponse, .unknown:
+            "exclamationmark.triangle"
+        }
+    }
+
     var retryAt: Date? {
         guard case let .rateLimited(retryAt) = self else { return nil }
         return retryAt
