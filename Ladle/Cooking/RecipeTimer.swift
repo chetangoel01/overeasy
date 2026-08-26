@@ -245,7 +245,7 @@ struct RecipeTimerButton: View {
                             .foregroundStyle(
                                 onDark
                                     ? LadleTheme.onAccent
-                                    : LadleTheme.paprika
+                                    : LadleTheme.Label.accent
                             )
                             .frame(width: 48, height: 48)
                             .background(

@@ -79,7 +79,7 @@ struct RecipeEditorView: View {
                             .frame(minHeight: 44)
                             .background(
                                 selectedSection == section
-                                    ? LadleTheme.paprika
+                                    ? LadleTheme.Label.accent
                                     : LadleTheme.Surface.raised,
                                 in: Capsule()
                             )
@@ -192,7 +192,7 @@ struct RecipeEditorView: View {
                     .textSelection(.enabled)
                 Text(viewModel.draft.source.libraryTitle)
                     .ladleFont(.metadata)
-                    .foregroundStyle(LadleTheme.paprika)
+                    .foregroundStyle(LadleTheme.Label.accent)
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -310,7 +310,7 @@ struct RecipeEditorView: View {
                 isOn: $viewModel.draft.nutrition.isIncluded
             )
             .ladleFont(.bodyStrong)
-            .tint(LadleTheme.paprika)
+            .tint(LadleTheme.Label.accent)
 
             if viewModel.draft.nutrition.isIncluded {
                 nutritionField(
@@ -355,7 +355,7 @@ struct RecipeEditorView: View {
                     isOn: $viewModel.draft.nutrition.isEstimated
                 )
                 .ladleFont(.bodyStrong)
-                .tint(LadleTheme.paprika)
+                .tint(LadleTheme.Label.accent)
 
                 let nutritionIssues = viewModel.validationIssues.filter {
                     if case .nutritionValueInvalid = $0 {
@@ -612,7 +612,7 @@ struct RecipeEditorView: View {
                 }
             }
         }
-        .foregroundStyle(LadleTheme.paprika)
+        .foregroundStyle(LadleTheme.Label.accent)
     }
 
     private func itemTitle(_ title: String) -> some View {
@@ -670,7 +670,7 @@ struct RecipeEditorView: View {
     private func validationText(_ message: String) -> some View {
         Label(message, systemImage: "exclamationmark.circle")
             .ladleFont(.metadata)
-            .foregroundStyle(LadleTheme.paprika)
+            .foregroundStyle(LadleTheme.Label.accent)
     }
 }
 

@@ -51,7 +51,7 @@ struct RecipeOptionsSheet: View {
                                     .foregroundStyle(
                                         option == .delete
                                             ? Color.red
-                                            : LadleTheme.paprika
+                                            : LadleTheme.Label.accent
                                     )
                                     .frame(width: 36, height: 36)
                                     .background(

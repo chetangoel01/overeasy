@@ -104,7 +104,7 @@ struct WelcomeView: View {
         VStack(spacing: LadleTheme.Spacing.compact) {
             Text("Overeasy")
                 .ladleFont(.section)
-                .foregroundStyle(LadleTheme.paprika)
+                .foregroundStyle(LadleTheme.Label.accent)
 
             Text("Recipes, rescued from the scroll.")
                 .ladleScaledFont(
@@ -191,7 +191,7 @@ struct WelcomeView: View {
             if let authenticationError {
                 Text(authenticationError)
                     .ladleFont(.metadata)
-                    .foregroundStyle(LadleTheme.paprika)
+                    .foregroundStyle(LadleTheme.Label.accent)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, LadleTheme.Spacing.medium)

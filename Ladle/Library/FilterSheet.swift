@@ -84,7 +84,7 @@ struct FilterSheet: View {
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Button("Reset", action: reset)
-                        .foregroundStyle(LadleTheme.paprika)
+                        .foregroundStyle(LadleTheme.Label.accent)
                 }
             }
         }

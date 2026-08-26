@@ -129,14 +129,13 @@ enum LadleTheme {
         blue: 61 / 255
     )
 
-    static var paprika: Color { accentText }
-
     // MARK: - Semantic roles
     //
     // The names above are the original palette names and say what a colour
     // *is*. The roles below say what a colour is *for*, which is the only
-    // thing a call site should need to know. New code uses these; the names
-    // above remain so the existing call sites keep compiling.
+    // thing a call site should need to know. Call sites use these. The
+    // palette names above remain because the roles are defined in terms of
+    // them; the four alias pairs that used to sit between the two are gone.
 
     /// Backgrounds, from the page ground upward.
     enum Surface {

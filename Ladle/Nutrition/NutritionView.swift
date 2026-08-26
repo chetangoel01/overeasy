@@ -110,7 +110,7 @@ struct NutritionView: View {
         macro(
             name: "Carbohydrates",
             value: displayedNutrition.carbohydrateGrams,
-            color: LadleTheme.paprika
+            color: LadleTheme.Label.accent
         )
         macro(
             name: "Fat",

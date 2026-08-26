@@ -39,7 +39,7 @@ struct RecipeListRow: View {
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(
                     recipe.isFavorite
-                        ? LadleTheme.paprika
+                        ? LadleTheme.Label.accent
                         : LadleTheme.ink.opacity(0.52)
                 )
                 .frame(width: 44, height: 44)

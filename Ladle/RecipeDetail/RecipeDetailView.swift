@@ -327,7 +327,7 @@ struct RecipeDetailView: View {
                 ) { _, note in
                     HStack(alignment: .top, spacing: 10) {
                         Circle()
-                            .fill(LadleTheme.paprika)
+                            .fill(LadleTheme.Label.accent)
                             .frame(width: 5, height: 5)
                             .padding(.top, 7)
                             .accessibilityHidden(true)
@@ -345,7 +345,7 @@ struct RecipeDetailView: View {
     private var estimateNote: some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "info.circle")
-                .foregroundStyle(LadleTheme.paprika)
+                .foregroundStyle(LadleTheme.Label.accent)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 4) {
                 Text("Estimated nutrition")
@@ -449,7 +449,7 @@ struct RecipeDetailView: View {
         } label: {
             Image(systemName: isFavorite ? "heart.fill" : "heart")
                 .foregroundStyle(
-                    isFavorite ? LadleTheme.paprika : LadleTheme.ink
+                    isFavorite ? LadleTheme.Label.accent : LadleTheme.ink
                 )
                 .frame(width: 44, height: 44)
         }

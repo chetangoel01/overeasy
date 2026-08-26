@@ -73,7 +73,7 @@ struct PrivacyDetailView: View {
     private func transparencyRow(_ item: String) -> some View {
         HStack(alignment: .top, spacing: LadleTheme.Spacing.medium) {
             Circle()
-                .fill(LadleTheme.paprika)
+                .fill(LadleTheme.Label.accent)
                 .frame(width: 6, height: 6)
                 .padding(.top, 8)
                 .accessibilityHidden(true)

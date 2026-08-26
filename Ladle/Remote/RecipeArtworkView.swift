@@ -36,7 +36,7 @@ struct RecipeArtworkView: View {
                     .fill(LadleTheme.Surface.raised)
                     .overlay {
                         Image(systemName: "frying.pan")
-                            .foregroundStyle(LadleTheme.paprika)
+                            .foregroundStyle(LadleTheme.Label.accent)
                     }
             }
         }

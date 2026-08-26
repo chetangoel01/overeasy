@@ -69,17 +69,17 @@ struct PendingImportCard: View {
         switch job.status {
         case .parsing:
             ProgressView()
-                .tint(LadleTheme.paprika)
+                .tint(LadleTheme.Label.accent)
                 .frame(width: 28, height: 28)
                 .accessibilityHidden(true)
         case .needsReview:
             Image(systemName: "questionmark.circle.fill")
-                .foregroundStyle(LadleTheme.paprika)
+                .foregroundStyle(LadleTheme.Label.accent)
                 .frame(width: 28, height: 28)
                 .accessibilityHidden(true)
         case .failed:
             Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(LadleTheme.paprika)
+                .foregroundStyle(LadleTheme.Label.accent)
                 .frame(width: 28, height: 28)
                 .accessibilityHidden(true)
         case .ready:
@@ -165,7 +165,7 @@ struct PendingImportCard: View {
         case .parsing, .needsReview:
             LadleTheme.Surface.steel
         case .failed:
-            LadleTheme.paprika.opacity(0.11)
+            LadleTheme.Label.accent.opacity(0.11)
         case .ready:
             LadleTheme.Intent.success.opacity(0.12)
         }
@@ -174,7 +174,7 @@ struct PendingImportCard: View {
     private var statusForeground: Color {
         switch job.status {
         case .failed:
-            LadleTheme.paprika
+            LadleTheme.Label.accent
         case .ready:
             LadleTheme.Intent.success
         case .parsing, .needsReview:

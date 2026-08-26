@@ -97,7 +97,7 @@ struct FullRecipeView: View {
             )
             .ladleFont(.bodyStrong)
             .foregroundStyle(LadleTheme.ink)
-            .tint(LadleTheme.paprika)
+            .tint(LadleTheme.Label.accent)
             .padding(.horizontal, 16)
             .frame(minHeight: 56)
             .background(

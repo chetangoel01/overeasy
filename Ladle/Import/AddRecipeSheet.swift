@@ -190,7 +190,7 @@ struct AddRecipeSheet: View {
 
                 HStack(spacing: 10) {
                     Image(systemName: "square.and.arrow.up")
-                        .foregroundStyle(LadleTheme.paprika)
+                        .foregroundStyle(LadleTheme.Label.accent)
                     Text("Tip: sharing a video to Overeasy is even faster.")
                         .ladleFont(.metadata)
                         .foregroundStyle(LadleTheme.ink.opacity(0.62))
@@ -285,7 +285,7 @@ struct AddRecipeSheet: View {
         VStack(spacing: 22) {
             ProgressView()
                 .controlSize(.large)
-                .tint(LadleTheme.paprika)
+                .tint(LadleTheme.Label.accent)
                 .frame(width: 64, height: 64)
                 .background(LadleTheme.Surface.steel, in: Circle())
 
@@ -368,7 +368,7 @@ struct AddRecipeSheet: View {
         VStack(spacing: 22) {
             Image(systemName: "rectangle.on.rectangle")
                 .font(.system(size: 24, weight: .semibold))
-                .foregroundStyle(LadleTheme.paprika)
+                .foregroundStyle(LadleTheme.Label.accent)
                 .frame(width: 60, height: 60)
                 .background(LadleTheme.Surface.steel, in: Circle())
 
@@ -426,7 +426,7 @@ struct AddRecipeSheet: View {
             VStack(spacing: 22) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.system(size: 24))
-                    .foregroundStyle(LadleTheme.paprika)
+                    .foregroundStyle(LadleTheme.Label.accent)
                     .frame(width: 60, height: 60)
                     .background(LadleTheme.Surface.steel, in: Circle())
                 Text("We saved the link")
@@ -478,14 +478,14 @@ struct AddRecipeSheet: View {
         case let .validationFailed(error):
             Label(error.addRecipeMessage, systemImage: "exclamationmark.circle")
                 .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.paprika)
+                .foregroundStyle(LadleTheme.Label.accent)
         case .persistenceFailed:
             Label(
                 "Overeasy couldn’t save that import. Please try again.",
                 systemImage: "exclamationmark.circle"
             )
             .ladleFont(.metadata)
-            .foregroundStyle(LadleTheme.paprika)
+            .foregroundStyle(LadleTheme.Label.accent)
         default:
             EmptyView()
         }
@@ -499,7 +499,7 @@ struct AddRecipeSheet: View {
         VStack(alignment: .leading, spacing: 12) {
             Image(systemName: icon)
                 .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(LadleTheme.paprika)
+                .foregroundStyle(LadleTheme.Label.accent)
                 .frame(width: 48, height: 48)
                 .background(LadleTheme.Surface.steel, in: Circle())
             Text(title)

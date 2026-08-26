@@ -57,7 +57,7 @@ struct RecipeMetadataBand: View {
         VStack(spacing: 6) {
             Image(systemName: systemImage)
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(LadleTheme.paprika)
+                .foregroundStyle(LadleTheme.Label.accent)
                 .accessibilityHidden(true)
             Text(value)
                 .ladleFont(.bodyStrong)

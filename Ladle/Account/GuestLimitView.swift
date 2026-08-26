@@ -12,7 +12,7 @@ struct GuestLimitView: View {
 
             Image(systemName: "books.vertical")
                 .font(.system(size: 24, weight: .semibold))
-                .foregroundStyle(LadleTheme.paprika)
+                .foregroundStyle(LadleTheme.Label.accent)
                 .frame(width: 54, height: 54)
                 .background(LadleTheme.Surface.steel, in: Circle())
 

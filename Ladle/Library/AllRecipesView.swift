@@ -300,7 +300,7 @@ struct AllRecipesView: View {
         VStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 28))
-                .foregroundStyle(LadleTheme.paprika)
+                .foregroundStyle(LadleTheme.Label.accent)
             Text("No recipes found")
                 .ladleFont(.section)
                 .foregroundStyle(LadleTheme.ink)

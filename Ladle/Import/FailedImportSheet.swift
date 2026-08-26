@@ -76,7 +76,7 @@ struct FailedImportSheet: View {
         VStack(alignment: .leading, spacing: 12) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 22))
-                .foregroundStyle(LadleTheme.paprika)
+                .foregroundStyle(LadleTheme.Label.accent)
                 .frame(width: 52, height: 52)
                 .background(LadleTheme.Surface.steel, in: Circle())
 

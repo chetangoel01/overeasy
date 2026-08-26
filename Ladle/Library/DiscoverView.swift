@@ -324,7 +324,7 @@ private struct DiscoverRecipeRow: View {
             VStack(alignment: .leading, spacing: 5) {
                 Text(recipe.creatorName ?? recipe.source.libraryTitle)
                     .ladleFont(.metadata)
-                    .foregroundStyle(LadleTheme.paprika)
+                    .foregroundStyle(LadleTheme.Label.accent)
                     .lineLimit(1)
                 Text(recipe.title)
                     .ladleFont(.bodyStrong)

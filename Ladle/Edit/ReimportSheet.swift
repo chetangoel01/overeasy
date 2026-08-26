@@ -140,7 +140,7 @@ struct ReimportSheet: View {
         VStack(spacing: 20) {
             ProgressView()
                 .controlSize(.large)
-                .tint(LadleTheme.paprika)
+                .tint(LadleTheme.Label.accent)
             Text("Building a replacement")
                 .ladleFont(.title)
                 .foregroundStyle(LadleTheme.ink)
@@ -231,7 +231,7 @@ struct ReimportSheet: View {
         VStack(alignment: .leading, spacing: 10) {
             Image(systemName: icon)
                 .font(.system(size: 21, weight: .semibold))
-                .foregroundStyle(LadleTheme.paprika)
+                .foregroundStyle(LadleTheme.Label.accent)
                 .frame(width: 50, height: 50)
                 .background(LadleTheme.Surface.steel, in: Circle())
             Text(title)
@@ -351,7 +351,7 @@ struct ReimportDecisionView: View {
                     : "checkmark"
             )
             .font(.system(size: 21, weight: .semibold))
-            .foregroundStyle(LadleTheme.paprika)
+            .foregroundStyle(LadleTheme.Label.accent)
             .frame(width: 50, height: 50)
             .background(LadleTheme.Surface.steel, in: Circle())
             Text(
@@ -372,7 +372,7 @@ struct ReimportDecisionView: View {
     private var currentRecipeNotice: some View {
         HStack(spacing: 12) {
             Image(systemName: "shield.checkered")
-                .foregroundStyle(LadleTheme.paprika)
+                .foregroundStyle(LadleTheme.Label.accent)
             VStack(alignment: .leading, spacing: 3) {
                 Text("Current recipe is safe")
                     .ladleFont(.bodyStrong)

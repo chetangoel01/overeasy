@@ -18,7 +18,7 @@ struct IngredientList: View {
                 VStack(alignment: .leading, spacing: 7) {
                     HStack(alignment: .firstTextBaseline, spacing: 10) {
                         Circle()
-                            .fill(LadleTheme.paprika)
+                            .fill(LadleTheme.Label.accent)
                             .frame(width: 6, height: 6)
                             .accessibilityHidden(true)
 
@@ -35,7 +35,7 @@ struct IngredientList: View {
                             systemImage: "exclamationmark.circle"
                         )
                         .ladleFont(.metadata)
-                        .foregroundStyle(LadleTheme.paprika)
+                        .foregroundStyle(LadleTheme.Label.accent)
                         .padding(.leading, 16)
                         .accessibilityLabel(
                             "Uncertain ingredient: \(uncertainty.reason)"

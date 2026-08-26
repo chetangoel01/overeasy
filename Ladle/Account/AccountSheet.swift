@@ -53,7 +53,7 @@ struct AccountSheet: View {
         HStack(alignment: .top, spacing: LadleTheme.Spacing.regular) {
             Image(systemName: "person.crop.circle.badge.checkmark")
                 .font(.system(size: 24, weight: .semibold))
-                .foregroundStyle(LadleTheme.paprika)
+                .foregroundStyle(LadleTheme.Label.accent)
                 .frame(width: 52, height: 52)
                 .background(LadleTheme.Surface.steel, in: Circle())
                 .accessibilityHidden(true)
@@ -121,7 +121,7 @@ struct AccountSheet: View {
                 HStack(spacing: 13) {
                     Image(systemName: "hand.raised")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(LadleTheme.paprika)
+                        .foregroundStyle(LadleTheme.Label.accent)
                         .frame(width: 34, height: 34)
                         .background(LadleTheme.Surface.steel, in: Circle())
                     VStack(alignment: .leading, spacing: 2) {
@@ -379,7 +379,7 @@ struct AccountSheet: View {
         ) {
             Image(systemName: icon)
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(LadleTheme.paprika)
+                .foregroundStyle(LadleTheme.Label.accent)
                 .frame(width: 34, height: 34)
                 .background(LadleTheme.Surface.steel, in: Circle())
 

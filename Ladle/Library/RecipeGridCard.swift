@@ -20,7 +20,7 @@ struct RecipeGridCard: View {
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(
                         recipe.isFavorite
-                            ? LadleTheme.paprika
+                            ? LadleTheme.Label.accent
                             : LadleTheme.ink
                     )
                     .frame(width: 38, height: 38)

@@ -85,7 +85,7 @@ struct HealthExportSheet: View {
         VStack(alignment: .leading, spacing: 10) {
             Image(systemName: "heart.text.clipboard")
                 .font(.system(size: 22, weight: .semibold))
-                .foregroundStyle(LadleTheme.paprika)
+                .foregroundStyle(LadleTheme.Label.accent)
                 .frame(width: 52, height: 52)
                 .background(LadleTheme.Surface.steel, in: Circle())
 
