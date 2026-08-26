@@ -45,6 +45,10 @@ struct HealthExportSheet: View {
                     Button("Cancel") {
                         dismiss()
                     }
+                    .padding(
+                        .leading,
+                        LadleTheme.Layout.sheetToolbarInset
+                    )
                 }
             }
         }

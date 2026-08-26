@@ -86,6 +86,10 @@ struct AccountSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close", action: dismiss.callAsFunction)
+                        .padding(
+                            .leading,
+                            LadleTheme.Layout.sheetToolbarInset
+                        )
                 }
             }
         }

@@ -71,7 +71,7 @@ migration should follow them so the app does not grow a third scale:
   and unit fields sit in a `ViewThatFits`, so their gap rounds down; widening
   it would push more cases into the stacked fallback.
 
-### Scroll clearance: two roles, not one
+### Scroll clearance and safe areas
 
 Measured rather than guessed, as this document asked. At full scroll the
 Recipes list already clears the floating tab bar by about 45 points, because
@@ -79,16 +79,13 @@ the system insets a tab screen's scroll view on its own. So the 30 to 48 those
 six screens carried was never bar clearance — it was breathing room on top of
 it, and they now share `Layout.scrollTail`.
 
-Watch is the exception and the reason a single role would have been wrong. Its
-content runs full-bleed under the bar, the system insets nothing, and the
-`88 + medium` it added by hand is real clearance. That is
-`Layout.overlayBarClearance`, and it is the one layout value allowed off the
-spacing scale, because it is the height of a bar rather than a chosen distance.
-
-`WatchView:66` still pads its overlay control down by a literal 60 for the same
-reason at the top of the screen. It is the one off-scale literal left in the
-app. Both it and `overlayBarClearance` would be better read from the safe-area
-insets than stated as constants; that is a different change from this one.
+Watch is the exception because its content runs full-bleed under both system
+edges. Consolidation Task 11 removed the 60-, 112-, and 100-point device
+assumptions. It now reads the key window's live top and bottom safe-area insets.
+The top picker and controls add only semantic spacing; the refresh banner
+derives from the same top value plus one hit target. Bottom actions clear the
+floating tab bar with the live bottom inset plus the semantic primary-control
+height and screen margin. `Layout.overlayBarClearance` is removed.
 
 ### A second design system
 
@@ -181,15 +178,12 @@ inset anyway: IngredientList would otherwise have *become* misaligned when its
 icon gap moved onto `iconGap`, which is the argument for deriving rather than
 rounding.
 
-Outstanding, each with a role that now exists to express the fix:
+Resolved with the roles introduced by this migration:
 
-- Sheet close controls sit on 16 while sheet bodies sit on 24, across seven
-  screens. Focus Mode is the only one already correct — use
-  `Layout.sheetMargin` for both.
-- The failed-import recovery stack centres each button's icon and label as one
-  group, giving three buttons three label origins across a 19pt spread.
-- Recipe options styles delete identically to four benign actions — use
-  `LadleButtonRole.destructive`.
+- Sheet toolbar controls and bodies now share `Layout.sheetMargin`.
+- The failed-import recovery stack shares one icon column and label edge.
+- Recipe options use `.destructive` for delete and `.tertiary` for the four
+  benign actions.
 
 ## Sequencing
 
@@ -407,3 +401,35 @@ Verification on August 26, 2026:
   appearances at
   `~/Desktop/overeasy-ui-scratch/consolidated-step11/semantic-colors-20260826-1437/`;
   visual review found no unintended color or contrast drift.
+
+## Step 4, batch 2: sheet edges and Watch safe areas
+
+All eleven native sheet toolbars now align their leading and trailing controls
+with `Layout.sheetMargin`. The derived `sheetToolbarInset` adds the eight
+points between the native 16-point toolbar edge and the 24-point sheet edge.
+Recipe Editor was the only sheet body still using the screen margin; its
+horizontal content now uses `sheetMargin` while retaining the original vertical
+spacing.
+
+Watch now carries the key window's real safe-area insets into every full-screen
+page. The feed picker, refresh banner, playback controls, and action panel all
+derive from that input and named control/spacing values. The first visual pass
+proved that bottom inset plus scroll-tail spacing alone allowed actions beneath
+the floating tab bar; the corrected formula uses the live bottom inset plus
+the primary-control height and screen margin. It restores clearance without a
+device-specific constant.
+
+Verification on August 26, 2026:
+
+- four focused tests first failed on the missing sheet inset, missing Watch
+  safe-area layout, unaligned toolbar files, and Recipe Editor margin;
+- all 25 `DesignTokenTests` and four focused Settings/options/Watch UI tests
+  pass;
+- the complete `LadleTests` target passes 234 tests: 233 passed and the one
+  live App Attest test was intentionally skipped;
+- the initial retained Watch capture exposed the tab overlap and is preserved
+  under `safe-areas-20260826-1454`; the corrected capture under
+  `safe-areas-corrected-20260826-1457` shows the actions clear of the floating
+  tab bar;
+- the representative Settings and recipe-options captures confirm toolbar and
+  content edges align at the approved sheet margin.

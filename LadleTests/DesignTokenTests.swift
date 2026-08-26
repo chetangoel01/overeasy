@@ -212,14 +212,82 @@ final class DesignTokenTests: XCTestCase {
         XCTAssertEqual(LadleTheme.Layout.sheetMargin, 24)
     }
 
-    /// `overlayBarClearance` is deliberately not on the spacing scale: it is
-    /// the height of a real bar plus a gap, not a gap on its own. It is the
-    /// one layout value allowed to be measured rather than chosen.
-    func testOverlayBarClearanceExceedsTheFloatingBar() {
-        XCTAssertEqual(LadleTheme.Layout.overlayBarClearance, 100)
-        XCTAssertGreaterThan(
-            LadleTheme.Layout.overlayBarClearance,
-            LadleTheme.Layout.scrollTail
+    func testSheetToolbarInsetCompletesTheSheetMargin() {
+        XCTAssertEqual(
+            LadleTheme.Layout.sheetToolbarInset,
+            LadleTheme.Layout.sheetMargin
+                - LadleTheme.Layout.screenMargin
+        )
+        XCTAssertEqual(LadleTheme.Layout.sheetToolbarInset, 8)
+    }
+
+    func testWatchOverlayLayoutUsesProvidedSafeAreaInsets() {
+        XCTAssertEqual(
+            WatchOverlayLayout.topPadding(safeAreaTop: 59),
+            59 + LadleTheme.Spacing.compact
+        )
+        XCTAssertEqual(
+            WatchOverlayLayout.refreshTopPadding(safeAreaTop: 59),
+            59 + LadleTheme.Spacing.compact
+                + LadleTheme.Control.hitTarget
+        )
+        XCTAssertEqual(
+            WatchOverlayLayout.bottomPadding(safeAreaBottom: 34),
+            34 + LadleTheme.Control.primary
+                + LadleTheme.Spacing.regular
+        )
+        XCTAssertNotEqual(
+            WatchOverlayLayout.topPadding(safeAreaTop: 0),
+            WatchOverlayLayout.topPadding(safeAreaTop: 59)
+        )
+    }
+
+    func testSheetToolbarControlsUseTheSemanticInset() throws {
+        let project = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let sheetSources = [
+            "Ladle/Account/AccountSheet.swift",
+            "Ladle/Edit/RecipeEditorView.swift",
+            "Ladle/Edit/ReimportSheet.swift",
+            "Ladle/Health/HealthExportSheet.swift",
+            "Ladle/Import/AddRecipeSheet.swift",
+            "Ladle/Import/CorrectionNotesView.swift",
+            "Ladle/Import/FailedImportSheet.swift",
+            "Ladle/Library/FilterSheet.swift",
+            "Ladle/Library/VideoEmbedSheet.swift",
+            "Ladle/Nutrition/NutritionView.swift",
+            "Ladle/RecipeDetail/RecipeOptionsSheet.swift",
+        ]
+        var offenders: [String] = []
+
+        for path in sheetSources {
+            let source = try String(
+                contentsOf: project.appendingPathComponent(path),
+                encoding: .utf8
+            )
+            if !source.contains("LadleTheme.Layout.sheetToolbarInset") {
+                offenders.append(path)
+            }
+        }
+
+        XCTAssertEqual(offenders, [])
+    }
+
+    func testRecipeEditorUsesTheSheetMargin() throws {
+        let project = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: project.appendingPathComponent(
+                "Ladle/Edit/RecipeEditorView.swift"
+            ),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(source.contains("LadleTheme.Layout.sheetMargin"))
+        XCTAssertFalse(
+            source.contains(".padding(LadleTheme.Spacing.regular)")
         )
     }
 

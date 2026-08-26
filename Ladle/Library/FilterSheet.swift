@@ -81,10 +81,18 @@ struct FilterSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel", action: dismiss.callAsFunction)
+                        .padding(
+                            .leading,
+                            LadleTheme.Layout.sheetToolbarInset
+                        )
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Button("Reset", action: reset)
                         .foregroundStyle(LadleTheme.Label.accent)
+                        .padding(
+                            .trailing,
+                            LadleTheme.Layout.sheetToolbarInset
+                        )
                 }
             }
         }

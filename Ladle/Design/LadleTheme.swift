@@ -229,6 +229,9 @@ enum LadleTheme {
         /// Leading and trailing margin for content inside a sheet, including
         /// the sheet's own toolbar control.
         static let sheetMargin = Spacing.generous
+        /// Extra inset that moves a native toolbar item from the system's
+        /// 16-point edge onto the 24-point sheet content margin.
+        static let sheetToolbarInset = sheetMargin - screenMargin
         /// Inner padding for a grouped card or field.
         static let cardPadding = Spacing.regular
         /// Gap between two sections of a screen.
@@ -243,11 +246,6 @@ enum LadleTheme {
         /// this. On a tab screen the system already insets for the floating
         /// bar, so this sits on top of that rather than replacing it.
         static let scrollTail = Spacing.cooking
-        /// Clearance for the floating tab bar on a screen whose content runs
-        /// full-bleed underneath it, so the system applies no inset of its
-        /// own. Only Watch is laid out that way; everything else wants
-        /// `scrollTail`.
-        static let overlayBarClearance: CGFloat = 88 + Spacing.medium
     }
 
     /// Control heights and hit targets. Three values only — a 46, 50 or 56

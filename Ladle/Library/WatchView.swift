@@ -9,6 +9,28 @@ private enum WatchFeed: String, CaseIterable, Identifiable {
     var id: Self { self }
 }
 
+struct WatchOverlayLayout {
+    static func topPadding(safeAreaTop: CGFloat) -> CGFloat {
+        safeAreaTop + LadleTheme.Spacing.compact
+    }
+
+    static func refreshTopPadding(safeAreaTop: CGFloat) -> CGFloat {
+        topPadding(safeAreaTop: safeAreaTop)
+            + LadleTheme.Control.hitTarget
+    }
+
+    static func bottomPadding(safeAreaBottom: CGFloat) -> CGFloat {
+        safeAreaBottom
+            + LadleTheme.Control.primary
+            + LadleTheme.Spacing.regular
+    }
+}
+
+private struct WatchViewport {
+    let size: CGSize
+    let safeAreaInsets: UIEdgeInsets
+}
+
 struct WatchView: View {
     @Bindable var viewModel: LibraryViewModel
     let refreshVersion: Int
@@ -47,6 +69,7 @@ struct WatchView: View {
     }
 
     var body: some View {
+        let viewport = self.viewport
         ZStack(alignment: .topLeading) {
             Group {
                 if feed == .discover {
@@ -63,13 +86,23 @@ struct WatchView: View {
 
             feedPicker
                 .padding(.leading, LadleTheme.Spacing.regular)
-                .padding(.top, 60)
+                .padding(
+                    .top,
+                    WatchOverlayLayout.topPadding(
+                        safeAreaTop: viewport.safeAreaInsets.top
+                    )
+                )
                 .zIndex(1)
 
             if feed == .discover {
                 discoverRefreshOverlay
                     .padding(.horizontal, LadleTheme.Spacing.regular)
-                    .padding(.top, 112)
+                    .padding(
+                        .top,
+                        WatchOverlayLayout.refreshTopPadding(
+                            safeAreaTop: viewport.safeAreaInsets.top
+                        )
+                    )
                     .zIndex(1)
             }
         }
@@ -115,12 +148,14 @@ struct WatchView: View {
     }
 
     private func recipeFeed(_ recipes: [Recipe]) -> some View {
-        ScrollView(.vertical) {
+        let viewport = self.viewport
+        return ScrollView(.vertical) {
             LazyVStack(spacing: 0) {
                 ForEach(recipes) { recipe in
                     WatchRecipePage(
                         recipe: recipe,
-                        viewportSize: viewportSize,
+                        viewportSize: viewport.size,
+                        safeAreaInsets: viewport.safeAreaInsets,
                         isVideoActive: activeRecipeID(in: recipes) == recipe.id,
                         isMuted: $isMuted,
                         discoverRecipe: discoverRecipe(id: recipe.id),
@@ -190,23 +225,31 @@ struct WatchView: View {
         return recipes.first { $0.sourceID == id }
     }
 
-    private var viewportSize: CGSize {
+    private var viewport: WatchViewport {
         let scene = UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
             .first
-        if let windowSize = scene?.windows
-            .first(where: \.isKeyWindow)?
-            .frame
-            .size {
-            return windowSize
+        if let window = scene?.windows.first(where: \.isKeyWindow) {
+            return WatchViewport(
+                size: window.frame.size,
+                safeAreaInsets: window.safeAreaInsets
+            )
         }
         guard let screen = scene?.screen else {
-            return CGSize(width: 1, height: 1)
+            return WatchViewport(
+                size: CGSize(width: 1, height: 1),
+                safeAreaInsets: .zero
+            )
         }
         let nativeSize = screen.nativeBounds.size
-        return CGSize(
-            width: min(nativeSize.width, nativeSize.height) / screen.nativeScale,
-            height: max(nativeSize.width, nativeSize.height) / screen.nativeScale
+        return WatchViewport(
+            size: CGSize(
+                width: min(nativeSize.width, nativeSize.height)
+                    / screen.nativeScale,
+                height: max(nativeSize.width, nativeSize.height)
+                    / screen.nativeScale
+            ),
+            safeAreaInsets: .zero
         )
     }
 
@@ -320,6 +363,7 @@ private extension DiscoverRecipe {
 private struct WatchRecipePage: View {
     let recipe: Recipe
     let viewportSize: CGSize
+    let safeAreaInsets: UIEdgeInsets
     let isVideoActive: Bool
     @Binding var isMuted: Bool
     let discoverRecipe: DiscoverRecipe?
@@ -389,7 +433,7 @@ private struct WatchRecipePage: View {
             playbackScrim
 
             VStack(spacing: 0) {
-                topBar(topInset: 48)
+                topBar
                 Spacer(minLength: 120)
                 playbackRecipePanel
             }
@@ -456,7 +500,12 @@ private struct WatchRecipePage: View {
         }
         .padding(.horizontal, LadleTheme.Spacing.regular)
         .padding(.top, LadleTheme.Spacing.medium)
-        .padding(.bottom, LadleTheme.Layout.overlayBarClearance)
+        .padding(
+            .bottom,
+            WatchOverlayLayout.bottomPadding(
+                safeAreaBottom: safeAreaInsets.bottom
+            )
+        )
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -513,7 +562,7 @@ private struct WatchRecipePage: View {
         .fixedSize(horizontal: false, vertical: true)
     }
 
-    private func topBar(topInset: CGFloat) -> some View {
+    private var topBar: some View {
         HStack(spacing: LadleTheme.Spacing.medium) {
             Spacer()
 
@@ -551,7 +600,12 @@ private struct WatchRecipePage: View {
             .background(.black.opacity(0.48), in: Circle())
         }
         .padding(.horizontal, LadleTheme.Spacing.regular)
-        .padding(.top, topInset + LadleTheme.Spacing.medium)
+        .padding(
+            .top,
+            WatchOverlayLayout.topPadding(
+                safeAreaTop: safeAreaInsets.top
+            )
+        )
     }
 
     private var sourceBar: some View {

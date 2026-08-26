@@ -46,6 +46,10 @@ struct NutritionView: View {
                     Button("Done") {
                         dismiss()
                     }
+                    .padding(
+                        .trailing,
+                        LadleTheme.Layout.sheetToolbarInset
+                    )
                 }
             }
         }

@@ -28,7 +28,11 @@ struct RecipeEditorView: View {
 
                 ScrollView {
                     sectionContent
-                        .padding(LadleTheme.Spacing.regular)
+                        .padding(
+                            .horizontal,
+                            LadleTheme.Layout.sheetMargin
+                        )
+                        .padding(.vertical, LadleTheme.Spacing.regular)
                         .padding(.bottom, LadleTheme.Layout.scrollTail)
                 }
                 .scrollDismissesKeyboard(.interactively)
@@ -44,6 +48,10 @@ struct RecipeEditorView: View {
                         viewModel.discardChanges()
                         dismiss()
                     }
+                    .padding(
+                        .leading,
+                        LadleTheme.Layout.sheetToolbarInset
+                    )
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save recipe") {
@@ -53,6 +61,10 @@ struct RecipeEditorView: View {
                         }
                     }
                     .fontWeight(.semibold)
+                    .padding(
+                        .trailing,
+                        LadleTheme.Layout.sheetToolbarInset
+                    )
                 }
             }
         }

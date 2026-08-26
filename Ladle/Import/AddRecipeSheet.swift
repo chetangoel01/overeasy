@@ -66,6 +66,10 @@ struct AddRecipeSheet: View {
                             .frame(width: 44, height: 44)
                     }
                     .accessibilityLabel("Close")
+                    .padding(
+                        .leading,
+                        LadleTheme.Layout.sheetToolbarInset
+                    )
                 }
             }
         }
