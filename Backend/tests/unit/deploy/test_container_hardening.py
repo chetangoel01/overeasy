@@ -1,6 +1,8 @@
 import re
 from pathlib import Path
 
+import yaml
+
 BACKEND = Path(__file__).parents[3]
 
 
@@ -47,6 +49,19 @@ def test_runtime_services_have_bounded_read_only_sandboxes() -> None:
         "fsize:",
     ):
         assert requirement in compose
+
+
+def test_local_long_running_services_recover_and_worker_avoids_memory_overlap() -> None:
+    compose = yaml.safe_load((BACKEND / "docker-compose.yml").read_text())
+    services = compose["services"]
+
+    for service_name in ("api", "worker", "beat"):
+        assert services[service_name]["restart"] == "unless-stopped"
+
+    worker = services["worker"]
+    assert worker["mem_limit"] == "${LADLE_WORKER_MEMORY_LIMIT:-2g}"
+    assert worker["cpus"] == "${LADLE_WORKER_CPU_LIMIT:-2.0}"
+    assert "--concurrency=${LADLE_WORKER_CONCURRENCY:-1}" in worker["command"]
 
 
 def test_production_context_excludes_development_and_private_artifacts() -> None:

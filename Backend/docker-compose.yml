@@ -154,6 +154,7 @@ services:
 
   api:
     <<: *runtime-security
+    restart: unless-stopped
     build: *runtime-build
     environment: *ladle-environment
     volumes:
@@ -181,6 +182,11 @@ services:
 
   worker:
     <<: *runtime-security
+    restart: unless-stopped
+    # Live media acquisition and transcription can be memory-heavy. Process
+    # one import at a time locally and leave enough headroom for its tools.
+    mem_limit: ${LADLE_WORKER_MEMORY_LIMIT:-2g}
+    cpus: ${LADLE_WORKER_CPU_LIMIT:-2.0}
     build: *runtime-build
     command:
       [
@@ -189,7 +195,7 @@ services:
         "ladle.worker.app:celery_app",
         "worker",
         "--loglevel=INFO",
-        "--concurrency=2",
+        "--concurrency=${LADLE_WORKER_CONCURRENCY:-1}",
       ]
     environment: *ladle-environment
     volumes:
@@ -221,6 +227,7 @@ services:
   # every sweep twice.
   beat:
     <<: *runtime-security
+    restart: unless-stopped
     build: *runtime-build
     command:
       [

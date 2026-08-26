@@ -81,13 +81,16 @@ The Compose stack runs:
 - Redis 7
 - MinIO and a one-shot bucket initializer
 - a one-shot Alembic migration container
-- FastAPI on port 4111
-- a Celery worker with concurrency 2
+- FastAPI on container port 4111, published on host port 4112
+- a Celery worker with local concurrency 1 and a 2 GiB memory ceiling
 
 Compose deliberately uses `LADLE_WORKER_PROVIDER_MODE=fake`. This makes local
 imports deterministic and free. The fake path exercises API admission, Redis,
 the worker, PostgreSQL, cache cloning, recipe persistence, and sync without
 calling paid services.
+The long-running API, worker, and Beat services restart after unexpected
+exits. Raise the worker concurrency or resource limits only when Docker
+Desktop has the corresponding capacity.
 
 Useful operations:
 
@@ -128,19 +131,22 @@ Caddy:
 
 ```caddyfile
 http://api.ladle.localhost {
-    reverse_proxy 127.0.0.1:4111
+    reverse_proxy 127.0.0.1:4112
 }
 ```
 
-or temporarily point `LADLE_API_BASE_URL` at port 4111 in the Debug xcconfig.
+or temporarily point `LADLE_API_BASE_URL` at port 4112 in the Debug xcconfig.
 In xcconfig syntax, preserve the escaped URL form:
 
 ```xcconfig
-LADLE_API_BASE_URL = http:/$()/127.0.0.1:4111
+LADLE_API_BASE_URL = http:/$()/127.0.0.1:4112
 ```
 
 The value becomes `LadleAPIBaseURL` in `Config/Ladle-Info.plist`, then
-`APIConfiguration` reads it when the app starts.
+`APIConfiguration` reads it when the app starts. This loopback route works on
+the Mac and iOS Simulator. A physical iPhone resolves `.localhost` to itself,
+so use the guarded release endpoint or the opt-in device tunnel described in
+the deployment documentation.
 
 ## Wire-format rules
 
@@ -778,7 +784,7 @@ enabled.
 | Symptom | Check |
 | --- | --- |
 | App reports an invalid base URL | Confirm `LadleAPIBaseURL` in the built Info.plist and preserve xcconfig URL escaping |
-| `api.ladle.localhost` does not connect | Add/reload the Caddy route or point Debug directly at `127.0.0.1:4111` |
+| `api.ladle.localhost` does not connect | Add/reload the Caddy route or point simulator Debug directly at `127.0.0.1:4112`; physical devices require the guarded release endpoint or tunnel |
 | API is live but not ready | Read `/health/ready`, then inspect Postgres, Redis, MinIO, and `minio-init` in `docker compose ps` |
 | Imports remain `parsing` | Confirm the worker is healthy, Celery is enabled, API/worker broker URLs match, and inspect worker logs |
 | Worker raises “providers are disabled” | Set provider mode to `fake` locally or `live` with all three keys |

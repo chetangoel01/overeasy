@@ -33,7 +33,14 @@ curl --fail http://127.0.0.1:4112/health/live
 curl --fail http://127.0.0.1:4112/health/ready
 ```
 
-Readiness checks PostgreSQL, Redis, and the private object-storage bucket.
+Readiness checks PostgreSQL, Redis, the Celery worker, and the private
+object-storage bucket. The API, worker, and Beat restart after unexpected
+exits. Local imports default to one worker process, a 2 GiB worker memory
+limit, and two CPUs so media-heavy jobs do not overlap inside a smaller shared
+ceiling. Override `LADLE_WORKER_CONCURRENCY`, `LADLE_WORKER_MEMORY_LIMIT`, or
+`LADLE_WORKER_CPU_LIMIT` in `.env` only when Docker Desktop has enough
+capacity.
+
 Prometheus-format bounded-label counters are available at `/metrics`. Run
 `scripts/check_secrets.sh` before publishing a deployment artifact.
 
