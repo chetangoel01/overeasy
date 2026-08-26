@@ -98,6 +98,13 @@ Reachability is a hint, while actual request results are authoritative. Sync
 runs remain coalesced, preserve pending local mutations, and expose status
 instead of discarding errors.
 
+Conflicts never choose a winner automatically. The local recipe remains the
+visible, editable copy while an explicit review sheet compares it with the
+other-device version. “Keep My Version” advances the local mutation onto the
+server's current revision before retrying; “Use Other Version” replaces the
+local draft only after that choice. A remote deletion is named directly and
+requires confirmation through “Remove Local Copy.”
+
 ### Remote-only surfaces
 
 Discover and its Watch feed distinguish:

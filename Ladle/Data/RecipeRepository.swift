@@ -1,6 +1,28 @@
 import Foundation
 import LadleCore
 
+struct RecipeSyncConflict: Identifiable, Equatable, Sendable {
+    let localRecipe: Recipe
+    let remoteRecipe: Recipe?
+    let remoteRevision: Int
+
+    var id: UUID { localRecipe.id }
+}
+
+enum RecipeSyncConflictResolution: Equatable, Sendable {
+    case keepLocal
+    case acceptRemote
+}
+
+@MainActor
+protocol RecipeSyncConflictRepository: AnyObject, Sendable {
+    func fetchSyncConflicts() throws -> [RecipeSyncConflict]
+    func resolveSyncConflict(
+        recipeID: UUID,
+        resolution: RecipeSyncConflictResolution
+    ) throws
+}
+
 @MainActor
 protocol RecipeRepository {
     func fetchRecipes() throws -> [Recipe]

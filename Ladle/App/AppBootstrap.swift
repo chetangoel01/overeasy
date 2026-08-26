@@ -429,12 +429,19 @@ final class LadleRuntime {
         guard let service else { return }
         status.begin()
         do {
+            let result: RecipeSyncResult
             if resetsCursor {
-                try await service.resetAndSynchronize()
+                result = try await service.resetAndSynchronize()
             } else {
-                try await service.synchronize()
+                result = try await service.synchronize()
             }
-            status.succeed()
+            if result.conflictCount > 0 {
+                status.requireConflictResolution(
+                    count: result.conflictCount
+                )
+            } else {
+                status.succeed()
+            }
         } catch is CancellationError {
             status.cancel()
         } catch {

@@ -137,7 +137,7 @@ above remains the fixed before-state rather than being rewritten as work lands.
 | --- | --- | --- |
 | Bootstrap | preparing, ready, local-store failure, invalid release configuration | closed in Task 9 |
 | Local library | loading, content, true empty, filtered empty, cached-content reload failure, large library | closed in Task 6 |
-| Connectivity and sync | current, syncing, offline, degraded, rate limited, quota, expired auth, conflict | shared failure vocabulary and observable status closed in Tasks 4-5; conflict handling remains open |
+| Connectivity and sync | current, syncing, offline, degraded, rate limited, quota, expired auth, conflict | closed in Tasks 4-5 and Task 12 follow-up; conflicts preserve the local copy and require an explicit keep-local, use-remote, or accept-remote-deletion choice |
 | Discover and remote Watch | initial load, content, empty, content-preserving refresh, stale/offline, classified remote failures, per-item operation | closed in Task 7 |
 | Imports | validation, duplicate, guest limit, queued, processing, review, completion, cancellation, concurrency, classified recovery | closed in Task 8 |
 | Secondary flows | account, health, image, video, editor, timer, Share handoff, destructive actions | closed in Task 10; missing Health/media/account states added without regressing established editor, timer, Share, or destructive-action behavior |
@@ -200,6 +200,39 @@ Verification on August 26, 2026:
 - the complete `LadleTests` target passed 203 tests: 202 passed and the one
   live App Attest test was intentionally skipped;
 - XcodeGen regenerated the checked-in project with the new source and test.
+
+### Explicit sync conflict resolution
+
+The Task 12 follow-up completes the one open connectivity state. A sync run
+now returns its persisted conflict count, so a completed run with unresolved
+recipes reports “Review changes” instead of “Up to date.” Library snapshots
+publish the conflict records without replacing the local recipe. A compact
+banner opens a dedicated review sheet that names the on-device and
+other-device versions and explains that the saved local copy remains safe.
+
+Resolution is deliberately asymmetric and explicit:
+
+- “Keep My Version” clears the conflict only after advancing the mutation's
+  base revision, allowing the next coalesced sync to retry against the current
+  server version;
+- “Use Other Version” replaces the local draft, clears its pending mutation,
+  and adopts the remote revision;
+- a remote deletion is shown as “Deleted on another device” and removes the
+  local copy only through the destructive “Remove Local Copy” action.
+
+Verification on August 26, 2026:
+
+- focused tests first failed on the absent state, repository resolution APIs,
+  view-model publication, and review presentation copy;
+- 54 focused status, sync-service, persistence, library, and presentation
+  tests passed after the initial implementation;
+- the complete `LadleTests` target executed 245 tests: 244 passed and the one
+  live App Attest test was intentionally skipped;
+- XcodeGen added the dedicated review source to the app target, and the
+  checked-in project otherwise remained reproducible;
+- the complete test log contains no unbalanced Share lifecycle warning; the
+  only diagnostics after the source-warning correction are Xcode's
+  AppIntents metadata skips.
 
 ### Local snapshot and reload semantics
 

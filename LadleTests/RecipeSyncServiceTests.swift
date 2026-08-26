@@ -103,7 +103,7 @@ final class RecipeSyncServiceTests: XCTestCase {
             cursorStore: InMemorySyncCursorStore()
         )
 
-        try await service.synchronize()
+        let result = try await service.synchronize()
 
         XCTAssertEqual(repository.conflicts.count, 1)
         XCTAssertEqual(repository.conflicts.first?.local, local)
@@ -112,6 +112,7 @@ final class RecipeSyncServiceTests: XCTestCase {
             "Tomato Toast"
         )
         XCTAssertEqual(repository.conflicts.first?.revision, 2)
+        XCTAssertEqual(result.conflictCount, 1)
     }
 
     func testResetWaitsForCurrentRunThenStartsAFullSync() async throws {
@@ -154,8 +155,8 @@ final class RecipeSyncServiceTests: XCTestCase {
         await Task.yield()
 
         releaseFirstRequest.signal()
-        try await first.value
-        try await reset.value
+        _ = try await first.value
+        _ = try await reset.value
 
         XCTAssertEqual(requestCount.snapshot, 2)
         XCTAssertEqual(try cursor.load(), 0)
@@ -299,6 +300,10 @@ private final class SyncTestRepository: RecipeSyncRepository {
 
     func reconcileServerSnapshot(activeRecipeIDs: Set<UUID>) throws {
         reconciledSnapshots.append(activeRecipeIDs)
+    }
+
+    func syncConflictCount() throws -> Int {
+        conflicts.count
     }
 }
 

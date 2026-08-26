@@ -15,6 +15,10 @@ enum PendingRecipeMutation: Equatable, Sendable {
     }
 }
 
+struct RecipeSyncResult: Equatable, Sendable {
+    let conflictCount: Int
+}
+
 @MainActor
 protocol RecipeSyncRepository: AnyObject, Sendable {
     func pendingRecipeMutations() throws -> [PendingRecipeMutation]
@@ -27,12 +31,13 @@ protocol RecipeSyncRepository: AnyObject, Sendable {
     ) throws
     func applySyncPage(_ page: RemoteSyncPageDTO) throws
     func reconcileServerSnapshot(activeRecipeIDs: Set<UUID>) throws
+    func syncConflictCount() throws -> Int
 }
 
 actor RecipeSyncService {
     private struct SyncRun {
         let id: UUID
-        let task: Task<Void, Error>
+        let task: Task<RecipeSyncResult, Error>
     }
 
     private struct RecipeMutationRequest: Encodable, Sendable {
@@ -55,26 +60,28 @@ actor RecipeSyncService {
         self.cursorStore = cursorStore
     }
 
-    func synchronize() async throws {
+    @discardableResult
+    func synchronize() async throws -> RecipeSyncResult {
         if let inFlight {
             return try await inFlight.task.value
         }
-        try await startSync()
+        return try await startSync()
     }
 
-    func resetAndSynchronize() async throws {
+    @discardableResult
+    func resetAndSynchronize() async throws -> RecipeSyncResult {
         if let inFlight {
             do {
-                try await inFlight.task.value
+                _ = try await inFlight.task.value
             } catch {
                 try Task.checkCancellation()
             }
         }
         try cursorStore.reset()
-        try await startSync()
+        return try await startSync()
     }
 
-    private func startSync() async throws {
+    private func startSync() async throws -> RecipeSyncResult {
         let runID = UUID()
         let api = api
         let repository = repository
@@ -88,8 +95,9 @@ actor RecipeSyncService {
         }
         inFlight = SyncRun(id: runID, task: task)
         do {
-            try await task.value
+            let result = try await task.value
             finish(runID: runID)
+            return result
         } catch {
             finish(runID: runID)
             throw error
@@ -107,7 +115,7 @@ actor RecipeSyncService {
         api: APIClient,
         repository: any RecipeSyncRepository,
         cursorStore: any SyncCursorStoring
-    ) async throws {
+    ) async throws -> RecipeSyncResult {
         let mutations = try await repository.pendingRecipeMutations()
         for mutation in mutations {
             try Task.checkCancellation()
@@ -189,5 +197,7 @@ actor RecipeSyncService {
                 break
             }
         }
+        let conflictCount = try await repository.syncConflictCount()
+        return RecipeSyncResult(conflictCount: conflictCount)
     }
 }

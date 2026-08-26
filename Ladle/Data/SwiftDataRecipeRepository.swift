@@ -5,7 +5,8 @@ import SwiftData
 @MainActor
 final class SwiftDataRecipeRepository:
     RecipeRepository,
-    RecipeSyncRepository
+    RecipeSyncRepository,
+    RecipeSyncConflictRepository
 {
     private enum PendingMutation: String {
         case upsert
@@ -355,6 +356,59 @@ final class SwiftDataRecipeRepository:
         )
     }
 
+    func fetchSyncConflicts() throws -> [RecipeSyncConflict] {
+        let descriptor = FetchDescriptor<StoredRecipe>(
+            sortBy: [SortDescriptor(\.title)]
+        )
+        return try modelContext.fetch(descriptor).compactMap { stored in
+            guard let revision = stored.conflictRemoteRevision else {
+                return nil
+            }
+            return RecipeSyncConflict(
+                localRecipe: try decodeRecipe(stored),
+                remoteRecipe: try stored.conflictRemotePayload.map {
+                    try decoder.decode(Recipe.self, from: $0)
+                },
+                remoteRevision: revision
+            )
+        }
+    }
+
+    func resolveSyncConflict(
+        recipeID: UUID,
+        resolution: RecipeSyncConflictResolution
+    ) throws {
+        guard
+            let stored = try storedRecipe(id: recipeID),
+            let remoteRevision = stored.conflictRemoteRevision
+        else {
+            return
+        }
+
+        switch resolution {
+        case .keepLocal:
+            stored.serverRevision = remoteRevision
+            clearConflict(on: stored)
+        case .acceptRemote:
+            if let payload = stored.conflictRemotePayload {
+                let remote = try decoder.decode(Recipe.self, from: payload)
+                apply(remote, payload: payload, to: stored)
+                stored.serverRevision = remoteRevision
+                stored.pendingMutationKey = nil
+                stored.isDeleted = false
+                clearConflict(on: stored)
+            } else {
+                modelContext.delete(stored)
+            }
+        }
+        try modelContext.save()
+    }
+
+    func syncConflictCount() throws -> Int {
+        try modelContext.fetch(FetchDescriptor<StoredRecipe>())
+            .count { $0.conflictRemoteRevision != nil }
+    }
+
     func applySyncPage(_ page: RemoteSyncPageDTO) throws {
         for change in page.changes {
             let stored = try storedRecipe(id: change.recipeID)
@@ -416,6 +470,11 @@ final class SwiftDataRecipeRepository:
 
     private func decodeRecipe(_ stored: StoredRecipe) throws -> Recipe {
         try decoder.decode(Recipe.self, from: stored.payload)
+    }
+
+    private func clearConflict(on stored: StoredRecipe) {
+        stored.conflictRemotePayload = nil
+        stored.conflictRemoteRevision = nil
     }
 
     private func makeStoredImportJob(

@@ -219,6 +219,16 @@ final class ProjectSmokeTests: XCTestCase {
             ),
             "Offline"
         )
+
+        syncStatus.begin()
+        syncStatus.requireConflictResolution(count: 2)
+        XCTAssertEqual(
+            AccountSheet.syncValue(
+                for: .signedInWithGoogle,
+                status: syncStatus.state
+            ),
+            "Review 2 changes"
+        )
     }
 
     func testLaunchScreenUsesThePaperSurface() {
@@ -361,6 +371,36 @@ final class ProjectSmokeTests: XCTestCase {
         XCTAssertTrue(failure.canRetry(at: retryAt))
         XCTAssertTrue(failure.message.contains("Try again after"))
         XCTAssertNil(AccountDeletionFailure(CancellationError()))
+    }
+
+    func testConflictReviewCopyProtectsTheLocalRecipeAndNamesBothChoices() {
+        let local = PreviewFixtures.recipes[0]
+        var remote = local
+        remote.title = "Title from another device"
+        let update = SyncConflictPresentation(
+            conflict: RecipeSyncConflict(
+                localRecipe: local,
+                remoteRecipe: remote,
+                remoteRevision: 4
+            )
+        )
+        let deletion = SyncConflictPresentation(
+            conflict: RecipeSyncConflict(
+                localRecipe: local,
+                remoteRecipe: nil,
+                remoteRevision: 5
+            )
+        )
+
+        XCTAssertEqual(update.title, "Changed on another device")
+        XCTAssertEqual(update.localTitle, local.title)
+        XCTAssertEqual(update.remoteTitle, remote.title)
+        XCTAssertEqual(update.acceptRemoteTitle, "Use Other Version")
+        XCTAssertEqual(update.keepLocalTitle, "Keep My Version")
+        XCTAssertTrue(update.detail.contains("stays safe"))
+        XCTAssertEqual(deletion.title, "Deleted on another device")
+        XCTAssertEqual(deletion.remoteTitle, "No longer in your account")
+        XCTAssertEqual(deletion.acceptRemoteTitle, "Remove Local Copy")
     }
 }
 

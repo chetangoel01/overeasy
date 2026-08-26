@@ -68,6 +68,22 @@ final class SyncStatusTests: XCTestCase {
         XCTAssertEqual(status.lastSuccessfulSync, recoveredAt)
     }
 
+    func testConflictRequiresReviewInsteadOfReportingCurrent() {
+        let status = SyncStatus()
+        status.succeed(at: Date(timeIntervalSince1970: 100))
+
+        status.begin()
+        status.requireConflictResolution(count: 2)
+
+        XCTAssertEqual(status.state, .conflict(count: 2))
+        XCTAssertEqual(status.shortLabel, "Review 2 changes")
+        XCTAssertNil(status.failure)
+        XCTAssertEqual(
+            status.lastSuccessfulSync,
+            Date(timeIntervalSince1970: 100)
+        )
+    }
+
     private func remoteError(
         code: RemoteErrorCode,
         details: String? = nil

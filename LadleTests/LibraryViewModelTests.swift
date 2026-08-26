@@ -621,6 +621,42 @@ final class LibraryViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.reloadErrorMessage)
     }
 
+    func testConflictResolutionIsPublishedAndReloadsTheLibrary() {
+        let local = PreviewFixtures.recipes[0]
+        var remote = local
+        remote.title = "Title from another device"
+        let conflict = RecipeSyncConflict(
+            localRecipe: local,
+            remoteRecipe: remote,
+            remoteRevision: 4
+        )
+        let repository = LibraryTestRepository(
+            recipes: [local],
+            syncConflicts: [conflict]
+        )
+        let viewModel = LibraryViewModel(
+            repository: repository,
+            preferenceStore: LibraryTestPreferenceStore()
+        )
+
+        viewModel.load()
+        XCTAssertEqual(viewModel.syncConflicts, [conflict])
+
+        XCTAssertTrue(
+            viewModel.resolveSyncConflict(
+                recipeID: local.id,
+                resolution: .acceptRemote
+            )
+        )
+
+        XCTAssertTrue(viewModel.syncConflicts.isEmpty)
+        XCTAssertEqual(viewModel.recipes, [remote])
+        XCTAssertEqual(
+            repository.resolutions,
+            [.init(recipeID: local.id, resolution: .acceptRemote)]
+        )
+    }
+
     func testLargeLibraryRemainsDeterministicAcrossCorePresentations() {
         let recipes = largeLibrary(count: 1_000)
         let viewModel = LibraryViewModel(
@@ -718,20 +754,32 @@ final class LibraryViewModelTests: XCTestCase {
 }
 
 @MainActor
-private final class LibraryTestRepository: RecipeRepository {
+private final class LibraryTestRepository:
+    RecipeRepository,
+    RecipeSyncConflictRepository
+{
+    struct RecordedResolution: Equatable {
+        let recipeID: UUID
+        let resolution: RecipeSyncConflictResolution
+    }
+
     var recipes: [Recipe]
     var importJobs: [ImportJob]
+    var syncConflicts: [RecipeSyncConflict]
     var savedRecipes: [Recipe] = []
     var savedRemoteRevisions: [UUID: Int] = [:]
+    var resolutions: [RecordedResolution] = []
     var fetchError: Error?
     var saveError: Error?
 
     init(
         recipes: [Recipe] = [],
-        importJobs: [ImportJob] = []
+        importJobs: [ImportJob] = [],
+        syncConflicts: [RecipeSyncConflict] = []
     ) {
         self.recipes = recipes
         self.importJobs = importJobs
+        self.syncConflicts = syncConflicts
     }
 
     func fetchRecipes() throws -> [Recipe] {
@@ -791,6 +839,35 @@ private final class LibraryTestRepository: RecipeRepository {
         recipes: [Recipe],
         importJobs: [ImportJob]
     ) throws {}
+
+    func fetchSyncConflicts() throws -> [RecipeSyncConflict] {
+        syncConflicts
+    }
+
+    func resolveSyncConflict(
+        recipeID: UUID,
+        resolution: RecipeSyncConflictResolution
+    ) throws {
+        resolutions.append(
+            .init(recipeID: recipeID, resolution: resolution)
+        )
+        guard let conflict = syncConflicts.first(
+            where: { $0.id == recipeID }
+        ) else {
+            return
+        }
+        if resolution == .acceptRemote {
+            if let remote = conflict.remoteRecipe,
+               let index = recipes.firstIndex(
+                   where: { $0.id == recipeID }
+               ) {
+                recipes[index] = remote
+            } else {
+                recipes.removeAll { $0.id == recipeID }
+            }
+        }
+        syncConflicts.removeAll { $0.id == recipeID }
+    }
 }
 
 private final class LibraryTestPreferenceStore: PreferenceStoring {

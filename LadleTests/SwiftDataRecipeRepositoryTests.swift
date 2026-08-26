@@ -233,6 +233,89 @@ final class SwiftDataRecipeRepositoryTests: XCTestCase {
         )
     }
 
+    func testKeepingLocalConflictAdvancesItsSyncBase() throws {
+        let fixture = try makeFixture()
+        let repository = fixture.repository
+        var local = makeRecipe()
+        try repository.saveRemote(local, revision: 1)
+        local.title = "My Offline Title"
+        try repository.save(local)
+        var server = local
+        server.title = "Server Title"
+        try repository.preserveConflict(
+            localRecipe: local,
+            remoteRecipe: RemoteRecipeDTO(recipe: server, revision: 2),
+            remoteRevision: 2
+        )
+
+        try repository.resolveSyncConflict(
+            recipeID: local.id,
+            resolution: .keepLocal
+        )
+
+        XCTAssertEqual(try repository.fetchRecipe(id: local.id), local)
+        XCTAssertTrue(try repository.fetchSyncConflicts().isEmpty)
+        XCTAssertEqual(
+            try repository.pendingRecipeMutations(),
+            [.upsert(recipe: local, baseRevision: 2)]
+        )
+    }
+
+    func testAcceptingRemoteConflictReplacesLocalDraft() throws {
+        let fixture = try makeFixture()
+        let repository = fixture.repository
+        var local = makeRecipe()
+        try repository.saveRemote(local, revision: 1)
+        local.title = "My Offline Title"
+        try repository.save(local)
+        var server = local
+        server.title = "Server Title"
+        try repository.preserveConflict(
+            localRecipe: local,
+            remoteRecipe: RemoteRecipeDTO(recipe: server, revision: 2),
+            remoteRevision: 2
+        )
+
+        try repository.resolveSyncConflict(
+            recipeID: local.id,
+            resolution: .acceptRemote
+        )
+
+        XCTAssertEqual(try repository.fetchRecipe(id: local.id), server)
+        XCTAssertTrue(try repository.fetchSyncConflicts().isEmpty)
+        XCTAssertTrue(try repository.pendingRecipeMutations().isEmpty)
+    }
+
+    func testAcceptingRemoteDeletionConflictRemovesLocalRecipe() throws {
+        let fixture = try makeFixture()
+        let repository = fixture.repository
+        let local = makeRecipe()
+        try repository.saveRemote(local, revision: 1)
+        try repository.save(local)
+        let stored = try XCTUnwrap(
+            fixture.container.mainContext
+                .fetch(FetchDescriptor<StoredRecipe>())
+                .first
+        )
+        stored.conflictRemoteRevision = 2
+        stored.conflictRemotePayload = nil
+        try fixture.container.mainContext.save()
+
+        let conflict = try XCTUnwrap(
+            repository.fetchSyncConflicts().first
+        )
+        XCTAssertNil(conflict.remoteRecipe)
+
+        try repository.resolveSyncConflict(
+            recipeID: local.id,
+            resolution: .acceptRemote
+        )
+
+        XCTAssertNil(try repository.fetchRecipe(id: local.id))
+        XCTAssertTrue(try repository.fetchSyncConflicts().isEmpty)
+        XCTAssertTrue(try repository.pendingRecipeMutations().isEmpty)
+    }
+
     private func makeFixture() throws -> RepositoryFixture {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(

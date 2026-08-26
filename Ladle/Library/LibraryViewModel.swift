@@ -59,6 +59,7 @@ final class LibraryViewModel {
 
     private(set) var recipes: [Recipe] = []
     private(set) var importJobs: [ImportJob] = []
+    private(set) var syncConflicts: [RecipeSyncConflict] = []
     private(set) var loadState: LoadState = .idle
     private(set) var reloadErrorMessage: String?
     private(set) var operationErrorMessage: String?
@@ -283,8 +284,11 @@ final class LibraryViewModel {
         do {
             let loadedRecipes = try repository.fetchRecipes()
             let loadedImportJobs = try repository.fetchImportJobs()
+            let loadedConflicts = try conflictRepository?
+                .fetchSyncConflicts() ?? []
             recipes = loadedRecipes
             importJobs = loadedImportJobs
+            syncConflicts = loadedConflicts
             refreshWatchRecipeOrder()
             loadState = .loaded
             reloadErrorMessage = nil
@@ -295,9 +299,36 @@ final class LibraryViewModel {
                 recipes = []
                 watchRecipeOrder = []
                 importJobs = []
+                syncConflicts = []
                 loadState = .failed("Your recipes couldn’t be loaded.")
                 reloadErrorMessage = nil
             }
+        }
+    }
+
+    @discardableResult
+    func resolveSyncConflict(
+        recipeID: UUID,
+        resolution: RecipeSyncConflictResolution
+    ) -> Bool {
+        guard let conflictRepository else {
+            operationErrorMessage = "That sync change couldn’t be resolved."
+            return false
+        }
+        do {
+            try conflictRepository.resolveSyncConflict(
+                recipeID: recipeID,
+                resolution: resolution
+            )
+            load()
+            operationErrorMessage = nil
+            Task {
+                await didMutate()
+            }
+            return true
+        } catch {
+            operationErrorMessage = "That sync change couldn’t be resolved."
+            return false
         }
     }
 
@@ -313,6 +344,10 @@ final class LibraryViewModel {
         if !newIDs.isEmpty {
             watchRecipeOrder += shuffleRecipeIDs(newIDs)
         }
+    }
+
+    private var conflictRepository: (any RecipeSyncConflictRepository)? {
+        repository as? any RecipeSyncConflictRepository
     }
 
     @discardableResult

@@ -77,6 +77,7 @@ struct LibraryView: View {
     @State private var isAddSheetPresented = false
     @State private var navigation = LibraryNavigationState()
     @State private var isAccountPresented = false
+    @State private var isConflictReviewPresented = false
     @State private var failedImportJob: ImportJob?
     @State private var pendingDestination: LibraryRecipeDestination?
     @State private var watchRefreshVersion = 0
@@ -121,6 +122,12 @@ struct LibraryView: View {
                     syncStatus: syncStatus,
                     signOut: onSignOut,
                     deleteAccount: onDeleteAccount
+                )
+            }
+            .sheet(isPresented: $isConflictReviewPresented) {
+                SyncConflictReviewSheet(
+                    conflicts: viewModel.syncConflicts,
+                    resolve: viewModel.resolveSyncConflict
                 )
             }
             .sheet(
@@ -226,6 +233,12 @@ struct LibraryView: View {
                     LibraryReloadErrorBanner(
                         message: reloadError,
                         retry: viewModel.load
+                    )
+                }
+                if !viewModel.syncConflicts.isEmpty {
+                    SyncConflictBanner(
+                        count: viewModel.syncConflicts.count,
+                        review: { isConflictReviewPresented = true }
                     )
                 }
                 SyncStatusBanner(status: syncStatus)
@@ -468,6 +481,8 @@ private struct SyncStatusBanner: View {
                     .ladleFont(.bodyStrong)
                     .foregroundStyle(LadleTheme.Label.primary)
             }
+        case .conflict:
+            EmptyView()
         case let .failed(report):
             banner(systemImage: report.failure.systemImage) {
                 VStack(

@@ -277,6 +277,12 @@ the complete `LadleTests` target.
 
 Update the audit record, run `git diff --check`, and commit.
 
+**Task 12 completion follow-up:** The initial Task 5 implementation exposed
+transport and service status but left persisted recipe conflicts without a
+resolution surface. Task 12 closed that gap with conflict-aware sync results,
+an explicit review banner and sheet, and tested keep-local, accept-remote, and
+remote-deletion semantics. No conflict is resolved automatically.
+
 ## Task 6: Separate local load failure from empty content
 
 **Files:**
