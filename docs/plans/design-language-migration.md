@@ -471,6 +471,10 @@ Verification on August 26, 2026:
   `~/Desktop/overeasy-ui-scratch/consolidated-step11/control-scale-20260826-1508/`;
   visual review found no crowding, hierarchy regression, or safe-area overlap.
 
-Task 12 subsequently removed the Google Sign-In completion sendability warning.
-The full unit run can still emit delayed UIKit appearance-transition messages
-after rendered Share tests, so that harness remains an explicit cleanup input.
+Task 12 subsequently removed the Google Sign-In completion sendability warning
+and completed the Share renderer lifecycle repair. The renderer now presents
+its host in a visible, non-key scene window, gives UIKit a run-loop turn to
+finish appearance before capture, and begins disappearance before detaching
+the controller. The focused Share suite passes 7 tests, and the complete app
+unit run passes 239 tests with the intentional App Attest skip; its raw log
+contains no unbalanced appearance-transition messages.

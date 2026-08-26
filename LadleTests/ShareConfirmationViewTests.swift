@@ -57,16 +57,20 @@ final class ShareConfirmationViewTests: XCTestCase {
         )
     }
 
-    func testRenderWindowDetachesItsHostDuringTeardown() throws {
+    func testRenderWindowCompletesAppearanceBeforeTeardown() throws {
         let window = try makeRenderWindow(
             size: CGSize(width: 402, height: 620)
         )
-        window.rootViewController = UIViewController()
-        window.makeKeyAndVisible()
+        let host = AppearanceTrackingViewController()
+        attachRenderHost(host, to: window)
+
+        XCTAssertEqual(host.willAppearCount, 1)
+        XCTAssertEqual(host.didAppearCount, 1)
 
         tearDownRenderWindow(window)
 
         XCTAssertNil(window.rootViewController)
+        XCTAssertEqual(host.willDisappearCount, 1)
     }
 
     private func assertRenders(
@@ -82,8 +86,7 @@ final class ShareConfirmationViewTests: XCTestCase {
         let size = CGSize(width: 402, height: 620)
         let host = UIHostingController(rootView: content)
         let window = try makeRenderWindow(size: size)
-        window.rootViewController = host
-        window.makeKeyAndVisible()
+        attachRenderHost(host, to: window)
         host.view.frame = window.bounds
         host.view.layoutIfNeeded()
 
@@ -108,8 +111,18 @@ final class ShareConfirmationViewTests: XCTestCase {
     }
 
     private func tearDownRenderWindow(_ window: UIWindow) {
-        window.rootViewController = nil
         window.isHidden = true
+        flushAppearanceUpdates()
+        window.rootViewController = nil
+    }
+
+    private func attachRenderHost(
+        _ host: UIViewController,
+        to window: UIWindow
+    ) {
+        window.rootViewController = host
+        window.isHidden = false
+        flushAppearanceUpdates()
     }
 
     private func makeRenderWindow(size: CGSize) throws -> UIWindow {
@@ -121,6 +134,10 @@ final class ShareConfirmationViewTests: XCTestCase {
         let window = UIWindow(windowScene: scene)
         window.frame = CGRect(origin: .zero, size: size)
         return window
+    }
+
+    private func flushAppearanceUpdates() {
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.1))
     }
 
     private func sampledColorCount(in image: UIImage) -> Int {
@@ -147,5 +164,27 @@ final class ShareConfirmationViewTests: XCTestCase {
             }
         }
         return colors.count
+    }
+}
+
+@MainActor
+private final class AppearanceTrackingViewController: UIViewController {
+    private(set) var willAppearCount = 0
+    private(set) var didAppearCount = 0
+    private(set) var willDisappearCount = 0
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        willAppearCount += 1
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        didAppearCount += 1
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        willDisappearCount += 1
     }
 }

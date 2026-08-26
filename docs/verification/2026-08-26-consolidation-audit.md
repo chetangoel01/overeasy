@@ -85,11 +85,12 @@ before this record contain documentation only.
 | `LadleTests` on iOS 26.5 simulator | passed, 195 tests; 1 intentional live App Attest skip |
 
 The backend run emits one third-party `testcontainers` deprecation warning.
-The simulator emits duplicate AuthKit class warnings. At baseline, four Share
-Confirmation rendered tests left unbalanced appearance-transition warnings;
-Task 10 resolved that harness defect. A generic device build reports a
-non-Sendable completion capture in `GoogleSignInProvider`. The remaining
-warnings are tracked debt, not ignored completion evidence.
+The simulator can emit duplicate Apple runtime class warnings. At baseline,
+four Share Confirmation rendered tests left unbalanced appearance-transition
+warnings, and a generic device build reported a non-Sendable completion
+capture in `GoogleSignInProvider`. Task 12 follow-ups resolved both app-owned
+warnings. The third-party and Apple-runtime diagnostics remain classified
+rather than being treated as app completion evidence.
 
 ## Baseline completion signals
 
@@ -345,6 +346,21 @@ Verification on August 26, 2026:
   warning, compared with exactly four before the fix;
 - the final focused run emitted neither the lifecycle warning nor the
   deprecated-window warning.
+
+A later complete-suite run showed that detaching before hiding only moved the
+UIKit warning beyond the Share suite boundary. Task 12 completed the repair:
+the harness now makes a scene-backed window visible without taking key-window
+status, gives UIKit a run-loop turn to finish appearance before capture, then
+hides and flushes the window before detaching the host. A lifecycle spy guards
+the appearance and disappearance-start boundaries.
+
+Follow-up verification on August 26, 2026:
+
+- all 7 focused `ShareConfirmationViewTests` passed;
+- the complete `LadleTests` target executed 239 tests: 238 passed and the one
+  live App Attest test was intentionally skipped;
+- the complete raw test log contains no warning and no unbalanced
+  appearance-transition message, including after `ShareURLExtractorTests`.
 
 ### Sendable Google Sign-In prewarm callback
 
