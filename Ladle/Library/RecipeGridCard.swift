@@ -42,7 +42,7 @@ struct RecipeGridCard: View {
                 .lineLimit(2, reservesSpace: true)
                 .accessibilityHidden(recipe.libraryFacts.isEmpty)
         }
-        .frame(maxWidth: 146, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
         .onTapGesture(perform: openRecipe)
         .recipeContextMenu(

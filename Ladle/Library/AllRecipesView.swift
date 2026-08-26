@@ -313,20 +313,19 @@ struct AllRecipesView: View {
     }
 
     private var columns: [GridItem] {
-        dynamicTypeSize >= .xxxLarge
-            ? [GridItem(.flexible(maximum: 146), alignment: .top)]
-            : [
-                GridItem(
-                    .flexible(minimum: 130, maximum: 146),
-                    spacing: LadleTheme.Spacing.regular,
-                    alignment: .top
-                ),
-                GridItem(
-                    .flexible(minimum: 130, maximum: 146),
-                    spacing: LadleTheme.Spacing.regular,
-                    alignment: .top
-                ),
-            ]
+        // No maximum. A capped column cannot fill the content width, and
+        // LazyVGrid centres the shortfall, so the grid sits inside the screen
+        // margin that the title, search field and collections all share.
+        // At 402 points that cap left the grid 31 points in on both sides,
+        // and stranded the single large-type column 112 points in.
+        let column = GridItem(
+            .flexible(),
+            spacing: LadleTheme.Spacing.regular,
+            alignment: .top
+        )
+        return dynamicTypeSize >= .xxxLarge
+            ? [GridItem(.flexible(), alignment: .top)]
+            : [column, column]
     }
 
     private var galleryColumns: [GridItem] {
