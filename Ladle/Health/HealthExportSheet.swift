@@ -29,8 +29,8 @@ struct HealthExportSheet: View {
                     successContent(receipt)
                 case .denied:
                     deniedContent
-                case .failed:
-                    failedContent
+                case let .failed(failure):
+                    failedContent(failure)
                 case .idle, .exporting:
                     confirmationContent
                 }
@@ -213,22 +213,37 @@ struct HealthExportSheet: View {
         )
     }
 
-    private var failedContent: some View {
-        resultContent(
-            icon: "exclamationmark.triangle",
-            title: "Export didn’t finish",
-            message:
-                "Nothing was written to Apple Health. Check your settings and try again.",
-            primaryTitle: "Try Again",
-            primaryAction: viewModel.resetResult
-        )
+    private func failedContent(_ failure: HealthExportFailure) -> some View {
+        switch failure {
+        case .noNutrition:
+            resultContent(
+                icon: "chart.bar.doc.horizontal",
+                title: "No nutrition to export",
+                message:
+                    "This recipe doesn’t contain nutrition values, so nothing can be added to Apple Health.",
+                primaryTitle: nil,
+                primaryAction: {}
+            )
+        case let .remote(report):
+            resultContent(
+                icon: report.failure.systemImage,
+                title: report.failure == .offline
+                    ? "You’re offline"
+                    : "Export didn’t finish",
+                message: report.failure == .offline
+                    ? "Nothing was written to Apple Health. Reconnect and try again."
+                    : "Nothing was written to Apple Health. Check your settings and try again.",
+                primaryTitle: failure.canRetry ? "Try Again" : nil,
+                primaryAction: viewModel.resetResult
+            )
+        }
     }
 
     private func resultContent(
         icon: String,
         title: String,
         message: String,
-        primaryTitle: String,
+        primaryTitle: String?,
         primaryAction: @escaping () -> Void
     ) -> some View {
         VStack(spacing: LadleTheme.Spacing.regular) {
@@ -248,8 +263,10 @@ struct HealthExportSheet: View {
                 .foregroundStyle(LadleTheme.ink.opacity(0.64))
                 .multilineTextAlignment(.center)
 
-            Button(primaryTitle, action: primaryAction)
-                .buttonStyle(LadlePrimaryButtonStyle())
+            if let primaryTitle {
+                Button(primaryTitle, action: primaryAction)
+                    .buttonStyle(LadlePrimaryButtonStyle())
+            }
 
             Button("Close") {
                 dismiss()

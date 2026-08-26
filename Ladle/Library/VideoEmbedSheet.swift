@@ -3,6 +3,10 @@ import SwiftUI
 import WebKit
 
 enum VideoEmbed {
+    static let unavailableTitle = "Video unavailable"
+    static let unavailableMessage =
+        "This saved link doesn’t contain a playable video ID."
+
     /// Platform player URL only. Unknown URL shapes deliberately return nil
     /// instead of loading the original social page inside or outside the app.
     static func url(for recipe: Recipe) -> URL? {
@@ -241,11 +245,9 @@ struct InlineVideoPlayer: View {
                     }
             } else {
                 ContentUnavailableView(
-                    "Video unavailable",
+                    VideoEmbed.unavailableTitle,
                     systemImage: "play.slash",
-                    description: Text(
-                        "This saved link doesn’t contain a playable video ID."
-                    )
+                    description: Text(VideoEmbed.unavailableMessage)
                 )
                 .foregroundStyle(LadleTheme.onAccent)
             }

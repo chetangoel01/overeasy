@@ -339,6 +339,34 @@ Verification on August 26, 2026:
 - the final focused run emitted neither the lifecycle warning nor the
   deprecated-window warning.
 
+### Health and media failure states
+
+The second Task 10 checkpoint makes secondary media failures explicit without
+disturbing successful content. Apple Health now distinguishes an immutable
+empty-nutrition payload from permission denial, offline write failure, and an
+ordinary write failure. Empty payloads never request permission and do not
+offer a retry that cannot change the recipe. Denial writes nothing, while
+offline and other transient write failures preserve the export action for a
+truthful retry.
+
+Remote artwork shows separate placeholder, loading, loaded, and unavailable
+presentations. The cache preserves the initial HTTP status, refreshes an
+expired signed URL only once, and reports when the refreshed recipe no longer
+contains the requested image. Unsupported or malformed video links continue
+to stay inside Overeasy and now share one tested unavailable title and message
+instead of relying on duplicated inline copy.
+
+Verification on August 26, 2026:
+
+- the focused build failed on the missing typed Health failure, artwork state,
+  and video unavailable contract, proving the red state;
+- 23 focused Health, image-cache, artwork-presentation, and video-navigation
+  tests passed;
+- image tests cover a 404 response and a failed expired-URL refresh in addition
+  to the successful refresh and cache-hit paths;
+- the complete `LadleTests` target passed 224 tests: 223 passed and the one
+  live App Attest test was intentionally skipped.
+
 ## Final release gates
 
 - [ ] LadleCore tests

@@ -94,6 +94,75 @@ final class RemoteImageCacheTests: XCTestCase {
         )
     }
 
+    func testUnavailableImagePreservesHTTPStatus() async throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        URLProtocolStub.install { request in
+            (Self.response(request, status: 404), Data())
+        }
+
+        do {
+            _ = try await makeCache(directory: directory).localURL(
+                recipeID: UUID(),
+                image: RemoteRecipeImageDTO(
+                    id: UUID(),
+                    remoteURL: URL(
+                        string: "https://images.ladle.test/missing"
+                    )!
+                )
+            )
+            XCTFail("Expected unavailable image")
+        } catch {
+            XCTAssertEqual(
+                error as? RemoteImageCacheError,
+                .unavailable(statusCode: 404)
+            )
+        }
+    }
+
+    func testRefreshFailsWhenRecipeNoLongerContainsImage() async throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        URLProtocolStub.install { request in
+            if request.url?.host == "images.ladle.test" {
+                return (Self.response(request, status: 403), Data())
+            }
+            return (
+                Self.response(request),
+                try! Self.refreshedRecipeFixture(includesImage: false)
+            )
+        }
+
+        do {
+            _ = try await makeCache(directory: directory).localURL(
+                recipeID: UUID(),
+                image: RemoteRecipeImageDTO(
+                    id: UUID(),
+                    remoteURL: URL(
+                        string: "https://images.ladle.test/expired"
+                    )!
+                )
+            )
+            XCTFail("Expected missing refreshed image")
+        } catch {
+            XCTAssertEqual(
+                error as? RemoteImageCacheError,
+                .refreshedImageMissing
+            )
+        }
+    }
+
+    func testArtworkFailurePresentationIsExplicit() {
+        XCTAssertEqual(
+            RecipeArtworkLoadState.failed.systemImage,
+            "photo.badge.exclamationmark"
+        )
+        XCTAssertEqual(
+            RecipeArtworkLoadState.failed.accessibilityLabel,
+            "Recipe image unavailable"
+        )
+    }
+
     private func makeCache(directory: URL) -> RemoteImageCache {
         let session = URLProtocolStub.session()
         return RemoteImageCache(
@@ -126,7 +195,9 @@ final class RemoteImageCacheTests: XCTestCase {
         )!
     }
 
-    nonisolated private static func refreshedRecipeFixture() throws -> Data {
+    nonisolated private static func refreshedRecipeFixture(
+        includesImage: Bool = true
+    ) throws -> Data {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -136,10 +207,14 @@ final class RemoteImageCacheTests: XCTestCase {
             with: Data(contentsOf: fixture)
         ) as! [String: Any]
         var changed = value
-        var images = changed["images"] as! [[String: Any]]
-        images[0]["remoteURL"] =
-            "https://images.ladle.test/refreshed"
-        changed["images"] = images
+        if includesImage {
+            var images = changed["images"] as! [[String: Any]]
+            images[0]["remoteURL"] =
+                "https://images.ladle.test/refreshed"
+            changed["images"] = images
+        } else {
+            changed["images"] = []
+        }
         return try JSONSerialization.data(withJSONObject: changed)
     }
 }

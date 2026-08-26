@@ -36,6 +36,22 @@ final class HealthExportViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.state, .denied)
     }
 
+    func testPayloadWithoutMetricsExplainsNonretryableFailure() async {
+        let service = FakeHealthService()
+        let viewModel = makeViewModel(
+            service: service,
+            nutrition: Nutrition(servingBasis: 1, isEstimated: false)
+        )
+
+        await viewModel.confirmExport()
+
+        let snapshot = await service.snapshot()
+        XCTAssertTrue(snapshot.authorizationRequests.isEmpty)
+        XCTAssertTrue(snapshot.writtenPayloads.isEmpty)
+        XCTAssertEqual(viewModel.state, .failed(.noNutrition))
+        XCTAssertFalse(viewModel.canRetry)
+    }
+
     func testSuccessfulWriteReportsExactlyWhatWasExported() async {
         let service = FakeHealthService()
         let viewModel = makeViewModel(service: service)
@@ -67,27 +83,47 @@ final class HealthExportViewModelTests: XCTestCase {
 
         await viewModel.confirmExport()
 
-        XCTAssertEqual(viewModel.state, .failed)
+        XCTAssertEqual(
+            viewModel.state,
+            .failed(.remote(RemoteFailureReport(FakeHealthError.writeFailed)))
+        )
+        XCTAssertTrue(viewModel.canRetry)
+    }
+
+    func testOfflineWriteFailureIsDistinctAndRetryable() async {
+        let service = FakeHealthService(writeError: APIError.transport)
+        let viewModel = makeViewModel(service: service)
+
+        await viewModel.confirmExport()
+
+        let snapshot = await service.snapshot()
+        XCTAssertEqual(snapshot.authorizationRequests.count, 1)
+        XCTAssertTrue(snapshot.writtenPayloads.isEmpty)
+        XCTAssertEqual(
+            viewModel.state,
+            .failed(.remote(RemoteFailureReport(APIError.transport)))
+        )
         XCTAssertTrue(viewModel.canRetry)
     }
 
     private func makeViewModel(
-        service: FakeHealthService
+        service: FakeHealthService,
+        nutrition: Nutrition = Nutrition(
+            calories: 520,
+            proteinGrams: 22,
+            carbohydrateGrams: 48,
+            fatGrams: 24,
+            saturatedFatGrams: 8,
+            fiberGrams: 4,
+            sugarGrams: 6,
+            sodiumMilligrams: 680,
+            servingBasis: 1,
+            isEstimated: true
+        )
     ) -> HealthExportViewModel {
         HealthExportViewModel(
             recipeTitle: "One-Pot Lemon Orzo with Feta",
-            nutrition: Nutrition(
-                calories: 520,
-                proteinGrams: 22,
-                carbohydrateGrams: 48,
-                fatGrams: 24,
-                saturatedFatGrams: 8,
-                fiberGrams: 4,
-                sugarGrams: 6,
-                sodiumMilligrams: 680,
-                servingBasis: 1,
-                isEstimated: true
-            ),
+            nutrition: nutrition,
             service: service
         )
     }

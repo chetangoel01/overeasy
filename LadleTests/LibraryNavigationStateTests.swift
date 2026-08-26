@@ -185,5 +185,10 @@ final class LibraryNavigationStateTests: XCTestCase {
         recipe.originalURL = URL(string: "https://example.com/not-a-video")!
 
         XCTAssertNil(VideoEmbed.url(for: recipe))
+        XCTAssertEqual(VideoEmbed.unavailableTitle, "Video unavailable")
+        XCTAssertEqual(
+            VideoEmbed.unavailableMessage,
+            "This saved link doesn’t contain a playable video ID."
+        )
     }
 }

@@ -7,7 +7,21 @@ enum HealthExportState: Equatable {
     case exporting
     case denied
     case succeeded(HealthExportReceipt)
-    case failed
+    case failed(HealthExportFailure)
+}
+
+enum HealthExportFailure: Equatable {
+    case noNutrition
+    case remote(RemoteFailureReport)
+
+    var canRetry: Bool {
+        switch self {
+        case .noNutrition:
+            false
+        case let .remote(report):
+            report.failure.canRetry()
+        }
+    }
 }
 
 @MainActor
@@ -42,8 +56,10 @@ final class HealthExportViewModel {
 
     var canRetry: Bool {
         switch state {
-        case .denied, .failed:
+        case .denied:
             true
+        case let .failed(failure):
+            failure.canRetry
         case .idle, .exporting, .succeeded:
             false
         }
@@ -56,7 +72,7 @@ final class HealthExportViewModel {
 
         let payload = payload
         guard !payload.metrics.isEmpty else {
-            state = .failed
+            state = .failed(.noNutrition)
             return
         }
 
@@ -73,7 +89,7 @@ final class HealthExportViewModel {
             let receipt = try await service.write(payload)
             state = .succeeded(receipt)
         } catch {
-            state = .failed
+            state = .failed(.remote(RemoteFailureReport(error)))
         }
     }
 
