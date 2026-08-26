@@ -358,7 +358,7 @@ struct AccountSheet: View {
         case .undecided: LadleTheme.review
         case .guest: LadleTheme.review
         case .freeAccount, .signedInWithApple, .signedInWithGoogle:
-            LadleTheme.success
+            LadleTheme.Intent.success
         }
     }
 

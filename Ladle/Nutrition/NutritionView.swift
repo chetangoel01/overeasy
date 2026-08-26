@@ -105,7 +105,7 @@ struct NutritionView: View {
         macro(
             name: "Protein",
             value: displayedNutrition.proteinGrams,
-            color: LadleTheme.success
+            color: LadleTheme.Intent.success
         )
         macro(
             name: "Carbohydrates",

@@ -411,7 +411,7 @@ struct RecipeDetailView: View {
             .foregroundStyle(LadleTheme.ink)
             .frame(maxWidth: .infinity, minHeight: 52)
             .background(
-                LadleTheme.success.opacity(0.62),
+                LadleTheme.Intent.success.opacity(0.62),
                 in: RoundedRectangle(
                     cornerRadius: LadleTheme.Corner.control,
                     style: .continuous

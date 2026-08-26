@@ -322,7 +322,7 @@ struct AddRecipeSheet: View {
             )
             .frame(width: 62, height: 62)
             .background(
-                needsReview ? LadleTheme.review : LadleTheme.success,
+                needsReview ? LadleTheme.review : LadleTheme.Intent.success,
                 in: Circle()
             )
 

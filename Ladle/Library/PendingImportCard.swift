@@ -84,7 +84,7 @@ struct PendingImportCard: View {
                 .accessibilityHidden(true)
         case .ready:
             Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(LadleTheme.success)
+                .foregroundStyle(LadleTheme.Intent.success)
                 .frame(width: 28, height: 28)
                 .accessibilityHidden(true)
         }
@@ -167,7 +167,7 @@ struct PendingImportCard: View {
         case .failed:
             LadleTheme.paprika.opacity(0.11)
         case .ready:
-            LadleTheme.success.opacity(0.12)
+            LadleTheme.Intent.success.opacity(0.12)
         }
     }
 
@@ -176,7 +176,7 @@ struct PendingImportCard: View {
         case .failed:
             LadleTheme.paprika
         case .ready:
-            LadleTheme.success
+            LadleTheme.Intent.success
         case .parsing, .needsReview:
             LadleTheme.ink
         }

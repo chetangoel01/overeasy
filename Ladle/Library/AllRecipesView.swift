@@ -226,7 +226,7 @@ struct AllRecipesView: View {
                             LadlePill(
                                 text: chip.title,
                                 systemImage: "xmark",
-                                tint: LadleTheme.success.opacity(0.45)
+                                tint: LadleTheme.Intent.success.opacity(0.45)
                             )
                         }
                         .buttonStyle(LadlePressButtonStyle())

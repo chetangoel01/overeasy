@@ -292,13 +292,13 @@ struct FullRecipeView: View {
         ZStack {
             Circle()
                 .fill(
-                    isCompleted ? LadleTheme.success : Color.clear
+                    isCompleted ? LadleTheme.Intent.success : Color.clear
                 )
                 .overlay {
                     Circle()
                         .stroke(
                             isCompleted
-                                ? LadleTheme.success
+                                ? LadleTheme.Intent.success
                                 : LadleTheme.ink.opacity(0.24),
                             lineWidth: 1.5
                         )
