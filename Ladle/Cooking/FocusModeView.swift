@@ -12,7 +12,7 @@ struct FocusModeView: View {
                 focusHeader
 
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 26) {
+                    VStack(alignment: .leading, spacing: LadleTheme.Layout.sectionGap) {
                         currentStepSection
                         timerSection
                         relevantIngredientsSection
@@ -204,7 +204,7 @@ struct FocusModeView: View {
         }
         .padding(.horizontal, LadleTheme.Spacing.regular)
         .padding(.top, 12)
-        .padding(.bottom, 10)
+        .padding(.bottom, LadleTheme.Spacing.medium)
         .background(LadleTheme.plum)
     }
 

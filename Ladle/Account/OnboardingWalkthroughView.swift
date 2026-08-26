@@ -141,7 +141,7 @@ struct OnboardingWalkthroughView: View {
                     }
                     .frame(width: 52, height: 64)
 
-                    VStack(alignment: .leading, spacing: 5) {
+                    VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
                         Text("Lemon orzo tonight")
                             .ladleFont(.bodyStrong)
                             .foregroundStyle(LadleTheme.ink)
@@ -332,7 +332,7 @@ struct OnboardingWalkthroughView: View {
                 Text("Start timer")
                     .ladleFont(.metadata)
                     .foregroundStyle(LadleTheme.ink)
-                    .padding(.horizontal, 13)
+                    .padding(.horizontal, LadleTheme.Spacing.medium)
                     .frame(minHeight: 44)
                     .background(LadleTheme.celery, in: Capsule())
             }
@@ -347,7 +347,7 @@ struct OnboardingWalkthroughView: View {
             )
         )
         .overlay(alignment: .bottom) {
-            HStack(spacing: 6) {
+            HStack(spacing: LadleTheme.Spacing.compact) {
                 ForEach(0..<6, id: \.self) { index in
                     Capsule()
                         .fill(

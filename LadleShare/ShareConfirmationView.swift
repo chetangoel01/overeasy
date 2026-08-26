@@ -18,7 +18,7 @@ struct ShareConfirmationView: View {
             ShareTheme.paper.ignoresSafeArea()
 
             ScrollView {
-                VStack(spacing: 30) {
+                VStack(spacing: ShareTheme.Spacing.generous) {
                     brand
                     confirmation
                     if let title = Self.dismissalTitle(for: state) {
@@ -28,8 +28,8 @@ struct ShareConfirmationView: View {
                     }
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.horizontal, 28)
-                .padding(.vertical, 20)
+                .padding(.horizontal, ShareTheme.Spacing.generous)
+                .padding(.vertical, ShareTheme.Spacing.generous)
             }
             .scrollIndicators(.hidden)
         }
@@ -49,10 +49,10 @@ struct ShareConfirmationView: View {
     }
 
     private var confirmation: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: ShareTheme.Spacing.regular) {
             statusIcon
 
-            VStack(spacing: 10) {
+            VStack(spacing: ShareTheme.Spacing.compact) {
                 Text(title)
                     .font(.title.bold())
                     .multilineTextAlignment(.center)
@@ -70,7 +70,7 @@ struct ShareConfirmationView: View {
                 Label(sourceName, systemImage: "link")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(ShareTheme.ink.opacity(0.72))
-                    .padding(.horizontal, 14)
+                    .padding(.horizontal, ShareTheme.Spacing.regular)
                     .frame(minHeight: 44)
                     .background(
                         ShareTheme.field,
@@ -157,6 +157,16 @@ private struct SharePrimaryButtonStyle: ButtonStyle {
 }
 
 private enum ShareTheme {
+    /// Mirrors `LadleTheme.Spacing`. The extension is its own target and
+    /// cannot see the app's design system, so the scale is copied here the
+    /// same way the palette below already is. Two copies can drift; sharing
+    /// them through LadleCore is the actual fix.
+    enum Spacing {
+        static let compact: CGFloat = 8
+        static let regular: CGFloat = 16
+        static let generous: CGFloat = 24
+    }
+
     // Mirrors LadleTheme's porcelain and graphite palette.
     static let paper = adaptive(
         light: (0.949, 0.957, 0.965),

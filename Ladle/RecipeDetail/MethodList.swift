@@ -10,12 +10,12 @@ struct MethodList: View {
                 title: "Method",
                 detail: countText(steps.count, "step")
             )
-            .padding(.bottom, 14)
+            .padding(.bottom, LadleTheme.Layout.rowGap)
 
             ForEach(Array(steps.enumerated()), id: \.element.id) {
                 index,
                 step in
-                HStack(alignment: .top, spacing: 14) {
+                HStack(alignment: .top, spacing: LadleTheme.Layout.iconGap) {
                     Text("\(index + 1)")
                         .ladleFont(.metadata)
                         .foregroundStyle(LadleTheme.onAccent)
@@ -23,7 +23,7 @@ struct MethodList: View {
                         .background(LadleTheme.brick, in: Circle())
                         .accessibilityHidden(true)
 
-                    VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: LadleTheme.Layout.rowGap) {
                         Text(step.instruction)
                             .ladleFont(.body)
                             .foregroundStyle(LadleTheme.ink)

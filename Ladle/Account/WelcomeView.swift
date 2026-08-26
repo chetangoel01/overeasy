@@ -76,7 +76,7 @@ struct WelcomeView: View {
     }
 
     private var welcomeIntroduction: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: LadleTheme.Spacing.regular) {
             welcomeMark
             welcomeMessage
         }
@@ -154,10 +154,10 @@ struct WelcomeView: View {
             GoogleSignInControl(isEnabled: !isAuthenticating) {
                 authenticateWithGoogle()
             }
-            .padding(.top, 10)
+            .padding(.top, LadleTheme.Spacing.medium)
 
             guestSeparator
-                .padding(.vertical, 14)
+                .padding(.vertical, LadleTheme.Spacing.medium)
 
             Button {
                 authenticateAsGuest()
@@ -178,7 +178,7 @@ struct WelcomeView: View {
             .foregroundStyle(LadleTheme.onAccent.opacity(0.72))
             .multilineTextAlignment(.center)
             .fixedSize(horizontal: false, vertical: true)
-            .padding(.top, 6)
+            .padding(.top, LadleTheme.Spacing.compact)
 
             if isAuthenticating {
                 ProgressView("Setting up Overeasy")

@@ -203,13 +203,13 @@ struct RecipeTimerButton: View {
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { _ in
-            HStack(spacing: 10) {
+            HStack(spacing: LadleTheme.Layout.rowGap) {
                 Button {
                     toggleTimer()
                 } label: {
-                    HStack(spacing: 11) {
+                    HStack(spacing: LadleTheme.Layout.iconGap) {
                         timerRing
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
                             Text(actionTitle)
                                 .ladleFont(.metadata)
                             Text(clockText)
@@ -223,7 +223,7 @@ struct RecipeTimerButton: View {
                         Spacer(minLength: 0)
                     }
                     .foregroundStyle(cardForeground)
-                    .padding(.horizontal, 14)
+                    .padding(.horizontal, LadleTheme.Layout.cardPadding)
                     .frame(minHeight: onDark ? 68 : 58)
                     .background(
                         cardBackground,

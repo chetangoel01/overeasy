@@ -20,7 +20,7 @@ struct CorrectionNotesView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: LadleTheme.Layout.sectionGap) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(mode.title)
                             .ladleFont(.title)
@@ -33,7 +33,7 @@ struct CorrectionNotesView: View {
                     if mode == .manual {
                         TextField("Recipe title", text: $title)
                             .ladleFont(.body)
-                            .padding(.horizontal, 14)
+                            .padding(.horizontal, LadleTheme.Layout.cardPadding)
                             .frame(minHeight: 50)
                             .background(
                                 LadleTheme.Surface.raised,
@@ -48,7 +48,7 @@ struct CorrectionNotesView: View {
                     TextEditor(text: $text)
                         .ladleFont(.body)
                         .scrollContentBackground(.hidden)
-                        .padding(10)
+                        .padding(LadleTheme.Spacing.medium)
                         .frame(minHeight: 180)
                         .background(
                             LadleTheme.Surface.raised,
