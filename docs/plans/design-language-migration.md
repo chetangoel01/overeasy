@@ -80,19 +80,24 @@ Move the 79 `Button` declarations that bypass the Ladle styles onto
 
 ## Known layout defects this unblocks
 
-Each has a role that now exists to express the fix:
+Fixed:
 
-- Recipe grid columns capped at `maximum: 146` centre the grid 31pt inside the
-  `screenMargin` every other element uses; at XXXL Dynamic Type the single
-  column strands 128pt from the leading edge.
-  `AllRecipesView.swift:315`.
+- ~~Recipe grid capped at 146~~ — fixed in `8c85e20`. The cap sat in two
+  places, `AllRecipesView`'s `GridItem` columns *and* `RecipeGridCard`'s own
+  frame; removing only the first leaves the card centred in its cell.
+- ~~Sign in with Apple black on graphite~~ — fixed in `0c12ea7`.
+
+Outstanding, each with a role that now exists to express the fix:
+
 - Cooking checklist dividers are hardcoded to 52 while their rows put labels at
   43. `FullRecipeView.swift:162` — use `dividerInset(iconWidth:gap:)`.
 - Sheet close controls sit on 16 while sheet bodies sit on 24, across seven
-  screens. Focus Mode is the only one already correct.
-- Sign in with Apple reads `colorScheme` before the forced-dark override, so it
-  renders black on graphite in light appearance.
-  `WelcomeView.swift:141`.
+  screens. Focus Mode is the only one already correct — use
+  `Layout.sheetMargin` for both.
+- The failed-import recovery stack centres each button's icon and label as one
+  group, giving three buttons three label origins across a 19pt spread.
+- Recipe options styles delete identically to four benign actions — use
+  `LadleButtonRole.destructive`.
 
 ## Sequencing
 
