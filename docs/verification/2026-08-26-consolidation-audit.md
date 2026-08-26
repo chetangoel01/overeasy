@@ -346,6 +346,19 @@ Verification on August 26, 2026:
 - the final focused run emitted neither the lifecycle warning nor the
   deprecated-window warning.
 
+### Sendable Google Sign-In prewarm callback
+
+Task 12 marked the injected App Check completion as `@Sendable`, matching the
+Google SDK callback that captures it. This removes the only app-source compiler
+warning without changing the best-effort prewarm behavior.
+
+Verification on August 26, 2026:
+
+- a structural regression test failed on the missing sendability annotation;
+- the existing failure-tolerant prewarm test and the new annotation test pass;
+- the focused non-quiet build log contains no Google Sign-In sendability
+  warning, compared with the repeated warning in the Task 11 generic build.
+
 ### Health and media failure states
 
 The second Task 10 checkpoint makes secondary media failures explicit without

@@ -19,7 +19,7 @@ enum GoogleSignInProviderError: Error {
 @MainActor
 final class GoogleSignInProvider: GoogleSignInProviding {
     typealias ConfigureAppCheck = (
-        @escaping (Error?) -> Void
+        @escaping @Sendable (Error?) -> Void
     ) -> Void
 
     private let infoDictionary: [String: Any]

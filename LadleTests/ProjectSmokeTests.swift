@@ -172,6 +172,22 @@ final class ProjectSmokeTests: XCTestCase {
         try await provider.configureIfNeeded()
     }
 
+    func testGoogleAppCheckCompletionIsSendable() throws {
+        let project = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: project.appendingPathComponent(
+                "Ladle/Account/GoogleSignInProvider.swift"
+            ),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(
+            source.contains("@escaping @Sendable (Error?) -> Void")
+        )
+    }
+
     func testAccountPresentationExplainsProviderAndSyncScope() {
         let syncStatus = SyncStatus()
         syncStatus.succeed(at: Date(timeIntervalSince1970: 100))

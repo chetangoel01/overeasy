@@ -471,6 +471,6 @@ Verification on August 26, 2026:
   `~/Desktop/overeasy-ui-scratch/consolidated-step11/control-scale-20260826-1508/`;
   visual review found no crowding, hierarchy regression, or safe-area overlap.
 
-The generic build still reports the Google Sign-In completion sendability
-warning, and the full unit run can emit delayed UIKit appearance-transition
-messages after rendered Share tests. Both are explicit Task 12 cleanup inputs.
+Task 12 subsequently removed the Google Sign-In completion sendability warning.
+The full unit run can still emit delayed UIKit appearance-transition messages
+after rendered Share tests, so that harness remains an explicit cleanup input.
