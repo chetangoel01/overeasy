@@ -14,8 +14,9 @@
 
 This ledger is the proof surface for the final consolidation. A row may be
 closed only with a commit, test, source comparison, or explicit product
-decision. Historical branches remain intact until every row is closed and the
-user separately authorizes branch deletion.
+decision. Historical branches remained intact until every row closed. On
+August 26, 2026, the user explicitly authorized deleting every non-`main`
+branch after promoting this verified release to `main`.
 
 ## Machine and repository inventory
 
@@ -37,10 +38,14 @@ The comparison board is unapproved visual research containing externally
 hosted evaluation art. It is deliberately excluded from the release branch;
 the approved Porcelain & Graphite direction in `DESIGN.md` remains final.
 
-Every MacBook branch tip exists as a local branch and as a
-`macbook-desktop/*` or `macbook-documents/*` tracking ref. Every historical
-local branch is checked out in its own clean worktree on the Mac mini. There
-is therefore no tracked implementation that exists only on the MacBook Pro.
+Before cleanup, every MacBook branch tip existed as a local branch and as a
+`macbook-desktop/*` or `macbook-documents/*` tracking ref, and every historical
+local branch was checked out in its own clean worktree on the Mac mini. There
+was therefore no tracked implementation that existed only on the MacBook Pro.
+After authorization, all non-`main` branch refs and their worktrees were
+removed from the Mac mini, MacBook Pro, and origin. The four unique historical
+tips were preserved as `archive/2026-08-26/*` tags; contained branch tips remain
+reachable from `main`.
 
 ## Branch disposition
 
@@ -596,8 +601,9 @@ The release matrix completed on August 26, 2026:
 | Share build | standalone `LadleShare` generic iOS Simulator scheme passed for both architectures |
 | Generated project | XcodeGen 2.46.0 regenerated without a tracked diff |
 | Repository checks | shell, JSON, plist/privacy, asset, incomplete-marker, target-ownership, and `git diff --check` audits passed |
-| Branch recovery | all 13 feature branches plus `main` are checked out in clean Mac mini worktrees |
-| Remote recovery | `codex/consolidated-final` was pushed to `origin` and its remote ref was verified |
+| Branch recovery before cleanup | all 13 feature branches plus `main` were checked out in clean Mac mini worktrees |
+| Single-branch cleanup | verified consolidation promoted to `main`; every non-`main` branch/worktree removed locally, on the MacBook Pro, and on origin |
+| Historical recovery after cleanup | four unique known-good tips preserved as archive tags; all other deleted feature tips are ancestors of `main` |
 
 The five external-only backend cases behind live-provider or chaos markers are
 not release gates: they require private provider credentials or intentional
@@ -612,8 +618,9 @@ repository remains ahead of `origin/main` by the same three already mirrored
 commits. Its only untracked file remains the deliberately excluded 22,053-byte
 ingredient-art comparison board with SHA-1
 `1136091d3002e20431869b98434029cadd5d3204`. The Documents repository remains
-clean. Historical branches remain on the MacBook Pro because this audit's
-preservation rule requires separate user authorization before deletion.
+clean. The user subsequently supplied that authorization, and both MacBook Pro
+repositories were reduced to their single local `main` branch after it was
+updated to the verified release.
 
 ## Final release gates
 
@@ -631,4 +638,4 @@ preservation rule requires separate user authorization before deletion.
 - [x] Branch consolidation table closed
 - [x] MacBook Pro rechecked for new tracked or untracked work
 - [x] `git diff --check`
-- [x] Clean pushed `codex/consolidated-final`
+- [x] Clean pushed `main` as the sole branch
