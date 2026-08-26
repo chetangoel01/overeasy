@@ -28,6 +28,10 @@ enum RecipeOption: Identifiable {
         case .delete: "trash"
         }
     }
+
+    var buttonRole: LadleButtonRole {
+        self == .delete ? .destructive : .tertiary
+    }
 }
 
 struct RecipeOptionsSheet: View {
@@ -50,27 +54,43 @@ struct RecipeOptionsSheet: View {
                                     .font(.system(size: 16, weight: .semibold))
                                     .foregroundStyle(
                                         option == .delete
-                                            ? Color.red
+                                            ? option.buttonRole.label
                                             : LadleTheme.Label.accent
                                     )
                                     .frame(width: 36, height: 36)
                                     .background(
-                                        LadleTheme.Surface.steel,
+                                        option == .delete
+                                            ? option.buttonRole.label.opacity(0.16)
+                                            : LadleTheme.Surface.steel,
                                         in: Circle()
                                     )
                                 Text(option.title)
-                                    .ladleFont(.bodyStrong)
-                                    .foregroundStyle(LadleTheme.ink)
+                                    .foregroundStyle(
+                                        option == .delete
+                                            ? option.buttonRole.label
+                                            : LadleTheme.Label.primary
+                                    )
                                 Spacer()
                                 Image(systemName: "chevron.right")
-                                    .foregroundStyle(LadleTheme.mutedInk)
+                                    .foregroundStyle(
+                                        option == .delete
+                                            ? option.buttonRole.label.opacity(0.72)
+                                            : LadleTheme.Label.secondary
+                                    )
                             }
                             .frame(minHeight: 64)
                             .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(
+                            LadleButtonStyle(
+                                role: option.buttonRole,
+                                isFullWidth: true
+                            )
+                        )
                         .overlay(alignment: .bottom) {
-                            Divider().overlay(LadleTheme.ink.opacity(0.08))
+                            if option != .delete {
+                                Divider().overlay(LadleTheme.Stroke.separator)
+                            }
                         }
                     }
                 }

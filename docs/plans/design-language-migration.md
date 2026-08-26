@@ -229,6 +229,17 @@ the same build.
 
 ### Task 2: distinguish the destructive recipe option
 
+**Implemented.** Benign rows remain full-width tertiary actions with their
+existing visual hierarchy. Delete alone receives the destructive fill and
+on-destructive foregrounds. A full-width tertiary row now owns its content
+inset, while the default hugging tertiary action keeps its 16-point hit-area
+padding.
+
+**Verification:** The focused semantic-role test and the complete
+`DesignTokenTests` target pass on the iPhone 17 iOS 26.5 simulator. The unit
+test was observed failing first on the missing `buttonRole` and
+`horizontalPadding` APIs.
+
 **Files:**
 
 - Modify `Ladle/Design/LadleComponents.swift`.

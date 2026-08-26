@@ -150,6 +150,15 @@ struct LadleButtonStyle: ButtonStyle {
     /// column of them shares one width. Tertiary buttons hug their label.
     var isFullWidth: Bool
 
+    /// Hugging tertiary actions add room around their text. A full-width
+    /// tertiary row already owns its inner layout and must not be indented a
+    /// second time by the style.
+    var horizontalPadding: CGFloat {
+        role == .tertiary && !isFullWidth
+            ? LadleTheme.Spacing.regular
+            : 0
+    }
+
     init(role: LadleButtonRole = .primary, isFullWidth: Bool? = nil) {
         self.role = role
         self.isFullWidth = isFullWidth ?? (role != .tertiary)
@@ -164,6 +173,7 @@ struct LadleButtonStyle: ButtonStyle {
         Content(
             role: role,
             isFullWidth: isFullWidth,
+            horizontalPadding: horizontalPadding,
             configuration: configuration
         )
     }
@@ -174,6 +184,7 @@ struct LadleButtonStyle: ButtonStyle {
 
         let role: LadleButtonRole
         let isFullWidth: Bool
+        let horizontalPadding: CGFloat
         let configuration: Configuration
 
         private var fill: Color? {
@@ -193,7 +204,7 @@ struct LadleButtonStyle: ButtonStyle {
                 )
                 .padding(
                     .horizontal,
-                    role == .tertiary ? LadleTheme.Spacing.regular : 0
+                    horizontalPadding
                 )
                 .frame(
                     maxWidth: isFullWidth ? .infinity : nil,

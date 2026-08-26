@@ -185,6 +185,37 @@ final class DesignTokenTests: XCTestCase {
         )
     }
 
+    @MainActor
+    func testRecipeOptionsUseSemanticRolesWithoutIndentingRows() {
+        XCTAssertEqual(
+            RecipeOption.delete.buttonRole.fill,
+            LadleTheme.Intent.destructive
+        )
+        for option in [
+            RecipeOption.edit,
+            .reimport,
+            .nutrition,
+            .source,
+        ] {
+            XCTAssertNil(
+                option.buttonRole.fill,
+                "\(option) should remain a tertiary action"
+            )
+        }
+        XCTAssertEqual(
+            LadleButtonStyle(role: .tertiary).horizontalPadding,
+            LadleTheme.Spacing.regular
+        )
+        XCTAssertEqual(
+            LadleButtonStyle(
+                role: .tertiary,
+                isFullWidth: true
+            ).horizontalPadding,
+            0,
+            "A full-width row owns its own content inset"
+        )
+    }
+
     func testBadgeSurfaceIsDistinguishableFromTheCardBehindIt() {
         // Surface.steel sits about four percent off Surface.raised, which is
         // why a badge drawn in it disappears into the card. Surface.badge has
