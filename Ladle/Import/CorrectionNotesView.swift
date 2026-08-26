@@ -70,7 +70,7 @@ struct CorrectionNotesView: View {
                         }
                         dismiss()
                     }
-                    .buttonStyle(LadlePrimaryButtonStyle())
+                    .buttonStyle(LadleButtonStyle(role: .primary))
                     .disabled(
                         text.trimmingCharacters(
                             in: .whitespacesAndNewlines

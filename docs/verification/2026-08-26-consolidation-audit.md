@@ -140,7 +140,7 @@ Xcode consumes it by catalog name.
 | Area | Completion criterion | Status |
 | --- | --- | --- |
 | Historical capability integration | guarded tunnel and bounded worker verified on current base | closed in Tasks 2-3 |
-| Semantic components | every button and compatibility style classified; valid call sites migrated | open, Task 11 |
+| Semantic components | every button and compatibility style classified; valid call sites migrated | 126 controls classified; legacy primary wrapper removed; remaining hand-built semantic actions open, Task 11 |
 | Layout and safe areas | sheet margins and Watch safe-area behavior use approved semantics | open, Task 11 |
 | Typography and controls | raw typography/control values are intentional or semantic | open, Task 11 |
 | Palette and assets | every role/asset has a live consumer or is removed | open, Task 11 |

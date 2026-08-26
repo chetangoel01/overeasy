@@ -30,7 +30,7 @@ struct GuestLimitView: View {
             Button("Create a free account") {
                 accountSession.createFreeAccount()
             }
-            .buttonStyle(LadlePrimaryButtonStyle())
+            .buttonStyle(LadleButtonStyle(role: .primary))
 
             if decision == .allowWithAccountPrompt {
                 Button("Save recipe and continue", action: continueAction)

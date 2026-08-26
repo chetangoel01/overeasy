@@ -16,7 +16,34 @@ private extension UIColor {
     }
 }
 
+@MainActor
 final class DesignTokenTests: XCTestCase {
+    func testProductionHasNoLegacyPrimaryButtonWrapper() throws {
+        let project = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let sources = project.appendingPathComponent("Ladle")
+        let enumerator = try XCTUnwrap(
+            FileManager.default.enumerator(
+                at: sources,
+                includingPropertiesForKeys: nil
+            )
+        )
+        var offenders: [String] = []
+
+        for case let file as URL in enumerator where file.pathExtension == "swift" {
+            let source = try String(contentsOf: file, encoding: .utf8)
+            if source.contains("LadlePrimaryButtonStyle") {
+                offenders.append(file.path.replacingOccurrences(
+                    of: project.path + "/",
+                    with: ""
+                ))
+            }
+        }
+
+        XCTAssertEqual(offenders.sorted(), [])
+    }
+
     func testPorcelainPaletteUsesApprovedHexValues() {
         XCTAssertEqual(LadleTheme.plumHex, "#14181B")
         XCTAssertEqual(LadleTheme.paperHex, "#F2F4F6")
@@ -185,7 +212,6 @@ final class DesignTokenTests: XCTestCase {
         )
     }
 
-    @MainActor
     func testRecipeOptionsUseSemanticRolesWithoutIndentingRows() {
         XCTAssertEqual(
             RecipeOption.delete.buttonRole.fill,

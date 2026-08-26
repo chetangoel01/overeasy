@@ -129,7 +129,7 @@ struct ReimportSheet: View {
                         )
                     }
                 }
-                .buttonStyle(LadlePrimaryButtonStyle())
+                .buttonStyle(LadleButtonStyle(role: .primary))
             }
             .padding(LadleTheme.Spacing.generous)
         }
@@ -218,7 +218,7 @@ struct ReimportSheet: View {
                 .foregroundStyle(LadleTheme.ink.opacity(0.64))
                 .multilineTextAlignment(.center)
             Button(buttonTitle, action: action)
-                .buttonStyle(LadlePrimaryButtonStyle())
+                .buttonStyle(LadleButtonStyle(role: .primary))
         }
         .padding(LadleTheme.Spacing.generous)
     }
@@ -326,7 +326,7 @@ struct ReimportDecisionView: View {
                         isResolving = true
                         accept()
                     }
-                    .buttonStyle(LadlePrimaryButtonStyle())
+                    .buttonStyle(LadleButtonStyle(role: .primary))
                 }
 
                 Button("Keep current recipe") {

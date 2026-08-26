@@ -166,10 +166,9 @@ struct LadleButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         // The body has to be a real view rather than a modifier chain built
-        // here: `@Environment` only resolves for something in the view graph,
-        // and this style is also invoked by `LadlePrimaryButtonStyle`, which
-        // calls `makeBody` directly. Reading `isEnabled` on the style itself
-        // would silently report `true` for every delegated call site.
+        // here: `@Environment` only resolves for something in the view graph.
+        // Reading `isEnabled` on the style itself would silently report
+        // `true` for every call site.
         Content(
             role: role,
             isFullWidth: isFullWidth,
@@ -233,16 +232,6 @@ struct LadleButtonStyle: ButtonStyle {
                     value: configuration.isPressed
                 )
         }
-    }
-}
-
-/// Retained so existing call sites keep working. New code states the role.
-struct LadlePrimaryButtonStyle: ButtonStyle {
-    var isProminent = true
-
-    func makeBody(configuration: Configuration) -> some View {
-        LadleButtonStyle(role: isProminent ? .primary : .secondary)
-            .makeBody(configuration: configuration)
     }
 }
 
@@ -424,13 +413,13 @@ struct LadleStateView: View {
 
             if let primaryTitle, let primaryAction {
                 Button(primaryTitle, action: primaryAction)
-                    .buttonStyle(LadlePrimaryButtonStyle())
+                    .buttonStyle(LadleButtonStyle(role: .primary))
             }
 
             if let secondaryTitle, let secondaryAction {
                 Button(secondaryTitle, action: secondaryAction)
                     .buttonStyle(
-                        LadlePrimaryButtonStyle(isProminent: false)
+                        LadleButtonStyle(role: .secondary)
                     )
             }
         }

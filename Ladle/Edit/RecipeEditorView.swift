@@ -262,7 +262,7 @@ struct RecipeEditorView: View {
             } label: {
                 Label("Add ingredient", systemImage: "plus")
             }
-            .buttonStyle(LadlePrimaryButtonStyle(isProminent: false))
+            .buttonStyle(LadleButtonStyle(role: .secondary))
             .disabled(
                 viewModel.draft.ingredients.count
                     >= RecipeContractLimits.ingredients
@@ -290,7 +290,7 @@ struct RecipeEditorView: View {
             } label: {
                 Label("Add step", systemImage: "plus")
             }
-            .buttonStyle(LadlePrimaryButtonStyle(isProminent: false))
+            .buttonStyle(LadleButtonStyle(role: .secondary))
             .disabled(
                 viewModel.draft.steps.count >= RecipeContractLimits.steps
             )

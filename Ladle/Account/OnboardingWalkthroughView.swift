@@ -392,7 +392,7 @@ struct OnboardingWalkthroughView: View {
                 step == .cook ? "Start saving recipes" : "Next",
                 action: advance
             )
-            .buttonStyle(LadlePrimaryButtonStyle())
+            .buttonStyle(LadleButtonStyle(role: .primary))
         }
         .padding(.horizontal, LadleTheme.Spacing.generous)
         .padding(.top, LadleTheme.Spacing.medium)

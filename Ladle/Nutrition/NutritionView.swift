@@ -183,7 +183,7 @@ struct NutritionView: View {
                 systemImage: "heart.text.clipboard"
             )
         }
-        .buttonStyle(LadlePrimaryButtonStyle(isProminent: false))
+        .buttonStyle(LadleButtonStyle(role: .secondary))
     }
 
     private func macro(

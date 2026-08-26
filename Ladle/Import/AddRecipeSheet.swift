@@ -170,7 +170,7 @@ struct AddRecipeSheet: View {
                         await coordinator.submit(urlText: linkText)
                     }
                 }
-                .buttonStyle(LadlePrimaryButtonStyle())
+                .buttonStyle(LadleButtonStyle(role: .primary))
                 .disabled(
                     linkText.trimmingCharacters(
                         in: .whitespacesAndNewlines
@@ -259,7 +259,7 @@ struct AddRecipeSheet: View {
                         )
                     }
                 }
-                .buttonStyle(LadlePrimaryButtonStyle())
+                .buttonStyle(LadleButtonStyle(role: .primary))
                 .disabled(
                     manualTitle.trimmingCharacters(
                         in: .whitespacesAndNewlines
@@ -351,7 +351,7 @@ struct AddRecipeSheet: View {
                 coordinator.reset()
                 dismiss()
             }
-            .buttonStyle(LadlePrimaryButtonStyle())
+            .buttonStyle(LadleButtonStyle(role: .primary))
 
             Button("Back to recipes") {
                 coordinator.reset()
@@ -393,14 +393,14 @@ struct AddRecipeSheet: View {
                 viewRecipe(recipe, "Saved recipe")
                 dismiss()
             }
-            .buttonStyle(LadlePrimaryButtonStyle())
+            .buttonStyle(LadleButtonStyle(role: .primary))
 
             Button("Import another copy") {
                 Task {
                     await coordinator.importDuplicateCopy()
                 }
             }
-            .buttonStyle(LadlePrimaryButtonStyle(isProminent: false))
+            .buttonStyle(LadleButtonStyle(role: .secondary))
         }
         .padding(LadleTheme.Spacing.generous)
     }

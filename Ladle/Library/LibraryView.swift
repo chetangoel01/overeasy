@@ -577,7 +577,7 @@ private struct LibraryLoadStateView: View {
                     .foregroundStyle(LadleTheme.mutedInk)
                     .multilineTextAlignment(.center)
                 Button("Try Again", action: retry)
-                    .buttonStyle(LadlePrimaryButtonStyle(isProminent: false))
+                    .buttonStyle(LadleButtonStyle(role: .secondary))
             } else {
                 ProgressView("Loading recipes")
                     .tint(LadleTheme.brick)

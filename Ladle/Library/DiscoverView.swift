@@ -244,7 +244,7 @@ struct DiscoverView: View {
                 Button("Try again") {
                     Task { await viewModel.load() }
                 }
-                .buttonStyle(LadlePrimaryButtonStyle(isProminent: false))
+                .buttonStyle(LadleButtonStyle(role: .secondary))
             }
         }
         .foregroundStyle(LadleTheme.ink)

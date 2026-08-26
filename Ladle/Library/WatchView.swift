@@ -231,7 +231,7 @@ struct WatchView: View {
             if let retry {
                 Button("Try again", action: retry)
                     .buttonStyle(
-                        LadlePrimaryButtonStyle(isProminent: false)
+                        LadleButtonStyle(role: .secondary)
                     )
             }
         }
@@ -476,7 +476,7 @@ private struct WatchRecipePage: View {
                         }
                     }
                 }
-                .buttonStyle(LadlePrimaryButtonStyle())
+                .buttonStyle(LadleButtonStyle(role: .primary))
                 .disabled(isSaving || isSaved)
 
                 Button(action: openRecipe) {
@@ -486,16 +486,16 @@ private struct WatchRecipePage: View {
                         Text("View recipe")
                     }
                 }
-                .buttonStyle(LadlePrimaryButtonStyle(isProminent: false))
+                .buttonStyle(LadleButtonStyle(role: .secondary))
                 .disabled(isLoadingDetail)
             } else if recipe.canStartCooking {
                 Button("Open recipe", action: openRecipe)
-                    .buttonStyle(LadlePrimaryButtonStyle(isProminent: false))
+                    .buttonStyle(LadleButtonStyle(role: .secondary))
                 Button("Start cooking", action: startCooking)
-                    .buttonStyle(LadlePrimaryButtonStyle())
+                    .buttonStyle(LadleButtonStyle(role: .primary))
             } else {
                 Button("Review recipe", action: openRecipe)
-                    .buttonStyle(LadlePrimaryButtonStyle())
+                    .buttonStyle(LadleButtonStyle(role: .primary))
             }
         }
     }

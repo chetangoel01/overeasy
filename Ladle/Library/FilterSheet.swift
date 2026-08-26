@@ -73,7 +73,7 @@ struct FilterSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .safeAreaInset(edge: .bottom) {
                 Button("Apply Filters", action: apply)
-                    .buttonStyle(LadlePrimaryButtonStyle())
+                    .buttonStyle(LadleButtonStyle(role: .primary))
                     .padding(.horizontal, LadleTheme.Spacing.generous)
                     .padding(.vertical, 12)
                     .background(.ultraThinMaterial)

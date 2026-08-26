@@ -305,3 +305,70 @@ complete `LadleTests` run contains 195 tests: 194 passed, 1 skipped, 0 failed.
 - The MacBook-generated evidence is
   `~/Desktop/overeasy-ui-scratch/step3/after/{failed-import,options}-macbook.png`;
   the matching before captures sit in the sibling `before` directory.
+
+## Step 3, batch 2: explicit roles and complete control inventory
+
+The consolidation recount on August 26, 2026 found 126 declarations across
+the app and Share Extension: 125 SwiftUI `Button` declarations plus the native
+Sign in with Apple control. Each declaration is classified below. `S` is a
+semantic action, `N` is an action owned by a native menu/dialog/context menu,
+`I` is navigation or an icon-only control, and `R` is a row/card/chip
+interaction. The counts describe declarations, not runtime instances produced
+by `ForEach`.
+
+| Source | S | N | I | R | Total |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `LadleShare/ShareConfirmationView.swift` | 1 | 0 | 0 | 0 | 1 |
+| `Ladle/RecipeDetail/RecipeDetailView.swift` | 5 | 2 | 3 | 0 | 10 |
+| `Ladle/Edit/ReimportSheet.swift` | 4 | 0 | 1 | 0 | 5 |
+| `Ladle/RecipeDetail/RecipeOptionsSheet.swift` | 1 | 0 | 1 | 0 | 2 |
+| `Ladle/RecipeDetail/RecipeMetadataBand.swift` | 0 | 0 | 0 | 1 | 1 |
+| `Ladle/Cooking/FocusModeView.swift` | 1 | 0 | 2 | 1 | 4 |
+| `Ladle/Edit/RecipeEditorView.swift` | 2 | 0 | 6 | 1 | 9 |
+| `Ladle/Design/LadleComponents.swift` | 2 | 0 | 1 | 0 | 3 |
+| `Ladle/Cooking/FullRecipeView.swift` | 1 | 1 | 1 | 2 | 5 |
+| `Ladle/Cooking/RecipeTimer.swift` | 0 | 0 | 2 | 0 | 2 |
+| `Ladle/App/AppBootstrap.swift` | 1 | 0 | 0 | 0 | 1 |
+| `Ladle/Library/RecipeGridCard.swift` | 0 | 0 | 1 | 0 | 1 |
+| `Ladle/Library/FilterSheet.swift` | 1 | 0 | 2 | 1 | 4 |
+| `Ladle/Library/VideoEmbedSheet.swift` | 0 | 0 | 1 | 0 | 1 |
+| `Ladle/Library/RecipeListRow.swift` | 0 | 0 | 1 | 0 | 1 |
+| `Ladle/Library/RecipeContextMenu.swift` | 0 | 2 | 0 | 0 | 2 |
+| `Ladle/Library/WatchView.swift` | 7 | 2 | 0 | 0 | 9 |
+| `Ladle/Library/AllRecipesView.swift` | 0 | 4 | 2 | 2 | 8 |
+| `Ladle/Library/ImportInboxView.swift` | 0 | 4 | 0 | 1 | 5 |
+| `Ladle/Library/DiscoverView.swift` | 3 | 2 | 0 | 2 | 7 |
+| `Ladle/Health/HealthExportSheet.swift` | 3 | 0 | 1 | 0 | 4 |
+| `Ladle/Account/GuestLimitView.swift` | 2 | 0 | 0 | 0 | 2 |
+| `Ladle/Library/LibraryView.swift` | 2 | 1 | 2 | 0 | 5 |
+| `Ladle/Import/FailedImportSheet.swift` | 0 | 0 | 1 | 0 | 1 |
+| `Ladle/Nutrition/NutritionView.swift` | 1 | 0 | 1 | 0 | 2 |
+| `Ladle/Account/OnboardingWalkthroughView.swift` | 1 | 0 | 1 | 0 | 2 |
+| `Ladle/Account/AccountSheet.swift` | 0 | 5 | 1 | 3 | 9 |
+| `Ladle/Import/AddRecipeSheet.swift` | 10 | 2 | 1 | 0 | 13 |
+| `Ladle/Account/WelcomeView.swift` | 3 | 0 | 0 | 0 | 3 |
+| `Ladle/Import/ImportRecoveryActions.swift` | 2 | 0 | 0 | 0 | 2 |
+| `Ladle/Import/CorrectionNotesView.swift` | 1 | 0 | 1 | 0 | 2 |
+| **Total** | **54** | **25** | **33** | **14** | **126** |
+
+The first migration in this batch is value-preserving. Thirty-two call sites
+now state `.primary` or `.secondary` directly through `LadleButtonStyle`; the
+compatibility `LadlePrimaryButtonStyle` type is deleted. Native menu/dialog
+actions, icon controls, and row/card interactions retain their native or press
+styles. Later Task 11 batches will review the remaining hand-built semantic
+actions individually, because Focus Mode, Sign in with Apple, and compact
+inline recovery actions have intentional presentations that should not be
+mechanically flattened into the filled-button shape.
+
+Verification on August 26, 2026:
+
+- the structural test failed first with all source files retaining the legacy
+  wrapper, proving the red state;
+- zero production references remain and the structural test passes;
+- all 19 `DesignTokenTests` and the two focused recovery/options UI tests pass;
+- the complete `LadleTests` target passes 228 tests: 227 passed and the one
+  live App Attest test was intentionally skipped;
+- the UI tests retained 1,206 by 2,622 pixel screenshots at
+  `~/Desktop/overeasy-ui-scratch/consolidated-step11/button-wrapper-20260826-1425/`;
+  visual review confirms the recovery labels and destructive option remain
+  unchanged.

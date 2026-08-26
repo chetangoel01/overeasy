@@ -73,7 +73,7 @@ struct HealthExportSheet: View {
                         Text("Confirm & Export")
                     }
                 }
-                .buttonStyle(LadlePrimaryButtonStyle())
+                .buttonStyle(LadleButtonStyle(role: .primary))
                 .disabled(viewModel.state == .exporting)
             }
             .padding(LadleTheme.Spacing.generous)
@@ -265,7 +265,7 @@ struct HealthExportSheet: View {
 
             if let primaryTitle {
                 Button(primaryTitle, action: primaryAction)
-                    .buttonStyle(LadlePrimaryButtonStyle())
+                    .buttonStyle(LadleButtonStyle(role: .primary))
             }
 
             Button("Close") {

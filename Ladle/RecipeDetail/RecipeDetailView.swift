@@ -424,7 +424,7 @@ struct RecipeDetailView: View {
                 action: markReviewed
             )
             .buttonStyle(
-                LadlePrimaryButtonStyle(isProminent: false)
+                LadleButtonStyle(role: .secondary)
             )
             .accessibilityIdentifier("recipe.complete-review")
         }
@@ -486,11 +486,11 @@ struct RecipeDetailView: View {
                     recipe: displayedRecipe
                 )
             }
-            .buttonStyle(LadlePrimaryButtonStyle())
+            .buttonStyle(LadleButtonStyle(role: .primary))
         case .needsReview:
             Button("Review before cooking", action: showReview)
                 .buttonStyle(
-                    LadlePrimaryButtonStyle(isProminent: false)
+                    LadleButtonStyle(role: .secondary)
                 )
         case .missingIngredients:
             if allowsLibraryEdits {
@@ -498,7 +498,7 @@ struct RecipeDetailView: View {
                     editorViewModel = makeEditorViewModel(displayedRecipe)
                 }
                 .buttonStyle(
-                    LadlePrimaryButtonStyle(isProminent: false)
+                    LadleButtonStyle(role: .secondary)
                 )
             } else {
                 previewUnavailable("Ingredients aren’t available in this preview.")
@@ -509,7 +509,7 @@ struct RecipeDetailView: View {
                     editorViewModel = makeEditorViewModel(displayedRecipe)
                 }
                 .buttonStyle(
-                    LadlePrimaryButtonStyle(isProminent: false)
+                    LadleButtonStyle(role: .secondary)
                 )
             } else {
                 previewUnavailable("The method isn’t available in this preview.")
