@@ -240,6 +240,17 @@ enum LadleTheme {
         static let rowGap = Spacing.medium
         /// Gap between an icon and the label it introduces.
         static let iconGap = Spacing.medium
+        /// Breathing room after the last thing in a scroll view.
+        ///
+        /// Six screens each invented their own value between 30 and 48 for
+        /// this. On a tab screen the system already insets for the floating
+        /// bar, so this sits on top of that rather than replacing it.
+        static let scrollTail = Spacing.cooking
+        /// Clearance for the floating tab bar on a screen whose content runs
+        /// full-bleed underneath it, so the system applies no inset of its
+        /// own. Only Watch is laid out that way; everything else wants
+        /// `scrollTail`.
+        static let overlayBarClearance: CGFloat = 88 + Spacing.medium
     }
 
     /// Control heights and hit targets. Three values only — a 46, 50 or 56

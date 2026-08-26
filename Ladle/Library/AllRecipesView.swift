@@ -27,7 +27,7 @@ struct AllRecipesView: View {
                 }
             }
             .padding(.horizontal, LadleTheme.Spacing.regular)
-            .padding(.bottom, 44)
+            .padding(.bottom, LadleTheme.Layout.scrollTail)
         }
         .scrollIndicators(.hidden)
         .background(LadleTheme.paper)

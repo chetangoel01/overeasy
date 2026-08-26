@@ -122,7 +122,7 @@ struct RecipeDetailView: View {
                     }
                 }
                 .padding(.horizontal, LadleTheme.Spacing.regular)
-                .padding(.bottom, 48)
+                .padding(.bottom, LadleTheme.Layout.scrollTail)
             }
             .scrollIndicators(.hidden)
         }

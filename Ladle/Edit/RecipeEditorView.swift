@@ -29,7 +29,7 @@ struct RecipeEditorView: View {
                 ScrollView {
                     sectionContent
                         .padding(LadleTheme.Spacing.regular)
-                        .padding(.bottom, 40)
+                        .padding(.bottom, LadleTheme.Layout.scrollTail)
                 }
                 .scrollDismissesKeyboard(.interactively)
                 .scrollIndicators(.hidden)

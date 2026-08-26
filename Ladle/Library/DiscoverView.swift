@@ -248,7 +248,7 @@ struct DiscoverView: View {
                 }
             }
             .padding(.horizontal, LadleTheme.Spacing.regular)
-            .padding(.bottom, 40)
+            .padding(.bottom, LadleTheme.Layout.scrollTail)
         }
         .scrollIndicators(.hidden)
         .refreshable { await viewModel.load() }

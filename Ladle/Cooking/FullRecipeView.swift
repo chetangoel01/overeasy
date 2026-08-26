@@ -38,7 +38,7 @@ struct FullRecipeView: View {
                     methodSection
                 }
                 .padding(.horizontal, LadleTheme.Spacing.generous)
-                .padding(.bottom, 48)
+                .padding(.bottom, LadleTheme.Layout.scrollTail)
             }
             .scrollIndicators(.hidden)
             .background(LadleTheme.paper)

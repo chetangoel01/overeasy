@@ -380,7 +380,7 @@ private struct WatchRecipePage: View {
         }
         .padding(.horizontal, LadleTheme.Spacing.regular)
         .padding(.top, LadleTheme.Spacing.medium)
-        .padding(.bottom, 88 + LadleTheme.Spacing.medium)
+        .padding(.bottom, LadleTheme.Layout.overlayBarClearance)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 

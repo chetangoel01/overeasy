@@ -19,7 +19,7 @@ struct FocusModeView: View {
                     }
                     .padding(.horizontal, LadleTheme.Spacing.generous)
                     .padding(.top, 24)
-                    .padding(.bottom, 30)
+                    .padding(.bottom, LadleTheme.Layout.scrollTail)
                 }
                 .scrollIndicators(.hidden)
 

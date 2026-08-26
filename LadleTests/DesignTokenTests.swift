@@ -93,6 +93,7 @@ final class DesignTokenTests: XCTestCase {
             LadleTheme.Layout.sectionGap,
             LadleTheme.Layout.rowGap,
             LadleTheme.Layout.iconGap,
+            LadleTheme.Layout.scrollTail,
         ] {
             XCTAssertTrue(
                 scale.contains(role),
@@ -101,6 +102,17 @@ final class DesignTokenTests: XCTestCase {
         }
         XCTAssertEqual(LadleTheme.Layout.screenMargin, 16)
         XCTAssertEqual(LadleTheme.Layout.sheetMargin, 24)
+    }
+
+    /// `overlayBarClearance` is deliberately not on the spacing scale: it is
+    /// the height of a real bar plus a gap, not a gap on its own. It is the
+    /// one layout value allowed to be measured rather than chosen.
+    func testOverlayBarClearanceExceedsTheFloatingBar() {
+        XCTAssertEqual(LadleTheme.Layout.overlayBarClearance, 100)
+        XCTAssertGreaterThan(
+            LadleTheme.Layout.overlayBarClearance,
+            LadleTheme.Layout.scrollTail
+        )
     }
 
     func testControlHeightsCollapseToThreeNamedValues() {
