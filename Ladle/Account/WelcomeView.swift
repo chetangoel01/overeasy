@@ -11,7 +11,6 @@ struct WelcomeView: View {
     let onAuthenticated: @MainActor () async -> Void
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @Environment(\.colorScheme) private var colorScheme
 
     @State private var rawNonce: String?
     @State private var isAuthenticating = false
@@ -138,9 +137,12 @@ struct WelcomeView: View {
             } onCompletion: { result in
                 handleAppleCompletion(result)
             }
-            .signInWithAppleButtonStyle(
-                colorScheme == .dark ? .white : .black
-            )
+            // Always white. The welcome surface is unconditionally graphite,
+            // so a style chosen from the device appearance is wrong half the
+            // time: `colorScheme` here resolves outside this view's own
+            // `.environment(\.colorScheme, .dark)`, so on a light-mode device
+            // it picked `.black` and painted a black button onto #14181B.
+            .signInWithAppleButtonStyle(.white)
             .frame(height: 52)
             .clipShape(
                 RoundedRectangle(
