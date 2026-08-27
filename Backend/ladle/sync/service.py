@@ -54,24 +54,34 @@ class RecipeSyncService:
         )
         has_more = len(rows) > int(limit)
         visible = rows[: int(limit)]
+        # One recipe read and one materialisation for the whole page: the
+        # per-row find() + to_dto() this replaces cost ~9 queries per change,
+        # so a 100-change page fanned out to ~900 statements on one pooled
+        # connection.
+        stored_by_id = self._repository.find_many(
+            database,
+            user_id=user_id,
+            recipe_ids={row.recipe_id for row in visible},
+        )
+        upsert_ids = {row.recipe_id for row in visible if row.kind == "upsert"}
+        recipes = self._repository.to_dtos(
+            database,
+            [
+                stored
+                for recipe_id, stored in stored_by_id.items()
+                if recipe_id in upsert_ids and stored.deleted_at is None
+            ],
+        )
         changes: list[RecipeChangeDTO] = []
         for row in visible:
-            stored = self._repository.find(
-                database,
-                user_id=user_id,
-                recipe_id=row.recipe_id,
-                include_deleted=True,
+            recipe = (
+                recipes.get(row.recipe_id) if row.kind == "upsert" else None
             )
-            if (
-                stored is not None
-                and stored.deleted_at is None
-                and row.kind == "upsert"
-            ):
-                recipe = self._repository.to_dto(database, stored)
+            if recipe is not None:
                 kind = SyncChangeKind.UPSERT
                 revision = recipe.revision
             else:
-                recipe = None
+                stored = stored_by_id.get(row.recipe_id)
                 kind = SyncChangeKind.DELETE
                 revision = (
                     stored.revision if stored is not None else row.recipe_revision

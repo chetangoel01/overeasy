@@ -1,5 +1,5 @@
 from collections import defaultdict
-from collections.abc import Callable
+from collections.abc import Callable, Collection, Sequence
 from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
@@ -69,6 +69,25 @@ class RecipeRepository:
             # revision check and the second silently overwrites the first.
             query = query.with_for_update()
         return database.scalar(query)
+
+    def find_many(
+        self,
+        database: Session,
+        *,
+        user_id: UUID,
+        recipe_ids: Collection[UUID],
+    ) -> dict[UUID, Recipe]:
+        """Batch find() for a whole sync page, tombstones included — one
+        query instead of one per change row."""
+        if not recipe_ids:
+            return {}
+        stored = database.scalars(
+            select(Recipe).where(
+                Recipe.id.in_(recipe_ids),
+                Recipe.user_id == user_id,
+            )
+        )
+        return {recipe.id: recipe for recipe in stored}
 
     def discover(
         self,
@@ -334,51 +353,108 @@ class RecipeRepository:
             )
 
     def to_dto(self, database: Session, stored: Recipe) -> RecipeDTO:
-        images = list(
-            database.scalars(
-                select(RecipeImage)
-                .where(RecipeImage.recipe_id == stored.id)
-                .order_by(RecipeImage.order_index)
-            )
-        )
-        ingredients = list(
-            database.scalars(
-                select(Ingredient)
-                .where(Ingredient.recipe_id == stored.id)
-                .order_by(Ingredient.order_index, Ingredient.id)
-            )
-        )
-        steps = list(
-            database.scalars(
-                select(RecipeStep)
-                .where(RecipeStep.recipe_id == stored.id)
-                .order_by(RecipeStep.order_index, RecipeStep.id)
-            )
-        )
-        links = list(
-            database.scalars(
-                select(StepIngredient).where(StepIngredient.recipe_id == stored.id)
-            )
-        )
-        timers = list(
-            database.scalars(
-                select(DetectedTimer).where(
-                    DetectedTimer.recipe_step_id.in_([step.id for step in steps])
-                )
-            )
-        )
-        uncertainties = list(
-            database.scalars(
-                select(FieldUncertainty).where(FieldUncertainty.recipe_id == stored.id)
-            )
-        )
+        return self.to_dtos(database, [stored])[stored.id]
 
+    def to_dtos(
+        self,
+        database: Session,
+        recipes: Sequence[Recipe],
+    ) -> dict[UUID, RecipeDTO]:
+        """Materialise many recipes with one query per child table instead
+        of eight queries per recipe — a sync page renders through here, so
+        its cost must stay flat in the page size."""
+        if not recipes:
+            return {}
+        recipe_ids = [stored.id for stored in recipes]
+        images: dict[UUID, list[RecipeImage]] = defaultdict(list)
+        for image in database.scalars(
+            select(RecipeImage)
+            .where(RecipeImage.recipe_id.in_(recipe_ids))
+            .order_by(RecipeImage.recipe_id, RecipeImage.order_index)
+        ):
+            images[image.recipe_id].append(image)
+        ingredients: dict[UUID, list[Ingredient]] = defaultdict(list)
+        for ingredient in database.scalars(
+            select(Ingredient)
+            .where(Ingredient.recipe_id.in_(recipe_ids))
+            .order_by(
+                Ingredient.recipe_id, Ingredient.order_index, Ingredient.id
+            )
+        ):
+            ingredients[ingredient.recipe_id].append(ingredient)
+        steps: dict[UUID, list[RecipeStep]] = defaultdict(list)
+        for step in database.scalars(
+            select(RecipeStep)
+            .where(RecipeStep.recipe_id.in_(recipe_ids))
+            .order_by(
+                RecipeStep.recipe_id, RecipeStep.order_index, RecipeStep.id
+            )
+        ):
+            steps[step.recipe_id].append(step)
         links_by_step: dict[UUID, list[UUID]] = defaultdict(list)
-        for link in links:
+        for link in database.scalars(
+            select(StepIngredient).where(
+                StepIngredient.recipe_id.in_(recipe_ids)
+            )
+        ):
             links_by_step[link.step_id].append(link.ingredient_id)
         timers_by_step: dict[UUID, list[DetectedTimer]] = defaultdict(list)
-        for timer in timers:
-            timers_by_step[timer.recipe_step_id].append(timer)
+        step_ids = [step.id for value in steps.values() for step in value]
+        if step_ids:
+            for timer in database.scalars(
+                select(DetectedTimer).where(
+                    DetectedTimer.recipe_step_id.in_(step_ids)
+                )
+            ):
+                timers_by_step[timer.recipe_step_id].append(timer)
+        uncertainties: dict[UUID, list[FieldUncertainty]] = defaultdict(list)
+        for value in database.scalars(
+            select(FieldUncertainty).where(
+                FieldUncertainty.recipe_id.in_(recipe_ids)
+            )
+        ):
+            uncertainties[value.recipe_id].append(value)
+        nutrition = {
+            row.recipe_id: row
+            for row in database.scalars(
+                select(Nutrition).where(Nutrition.recipe_id.in_(recipe_ids))
+            )
+        }
+        other_nutrients: dict[UUID, list[OtherNutrient]] = defaultdict(list)
+        for nutrient in database.scalars(
+            select(OtherNutrient).where(
+                OtherNutrient.nutrition_recipe_id.in_(recipe_ids)
+            )
+        ):
+            other_nutrients[nutrient.nutrition_recipe_id].append(nutrient)
+        return {
+            stored.id: self._dto(
+                stored,
+                images=images[stored.id],
+                ingredients=ingredients[stored.id],
+                steps=steps[stored.id],
+                links_by_step=links_by_step,
+                timers_by_step=timers_by_step,
+                uncertainties=uncertainties[stored.id],
+                nutrition=nutrition.get(stored.id),
+                other_nutrients=other_nutrients[stored.id],
+            )
+            for stored in recipes
+        }
+
+    def _dto(
+        self,
+        stored: Recipe,
+        *,
+        images: list[RecipeImage],
+        ingredients: list[Ingredient],
+        steps: list[RecipeStep],
+        links_by_step: dict[UUID, list[UUID]],
+        timers_by_step: dict[UUID, list[DetectedTimer]],
+        uncertainties: list[FieldUncertainty],
+        nutrition: Nutrition | None,
+        other_nutrients: list[OtherNutrient],
+    ) -> RecipeDTO:
         ingredient_uncertainty = {
             value.ingredient_id: value
             for value in uncertainties
@@ -424,7 +500,7 @@ class RecipeRepository:
                     id=step.id,
                     order_index=step.order_index,
                     instruction=step.instruction,
-                    ingredient_ids=links_by_step[step.id],
+                    ingredient_ids=links_by_step.get(step.id, []),
                     source_start_seconds=step.source_start_seconds,
                     source_end_seconds=step.source_end_seconds,
                     timers=[
@@ -433,13 +509,13 @@ class RecipeRepository:
                             label=timer.label,
                             duration_seconds=timer.duration_seconds,
                         )
-                        for timer in timers_by_step[step.id]
+                        for timer in timers_by_step.get(step.id, [])
                     ],
                     uncertainty=self._uncertainty_dto(step_uncertainty.get(step.id)),
                 )
                 for step in steps
             ],
-            nutrition=self._nutrition_dto(database, stored.id),
+            nutrition=self._nutrition_dto(nutrition, other_nutrients),
             is_favorite=stored.favorite,
             review_status=RecipeReviewStatus(stored.review_status),
             uncertainties=[
@@ -526,19 +602,11 @@ class RecipeRepository:
 
     def _nutrition_dto(
         self,
-        database: Session,
-        recipe_id: UUID,
+        nutrition: Nutrition | None,
+        others: list[OtherNutrient],
     ) -> NutritionDTO | None:
-        nutrition = database.get(Nutrition, recipe_id)
         if nutrition is None:
             return None
-        others = list(
-            database.scalars(
-                select(OtherNutrient).where(
-                    OtherNutrient.nutrition_recipe_id == recipe_id
-                )
-            )
-        )
         return NutritionDTO(
             calories=nutrition.calories,
             protein_grams=nutrition.protein_grams,

@@ -51,7 +51,8 @@ by the code they touch.
 | #19 | Uploaded thumbnails leaked on rollback or discard | `c863c5e` | fixed |
 | #15 | One account could hoard multiple Apple identities | `0ee5069` + `c745cb8` | fixed |
 | #14 | Import submission stalled every request on the worker | `1f2f0c1` | fixed |
-| #16 | Recipe child tables scanned on every fetch | `_pending_` | fixed |
+| #16 | Recipe child tables scanned on every fetch | `a75771f` | fixed |
+| #23 | One sync page fanned out to ~900 queries | `_pending_` | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -1779,6 +1780,67 @@ up/downgrade test — stays green:
 uv run pytest -q tests/integration/test_migrations.py  -> 8 passed in 4.98s
 uv run ruff check ladle tests alembic                  -> All checks passed
 uv run mypy --strict ladle                             -> clean
+```
+
+## Finding #23 — one sync page fanned out to hundreds of queries
+
+### The defect
+
+`RecipeSyncService.page` looped over the page's change rows and, for
+every row, called `find()` — one SELECT — and then `to_dto()`, which
+issued six child-table selects plus a nutrition get and an
+`other_nutrients` select: about nine statements per change. A
+`limit=100` page therefore ran ~900 sequential statements inside one
+request, all on a single pooled connection held for the duration; the
+iOS client pages with `limit=100` in a loop until `has_more` is false,
+so the initial sync of a 500-recipe library cost ~4,500 statements.
+Three of those per-row selects also hit the unindexed columns #16
+fixed, so each of them was a sequential scan besides.
+
+### The fix
+
+The page now reads recipes and materialises DTOs in bulk. `find_many()`
+fetches every recipe on the page, tombstones included, in one query,
+and `to_dtos()` loads each child table once for the whole page with
+`IN` over the page's recipe ids, groups the rows in memory, and
+assembles per-recipe DTOs through the same code single-recipe reads use
+— `to_dto` now delegates to `to_dtos` on a one-element list, so the two
+paths cannot drift. Per-recipe ordering is unchanged
+(`order_index`-ordered images, ingredients and steps), tombstones and
+rows whose recipe is gone render exactly as before, and an empty page
+issues no recipe queries at all. A page costs eleven statements
+regardless of its size.
+
+### Verification
+
+`tests/integration/sync/test_sync_feed.py` counts the statements the
+engine actually executes through a `before_cursor_execute` listener.
+Red, on the old code — the count grows linearly with the page, for
+upsert pages and tombstone pages (the per-row `find()`) alike:
+
+```text
+E       AssertionError: a 6-change page cost 56 statements against 20 for a 2-change page: the page fans out per change
+E       assert 56 == 20
+E       AssertionError: an 8-tombstone page cost 10 statements against 4 for 2: the page still looks recipes up one by one
+E       assert 10 == 4
+FAILED tests/integration/sync/test_sync_feed.py::test_sync_page_statement_count_does_not_grow_with_the_page
+FAILED tests/integration/sync/test_sync_feed.py::test_all_tombstone_page_needs_no_per_recipe_queries
+2 failed, 4 passed in 4.85s
+```
+
+Green: both counts are flat in the page size, a tombstone page never
+touches the child tables, an empty page issues exactly the sync-state
+and change-window reads and nothing else, and a mixed page — full
+graph, empty graph, tombstone — renders identically to single-recipe
+reads with no leakage between page neighbours
+(`test_batched_page_matches_single_recipe_reads`), alongside the
+pre-existing pagination, replay and cursor-expiry tests:
+
+```text
+uv run pytest -q tests/integration/sync/test_sync_feed.py  -> 6 passed in 5.26s
+uv run pytest -q -m "not live_provider and not chaos"      -> 760 passed
+uv run ruff check ladle tests alembic                      -> All checks passed
+uv run mypy --strict ladle                                 -> clean
 ```
 
 ## Where this run stopped, and where the next one starts
