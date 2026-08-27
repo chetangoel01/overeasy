@@ -2,6 +2,7 @@
 
 import json
 import re
+from collections import OrderedDict
 from decimal import Decimal, InvalidOperation
 from typing import Literal, Protocol
 
@@ -68,16 +69,23 @@ class USDAClient:
         api_key: str,
         base_url: str,
         maximum_candidates: int = 5,
+        maximum_cache_entries: int = 512,
     ) -> None:
         if not api_key.strip():
             raise ValueError("USDA API key must not be blank")
         if maximum_candidates < 1:
             raise ValueError("maximum candidates must be positive")
+        if maximum_cache_entries < 1:
+            raise ValueError("maximum cache entries must be positive")
         self._http = http
         self._api_key = api_key
         self._base_url = base_url.rstrip("/")
         self._maximum_candidates = maximum_candidates
-        self._cache: dict[str, tuple[FoodNutrients, ...]] = {}
+        self._maximum_cache_entries = maximum_cache_entries
+        # Keys are model-generated ingredient phrasings — an effectively
+        # unbounded space — and the client lives as long as the worker
+        # process, so the cache is LRU-bounded rather than a bare dict.
+        self._cache: OrderedDict[str, tuple[FoodNutrients, ...]] = OrderedDict()
 
     def candidates(self, query: str) -> list[FoodNutrients]:
         normalized = _normalize(query)
@@ -85,6 +93,7 @@ class USDAClient:
             return []
         cached = self._cache.get(normalized)
         if cached is not None:
+            self._cache.move_to_end(normalized)
             return list(cached)
 
         response = self._request(
@@ -121,6 +130,8 @@ class USDAClient:
 
         value = tuple(foods)
         self._cache[normalized] = value
+        while len(self._cache) > self._maximum_cache_entries:
+            self._cache.popitem(last=False)
         return list(value)
 
     def _request(

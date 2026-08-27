@@ -60,6 +60,7 @@ by the code they touch.
 | #36 | AEAD failure wedged account deletion at revokingProvider | _pending_ | fixed |
 | #37 | Retention sweep silently refunded spent monthly quota | _pending_ | fixed |
 | #38 | Retrying a needsReview job stranded its thumbnail | _pending_ | fixed |
+| #39 | USDA search cache grew for the life of the worker | _pending_ | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -2496,6 +2497,64 @@ uv run pytest -q tests/integration/imports/test_retry_reparse.py \
 uv run ruff check ladle/imports/transitions.py ...      -> All checks passed
 uv run mypy --strict ladle                              -> clean
 ```
+
+## Finding #39 — the USDA search cache grew for the life of the worker
+
+### The defect
+
+`USDAClient` is built once per worker process (`runtime_orchestrator()` is
+`@lru_cache(maxsize=1)`) and its `self._cache` was a bare dict with no size
+cap, TTL, or eviction anywhere in the class. Cache keys are
+`usda_search_term` values — free text the extraction model generates per
+ingredient — so the key space is effectively unbounded, and every novel
+phrasing across every import added a permanent entry holding up to
+`maximum_candidates` full `FoodNutrients` records with their portion lists.
+A long-running worker accumulated the entire history of USDA lookups in
+RAM, inside the 2g container limit it shares with the memory-heavy media
+work, until the process restarted.
+
+### The fix
+
+The cache is now an LRU-bounded `OrderedDict`: a hit moves the entry to the
+recent end, an insert evicts from the oldest end past the bound, and the
+bound is a constructor parameter (`maximum_cache_entries`, default 512,
+validated positive like the class's other parameters). Worst-case memory is
+now 512 entries regardless of how many distinct phrasings the model emits;
+an evicted term is simply refetched. No config plumbing — the worker uses
+the default.
+
+### Verification
+
+Three new tests in `tests/unit/nutrition/test_usda.py`.
+`test_the_search_cache_is_bounded_and_evicts_the_oldest_entry` issues 513
+distinct queries against the default bound and requires the oldest to
+refetch while the newest stays cached. Red on the unfixed code — nothing is
+ever evicted:
+
+```text
+        usda.candidates("ingredient 0")
+>       assert searches.count("ingredient 0") == 2, (
+            "the oldest entry must have been evicted, forcing a refetch"
+        )
+E       AssertionError: the oldest entry must have been evicted, forcing a refetch
+E       assert 1 == 2
+```
+
+`test_a_cache_hit_refreshes_recency_before_eviction` pins the LRU semantics
+at and past a bound of 2 (a hit saves an entry from the next eviction), and
+`test_a_nonpositive_cache_bound_is_rejected` pins the validation; both also
+red before the fix (`DID NOT RAISE ValueError` for the latter — the
+parameter did not exist). Green after the fix:
+
+```text
+uv run pytest -q tests/unit/nutrition                   -> 61 passed
+uv run ruff check ladle/nutrition/usda.py ...           -> All checks passed
+uv run mypy --strict ladle                              -> clean
+```
+
+(`ladle/nutrition/usda.py` and its test file are two of the 35 files whose
+formatting already drifted on `main`; the hunks this change adds are
+formatted per the locked ruff, verified against the pre-change files.)
 
 ## Where this run stopped, and where the next one starts
 
