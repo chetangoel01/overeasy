@@ -4,6 +4,7 @@ from fastapi import APIRouter, Request, status
 from pydantic import Field
 
 from ladle.api.dependencies import database
+from ladle.api.rate_limits import RateLimitPolicies, RateLimitService
 from ladle.auth.attestation import (
     AppAttestPurpose,
     AttestationService,
@@ -12,6 +13,14 @@ from ladle.auth.attestation import (
 from ladle.contracts.common import WireDateTime, WireModel, WireUUID
 
 router = APIRouter(prefix="/v1/attestation", tags=["attestation"])
+
+
+def _rate_limits(request: Request) -> RateLimitService:
+    return cast(RateLimitService, request.app.state.rate_limits)
+
+
+def _rate_limit_policies(request: Request) -> RateLimitPolicies:
+    return cast(RateLimitPolicies, request.app.state.rate_limit_policies)
 
 
 class AppAttestChallengeRequest(WireModel):
@@ -48,6 +57,16 @@ def issue_challenge(
     request: Request,
     body: AppAttestChallengeRequest,
 ) -> AppAttestChallengeResponse:
+    # Unauthenticated and one committed INSERT per call: without a dedicated
+    # bucket, anyone rotating installation IDs could grow the challenge table
+    # at the full shared global rate.
+    limits = _rate_limits(request)
+    limits.enforce(
+        _rate_limit_policies(request).attestation_challenge(
+            limits.client_ip(request),
+            body.installation_id,
+        )
+    )
     service = cast(AttestationService, request.app.state.attestation)
     with database(request) as current_database, current_database.begin():
         challenge = service.issue_challenge(

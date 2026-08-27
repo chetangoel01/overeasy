@@ -34,6 +34,8 @@ _OTHER_HTTP_METHOD = "OTHER"
 _RATE_LIMIT_POLICIES = frozenset(
     {
         "global",
+        "attestation:ip",
+        "attestation:installation",
         "guest:ip",
         "guest:installation",
         "refresh:ip",

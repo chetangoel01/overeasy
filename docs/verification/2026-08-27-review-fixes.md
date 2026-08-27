@@ -56,6 +56,7 @@ by the code they touch.
 | #22 | Traces exported the USDA API key in the URL | `49d6bed` | fixed |
 | #25 | Guest-limit account creation was a local flip | `4ae136e` | fixed |
 | #34 | 429s and crash 500s shipped without security headers | _pending_ | fixed |
+| #35 | Unauthenticated challenge endpoint had no rate limit | _pending_ | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -2231,6 +2232,69 @@ uv run pytest -q tests/api/test_security_headers.py      -> 4 passed
 uv run ruff check ladle/api/app.py ladle/api/errors.py \
     tests/api/test_security_headers.py                   -> All checks passed
 uv run mypy --strict ladle                               -> clean
+```
+
+## Finding #35 — anyone could grow the challenge table at the full global rate
+
+### The defect
+
+`POST /v1/attestation/challenges` is unauthenticated by design — it is the
+step *before* guest creation — and every call commits one
+`AppAttestChallenge` INSERT keyed by a client-supplied `installation_id`
+nobody proves ownership of. Unlike its unauthenticated siblings
+(`/v1/auth/guest` enforces `guest:ip`/`guest:installation`,
+`/v1/auth/refresh` enforces `refresh:ip`/`refresh:installation`), the
+handler performed no `enforce` call and `RateLimitPolicies` had no
+attestation bucket at all, so the only throttle was the single shared
+`global`/`all` bucket (3000/min) that never singles a caller out. One host
+rotating fresh installation IDs could commit ~180k rows/hour into the
+auth-critical table; the retention sweep deletes only expired rows on an
+hourly cadence, so the table held roughly an hour of attack churn plus the
+challenge lifetime at all times.
+
+### The fix
+
+A dedicated policy, wired the same way as the guest one:
+
+- `Settings.rate_limit_attestation_ip_per_hour` (default 60) and
+  `rate_limit_attestation_installation_per_hour` (default 30).
+- `RateLimitPolicies.attestation_challenge(ip, installation)` returning the
+  `attestation:ip` and `attestation:installation` checks; both labels added
+  to the metrics registry's `_RATE_LIMIT_POLICIES` allowlist (the wiring
+  test caught that omission with
+  `ValueError: unbounded metric label: attestation:ip`).
+- `issue_challenge` enforces the policy before touching the database, so a
+  rejected call performs no INSERT.
+
+The per-IP bucket is the load-bearing one — rotating installation IDs
+defeats any per-installation key — and the per-installation bucket keeps a
+single stuck client from consuming its IP's whole allowance.
+
+### Verification
+
+`tests/api/test_rate_limit_wiring.py::test_every_sensitive_route_enforces_its_distributed_policy`
+now blocks `attestation:installation` and then `attestation:ip` — the
+latter with a freshly rotated `installationID`, the unauthenticated-flood
+shape. Red on the unfixed code, the finding's exact claim (201, zero 429s):
+
+```text
+            backend.blocked_bucket = "attestation:installation"
+>           assert (
+                client.post("/v1/attestation/challenges", json=challenge_body).status_code
+                == 429
+            )
+E           AssertionError: assert 201 == 429
+E            +  where 201 = <Response [201 Created]>.status_code
+```
+
+Green after the fix:
+
+```text
+uv run pytest -q tests/api/test_rate_limit_wiring.py \
+    tests/integration/auth/test_app_attest.py tests/unit/test_rate_limits.py \
+    tests/unit/test_config.py tests/unit/observability  -> 84 passed
+uv run ruff check ladle tests alembic                   -> All checks passed
+uv run mypy --strict ladle                              -> clean
 ```
 
 ## Where this run stopped, and where the next one starts

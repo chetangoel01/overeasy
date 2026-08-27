@@ -59,6 +59,27 @@ def test_every_sensitive_route_enforces_its_distributed_policy(
     )
 
     with TestClient(app) as client:
+        challenge_body = {
+            "installationID": "rate-limit-installation",
+            "purpose": "guestCreation",
+        }
+        backend.blocked_bucket = "attestation:installation"
+        assert (
+            client.post("/v1/attestation/challenges", json=challenge_body).status_code
+            == 429
+        )
+
+        # The IP bucket must hold even when every request rotates to a fresh
+        # installation ID — the unauthenticated-flood shape.
+        backend.blocked_bucket = "attestation:ip"
+        assert (
+            client.post(
+                "/v1/attestation/challenges",
+                json={**challenge_body, "installationID": f"rotated-{uuid4()}"},
+            ).status_code
+            == 429
+        )
+
         guest_body = {
             "installationID": "rate-limit-installation",
             "attestation": None,

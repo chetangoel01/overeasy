@@ -236,6 +236,8 @@ class RateLimitService:
 @dataclass(frozen=True)
 class RateLimitPolicies:
     global_per_minute: int
+    attestation_ip_per_hour: int
+    attestation_installation_per_hour: int
     guest_ip_per_hour: int
     guest_installation_per_day: int
     refresh_ip_per_minute: int
@@ -252,6 +254,10 @@ class RateLimitPolicies:
     def from_settings(cls, settings: Settings) -> "RateLimitPolicies":
         return cls(
             global_per_minute=settings.rate_limit_global_per_minute,
+            attestation_ip_per_hour=settings.rate_limit_attestation_ip_per_hour,
+            attestation_installation_per_hour=(
+                settings.rate_limit_attestation_installation_per_hour
+            ),
             guest_ip_per_hour=settings.rate_limit_guest_ip_per_hour,
             guest_installation_per_day=(settings.rate_limit_guest_installation_per_day),
             refresh_ip_per_minute=settings.rate_limit_refresh_ip_per_minute,
@@ -273,6 +279,21 @@ class RateLimitPolicies:
 
     def global_request(self) -> tuple[RateLimitCheck, ...]:
         return (self._check("global", "all", self.global_per_minute, minutes=1),)
+
+    def attestation_challenge(
+        self,
+        ip: str,
+        installation: str,
+    ) -> tuple[RateLimitCheck, ...]:
+        return (
+            self._check("attestation:ip", ip, self.attestation_ip_per_hour, hours=1),
+            self._check(
+                "attestation:installation",
+                installation,
+                self.attestation_installation_per_hour,
+                hours=1,
+            ),
+        )
 
     def guest(self, ip: str, installation: str) -> tuple[RateLimitCheck, ...]:
         return (
