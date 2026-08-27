@@ -186,6 +186,23 @@ def test_redirect_to_an_overlong_url_is_refused() -> None:
         fetcher.fetch_raw("https://example.com/recipe")
 
 
+def test_redirect_to_an_overlong_relative_location_is_refused() -> None:
+    # httpx joins a relative Location itself inside send(), and the joined
+    # URL can exceed its 65,535-character cap even though the location alone
+    # does not — surfacing as a bare InvalidURL, which is not an HTTPError.
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(302, headers={"location": "a" * 65_530})
+
+    fetcher = SafeLinkFetcher(
+        http=httpx.Client(transport=httpx.MockTransport(handler)),
+        dns=FakeDNS({}),
+    )
+
+    with pytest.raises(UnsafeURL):
+        fetcher.fetch_raw("https://example.com/recipe")
+
+
 def test_host_that_resolves_to_nothing_is_refused() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         raise AssertionError("no request should be made for an unresolvable host")

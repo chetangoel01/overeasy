@@ -263,6 +263,11 @@ class PinnedHTTPClient:
                 )
             except UnsafeNetworkTarget:
                 raise
+            except httpx.InvalidURL as error:
+                # send() eagerly joins a redirect's relative location, and
+                # the joined URL can break httpx's limits: invalid for every
+                # address, so refuse rather than try the next one.
+                raise UnsafeNetworkTarget(f"invalid URL: {error}") from error
             except httpx.HTTPError as error:
                 last_error = error
             finally:
@@ -314,6 +319,8 @@ class PinnedRedirectResolver:
             )
             try:
                 return self._client.send(request, follow_redirects=False)
+            except httpx.InvalidURL as error:
+                raise UnsafeNetworkTarget(f"invalid URL: {error}") from error
             except httpx.HTTPError as error:
                 last_error = error
         raise UnsafeNetworkTarget(

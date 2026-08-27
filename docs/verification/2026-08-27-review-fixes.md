@@ -43,7 +43,7 @@ by the code they touch.
 | #28 | Delete during first upload came back | `d2ce167` | fixed |
 | #27 | Remote delete mislabeled as a remote edit | `2969c5a` | fixed |
 | #26 | Scrolling a focus-mode step changed the step | — | fixed |
-| #12 | Malformed caption URL killed the whole import | `44b7b10` | fixed |
+| #12 | Malformed caption URL killed the whole import | `44b7b10` + `_pending_` | fixed |
 | #13 | Hostile HTML pinned the worker for half an hour | `356aa66` | fixed |
 | #11 | Reversed Whisper timings killed the transcription | `b590bb2` | fixed |
 | #17 | Model decimal exponent bomb allocated gigabytes | `9a8158f` | fixed |
@@ -1151,6 +1151,24 @@ uv run pytest -q tests/unit/acquisition/test_free_links.py \
 uv run ruff check ladle tests alembic               -> All checks passed
 uv run mypy --strict ladle                          -> clean
 ```
+
+**Follow-up, same finding.** Probing the redirect corridor end-to-end after
+the first commit showed one `InvalidURL` route still open: httpx joins a
+*relative* `Location` itself inside `send()`, and the joined URL can exceed
+its 65,535-character cap even though the location alone does not. That
+surfaces as a bare `httpx.InvalidURL` raised *by* `client.send` — not an
+`HTTPError`, so it sailed past both pinned clients' send handlers. Red:
+
+```text
+FAILED test_free_links.py::test_redirect_to_an_overlong_relative_location_is_refused
+  httpx.InvalidURL: URL too long
+    (raised from httpx/_urlparse.py:219 via request.url.join inside client.send)
+```
+
+Both `_request_pinned` methods now convert `httpx.InvalidURL` from the send
+into the same `UnsafeNetworkTarget` refusal, raised immediately rather than
+retried per address — a URL httpx cannot represent is invalid for every
+address. 38 links tests green after.
 
 ## Finding #13 — one hostile page pinned the import worker for half an hour
 
