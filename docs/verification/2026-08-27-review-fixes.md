@@ -49,8 +49,8 @@ by the code they touch.
 | #17 | Model decimal exponent bomb allocated gigabytes | `9a8158f` | fixed |
 | #18 | Beat sweep deadlocked against import completions | `b215db5` | fixed |
 | #19 | Uploaded thumbnails leaked on rollback or discard | `c863c5e` | fixed |
-| #15 | One account could hoard multiple Apple identities | `0ee5069` | fixed |
-| #14 | Import submission stalled every request on the worker | `_pending_` | fixed |
+| #15 | One account could hoard multiple Apple identities | `0ee5069` + `c745cb8` | fixed |
+| #14 | Import submission stalled every request on the worker | `1f2f0c1` | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -1584,6 +1584,11 @@ Three layers, one invariant — at most one provider identity row per user:
 
 With uniqueness guaranteed, deletion's single-row lookup is exact — no
 change needed there.
+
+Follow-up caught by the full-suite gate (`c745cb8`): `DatabaseReadinessProbe`
+pins the schema revision the application expects, so adding migration 0015
+required moving that pin from `0014` to `0015` — otherwise a deployed API
+over the migrated database reports not-ready forever.
 
 ### Verification
 
