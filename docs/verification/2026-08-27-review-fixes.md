@@ -2424,7 +2424,12 @@ April's).
 `test_quota_event_migration_detaches_on_upgrade_and_downgrades_cleanly`
 covers the migration itself: deleting a job leaves the event with
 `import_job_id NULL`, and `downgrade` to `0016` succeeds over detached rows
-by removing them. Green after the fix:
+by removing them. As with `0015`, the readiness probe pins the schema
+revision the application expects, so a companion commit points it (and the
+readiness test) at `0017` — the full integration tranche caught the stale
+pin as
+`FAILED tests/integration/api/test_readiness.py::test_database_readiness_requires_current_migration_revision`.
+Green after the fix:
 
 ```text
 uv run pytest -q tests/integration/imports/test_quotas.py \
