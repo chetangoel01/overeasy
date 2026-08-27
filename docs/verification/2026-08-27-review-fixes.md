@@ -40,7 +40,8 @@ by the code they touch.
 | #20 + #21 | Observability middleware 500s and blind spots | `fda602d` | fixed |
 | #33 | Cancelled requests reported as being offline | `fb9f643` | fixed |
 | #30 + #31 + #32 | Import-cancellation cluster | `814ba45` | fixed |
-| #28 | Delete during first upload came back | `_pending_` | fixed |
+| #28 | Delete during first upload came back | `d2ce167` | fixed |
+| #27 | Remote delete mislabeled as a remote edit | `_pending_` | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -929,6 +930,94 @@ is already gone, and the next pull re-inserts the recipe. Closing that
 window needs the client to queue deletes it cannot yet base-revision, i.e.
 a contract change (the DELETE route rejects `baseRevision < 1`). Out of
 scope here; that window queued nothing before this fix either.
+
+## Finding #27 — a server-side delete wore an edit's clothing
+
+### The defect
+
+When a sync page carried a `.delete` change for a recipe with a pending
+local mutation, `applySyncPage`'s conflict branch only advanced
+`conflictRemoteRevision` — a delete change carries no recipe, so a
+`conflictRemotePayload` stored earlier (by the push's 409 handling, or by
+a preceding upsert change in the same page) survived, stale. The review
+card then read the non-nil payload as "Changed on another device" with a
+friendly "Use Other Version" button, for a recipe the server had deleted.
+Accepting it decoded the stale payload, applied it, and stamped the row
+with the delete's revision and no pending mutation: a recipe the server
+deleted came back into the library at a revision the server will never
+re-send — stranded on this device permanently, since the cursor was
+already past the delete row. The correct "Deleted on another device" /
+"Remove Local Copy" presentation existed in `SyncConflictPresentation`
+but was unreachable through production code.
+
+### The fix
+
+The conflict branch is now change-kind-aware. An upsert change stores the
+remote copy as before; a delete change clears `conflictRemotePayload` and
+advances the revision, so the conflict presents as the deletion it is and
+"accept remote" removes the local copy instead of resurrecting a ghost.
+
+One delete arrival needs no review at all: when the local row is itself a
+tombstone, both devices deleted the same recipe. The branch now removes
+the row outright — nothing to review, nothing left to push. Without this,
+the no-op "conflict" would offer Keep My Version, whose re-pushed DELETE
+the server must 409 against the already-deleted row, re-preserving the
+conflict forever.
+
+The old `testAcceptingRemoteDeletionConflictRemovesLocalRecipe` had to
+poke `conflictRemotePayload = nil` into the model by hand because no
+production path produced it; it now reaches the same state through
+`applySyncPage` alone.
+
+### Verification
+
+`testRemoteDeleteChangeConvertsAStoredEditConflictToADeleteConflict`
+plays the finding's trace: a pending local edit, the push's preserved
+revision-5 conflict, a pull page carrying the other device's revision-5
+edit and revision-6 delete, then "accept remote". Red before the fix (on
+top of #28's commit) — the conflict still presents the stale revision-5
+copy, and accepting it resurrects the recipe:
+
+```text
+XCTAssertNil failed: "Recipe(id: ABC7DDAF-…, title: "Server Title", …)"
+  // the conflict's remote side
+XCTAssertNil failed: "Recipe(id: ABC7DDAF-…, title: "Server Title", …)"
+  // fetchRecipe after accept-remote
+XCTAssertTrue failed   // fetchRecipes() is not empty
+```
+
+`testMatchingLocalAndRemoteDeletesResolveWithoutReview` — red before the
+fix, a review card and a doomed pending delete for a recipe both sides
+already deleted:
+
+```text
+XCTAssertEqual failed: ("1") is not equal to ("0")   // syncConflictCount
+XCTAssertTrue failed   // the delete push still pending
+```
+
+Atypical states covered: a delete change arriving atop a stored edit
+conflict; a delete change arriving for a pending edit with no stored
+conflict (the rewritten accept-remote test); accept-remote on a
+remote-deleted recipe; both sides deleting the same recipe; a delete
+change for a recipe that does not exist locally; an empty sync page over
+an empty store and over a stored conflict
+(`testEmptyAndUnknownRecipeSyncChangesAreHarmless`).
+
+Green: `-only-testing:LadleTests/SwiftDataRecipeRepositoryTests` at 24
+executed, 0 failures; full `-only-testing:LadleTests` at 280 executed, 1
+skipped, 0 failures. `swift test --package-path Packages/LadleCore` (not
+touched by either finding) still passes at 46 tests in 9 suites.
+
+Known residual, recorded deliberately: the 409 a push draws for a
+server-deleted recipe carries the deleted recipe's DTO as `currentRecipe`
+with no deleted marker, so `preserveConflict` stores a non-nil payload
+and the mislabel can reappear through the push path alone. That is
+reachable if the user resolves a correctly-labeled delete conflict with
+"Keep My Version": the re-pushed upsert 409s against the deleted row
+forever, because the server cannot resurrect a soft-deleted recipe. Every
+pull-side arrival of the delete now corrects the label, but closing the
+push path needs the sync-conflict contract to say "deleted" — a backend
+plus LadleCore change outside this finding.
 
 ## Where this run stopped, and where the next one starts
 

@@ -456,12 +456,25 @@ final class SwiftDataRecipeRepository:
                 continue
             }
             if let stored, stored.pendingMutationKey != nil {
-                if let remote = change.recipe {
-                    stored.conflictRemotePayload = try encoder.encode(
-                        remote.recipe()
-                    )
+                switch change.kind {
+                case .upsert:
+                    if let remote = change.recipe {
+                        stored.conflictRemotePayload = try encoder.encode(
+                            remote.recipe()
+                        )
+                    }
+                    stored.conflictRemoteRevision = change.recipeRevision
+                case .delete where stored.isTombstoned:
+                    // Deleted on both sides: nothing to review, nothing
+                    // left to push.
+                    modelContext.delete(stored)
+                case .delete:
+                    // A delete change carries no recipe; a payload stored
+                    // by an earlier change or a rejected push is now stale
+                    // and would present this deletion as an edit.
+                    stored.conflictRemotePayload = nil
+                    stored.conflictRemoteRevision = change.recipeRevision
                 }
-                stored.conflictRemoteRevision = change.recipeRevision
                 continue
             }
             switch change.kind {
