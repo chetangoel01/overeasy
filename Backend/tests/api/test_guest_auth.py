@@ -107,6 +107,18 @@ def test_guest_refresh_and_explicit_session_revocation(
         )
         assert rejected.status_code == 401
 
+        # A guest account has no credential other than its device binding, so
+        # signing out must leave that binding intact.
+        returning = client.post(
+            "/v1/auth/guest",
+            json={
+                "installationID": "ios-installation-1",
+                "attestation": None,
+            },
+        )
+        assert returning.status_code == 201
+        assert returning.json()["userID"] == created["userID"]
+
     engine.dispose()
 
 
