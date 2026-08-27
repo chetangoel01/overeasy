@@ -61,6 +61,99 @@ final class RecipeEditorViewModelTests: XCTestCase {
         )
     }
 
+    /// The reviewer's repro: the offending field lives in a section the user
+    /// is not looking at, so the inline message is off screen and the Save
+    /// tap reads as a dead button.
+    func testSaveRejectedForAnOffScreenFieldStillNamesWhereToLook() {
+        let viewModel = makeViewModel()
+        viewModel.addStep()
+
+        XCTAssertNil(viewModel.save(), "A blank step must block the save")
+
+        let summary = viewModel.validationSummary
+        XCTAssertNotNil(
+            summary,
+            "A rejected save must surface a summary, or the tap looks like a no-op"
+        )
+        XCTAssertEqual(summary?.sections, [.method])
+        XCTAssertEqual(
+            summary?.headline,
+            "Can't save yet — one field needs attention"
+        )
+        XCTAssertEqual(summary?.detail, "Check Method.")
+    }
+
+    func testSummaryNamesEverySectionHoldingARejectedFieldInTabOrder() {
+        let viewModel = makeViewModel()
+        // Seeded out of tab order on purpose: Method first, then Basics.
+        viewModel.addStep()
+        viewModel.draft.title = "   "
+
+        XCTAssertNil(viewModel.save())
+
+        let summary = viewModel.validationSummary
+        XCTAssertEqual(
+            summary?.sections,
+            [.basics, .method],
+            "Sections must be listed in tab order, not issue order"
+        )
+        XCTAssertEqual(
+            summary?.headline,
+            "Can't save yet — 2 fields need attention"
+        )
+        XCTAssertEqual(summary?.detail, "Check Basics and Method.")
+    }
+
+    func testAValidDraftHasNoSummaryBeforeOrAfterSaving() throws {
+        let viewModel = makeViewModel()
+
+        XCTAssertNil(
+            viewModel.validationSummary,
+            "An untouched draft has not been rejected, so there is nothing to say"
+        )
+        XCTAssertNotNil(viewModel.save())
+        XCTAssertNil(viewModel.validationSummary)
+    }
+
+    func testFixingTheRejectedFieldClearsTheSummary() throws {
+        let viewModel = makeViewModel()
+        viewModel.addStep()
+        XCTAssertNil(viewModel.save())
+        XCTAssertNotNil(viewModel.validationSummary)
+
+        let added = try XCTUnwrap(viewModel.draft.steps.indices.last)
+        viewModel.draft.steps[added].instruction =
+            "Rest the dough for twenty minutes."
+
+        XCTAssertNotNil(viewModel.save())
+        XCTAssertNil(viewModel.validationSummary)
+        XCTAssertTrue(viewModel.sectionsNeedingAttention.isEmpty)
+    }
+
+    /// Every issue the draft can raise must map to a section, or a rejected
+    /// save could produce a summary that names nowhere.
+    func testEveryValidationIssueBelongsToASection() {
+        let identifier = UUID()
+        let issues: [RecipeDraftValidationIssue] = [
+            .titleRequired, .titleTooLong, .creatorNameTooLong,
+            .descriptionTooLong, .servingsMustBePositive,
+            .preparationMinutesInvalid, .cookingMinutesInvalid,
+            .totalMinutesInvalid, .tooManyIngredients, .tooManySteps,
+            .ingredientNameRequired(identifier),
+            .ingredientFieldTooLong(identifier),
+            .stepInstructionRequired(identifier),
+            .stepInstructionTooLong(identifier),
+            .nutritionValueInvalid("calories"),
+        ]
+        for issue in issues {
+            XCTAssertTrue(
+                RecipeEditorSection.allCases
+                    .contains(RecipeEditorSection.owning(issue)),
+                "\(issue) maps outside the editor's sections"
+            )
+        }
+    }
+
     func testInvalidStructuredFieldsStayInlineAndDoNotPersist() {
         let repository = EditorTestRepository(
             recipes: [PreviewFixtures.recipes[1]]

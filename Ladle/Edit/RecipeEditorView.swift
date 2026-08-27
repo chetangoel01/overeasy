@@ -1,17 +1,6 @@
 import LadleCore
 import SwiftUI
 
-private enum RecipeEditorSection: String, CaseIterable, Identifiable {
-    case basics = "Basics"
-    case media = "Media"
-    case timing = "Timing"
-    case ingredients = "Ingredients"
-    case method = "Method"
-    case nutrition = "Nutrition"
-
-    var id: String { rawValue }
-}
-
 struct RecipeEditorView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -25,6 +14,8 @@ struct RecipeEditorView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 sectionNavigation
+
+                validationSummary
 
                 ScrollView {
                     sectionContent
@@ -58,6 +49,11 @@ struct RecipeEditorView: View {
                         if let recipe = viewModel.save() {
                             didSave(recipe)
                             dismiss()
+                        } else if let offending =
+                            viewModel.sectionsNeedingAttention.first {
+                            // Carry the user to the rejected field rather than
+                            // leaving the tap looking like a no-op.
+                            selectedSection = offending
                         }
                     }
                     .fontWeight(.semibold)
@@ -71,6 +67,35 @@ struct RecipeEditorView: View {
         .presentationDetents([.large])
         .presentationBackground(LadleTheme.Surface.porcelain)
         .interactiveDismissDisabled(viewModel.hasChanges)
+    }
+
+    @ViewBuilder
+    private var validationSummary: some View {
+        if let summary = viewModel.validationSummary {
+            HStack(
+                alignment: .firstTextBaseline,
+                spacing: LadleTheme.Spacing.compact
+            ) {
+                Image(systemName: "exclamationmark.circle.fill")
+                VStack(
+                    alignment: .leading,
+                    spacing: LadleTheme.Spacing.tight
+                ) {
+                    Text(summary.headline)
+                        .ladleFont(.bodyStrong)
+                    Text(summary.detail)
+                        .ladleFont(.metadata)
+                }
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(LadleTheme.Label.accent)
+            .padding(.horizontal, LadleTheme.Layout.sheetMargin)
+            .padding(.vertical, LadleTheme.Spacing.medium)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(LadleTheme.Surface.raised)
+            .accessibilityIdentifier("editor.validation-summary")
+            .accessibilityAddTraits(.isSummaryElement)
+        }
     }
 
     private var sectionNavigation: some View {
