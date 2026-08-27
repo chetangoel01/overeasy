@@ -648,7 +648,7 @@ private extension View {
 private extension ImportCoordinatorState {
     var refreshesLibrary: Bool {
         switch self {
-        case .importing, .completed, .needsReview, .failed:
+        case .importing, .completed, .needsReview, .failed, .cancelled:
             true
         case .idle, .validationFailed, .duplicate, .guestLimit,
              .persistenceFailed:

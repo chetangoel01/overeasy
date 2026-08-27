@@ -32,6 +32,23 @@ final class DemoImportServiceTests: XCTestCase {
         XCTAssertEqual(firstRecipe.reviewStatus, .ready)
     }
 
+    func testCancelledSlugReportsTheImportAsCancelled() async throws {
+        let service = DemoImportService()
+        let job = ImportJob.queued(
+            sourceURL: URL(
+                string: "https://youtu.be/cancelled-elsewhere"
+            )!,
+            source: .youtube
+        )
+
+        do {
+            _ = try await service.submit(job, allowingDuplicate: false)
+            XCTFail("Expected the cancelled slug to throw")
+        } catch RemoteContractError.importCancelled {
+            // The coordinator presents this as a cancelled import.
+        }
+    }
+
     func testNeedsReviewSlugMarksTheRecipeForReview() async throws {
         let service = DemoImportService()
         let job = ImportJob.queued(

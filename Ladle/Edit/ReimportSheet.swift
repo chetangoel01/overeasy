@@ -64,6 +64,8 @@ struct ReimportSheet: View {
                 decisionContent(requiresReview: true)
             case .failed:
                 failedContent
+            case .cancelled:
+                cancelledContent
             case .persistenceFailed:
                 persistenceFailureContent
             case .idle, .validationFailed, .duplicate, .guestLimit:
@@ -195,6 +197,17 @@ struct ReimportSheet: View {
             title: "Re-import couldn’t start",
             message:
                 "The current recipe is unchanged. Close this sheet and try again.",
+            buttonTitle: "Close",
+            action: close
+        )
+    }
+
+    private var cancelledContent: some View {
+        resultContent(
+            icon: "xmark.circle",
+            title: "Re-import cancelled",
+            message:
+                "This re-import was cancelled. Your current recipe is unchanged.",
             buttonTitle: "Close",
             action: close
         )

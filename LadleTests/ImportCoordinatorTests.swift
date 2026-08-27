@@ -442,6 +442,420 @@ final class ImportCoordinatorTests: XCTestCase {
         XCTAssertEqual(cancelCount, 1)
     }
 
+    func testCancelDuringRacingStatusResponseDoesNotResurrectTheJob() async throws {
+        // The status response lands in the same instant the user cancels:
+        // the poll resumes with a successful update after the durable row
+        // was already deleted. Nothing may save that job back. (#30)
+        let service = RacingStatusImportService()
+        let repository = ImportTestRepository()
+        let coordinator = ImportCoordinator(
+            repository: repository,
+            service: service,
+            accountSession: AccountSession(
+                store: ImportTestPreferenceStore()
+            ),
+            clock: ImmediateImportClock()
+        )
+        let task = Task {
+            await coordinator.submit(
+                urlText: "https://youtu.be/cancel-races-response"
+            )
+        }
+        var polling = false
+        while !polling {
+            polling = await service.statusStarted
+            await Task.yield()
+        }
+        let jobID = try XCTUnwrap(repository.importJobs.first?.id)
+
+        await coordinator.cancelImport(jobID: jobID)
+        await task.value
+
+        XCTAssertTrue(
+            repository.importJobs.isEmpty,
+            "The cancelled job was saved back: \(repository.importJobs)"
+        )
+        XCTAssertTrue(repository.recipes.isEmpty)
+        XCTAssertEqual(coordinator.state, .idle)
+        let cancelCount = await service.cancelCount
+        XCTAssertEqual(cancelCount, 1)
+    }
+
+    func testCancelWhileRequestFailsInFlightDoesNotResurrectTheJobAsFailed() async throws {
+        // Cancellation makes the in-flight request fail. However that
+        // failure is typed, it must not repersist the deleted row as a
+        // failed offline import. (#30, #31)
+        let service = TransportOnCancelPollingImportService()
+        let repository = ImportTestRepository()
+        let coordinator = ImportCoordinator(
+            repository: repository,
+            service: service,
+            accountSession: AccountSession(
+                store: ImportTestPreferenceStore()
+            ),
+            clock: ImmediateImportClock()
+        )
+        let task = Task {
+            await coordinator.submit(
+                urlText: "https://youtu.be/cancel-fails-request"
+            )
+        }
+        var polling = false
+        while !polling {
+            polling = await service.statusStarted
+            await Task.yield()
+        }
+        let jobID = try XCTUnwrap(repository.importJobs.first?.id)
+
+        await coordinator.cancelImport(jobID: jobID)
+        await task.value
+
+        XCTAssertTrue(
+            repository.importJobs.isEmpty,
+            "The cancelled job was saved back: \(repository.importJobs)"
+        )
+        XCTAssertEqual(coordinator.state, .idle)
+    }
+
+    func testTaskTeardownDuringNetworkCallLeavesJobParsingInsteadOfFailed() async throws {
+        // Ordinary task teardown (scene change, sheet dismissal) cancels
+        // the awaiting task mid-request. The job was healthy; it must stay
+        // durably .parsing for the next resume, not flip to failed. (#31)
+        let service = TransportOnCancelPollingImportService()
+        let repository = ImportTestRepository()
+        let coordinator = ImportCoordinator(
+            repository: repository,
+            service: service,
+            accountSession: AccountSession(
+                store: ImportTestPreferenceStore()
+            ),
+            clock: ImmediateImportClock()
+        )
+        let task = Task {
+            await coordinator.submit(
+                urlText: "https://youtu.be/torn-down-mid-poll"
+            )
+        }
+        var polling = false
+        while !polling {
+            polling = await service.statusStarted
+            await Task.yield()
+        }
+
+        task.cancel()
+        await task.value
+
+        XCTAssertEqual(repository.importJobs.first?.status, .parsing)
+        XCTAssertEqual(coordinator.state, .idle)
+        let cancelCount = await service.cancelCount
+        XCTAssertEqual(
+            cancelCount,
+            0,
+            "Task teardown is not user cancellation and must not cancel the remote job"
+        )
+    }
+
+    func testResumeWhileForegroundImportPollsLeavesItsOperationAndStateAlone() async throws {
+        // sceneBecameActive reconciles a shared link into job B and resumes
+        // pending imports while the user's import A is still polling in the
+        // sheet. Resume must neither join A's task nor steal its state. (#32)
+        let service = GatedImportService()
+        let repository = ImportTestRepository()
+        let coordinator = ImportCoordinator(
+            repository: repository,
+            service: service,
+            accountSession: AccountSession(
+                store: ImportTestPreferenceStore()
+            ),
+            clock: ImmediateImportClock()
+        )
+        let submitTask = Task {
+            await coordinator.submit(
+                urlText: "https://youtu.be/foreground-import"
+            )
+        }
+        while repository.importJobs.first?.remoteJobID == nil {
+            await Task.yield()
+        }
+        let jobA = try XCTUnwrap(repository.importJobs.first)
+        let recipeA = importRecipe(
+            title: "Foreground Recipe",
+            originalURL: jobA.sourceURL
+        )
+        await service.setRecipe(recipeA, forJob: jobA.id.uuidString)
+
+        var jobB = ImportJob.queued(
+            sourceURL: URL(string: "https://youtu.be/background-share")!,
+            source: .youtube
+        )
+        jobB.remoteJobID = jobB.id.uuidString.lowercased()
+        try repository.save(jobB)
+        let recipeB = importRecipe(
+            title: "Background Recipe",
+            originalURL: jobB.sourceURL
+        )
+        await service.setRecipe(recipeB, forJob: jobB.id.uuidString)
+        await service.release(jobB.id.uuidString)
+
+        let resumeFinished = Locked(false)
+        let resumeTask = Task {
+            await coordinator.resumePendingImports()
+            resumeFinished.withValue { $0 = true }
+        }
+        for _ in 0 ..< 10_000 where !resumeFinished.snapshot {
+            await Task.yield()
+        }
+        XCTAssertTrue(
+            resumeFinished.snapshot,
+            "resumePendingImports blocked on the foreground import instead of skipping it"
+        )
+
+        // The user is still watching import A; B progressed durably only.
+        XCTAssertEqual(coordinator.operation, .importJob(jobA.id))
+        XCTAssertEqual(coordinator.state, .importing(jobID: jobA.id))
+        XCTAssertEqual(
+            repository.importJobs.first { $0.id == jobB.id }?.status,
+            .ready
+        )
+
+        await service.release(jobA.id.uuidString)
+        await submitTask.value
+        await resumeTask.value
+
+        XCTAssertEqual(coordinator.state, .completed(recipeID: recipeA.id))
+        XCTAssertEqual(coordinator.completedRecipe?.id, recipeA.id)
+        XCTAssertEqual(
+            Set(repository.recipes.map(\.id)),
+            [recipeA.id, recipeB.id]
+        )
+    }
+
+    func testResumeDoesNotSwapWhichRecipeTheSheetReportsCompleted() async throws {
+        // Same overlap, asserted on the terminal state: the sheet's success
+        // screen must name the recipe the user imported, not the one the
+        // share extension queued. (#32)
+        let service = GatedImportService()
+        let repository = ImportTestRepository()
+        let coordinator = ImportCoordinator(
+            repository: repository,
+            service: service,
+            accountSession: AccountSession(
+                store: ImportTestPreferenceStore()
+            ),
+            clock: ImmediateImportClock()
+        )
+        let submitTask = Task {
+            await coordinator.submit(
+                urlText: "https://youtu.be/foreground-import"
+            )
+        }
+        while repository.importJobs.first?.remoteJobID == nil {
+            await Task.yield()
+        }
+        let jobA = try XCTUnwrap(repository.importJobs.first)
+        let recipeA = importRecipe(
+            title: "Foreground Recipe",
+            originalURL: jobA.sourceURL
+        )
+        await service.setRecipe(recipeA, forJob: jobA.id.uuidString)
+        await service.release(jobA.id.uuidString)
+
+        var jobB = ImportJob.queued(
+            sourceURL: URL(string: "https://youtu.be/background-share")!,
+            source: .youtube
+        )
+        jobB.remoteJobID = jobB.id.uuidString.lowercased()
+        try repository.save(jobB)
+        let recipeB = importRecipe(
+            title: "Background Recipe",
+            originalURL: jobB.sourceURL
+        )
+        await service.setRecipe(recipeB, forJob: jobB.id.uuidString)
+        await service.release(jobB.id.uuidString)
+
+        await coordinator.resumePendingImports()
+        await submitTask.value
+
+        XCTAssertEqual(coordinator.operation, .importJob(jobA.id))
+        XCTAssertEqual(coordinator.completedRecipe?.id, recipeA.id)
+        XCTAssertEqual(coordinator.state, .completed(recipeID: recipeA.id))
+        XCTAssertEqual(
+            repository.importJobs.first { $0.id == jobB.id }?.status,
+            .ready
+        )
+        XCTAssertEqual(
+            Set(repository.recipes.map(\.id)),
+            [recipeA.id, recipeB.id]
+        )
+    }
+
+    func testServerReportedCancellationRemovesJobAndReadsAsCancelled() async throws {
+        // The server reports a job the user had already cancelled
+        // (idempotent resubmission, another session's cancel). That must
+        // read as cancelled — not as a failure, and the durable row must
+        // not linger as a phantom .parsing import.
+        let service = CancelledRemotelyImportService()
+        let repository = ImportTestRepository()
+        let coordinator = ImportCoordinator(
+            repository: repository,
+            service: service,
+            accountSession: AccountSession(
+                store: ImportTestPreferenceStore()
+            ),
+            clock: ImmediateImportClock()
+        )
+
+        await coordinator.submit(
+            urlText: "https://youtu.be/cancelled-elsewhere"
+        )
+
+        XCTAssertTrue(
+            repository.importJobs.isEmpty,
+            "A remotely cancelled job must leave the Inbox"
+        )
+        let jobID = try XCTUnwrap(coordinator.operation?.jobID)
+        XCTAssertEqual(coordinator.state, .cancelled(jobID: jobID))
+        XCTAssertNil(coordinator.operationFailure)
+    }
+
+    func testCancelBeforeRemoteJobAssignedStaysCancelledAndSkipsRemoteCancel() async throws {
+        // The cancel lands while the initial submit POST is still in
+        // flight, before any remote job ID exists. (#30, #31)
+        let service = TransportOnCancelSubmitImportService()
+        let repository = ImportTestRepository()
+        let coordinator = ImportCoordinator(
+            repository: repository,
+            service: service,
+            accountSession: AccountSession(
+                store: ImportTestPreferenceStore()
+            ),
+            clock: ImmediateImportClock()
+        )
+        let task = Task {
+            await coordinator.submit(
+                urlText: "https://youtu.be/cancel-mid-submit"
+            )
+        }
+        var submitStarted = false
+        while !submitStarted {
+            submitStarted = await service.submitStarted
+            await Task.yield()
+        }
+        let jobID = try XCTUnwrap(repository.importJobs.first?.id)
+        XCTAssertNil(repository.importJobs.first?.remoteJobID)
+
+        await coordinator.cancelImport(jobID: jobID)
+        await task.value
+
+        XCTAssertTrue(
+            repository.importJobs.isEmpty,
+            "The cancelled job was saved back: \(repository.importJobs)"
+        )
+        XCTAssertEqual(coordinator.state, .idle)
+        let cancelCount = await service.cancelCount
+        XCTAssertEqual(
+            cancelCount,
+            0,
+            "There is no remote job to cancel yet"
+        )
+    }
+
+    func testSecondCancelOfTheSameJobIsANoOp() async throws {
+        let service = CancellablePollingImportService()
+        let repository = ImportTestRepository()
+        let coordinator = ImportCoordinator(
+            repository: repository,
+            service: service,
+            accountSession: AccountSession(
+                store: ImportTestPreferenceStore()
+            ),
+            clock: ImmediateImportClock()
+        )
+        let task = Task {
+            await coordinator.submit(
+                urlText: "https://youtu.be/cancel-twice"
+            )
+        }
+        while repository.importJobs.first?.remoteJobID == nil {
+            await Task.yield()
+        }
+        let jobID = try XCTUnwrap(repository.importJobs.first?.id)
+
+        await coordinator.cancelImport(jobID: jobID)
+        await coordinator.cancelImport(jobID: jobID)
+        await task.value
+
+        XCTAssertTrue(repository.importJobs.isEmpty)
+        XCTAssertEqual(coordinator.state, .idle)
+        let cancelCount = await service.cancelCount
+        XCTAssertEqual(cancelCount, 1)
+    }
+
+    func testCancellingACompletedImportRemovesTheJobKeepsTheRecipeAndSkipsRemoteCancel() async throws {
+        // The import finished in the race window before the user's cancel
+        // landed. The Inbox row goes away as promised; the saved recipe and
+        // the terminal remote job are left alone.
+        let service = ReadyThenCountingCancelImportService()
+        let repository = ImportTestRepository()
+        let coordinator = ImportCoordinator(
+            repository: repository,
+            service: service,
+            accountSession: AccountSession(
+                store: ImportTestPreferenceStore()
+            ),
+            clock: ImmediateImportClock()
+        )
+
+        await coordinator.submit(
+            urlText: "https://youtu.be/finished-before-cancel"
+        )
+        let jobID = try XCTUnwrap(repository.importJobs.first?.id)
+        XCTAssertEqual(repository.importJobs.first?.status, .ready)
+
+        await coordinator.cancelImport(jobID: jobID)
+
+        XCTAssertTrue(repository.importJobs.isEmpty)
+        XCTAssertEqual(repository.recipes.count, 1)
+        XCTAssertEqual(coordinator.state, .idle)
+        let cancelCount = await service.cancelCount
+        XCTAssertEqual(
+            cancelCount,
+            0,
+            "A terminal remote job must not receive a cancel request"
+        )
+    }
+
+    func testCancellingWhileOfflineStillCancelsLocally() async throws {
+        // The remote cancel cannot reach the server. The local job still
+        // disappears as promised instead of surfacing a persistence
+        // failure for a cancel that locally succeeded.
+        let service = OfflineCancelImportService()
+        let repository = ImportTestRepository()
+        let coordinator = ImportCoordinator(
+            repository: repository,
+            service: service,
+            accountSession: AccountSession(
+                store: ImportTestPreferenceStore()
+            ),
+            clock: ImmediateImportClock()
+        )
+        let task = Task {
+            await coordinator.submit(
+                urlText: "https://youtu.be/cancel-offline"
+            )
+        }
+        while repository.importJobs.first?.remoteJobID == nil {
+            await Task.yield()
+        }
+        let jobID = try XCTUnwrap(repository.importJobs.first?.id)
+
+        await coordinator.cancelImport(jobID: jobID)
+        await task.value
+
+        XCTAssertTrue(repository.importJobs.isEmpty)
+        XCTAssertEqual(coordinator.state, .idle)
+    }
+
     func testAuthenticationExpiryMakesAdmissionJobDurablyFailed() async {
         let repository = ImportTestRepository()
         let coordinator = ImportCoordinator(
@@ -747,6 +1161,288 @@ private actor CancellablePollingImportService: ImportService {
 
     func cancel(remoteJobID: String) async throws {
         cancelCount += 1
+    }
+}
+
+/// The status response was already in flight when the cancel landed, so the
+/// awaiting poll resumes with a successful terminal update.
+private actor RacingStatusImportService: ImportService {
+    private(set) var cancelCount = 0
+    private(set) var statusStarted = false
+
+    func submit(
+        _ job: ImportJob,
+        allowingDuplicate: Bool
+    ) async throws -> ImportServiceUpdate {
+        ImportServiceUpdate(
+            remoteJobID: job.id.uuidString,
+            progress: .parsing
+        )
+    }
+
+    func status(remoteJobID: String) async throws -> ImportServiceUpdate {
+        statusStarted = true
+        while !Task.isCancelled {
+            await Task.yield()
+        }
+        return ImportServiceUpdate(
+            remoteJobID: remoteJobID,
+            progress: .ready(importRecipe(
+                title: "Raced Recipe",
+                originalURL: URL(string: "https://youtu.be/raced")!
+            ))
+        )
+    }
+
+    func retry(
+        remoteJobID: String,
+        correctionNotes: String?,
+        pastedRecipeText: String?
+    ) async throws -> ImportServiceUpdate {
+        ImportServiceUpdate(
+            remoteJobID: remoteJobID,
+            progress: .parsing
+        )
+    }
+
+    func cancel(remoteJobID: String) async throws {
+        cancelCount += 1
+    }
+}
+
+/// Cancellation makes the in-flight poll fail with a typed network error —
+/// what a cancelled URLSession call surfaced before #33, and what a
+/// genuinely failing request still throws in the same race window.
+private actor TransportOnCancelPollingImportService: ImportService {
+    private(set) var cancelCount = 0
+    private(set) var statusStarted = false
+
+    func submit(
+        _ job: ImportJob,
+        allowingDuplicate: Bool
+    ) async throws -> ImportServiceUpdate {
+        ImportServiceUpdate(
+            remoteJobID: job.id.uuidString,
+            progress: .parsing
+        )
+    }
+
+    func status(remoteJobID: String) async throws -> ImportServiceUpdate {
+        statusStarted = true
+        while !Task.isCancelled {
+            await Task.yield()
+        }
+        throw APIError.transport
+    }
+
+    func retry(
+        remoteJobID: String,
+        correctionNotes: String?,
+        pastedRecipeText: String?
+    ) async throws -> ImportServiceUpdate {
+        ImportServiceUpdate(
+            remoteJobID: remoteJobID,
+            progress: .parsing
+        )
+    }
+
+    func cancel(remoteJobID: String) async throws {
+        cancelCount += 1
+    }
+}
+
+/// Holds every job in `.parsing` until the test releases it, then resolves
+/// it `.ready` with the recipe registered for that job.
+private actor GatedImportService: ImportService {
+    private var released: Set<String> = []
+    private var recipes: [String: Recipe] = [:]
+
+    func setRecipe(_ recipe: Recipe, forJob remoteJobID: String) {
+        recipes[remoteJobID.lowercased()] = recipe
+    }
+
+    func release(_ remoteJobID: String) {
+        released.insert(remoteJobID.lowercased())
+    }
+
+    func submit(
+        _ job: ImportJob,
+        allowingDuplicate: Bool
+    ) async throws -> ImportServiceUpdate {
+        ImportServiceUpdate(
+            remoteJobID: job.id.uuidString.lowercased(),
+            progress: .parsing
+        )
+    }
+
+    func status(remoteJobID: String) async throws -> ImportServiceUpdate {
+        let key = remoteJobID.lowercased()
+        while !released.contains(key) {
+            try Task.checkCancellation()
+            await Task.yield()
+        }
+        guard let recipe = recipes[key] else {
+            throw APIError.invalidResponse
+        }
+        return ImportServiceUpdate(
+            remoteJobID: key,
+            progress: .ready(recipe)
+        )
+    }
+
+    func retry(
+        remoteJobID: String,
+        correctionNotes: String?,
+        pastedRecipeText: String?
+    ) async throws -> ImportServiceUpdate {
+        ImportServiceUpdate(
+            remoteJobID: remoteJobID,
+            progress: .parsing
+        )
+    }
+}
+
+/// The server reports the polled job as cancelled.
+private actor CancelledRemotelyImportService: ImportService {
+    func submit(
+        _ job: ImportJob,
+        allowingDuplicate: Bool
+    ) async throws -> ImportServiceUpdate {
+        ImportServiceUpdate(
+            remoteJobID: job.id.uuidString,
+            progress: .parsing
+        )
+    }
+
+    func status(remoteJobID: String) async throws -> ImportServiceUpdate {
+        throw RemoteContractError.importCancelled
+    }
+
+    func retry(
+        remoteJobID: String,
+        correctionNotes: String?,
+        pastedRecipeText: String?
+    ) async throws -> ImportServiceUpdate {
+        ImportServiceUpdate(
+            remoteJobID: remoteJobID,
+            progress: .parsing
+        )
+    }
+}
+
+/// The initial submit POST hangs until cancelled, then fails with a typed
+/// network error; no remote job ID is ever assigned.
+private actor TransportOnCancelSubmitImportService: ImportService {
+    private(set) var cancelCount = 0
+    private(set) var submitStarted = false
+
+    func submit(
+        _ job: ImportJob,
+        allowingDuplicate: Bool
+    ) async throws -> ImportServiceUpdate {
+        submitStarted = true
+        while !Task.isCancelled {
+            await Task.yield()
+        }
+        throw APIError.transport
+    }
+
+    func status(remoteJobID: String) async throws -> ImportServiceUpdate {
+        ImportServiceUpdate(
+            remoteJobID: remoteJobID,
+            progress: .parsing
+        )
+    }
+
+    func retry(
+        remoteJobID: String,
+        correctionNotes: String?,
+        pastedRecipeText: String?
+    ) async throws -> ImportServiceUpdate {
+        ImportServiceUpdate(
+            remoteJobID: remoteJobID,
+            progress: .parsing
+        )
+    }
+
+    func cancel(remoteJobID: String) async throws {
+        cancelCount += 1
+    }
+}
+
+/// Completes the import immediately and counts remote cancel requests.
+private actor ReadyThenCountingCancelImportService: ImportService {
+    private(set) var cancelCount = 0
+
+    func submit(
+        _ job: ImportJob,
+        allowingDuplicate: Bool
+    ) async throws -> ImportServiceUpdate {
+        ImportServiceUpdate(
+            remoteJobID: job.id.uuidString,
+            progress: .ready(importRecipe(
+                title: "Finished Recipe",
+                originalURL: job.sourceURL
+            ))
+        )
+    }
+
+    func status(remoteJobID: String) async throws -> ImportServiceUpdate {
+        ImportServiceUpdate(
+            remoteJobID: remoteJobID,
+            progress: .parsing
+        )
+    }
+
+    func retry(
+        remoteJobID: String,
+        correctionNotes: String?,
+        pastedRecipeText: String?
+    ) async throws -> ImportServiceUpdate {
+        ImportServiceUpdate(
+            remoteJobID: remoteJobID,
+            progress: .parsing
+        )
+    }
+
+    func cancel(remoteJobID: String) async throws {
+        cancelCount += 1
+    }
+}
+
+/// The poll ends in ordinary cancellation, but the remote cancel request
+/// itself fails — the device is offline.
+private actor OfflineCancelImportService: ImportService {
+    func submit(
+        _ job: ImportJob,
+        allowingDuplicate: Bool
+    ) async throws -> ImportServiceUpdate {
+        ImportServiceUpdate(
+            remoteJobID: job.id.uuidString,
+            progress: .parsing
+        )
+    }
+
+    func status(remoteJobID: String) async throws -> ImportServiceUpdate {
+        while !Task.isCancelled {
+            await Task.yield()
+        }
+        throw CancellationError()
+    }
+
+    func retry(
+        remoteJobID: String,
+        correctionNotes: String?,
+        pastedRecipeText: String?
+    ) async throws -> ImportServiceUpdate {
+        ImportServiceUpdate(
+            remoteJobID: remoteJobID,
+            progress: .parsing
+        )
+    }
+
+    func cancel(remoteJobID: String) async throws {
+        throw APIError.transport
     }
 }
 

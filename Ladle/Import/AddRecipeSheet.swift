@@ -48,6 +48,8 @@ struct AddRecipeSheet: View {
                         guestLimitContent(decision: decision)
                     case let .failed(jobID, reason):
                         failedContent(jobID: jobID, reason: reason)
+                    case .cancelled:
+                        cancelledContent
                     case .idle, .validationFailed, .persistenceFailed:
                         if isManualEntry {
                             manualContent
@@ -303,6 +305,39 @@ struct AddRecipeSheet: View {
                 isCancelConfirmationPresented = true
             }
             .buttonStyle(LadleButtonStyle(role: .destructive))
+        }
+        .padding(LadleTheme.Spacing.generous)
+    }
+
+    private var cancelledContent: some View {
+        VStack(spacing: LadleTheme.Layout.sectionGap) {
+            Image(systemName: "xmark.circle")
+                .font(
+                    .system(
+                        size: LadleTheme.IconSize.feature,
+                        weight: .bold
+                    )
+                )
+                .foregroundStyle(LadleTheme.Label.primary)
+                .frame(width: 62, height: 62)
+                .background(LadleTheme.Surface.steel, in: Circle())
+
+            VStack(spacing: 8) {
+                Text("Import cancelled")
+                    .ladleFont(.title)
+                    .foregroundStyle(LadleTheme.Label.primary)
+                Text(
+                    "This import was cancelled and removed from Inbox. Paste the link again if you still want the recipe."
+                )
+                .ladleFont(.body)
+                .foregroundStyle(LadleTheme.Label.primary.opacity(0.64))
+                .multilineTextAlignment(.center)
+            }
+
+            Button("Add another recipe") {
+                coordinator.reset()
+            }
+            .buttonStyle(LadleButtonStyle(role: .primary))
         }
         .padding(LadleTheme.Spacing.generous)
     }

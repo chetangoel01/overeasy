@@ -112,6 +112,9 @@ enum ImportCoordinatorState: Equatable {
     case completed(recipeID: UUID)
     case needsReview(recipeID: UUID)
     case failed(jobID: UUID, reason: ImportFailure)
+    /// The server reported the job as cancelled. The durable row is gone;
+    /// this presents the outcome as a cancellation, not a failure.
+    case cancelled(jobID: UUID)
     case persistenceFailed
 }
 
@@ -495,15 +498,28 @@ final class ImportCoordinator {
             let pendingJobs = try repository.fetchImportJobs().filter {
                 $0.status == .parsing
             }
-            for job in pendingJobs {
+            for pending in pendingJobs {
                 try Task.checkCancellation()
-                operation = job.currentRecipeID.map {
-                    .reimport(jobID: job.id, currentRecipeID: $0)
-                } ?? .importJob(job.id)
+                // A job with a live task is already being driven — usually
+                // the foreground import the user is watching. Joining it or
+                // re-adopting it would overwrite that operation.
+                guard processingTasks[pending.id] == nil else { continue }
+                // Earlier iterations awaited, so this job may have been
+                // cancelled or finished in the meantime; resume the row as
+                // it is now, not as it was fetched.
+                guard let job = try repository.fetchImportJobs().first(
+                    where: { $0.id == pending.id }
+                ), job.status == .parsing else { continue }
+                if operation == nil {
+                    operation = job.currentRecipeID.map {
+                        .reimport(jobID: job.id, currentRecipeID: $0)
+                    } ?? .importJob(job.id)
+                }
                 await runProcess(job, operation: .resume)
             }
         } catch is CancellationError {
-            state = .idle
+            // Torn down mid-resume; pending jobs stay durable and are
+            // picked up on the next activation.
         } catch {
             state = .persistenceFailed
         }
@@ -542,20 +558,31 @@ final class ImportCoordinator {
     }
 
     func cancelImport(jobID: UUID) async {
+        // The cancel flag and the row deletion happen with no suspension
+        // point between them, so by the time the processing task can run
+        // again the cancellation is already durable. Every save in
+        // `process` re-checks cancellation, so nothing can resurrect the
+        // deleted row.
         processingTasks[jobID]?.cancel()
+        let job: ImportJob?
         do {
-            let job = try repository.fetchImportJobs().first {
+            job = try repository.fetchImportJobs().first {
                 $0.id == jobID
             }
             try repository.deleteImportJob(id: jobID)
-            if let remoteJobID = job?.remoteJobID {
-                try await service.cancel(remoteJobID: remoteJobID)
-            }
-            if owns(jobID: jobID) {
-                reset()
-            }
         } catch {
             state = .persistenceFailed
+            return
+        }
+        if owns(jobID: jobID) {
+            reset()
+        }
+        if let remoteJobID = job?.remoteJobID, job?.status == .parsing {
+            // Best effort: the user's cancel already took effect locally.
+            // If this fails (offline, or the remote job just finished) the
+            // orphaned remote job ends on its own; surfacing a failure here
+            // would contradict the cancel the user watched succeed.
+            try? await service.cancel(remoteJobID: remoteJobID)
         }
     }
 
@@ -685,14 +712,20 @@ final class ImportCoordinator {
         operation: RemoteOperation
     ) async {
         var job = initialJob
-        state = .importing(jobID: job.id)
-        operationFailure = nil
+        if owns(jobID: job.id) {
+            state = .importing(jobID: job.id)
+            operationFailure = nil
+        }
 
         do {
             var update = try await firstUpdate(
                 for: job,
                 operation: operation
             )
+            // Re-check after every await before touching the store: a
+            // cancel may have deleted the row while the response was in
+            // flight, and saving would resurrect it.
+            try Task.checkCancellation()
             job.remoteJobID = update.remoteJobID
             try repository.save(job)
 
@@ -703,6 +736,7 @@ final class ImportCoordinator {
                 update = try await service.status(
                     remoteJobID: update.remoteJobID
                 )
+                try Task.checkCancellation()
                 job.remoteJobID = update.remoteJobID
                 try repository.save(job)
                 delay = min(delay * 2, .seconds(30))
@@ -711,11 +745,12 @@ final class ImportCoordinator {
             try Task.checkCancellation()
             try await apply(update, to: &job)
         } catch is CancellationError {
-            state = .idle
-            operationFailure = nil
-        } catch let APIError.remote(error) {
+            finishTaskCancellation(job)
+        } catch RemoteContractError.importCancelled {
+            finishRemoteCancellation(job)
+        } catch let APIError.remote(error) where !Task.isCancelled {
             handleRemoteError(error, job: &job)
-        } catch let error as APIError {
+        } catch let error as APIError where !Task.isCancelled {
             let report = RemoteFailureReport(error)
             finishRemoteFailure(
                 durableReason(for: report.failure),
@@ -723,8 +758,42 @@ final class ImportCoordinator {
                 job: &job
             )
         } catch {
-            state = .persistenceFailed
+            // A cancelled task's request can fail with any error type;
+            // cancellation decides the outcome, not the error.
+            if Task.isCancelled {
+                finishTaskCancellation(job)
+            } else {
+                state = .persistenceFailed
+            }
         }
+    }
+
+    /// The processing task was torn down — by `cancelImport`, which has
+    /// already deleted the row, or by ordinary teardown of whatever awaited
+    /// it, which leaves the row `.parsing` for the next resume. Neither is
+    /// a failure, and only an operation this coordinator still owns should
+    /// see its published state change.
+    private func finishTaskCancellation(_ job: ImportJob) {
+        guard owns(jobID: job.id) else { return }
+        state = .idle
+        operationFailure = nil
+    }
+
+    /// The server reported the job as cancelled — a cancel from another
+    /// session, or an idempotent resubmission matching a job the user had
+    /// already cancelled. Drop the durable row so the Inbox honors the
+    /// cancellation, and present it as cancelled rather than failed.
+    private func finishRemoteCancellation(_ job: ImportJob) {
+        do {
+            try repository.deleteImportJob(id: job.id)
+        } catch {
+            state = .persistenceFailed
+            return
+        }
+        guard owns(jobID: job.id) else { return }
+        completedRecipe = nil
+        operationFailure = nil
+        state = .cancelled(jobID: job.id)
     }
 
     private func firstUpdate(
@@ -766,6 +835,10 @@ final class ImportCoordinator {
         _ update: ImportServiceUpdate,
         to job: inout ImportJob
     ) async throws {
+        // Durable writes and notifications happen for every job; the
+        // published state describes only the operation this coordinator
+        // owns, so a background job resumed alongside a foreground import
+        // cannot steal the sheet the user is watching.
         switch update.progress {
         case .parsing:
             return
@@ -773,8 +846,10 @@ final class ImportCoordinator {
             if job.currentRecipeID != nil {
                 job = try job.awaitingRemoteReview(candidate: recipe)
                 try repository.save(job)
-                completedRecipe = recipe
-                state = .completed(recipeID: recipe.id)
+                if owns(jobID: job.id) {
+                    completedRecipe = recipe
+                    state = .completed(recipeID: recipe.id)
+                }
                 return
             }
             job = try job.transitioning(to: .ready)
@@ -787,8 +862,10 @@ final class ImportCoordinator {
                 try repository.save(recipe)
             }
             try repository.save(job)
-            completedRecipe = recipe
-            state = .completed(recipeID: recipe.id)
+            if owns(jobID: job.id) {
+                completedRecipe = recipe
+                state = .completed(recipeID: recipe.id)
+            }
             _ = await notificationService.notifyImportReady(
                 recipe: recipe
             )
@@ -797,8 +874,10 @@ final class ImportCoordinator {
             if job.currentRecipeID != nil {
                 job = try job.awaitingRemoteReview(candidate: recipe)
                 try repository.save(job)
-                completedRecipe = recipe
-                state = .needsReview(recipeID: recipe.id)
+                if owns(jobID: job.id) {
+                    completedRecipe = recipe
+                    state = .needsReview(recipeID: recipe.id)
+                }
                 return
             }
             if let serverRevision = update.serverRevision {
@@ -811,18 +890,22 @@ final class ImportCoordinator {
             }
             job = try job.transitioning(to: .needsReview)
             try repository.save(job)
-            completedRecipe = recipe
-            state = .needsReview(recipeID: recipe.id)
+            if owns(jobID: job.id) {
+                completedRecipe = recipe
+                state = .needsReview(recipeID: recipe.id)
+            }
             await didCompleteRemoteImport()
         case let .failed(reason):
             job = try job.transitioning(to: .failed(reason))
             try repository.save(job)
-            completedRecipe = nil
-            state = .failed(jobID: job.id, reason: reason)
-            operationFailure = ImportOperationFailure(
-                jobID: job.id,
-                reason: reason
-            )
+            if owns(jobID: job.id) {
+                completedRecipe = nil
+                state = .failed(jobID: job.id, reason: reason)
+                operationFailure = ImportOperationFailure(
+                    jobID: job.id,
+                    reason: reason
+                )
+            }
         }
     }
 
@@ -836,18 +919,25 @@ final class ImportCoordinator {
             .duplicate(existingRecipeID)
         ):
             do {
-                existingDuplicate = try repository.fetchRecipe(
+                let duplicate = try repository.fetchRecipe(
                     id: existingRecipeID
                 )
                 try repository.deleteImportJob(id: job.id)
-                state = .duplicate(existingRecipeID: existingRecipeID)
+                if owns(jobID: job.id) {
+                    existingDuplicate = duplicate
+                    state = .duplicate(
+                        existingRecipeID: existingRecipeID
+                    )
+                }
             } catch {
                 state = .persistenceFailed
             }
         case (.guestRecipeLimitReached, _):
             do {
                 try repository.deleteImportJob(id: job.id)
-                state = .guestLimit(.limitReached)
+                if owns(jobID: job.id) {
+                    state = .guestLimit(.limitReached)
+                }
             } catch {
                 state = .persistenceFailed
             }
@@ -881,6 +971,7 @@ final class ImportCoordinator {
         do {
             job = try job.transitioning(to: .failed(reason))
             try repository.save(job)
+            guard owns(jobID: job.id) else { return }
             state = .failed(jobID: job.id, reason: reason)
             operationFailure = ImportOperationFailure(
                 jobID: job.id,
