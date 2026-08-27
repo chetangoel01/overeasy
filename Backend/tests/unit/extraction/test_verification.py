@@ -1,3 +1,4 @@
+import time
 from dataclasses import dataclass, field
 from decimal import Decimal
 from uuid import UUID, uuid4
@@ -22,6 +23,7 @@ from ladle.extraction.verification import (
     VerificationPatch,
     VerificationResponse,
     VerificationUnavailable,
+    _decimal,
     deterministic_issues,
     verification_evidence,
 )
@@ -291,6 +293,46 @@ def test_detects_conflicting_source_amounts() -> None:
     }
 
 
+@pytest.mark.parametrize(
+    "value",
+    [
+        # 13 characters of model output that format(..., "f") would expand
+        # to a ~1 GB fixed-point string before any other check ran.
+        "1E+1000000000",
+        # The negative twin expands to "0.000...1" of the same size.
+        "1E-1000000000",
+        # Just past the magnitude band on either side.
+        "1E+13",
+        "1E-13",
+        # Just past the length bound: digit-heavy rather than exponent-heavy.
+        "9" * 65,
+        "NaN",
+        "sNaN",
+        "Infinity",
+        "-Infinity",
+    ],
+)
+def test_untrusted_decimals_outside_the_recipe_band_are_refused(value: str) -> None:
+    assert _decimal(value) is None
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("4", Decimal("4")),
+        ("2.5", Decimal("2.5")),
+        (15, Decimal(15)),
+        (" 250 ", Decimal("250")),
+        ("1E+12", Decimal("1E+12")),
+        ("1E-12", Decimal("1E-12")),
+        ("0", Decimal("0")),
+        ("-3", Decimal("-3")),
+    ],
+)
+def test_recipe_scale_decimals_still_parse(value: object, expected: Decimal) -> None:
+    assert _decimal(value) == expected
+
+
 def test_model_can_patch_only_a_flagged_field_with_exact_source_support() -> None:
     source = (
         "Makes 1 serving. Prep 5 minutes and cook 10 minutes. "
@@ -321,6 +363,34 @@ def test_model_can_patch_only_a_flagged_field_with_exact_source_support() -> Non
     assert result.title == "Toast"
     assert result.review_status == RecipeReviewStatus.READY
     assert model.calls[0]["evidence"] == [evidence(source)]
+
+
+def test_model_supplied_exponent_bomb_is_rejected_without_expansion() -> None:
+    source = "Serves 4."
+    model = Model(
+        patches=[
+            VerificationPatch(
+                field_path="servings",
+                value="1E+1000000000",
+                supporting_evidence=source,
+            )
+        ]
+    )
+
+    started = time.perf_counter()
+    result = verifier(model).verify(
+        recipe(),
+        evidence=[evidence(source)],
+        job_id=uuid4(),
+    )
+
+    # Before the bound this line was reached only after two ~1 GB string
+    # materializations; the patch itself was rejected either way, which is
+    # why the red for this finding lives at the _decimal boundary above.
+    assert time.perf_counter() - started < 1.0
+    assert result.servings == Decimal("1")
+    assert result.review_status == RecipeReviewStatus.NEEDS_REVIEW
+    assert "servings" in {value.field for value in result.uncertainties}
 
 
 def test_patch_with_evidence_not_in_the_source_is_rejected() -> None:

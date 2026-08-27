@@ -45,7 +45,8 @@ by the code they touch.
 | #26 | Scrolling a focus-mode step changed the step | — | fixed |
 | #12 | Malformed caption URL killed the whole import | `44b7b10` | fixed |
 | #13 | Hostile HTML pinned the worker for half an hour | `356aa66` | fixed |
-| #11 | Reversed Whisper timings killed the transcription | `_pending_` | fixed |
+| #11 | Reversed Whisper timings killed the transcription | `b590bb2` | fixed |
+| #17 | Model decimal exponent bomb allocated gigabytes | `_pending_` | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -1286,6 +1287,75 @@ flat-text-only, empty transcript — still passes unchanged.
 uv run pytest -q tests/unit/acquisition/test_audio.py  -> 21 passed in 1.26s
 uv run ruff check ladle tests alembic                  -> All checks passed
 uv run mypy --strict ladle                             -> clean
+```
+
+## Finding #17 — thirteen characters of model output allocated a gigabyte
+
+### The defect
+
+`_apply_patch` parses model-supplied patch values with `_decimal`, which
+accepted any finite `Decimal` — and `Decimal("1E+1000000000")` is finite.
+The very next step for `servings`, `normalized_quantity` and
+`metric_amount` is `format(parsed_decimal, "f")`, which materializes the
+full fixed-point string: a 1,000,000,001-character (~1 GB) allocation from a
+13-character value, followed by a second one in `_value_is_cited`'s
+`str(value).casefold()`. Both run *before* the citation check that would
+have rejected the patch, so the allocation was unconditional once the field
+was flagged. A huge negative exponent expands the same way as
+`0.000…1`. Reachable through prompt injection steering the verifier, or —
+with no model compliance at all — any upstream OpenRouter routes to
+returning that JSON, since `VerificationPatch.value` carries no bound. The
+worker OOMs or thrashes instead of simply refusing the patch.
+
+### The fix
+
+`_decimal` now bounds what it accepts before anything can expand it, at the
+one boundary every consuming path shares (`servings`, ingredient
+quantities, `_stated_servings`, `_fraction`, `_reported_cost`):
+
+- input longer than 64 characters is refused (the digit-heavy variant of
+  the same amplification);
+- a finite result with `abs(adjusted()) > 12` is refused — `adjusted()`
+  reads the stored exponent without expansion, and nothing in a recipe
+  (or a provider cost) leaves the 1E-12..1E+12 band.
+
+No call site changed: rejected values flow through the existing
+`_decimal(...) is None` branches, so the patch is refused and the field
+stays an uncertainty for review, exactly like any other unusable value.
+
+### Verification
+
+The observable defect is a transient allocation — the patch was ultimately
+*rejected* both before and after the fix (by the citation check, after the
+gigabyte was already allocated) — so a black-box red would either prove
+nothing or have to allocate gigabytes in CI. The red therefore sits at the
+exact root cause, `_decimal` accepting the value:
+
+```text
+>       assert _decimal(value) is None
+E       AssertionError: assert Decimal('99999999999999999999999999999999999999999999999999999999999999999') is None
+FAILED test_verification.py::test_untrusted_decimals_outside_the_recipe_band_are_refused[1E+1000000000]
+FAILED test_verification.py::test_untrusted_decimals_outside_the_recipe_band_are_refused[1E-1000000000]
+FAILED test_verification.py::test_untrusted_decimals_outside_the_recipe_band_are_refused[1E+13]
+FAILED test_verification.py::test_untrusted_decimals_outside_the_recipe_band_are_refused[1E-13]
+FAILED test_verification.py::test_untrusted_decimals_outside_the_recipe_band_are_refused[9999…(65 digits)]
+5 failed, 12 passed
+```
+
+The 12 passes pin what already held: `NaN`, `sNaN`, `±Infinity` were
+refused before, and every recipe-scale value — `"4"`, `"2.5"`, `15`,
+`" 250 "`, `"0"`, `"-3"`, and both band edges `"1E+12"`/`"1E-12"` — parses
+identically after.
+`test_model_supplied_exponent_bomb_is_rejected_without_expansion` then
+drives the full `verify()` path with the finding's exact payload
+(`{"fieldPath": "servings", "value": "1E+1000000000"}` against "Serves 4."
+evidence) and asserts the patch is refused, servings stays flagged for
+review, and the call returns in bounded time with no expansion.
+
+```text
+uv run pytest -q tests/unit/extraction/  -> 104 passed in 0.95s
+uv run ruff check ladle tests alembic    -> All checks passed
+uv run mypy --strict ladle               -> clean
 ```
 
 ## Where this run stopped, and where the next one starts
