@@ -49,7 +49,8 @@ by the code they touch.
 | #17 | Model decimal exponent bomb allocated gigabytes | `9a8158f` | fixed |
 | #18 | Beat sweep deadlocked against import completions | `b215db5` | fixed |
 | #19 | Uploaded thumbnails leaked on rollback or discard | `c863c5e` | fixed |
-| #15 | One account could hoard multiple Apple identities | `_pending_` | fixed |
+| #15 | One account could hoard multiple Apple identities | `0ee5069` | fixed |
+| #14 | Import submission stalled every request on the worker | `_pending_` | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -1630,6 +1631,73 @@ uv run pytest -q tests/integration/auth tests/api/test_apple_auth.py \
 uv run pytest -q tests/integration/test_migrations.py            -> 7 passed in 4.44s
 uv run ruff check ladle tests alembic                            -> All checks passed
 uv run mypy --strict ladle                                       -> clean
+```
+
+## Finding #14 — one slow import submission stalled the whole worker
+
+### The defect
+
+FastAPI runs `async def` endpoints on the event loop and `def` endpoints in
+the anyio threadpool. Every route in this app does blocking I/O — sync
+SQLAlchemy sessions, sync Redis, sync broker publishes — so they are all
+`def`… except `submit_import` and `retry_import`, which were `async def`
+solely to `await request.body()` for the App Attest body hash. Everything
+else inside them then ran on the event loop: `access_claims` (two blocking
+`Session.get`s), `_installation_id` (a third), the rate-limit backend's
+synchronous `redis.eval` (no socket timeout configured), the whole
+admission transaction, and `dispatch_one`'s `SELECT … FOR UPDATE` plus
+synchronous Celery publish. A slow row-lock grant, a hung rate-limit Redis,
+or a slow broker parked the loop for the full duration — every other
+in-flight request on that uvicorn worker stalled behind it, including
+`GET /health/live`, whose failing timeout gets the container restarted and
+the other in-flight imports killed with it. `grep -rn "async def"
+Backend/ladle/api` confirms these two handlers were the only `async def`
+routes in the app (the remaining hits are middleware and error handlers,
+which belong on the loop).
+
+### The fix
+
+Match the app's own established pattern instead of inventing one: both
+handlers are now `def` — dispatched to the threadpool like every other
+route — and the one genuinely asynchronous step moved into a four-line
+async dependency, `_request_body`, which awaits `request.body()` on the
+loop (that is what the loop is for) and hands the bytes to the handler.
+Starlette caches the body on the `Request`, so the dependency and FastAPI's
+own Pydantic parse share the same bytes and the App Attest hash stays
+byte-exact — the enforced-attestation suite pins that.
+
+### Verification
+
+`tests/api/test_import_route_concurrency.py` wires the app with an
+attestation service whose `verify` sleeps 1.5 s — standing in, inside the
+handler, for any of the blocking calls above — submits an import on a
+worker thread, waits until the request is inside the stalled handler, and
+then times `GET /health/live` (a `def` route that answers from the
+threadpool in milliseconds when the loop is free). Red, on the `async def`
+handlers — the health check inherits the entire stall:
+
+```text
+>           assert elapsed < HEALTH_BUDGET_SECONDS, (
+E           AssertionError: /health/live took 1.571s while a submission was in flight: the import handler is blocking the event loop
+E           assert 1.5706271659582853 < 0.75
+FAILED tests/api/test_import_route_concurrency.py::test_a_slow_import_submission_does_not_stall_other_requests
+1 failed in 4.69s
+```
+
+Green: `/health/live` answers well inside the 0.75 s budget while the
+submission is mid-stall, the submission itself still completes (202,
+dispatched exactly once), and the same measurement repeated against
+`POST /v1/imports/{id}/retry` on a failed job holds too — both converted
+handlers, both end-to-end functional while concurrent. The existing
+`tests/api` suite plus `tests/integration/auth/test_app_attest.py` (33
+tests) pin submission, cancellation, idempotent replay, and the
+enforced-attestation body hash unchanged.
+
+```text
+uv run pytest -q tests/api/test_import_route_concurrency.py            -> 1 passed in 6.28s
+uv run pytest -q tests/api tests/integration/auth/test_app_attest.py   -> 33 passed in 15.66s
+uv run ruff check ladle tests alembic                                  -> All checks passed
+uv run mypy --strict ladle                                             -> clean
 ```
 
 ## Where this run stopped, and where the next one starts
