@@ -28,7 +28,8 @@ by the code they touch.
 | #6 (iOS half) | Installation ID never rotated | `f203232` | fixed |
 | #10 | Uncancelled sync task writes after wipe | `d49b549` | fixed |
 | #5 | Imported recipes lost their notes | `cb7e366` | fixed |
-| #1 + #24 | Cancelled imports: downgrade and wire enum | `_pending_` | fixed |
+| #1 + #24 | Cancelled imports: downgrade and wire enum | `2de8bb2` | fixed |
+| #9 | Rejected delete wedged every later sync | `_pending_` | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -306,3 +307,35 @@ uv run mypy --strict ladle                             -> clean
 swift test --package-path Packages/LadleCore           -> 46 tests passed
 xcodebuild build -scheme Ladle                         -> BUILD SUCCEEDED
 ```
+
+## Finding #9 — one rejected delete wedged the device forever
+
+The `.upsert` push branch caught `syncConflict` and preserved it; the
+`.delete` branch caught nothing. A recipe edited on another device and then
+deleted locally produced a `syncConflict` on `DELETE /v1/recipes/{id}`, which
+threw straight out of `performSync` — before the pull loop, which is the whole
+back half of a sync. `markDeleteSynced` never ran, so the row kept
+`pendingMutationKey = "delete"` and every later sync re-sent the same rejected
+DELETE. The device never pulled another remote change again, and
+`RemoteFailure` maps `syncConflict` to `.unknown`, whose `canRetry()` is true,
+so the UI kept offering a retry that could not work.
+
+The `.delete` branch now mirrors the `.upsert` one: a `syncConflict` becomes a
+preserved conflict the user can resolve, and the push phase carries on into
+the pull. Resolving it `keepLocal` rebases the tombstone on the server's
+revision so the next sync's DELETE succeeds; `acceptRemote` brings the recipe
+back. Any other remote error still propagates, as before.
+
+`preserveConflict` took a whole `localRecipe` but only ever used its `id` —
+and a delete has no local recipe to pass. It now takes `localRecipeID`, which
+serves both branches.
+
+### Verification
+
+`LadleTests/RecipeSyncServiceTests.testRejectedDeletePreservesAConflictInsteadOfWedgingSync`
+pushes a pending delete against a 409 `syncConflict` and asserts the conflict
+is preserved, the pull still applied both changes, the cursor advanced, and no
+delete was marked synced. Red (conflict arm disabled): the sync throws
+`remote(RemoteErrorDTO(code: syncConflict …))` out of `synchronize()` before
+the pull. Green after the fix, with `-only-testing:LadleTests` at 255 executed,
+1 skipped, 0 failures.

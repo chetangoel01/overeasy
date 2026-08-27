@@ -25,7 +25,7 @@ protocol RecipeSyncRepository: AnyObject, Sendable {
     func markUpsertSynced(_ recipe: RemoteRecipeDTO) throws
     func markDeleteSynced(recipeID: UUID) throws
     func preserveConflict(
-        localRecipe: Recipe,
+        localRecipeID: UUID,
         remoteRecipe: RemoteRecipeDTO,
         remoteRevision: Int
     ) throws
@@ -156,18 +156,34 @@ actor RecipeSyncService {
                         throw APIError.remote(error)
                     }
                     try await repository.preserveConflict(
-                        localRecipe: recipe,
+                        localRecipeID: recipe.id,
                         remoteRecipe: currentRecipe,
                         remoteRevision: currentRevision
                     )
                 }
             case let .delete(recipeID, baseRevision):
-                try await api.requestWithoutResponse(
-                    path:
-                        "/v1/recipes/\(recipeID.uuidString)?baseRevision=\(baseRevision)",
-                    method: .delete
-                )
-                try await repository.markDeleteSynced(recipeID: recipeID)
+                do {
+                    try await api.requestWithoutResponse(
+                        path:
+                            "/v1/recipes/\(recipeID.uuidString)?baseRevision=\(baseRevision)",
+                        method: .delete
+                    )
+                    try await repository.markDeleteSynced(recipeID: recipeID)
+                } catch let APIError.remote(error) {
+                    // Without this the rejected delete stays pending forever
+                    // and every later sync throws here, before the pull.
+                    guard case let .syncConflict(
+                        currentRecipe,
+                        currentRevision
+                    ) = error.details else {
+                        throw APIError.remote(error)
+                    }
+                    try await repository.preserveConflict(
+                        localRecipeID: recipeID,
+                        remoteRecipe: currentRecipe,
+                        remoteRevision: currentRevision
+                    )
+                }
             }
         }
 

@@ -326,11 +326,11 @@ final class SwiftDataRecipeRepository:
     }
 
     func preserveConflict(
-        localRecipe: Recipe,
+        localRecipeID: UUID,
         remoteRecipe: RemoteRecipeDTO,
         remoteRevision: Int
     ) throws {
-        guard let stored = try storedRecipe(id: localRecipe.id) else {
+        guard let stored = try storedRecipe(id: localRecipeID) else {
             return
         }
         stored.conflictRemotePayload = try encoder.encode(

@@ -216,7 +216,7 @@ final class SwiftDataRecipeRepositoryTests: XCTestCase {
         let remote = RemoteRecipeDTO(recipe: server, revision: 2)
 
         try repository.preserveConflict(
-            localRecipe: local,
+            localRecipeID: local.id,
             remoteRecipe: remote,
             remoteRevision: 2
         )
@@ -243,7 +243,7 @@ final class SwiftDataRecipeRepositoryTests: XCTestCase {
         var server = local
         server.title = "Server Title"
         try repository.preserveConflict(
-            localRecipe: local,
+            localRecipeID: local.id,
             remoteRecipe: RemoteRecipeDTO(recipe: server, revision: 2),
             remoteRevision: 2
         )
@@ -271,7 +271,7 @@ final class SwiftDataRecipeRepositoryTests: XCTestCase {
         var server = local
         server.title = "Server Title"
         try repository.preserveConflict(
-            localRecipe: local,
+            localRecipeID: local.id,
             remoteRecipe: RemoteRecipeDTO(recipe: server, revision: 2),
             remoteRevision: 2
         )
