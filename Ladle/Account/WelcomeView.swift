@@ -64,7 +64,6 @@ struct WelcomeView: View {
     let accountSession: AccountSession
     let authClient: AuthClient?
     let googleSignIn: (any GoogleSignInProviding)?
-    let installationID: String
     let onAuthenticated: @MainActor () async -> Void
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -290,7 +289,6 @@ struct WelcomeView: View {
                 if let authClient {
                     if try authClient.restoreSession() == nil {
                         _ = try await authClient.bootstrapGuest(
-                            installationID: installationID,
                             attestation: nil,
                             applyAccountState: false
                         )
@@ -323,7 +321,6 @@ struct WelcomeView: View {
             do {
                 if let authClient {
                     _ = try await authClient.bootstrapGuest(
-                        installationID: installationID,
                         attestation: nil
                     )
                 } else {
@@ -398,7 +395,6 @@ struct WelcomeView: View {
             do {
                 if try authClient.restoreSession() == nil {
                     _ = try await authClient.bootstrapGuest(
-                        installationID: installationID,
                         attestation: nil,
                         applyAccountState: false
                     )

@@ -67,7 +67,6 @@ struct LibraryView: View {
     let accountSession: AccountSession
     var discoverService: any DiscoverServing = DemoDiscoverService()
     var syncStatus: SyncStatus = SyncStatus()
-    var installationID: String = "preview-installation"
     var notificationNavigation: NotificationNavigation = .shared
     var canImport = true
     var onSignOut: @MainActor () async -> Void = {}

@@ -139,7 +139,6 @@ private struct LadleRuntimeView: View {
             googleSignIn: runtime.googleSignIn,
             discoverService: runtime.discoverService,
             syncStatus: runtime.syncStatus,
-            installationID: runtime.installationID,
             notificationNavigation: .shared,
             onAuthenticated: runtime.didAuthenticate,
             onSignOut: runtime.signOut,

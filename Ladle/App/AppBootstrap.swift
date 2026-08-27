@@ -57,12 +57,10 @@ struct AppBootstrap {
     typealias EnvironmentFactory = (Bool) throws -> AppEnvironment
     typealias BaseURLFactory = () throws -> URL
 
-    private static let installationIDKey = "ladle.installation.id"
-
     let configuration: LadleRuntimeConfiguration
     private let makeEnvironment: EnvironmentFactory
     private let makeBaseURL: BaseURLFactory
-    private let makeInstallationID: () -> String
+    private let installationIdentity: InstallationIdentity
 
     init(
         configuration: LadleRuntimeConfiguration,
@@ -72,13 +70,12 @@ struct AppBootstrap {
         makeBaseURL: @escaping BaseURLFactory = {
             try APIConfiguration().baseURL
         },
-        makeInstallationID: (() -> String)? = nil
+        installationIdentity: InstallationIdentity = InstallationIdentity()
     ) {
         self.configuration = configuration
         self.makeEnvironment = makeEnvironment
         self.makeBaseURL = makeBaseURL
-        self.makeInstallationID = makeInstallationID
-            ?? Self.installationID
+        self.installationIdentity = installationIdentity
     }
 
     func run() -> AppBootstrapResult {
@@ -90,7 +87,7 @@ struct AppBootstrap {
             "-reset-backend-session"
         )
         if resetsBackendSession {
-            Self.resetBackendSession()
+            resetBackendSession()
         }
 
         let environment: AppEnvironment
@@ -131,27 +128,16 @@ struct AppBootstrap {
                 configuration: configuration,
                 appEnvironment: environment,
                 services: services,
-                installationID: makeInstallationID(),
+                installationIdentity: installationIdentity,
                 resetsBackendSession: resetsBackendSession
             )
         )
     }
 
-    private static func installationID() -> String {
-        if let existing = UserDefaults.standard.string(
-            forKey: installationIDKey
-        ) {
-            return existing
-        }
-        let created = UUID().uuidString.lowercased()
-        UserDefaults.standard.set(created, forKey: installationIDKey)
-        return created
-    }
-
-    private static func resetBackendSession() {
+    private func resetBackendSession() {
         try? KeychainTokenStore().clear()
         try? SyncCursorStore().reset()
-        UserDefaults.standard.removeObject(forKey: installationIDKey)
+        installationIdentity.clear()
     }
 }
 
@@ -172,7 +158,7 @@ final class LadleRuntime {
     let syncService: RecipeSyncService?
     let remoteImageCache: RemoteImageCache?
     let discoverService: any DiscoverServing
-    let installationID: String
+    let installationIdentity: InstallationIdentity
 
     private let sharedQueueReconciler: SharedQueueReconciler?
 
@@ -180,7 +166,7 @@ final class LadleRuntime {
         configuration: LadleRuntimeConfiguration,
         appEnvironment: AppEnvironment,
         services: LadleServiceConfiguration,
-        installationID: String,
+        installationIdentity: InstallationIdentity,
         resetsBackendSession: Bool
     ) {
         let launchArguments = configuration.launchArguments
@@ -256,7 +242,7 @@ final class LadleRuntime {
             let appAttester: AppAttestClient? = configuration.usesAppAttest
                 ? AppAttestClient(
                     baseURL: baseURL,
-                    installationID: installationID
+                    installationIdentity: installationIdentity
                 )
                 : nil
             let api = APIClient(
@@ -274,6 +260,7 @@ final class LadleRuntime {
                 api: api,
                 tokenStore: tokenStore,
                 accountSession: accountSession,
+                installationIdentity: installationIdentity,
                 appAttester: appAttester
             )
             importService = RemoteImportService(api: api)
@@ -337,7 +324,7 @@ final class LadleRuntime {
         self.syncService = syncService
         self.remoteImageCache = remoteImageCache
         self.discoverService = discoverService
-        self.installationID = installationID
+        self.installationIdentity = installationIdentity
         self.sharedQueueReconciler = sharedQueueReconciler
     }
 
@@ -348,7 +335,6 @@ final class LadleRuntime {
                 if restored == nil,
                    accountSession.state != .undecided {
                     _ = try await authClient.bootstrapGuest(
-                        installationID: installationID,
                         attestation: nil
                     )
                 }

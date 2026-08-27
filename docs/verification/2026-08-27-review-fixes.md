@@ -24,8 +24,8 @@ by the code they touch.
 
 | Finding | Area | Commit | State |
 | --- | --- | --- | --- |
-| #6 (backend half) | Device binding survives sign-out | `_pending_` | fixed |
-| #6 (iOS half) | Installation ID never rotated | `_pending_` | pending |
+| #6 (backend half) | Device binding survives sign-out | `b648aed` | fixed |
+| #6 (iOS half) | Installation ID never rotated | `_pending_` | fixed |
 | #10 | Uncancelled sync task writes after wipe | `_pending_` | pending |
 
 ## Finding #6 — sign-out leaves the device bound to the account
@@ -92,3 +92,61 @@ under the locked ruff 0.16.0. None of them are touched by this branch —
 `ruff format --check` passes on every file this branch changes. Reformatting
 the other 35 would be a large unrelated diff and is left for a separate
 change.
+
+### iOS half — rotate the installation ID on sign-out
+
+`InstallationIdentity` (`Ladle/Account/InstallationIdentity.swift`) is now the
+single owner of the `ladle.installation.id` key. It mints the identifier on
+first read, rotates it, and clears it for the `-reset-backend-session` launch
+argument. `AuthClient` holds it and reads `installationIdentity.current` when
+it builds a guest registration, so no caller passes an identifier in.
+
+That last part is what makes the fix hold. Previously the identifier was read
+once at bootstrap and threaded as a `String` through `LadleRuntime` ->
+`RootView` -> `WelcomeView`; rotating the stored value would have left those
+views holding the pre-rotation copy for the rest of the process. Removing the
+parameter chain deletes the staleness rather than working around it.
+`LibraryView` declared the same property and never used it, so it went too.
+
+`AuthClient.signOut()` reads the signed-out account's kind before clearing the
+Keychain and, for anything other than a guest, rotates the identifier and
+resets the App Attest key (the key's client data binds the installation ID, so
+a stale key would be rejected against the rotated one). `deleteAccount()`
+rotates unconditionally — the server row is already gone. `AppAttestClient`
+holds the identity instead of a `String` and reads it once per attestation
+flow, so a challenge and its assertion always agree on the identifier.
+
+The guest exemption matches the backend rule and the same reasoning: a guest
+account's binding is its only credential.
+
+### Verification
+
+- `LadleTests/AuthClientTests.testSignOutRotatesTheInstallationIDOfARealAccount`
+  registers a guest that the server reports as `apple`, signs out, and
+  registers again, asserting the second request carries a different
+  installation ID and that the attester was reset. Red state (rotation
+  disabled): `XCTAssertNotEqual failed: ("Optional("855a05c9-...")") is equal
+  to ("Optional("855a05c9-...")")` plus `XCTAssertTrue failed` for the
+  attester. Green after the fix.
+- `LadleTests/AuthClientTests.testSignOutKeepsTheInstallationIDOfAGuest` pins
+  the exemption: a guest's identifier is unchanged and the attester is left
+  alone. This test passes in both states by design — it guards the fix from
+  overreaching, and would fail if rotation were made unconditional.
+
+Commands:
+
+```text
+xcodegen generate
+xcodebuild test -project Ladle.xcodeproj -scheme Ladle \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5'
+  -> LadleTests: 252 executed, 1 skipped, 0 failures
+  -> LadleUITests: 21 executed, 0 failures
+```
+
+### Declined scope
+
+Moving the installation ID from `UserDefaults` to the Keychain was considered
+and declined. With rotation on the device and unbinding on the server, the
+identifier is no longer a durable bearer credential for a real account, so the
+migration would add a Keychain dependency and an upgrade path for no remaining
+security gain.

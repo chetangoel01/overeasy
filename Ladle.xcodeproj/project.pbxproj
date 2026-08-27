@@ -22,6 +22,7 @@
 		1D7AE199157D84F1562E6C95 /* ReimportSafetyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2461B3FDEC6CF3119C4548A /* ReimportSafetyTests.swift */; };
 		1E030826FAE0A2B854964CA7 /* AppBootstrap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EC3E6A7C19F7CCCF1033B3A /* AppBootstrap.swift */; };
 		1FA4683FAEA2F3B99EECAE54 /* SyncStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 610D0835A1815DB23436E411 /* SyncStatus.swift */; };
+		1FB3DDF50FB60CD640290063 /* InstallationIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 595643DC966138C3BC7DA2FC /* InstallationIdentity.swift */; };
 		202BABB63D7F671836CD4F1A /* ShareURLExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A93A16FCFB7610C2A4F09D4 /* ShareURLExtractor.swift */; };
 		224F559012E7DF26C228AF43 /* APIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC34B6B51E6AF6B47D8FC45D /* APIClientTests.swift */; };
 		24197E5B542EB0789077028F /* PrivacyDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F27EE9D08B4AD704ED77330A /* PrivacyDetailView.swift */; };
@@ -197,6 +198,7 @@
 		5054FD0987A041FE9A5619DB /* FilterSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterSheet.swift; sourceTree = "<group>"; };
 		57ED21827A8B76FEB98FDB19 /* SharedQueueReconcilerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedQueueReconcilerTests.swift; sourceTree = "<group>"; };
 		58A808844E9A9278B9DBE227 /* DiscoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscoverView.swift; sourceTree = "<group>"; };
+		595643DC966138C3BC7DA2FC /* InstallationIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallationIdentity.swift; sourceTree = "<group>"; };
 		5BB8A28AE010B51E06742584 /* IngredientList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngredientList.swift; sourceTree = "<group>"; };
 		5BDEAB572C83A392AED5C622 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		610D0835A1815DB23436E411 /* SyncStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncStatus.swift; sourceTree = "<group>"; };
@@ -401,6 +403,7 @@
 				E9C01DA218666D762AB16E8A /* AuthClient.swift */,
 				2A229BB67821612265D01BD7 /* GoogleSignInProvider.swift */,
 				480030F07BD940462128F4AE /* GuestLimitView.swift */,
+				595643DC966138C3BC7DA2FC /* InstallationIdentity.swift */,
 				FA758C400CD14A086E39D48D /* KeychainTokenStore.swift */,
 				D0370D3E55CB7D0FD1314AF8 /* OnboardingWalkthroughView.swift */,
 				F27EE9D08B4AD704ED77330A /* PrivacyDetailView.swift */,
@@ -806,6 +809,7 @@
 				E2BE83969345FF4BDBE3CA69 /* ImportRecoveryActions.swift in Sources */,
 				AE645C3991B22C20AF387561 /* ImportService.swift in Sources */,
 				EF0148FC094665EF210ACCB5 /* IngredientList.swift in Sources */,
+				1FB3DDF50FB60CD640290063 /* InstallationIdentity.swift in Sources */,
 				DBE9510215C9C2051919310F /* KeychainTokenStore.swift in Sources */,
 				93CF9021D2F49A9F1263B0FC /* LadleApp.swift in Sources */,
 				E5ADC1288191201E540C48A7 /* LadleComponents.swift in Sources */,

@@ -9,7 +9,9 @@ final class AppBootstrapTests: XCTestCase {
             makeEnvironment: { _ in
                 throw BootstrapTestError.store
             },
-            makeInstallationID: { "test-installation" }
+            installationIdentity: InstallationIdentity(
+                store: BootstrapMemoryPreferenceStore()
+            )
         )
 
         guard case let .failed(failure) = bootstrap.run() else {
@@ -30,7 +32,9 @@ final class AppBootstrapTests: XCTestCase {
             makeBaseURL: {
                 throw BootstrapTestError.configuration
             },
-            makeInstallationID: { "test-installation" }
+            installationIdentity: InstallationIdentity(
+                store: BootstrapMemoryPreferenceStore()
+            )
         )
 
         guard case let .failed(failure) = bootstrap.run() else {
@@ -53,7 +57,9 @@ final class AppBootstrapTests: XCTestCase {
                 requestedBaseURL = true
                 return URL(string: "https://example.com")!
             },
-            makeInstallationID: { "test-installation" }
+            installationIdentity: InstallationIdentity(
+                store: BootstrapMemoryPreferenceStore()
+            )
         )
 
         guard case let .ready(runtime) = bootstrap.run() else {
@@ -81,7 +87,9 @@ final class AppBootstrapTests: XCTestCase {
                 }
                 return try AppEnvironment(isStoredInMemoryOnly: true)
             },
-            makeInstallationID: { "test-installation" }
+            installationIdentity: InstallationIdentity(
+                store: BootstrapMemoryPreferenceStore()
+            )
         )
 
         guard case .failed = bootstrap.run() else {
@@ -111,4 +119,24 @@ final class AppBootstrapTests: XCTestCase {
 private enum BootstrapTestError: Error {
     case store
     case configuration
+}
+
+private final class BootstrapMemoryPreferenceStore: PreferenceStoring {
+    private var values: [String: Any] = [:]
+
+    func bool(forKey defaultName: String) -> Bool {
+        values[defaultName] as? Bool ?? false
+    }
+
+    func string(forKey defaultName: String) -> String? {
+        values[defaultName] as? String
+    }
+
+    func set(_ value: Any?, forKey defaultName: String) {
+        values[defaultName] = value
+    }
+
+    func removeObject(forKey defaultName: String) {
+        values.removeValue(forKey: defaultName)
+    }
 }

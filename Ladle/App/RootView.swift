@@ -10,7 +10,6 @@ struct RootView: View {
     let googleSignIn: (any GoogleSignInProviding)?
     let discoverService: any DiscoverServing
     let syncStatus: SyncStatus
-    let installationID: String
     let notificationNavigation: NotificationNavigation
     let onAuthenticated: @MainActor () async -> Void
     let onSignOut: @MainActor () async -> Void
@@ -24,7 +23,6 @@ struct RootView: View {
         googleSignIn: (any GoogleSignInProviding)? = nil,
         discoverService: any DiscoverServing = DemoDiscoverService(),
         syncStatus: SyncStatus = SyncStatus(),
-        installationID: String = "preview-installation",
         notificationNavigation: NotificationNavigation = .shared,
         onAuthenticated: @escaping @MainActor () async -> Void = {},
         onSignOut: @escaping @MainActor () async -> Void = {},
@@ -38,7 +36,6 @@ struct RootView: View {
         self.googleSignIn = googleSignIn
         self.discoverService = discoverService
         self.syncStatus = syncStatus
-        self.installationID = installationID
         self.notificationNavigation = notificationNavigation
         self.onAuthenticated = onAuthenticated
         self.onSignOut = onSignOut
@@ -52,7 +49,6 @@ struct RootView: View {
                     accountSession: accountSession,
                     authClient: authClient,
                     googleSignIn: googleSignIn,
-                    installationID: installationID,
                     onAuthenticated: onAuthenticated
                 )
                 .transition(.opacity)
@@ -68,7 +64,6 @@ struct RootView: View {
                     accountSession: accountSession,
                     discoverService: discoverService,
                     syncStatus: syncStatus,
-                    installationID: installationID,
                     notificationNavigation: notificationNavigation,
                     canImport:
                         authClient == nil
