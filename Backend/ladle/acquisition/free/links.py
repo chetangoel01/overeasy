@@ -229,6 +229,9 @@ class SafeLinkFetcher:
 def _host_of(url: str) -> str:
     try:
         parts = urlsplit(url)
+        # Reading the port forces its parse: "host:abc" raises here, at the
+        # caption boundary, instead of as httpx.InvalidURL mid-fetch.
+        _ = parts.port
     except ValueError as error:
         raise UnsafeURL(str(error)) from error
     if parts.scheme not in ("http", "https"):

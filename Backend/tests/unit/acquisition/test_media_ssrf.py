@@ -49,6 +49,32 @@ def test_provider_returned_media_url_is_rejected_before_download(
     assert requests == []
 
 
+def test_malformed_media_url_is_skipped_not_fatal(tmp_path: Path) -> None:
+    def respond(request: httpx.Request) -> httpx.Response:
+        raise AssertionError("no request should be made for a malformed URL")
+
+    source = MediaAudioSource(
+        http=httpx.Client(transport=httpx.MockTransport(respond)),
+        dns=FakeDNS({}),
+    )
+    descriptor = SourceVideoDescriptor(
+        source_video_id=uuid4(),
+        platform="instagram",
+        platform_video_id="shortcode",
+        canonical_url="https://www.instagram.com/reel/shortcode/",
+        source_revision="1",
+    )
+
+    assert (
+        source.media(
+            descriptor,
+            media_url="https://media.example:abc/video.mp4",
+            work_dir=tmp_path,
+        )
+        is None
+    )
+
+
 def test_provider_returned_public_media_is_pinned_and_bounded(
     tmp_path: Path,
 ) -> None:

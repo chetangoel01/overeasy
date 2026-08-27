@@ -43,6 +43,7 @@ by the code they touch.
 | #28 | Delete during first upload came back | `d2ce167` | fixed |
 | #27 | Remote delete mislabeled as a remote edit | `2969c5a` | fixed |
 | #26 | Scrolling a focus-mode step changed the step | — | fixed |
+| #12 | Malformed caption URL killed the whole import | `_pending_` | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -1079,6 +1080,74 @@ step-navigation neighbors (clamping at the first/last step, mode switching,
 single-step recipes are all view-model behavior this change does not touch —
 the classifier returning nil is what now protects them from accidental
 drags; a genuine horizontal swipe behaves exactly as before).
+
+## Finding #12 — a malformed caption URL crashed the import instead of being skipped
+
+### The defect
+
+`caption_links` accepted `https://evil.example.com:abc/recipe` because
+`_host_of` read only `urlsplit(...).hostname`, and `urlsplit` parses the port
+lazily — nothing ever touched it. The first statement of
+`PinnedHTTPClient.get` is `httpx.URL(url)`, and httpx is stricter: the
+garbage port raises `httpx.InvalidURL`, which is a plain `Exception` —
+not an `httpx.HTTPError`, not an `OSError`, not `UnsafeNetworkTarget`. No
+handler between the fetcher and the Celery worker names it, so one bad link
+in an attacker-controlled caption dead-lettered the entire import instead of
+being skipped like every other unsafe link. The same escape reached
+`MediaAudioSource._download` (provider-supplied media URLs go through the
+same client), and both pinned clients re-parse redirect targets with
+`httpx.URL` after only `urlsplit`-based validation, so a hostile `Location`
+header had a rarer route to the same crash — httpx also enforces limits
+`urlsplit` does not, such as its 65,535-character total-length cap, which a
+near-limit relative `location` can exceed after `urljoin`.
+
+### The fix
+
+Two parse boundaries, no catch-sites sprinkled:
+
+- `_host_of` now forces the port parse (`_ = parts.port`) inside its
+  existing `try`, so a caption URL with garbage where the port belongs is
+  refused as `UnsafeURL` while links are being collected — that one link is
+  dropped and the caption's other links still fetch.
+- `PinnedHTTPClient` converts `httpx.InvalidURL` into `UnsafeNetworkTarget`
+  at both places it parses: the entry parse in `get`, and the per-address
+  `copy_with` (now the shared `_pinned_url` helper, also used by
+  `PinnedRedirectResolver`). `UnsafeNetworkTarget` is the refusal every
+  caller already handles: `SafeLinkFetcher` re-raises it as `UnsafeURL` and
+  `_fetch_all` skips the link; `MediaAudioSource._download` logs and returns
+  `None`.
+
+### Verification
+
+`tests/unit/acquisition/test_free_links.py` gained five tests and
+`tests/unit/acquisition/test_media_ssrf.py` one. Red before the fix:
+
+```text
+FAILED test_free_links.py::test_caption_links_drop_urls_with_malformed_ports
+  AssertionError: assert ['https://evi...e.com/recipe'] == ['https://goo...e.com/recipe']
+FAILED test_free_links.py::test_malformed_port_is_refused_like_any_other_unsafe_target
+  httpx.InvalidURL: Invalid port: 'abc'
+FAILED test_media_ssrf.py::test_malformed_media_url_is_skipped_not_fatal
+  httpx.InvalidURL: Invalid port: 'abc'
+    (raised from ladle/infrastructure/dns.py:177, in get)
+3 failed, 4 passed
+```
+
+Atypical states covered alongside the repro: a URL whose explicit port is
+valid but non-443 is still *collected* (`:8443` — refusing it is fetch-time
+validation's job, pinned by test so this fix cannot over-reject); a
+scheme-less URL is refused; a host that resolves to zero DNS addresses is
+refused; and a 70,000-character redirect `Location` is refused as
+`UnsafeURL` — that path was already safe because httpx raises
+`RemoteProtocolError` (an `HTTPError`) while processing the redirect
+response, and the new test pins it against regression.
+
+```text
+uv run pytest -q tests/unit/acquisition/test_free_links.py \
+    tests/unit/acquisition/test_media_ssrf.py       -> 33 passed
+uv run ruff check ladle tests alembic               -> All checks passed
+uv run mypy --strict ladle                          -> clean
+```
 
 ## Where this run stopped, and where the next one starts
 

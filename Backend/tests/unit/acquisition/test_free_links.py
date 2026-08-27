@@ -138,6 +138,66 @@ def test_redirect_loop_is_bounded() -> None:
         fetcher.fetch_raw("https://example.com/start")
 
 
+def test_caption_links_drop_urls_with_malformed_ports() -> None:
+    caption = (
+        "recipe at https://evil.example.com:abc/recipe "
+        "backup https://good.example.com/recipe"
+    )
+
+    assert caption_links(caption) == ["https://good.example.com/recipe"]
+
+
+def test_caption_links_keep_valid_explicit_ports() -> None:
+    # A parseable port is not caption parsing's concern: the fetcher refuses
+    # anything but 443 when the request is actually made.
+    assert caption_links("see https://mysite.example.com:8443/recipe") == [
+        "https://mysite.example.com:8443/recipe"
+    ]
+
+
+def test_malformed_port_is_refused_like_any_other_unsafe_target() -> None:
+    fetcher = fetcher_returning("<html>x</html>")
+
+    with pytest.raises(UnsafeURL):
+        fetcher.fetch_text("https://evil.example.com:abc/recipe")
+
+
+def test_scheme_less_url_is_refused() -> None:
+    fetcher = fetcher_returning("<html>x</html>")
+
+    with pytest.raises(UnsafeURL):
+        fetcher.fetch_raw("evil.example.com/recipe")
+
+
+def test_redirect_to_an_overlong_url_is_refused() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(
+            302, headers={"location": "https://example.com/" + "a" * 70_000}
+        )
+
+    fetcher = SafeLinkFetcher(
+        http=httpx.Client(transport=httpx.MockTransport(handler)),
+        dns=FakeDNS({}),
+    )
+
+    with pytest.raises(UnsafeURL):
+        fetcher.fetch_raw("https://example.com/recipe")
+
+
+def test_host_that_resolves_to_nothing_is_refused() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError("no request should be made for an unresolvable host")
+
+    fetcher = SafeLinkFetcher(
+        http=httpx.Client(transport=httpx.MockTransport(handler)),
+        dns=FakeDNS({"ghost.example.com": []}),
+    )
+
+    with pytest.raises(UnsafeURL):
+        fetcher.fetch_raw("https://ghost.example.com/recipe")
+
+
 def test_fetch_text_strips_markup_and_scripts() -> None:
     fetcher = fetcher_returning(
         "<html><head><title>t</title></head><body>"

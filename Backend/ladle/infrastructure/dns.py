@@ -45,6 +45,19 @@ class SystemDNSResolver:
         return tuple(dict.fromkeys(str(answer[4][0]) for answer in answers))
 
 
+def _pinned_url(url: str, address: str) -> httpx.URL:
+    """Parse strictly, refusing rather than crashing on attacker-shaped URLs.
+
+    Redirect targets reach here having passed only `urlsplit`-based checks,
+    and httpx is stricter (port syntax, total length), so its rejection must
+    become the refusal every caller of this module already handles.
+    """
+    try:
+        return httpx.URL(url).copy_with(host=address)
+    except httpx.InvalidURL as error:
+        raise UnsafeNetworkTarget(f"invalid URL: {error}") from error
+
+
 @dataclass(frozen=True)
 class ValidatedNetworkTarget:
     url: str
@@ -173,9 +186,12 @@ class PinnedHTTPClient:
     ) -> httpx.Response:
         if max_bytes <= 0:
             raise ValueError("max_bytes must be positive")
-        current = str(
-            httpx.URL(url) if params is None else httpx.URL(url, params=params)
-        )
+        try:
+            current = str(
+                httpx.URL(url) if params is None else httpx.URL(url, params=params)
+            )
+        except httpx.InvalidURL as error:
+            raise UnsafeNetworkTarget(f"invalid URL: {error}") from error
         current_headers = dict(headers or {})
         for redirect_count in range(self._maximum_redirects + 1):
             target = validate_external_target(current, dns=self._dns)
@@ -208,7 +224,7 @@ class PinnedHTTPClient:
     ) -> httpx.Response:
         last_error: httpx.HTTPError | None = None
         for address in target.addresses:
-            pinned_url = httpx.URL(target.url).copy_with(host=address)
+            pinned_url = _pinned_url(target.url, address)
             request_headers = dict(headers or {})
             request_headers["host"] = target.hostname
             request = self._client.build_request(
@@ -289,7 +305,7 @@ class PinnedRedirectResolver:
     ) -> httpx.Response:
         last_error: httpx.HTTPError | None = None
         for address in target.addresses:
-            pinned_url = httpx.URL(target.url).copy_with(host=address)
+            pinned_url = _pinned_url(target.url, address)
             request = self._client.build_request(
                 "HEAD",
                 pinned_url,
