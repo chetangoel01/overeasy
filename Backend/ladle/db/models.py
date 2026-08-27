@@ -106,6 +106,7 @@ class ObjectDeletionQueue(Base):
 
 class AppleIdentity(Base):
     __tablename__ = "apple_identities"
+    __table_args__ = (UniqueConstraint("user_id", name="uq_apple_identities_user_id"),)
 
     apple_sub: Mapped[str] = mapped_column(String(255), primary_key=True)
     user_id: Mapped[UUID] = mapped_column(
@@ -121,6 +122,7 @@ class AppleIdentity(Base):
 
 class GoogleIdentity(Base):
     __tablename__ = "google_identities"
+    __table_args__ = (UniqueConstraint("user_id", name="uq_google_identities_user_id"),)
 
     google_sub: Mapped[str] = mapped_column(String(255), primary_key=True)
     user_id: Mapped[UUID] = mapped_column(

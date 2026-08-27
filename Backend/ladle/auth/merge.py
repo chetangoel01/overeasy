@@ -106,6 +106,20 @@ class AccountMergeService:
             raise AccountMergeInvalid
         if guest.kind not in {"guest", kind}:
             raise AccountMergeInvalid
+        # One provider identity per account: a second Apple or Google ID on
+        # the same user would leave a grant that account deletion never
+        # revokes, since deletion looks up a single identity row. The user
+        # row is locked above, so concurrent claims serialize here; the
+        # unique constraint on user_id is the schema-level backstop.
+        claimed = database.scalar(
+            select(AppleIdentity.apple_sub).where(AppleIdentity.user_id == guest.id)
+            if isinstance(identity, AppleIdentity)
+            else select(GoogleIdentity.google_sub).where(
+                GoogleIdentity.user_id == guest.id
+            )
+        )
+        if claimed is not None:
+            raise AccountMergeInvalid
         guest.kind = kind
         database.add(identity)
         self._revoke_sessions(database, guest.id)

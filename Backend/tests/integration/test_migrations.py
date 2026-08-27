@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
@@ -341,5 +341,101 @@ def test_cancelled_import_downgrade_preserves_jobs_and_their_quota_events(
     assert job.status == "failed"
     assert job.failure_reason is not None
     assert quota_events == 1
+
+    engine.dispose()
+
+
+@pytest.mark.integration
+def test_identity_uniqueness_migration_dedupes_and_enforces_one_per_user(
+    clean_postgres_url: str,
+) -> None:
+    """0015 must collapse duplicate provider identities deterministically
+    (oldest row per user, ties broken by subject), leave single identities
+    untouched, and enforce uniqueness afterwards — reversibly."""
+    config = alembic_config(clean_postgres_url)
+    command.upgrade(config, "0014")
+    engine = create_engine(clean_postgres_url)
+    duplicated_user = uuid4()
+    single_user = uuid4()
+    now = datetime.now(UTC)
+
+    with engine.begin() as connection:
+        for user_id in (duplicated_user, single_user):
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO users (id, kind, created_at)
+                    VALUES (:id, 'apple', :created_at)
+                    """
+                ),
+                {"id": user_id, "created_at": now},
+            )
+        for sub, user_id, created_at in (
+            ("apple-newer", duplicated_user, now),
+            ("apple-older", duplicated_user, now - timedelta(days=1)),
+            ("apple-single", single_user, now),
+        ):
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO apple_identities (apple_sub, user_id, created_at)
+                    VALUES (:sub, :user_id, :created_at)
+                    """
+                ),
+                {"sub": sub, "user_id": user_id, "created_at": created_at},
+            )
+        # Same timestamp: the subject is the deterministic tie-break.
+        for sub in ("google-b", "google-a"):
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO google_identities (google_sub, user_id, created_at)
+                    VALUES (:sub, :user_id, :created_at)
+                    """
+                ),
+                {"sub": sub, "user_id": duplicated_user, "created_at": now},
+            )
+
+    command.upgrade(config, "head")
+
+    with engine.connect() as connection:
+        apple_subs = set(
+            connection.execute(
+                text("SELECT apple_sub FROM apple_identities")
+            ).scalars()
+        )
+        google_subs = set(
+            connection.execute(
+                text("SELECT google_sub FROM google_identities")
+            ).scalars()
+        )
+    assert apple_subs == {"apple-older", "apple-single"}
+    assert google_subs == {"google-a"}
+
+    with (
+        pytest.raises(IntegrityError, match="uq_apple_identities_user_id"),
+        engine.begin() as connection,
+    ):
+        connection.execute(
+            text(
+                """
+                INSERT INTO apple_identities (apple_sub, user_id, created_at)
+                VALUES ('apple-second', :user_id, :created_at)
+                """
+            ),
+            {"user_id": duplicated_user, "created_at": now},
+        )
+
+    command.downgrade(config, "0014")
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                INSERT INTO apple_identities (apple_sub, user_id, created_at)
+                VALUES ('apple-second', :user_id, :created_at)
+                """
+            ),
+            {"user_id": duplicated_user, "created_at": now},
+        )
 
     engine.dispose()

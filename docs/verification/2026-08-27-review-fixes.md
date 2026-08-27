@@ -48,7 +48,8 @@ by the code they touch.
 | #11 | Reversed Whisper timings killed the transcription | `b590bb2` | fixed |
 | #17 | Model decimal exponent bomb allocated gigabytes | `9a8158f` | fixed |
 | #18 | Beat sweep deadlocked against import completions | `b215db5` | fixed |
-| #19 | Uploaded thumbnails leaked on rollback or discard | `_pending_` | fixed |
+| #19 | Uploaded thumbnails leaked on rollback or discard | `c863c5e` | fixed |
+| #15 | One account could hoard multiple Apple identities | `_pending_` | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -1536,6 +1537,99 @@ uv run pytest -q tests/e2e/test_fake_import_round_trip.py \
     tests/integration/imports/test_retry_reparse.py tests/integration/cache        -> 21 passed in 12.60s
 uv run ruff check ladle tests alembic                                              -> All checks passed
 uv run mypy --strict ladle                                                         -> clean
+```
+
+## Finding #15 — one account could hoard Apple identities it can never revoke
+
+### The defect
+
+After a first Apple sign-in a user's `kind` is `'apple'`, and
+`_claim_identity`'s gate — `guest.kind in {"guest", kind}` — exists so the
+same-subject re-sign-in stays idempotent. But a sign-in with a *different*
+Apple ID also passes it: `merge()` finds no row for the new subject, takes
+the claim branch, and inserts a second `AppleIdentity` row for the same
+`user_id` — nothing in the model or migrations 0001–0014 constrains
+`apple_identities.user_id`. Account deletion then runs
+`select(AppleIdentity).where(user_id == ...)` with no ORDER BY, revokes
+whichever row Postgres yields first, and cascade-deletes the rest: the other
+Apple grant stays live at Apple after the account is gone (violating the
+Sign in with Apple deletion requirement), and *which* grant survives is
+nondeterministic. `merge_google` has the identical branch shape, so Google
+identities could pile up the same way.
+
+This extends the sign-out work in `b648aed` rather than fighting it: that
+commit governs what a *device* may mint after sign-out; this one governs
+what an *account* may accumulate while signed in.
+
+### The fix
+
+Three layers, one invariant — at most one provider identity row per user:
+
+- `_claim_identity` (`Backend/ladle/auth/merge.py`) refuses the claim with
+  `AccountMergeInvalid` when the locked user already owns an identity row of
+  that provider. The check sits after `_lock_users`' `FOR UPDATE`, so
+  concurrent claims of two different subjects serialize on the user row and
+  exactly one wins. The same-subject path never reaches the claim branch
+  and stays idempotent (token refresh included).
+- `apple_identities.user_id` and `google_identities.user_id` gain named
+  unique constraints in the models — the schema-level backstop.
+- Migration `0015_one_identity_per_user` creates the constraints, first
+  collapsing any duplicates the bug already produced: the oldest row per
+  user is kept (ties broken by subject) — the identity that originally
+  claimed the account. A migration cannot call Apple, so the dropped rows'
+  grants are discarded unrevoked exactly as the bug would have discarded
+  them at deletion; the kept identity still revokes normally. The downgrade
+  drops both constraints.
+
+With uniqueness guaranteed, deletion's single-row lookup is exact — no
+change needed there.
+
+### Verification
+
+Red on the unfixed code (`tests/integration/auth/test_merge.py`):
+
+```text
+>           pytest.raises(AccountMergeInvalid),
+E       Failed: DID NOT RAISE AccountMergeInvalid
+>       assert sorted(results, key=str) == sorted(
+E       AssertionError: assert [UUID('62949c...a9d243a8b37')] == [UUID('62949c...ergeInvalid'>]
+E         At index 1 diff: UUID('62949cb3-0c04-4e2a-9c72-9a9d243a8b37') != <class 'ladle.auth.merge.AccountMergeInvalid'>
+FAILED tests/integration/auth/test_merge.py::test_a_user_with_an_apple_identity_cannot_claim_a_second_one
+FAILED tests/integration/auth/test_merge.py::test_a_user_with_a_google_identity_cannot_claim_a_second_one
+FAILED tests/integration/auth/test_merge.py::test_concurrent_claims_of_two_apple_identities_admit_exactly_one
+3 failed, 3 deselected in 3.04s
+```
+
+The identity-count states: zero (fresh guest claims fine — pre-existing
+first-sign-in test), one (second claim refused; same-subject re-sign-in
+still succeeds and rotates the stored token), two-at-once (the concurrent
+test: two threads, two subjects, barrier release — exactly one wins, one
+`AccountMergeInvalid`, one row; under the old code both won). The
+two-rows-already-persisted state is covered where it can still exist — as
+pre-0015 data: `test_identity_uniqueness_migration_dedupes_and_enforces_one_per_user`
+(green-side only; it cannot run red because the revision did not exist)
+seeds duplicate Apple rows with distinct timestamps, duplicate Google rows
+with identical timestamps, and a single-identity user at revision 0014,
+upgrades, and asserts the oldest/tie-broken row survives, the lone identity
+is untouched, a fresh duplicate insert now fails on
+`uq_apple_identities_user_id`, and the downgrade re-admits duplicates.
+`test_migrated_schema_matches_model_metadata` (`command.check`) pins the
+model constraints to the migration's.
+
+Deletion-side atypical states (`tests/api/test_apple_auth.py`): an identity
+whose exchange returned no refresh token deletes with zero revocation calls
+(`X-Deletion-Status: completed`); a revocation Apple rejects (an expired or
+already-revoked grant) blocks deletion with 503, leaves the user and an
+audit row `failed`/`AppleTokenRevocationFailed`, and the same idempotency
+key retries to 204 once Apple accepts — the token is never discarded while
+the grant might be live.
+
+```text
+uv run pytest -q tests/integration/auth tests/api/test_apple_auth.py \
+    tests/api/test_google_auth.py tests/api/test_guest_auth.py   -> 24 passed in 11.66s
+uv run pytest -q tests/integration/test_migrations.py            -> 7 passed in 4.44s
+uv run ruff check ladle tests alembic                            -> All checks passed
+uv run mypy --strict ladle                                       -> clean
 ```
 
 ## Where this run stopped, and where the next one starts
