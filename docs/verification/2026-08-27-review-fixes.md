@@ -51,6 +51,7 @@ by the code they touch.
 | #19 | Uploaded thumbnails leaked on rollback or discard | `c863c5e` | fixed |
 | #15 | One account could hoard multiple Apple identities | `0ee5069` + `c745cb8` | fixed |
 | #14 | Import submission stalled every request on the worker | `1f2f0c1` | fixed |
+| #16 | Recipe child tables scanned on every fetch | `_pending_` | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -1703,6 +1704,81 @@ uv run pytest -q tests/api/test_import_route_concurrency.py            -> 1 pass
 uv run pytest -q tests/api tests/integration/auth/test_app_attest.py   -> 33 passed in 15.66s
 uv run ruff check ladle tests alembic                                  -> All checks passed
 uv run mypy --strict ladle                                             -> clean
+```
+
+## Finding #16 — three recipe child tables scanned on every fetch
+
+### The defect
+
+Every recipe fetch filters `detected_timers` on `recipe_step_id`,
+`field_uncertainties` on `recipe_id` and `other_nutrients` on
+`nutrition_recipe_id` (`RecipeRepository.to_dto`), and every recipe
+update deletes through the same columns (`_delete_graph`). None of the
+three columns had an index: `models.py` declared none, migration 0001
+created the tables with only a primary key on `id`, and no later
+migration added one. Postgres does not index a foreign key's
+referencing column on its own, and unlike `recipe_images`,
+`ingredients` and `recipe_steps` — whose `recipe_id` leads a unique
+constraint — nothing else covers these. Each of those statements was
+therefore a sequential scan of a table that is global and grows with
+every user's recipes (`detected_timers` at roughly recipes × steps ×
+timers), so one user's fetch latency scaled with the size of the whole
+corpus, and a 100-item sync page performed 200–300 full scans.
+
+The other child tables were checked for the same omission
+(leading-column index coverage of every foreign key, composite keys
+included). Covered: `recipe_images.recipe_id`, `ingredients.recipe_id`
+and `recipe_steps.recipe_id` by leading-column unique constraints,
+`step_ingredients` by its primary key, `nutrition.recipe_id` as the
+primary key, `recipes.user_id` by an explicit index. Same omission but
+probed only by rarer cascade or maintenance paths, so left for their
+own finding rather than silently widening this one:
+`field_uncertainties.ingredient_id` and `.step_id` (RI-trigger probes
+once per row when `_delete_graph` deletes a recipe's ingredients and
+steps), `recipe_changes.recipe_id` (probed when retention pruning or an
+account-deletion cascade hard-deletes recipe rows), and the auth/import
+graph (`devices.user_id`, `auth_sessions.user_id` and `.device_id`,
+`import_jobs`' five references, `extraction_claims.owner_job_id`,
+`import_quota_events.import_job_id`, `users.merged_into_user_id`,
+`recipes.source_video_id` and `.source_cache_id`,
+`provider_attempts.budget_window_started_at`), none of which sits on
+the per-fetch path.
+
+### The fix
+
+Named `Index(...)` declarations on the three models —
+`ix_detected_timers_recipe_step_id`, `ix_field_uncertainties_recipe_id`,
+`ix_other_nutrients_nutrition_recipe_id` — and migration 0016 creating
+the same three indexes, with a downgrade that drops them in reverse
+order. `test_migrated_schema_matches_model_metadata` (`alembic check`)
+holds the models and the migration chain identical, so neither side can
+drift from the other. The readiness probe pins the revision the
+application expects, so it moves to 0016 with the migration.
+
+### Verification
+
+`tests/integration/test_migrations.py::test_recipe_child_foreign_key_indexes_upgrade_and_downgrade`
+migrates an empty database to head, asserts each of the three indexes
+exists, then downgrades to 0015 and asserts all three are gone again.
+Red, before the fix:
+
+```text
+>           assert index in names, f"{table} has no index on its foreign key: {names}"
+E           AssertionError: detected_timers has no index on its foreign key: set()
+E           assert 'ix_detected_timers_recipe_step_id' in set()
+FAILED tests/integration/test_migrations.py::test_recipe_child_foreign_key_indexes_upgrade_and_downgrade
+1 failed in 2.38s
+```
+
+Green: the new test passes in both directions, and the rest of the
+migrations file — schema completeness, model/migration parity
+(`alembic check`), constraint enforcement, and every earlier
+up/downgrade test — stays green:
+
+```text
+uv run pytest -q tests/integration/test_migrations.py  -> 8 passed in 4.98s
+uv run ruff check ladle tests alembic                  -> All checks passed
+uv run mypy --strict ladle                             -> clean
 ```
 
 ## Where this run stopped, and where the next one starts

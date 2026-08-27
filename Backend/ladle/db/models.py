@@ -793,6 +793,7 @@ class StepIngredient(Base):
 
 class DetectedTimer(Base):
     __tablename__ = "detected_timers"
+    __table_args__ = (Index("ix_detected_timers_recipe_step_id", "recipe_step_id"),)
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     recipe_step_id: Mapped[UUID] = mapped_column(
@@ -828,6 +829,9 @@ class Nutrition(Base):
 
 class OtherNutrient(Base):
     __tablename__ = "other_nutrients"
+    __table_args__ = (
+        Index("ix_other_nutrients_nutrition_recipe_id", "nutrition_recipe_id"),
+    )
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     nutrition_recipe_id: Mapped[UUID] = mapped_column(
@@ -840,6 +844,7 @@ class OtherNutrient(Base):
 
 class FieldUncertainty(Base):
     __tablename__ = "field_uncertainties"
+    __table_args__ = (Index("ix_field_uncertainties_recipe_id", "recipe_id"),)
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     recipe_id: Mapped[UUID] = mapped_column(

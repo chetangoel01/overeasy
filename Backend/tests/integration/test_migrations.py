@@ -439,3 +439,33 @@ def test_identity_uniqueness_migration_dedupes_and_enforces_one_per_user(
         )
 
     engine.dispose()
+
+
+@pytest.mark.integration
+def test_recipe_child_foreign_key_indexes_upgrade_and_downgrade(
+    clean_postgres_url: str,
+) -> None:
+    """The three recipe child tables filtered on every fetch and delete —
+    detected_timers, field_uncertainties, other_nutrients — must index the
+    foreign-key column those filters use; Postgres does not index FK
+    referencing columns on its own, so without these every read is a
+    sequential scan of a globally growing table. Reversibly."""
+    expected = {
+        "detected_timers": "ix_detected_timers_recipe_step_id",
+        "field_uncertainties": "ix_field_uncertainties_recipe_id",
+        "other_nutrients": "ix_other_nutrients_nutrition_recipe_id",
+    }
+    config = alembic_config(clean_postgres_url)
+    command.upgrade(config, "head")
+    engine = create_engine(clean_postgres_url)
+    for table, index in expected.items():
+        names = {value["name"] for value in inspect(engine).get_indexes(table)}
+        assert index in names, f"{table} has no index on its foreign key: {names}"
+    engine.dispose()
+
+    command.downgrade(config, "0015")
+    engine = create_engine(clean_postgres_url)
+    for table, index in expected.items():
+        names = {value["name"] for value in inspect(engine).get_indexes(table)}
+        assert index not in names
+    engine.dispose()
