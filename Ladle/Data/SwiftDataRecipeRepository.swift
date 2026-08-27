@@ -316,10 +316,23 @@ final class SwiftDataRecipeRepository:
         pushed: Recipe
     ) throws {
         guard let stored = try storedRecipe(id: remoteRecipe.id) else {
-            // The row is gone, so the user hard-deleted it while the PUT was
-            // in flight (finding #28: a never-synced recipe is dropped
-            // without a tombstone). Re-inserting the server's copy here would
-            // resurrect it; the server-side delete is #28's to fix.
+            // The row is gone: the user hard-deleted this never-synced
+            // recipe (or a re-import replaced it) while the PUT was in
+            // flight. Re-inserting the server's copy would resurrect it.
+            // The response is also the first moment this device holds a
+            // valid base revision for the recipe, so queue the delete that
+            // removes the copy the push just created from the server.
+            let recipe = try remoteRecipe.recipe()
+            let tombstone = makeStoredRecipe(
+                recipe,
+                payload: try encoder.encode(recipe),
+                serverRevision: remoteRecipe.revision,
+                pendingMutation: .delete
+            )
+            tombstone.isTombstoned = true
+            tombstone.updatedAt = .now
+            modelContext.insert(tombstone)
+            try modelContext.save()
             return
         }
         let stillPendingTheSameUpsert =
@@ -436,6 +449,12 @@ final class SwiftDataRecipeRepository:
     func applySyncPage(_ page: RemoteSyncPageDTO) throws {
         for change in page.changes {
             let stored = try storedRecipe(id: change.recipeID)
+            if let stored,
+               change.recipeRevision <= stored.serverRevision {
+                // Already incorporated — including the echo of this device's
+                // own acknowledged push, which must not read as a conflict.
+                continue
+            }
             if let stored, stored.pendingMutationKey != nil {
                 if let remote = change.recipe {
                     stored.conflictRemotePayload = try encoder.encode(
@@ -443,10 +462,6 @@ final class SwiftDataRecipeRepository:
                     )
                 }
                 stored.conflictRemoteRevision = change.recipeRevision
-                continue
-            }
-            if let stored,
-               change.recipeRevision <= stored.serverRevision {
                 continue
             }
             switch change.kind {

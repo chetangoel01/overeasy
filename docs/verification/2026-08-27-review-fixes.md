@@ -40,6 +40,7 @@ by the code they touch.
 | #20 + #21 | Observability middleware 500s and blind spots | `fda602d` | fixed |
 | #33 | Cancelled requests reported as being offline | `fb9f643` | fixed |
 | #30 + #31 + #32 | Import-cancellation cluster | `814ba45` | fixed |
+| #28 | Delete during first upload came back | `_pending_` | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -835,6 +836,99 @@ server may have just created — the app never learned its ID. The row is gone
 locally; the orphaned remote job ends server-side, and an idempotent
 resubmission of the same job ID would surface as `cancelled`, which the app
 now handles.
+
+## Finding #28 — deleting a recipe during its first upload brought it back
+
+### The defect
+
+`deleteRecipe` hard-deletes any row whose `serverRevision` is still 0 —
+right when nothing was ever pushed, but the recipe's first PUT can be in
+flight at that moment. `performSync` snapshots `pendingRecipeMutations()`
+and suspends on the network with the MainActor free, so the user can delete
+the recipe mid-upload; the row died with no tombstone, and when the PUT
+response landed the repository had no memory that the recipe was deleted.
+Finding #7's fix had already stopped `markUpsertSynced` from re-inserting
+the server's copy, but its row-is-gone branch was left a deliberate no-op —
+so the pull phase of the same sync run met the upload's own change row with
+no stored row to match it, took the insert branch, and resurrected the
+recipe anyway. The recipe the user deleted reappeared in the library, fully
+synced, and its server copy survived to sync to every other device.
+
+### The fix
+
+The flagged line — the hard delete at `serverRevision == 0` — is
+deliberately unchanged. Tombstoning never-pushed rows instead would either
+wedge sync (the DELETE route requires `baseRevision >= 1`, so a base-0
+delete draws a 422 the push loop cannot classify) or leave immortal
+invisible rows when no upload was in flight. The acknowledgement is the
+first moment this device holds a valid base revision for the recipe, so the
+fix lands there: `markUpsertSynced`'s row-is-gone branch now inserts a
+tombstoned row at the revision the server just assigned, with a pending
+`.delete` — the next sync removes the copy the push created, and
+`markDeleteSynced` then drops the row for good.
+
+That alone would have traded resurrection for a phantom conflict: the same
+run's pull still delivers the upload's own change row, and `applySyncPage`
+checked "does this row have a pending mutation?" before "is this change
+news?". The echo — revision equal to the row's own `serverRevision` —
+landed in the conflict branch of the freshly tombstoned row. The staleness
+guard now runs first: a change whose revision the row already incorporates
+is skipped no matter what is pending. Real conflicts always carry a
+revision above the row's base, so none are lost — and a replayed page can
+no longer re-create an already-resolved conflict either.
+
+`deleteRecipe` on a row with nothing pending and `serverRevision == 0`
+(seeded and demo rows) still hard-deletes with nothing queued, as before.
+
+### Verification
+
+Both halves have their own red.
+`testDeletingARecipeMidFirstUploadQueuesTheServerSideDelete` (save, delete
+mid-flight, acknowledge the PUT) — red before the fix:
+
+```text
+XCTAssertEqual failed: ("[]") is not equal to
+  ("[Ladle.PendingRecipeMutation.delete(recipeID: 74B93D6E-…, baseRevision: 1)]")
+```
+
+`testFirstUploadEchoDoesNotConflictWithTheQueuedServerDelete` continues the
+scenario into the pull. Red before any fix — the deleted recipe is back:
+
+```text
+XCTAssertNil failed: "Recipe(id: 0EDCD880-…, title: "One-Pot Lemon Orzo", …)"
+XCTAssertEqual failed: ("[]") is not equal to
+  ("[Ladle.PendingRecipeMutation.delete(recipeID: 0EDCD880-…, baseRevision: 1)]")
+```
+
+and red again with only the acknowledgement half applied — the phantom
+conflict the guard reorder exists to prevent
+(`syncConflictCount`, SwiftDataRecipeRepositoryTests.swift:457):
+
+```text
+XCTAssertEqual failed: ("1") is not equal to ("0")
+```
+
+`testDeletingANeverUploadedRecipeQueuesNothing` pins the untouched plain
+path: created and deleted before any sync, the store ends truly empty —
+zero rows, nothing pending, so no unpushable base-0 delete can ever be
+queued.
+
+Atypical states covered: deleting a never-synced (`serverRevision == 0`)
+recipe while its first upload is in flight; the same deletion with no
+upload in flight (nothing queued, no lingering row); the pull echo of the
+device's own push over the queued tombstone; the empty-store end state
+after create-then-delete offline.
+
+Green: `-only-testing:LadleTests/SwiftDataRecipeRepositoryTests` at 21
+executed, 0 failures; full `-only-testing:LadleTests` at 277 executed, 1
+skipped, 0 failures.
+
+Known residual, recorded deliberately: if the PUT commits server-side but
+its response never arrives, the acknowledgement never runs — the local row
+is already gone, and the next pull re-inserts the recipe. Closing that
+window needs the client to queue deletes it cannot yet base-revision, i.e.
+a contract change (the DELETE route rejects `baseRevision < 1`). Out of
+scope here; that window queued nothing before this fix either.
 
 ## Where this run stopped, and where the next one starts
 

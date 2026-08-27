@@ -407,6 +407,80 @@ final class SwiftDataRecipeRepositoryTests: XCTestCase {
         )
     }
 
+    func testDeletingARecipeMidFirstUploadQueuesTheServerSideDelete() throws {
+        let fixture = try makeFixture()
+        let repository = fixture.repository
+        let recipe = makeRecipe()
+        try repository.save(recipe)
+
+        // The first PUT is in flight; the user deletes the recipe. Nothing
+        // is known to exist server-side yet, so the row is hard-deleted.
+        try repository.deleteRecipe(id: recipe.id)
+        XCTAssertNil(try repository.fetchRecipe(id: recipe.id))
+
+        // The PUT lands: the server now has the recipe at revision 1.
+        try repository.markUpsertSynced(
+            RemoteRecipeDTO(recipe: recipe, revision: 1),
+            pushed: recipe
+        )
+
+        // The recipe must stay deleted on this device, and the copy the PUT
+        // just created must be queued for a server-side delete.
+        XCTAssertNil(try repository.fetchRecipe(id: recipe.id))
+        XCTAssertTrue(try repository.fetchRecipes().isEmpty)
+        XCTAssertEqual(
+            try repository.pendingRecipeMutations(),
+            [.delete(recipeID: recipe.id, baseRevision: 1)]
+        )
+        XCTAssertEqual(try repository.syncConflictCount(), 0)
+    }
+
+    func testFirstUploadEchoDoesNotConflictWithTheQueuedServerDelete() throws {
+        let fixture = try makeFixture()
+        let repository = fixture.repository
+        let recipe = makeRecipe()
+        try repository.save(recipe)
+        try repository.deleteRecipe(id: recipe.id)
+        try repository.markUpsertSynced(
+            RemoteRecipeDTO(recipe: recipe, revision: 1),
+            pushed: recipe
+        )
+
+        // The same sync run's pull returns the upload's own change row.
+        try repository.applySyncPage(
+            makeSyncPage([
+                try upsertChange(recipe, revision: 1, sequence: 1),
+            ])
+        )
+
+        XCTAssertNil(try repository.fetchRecipe(id: recipe.id))
+        XCTAssertEqual(try repository.syncConflictCount(), 0)
+        XCTAssertEqual(
+            try repository.pendingRecipeMutations(),
+            [.delete(recipeID: recipe.id, baseRevision: 1)]
+        )
+    }
+
+    func testDeletingANeverUploadedRecipeQueuesNothing() throws {
+        // Created and deleted before any sync: nothing exists server-side,
+        // so nothing may be queued and no row may linger.
+        let fixture = try makeFixture()
+        let repository = fixture.repository
+        let recipe = makeRecipe()
+        try repository.save(recipe)
+
+        try repository.deleteRecipe(id: recipe.id)
+
+        XCTAssertTrue(try repository.fetchRecipes().isEmpty)
+        XCTAssertTrue(try repository.pendingRecipeMutations().isEmpty)
+        XCTAssertEqual(
+            try fixture.container.mainContext.fetchCount(
+                FetchDescriptor<StoredRecipe>()
+            ),
+            0
+        )
+    }
+
     func testWipingLocalDataClearsEverythingWithoutQueueingTombstones() throws {
         let fixture = try makeFixture()
         let repository = fixture.repository
@@ -443,6 +517,57 @@ final class SwiftDataRecipeRepositoryTests: XCTestCase {
                 modelContext: container.mainContext
             )
         )
+    }
+
+    /// The sync-page DTOs are decode-only, so tests build them the way the
+    /// server does: as contract JSON.
+    private func makeSyncPage(
+        _ changes: [[String: Any]]
+    ) throws -> RemoteSyncPageDTO {
+        let payload = try JSONSerialization.data(withJSONObject: [
+            "changes": changes,
+            "nextCursor": 1,
+            "hasMore": false,
+        ] as [String: Any])
+        return try RemoteContractJSON.decoder().decode(
+            RemoteSyncPageDTO.self,
+            from: payload
+        )
+    }
+
+    private func upsertChange(
+        _ recipe: Recipe,
+        revision: Int,
+        sequence: Int
+    ) throws -> [String: Any] {
+        let dto = RemoteRecipeDTO(recipe: recipe, revision: revision)
+        let recipeJSON = try JSONSerialization.jsonObject(
+            with: RemoteContractJSON.encoder().encode(dto)
+        )
+        return syncChange(
+            kind: "upsert",
+            recipeID: recipe.id,
+            revision: revision,
+            sequence: sequence,
+            recipe: recipeJSON
+        )
+    }
+
+    private func syncChange(
+        kind: String,
+        recipeID: UUID,
+        revision: Int,
+        sequence: Int,
+        recipe: Any
+    ) -> [String: Any] {
+        [
+            "sequence": sequence,
+            "recipeID": recipeID.uuidString,
+            "kind": kind,
+            "recipeRevision": revision,
+            "changedAt": "2026-08-27T12:00:00.000Z",
+            "recipe": recipe,
+        ]
     }
 
     private func makeRecipe() -> Recipe {
