@@ -29,7 +29,8 @@ by the code they touch.
 | #10 | Uncancelled sync task writes after wipe | `d49b549` | fixed |
 | #5 | Imported recipes lost their notes | `cb7e366` | fixed |
 | #1 + #24 | Cancelled imports: downgrade and wire enum | `2de8bb2` | fixed |
-| #9 | Rejected delete wedged every later sync | `_pending_` | fixed |
+| #9 | Rejected delete wedged every later sync | `5eb298e` | fixed |
+| (new) | Tombstones lost on the next save of the row | `_pending_` | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -339,3 +340,40 @@ delete was marked synced. Red (conflict arm disabled): the sync throws
 `remote(RemoteErrorDTO(code: syncConflict …))` out of `synchronize()` before
 the pull. Green after the fix, with `-only-testing:LadleTests` at 255 executed,
 1 skipped, 0 failures.
+
+## Beyond the 45 — deleted recipes came back on the next save
+
+Found while building the red test for #7, using only pre-existing production
+code: `saveRemote`, `deleteRecipe`, then `preserveConflict` on the same
+recipe. The tombstone held right after the delete and was gone after the next
+save of that row — the recipe was fetchable again, while its pending `.delete`
+mutation remained. Not one of the 45 findings; recorded here rather than in
+`.review/`.
+
+The cause is a name collision: `StoredRecipe` declared a stored property
+`isDeleted`, which `PersistentModel` already vends. The schema attribute was
+reset to `false` by the next save of the row.
+
+This is not a corner case. Any later write to a deleted-but-unpushed recipe
+resurrects it in the library, and finding #9's fix makes that path routine —
+a rejected delete now *always* preserves a conflict on the tombstoned row, so
+without this fix every delete conflict would have resurrected the recipe it
+was about.
+
+The property is now `isTombstoned`, carrying `@Attribute(originalName:
+"isDeleted")` so existing stores migrate rather than starting over. The name
+also says what the flag means, which the old one did not: the row is a local
+tombstone awaiting its DELETE push, not a deleted object.
+
+### Verification
+
+`LadleTests/SwiftDataRecipeRepositoryTests.testTombstoneSurvivesALaterSaveOfTheSameRow`
+deletes a synced recipe, preserves a conflict on it, and asserts the recipe
+stays gone from both the single fetch and the list while the delete stays
+pending. Red before the rename (`XCTAssertNil failed: "Recipe(id: …)"`), green
+after. Full `-only-testing:LadleTests` run: 256 executed, 1 skipped, 0
+failures — the rename touched `applySyncPage`'s tombstone branches too and
+changed nothing else.
+
+A grep of the `@Model` types for other members that shadow `PersistentModel`
+API (`hasChanges`, `modelContext`, `persistentModelID`) found none.

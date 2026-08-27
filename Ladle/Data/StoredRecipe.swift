@@ -14,7 +14,13 @@ final class StoredRecipe {
     var payload: Data
     var serverRevision: Int = 0
     var pendingMutationKey: String?
-    var isDeleted: Bool = false
+    /// Deleted locally, awaiting the DELETE push.
+    ///
+    /// Named `isTombstoned` rather than `isDeleted` because `PersistentModel`
+    /// already vends `isDeleted`; a same-named stored property is reset to
+    /// false by the next save of the row, silently resurrecting the recipe.
+    @Attribute(originalName: "isDeleted")
+    var isTombstoned: Bool = false
     var conflictRemotePayload: Data?
     var conflictRemoteRevision: Int?
 
@@ -30,7 +36,7 @@ final class StoredRecipe {
         payload: Data,
         serverRevision: Int = 0,
         pendingMutationKey: String? = nil,
-        isDeleted: Bool = false,
+        isTombstoned: Bool = false,
         conflictRemotePayload: Data? = nil,
         conflictRemoteRevision: Int? = nil
     ) {
@@ -45,7 +51,7 @@ final class StoredRecipe {
         self.payload = payload
         self.serverRevision = serverRevision
         self.pendingMutationKey = pendingMutationKey
-        self.isDeleted = isDeleted
+        self.isTombstoned = isTombstoned
         self.conflictRemotePayload = conflictRemotePayload
         self.conflictRemoteRevision = conflictRemoteRevision
     }

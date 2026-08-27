@@ -29,7 +29,7 @@ final class SwiftDataRecipeRepository:
 
     func fetchRecipes() throws -> [Recipe] {
         let descriptor = FetchDescriptor<StoredRecipe>(
-            predicate: #Predicate { !$0.isDeleted },
+            predicate: #Predicate { !$0.isTombstoned },
             sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
         )
         return try modelContext.fetch(descriptor).map(decodeRecipe)
@@ -37,7 +37,7 @@ final class SwiftDataRecipeRepository:
 
     func fetchRecipe(id: UUID) throws -> Recipe? {
         var descriptor = FetchDescriptor<StoredRecipe>(
-            predicate: #Predicate { $0.id == id && !$0.isDeleted }
+            predicate: #Predicate { $0.id == id && !$0.isTombstoned }
         )
         descriptor.fetchLimit = 1
         return try modelContext.fetch(descriptor).first.map(decodeRecipe)
@@ -47,7 +47,7 @@ final class SwiftDataRecipeRepository:
         let payload = try encoder.encode(recipe)
         if let stored = try storedRecipe(id: recipe.id) {
             apply(recipe, payload: payload, to: stored)
-            stored.isDeleted = false
+            stored.isTombstoned = false
             stored.pendingMutationKey = PendingMutation.upsert.rawValue
         } else {
             modelContext.insert(
@@ -67,7 +67,7 @@ final class SwiftDataRecipeRepository:
             apply(recipe, payload: payload, to: stored)
             stored.serverRevision = revision
             stored.pendingMutationKey = nil
-            stored.isDeleted = false
+            stored.isTombstoned = false
             stored.conflictRemotePayload = nil
             stored.conflictRemoteRevision = nil
         } else {
@@ -87,7 +87,7 @@ final class SwiftDataRecipeRepository:
             if stored.serverRevision == 0 {
                 modelContext.delete(stored)
             } else {
-                stored.isDeleted = true
+                stored.isTombstoned = true
                 stored.pendingMutationKey = PendingMutation.delete.rawValue
                 stored.updatedAt = .now
             }
@@ -171,7 +171,7 @@ final class SwiftDataRecipeRepository:
             let recipePayload = try encoder.encode(recipe)
             if let stored = try storedRecipe(id: recipe.id) {
                 apply(recipe, payload: recipePayload, to: stored)
-                stored.isDeleted = false
+                stored.isTombstoned = false
                 stored.pendingMutationKey = PendingMutation.upsert.rawValue
             } else {
                 modelContext.insert(
@@ -395,7 +395,7 @@ final class SwiftDataRecipeRepository:
                 apply(remote, payload: payload, to: stored)
                 stored.serverRevision = remoteRevision
                 stored.pendingMutationKey = nil
-                stored.isDeleted = false
+                stored.isTombstoned = false
                 clearConflict(on: stored)
             } else {
                 modelContext.delete(stored)
@@ -435,7 +435,7 @@ final class SwiftDataRecipeRepository:
                 if let stored {
                     apply(recipe, payload: payload, to: stored)
                     stored.serverRevision = remote.revision
-                    stored.isDeleted = false
+                    stored.isTombstoned = false
                     stored.conflictRemotePayload = nil
                     stored.conflictRemoteRevision = nil
                 } else {

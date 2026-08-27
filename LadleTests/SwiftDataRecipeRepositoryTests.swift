@@ -316,6 +316,30 @@ final class SwiftDataRecipeRepositoryTests: XCTestCase {
         XCTAssertTrue(try repository.pendingRecipeMutations().isEmpty)
     }
 
+    func testTombstoneSurvivesALaterSaveOfTheSameRow() throws {
+        let fixture = try makeFixture()
+        let repository = fixture.repository
+        let recipe = makeRecipe()
+        try repository.saveRemote(recipe, revision: 1)
+        try repository.deleteRecipe(id: recipe.id)
+        XCTAssertNil(try repository.fetchRecipe(id: recipe.id))
+
+        // Any later write to the row — here the conflict a rejected delete
+        // preserves — must not bring the recipe back.
+        try repository.preserveConflict(
+            localRecipeID: recipe.id,
+            remoteRecipe: RemoteRecipeDTO(recipe: recipe, revision: 2),
+            remoteRevision: 2
+        )
+
+        XCTAssertNil(try repository.fetchRecipe(id: recipe.id))
+        XCTAssertTrue(try repository.fetchRecipes().isEmpty)
+        XCTAssertEqual(
+            try repository.pendingRecipeMutations(),
+            [.delete(recipeID: recipe.id, baseRevision: 1)]
+        )
+    }
+
     func testWipingLocalDataClearsEverythingWithoutQueueingTombstones() throws {
         let fixture = try makeFixture()
         let repository = fixture.repository
