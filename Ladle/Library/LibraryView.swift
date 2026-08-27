@@ -65,10 +65,13 @@ struct LibraryView: View {
     @Bindable var viewModel: LibraryViewModel
     @Bindable var importCoordinator: ImportCoordinator
     let accountSession: AccountSession
+    var authClient: AuthClient?
+    var googleSignIn: (any GoogleSignInProviding)?
     var discoverService: any DiscoverServing = DemoDiscoverService()
     var syncStatus: SyncStatus = SyncStatus()
     var notificationNavigation: NotificationNavigation = .shared
     var canImport = true
+    var onAuthenticated: @MainActor () async -> Void = {}
     var onSignOut: @MainActor () async -> Void = {}
     var onDeleteAccount: @MainActor () async throws -> Void = {}
 
@@ -139,6 +142,9 @@ struct LibraryView: View {
                 AddRecipeSheet(
                     coordinator: importCoordinator,
                     accountSession: accountSession,
+                    authClient: authClient,
+                    googleSignIn: googleSignIn,
+                    onAuthenticated: onAuthenticated,
                     viewRecipe: queueNavigation
                 )
             }

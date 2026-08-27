@@ -6,6 +6,9 @@ struct AddRecipeSheet: View {
 
     @Bindable var coordinator: ImportCoordinator
     let accountSession: AccountSession
+    let authClient: AuthClient?
+    let googleSignIn: (any GoogleSignInProviding)?
+    let onAuthenticated: @MainActor () async -> Void
     let viewRecipe: (Recipe, String) -> Void
 
     @State private var linkText = ""
@@ -20,11 +23,18 @@ struct AddRecipeSheet: View {
     init(
         coordinator: ImportCoordinator,
         accountSession: AccountSession,
+        authClient: AuthClient? = nil,
+        googleSignIn: (any GoogleSignInProviding)? = nil,
+        onAuthenticated:
+            @escaping @MainActor () async -> Void = {},
         initialLink: String = "",
         viewRecipe: @escaping (Recipe, String) -> Void
     ) {
         self.coordinator = coordinator
         self.accountSession = accountSession
+        self.authClient = authClient
+        self.googleSignIn = googleSignIn
+        self.onAuthenticated = onAuthenticated
         self.viewRecipe = viewRecipe
         _linkText = State(initialValue: initialLink)
     }
@@ -112,17 +122,6 @@ struct AddRecipeSheet: View {
             }
             if coordinator.isImporting {
                 selectedDetent = .large
-            }
-        }
-        .onChange(of: accountSession.state) { _, state in
-            guard state == .freeAccount
-                    || state == .signedInWithApple
-                    || state == .signedInWithGoogle,
-                  case .guestLimit = coordinator.state else {
-                return
-            }
-            Task {
-                await coordinator.continueAfterGuestPrompt()
             }
         }
         .onChange(of: coordinator.state) { _, state in
@@ -441,7 +440,15 @@ struct AddRecipeSheet: View {
     ) -> some View {
         GuestLimitView(
             decision: decision,
-            accountSession: accountSession
+            accountSession: accountSession,
+            authClient: authClient,
+            googleSignIn: googleSignIn,
+            onAuthenticated: {
+                // The backend has confirmed the account. Sync the merged
+                // library first, then resume the import that hit the cap.
+                await onAuthenticated()
+                await coordinator.continueAfterGuestPrompt()
+            }
         ) {
             Task {
                 await coordinator.continueAfterGuestPrompt()

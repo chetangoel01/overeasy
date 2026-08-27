@@ -54,6 +54,7 @@ by the code they touch.
 | #16 | Recipe child tables scanned on every fetch | `a75771f` | fixed |
 | #23 | One sync page fanned out to ~900 queries | `be5da00` | fixed |
 | #22 | Traces exported the USDA API key in the URL | `49d6bed` | fixed |
+| #25 | Guest-limit account creation was a local flip | `_pending_` | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -2056,6 +2057,108 @@ uv run mypy --strict ladle                                  -> Success: no issue
 The `ruff format` line covers this rework's hunks and one 3-line hunk
 `356aa66` itself landed unformatted in the same test file; `main`'s copy
 of both files was clean, so neither is part of the known 35-file drift.
+
+## Finding #25 — "Create a free account" created no account at all
+
+### The defect
+
+The guest-limit sheet's primary CTA called
+`AccountSession.createFreeAccount()`, which only persisted `"freeAccount"`
+to UserDefaults. No backend account was created and no sign-in ran, so one
+tap permanently defeated the 10-recipe guest cap on that install:
+`saveDecision` returns `.allow` for `.freeAccount`, and every later import
+bypassed `GuestPolicy`. In remote builds the server still knew the user as
+a guest, so the bypassed submit came back `guestRecipeLimitReached`, the
+identical sheet reappeared, and a second tap did nothing at all — the state
+write was idempotent, so the sheet's `onChange` never refired. The import
+that raised the sheet was stuck for good, while Settings reported "Signed
+in to Overeasy" and "Your recipes stay synced across your devices" for a
+user who had no account anywhere.
+
+### The fix
+
+The user's decision: wire the button to the real sign-in flow, end to end.
+
+The welcome screen's authentication pipeline — Apple credential and nonce
+handling, the bootstrap-then-merge sequence against `AuthClient`, Google
+provider handling, and the failure mapping — is extracted verbatim into
+`AccountSignInFlow` (`Ladle/Account/AccountSignInFlow.swift`), and
+`WelcomeAuthenticationFailure` becomes `AccountAuthenticationFailure` with
+one addition: the backend's 409 `conflict` from a refused identity claim
+(the one-identity-per-account rule from `0ee5069`) gets its own visible
+message instead of a generic decode complaint. `WelcomeView` now drives the
+shared flow; its layout is unchanged.
+
+`GuestLimitView` replaces the fake button with the real account options —
+`SignInWithAppleButton(.continue)` and the shared Google control — driven
+by the same flow. `AccountSession.createFreeAccount()` is deleted: local
+account state now changes only in `applyRemoteUserKind`, i.e. after the
+backend has returned tokens for a confirmed account. `LadleRuntime`'s
+`authClient`, `googleSignIn` and `didAuthenticate` thread down through
+`RootView` → `LibraryView` → `AddRecipeSheet`, and on success the sheet
+first re-syncs (the merge can land the guest's library in a different
+account) and then resumes the blocked import via
+`continueAfterGuestPrompt()` — one deterministic trigger, replacing the
+account-state `onChange` that used to race it. Demo and UI-test builds
+have no `AuthClient`; the flow keeps the welcome screen's local-flip
+fallback there, so `-ui-testing` scenarios still unlock.
+
+Every failure path lands visibly on the sheet: provider errors, offline
+(`"You're offline. Reconnect and try again."`), rate limits, and the
+identity conflict all render under the buttons, with the sheet re-enabled
+for another attempt. A cancelled provider sheet deliberately shows no error
+banner — same as the welcome screen and the platform convention for a
+user-initiated cancel — but the flow's tests pin what "handled" means
+there: no spinner left behind, no state change, the buttons live again.
+
+### Verification
+
+The red test drove exactly what the shipping button did — the local flip,
+then the sheet's resume path — and asserted the guest must stay capped:
+
+```text
+ImportCoordinatorTests.swift:204: error: -[LadleTests.ImportCoordinatorTests
+testGuestLimitAccountCreationWithoutBackendConfirmationLeavesTheGuestCapped] :
+XCTAssertEqual failed: ("freeAccount") is not equal to ("guest") - No backend
+confirmed an account, so the device must stay a guest
+ImportCoordinatorTests.swift:209: error: ... XCTAssertEqual failed: ("allow")
+is not equal to ("limitReached") - A guest without a confirmed account must
+stay capped at 10
+ImportCoordinatorTests.swift:214: error: ... XCTAssertEqual failed: ("11") is
+not equal to ("10") - The 11th recipe must not save without a real account
+ImportCoordinatorTests.swift:219: error: ... XCTAssertEqual failed:
+("completed(recipeID: C6A54BA3-805E-4E2C-A864-B21D0FA14AE6)") is not equal to
+("guestLimit(LadleCore.GuestSaveDecision.limitReached)") - The blocked import
+must stay on the limit sheet, not proceed
+Executed 1 test, with 4 failures (0 unexpected) in 0.362 (0.364) seconds
+```
+
+The fix removes `createFreeAccount()`, so the same-named test keeps its
+invariants but now reaches them the only way the UI can: the real flow with
+a provider that fails before the backend confirms anything. It passes, and
+additionally pins that the failure is visible and the sheet interactive.
+
+`LadleTests/AccountSignInFlowTests` (new) covers the atypical states: a
+cancelled Google sign-in and a cancelled Apple sign-in (capped, no error
+banner, no spinner, no backend call), a provider failure and an offline
+attempt (capped, visible message, guest token untouched), the 409 identity
+conflict (capped, dedicated message), a second tap while a sign-in is in
+flight (ignored; one provider call, one `onAuthenticated`), a successful
+Google sign-in whose response carries a *different* userID (the
+merged-into-existing-account case that makes the re-sync matter), a
+sign-in with no stored tokens (zero-recipe guest: bootstraps
+`/v1/auth/guest` before `/v1/auth/google`), a successful Apple sign-in,
+and the demo-build fallback. `AccountSessionTests` pins the cap boundary
+at 0, 8, 9, 10 and 11 saved recipes, and its free-account test now goes
+through `applyRemoteUserKind` — the only door left.
+
+`-only-testing:LadleTests` executes 303 tests, 1 skipped (pre-existing),
+0 failures; `swift test --package-path Packages/LadleCore` passes 46.
+Walked through in the simulator (`-ui-testing -onboarding-complete
+-demo-scenario large-library`, an 80-recipe guest): submitting a link now
+raises the sheet with the two real sign-in buttons, and completing the
+demo sign-in resumes the blocked import straight to "Recipe saved" —
+the flow the old button could never finish.
 
 ## Where this run stopped, and where the next one starts
 

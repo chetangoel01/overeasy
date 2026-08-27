@@ -62,12 +62,15 @@ struct RootView: View {
                     viewModel: libraryViewModel,
                     importCoordinator: importCoordinator,
                     accountSession: accountSession,
+                    authClient: authClient,
+                    googleSignIn: googleSignIn,
                     discoverService: discoverService,
                     syncStatus: syncStatus,
                     notificationNavigation: notificationNavigation,
                     canImport:
                         authClient == nil
                         || accountSession.isRemoteSessionReady,
+                    onAuthenticated: onAuthenticated,
                     onSignOut: onSignOut,
                     onDeleteAccount: onDeleteAccount
                 )

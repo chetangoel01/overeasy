@@ -19,6 +19,7 @@
 		1028AD29B58A5FD4AE029900 /* GuestLimitView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 480030F07BD940462128F4AE /* GuestLimitView.swift */; };
 		111AB9F91CF8DA219B560D2A /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA427F9A68EAFE92CBFCB53E /* LibraryView.swift */; };
 		13A8E77CA71DE564C79A291E /* ShareURLExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A93A16FCFB7610C2A4F09D4 /* ShareURLExtractor.swift */; };
+		18464C71AB8EC036906EE0DE /* AccountSignInFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 782D7CDC7177310F614CF1C6 /* AccountSignInFlow.swift */; };
 		19817C767CFBCAA88DFC31C5 /* HealthExportSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 673D9EEE813C58368B614A0F /* HealthExportSheet.swift */; };
 		1D7AE199157D84F1562E6C95 /* ReimportSafetyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2461B3FDEC6CF3119C4548A /* ReimportSafetyTests.swift */; };
 		1E030826FAE0A2B854964CA7 /* AppBootstrap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EC3E6A7C19F7CCCF1033B3A /* AppBootstrap.swift */; };
@@ -124,6 +125,7 @@
 		EA39C0028F88E65EE07DDC79 /* FilterSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5054FD0987A041FE9A5619DB /* FilterSheet.swift */; };
 		EF0148FC094665EF210ACCB5 /* IngredientList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BB8A28AE010B51E06742584 /* IngredientList.swift */; };
 		FA4BA8A760D9DDCB30729AB7 /* RecipeEditorViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 703E2046735779150499C97A /* RecipeEditorViewModelTests.swift */; };
+		FB9567B0ACA37E886EC1872F /* AccountSignInFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC2EA0A4ED5DA1FF6838A0F4 /* AccountSignInFlowTests.swift */; };
 		FBE657A54D9B4A76364BC5C3 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5BDEAB572C83A392AED5C622 /* Assets.xcassets */; };
 		FED8F6252BF9482B0F17209C /* AddRecipeSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE36346682BDD2B5E7976D13 /* AddRecipeSheet.swift */; };
 /* End PBXBuildFile section */
@@ -218,6 +220,7 @@
 		72BCED0B970235948B037494 /* SyncCursorStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncCursorStore.swift; sourceTree = "<group>"; };
 		739B606520A158CF7F843006 /* HealthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthService.swift; sourceTree = "<group>"; };
 		73F97C3F8A386730B6CB7BC2 /* UserNotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserNotificationService.swift; sourceTree = "<group>"; };
+		782D7CDC7177310F614CF1C6 /* AccountSignInFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSignInFlow.swift; sourceTree = "<group>"; };
 		79C69755A0FE0CB8CFD2F500 /* RecipeListRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeListRow.swift; sourceTree = "<group>"; };
 		7B2EA3F560B531E7D745E2BC /* RecipePresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipePresentation.swift; sourceTree = "<group>"; };
 		7CAD674446D07BDCDBFD2F66 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
@@ -285,6 +288,7 @@
 		F7CCBA4794A638FF56EBDD1A /* ReimportSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReimportSheet.swift; sourceTree = "<group>"; };
 		FA36568911CF179D67D23CA8 /* SyncConflictReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncConflictReviewView.swift; sourceTree = "<group>"; };
 		FA758C400CD14A086E39D48D /* KeychainTokenStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainTokenStore.swift; sourceTree = "<group>"; };
+		FC2EA0A4ED5DA1FF6838A0F4 /* AccountSignInFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSignInFlowTests.swift; sourceTree = "<group>"; };
 		FCE40C1144201ECA9A36E8BC /* ImportCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportCoordinator.swift; sourceTree = "<group>"; };
 		FD556EA28CCDB3071B569D0C /* RecipeArtworkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeArtworkView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -401,6 +405,7 @@
 			children = (
 				DB9237724B9663AD4AFC1232 /* AccountSession.swift */,
 				35EFCC50D17300CF2E3C284E /* AccountSheet.swift */,
+				782D7CDC7177310F614CF1C6 /* AccountSignInFlow.swift */,
 				015AA36229E912578D0E22A5 /* AppAttestClient.swift */,
 				E9C01DA218666D762AB16E8A /* AuthClient.swift */,
 				2A229BB67821612265D01BD7 /* GoogleSignInProvider.swift */,
@@ -468,6 +473,7 @@
 			children = (
 				DF887E67522E51849E46A63C /* Support */,
 				B38BC487172BD4E150410E78 /* AccountSessionTests.swift */,
+				FC2EA0A4ED5DA1FF6838A0F4 /* AccountSignInFlowTests.swift */,
 				AC34B6B51E6AF6B47D8FC45D /* APIClientTests.swift */,
 				30A84A5F8B238E1FDC631926 /* AppAttestClientTests.swift */,
 				168A0A47134E3312FBAD080E /* AppBootstrapTests.swift */,
@@ -785,6 +791,7 @@
 				7F7F801ED46BB5D88AB81AA1 /* APIError.swift in Sources */,
 				69743766694999A4F7022D3F /* AccountSession.swift in Sources */,
 				E25710AC24E77B43AD6B6631 /* AccountSheet.swift in Sources */,
+				18464C71AB8EC036906EE0DE /* AccountSignInFlow.swift in Sources */,
 				FED8F6252BF9482B0F17209C /* AddRecipeSheet.swift in Sources */,
 				DFC659D823A4B7AA5BFD3E4E /* AllRecipesView.swift in Sources */,
 				B8666103939A1C937D3007CF /* AppAttestClient.swift in Sources */,
@@ -877,6 +884,7 @@
 			files = (
 				224F559012E7DF26C228AF43 /* APIClientTests.swift in Sources */,
 				9C16EF897125A7B0B4CBF604 /* AccountSessionTests.swift in Sources */,
+				FB9567B0ACA37E886EC1872F /* AccountSignInFlowTests.swift in Sources */,
 				8E8D469AEBAD18304870D64B /* AppAttestClientTests.swift in Sources */,
 				40E9F40421BC4A40D32746A3 /* AppBootstrapTests.swift in Sources */,
 				4CE9B8C981FF6E36E6152685 /* AuthClientTests.swift in Sources */,

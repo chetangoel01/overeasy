@@ -76,10 +76,6 @@ final class AccountSession {
         completeWelcome(as: .guest)
     }
 
-    func createFreeAccount() {
-        completeWelcome(as: .freeAccount)
-    }
-
     func signInWithApple() {
         completeWelcome(as: .signedInWithApple)
     }

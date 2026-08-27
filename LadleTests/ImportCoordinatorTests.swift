@@ -163,11 +163,96 @@ final class ImportCoordinatorTests: XCTestCase {
         )
         XCTAssertTrue(repository.importJobs.isEmpty)
 
-        accountSession.createFreeAccount()
+        // The backend confirms the merged account; the sheet then resumes
+        // the blocked import.
+        accountSession.applyRemoteUserKind("apple")
         await coordinator.continueAfterGuestPrompt()
 
         XCTAssertEqual(repository.recipes.count, 11)
         XCTAssertEqual(repository.importJobs.first?.status, .ready)
+    }
+
+    func testGuestLimitAccountCreationWithoutBackendConfirmationLeavesTheGuestCapped() async {
+        let repository = ImportTestRepository(
+            recipes: (0..<10).map {
+                importRecipe(
+                    id: UUID(),
+                    title: "Recipe \($0)",
+                    originalURL: URL(
+                        string: "https://example.com/recipe-\($0)"
+                    )!
+                )
+            }
+        )
+        let accountSession = AccountSession(
+            store: ImportTestPreferenceStore()
+        )
+        accountSession.continueAsGuest()
+        let coordinator = makeCoordinator(
+            repository: repository,
+            accountSession: accountSession
+        )
+
+        await coordinator.submit(
+            urlText: "https://youtu.be/ready-green-curry"
+        )
+        XCTAssertEqual(coordinator.state, .guestLimit(.limitReached))
+
+        // The guest-limit sheet's create-account buttons drive the real
+        // sign-in flow; here the provider fails before the backend ever
+        // confirms an account.
+        let tokenStore = InMemoryAuthTokenStore(
+            tokens: .fixture(accessToken: "guest-access")
+        )
+        let flow = AccountSignInFlow(
+            accountSession: accountSession,
+            authClient: AuthClient(
+                api: APIClient(
+                    baseURL: URL(string: "https://api.ladle.test")!,
+                    session: URLProtocolStub.session(),
+                    tokenStore: tokenStore
+                ),
+                tokenStore: tokenStore,
+                accountSession: accountSession,
+                installationIdentity: InstallationIdentity(
+                    store: ImportTestPreferenceStore()
+                )
+            ),
+            googleSignIn: FailingGoogleSignInProvider(),
+            onAuthenticated: {
+                await coordinator.continueAfterGuestPrompt()
+            }
+        )
+        await flow.signInWithGoogle()
+
+        XCTAssertEqual(
+            accountSession.state,
+            .guest,
+            "No backend confirmed an account, so the device must stay a guest"
+        )
+        XCTAssertEqual(
+            accountSession.saveDecision(savedRecipeCount: 10),
+            .limitReached,
+            "A guest without a confirmed account must stay capped at 10"
+        )
+        XCTAssertEqual(
+            repository.recipes.count,
+            10,
+            "The 11th recipe must not save without a real account"
+        )
+        XCTAssertEqual(
+            coordinator.state,
+            .guestLimit(.limitReached),
+            "The blocked import must stay on the limit sheet, not proceed"
+        )
+        XCTAssertNotNil(
+            flow.failure,
+            "The user must see why account creation did not happen"
+        )
+        XCTAssertFalse(
+            flow.isAuthenticating,
+            "The sheet must stay interactive for another attempt"
+        )
     }
 
     func testNeedsReviewOutcomePersistsRecipeAndReviewState() async throws {
@@ -1061,6 +1146,21 @@ final class ImportCoordinatorTests: XCTestCase {
 
 private struct ImmediateImportClock: ImportClock {
     func sleep(for duration: Duration) async throws {}
+}
+
+@MainActor
+private final class FailingGoogleSignInProvider: GoogleSignInProviding {
+    func signIn() async throws -> String {
+        throw GoogleSignInProviderError.missingIdentityToken
+    }
+
+    func signOut() {}
+
+    func disconnect() async {}
+
+    func handle(_ url: URL) -> Bool {
+        false
+    }
 }
 
 private actor ScriptedImportService: ImportService {
