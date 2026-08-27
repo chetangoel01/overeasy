@@ -19,6 +19,8 @@ MAX_RECIPE_DECIMAL = Decimal("1000000")
 MAX_RECIPE_MINUTES = 43_200
 MAX_RECIPE_TIMER_SECONDS = 2_592_000
 MAX_RECIPE_SOURCE_SECONDS = 86_400
+MAX_RECIPE_NOTES = 100
+MAX_RECIPE_NOTE_LENGTH = 2_000
 
 NonnegativeRecipeDecimal = Annotated[
     WireDecimal,
@@ -50,7 +52,10 @@ ServingDecimal = Annotated[
         allow_inf_nan=False,
     ),
 ]
-RecipeNote = Annotated[str, Field(min_length=1, max_length=2_000)]
+RecipeNote = Annotated[
+    str,
+    Field(min_length=1, max_length=MAX_RECIPE_NOTE_LENGTH),
+]
 
 
 class RecipeSource(StrEnum):
@@ -180,7 +185,10 @@ class RecipeDTO(WireModel):
     ingredients: list[IngredientDTO] = Field(default_factory=list, max_length=200)
     steps: list[RecipeStepDTO] = Field(default_factory=list, max_length=200)
     nutrition: NutritionDTO | None = None
-    notes: list[RecipeNote] = Field(default_factory=list, max_length=100)
+    notes: list[RecipeNote] = Field(
+        default_factory=list,
+        max_length=MAX_RECIPE_NOTES,
+    )
     is_favorite: bool
     review_status: RecipeReviewStatus
     uncertainties: list[FieldUncertaintyDTO] = Field(

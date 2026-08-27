@@ -26,7 +26,8 @@ by the code they touch.
 | --- | --- | --- | --- |
 | #6 (backend half) | Device binding survives sign-out | `b648aed` | fixed |
 | #6 (iOS half) | Installation ID never rotated | `f203232` | fixed |
-| #10 | Uncancelled sync task writes after wipe | `_pending_` | fixed |
+| #10 | Uncancelled sync task writes after wipe | `d49b549` | fixed |
+| #5 | Imported recipes lost their notes | `_pending_` | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -206,3 +207,36 @@ xcodebuild test -project Ladle.xcodeproj -scheme Ladle \
   -only-testing:LadleTests
   -> 254 executed, 1 skipped, 0 failures
 ```
+
+## Finding #5 — every imported recipe lost its notes
+
+`RecipeTemplate.instantiate` built its `RecipeDTO` without passing `notes`, so
+the field defaulted to `[]` on every path that creates a recipe from a
+template: cache hits, private completion, reimport, Discover detail and
+Discover save. Extraction routes tips into `notes` and `build_reviewed_template`
+stores them on the template, so the data was extracted, cached, and then
+discarded on the last hop. `RecipeTemplate.from_recipe` dropped them the same
+way, losing them a second time whenever a stored recipe was re-templated.
+
+Both now carry the notes through. `instantiate` goes via a new
+`RecipeTemplate.recipe_notes()` because the two models disagree on bounds: a
+template holds whatever extraction produced (unbounded, so already-cached
+entries stay loadable), while `RecipeDTO.notes` caps at `MAX_RECIPE_NOTES`
+entries of `MAX_RECIPE_NOTE_LENGTH` characters — both now named constants in
+`ladle/contracts/recipes.py` rather than inline literals, so the clamp cannot
+drift from the contract. Overflow is dropped rather than raising, because a
+`ValidationError` here would turn silent data loss into a failed import.
+
+### Verification
+
+`tests/unit/recipes/test_template_clone.py` (new file), red before the fix:
+
+```text
+test_instantiate_carries_the_extracted_notes_onto_the_recipe   FAILED
+test_from_recipe_keeps_notes_when_a_stored_recipe_is_re_templated  FAILED
+test_instantiate_drops_notes_a_recipe_could_never_hold         FAILED
+  -> AssertionError: assert 0 == 100 / where 0 = len([])
+```
+
+Green after, together with `uv run pytest -q -m "not live_provider and not
+chaos"` at 699 passed and `uv run mypy --strict ladle` clean.
