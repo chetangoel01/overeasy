@@ -311,7 +311,31 @@ final class SwiftDataRecipeRepository:
         }
     }
 
-    func markUpsertSynced(_ remoteRecipe: RemoteRecipeDTO) throws {
+    func markUpsertSynced(
+        _ remoteRecipe: RemoteRecipeDTO,
+        pushed: Recipe
+    ) throws {
+        guard let stored = try storedRecipe(id: remoteRecipe.id) else {
+            // The row is gone, so the user hard-deleted it while the PUT was
+            // in flight (finding #28: a never-synced recipe is dropped
+            // without a tombstone). Re-inserting the server's copy here would
+            // resurrect it; the server-side delete is #28's to fix.
+            return
+        }
+        let stillPendingTheSameUpsert =
+            stored.isTombstoned == false
+            && stored.pendingMutationKey == PendingMutation.upsert.rawValue
+        let matchesPush = try stillPendingTheSameUpsert
+            && decodeRecipe(stored) == pushed
+        guard matchesPush else {
+            // The user changed the recipe while the PUT was in flight.
+            // Adopting the server's copy here would erase that change and
+            // clear the pending mutation, so it would never be pushed either.
+            // Keep it and rebase it on the revision the server just assigned.
+            stored.serverRevision = remoteRecipe.revision
+            try modelContext.save()
+            return
+        }
         try saveRemote(
             remoteRecipe.recipe(),
             revision: remoteRecipe.revision

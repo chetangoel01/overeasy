@@ -192,7 +192,7 @@ final class SwiftDataRecipeRepositoryTests: XCTestCase {
         )
 
         let remote = RemoteRecipeDTO(recipe: local, revision: 1)
-        try repository.markUpsertSynced(remote)
+        try repository.markUpsertSynced(remote, pushed: local)
         XCTAssertTrue(try repository.pendingRecipeMutations().isEmpty)
 
         var edited = local
@@ -313,6 +313,73 @@ final class SwiftDataRecipeRepositoryTests: XCTestCase {
 
         XCTAssertNil(try repository.fetchRecipe(id: local.id))
         XCTAssertTrue(try repository.fetchSyncConflicts().isEmpty)
+        XCTAssertTrue(try repository.pendingRecipeMutations().isEmpty)
+    }
+
+    func testAcknowledgingAPushKeepsAnEditMadeWhileItWasInFlight() throws {
+        let fixture = try makeFixture()
+        let repository = fixture.repository
+        var recipe = makeRecipe()
+        try repository.saveRemote(recipe, revision: 1)
+        recipe.isFavorite = true
+        try repository.save(recipe)
+        let pushed = recipe
+
+        // The PUT is in flight; the user renames the recipe before it lands.
+        var edited = pushed
+        edited.title = "Miso Ramen"
+        try repository.save(edited)
+
+        try repository.markUpsertSynced(
+            RemoteRecipeDTO(recipe: pushed, revision: 2),
+            pushed: pushed
+        )
+
+        XCTAssertEqual(
+            try repository.fetchRecipe(id: recipe.id)?.title,
+            "Miso Ramen"
+        )
+        XCTAssertEqual(
+            try repository.pendingRecipeMutations(),
+            [.upsert(recipe: edited, baseRevision: 2)]
+        )
+    }
+
+    func testAcknowledgingAPushDoesNotResurrectARecipeDeletedInFlight() throws {
+        let fixture = try makeFixture()
+        let repository = fixture.repository
+        var recipe = makeRecipe()
+        try repository.saveRemote(recipe, revision: 1)
+        recipe.isFavorite = true
+        try repository.save(recipe)
+        let pushed = recipe
+
+        try repository.deleteRecipe(id: recipe.id)
+
+        try repository.markUpsertSynced(
+            RemoteRecipeDTO(recipe: pushed, revision: 2),
+            pushed: pushed
+        )
+
+        XCTAssertNil(try repository.fetchRecipe(id: recipe.id))
+        XCTAssertEqual(
+            try repository.pendingRecipeMutations(),
+            [.delete(recipeID: recipe.id, baseRevision: 2)]
+        )
+    }
+
+    func testAcknowledgingAnUnchangedPushAdoptsTheServerCopy() throws {
+        let fixture = try makeFixture()
+        let repository = fixture.repository
+        let recipe = makeRecipe()
+        try repository.save(recipe)
+
+        try repository.markUpsertSynced(
+            RemoteRecipeDTO(recipe: recipe, revision: 1),
+            pushed: recipe
+        )
+
+        XCTAssertEqual(try repository.fetchRecipe(id: recipe.id), recipe)
         XCTAssertTrue(try repository.pendingRecipeMutations().isEmpty)
     }
 

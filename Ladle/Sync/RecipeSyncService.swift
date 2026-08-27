@@ -22,7 +22,7 @@ struct RecipeSyncResult: Equatable, Sendable {
 @MainActor
 protocol RecipeSyncRepository: AnyObject, Sendable {
     func pendingRecipeMutations() throws -> [PendingRecipeMutation]
-    func markUpsertSynced(_ recipe: RemoteRecipeDTO) throws
+    func markUpsertSynced(_ recipe: RemoteRecipeDTO, pushed: Recipe) throws
     func markDeleteSynced(recipeID: UUID) throws
     func preserveConflict(
         localRecipeID: UUID,
@@ -147,7 +147,10 @@ actor RecipeSyncService {
                             )
                         )
                     )
-                    try await repository.markUpsertSynced(response)
+                    try await repository.markUpsertSynced(
+                        response,
+                        pushed: recipe
+                    )
                 } catch let APIError.remote(error) {
                     guard case let .syncConflict(
                         currentRecipe,

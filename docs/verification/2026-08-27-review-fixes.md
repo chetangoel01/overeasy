@@ -30,7 +30,8 @@ by the code they touch.
 | #5 | Imported recipes lost their notes | `cb7e366` | fixed |
 | #1 + #24 | Cancelled imports: downgrade and wire enum | `2de8bb2` | fixed |
 | #9 | Rejected delete wedged every later sync | `5eb298e` | fixed |
-| (new) | Tombstones lost on the next save of the row | `_pending_` | fixed |
+| (new) | Tombstones lost on the next save of the row | `1af3345` | fixed |
+| #7 | Push acknowledgement erased an in-flight edit | `_pending_` | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -377,3 +378,43 @@ changed nothing else.
 
 A grep of the `@Model` types for other members that shadow `PersistentModel`
 API (`hasChanges`, `modelContext`, `persistentModelID`) found none.
+
+## Finding #7 — the push acknowledgement erased edits made while it flew
+
+`markUpsertSynced` handed the server's copy straight to `saveRemote`, which
+overwrote the local payload and cleared `pendingMutationKey`. The MainActor is
+free during the PUT, so the user can edit in that window: tap the favourite
+heart, and while that PUT is in flight rename the recipe. The response — which
+carries the *pre-rename* recipe — then overwrote the rename and cleared the
+pending mutation, so it was never pushed either. The edit vanished on every
+device, with no error shown.
+
+`markUpsertSynced` now takes the recipe that was actually pushed and adopts
+the server's copy only if the row still matches it: not tombstoned, still
+pending the same upsert, same decoded payload. Otherwise the local change
+stays and is rebased onto the revision the server just assigned, so the next
+sync pushes it at the right base.
+
+The row-is-gone branch is a deliberate no-op rather than an insert: the only
+way there is the user hard-deleting a never-synced recipe mid-flight, and
+re-inserting the server's copy would resurrect it. The missing server-side
+delete in that case belongs to finding #28 and is not fixed here.
+
+### Verification
+
+Three tests in `SwiftDataRecipeRepositoryTests`, red with the match check
+forced true:
+
+```text
+testAcknowledgingAPushKeepsAnEditMadeWhileItWasInFlight
+  XCTAssertEqual failed: ("Optional("One-Pot Lemon Orzo")")
+    is not equal to ("Optional("Miso Ramen")")
+  XCTAssertEqual failed: ("[]") is not equal to ("[…upsert(… "Miso Ramen" …)]")
+testAcknowledgingAPushDoesNotResurrectARecipeDeletedInFlight
+  XCTAssertNil failed: "Recipe(id: 690D61EC…)"
+  XCTAssertEqual failed: ("[]") is not equal to ("[…delete(… baseRevision: 2)]")
+```
+
+`testAcknowledgingAnUnchangedPushAdoptsTheServerCopy` pins the ordinary path,
+so the fix cannot degrade into never adopting the server's copy. Full
+`-only-testing:LadleTests`: 259 executed, 1 skipped, 0 failures.

@@ -355,7 +355,7 @@ private final class SyncTestRepository: RecipeSyncRepository {
         pending
     }
 
-    func markUpsertSynced(_ recipe: RemoteRecipeDTO) throws {
+    func markUpsertSynced(_ recipe: RemoteRecipeDTO, pushed: Recipe) throws {
         syncedUpserts.append(recipe)
         pending.removeAll { $0.recipeID == recipe.id }
     }
