@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from inspect import signature
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from pydantic import SecretStr
@@ -29,6 +29,7 @@ from ladle.db.models import (
     ImportJob,
     NegativeExtractionCache,
     Nutrition,
+    ObjectDeletionQueue,
     Recipe,
     RecipeImage,
     SourceVideo,
@@ -50,7 +51,7 @@ from ladle.usage.limits import UsageLimitExceeded
 from tests.e2e.test_fake_import_round_trip import seed_import
 from tests.fakes.acquisition import FakeAcquirer
 from tests.fakes.extraction import FakeExtractor
-from tests.integration.recipes.test_recipe_service import manual_recipe
+from tests.integration.recipes.test_recipe_service import manual_recipe, seed_user
 from tests.integration.test_migrations import alembic_config
 
 
@@ -785,3 +786,168 @@ def test_provider_budget_exhaustion_is_a_typed_terminal_import_failure(
         assert job.status == "failed"
         assert job.failure_reason == "quotaExceeded"
         assert job.diagnostic_code == "UsageLimitExceeded"
+
+
+def seed_needs_review_reimport(
+    database: Session,
+    *,
+    candidate_key: str,
+    cache_key: str | None = None,
+    current_key: str | None = None,
+) -> tuple[UUID, UUID]:
+    """A bypass re-import that landed in needsReview: a current recipe, a
+    candidate recipe whose RecipeImage holds the freshly uploaded thumbnail,
+    and optionally a cache entry or current-recipe image sharing that key."""
+    user_id = seed_user(database)
+    source_id = uuid4()
+    database.add(
+        SourceVideo(
+            id=source_id,
+            platform="youtube",
+            platform_video_id=f"video-{source_id}",
+            canonical_url=f"https://www.youtube.com/watch?v={source_id}",
+        )
+    )
+    database.flush()
+    current_id, candidate_id = uuid4(), uuid4()
+    for recipe_id, status in ((current_id, "ready"), (candidate_id, "needsReview")):
+        database.add(
+            Recipe(
+                id=recipe_id,
+                user_id=user_id,
+                source_video_id=source_id,
+                title="Lemon Orzo",
+                source="youtube",
+                original_url="https://youtu.be/lemon-orzo",
+                servings=Decimal("4"),
+                review_status=status,
+                revision=1,
+            )
+        )
+    database.flush()
+    database.add(
+        RecipeImage(recipe_id=candidate_id, object_key=candidate_key, order_index=0)
+    )
+    if current_key is not None:
+        database.add(
+            RecipeImage(recipe_id=current_id, object_key=current_key, order_index=0)
+        )
+    if cache_key is not None:
+        database.add(
+            ExtractionCache(
+                source_video_id=source_id,
+                source_revision="1",
+                contract_version="1",
+                prompt_version="1",
+                model_id="test-model",
+                template_json={},
+                review_status="needsReview",
+                thumbnail_object_key=cache_key,
+            )
+        )
+    job_id = uuid4()
+    database.add(
+        ImportJob(
+            id=job_id,
+            user_id=user_id,
+            source_video_id=source_id,
+            source_url="https://youtu.be/lemon-orzo",
+            source="youtube",
+            status="needsReview",
+            stage="completed",
+            retry_count=0,
+            bypass_cache=True,
+            idempotency_key=f"retry-{job_id}",
+            current_recipe_id=current_id,
+            candidate_recipe_id=candidate_id,
+            base_recipe_revision=1,
+            completed_at=datetime(2026, 8, 27, 12, 0, tzinfo=UTC),
+        )
+    )
+    database.flush()
+    return user_id, job_id
+
+
+def bare_retry_service(clock: FrozenClock) -> ImportRetryService:
+    return ImportRetryService(
+        clock=clock,
+        reservations=ReservationService(clock=clock, lifetime=timedelta(hours=1)),
+        private_text=LocalPrivateTextCipher(SecretStr("retry-test-secret")),
+    )
+
+
+def retry_and_list_queued(
+    database_url: str,
+    *,
+    candidate_key: str,
+    cache_key: str | None = None,
+    current_key: str | None = None,
+) -> set[str]:
+    command.upgrade(alembic_config(database_url), "head")
+    engine = build_engine(database_url)
+    clock = FrozenClock(datetime(2026, 8, 27, 12, 30, tzinfo=UTC))
+    service = bare_retry_service(clock)
+
+    with Session(engine) as database, database.begin():
+        user_id, job_id = seed_needs_review_reimport(
+            database,
+            candidate_key=candidate_key,
+            cache_key=cache_key,
+            current_key=current_key,
+        )
+        service.retry(
+            database,
+            user_id=user_id,
+            job_id=job_id,
+            correction_notes="the servings are wrong",
+            pasted_text=None,
+        )
+
+    with Session(engine) as database:
+        queued = set(database.scalars(select(ObjectDeletionQueue.object_key)))
+    engine.dispose()
+    return queued
+
+
+@pytest.mark.integration
+def test_retrying_a_needs_review_job_queues_its_orphaned_thumbnail(
+    clean_postgres_url: str,
+) -> None:
+    """Retry deletes the candidate, cascading away the RecipeImage that was
+    the only row naming a bypass import's private thumbnail. The object must
+    be handed to the deletion queue — nothing else can ever find it."""
+    key = "thumbnails/source/candidate-only.jpg"
+
+    queued = retry_and_list_queued(clean_postgres_url, candidate_key=key)
+
+    assert key in queued, "the orphaned thumbnail must be queued for deletion"
+
+
+@pytest.mark.integration
+def test_retry_keeps_a_thumbnail_the_extraction_cache_still_references(
+    clean_postgres_url: str,
+) -> None:
+    key = "thumbnails/source/shared-cache.jpg"
+
+    queued = retry_and_list_queued(
+        clean_postgres_url,
+        candidate_key=key,
+        cache_key=key,
+    )
+
+    assert queued == set()
+
+
+@pytest.mark.integration
+def test_retry_keeps_a_thumbnail_shared_with_the_current_recipe(
+    clean_postgres_url: str,
+) -> None:
+    key = "thumbnails/source/shared-current.jpg"
+
+    queued = retry_and_list_queued(
+        clean_postgres_url,
+        candidate_key=key,
+        current_key=key,
+    )
+
+    assert queued == set()

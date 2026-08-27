@@ -59,6 +59,7 @@ by the code they touch.
 | #35 | Unauthenticated challenge endpoint had no rate limit | _pending_ | fixed |
 | #36 | AEAD failure wedged account deletion at revokingProvider | _pending_ | fixed |
 | #37 | Retention sweep silently refunded spent monthly quota | _pending_ | fixed |
+| #38 | Retrying a needsReview job stranded its thumbnail | _pending_ | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -2429,6 +2430,70 @@ uv run pytest -q tests/integration/imports/test_quotas.py \
     tests/integration/privacy/test_retention.py \
     tests/integration/test_migrations.py                -> 13 passed (+2 new)
 uv run ruff check ladle tests alembic                   -> All checks passed
+uv run mypy --strict ladle                              -> clean
+```
+
+## Finding #38 — retrying a needsReview job stranded its thumbnail in the bucket
+
+### The defect
+
+A cache-bypassing import (correction notes, pasted text, or any re-import)
+that cannot be promoted lands in needsReview with a candidate recipe whose
+`RecipeImage.object_key` is the per-job thumbnail the orchestrator just
+uploaded — and, unlike the shared-cache path, no `ExtractionCache` row
+names that key. `ImportRetryService.retry` then hard-deletes the candidate,
+and `recipe_images.recipe_id` is `ondelete="CASCADE"`, so the only row
+naming the object vanishes. Nothing enqueued the key into
+`ObjectDeletionQueue`, and every cleanup path enumerates database rows
+(`delete_unreferenced_thumbnails` and `_purge_invalid_caches` scan
+`ExtractionCache` only; the bucket lifecycle covers only `temporary/`;
+account deletion joins through the now-deleted `RecipeImage`), so the
+object stayed in the private bucket permanently — once per such retry.
+
+**Why #19's reaper (`c863c5e`) does not already cover this.** The finding
+asked exactly that, and the answer is in `_cancel_thumbnail_discard`
+(`ladle/imports/orchestrator.py`): the discard schedule the orchestrator
+commits after each upload is *withdrawn inside the completion transaction
+precisely because a `RecipeImage` row references the key*. The needsReview
+completion attaches that row, so by the time `retry` runs, the queue entry
+is already gone — the reaper protects the upload-to-completion window, not
+a reference deleted later. A second mechanism at the point the reference
+dies is required, not a duplicate of the first.
+
+### The fix
+
+`retry` collects the candidate's `RecipeImage.object_key`s before deleting
+it, flushes the delete, and queues each key that no remaining row
+references (`_queue_orphaned_thumbnails`): a key still named by an
+`ExtractionCache` row (shared-cache thumbnail) or by another recipe's image
+(shared with the current recipe) is left alone. The queue insert commits
+atomically with the candidate delete, so `available_at=now` needs no grace
+— unlike the orchestrator's pre-upload schedule, the key is provably
+unreferenced at commit time. The already-wired `ObjectDeletionProcessor`
+removes the object.
+
+### Verification
+
+Three new tests in `tests/integration/imports/test_retry_reparse.py`, one
+per reference shape. Red on the unfixed code — the leak, byte for byte:
+
+```text
+        queued = retry_and_list_queued(clean_postgres_url, candidate_key=key)
+
+>       assert key in queued, "the orphaned thumbnail must be queued for deletion"
+E       AssertionError: the orphaned thumbnail must be queued for deletion
+E       assert 'thumbnails/source/candidate-only.jpg' in set()
+```
+
+`test_retry_keeps_a_thumbnail_the_extraction_cache_still_references` and
+`test_retry_keeps_a_thumbnail_shared_with_the_current_recipe` pass before
+and after — they pin that the fix never queues a key another row still
+names. Green after the fix:
+
+```text
+uv run pytest -q tests/integration/imports/test_retry_reparse.py \
+    tests/integration/imports/test_thumbnail_discard.py -> 17 passed
+uv run ruff check ladle/imports/transitions.py ...      -> All checks passed
 uv run mypy --strict ladle                              -> clean
 ```
 
