@@ -33,7 +33,8 @@ by the code they touch.
 | (new) | Tombstones lost on the next save of the row | `1af3345` | fixed |
 | #7 | Push acknowledgement erased an in-flight edit | `4dfbad2` | fixed |
 | #8 | Editor numbers parsed against the wrong locale | `1733928` | fixed |
-| #2 | A limiter outage became an API outage | `_pending_` | fixed |
+| #2 | A limiter outage became an API outage | `bcd5ac2` | fixed |
+| #4 | Concurrent edits at the same revision both won | `_pending_` | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -492,5 +493,40 @@ liveness probe — the finding's exact claim.
 ```text
 uv run pytest -q -m "not live_provider and not chaos"  -> 701 passed
 uv run ruff check ladle tests                          -> All checks passed
+uv run mypy --strict ladle                             -> clean
+```
+
+## Finding #4 — two devices editing at once, one edit silently gone
+
+`RecipeService.upsert` and `delete` read the recipe with a plain `SELECT` and
+then wrote it, and the resulting `UPDATE` carries no revision predicate.
+Sessions run at READ COMMITTED, so two devices PUTting the same recipe at
+`baseRevision=3` both read revision 3, both passed the optimistic-concurrency
+check, and the second's UPDATE — after blocking on the first's row lock —
+overwrote it. Both clients got HTTP 200, and two `recipe_changes` rows both
+claimed `recipe_revision=4`, so no sync consumer could tell an edit was
+dropped.
+
+`RecipeRepository.find` now takes `for_update`, and both `upsert` and `delete`
+pass it. The check and the write become one atomic step: the second writer
+blocks on the `SELECT`, re-reads revision 4 after the first commits, and
+raises `SyncConflict` — the same answer the client already knows how to
+resolve. `save_discovered` and `lock_recipe_capacity` already locked this way;
+these two paths were the outliers.
+
+### Verification
+
+`tests/integration/recipes/test_recipe_service.py::test_concurrent_updates_at_the_same_base_revision_cannot_both_win`
+runs a real second writer on its own connection while the first transaction is
+open, then asserts the second raised `SyncConflict`, the stored title is the
+first writer's, and the change log holds revisions `[1, 2]` with no duplicate.
+Red before the lock:
+
+```text
+AssertionError: the second writer overwrote the first at the same base revision
+```
+
+```text
+uv run pytest -q -m "not live_provider and not chaos"  -> 702 passed
 uv run mypy --strict ladle                             -> clean
 ```

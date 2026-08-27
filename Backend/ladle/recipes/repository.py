@@ -55,6 +55,7 @@ class RecipeRepository:
         user_id: UUID,
         recipe_id: UUID,
         include_deleted: bool = False,
+        for_update: bool = False,
     ) -> Recipe | None:
         query = select(Recipe).where(
             Recipe.id == recipe_id,
@@ -62,6 +63,11 @@ class RecipeRepository:
         )
         if not include_deleted:
             query = query.where(Recipe.deleted_at.is_(None))
+        if for_update:
+            # Callers that then write the row need the read and the write in
+            # one atomic step; without the lock two writers pass the same
+            # revision check and the second silently overwrites the first.
+            query = query.with_for_update()
         return database.scalar(query)
 
     def discover(

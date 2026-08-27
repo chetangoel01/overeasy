@@ -221,6 +221,7 @@ class RecipeService:
             user_id=user_id,
             recipe_id=recipe.id,
             include_deleted=True,
+            for_update=True,
         )
         if stored is not None:
             current = self._repository.to_dto(database, stored)
@@ -281,6 +282,7 @@ class RecipeService:
             user_id=user_id,
             recipe_id=recipe_id,
             include_deleted=True,
+            for_update=True,
         )
         if stored is None:
             raise RecipeNotFound
