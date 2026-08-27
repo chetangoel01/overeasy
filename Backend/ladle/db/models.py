@@ -560,8 +560,12 @@ class ImportQuotaEvent(Base):
     user_id: Mapped[UUID] = mapped_column(
         Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    import_job_id: Mapped[UUID] = mapped_column(
-        Uuid, ForeignKey("import_jobs.id", ondelete="CASCADE"), nullable=False
+    # SET NULL, not CASCADE: the monthly quota window (a calendar month, up
+    # to 31 days) can outlast the 30-day retention of the job itself, so the
+    # spend record must survive the job. The retention sweep prunes events
+    # once their month can no longer be counted.
+    import_job_id: Mapped[UUID | None] = mapped_column(
+        Uuid, ForeignKey("import_jobs.id", ondelete="SET NULL"), nullable=True
     )
     operation: Mapped[str] = mapped_column(String(16), nullable=False)
     event_key: Mapped[str] = mapped_column(String(255), nullable=False)

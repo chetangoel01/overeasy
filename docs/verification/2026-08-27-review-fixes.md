@@ -58,6 +58,7 @@ by the code they touch.
 | #34 | 429s and crash 500s shipped without security headers | _pending_ | fixed |
 | #35 | Unauthenticated challenge endpoint had no rate limit | _pending_ | fixed |
 | #36 | AEAD failure wedged account deletion at revokingProvider | _pending_ | fixed |
+| #37 | Retention sweep silently refunded spent monthly quota | _pending_ | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -2358,6 +2359,76 @@ called with a token that failed authentication):
 uv run pytest -q tests/integration/auth/test_account_deletion.py \
     tests/api/test_apple_auth.py                        -> 6 passed
 uv run ruff check ladle/auth/deletion.py ...            -> All checks passed
+uv run mypy --strict ladle                              -> clean
+```
+
+## Finding #37 — the retention sweep silently refunded spent monthly quota
+
+### The defect
+
+`ImportQuotaService.consume` counts `ImportQuotaEvent` rows since the first
+of the current calendar month — a window of up to 31 days. But
+`import_quota_events.import_job_id` was `ForeignKey(..., ondelete="CASCADE")
+NOT NULL`, and the retention sweep hard-deletes terminal import jobs 30 days
+after completion. In every 31-day month the two horizons cross: a user who
+burned the full monthly allowance on March 1 had those jobs (and, via the
+cascade, their quota events) deleted by the sweep on March 31, so
+`_count(since=month_start)` dropped back under the limit and the user was
+admitted for a fresh slice inside the same month — 220 provider-capable
+imports against a documented 200/calendar-month cap, recurring in January,
+March, May, July, August, October and December. The monthly counter was
+only sound if the retention horizon exceeded the longest month, and nothing
+asserted that.
+
+### The fix
+
+The spend record now outlives the job it recorded:
+
+- Migration `0017`: `import_job_id` becomes nullable and the foreign key is
+  recreated (same conventional name) with `ondelete="SET NULL"`, so deleting
+  a job detaches its events instead of deleting them. The downgrade first
+  deletes already-detached rows — they can never satisfy the old
+  `NOT NULL` + CASCADE shape again.
+- `ladle/db/models.py` mirrors the new shape, with a comment naming why SET
+  NULL is load-bearing.
+- `RetentionService.sweep` prunes events with `occurred_at` before the start
+  of the current UTC month — computed exactly the way `consume` computes
+  `month_start`, so the two can never disagree — and reports the count as
+  `RetentionOutcome.quota_events`. Once the month rolls, the quota can never
+  read those rows again, so that is the moment they stop being retained.
+
+### Verification
+
+Two new tests in `tests/integration/imports/test_quotas.py`.
+`test_monthly_quota_survives_the_retention_sweep_of_terminal_jobs` walks
+the 31-day-month calendar: quota fully spent March 1, jobs marked terminal
+that day, sweep on March 31 deletes both jobs, and a third submission on
+March 31 must still raise. Red on the unfixed code — the finding's exact
+silent refund:
+
+```text
+        with (
+>           pytest.raises(ImportQuotaExceeded) as monthly,
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+            Session(engine) as database,
+            database.begin(),
+        ):
+E       Failed: DID NOT RAISE ImportQuotaExceeded
+```
+
+The same test then pins the month boundary (April 1 admits again) and the
+prune (the April sweep removes exactly the two March events and keeps
+April's).
+`test_quota_event_migration_detaches_on_upgrade_and_downgrades_cleanly`
+covers the migration itself: deleting a job leaves the event with
+`import_job_id NULL`, and `downgrade` to `0016` succeeds over detached rows
+by removing them. Green after the fix:
+
+```text
+uv run pytest -q tests/integration/imports/test_quotas.py \
+    tests/integration/privacy/test_retention.py \
+    tests/integration/test_migrations.py                -> 13 passed (+2 new)
+uv run ruff check ladle tests alembic                   -> All checks passed
 uv run mypy --strict ladle                              -> clean
 ```
 
