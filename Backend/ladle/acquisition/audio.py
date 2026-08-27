@@ -379,6 +379,10 @@ def _words(body: dict[str, Any]) -> list[tuple[str, float, float]]:
         if not text or start is None or end is None or end < start:
             continue
         collected.append((text, start, end))
+    # A transcript is temporal. Hosts occasionally return words out of
+    # chronological order, and regrouping unordered words would build a
+    # segment whose window runs backwards — which TextEvidence refuses.
+    collected.sort(key=lambda word: (word[1], word[2]))
     return collected
 
 
@@ -449,11 +453,18 @@ def _transcript(body: dict[str, Any], *, model_id: str) -> TranscriptResult:
         text = str(entry.get("text") or "").strip()
         if not text:
             continue
+        start = _seconds(entry.get("start"))
+        end = _seconds(entry.get("end"))
+        if start is not None and end is not None and end < start:
+            # A reversed window is garbage timing, not garbage text: keep
+            # the words and claim no moment for them, like the flat-text
+            # fallback below.
+            start = end = None
         segments.append(
             TextEvidence(
                 text=text[:_MAX_SEGMENT_CHARACTERS],
-                start_seconds=_seconds(entry.get("start")),
-                end_seconds=_seconds(entry.get("end")),
+                start_seconds=start,
+                end_seconds=end,
                 provenance=provenance,
                 generated=True,
             )

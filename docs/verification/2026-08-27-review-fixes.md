@@ -44,7 +44,8 @@ by the code they touch.
 | #27 | Remote delete mislabeled as a remote edit | `2969c5a` | fixed |
 | #26 | Scrolling a focus-mode step changed the step | — | fixed |
 | #12 | Malformed caption URL killed the whole import | `44b7b10` | fixed |
-| #13 | Hostile HTML pinned the worker for half an hour | `_pending_` | fixed |
+| #13 | Hostile HTML pinned the worker for half an hour | `356aa66` | fixed |
+| #11 | Reversed Whisper timings killed the transcription | `_pending_` | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -1216,6 +1217,75 @@ closing `>` at all.
 uv run pytest -q tests/unit/acquisition/test_free_links.py  -> 37 passed in 0.27s
 uv run ruff check ladle tests alembic                       -> All checks passed
 uv run mypy --strict ladle                                  -> clean
+```
+
+## Finding #11 — a reversed Whisper timestamp killed the whole import
+
+### The defect
+
+`_transcript` built `TextEvidence` straight from Whisper's segment list.
+`_seconds` accepts any non-negative number, so a segment of
+`{"start": 12.0, "end": 3.0}` sailed through both calls and then hit
+`TextEvidence.validate_time_range`, whose `ValueError` pydantic wraps as a
+`ValidationError`. `WhisperTranscriber.transcribe` catches only
+`AcquisitionError`, so the ValidationError escaped it — leaving the ledger
+attempt started in `transcribe` permanently `running`, holding its usage
+reservation — then escaped the provider chain and the orchestrator's handler
+tuple, and dead-lettered the job. The word path had the same hole one level
+up: `_words` filters each word's own `end < start`, but words arriving out
+of chronological order make `_segments_from_words` emit a segment whose
+start comes from the first word and end from the last — reversed across
+words, same uncaught ValidationError. The sibling providers (supadata,
+soscripted) convert this exact construction failure into a recoverable
+error, which marks the omission as an oversight; Whisper is the last rung,
+so here the right degradation is finer still: the text is fine, only the
+claimed moment is garbage.
+
+### The fix
+
+Both windows are validated at the parse boundary, before any constructor
+that assumes well-formed input:
+
+- The segment loop reads `start`/`end` once; a reversed pair becomes
+  `None`/`None` — the same "no time claimed" shape the flat-text fallback
+  already uses — so the words survive without inventing a moment for them.
+- `_words` now sorts by `(start, end)`. A transcript is temporal, so
+  out-of-order words read back in time order; with sorted starts, every
+  regrouped segment's end (its last word's end) is provably at or after its
+  start (its first word's start), for any grouping the pause/length rules
+  choose. No exception path was added, because after these two bounds every
+  remaining `TextEvidence` field is already guaranteed by construction.
+
+### Verification
+
+Red on the shipped code — both constructions raise the exact escape the
+finding describes:
+
+```text
+E           pydantic_core._pydantic_core.ValidationError: 1 validation error for TextEvidence
+E             Value error, evidence end must not precede its start [type=value_error,
+E               input_value={'text': 'stir the pot', ...-v3', 'generated': True}, ...]
+ladle/acquisition/audio.py:453: ValidationError
+E       pydantic_core._pydantic_core.ValidationError: 1 validation error for TextEvidence
+E         Value error, evidence end must not precede its start [type=value_error,
+E           input_value={'text': 'later earlier',...-v3', 'generated': True}, ...]
+ladle/acquisition/audio.py:402: ValidationError
+FAILED test_audio.py::test_reversed_segment_window_degrades_to_untimed_evidence
+FAILED test_audio.py::test_out_of_order_word_timings_cannot_produce_a_reversed_window
+2 failed, 1 passed
+```
+
+The single pass in the red run is the boundary pin: a zero-length window
+(`start == end`) is legal evidence and stays kept, before and after.
+Atypical states: reversed segment window (text kept, window dropped);
+out-of-order word timings (reordered, window monotonic); zero-length
+window; every existing shape — words-win-over-segments, timing-less words,
+flat-text-only, empty transcript — still passes unchanged.
+
+```text
+uv run pytest -q tests/unit/acquisition/test_audio.py  -> 21 passed in 1.26s
+uv run ruff check ladle tests alembic                  -> All checks passed
+uv run mypy --strict ladle                             -> clean
 ```
 
 ## Where this run stopped, and where the next one starts
