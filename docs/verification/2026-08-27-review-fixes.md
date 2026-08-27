@@ -61,7 +61,8 @@ by the code they touch.
 | #37 | Retention sweep silently refunded spent monthly quota | `2ad4f94` + `f021a8b` | fixed |
 | #38 | Retrying a needsReview job stranded its thumbnail | `ac9731a` | fixed |
 | #39 | USDA search cache grew for the life of the worker | `d6d5a24` | fixed |
-| #45 | Upload encoding rewrote UUID-shaped user text | — | fixed |
+| #45 | Upload encoding rewrote UUID-shaped user text | `e10e9cc` | fixed |
+| #42 | Edited quantities synced a stale machine amount | — | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -2632,6 +2633,62 @@ swift test --package-path Packages/LadleCore
 The full LadleTests suite run recorded at the end of this session covers
 the app-side consumers of the changed encoder (sync PUTs, import
 submission, auth bodies).
+
+## Finding #42 — editing a quantity synced a stale machine-readable amount
+
+### The defect
+
+`IngredientDraft` copied an imported ingredient's `normalizedQuantity`
+into the draft and carried it back out unchanged, while the editor's
+Quantity field binds only `quantityText`. Changing "2" cups of flour to
+"4" saved and synced a record asserting `quantityText: "4"` and
+`normalizedQuantity: 2` in the same object — any server-side consumer of
+the machine-readable amount (scaling, shopping list, analytics) reads half
+the user's correction. Sharpest variant: clearing the field entirely left
+`quantityText: nil` next to `normalizedQuantity: 2` — a numeric amount on
+an ingredient the user explicitly removed the quantity from, with no UI
+path that could ever repair the field.
+
+### The fix
+
+The draft now remembers the imported pair privately and derives the
+persisted amount at save time: while `quantityText` still reads exactly as
+imported — including after an edit is reverted — the (possibly richer)
+imported amount survives; an edited text re-derives the amount through
+`EditorNumber` in the user's own locale, and text the editor cannot parse
+whole (cleared, "a splash", "1½") persists nil. The pair can no longer
+disagree, and `recipe(updatedAt:locale:)` already carried the locale in
+(#8), so validation and persistence keep reading numbers the same way.
+
+### Verification
+
+Four new tests in `LadleTests/RecipeEditorViewModelTests` around an
+imported fixture carrying `quantityText: "2"` / `normalizedQuantity: 2`.
+Red on the unfixed code — the stale 2 survives every edit:
+
+```text
+RecipeEditorViewModelTests.swift:314: error: ...
+testEditedQuantityRederivesTheNormalizedAmountInLocale] :
+XCTAssertEqual failed: ("Optional(2)") is not equal to ("Optional(1.5)")
+RecipeEditorViewModelTests.swift:327: error: ...
+testClearedQuantityDropsTheStaleNormalizedAmount] :
+XCTAssertNil failed: "2"
+RecipeEditorViewModelTests.swift:340: error: ...
+testNonNumericQuantityEditDropsTheStaleNormalizedAmount] :
+XCTAssertNil failed: "2"
+```
+
+The locale test edits the quantity to "1,5" under `fr_FR` and requires
+1.5, so the re-derivation provably reads the user's own separator. The
+fourth test (`testUntouchedAndRevertedQuantityKeepTheImportedAmount`)
+passed before and after, pinning that an untouched or reverted quantity
+keeps the imported amount rather than losing richer server parses. After
+the fix, `-only-testing:LadleTests/RecipeEditorViewModelTests`:
+
+```text
+Executed 18 tests, with 0 failures (0 unexpected) in 0.065 (0.072) seconds
+** TEST SUCCEEDED **
+```
 
 ## Where this run stopped, and where the next one starts
 

@@ -300,6 +300,69 @@ final class RecipeEditorViewModelTests: XCTestCase {
         XCTAssertEqual(repository.saveCount, 1)
     }
 
+    func testEditedQuantityRederivesTheNormalizedAmountInLocale() throws {
+        let recipe = importedFlourRecipe()
+        let viewModel = makeViewModel(
+            recipe: recipe,
+            locale: Locale(identifier: "fr_FR")
+        )
+
+        viewModel.draft.ingredients[0].quantityText = "1,5"
+
+        let saved = try XCTUnwrap(viewModel.save())
+        XCTAssertEqual(saved.orderedIngredients[0].quantityText, "1,5")
+        XCTAssertEqual(
+            saved.orderedIngredients[0].normalizedQuantity,
+            Decimal(string: "1.5")
+        )
+    }
+
+    func testClearedQuantityDropsTheStaleNormalizedAmount() throws {
+        let viewModel = makeViewModel(recipe: importedFlourRecipe())
+
+        viewModel.draft.ingredients[0].quantityText = ""
+
+        let saved = try XCTUnwrap(viewModel.save())
+        XCTAssertNil(saved.orderedIngredients[0].quantityText)
+        XCTAssertNil(saved.orderedIngredients[0].normalizedQuantity)
+    }
+
+    func testNonNumericQuantityEditDropsTheStaleNormalizedAmount() throws {
+        let viewModel = makeViewModel(recipe: importedFlourRecipe())
+
+        viewModel.draft.ingredients[0].quantityText = "a splash"
+
+        let saved = try XCTUnwrap(viewModel.save())
+        XCTAssertEqual(
+            saved.orderedIngredients[0].quantityText,
+            "a splash"
+        )
+        XCTAssertNil(saved.orderedIngredients[0].normalizedQuantity)
+    }
+
+    func testUntouchedAndRevertedQuantityKeepTheImportedAmount() throws {
+        // The imported machine-readable amount can be richer than the
+        // editor's own parser derives (the server reads "2" here, but
+        // fractions like "2 1/2" too), so it survives while the text
+        // still reads exactly as imported — including after an edit is
+        // reverted.
+        let untouched = makeViewModel(recipe: importedFlourRecipe())
+        let savedUntouched = try XCTUnwrap(untouched.save())
+        XCTAssertEqual(
+            savedUntouched.orderedIngredients[0].normalizedQuantity,
+            2
+        )
+
+        let reverted = makeViewModel(recipe: importedFlourRecipe())
+        reverted.draft.ingredients[0].quantityText = "4"
+        reverted.draft.ingredients[0].quantityText = "2"
+        let savedReverted = try XCTUnwrap(reverted.save())
+        XCTAssertEqual(
+            savedReverted.orderedIngredients[0].normalizedQuantity,
+            2
+        )
+    }
+
     func testCommaDecimalLocaleSavesTheYieldTheUserTyped() throws {
         let repository = EditorTestRepository(
             recipes: [PreviewFixtures.recipes[1]]
@@ -343,6 +406,29 @@ final class RecipeEditorViewModelTests: XCTestCase {
             )
         )
         XCTAssertEqual(repository.saveCount, 0)
+    }
+
+    /// An imported recipe whose ingredient carries the machine-readable
+    /// amount the server derived from its quantity text.
+    private func importedFlourRecipe() -> Recipe {
+        Recipe(
+            title: "Imported Flour Cake",
+            source: .other,
+            originalURL: URL(string: "https://example.com/cake")!,
+            servings: 4,
+            ingredients: [
+                Ingredient(
+                    quantityText: "2",
+                    normalizedQuantity: 2,
+                    unit: "cups",
+                    name: "flour",
+                    orderIndex: 0
+                ),
+            ],
+            steps: [
+                RecipeStep(orderIndex: 0, instruction: "Mix the flour."),
+            ]
+        )
     }
 
     private func makeViewModel(

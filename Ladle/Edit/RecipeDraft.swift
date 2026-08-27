@@ -33,30 +33,48 @@ struct RecipeDraft: Equatable {
     struct IngredientDraft: Equatable, Identifiable {
         let id: UUID
         var quantityText: String
-        var normalizedQuantity: Decimal?
         var unit: String
         var name: String
         var preparation: String
         var uncertainty: FieldUncertainty?
 
+        /// The imported quantity pair. The machine-readable amount came
+        /// from the importer's parsing of exactly this text, so it is
+        /// only trustworthy while `quantityText` still reads that way.
+        private let importedQuantityText: String
+        private let importedNormalizedQuantity: Decimal?
+
         init(_ ingredient: Ingredient) {
             id = ingredient.id
             quantityText = ingredient.quantityText ?? ""
-            normalizedQuantity = ingredient.normalizedQuantity
             unit = ingredient.unit ?? ""
             name = ingredient.name
             preparation = ingredient.preparation ?? ""
             uncertainty = ingredient.uncertainty
+            importedQuantityText = ingredient.quantityText ?? ""
+            importedNormalizedQuantity = ingredient.normalizedQuantity
         }
 
         init(id: UUID = UUID()) {
             self.id = id
             quantityText = ""
-            normalizedQuantity = nil
             unit = ""
             name = ""
             preparation = ""
             uncertainty = nil
+            importedQuantityText = ""
+            importedNormalizedQuantity = nil
+        }
+
+        /// The machine-readable amount to persist alongside
+        /// `quantityText`. An edited text re-derives it (nil when the
+        /// editor cannot parse it whole), so the pair can never
+        /// disagree; the richer imported value survives while the text
+        /// is unedited — or an edit is reverted.
+        func normalizedQuantity(locale: Locale) -> Decimal? {
+            quantityText == importedQuantityText
+                ? importedNormalizedQuantity
+                : EditorNumber.decimal(quantityText, locale: locale)
         }
     }
 
@@ -188,7 +206,9 @@ struct RecipeDraft: Equatable {
                 Ingredient(
                     id: draft.id,
                     quantityText: normalized(draft.quantityText),
-                    normalizedQuantity: draft.normalizedQuantity,
+                    normalizedQuantity: draft.normalizedQuantity(
+                        locale: locale
+                    ),
                     unit: normalized(draft.unit),
                     name: normalized(draft.name) ?? "",
                     preparation: normalized(draft.preparation),
