@@ -30,6 +30,22 @@ final class LadleAppDelegate: NSObject, UIApplicationDelegate,
         return true
     }
 
+    /// How a notification delivered while the app is foregrounded is
+    /// shown. iOS silences foreground deliveries entirely unless the
+    /// delegate implements `willPresent` and returns options — without
+    /// this, an import finishing while the user browses the app produced
+    /// no banner, sound, or Notification Center entry while
+    /// `notifyImportReady` still reported `.scheduled`.
+    nonisolated static let foregroundPresentationOptions:
+        UNNotificationPresentationOptions = [.banner, .list, .sound]
+
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification
+    ) async -> UNNotificationPresentationOptions {
+        Self.foregroundPresentationOptions
+    }
+
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse

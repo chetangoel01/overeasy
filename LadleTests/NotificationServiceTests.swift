@@ -1,5 +1,6 @@
 import Foundation
 import LadleCore
+import UserNotifications
 import XCTest
 @testable import Ladle
 
@@ -88,6 +89,32 @@ final class NotificationServiceTests: XCTestCase {
             .completed(recipeID: recipe.id)
         )
         XCTAssertEqual(notifications.notifiedRecipeIDs, [recipe.id])
+    }
+
+    func testForegroundDeliveryIsPresentedNotSilenced() {
+        // Import completion effectively always happens with the app
+        // active (there are no background modes), and iOS silences a
+        // delivery while foregrounded unless the delegate implements
+        // willPresent and returns presentation options.
+        XCTAssertTrue(
+            LadleAppDelegate().responds(
+                to: #selector(
+                    UNUserNotificationCenterDelegate
+                        .userNotificationCenter(
+                            _:
+                            willPresent:
+                            withCompletionHandler:
+                        )
+                )
+            ),
+            "Without willPresent, a notification posted while the app is"
+                + " foregrounded shows no banner while notifyImportReady"
+                + " still reports .scheduled"
+        )
+        XCTAssertEqual(
+            LadleAppDelegate.foregroundPresentationOptions,
+            [.banner, .list, .sound]
+        )
     }
 
     private func makeCoordinator(

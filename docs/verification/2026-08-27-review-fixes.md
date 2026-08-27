@@ -64,7 +64,8 @@ by the code they touch.
 | #45 | Upload encoding rewrote UUID-shaped user text | `e10e9cc` | fixed |
 | #42 | Edited quantities synced a stale machine amount | `ffa1c46` | fixed |
 | #40 | Ended cooking sessions left uncancelable notifications | `fa097b2` | fixed |
-| #41 | Timer-finished haptic never fired on the full-recipe screen | — | fixed |
+| #41 | Timer-finished haptic never fired on the full-recipe screen | `b7c714b` | fixed |
+| #43 | Foreground notifications silently suppressed | — | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -2817,6 +2818,65 @@ To feel it on device: open a recipe with a step timer → Start Cooking →
 stay on the full-recipe list (not Focus Mode) → start a timer and wait it
 out with the app foregrounded. The success haptic now plays the moment the
 card flips to "finished".
+
+## Finding #43 — foreground notifications were silently suppressed
+
+### The defect
+
+`notifyImportReady` posts its request with `trigger: nil` (immediate
+delivery) and reports `.scheduled` on success — but `LadleAppDelegate`
+implemented only `userNotificationCenter(_:didReceive:)`. iOS silences a
+notification delivered while the app is foregrounded unless the delegate
+implements `willPresent` and returns presentation options, and the app has
+no background modes: import completion effectively always happens with the
+app active (jobs resume from `sceneBecameActive`). A user who submitted a
+URL and browsed their library during the ~30s extraction got no banner, no
+sound, and no Notification Center entry when the recipe was ready — on
+essentially every delivery.
+
+### The fix
+
+`LadleAppDelegate` now implements
+`userNotificationCenter(_:willPresent:)` returning
+`[.banner, .list, .sound]` (exposed as
+`foregroundPresentationOptions` so the choice is pinned by test): the
+banner shows, the sound plays, and a missed banner still lands in
+Notification Center. The policy applies uniformly — a cooking-timer alert
+firing while the cooking screen is up presents the same way, matching the
+system Timers behavior. Two adjacent behaviors are deliberately out of
+scope: per-category presentation (nothing needs it yet) and the
+permission-prompt timing gripe (the first-ever authorization alert
+appearing at import completion is a product decision, not this defect).
+
+### Verification
+
+`testForegroundDeliveryIsPresentedNotSilenced` in
+`LadleTests/NotificationServiceTests` pins the delegate's response to the
+`willPresent` selector — exactly what iOS checks before silencing — plus
+the returned options. Red on the unfixed code:
+
+```text
+NotificationServiceTests.swift:98: error: -[LadleTests.NotificationServiceTests
+testForegroundDeliveryIsPresentedNotSilenced] : XCTAssertTrue failed -
+Without willPresent, a notification posted while the app is foregrounded
+shows no banner while notifyImportReady still reports .scheduled
+```
+
+Green after (`-only-testing:LadleTests/NotificationServiceTests`):
+
+```text
+Executed 5 tests, with 0 failures (0 unexpected) in 0.014 (0.018) seconds
+** TEST SUCCEEDED **
+```
+
+The background delivery path needs no change and keeps its existing
+coverage: `didReceive` navigation is pinned by
+`testNotificationNavigationTargetsOneRecipeThenClears`, and the
+import-side callers by the three coordinator tests in the same file.
+
+To see it on device: Add Recipe → paste a URL → dismiss the sheet and
+browse the library while the extraction runs. When the import completes,
+the "Recipe ready" banner now appears in-app.
 
 ## Where this run stopped, and where the next one starts
 
