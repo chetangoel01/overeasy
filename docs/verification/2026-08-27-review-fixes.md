@@ -55,12 +55,12 @@ by the code they touch.
 | #23 | One sync page fanned out to ~900 queries | `be5da00` | fixed |
 | #22 | Traces exported the USDA API key in the URL | `49d6bed` | fixed |
 | #25 | Guest-limit account creation was a local flip | `4ae136e` | fixed |
-| #34 | 429s and crash 500s shipped without security headers | _pending_ | fixed |
-| #35 | Unauthenticated challenge endpoint had no rate limit | _pending_ | fixed |
-| #36 | AEAD failure wedged account deletion at revokingProvider | _pending_ | fixed |
-| #37 | Retention sweep silently refunded spent monthly quota | _pending_ | fixed |
-| #38 | Retrying a needsReview job stranded its thumbnail | _pending_ | fixed |
-| #39 | USDA search cache grew for the life of the worker | _pending_ | fixed |
+| #34 | 429s and crash 500s shipped without security headers | `af9126f` | fixed |
+| #35 | Unauthenticated challenge endpoint had no rate limit | `405a23d` | fixed |
+| #36 | AEAD failure wedged account deletion at revokingProvider | `89dc34d` | fixed |
+| #37 | Retention sweep silently refunded spent monthly quota | `2ad4f94` + `f021a8b` | fixed |
+| #38 | Retrying a needsReview job stranded its thumbnail | `ac9731a` | fixed |
+| #39 | USDA search cache grew for the life of the worker | `d6d5a24` | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
