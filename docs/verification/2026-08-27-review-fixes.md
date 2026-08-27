@@ -6,7 +6,8 @@
 
 **Started:** August 27, 2026
 
-**Status:** in progress
+**Status:** paused — 13 of the 45 findings closed (32 open), plus one
+defect the review had not found
 
 ## Purpose
 
@@ -36,7 +37,7 @@ by the code they touch.
 | #2 | A limiter outage became an API outage | `bcd5ac2` | fixed |
 | #4 | Concurrent edits at the same revision both won | `338967d` | fixed |
 | #3 | Editing a recipe destroyed its stored image | `90e1775` | fixed |
-| #20 + #21 | Observability middleware 500s and blind spots | `_pending_` | fixed |
+| #20 + #21 | Observability middleware 500s and blind spots | `fda602d` | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -98,10 +99,10 @@ uv run ruff format --check <the four touched files>                         -> a
 
 **Pre-existing formatting drift, not introduced here:** repo-wide
 `uv run ruff format --check .` reports 35 files that would be reformatted
-under the locked ruff 0.16.0. None of them are touched by this branch —
-`ruff format --check` passes on every file this branch changes. Reformatting
-the other 35 would be a large unrelated diff and is left for a separate
-change.
+under the locked ruff 0.16.0, all already drifted on `main`. Every hunk this
+branch adds or modifies is formatted per that version. See the closing
+section for the two touched files that still fail the whole-file check on
+drift this branch did not introduce.
 
 ### iOS half — rotate the installation ID on sign-out
 
@@ -484,6 +485,12 @@ answer, and this is the absence of one, so the two are separate types and only
 the second fails open. Every route that calls `enforce` directly gets the same
 degradation, not just the middleware.
 
+**Known residual, not fixed here.** `retry_after`'s own
+`raise RuntimeError("Redis returned an invalid rate-limit result")` sits
+outside the `try` this change added, so a malformed eval result still escapes
+`enforce` and reproduces the same 500-storm by a rarer route. Same outage
+class as #2; worth folding into the typed failure next session.
+
 ### Verification
 
 `tests/api/test_rate_limit_wiring.py::test_an_unreachable_rate_limit_store_degrades_instead_of_failing_requests`
@@ -613,3 +620,65 @@ because the point is that the metrics layer no longer overrides it.
 uv run pytest -q -m "not live_provider and not chaos"  -> 706 passed
 uv run mypy --strict ladle                             -> clean
 ```
+
+## Milestone verification
+
+Run at the end of the branch, on the iOS 26.5 simulator destination this
+project has been using:
+
+```text
+swift test --package-path Packages/LadleCore
+  -> 46 tests in 9 suites passed
+xcodebuild test -project Ladle.xcodeproj -scheme Ladle \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5'
+  -> LadleTests:   261 executed, 1 skipped, 0 failures
+  -> LadleUITests:  21 executed, 0 failures
+xcodebuild build -project Ladle.xcodeproj -scheme LadleShare \
+  -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO
+  -> BUILD SUCCEEDED
+cd Backend && uv run ruff check ladle tests alembic  -> All checks passed
+cd Backend && uv run mypy --strict ladle             -> 121 source files clean
+cd Backend && uv run pytest -q -m "not live_provider and not chaos"
+  -> 706 passed, 5 deselected
+```
+
+## Where this run stopped, and where the next one starts
+
+Every HIGH finding (#1–#10) is closed, plus MEDIUM #20, #21 and #24 — 13 of
+the 45 — along with one defect the review had not found. 32 findings remain,
+all MEDIUM or LOW.
+
+### Not attempted, and why
+
+- **#25 (GuestLimitView's fake account creation)** needs a product decision,
+  not a fix. The sheet's "Create a free account" button only flips local
+  `AccountState` to `.freeAccount`; whether that should call a real
+  registration depends on whether real account creation exists yet, which is
+  a question for the user rather than a guess to make here. Left untouched.
+- **#30/#31/#32 (ImportCoordinator cancellation)** are the natural next
+  group, and #24 already laid a seam for them:
+  `RemoteContractError.importCancelled` is thrown but nothing catches it yet,
+  so a cancelled job currently surfaces as a generic import failure. That
+  cluster should decide how a cancelled job presents and catch it there.
+- **#28 (hard delete without a tombstone)** is referenced by a comment in
+  `markUpsertSynced`'s row-is-gone branch; that branch is deliberately a
+  no-op until #28 provides the server-side delete.
+
+### Suggested order for the next session
+
+1. #30/#31/#32 together, catching `importCancelled` as part of it.
+2. #27 and #28, which sit in the same `applySyncPage`/`deleteRecipe` code as
+   this run's #7, #9 and the tombstone fix — that context is fresh in the
+   commits above.
+3. #11–#19, #22, #23 (backend MEDIUM), which are independent of each other.
+
+### Known repository-level issue, untouched
+
+`uv run ruff format --check .` reports 35 files that would be reformatted
+under the locked ruff 0.16.0, all of them already drifted on `main`. Every
+hunk this branch adds or modifies is formatted per that version, but two of
+the 35 are files this branch also touches — `ladle/recipes/template_clone.py`
+and `tests/integration/test_migrations.py` — whose drift sits in hunks this
+branch did not change, so those files still fail the whole-file check.
+Reformatting all 35 is a large mechanical diff that would bury this branch's
+changes, so it is left for a separate commit.
