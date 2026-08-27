@@ -3,6 +3,10 @@ import Foundation
 public enum RemoteContractError: Error, Equatable, Sendable {
     case invalidDecimal(field: String, value: String)
     case invalidImportStatus
+    /// The server reported a job the user had already cancelled. Distinct
+    /// from `invalidImportStatus` so callers can drop the job instead of
+    /// showing an import failure.
+    case importCancelled
 }
 
 public enum RemoteContractJSON {
@@ -76,6 +80,9 @@ public enum RemoteImportStatus: String, Codable, Hashable, Sendable {
     case ready
     case needsReview
     case failed
+    /// An idempotent re-submission can match a job the user already
+    /// cancelled, so this has to decode rather than fail.
+    case cancelled
 }
 
 public struct RemoteImportJobDTO: Codable, Hashable, Sendable {
@@ -97,6 +104,8 @@ public struct RemoteImportJobDTO: Codable, Hashable, Sendable {
             .needsReview
         case let (.failed, .some(failure), nil):
             .failed(failure)
+        case (.cancelled, nil, nil):
+            throw RemoteContractError.importCancelled
         default:
             throw RemoteContractError.invalidImportStatus
         }

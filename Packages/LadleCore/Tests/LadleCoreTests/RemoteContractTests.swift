@@ -31,6 +31,35 @@ struct RemoteContractTests {
     }
 
     @Test
+    func cancelledImportDecodesAndReportsItselfAsCancelled() throws {
+        // An idempotent re-submission can match a job the user already
+        // cancelled, so the wire status has to decode rather than fail.
+        let payload = Data(
+            """
+            {
+              "jobID": "10000000-0000-4000-8000-000000000001",
+              "status": "cancelled",
+              "failureReason": null,
+              "recipeID": null,
+              "retryCount": 0,
+              "createdAt": "2026-08-27T12:00:00.000Z",
+              "updatedAt": "2026-08-27T12:00:00.000Z"
+            }
+            """.utf8
+        )
+
+        let dto = try RemoteContractJSON.decoder().decode(
+            RemoteImportJobDTO.self,
+            from: payload
+        )
+
+        #expect(dto.status == .cancelled)
+        #expect(throws: RemoteContractError.importCancelled) {
+            try dto.importStatus()
+        }
+    }
+
+    @Test
     func importFixturesMapFlatStatusesIntoDomainEnum() throws {
         let ready: RemoteImportJobDTO = try decodeFixture("import-ready")
         let review: RemoteImportJobDTO = try decodeFixture("import-needs-review")

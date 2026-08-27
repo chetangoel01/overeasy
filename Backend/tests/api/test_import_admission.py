@@ -119,6 +119,23 @@ def test_import_is_committed_before_dispatch_and_can_be_polled(
         missing = client.get(f"/v1/imports/{job_id}", headers=headers)
         assert missing.status_code == 404
 
+        # A lost response makes the client re-POST the same submission. The
+        # cancelled job it matches has to serialize, not raise.
+        replayed = client.post(
+            "/v1/imports",
+            json={
+                "jobID": str(job_id),
+                "sourceURL": "https://youtu.be/api-import1",
+                "allowDuplicate": False,
+                "idempotencyKey": "api-import",
+            },
+            headers=headers,
+        )
+        assert replayed.status_code == 202
+        assert replayed.json()["status"] == "cancelled"
+        assert replayed.json()["recipeID"] is None
+        assert dispatcher.calls == [job_id]
+
     with Session(engine) as database:
         stored = database.get(ImportJob, job_id)
         assert stored is not None

@@ -27,7 +27,8 @@ by the code they touch.
 | #6 (backend half) | Device binding survives sign-out | `b648aed` | fixed |
 | #6 (iOS half) | Installation ID never rotated | `f203232` | fixed |
 | #10 | Uncancelled sync task writes after wipe | `d49b549` | fixed |
-| #5 | Imported recipes lost their notes | `_pending_` | fixed |
+| #5 | Imported recipes lost their notes | `cb7e366` | fixed |
+| #1 + #24 | Cancelled imports: downgrade and wire enum | `_pending_` | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -240,3 +241,68 @@ test_instantiate_drops_notes_a_recipe_could_never_hold         FAILED
 
 Green after, together with `uv run pytest -q -m "not live_provider and not
 chaos"` at 699 passed and `uv run mypy --strict ladle` clean.
+
+## Findings #1 and #24 — the cancelled import status
+
+These two are the same gap seen from opposite ends: 0014 taught the database
+about `cancelled`, but neither the wire contract nor the migration's own
+downgrade was taught with it.
+
+### #24 — a cancelled job could not be serialized
+
+`AdmissionService._idempotent_job` matches on job ID *or* idempotency key with
+no status filter, so a client re-POSTing after a lost response matched the job
+it had since cancelled. `ImportStatus("cancelled")` then raised `ValueError`,
+which no route handler catches, and the client got a retryable HTTP 500 —
+which it retried, reproducing the 500 indefinitely.
+
+`ImportStatus` now carries `CANCELLED`, and `ImportJobResponse`'s validator
+treats it like `PARSING` for the recipe-ID rule: a cancelled import may not
+expose a candidate recipe.
+
+On the Swift side `RemoteImportStatus` gained `cancelled` so the payload
+decodes instead of failing with `APIError.decoding`, and
+`RemoteImportJobDTO.importStatus()` throws the new
+`RemoteContractError.importCancelled` rather than the generic
+`invalidImportStatus`. The domain `ImportStatus` deliberately did **not** gain
+a case: that would ripple through every import switch in the library UI, and
+how a cancelled job should present is part of the ImportCoordinator
+cancellation cluster (#30–#32). The distinct error is the seam that work will
+catch — until then a cancelled job surfaces as a generic import failure rather
+than a decode crash, which is strictly better but not yet right.
+
+### #1 — the 0014 downgrade deleted cancelled jobs
+
+`DELETE FROM import_jobs WHERE status = 'cancelled'` cascaded through
+`import_quota_events`, `import_dispatch_outbox`, `import_dead_letters`,
+`recipe_slot_reservations` and `provider_attempts` — silently refunding the
+user's monthly import quota and destroying the billing and audit trail.
+
+The downgrade now remaps instead of deleting: `status = 'failed'` with
+`failure_reason = COALESCE(failure_reason, 'parserUnavailable')` and
+`stage = 'failed'`. `failed` is the closest state the pre-0014 set can
+express, and the reason has to be non-NULL because `ImportJobResponse` rejects
+a failed job without one — remapping to a row that then 500s on serialization
+would just move the bug. The approximation is documented in the migration and
+confined to the rollback path.
+
+### Verification
+
+- `tests/integration/test_migrations.py::test_cancelled_import_downgrade_preserves_jobs_and_their_quota_events`
+  inserts a cancelled job plus its quota event, downgrades to 0013, and
+  asserts both survive. Red: `AssertionError: the cancelled job was deleted by
+  the downgrade`.
+- `tests/api/test_import_admission.py::test_import_is_committed_before_dispatch_and_can_be_polled`
+  now continues past the cancellation into a re-POST of the identical
+  submission. Red: `ValueError: 'cancelled' is not a valid ImportStatus`
+  surfacing as a 500. Green: 202 with `status == "cancelled"` and no recipe ID.
+- `Packages/LadleCore/Tests/LadleCoreTests/RemoteContractTests.swift::cancelledImportDecodesAndReportsItselfAsCancelled`
+  decodes a cancelled job payload and expects `importCancelled`. Red at
+  compile time (`type 'RemoteContractError' has no member 'importCancelled'`).
+
+```text
+uv run pytest -q -m "not live_provider and not chaos"  -> 700 passed
+uv run mypy --strict ladle                             -> clean
+swift test --package-path Packages/LadleCore           -> 46 tests passed
+xcodebuild build -scheme Ladle                         -> BUILD SUCCEEDED
+```

@@ -247,3 +247,99 @@ def test_step_ingredient_references_must_belong_to_the_same_recipe(
         )
 
     engine.dispose()
+
+
+@pytest.mark.integration
+def test_cancelled_import_downgrade_preserves_jobs_and_their_quota_events(
+    clean_postgres_url: str,
+) -> None:
+    """Downgrading past 0014 must not destroy the audit and quota trail.
+
+    import_quota_events.import_job_id cascades, so deleting cancelled jobs
+    silently refunds the user's monthly import quota and takes the billing
+    trail with it.
+    """
+    config = alembic_config(clean_postgres_url)
+    command.upgrade(config, "head")
+    engine = create_engine(clean_postgres_url)
+    user_id = uuid4()
+    job_id = uuid4()
+    now = datetime.now(UTC)
+
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                INSERT INTO users (id, kind, created_at)
+                VALUES (:id, 'guest', :created_at)
+                """
+            ),
+            {"id": user_id, "created_at": now},
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO import_jobs (
+                    id, user_id, source_url, source, status, stage,
+                    retry_count, idempotency_key, created_at, updated_at
+                )
+                VALUES (
+                    :id, :user_id, 'https://www.tiktok.com/@cook/video/1',
+                    'tiktok', 'cancelled', 'cancelled', 0, :key,
+                    :created_at, :created_at
+                )
+                """
+            ),
+            {
+                "id": job_id,
+                "user_id": user_id,
+                "key": str(job_id),
+                "created_at": now,
+            },
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO import_quota_events (
+                    id, user_id, import_job_id, operation, event_key,
+                    occurred_at
+                )
+                VALUES (
+                    :id, :user_id, :job_id, 'submit', :event_key, :occurred_at
+                )
+                """
+            ),
+            {
+                "id": uuid4(),
+                "user_id": user_id,
+                "job_id": job_id,
+                "event_key": f"submit-{job_id}",
+                "occurred_at": now,
+            },
+        )
+
+    engine.dispose()
+    command.downgrade(config, "0013")
+    engine = create_engine(clean_postgres_url)
+
+    with engine.begin() as connection:
+        job = connection.execute(
+            text("SELECT status, failure_reason FROM import_jobs WHERE id = :id"),
+            {"id": job_id},
+        ).one_or_none()
+        quota_events = connection.execute(
+            text(
+                """
+                SELECT count(*) FROM import_quota_events
+                WHERE import_job_id = :job_id
+                """
+            ),
+            {"job_id": job_id},
+        ).scalar_one()
+
+    assert job is not None, "the cancelled job was deleted by the downgrade"
+    assert job.status == "failed"
+    assert job.failure_reason is not None
+    assert quota_events == 1
+
+    engine.dispose()
