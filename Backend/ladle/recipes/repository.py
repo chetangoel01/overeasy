@@ -210,15 +210,29 @@ class RecipeRepository:
         stored: Recipe,
         recipe: RecipeDTO,
     ) -> None:
+        # An image's location is rendered on the way out — an object-storage
+        # image leaves as a short-lived presigned URL — so the value coming
+        # back in cannot be trusted as its location. Keep what is stored for
+        # images the recipe already had; only a genuinely new image is
+        # located by the URL the client supplied.
+        stored_locations = {
+            image_id: (object_key, remote_url)
+            for image_id, object_key, remote_url in database.execute(
+                select(
+                    RecipeImage.id,
+                    RecipeImage.object_key,
+                    RecipeImage.remote_url,
+                ).where(RecipeImage.recipe_id == stored.id)
+            )
+        }
         self._delete_graph(database, stored.id)
 
         database.add_all(
-            RecipeImage(
-                id=image.id,
+            self._replacement_image(
                 recipe_id=stored.id,
-                object_key=None,
-                remote_url=str(image.remote_url),
+                image=image,
                 order_index=index,
+                stored_locations=stored_locations,
             )
             for index, image in enumerate(recipe.images)
         )
@@ -436,6 +450,25 @@ class RecipeRepository:
             revision=stored.revision,
             created_at=stored.created_at,
             updated_at=stored.updated_at,
+        )
+
+    @staticmethod
+    def _replacement_image(
+        *,
+        recipe_id: UUID,
+        image: RecipeImageDTO,
+        order_index: int,
+        stored_locations: dict[UUID, tuple[str | None, str | None]],
+    ) -> RecipeImage:
+        object_key, remote_url = stored_locations.get(image.id, (None, None))
+        if object_key is None and remote_url is None:
+            remote_url = str(image.remote_url)
+        return RecipeImage(
+            id=image.id,
+            recipe_id=recipe_id,
+            object_key=object_key,
+            remote_url=remote_url,
+            order_index=order_index,
         )
 
     def _delete_graph(self, database: Session, recipe_id: UUID) -> None:

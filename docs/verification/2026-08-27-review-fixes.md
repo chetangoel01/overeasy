@@ -34,7 +34,8 @@ by the code they touch.
 | #7 | Push acknowledgement erased an in-flight edit | `4dfbad2` | fixed |
 | #8 | Editor numbers parsed against the wrong locale | `1733928` | fixed |
 | #2 | A limiter outage became an API outage | `bcd5ac2` | fixed |
-| #4 | Concurrent edits at the same revision both won | `_pending_` | fixed |
+| #4 | Concurrent edits at the same revision both won | `338967d` | fixed |
+| #3 | Editing a recipe destroyed its stored image | `_pending_` | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -528,5 +529,41 @@ AssertionError: the second writer overwrote the first at the same base revision
 
 ```text
 uv run pytest -q -m "not live_provider and not chaos"  -> 702 passed
+uv run mypy --strict ladle                             -> clean
+```
+
+## Finding #3 — editing a recipe destroyed its object-storage image
+
+`to_dto` renders an object-storage image as a six-hour presigned URL.
+`replace_graph` then wrote every image back as `object_key=NULL,
+remote_url=<that presigned URL>`, so any edit to a recipe — a title change, a
+favourite toggle — replaced the durable key with a URL that expires. Six hours
+later every fetch of that image 403s. Worse,
+`CacheMaintenanceService.delete_unreferenced_thumbnails` guards on a
+`RecipeImage.object_key` match; with the key gone the guard stops matching and
+the sweep deletes the object the live recipe still points at.
+
+A rendered locator is an output, not an input. `replace_graph` now snapshots
+each existing image's `(object_key, remote_url)` before rebuilding the graph
+and carries it forward by image id; only an image the recipe did not already
+have is located by the URL the client supplied. That also keeps the
+`ck_recipe_images_exactly_one_location` constraint satisfied without the
+caller having to know which locator an image uses.
+
+### Verification
+
+`tests/integration/recipes/test_recipe_service.py::test_round_tripping_a_recipe_keeps_its_object_storage_image`
+stores an image by object key, renders it through `to_dto` (asserting the
+presigned URL really is what the client would receive), PUTs that DTO back
+with an edited title, and checks the row still carries the key with no
+`remote_url`. Red before the fix:
+
+```text
+AssertionError: assert None == 'thumbs/lemon-orzo'
+  where None = <RecipeImage>.object_key
+```
+
+```text
+uv run pytest -q -m "not live_provider and not chaos"  -> 703 passed
 uv run mypy --strict ladle                             -> clean
 ```

@@ -12,9 +12,16 @@ from sqlalchemy.orm import Session
 
 from alembic import command
 from ladle.contracts.recipes import RecipeDTO
-from ladle.db.models import Recipe, RecipeChange, User, UserSyncState
+from ladle.db.models import (
+    Recipe,
+    RecipeChange,
+    RecipeImage,
+    User,
+    UserSyncState,
+)
 from ladle.db.session import build_engine
 from ladle.recipes.limits import GuestRecipeLimitReached
+from ladle.recipes.repository import RecipeRepository
 from ladle.recipes.service import (
     InvalidManualRecipe,
     RecipeService,
@@ -317,5 +324,69 @@ def test_concurrent_updates_at_the_same_base_revision_cannot_both_win(
             )
         )
         assert sorted(revisions) == [1, 2]
+
+    engine.dispose()
+
+
+@pytest.mark.integration
+def test_round_tripping_a_recipe_keeps_its_object_storage_image(
+    clean_postgres_url: str,
+) -> None:
+    """A stored image's locator must survive an edit that round-trips it.
+
+    to_dto renders an object-storage image as a short-lived presigned URL.
+    Writing that URL back as the image's location loses the durable key: the
+    image 403s once the signature expires, and the cache sweep that guards on
+    RecipeImage.object_key stops matching, so it deletes the object the live
+    recipe still points at.
+    """
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    engine = build_engine(clean_postgres_url)
+    repository = RecipeRepository(
+        object_url=lambda key: f"https://objects.ladle.test/{key}?signature=abc"
+    )
+    service = RecipeService(
+        clock=FrozenClock(datetime(2026, 7, 23, 21, 0, tzinfo=UTC)),
+        repository=repository,
+    )
+    recipe_id = uuid4()
+
+    with Session(engine) as database, database.begin():
+        user_id = seed_user(database)
+        service.upsert(
+            database,
+            user_id=user_id,
+            recipe=manual_recipe(recipe_id),
+            base_revision=0,
+        )
+        stored_image = database.scalars(
+            select(RecipeImage).where(RecipeImage.recipe_id == recipe_id)
+        ).one()
+        image_id = stored_image.id
+        stored_image.remote_url = None
+        stored_image.object_key = "thumbs/lemon-orzo"
+
+    with Session(engine) as database, database.begin():
+        stored = database.get(Recipe, recipe_id)
+        assert stored is not None
+        rendered = repository.to_dto(database, stored)
+        assert str(rendered.images[0].remote_url).startswith(
+            "https://objects.ladle.test/thumbs/lemon-orzo"
+        )
+        edited = rendered.model_copy(update={"title": "Edited"})
+        service.upsert(
+            database,
+            user_id=user_id,
+            recipe=edited,
+            base_revision=rendered.revision,
+        )
+
+    with Session(engine) as database:
+        image = database.scalars(
+            select(RecipeImage).where(RecipeImage.recipe_id == recipe_id)
+        ).one()
+        assert image.id == image_id
+        assert image.object_key == "thumbs/lemon-orzo"
+        assert image.remote_url is None
 
     engine.dispose()
