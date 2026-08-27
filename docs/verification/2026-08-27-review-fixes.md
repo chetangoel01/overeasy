@@ -35,7 +35,8 @@ by the code they touch.
 | #8 | Editor numbers parsed against the wrong locale | `1733928` | fixed |
 | #2 | A limiter outage became an API outage | `bcd5ac2` | fixed |
 | #4 | Concurrent edits at the same revision both won | `338967d` | fixed |
-| #3 | Editing a recipe destroyed its stored image | `_pending_` | fixed |
+| #3 | Editing a recipe destroyed its stored image | `90e1775` | fixed |
+| #20 + #21 | Observability middleware 500s and blind spots | `_pending_` | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -565,5 +566,50 @@ AssertionError: assert None == 'thumbs/lemon-orzo'
 
 ```text
 uv run pytest -q -m "not live_provider and not chaos"  -> 703 passed
+uv run mypy --strict ladle                             -> clean
+```
+
+## Findings #20 and #21 — the observability middleware
+
+Two defects in one middleware, fixed together.
+
+**#20 — a metrics label check 500ing real requests.** `record_http` ran the
+request method through `_require`, the guard that keeps metric label
+cardinality bounded, and `HEAD` was not in the six-item allowlist. The raise
+happened *after* the response had been produced, so whatever the router
+answered became a 500. The distinction that matters: every other `_require`
+call guards an internal outcome enum, where a bad value is a programmer error
+worth raising on. The request method comes from the caller — refusing it lets
+anyone turn a served request into a 500. `HEAD` now joins the allowlist and
+anything else is folded to a bounded `OTHER` label, so cardinality stays
+capped without the request paying for it.
+
+**#21 — failures missing from the record.** `call_next` was unwrapped, so an
+unhandled exception skipped both the HTTP metric and the completion log. The
+handler that turns it into a 500 sits outside this middleware, so those
+requests — the ones an operator most needs — vanished from observability
+entirely. The call is now wrapped: a raising handler records a 500 with the
+elapsed duration and logs it as a failure before the exception is re-raised
+for the error handler to answer. Both paths share one `record` helper rather
+than duplicating the metric and log construction.
+
+### Verification
+
+`tests/unit/observability/test_middleware.py` (new file), all three red:
+
+```text
+test_head_requests_are_answered_and_counted_under_a_bounded_label
+  ValueError: unbounded metric label: HEAD
+test_an_unrecognised_method_is_folded_rather_than_failing_the_request
+  ValueError: unbounded metric label: TRACE
+test_a_failing_handler_is_still_recorded_and_logged
+  assert 'status="5xx"' in ''   (nothing was recorded at all)
+```
+
+The HEAD test asserts 405 — the router's own answer for a GET-only route —
+because the point is that the metrics layer no longer overrides it.
+
+```text
+uv run pytest -q -m "not live_provider and not chaos"  -> 706 passed
 uv run mypy --strict ladle                             -> clean
 ```

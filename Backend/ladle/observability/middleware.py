@@ -29,16 +29,43 @@ def install_request_middleware(
             identifier = uuid4()
         request.state.request_id = identifier
         started = perf_counter()
-        with log_context(request_id=str(identifier)):
-            response = await call_next(request)
+        try:
+            with log_context(request_id=str(identifier)):
+                response = await call_next(request)
+        except Exception:
+            # The handler that turns this into a 500 sits outside this
+            # middleware, so without recording it here the requests an
+            # operator most needs to see are the ones missing from the
+            # metrics and the log entirely.
+            record(
+                identifier=identifier,
+                request=request,
+                status_code=500,
+                duration=perf_counter() - started,
+            )
+            raise
         response.headers[X_REQUEST_ID] = str(identifier)
+        record(
+            identifier=identifier,
+            request=request,
+            status_code=response.status_code,
+            duration=perf_counter() - started,
+        )
+        return response
+
+    def record(
+        *,
+        identifier: UUID,
+        request: Request,
+        status_code: int,
+        duration: float,
+    ) -> None:
         route = request.scope.get("route")
         route_path = getattr(route, "path", "unmatched")
-        duration = perf_counter() - started
         metrics.record_http(
             request.method,
             str(route_path),
-            response.status_code,
+            status_code,
             duration_seconds=duration,
         )
         safe_user = getattr(request.state, "user_safe_id", None)
@@ -46,14 +73,10 @@ def install_request_middleware(
             "request_id": str(identifier),
             "method": request.method,
             "route": str(route_path),
-            "status_code": response.status_code,
+            "status_code": status_code,
             "duration_ms": round(duration * 1000, 3),
-            "terminal_result": ("success" if response.status_code < 500 else "failure"),
+            "terminal_result": "success" if status_code < 500 else "failure",
         }
         if isinstance(safe_user, str):
             event["user_safe_id"] = safe_user
-        LOGGER.info(
-            "HTTP request completed",
-            extra=event,
-        )
-        return response
+        LOGGER.info("HTTP request completed", extra=event)
