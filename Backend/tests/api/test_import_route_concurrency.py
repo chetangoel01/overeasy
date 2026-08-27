@@ -164,9 +164,7 @@ def test_a_slow_import_submission_does_not_stall_other_requests(
         def retry() -> Any:
             return client.post(f"/v1/imports/{job_id}/retry", json={}, headers=headers)
 
-        elapsed, retried = timed_health_check_during(
-            client, attestation, pool, retry
-        )
+        elapsed, retried = timed_health_check_during(client, attestation, pool, retry)
         assert retried.status_code == 202
         assert elapsed < HEALTH_BUDGET_SECONDS, (
             f"/health/live took {elapsed:.3f}s while a retry was in flight: "
