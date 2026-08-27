@@ -38,6 +38,8 @@ by the code they touch.
 | #4 | Concurrent edits at the same revision both won | `338967d` | fixed |
 | #3 | Editing a recipe destroyed its stored image | `90e1775` | fixed |
 | #20 + #21 | Observability middleware 500s and blind spots | `fda602d` | fixed |
+| #33 | Cancelled requests reported as being offline | `fb9f643` | fixed |
+| #30 + #31 + #32 | Import-cancellation cluster | `814ba45` | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -641,6 +643,198 @@ cd Backend && uv run mypy --strict ladle             -> 121 source files clean
 cd Backend && uv run pytest -q -m "not live_provider and not chaos"
   -> 706 passed, 5 deselected
 ```
+
+## Finding #33 — cancelling a request read as "You're offline"
+
+### The defect
+
+`APIClient.perform`'s trailing `catch { throw APIError.transport }` swallowed
+every non-`APIError`, including the two errors that mean "the awaiting task
+was cancelled": `CancellationError` and `URLError(.cancelled)` (what URLSession
+actually throws when its task is cancelled). `RemoteFailure` maps `.transport`
+to `.offline`, so ordinary navigation-driven cancellation — switching tabs
+while Discover's first load is in flight — painted a persistent "You're
+offline" screen on a connected device, and every downstream
+`catch is CancellationError` branch (DiscoverViewModel, WelcomeView,
+AccountSheet, `performSync`'s `status.cancel()` arm) was unreachable. This is
+also the root of finding #31: the ImportCoordinator's own cancellation arm
+never saw a cancellation that landed inside a network call.
+
+### The fix
+
+`perform` now rethrows `CancellationError` as itself and converts
+`URLError(.cancelled)` into `CancellationError`, so cancellation crosses the
+API boundary typed as cancellation. Everything else still becomes
+`APIError.transport`. The existing `catch is CancellationError` sites need no
+changes — they were written for exactly this and now run. Consumers that
+bypass `APIClient.perform` (`RemoteImageCache`, HealthKit export) are
+unaffected.
+
+### Verification
+
+`LadleTests/APIClientTests.testCancelledRequestThrowsCancellationInsteadOfTransport`
+stubs the session to fail with `URLError(.cancelled)` and asserts the request
+throws `CancellationError`. Red before the fix:
+
+```text
+APIClientTests.swift:336: failed - Cancellation was reported as transport,
+which renders as offline instead of being ignored
+```
+
+`testGenuineTransportFailureStillMapsToTransport` pins the other side —
+`URLError(.notConnectedToInternet)` still reads as offline — so the fix
+cannot over-match. Green after the fix with `-only-testing:LadleTests/
+APIClientTests` (9 tests), plus DiscoverViewModelTests, RemoteFailureTests,
+and RecipeSyncServiceTests to sweep the consumers of the changed mapping.
+
+## Findings #30, #31, and #32 — the import-cancellation cluster
+
+One defect surface: what "cancelled" means as it crosses from the network
+layer into the coordinator's state machine.
+
+### The defect
+
+- **#30** — `cancelImport(jobID:)` deleted the durable row and then suspended
+  at `service.cancel(...)`. The still-in-flight processing task resumed after
+  the delete and re-saved the job — either the poll-loop save re-inserted it
+  as a `.parsing` zombie (when the status response won the race), or
+  `finishRemoteFailure` re-inserted it as `.failed(.networkUnavailable)`
+  (when the cancelled request threw). The dialog promises the import "will
+  stop processing and disappear from Inbox"; it reappeared instead.
+- **#31** — with #33 unfixed, `process`'s `catch is CancellationError` arm was
+  unreachable for any cancellation landing inside a network call, so ordinary
+  task teardown (scene change, sheet dismissal) durably flipped a healthy
+  `.parsing` job to `.failed(.networkUnavailable)`.
+- **#32** — `resumePendingImports()` re-adopted every `.parsing` job,
+  including the one the foreground already owned: it joined the in-flight
+  task, then overwrote `operation` and `state` with the next pending job's,
+  so the user's success screen was replaced by a spinner and `completedRecipe`
+  ended up naming the share-extension recipe, not the one they imported.
+- **The #1/#24 seam** — `RemoteContractError.importCancelled` was thrown but
+  never caught, so a job the server reports as cancelled surfaced as
+  `state = .persistenceFailed` ("Overeasy couldn’t save that import") with a
+  phantom `.parsing` row left in the Inbox.
+
+### The fix
+
+Cancellation is made durable by ordering, distinguishable by type, and scoped
+by ownership:
+
+- `cancelImport` flips the task's cancel flag and deletes the row with **no
+  suspension point between them**, so by the time the processing task can run
+  again the cancellation is already durable. Row presence is what
+  distinguishes teardown-cancel (row kept `.parsing`, resumed later) from
+  user-cancel (row gone) — no separate token is needed. The remote cancel
+  moved after `reset()`, runs only for a still-`.parsing` job with a
+  `remoteJobID`, and is best-effort (`try?`): a cancel that succeeded locally
+  no longer becomes `persistenceFailed` because the device was offline, and a
+  job that finished in the race window keeps its recipe and never sends a
+  remote cancel.
+- `process` re-checks `Task.checkCancellation()` after **every** await before
+  **every** save, and its `APIError` arms carry `where !Task.isCancelled` —
+  any error caught on a cancelled task is treated as cancellation, closing
+  both resurrection paths whatever the in-flight request threw.
+- Published state (`state`, `completedRecipe`, `operationFailure`,
+  `existingDuplicate`) is written only when the coordinator `owns(jobID:)`
+  the job; durable saves and the import-ready notification happen for every
+  job. A deliberate trade rides on this: a background-resumed job's failure
+  no longer sets `operationFailure`, so the Inbox falls back to the durable
+  `job.status` via `failure(for:)` — the richer report (request ID,
+  rate-limit deadline) is reserved for the operation being watched.
+- `resumePendingImports` skips any job whose task is already running,
+  re-fetches each job before resuming it (an earlier iteration's await may
+  have outlived it), adopts a job only when the coordinator is idle, and no
+  longer stomps `state` when its own task is torn down mid-loop.
+- `RemoteContractError.importCancelled` is caught: the durable row is deleted
+  (the Inbox honors the cancellation) and, when owned, the new
+  `ImportCoordinatorState.cancelled(jobID:)` presents it. AddRecipeSheet and
+  ReimportSheet render it as "Import cancelled" — cancelled, not a failure,
+  not a silent disappearance — and `refreshesLibrary` includes it so the
+  Inbox badge updates. `DemoImportService` gained a `cancelled` link slug so
+  demo builds can reach the state deterministically.
+
+### Verification
+
+Nine new `ImportCoordinatorTests` (plus one `DemoImportServiceTests`), red
+first against the unfixed coordinator (`APIClient` already fixed, so the reds
+below are coordinator defects, not #33's):
+
+```text
+testCancelDuringRacingStatusResponseDoesNotResurrectTheJob
+  XCTAssertTrue failed - The cancelled job was saved back:
+    [… status: LadleCore.ImportStatus.parsing …
+       remoteJobID: Optional("017C662A-…") …]
+testCancelWhileRequestFailsInFlightDoesNotResurrectTheJobAsFailed
+  XCTAssertTrue failed - The cancelled job was saved back:
+    [… status: ….failed(….networkUnavailable) …]
+testTaskTeardownDuringNetworkCallLeavesJobParsingInsteadOfFailed
+  XCTAssertEqual failed: ("Optional(….failed(….networkUnavailable))")
+    is not equal to ("Optional(LadleCore.ImportStatus.parsing)")
+  XCTAssertEqual failed: ("failed(jobID: 2A9F4C18-…,
+    reason: ….networkUnavailable)") is not equal to ("idle")
+testResumeWhileForegroundImportPollsLeavesItsOperationAndStateAlone
+  XCTAssertTrue failed - resumePendingImports blocked on the foreground
+    import instead of skipping it
+  XCTAssertEqual failed: ("Optional(….parsing)") is not equal to
+    ("Optional(….ready)")
+testResumeDoesNotSwapWhichRecipeTheSheetReportsCompleted
+  XCTAssertEqual failed: ("Optional(….importJob(4D4A1A02-…))")   [job B]
+    is not equal to ("Optional(….importJob(F171FB88-…))")        [job A]
+  XCTAssertEqual failed: ("completed(recipeID: F7A4108F-…)")     [recipe B]
+    is not equal to ("completed(recipeID: 7BBFC599-…)")          [recipe A]
+testServerReportedCancellationRemovesJobAndReadsAsCancelled
+  XCTAssertTrue failed - A remotely cancelled job must leave the Inbox
+  XCTAssertNotEqual failed: ("persistenceFailed") is equal to
+    ("persistenceFailed")
+testCancelBeforeRemoteJobAssignedStaysCancelledAndSkipsRemoteCancel
+  XCTAssertTrue failed - The cancelled job was saved back:
+    [… status: ….failed(….networkUnavailable) … remoteJobID: nil …]
+  XCTAssertEqual failed: ("failed(jobID: 0CABD846-…, …)") is not equal
+    to ("idle")
+testCancellingACompletedImportRemovesTheJobKeepsTheRecipeAndSkipsRemoteCancel
+  XCTAssertEqual failed: ("1") is not equal to ("0") - A terminal remote
+    job must not receive a cancel request
+testCancellingWhileOfflineStillCancelsLocally
+  XCTAssertEqual failed: ("persistenceFailed") is not equal to ("idle")
+```
+
+The seam test was strengthened after the fix to pin the new presentation
+(`state == .cancelled(jobID:)`, `operationFailure == nil`) — the case did not
+exist to assert against before it.
+
+`testSecondCancelOfTheSameJobIsANoOp` passed before the fix too
+(`deleteImportJob` is a no-op on a missing row in both repositories); it is a
+regression guard for the double-cancel path, not red-green evidence.
+
+Atypical states covered: cancelling a job that already completed; cancelling
+before a remote job ID exists; cancelling while offline;
+`resumePendingImports()` running concurrently with a foreground import (the
+backgrounded-and-reopened flow); two cancels of the same job; a
+server-reported cancellation mid-poll; the pre-existing
+`testCancellationStopsPollingAndLeavesDurableJobParsing` and
+`testConfirmedCancellationTerminatesRemoteAndRemovesDurableJob` still pin the
+teardown-keeps-the-row and confirmed-cancel-removes-it contracts.
+
+```text
+swift test --package-path Packages/LadleCore
+  -> 46 tests in 9 suites passed
+xcodebuild test -project Ladle.xcodeproj -scheme Ladle \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5'
+  -> LadleTests:   274 executed, 1 skipped, 0 failures
+  -> LadleUITests:  21 executed, 0 failures
+```
+
+The new cancelled presentation was also exercised end-to-end in the demo
+simulator (seeded `-ui-testing` launch, `https://youtu.be/cancelled-elsewhere`
+through AddRecipeSheet): the sheet shows "Import cancelled" with a working
+"Add another recipe" reset, and no job row remains in the Inbox.
+
+Known limitation, recorded deliberately: a cancel that lands while the
+initial submit POST is still in flight cannot cancel the remote job the
+server may have just created — the app never learned its ID. The row is gone
+locally; the orphaned remote job ends server-side, and an idempotent
+resubmission of the same job ID would surface as `cancelled`, which the app
+now handles.
 
 ## Where this run stopped, and where the next one starts
 
