@@ -52,7 +52,8 @@ by the code they touch.
 | #15 | One account could hoard multiple Apple identities | `0ee5069` + `c745cb8` | fixed |
 | #14 | Import submission stalled every request on the worker | `1f2f0c1` | fixed |
 | #16 | Recipe child tables scanned on every fetch | `a75771f` | fixed |
-| #23 | One sync page fanned out to ~900 queries | `_pending_` | fixed |
+| #23 | One sync page fanned out to ~900 queries | `be5da00` | fixed |
+| #22 | Traces exported the USDA API key in the URL | `_pending_` | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -1841,6 +1842,75 @@ uv run pytest -q tests/integration/sync/test_sync_feed.py  -> 6 passed in 5.26s
 uv run pytest -q -m "not live_provider and not chaos"      -> 760 passed
 uv run ruff check ladle tests alembic                      -> All checks passed
 uv run mypy --strict ladle                                 -> clean
+```
+
+## Finding #22 — traces exported the USDA API key in the URL
+
+### The defect
+
+Every USDA lookup sends the API key as a query parameter, and the httpx
+tracing instrumentation records the request URL on the client span. The
+redaction hook `_redact_httpx_url` wrote a query-stripped copy to the
+`url.full` attribute — but which attribute the instrumentation itself
+uses depends on `OTEL_SEMCONV_STABILITY_OPT_IN`: unset (the default, and
+the only configuration this repo ever runs) records `http.url`, `http`
+records `url.full`, `http/dup` records both. The library's own
+`redact_url` spares `api_key` — its list covers only AWS/Google
+signature parameters — so under the default mode every nutrition span
+left the process with `http.url=…?api_key=<secret>` intact, shipped
+through the OTLP exporter to the collector and every downstream trace
+store, while the hook polished a second attribute nobody had recorded.
+Async clients were worse off still: the instrumentation only accepts a
+genuine coroutine as `async_request_hook` and none was passed, so an
+async httpx client's spans got no redaction under any mode.
+
+### The fix
+
+`_redact_httpx_url` now writes the sanitized URL (query and fragment
+stripped) to both `http.url` and `url.full`, overwriting every name the
+instrumentation can have used — redaction no longer depends on which
+semconv mode picked which attribute. A coroutine twin,
+`_redact_httpx_url_async`, delegates to it and is wired as
+`async_request_hook` in both `instrument_application` and
+`instrument_worker`, closing the async gap through the same
+`instrument()` calls.
+
+### Verification
+
+`tests/unit/observability/test_tracing.py::test_provider_credentials_never_reach_exported_spans`
+runs the real `HTTPXClientInstrumentor` through
+`instrument_application(..., instrument_dependencies=True)` with an
+`InMemorySpanExporter`, drives a real `httpx.HTTPTransport` and
+`AsyncHTTPTransport` (connection pool stubbed) with the key in the query
+string, with no query string, and with the key in a fragment, and
+asserts on the attributes of the spans the exporter actually ships —
+parametrized across all three semconv modes, resetting the
+`_OpenTelemetrySemanticConventionStability` singleton between runs. Red,
+before the fix, in every mode — default and dup leak through `http.url`
+on sync clients, stable leaks through `url.full` on the unhooked async
+client:
+
+```text
+E       AssertionError: span attribute http.url leaks the provider API key under semconv mode None: https://api.nal.usda.gov/fdc/v1/foods/search?api_key=sk-live-usda-key
+E       AssertionError: span attribute url.full leaks the provider API key under semconv mode 'http': https://api.nal.usda.gov/fdc/v1/foods/search?api_key=sk-live-usda-key
+E       AssertionError: span attribute http.url leaks the provider API key under semconv mode 'http/dup': https://api.nal.usda.gov/fdc/v1/foods/search?api_key=sk-live-usda-key
+FAILED tests/unit/observability/test_tracing.py::test_provider_credentials_never_reach_exported_spans[default]
+FAILED tests/unit/observability/test_tracing.py::test_provider_credentials_never_reach_exported_spans[stable]
+FAILED tests/unit/observability/test_tracing.py::test_provider_credentials_never_reach_exported_spans[dup]
+3 failed, 1 passed in 0.65s
+```
+
+Green: in all three modes, for sync and async clients alike, no
+exported span attribute contains the key, every URL attribute equals
+the query- and fragment-stripped URL, and the bare-URL request exports
+cleanly; the instrumentors are uninstrumented and the semconv singleton
+reset afterwards so the rest of the suite sees pristine state:
+
+```text
+uv run pytest -q tests/unit/observability/           -> 13 passed in 0.51s
+uv run pytest -q -m "not live_provider and not chaos" -> 763 passed
+uv run ruff check ladle tests alembic                 -> All checks passed
+uv run mypy --strict ladle                            -> clean
 ```
 
 ## Where this run stopped, and where the next one starts

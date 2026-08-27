@@ -40,6 +40,7 @@ def instrument_application(
         HTTPXClientInstrumentor().instrument(
             tracer_provider=provider,
             request_hook=_redact_httpx_url,
+            async_request_hook=_redact_httpx_url_async,
         )
         RedisInstrumentor().instrument(tracer_provider=provider)
         CeleryInstrumentor().instrument(  # type: ignore[no-untyped-call]
@@ -61,6 +62,7 @@ def instrument_worker(settings: Settings) -> TracerProvider | None:
     HTTPXClientInstrumentor().instrument(
         tracer_provider=provider,
         request_hook=_redact_httpx_url,
+        async_request_hook=_redact_httpx_url_async,
     )
     RedisInstrumentor().instrument(tracer_provider=provider)
     CeleryInstrumentor().instrument(  # type: ignore[no-untyped-call]
@@ -115,7 +117,16 @@ def _redact_httpx_url(span: object, request: object) -> None:
     if not callable(set_attribute) or url is None:
         return
     parsed = urlsplit(str(url))
-    set_attribute(
-        "url.full",
-        urlunsplit((parsed.scheme, parsed.netloc, parsed.path, "", "")),
-    )
+    sanitized = urlunsplit((parsed.scheme, parsed.netloc, parsed.path, "", ""))
+    # Depending on OTEL_SEMCONV_STABILITY_OPT_IN the instrumentation records
+    # the URL as http.url, url.full or both, and its own redaction spares
+    # provider credentials like api_key. Overwrite every name it can have
+    # used so no semconv mode exports a query string.
+    set_attribute("http.url", sanitized)
+    set_attribute("url.full", sanitized)
+
+
+async def _redact_httpx_url_async(span: object, request: object) -> None:
+    # Async clients are hooked separately, and only through a genuine
+    # coroutine function — a plain callable is silently discarded.
+    _redact_httpx_url(span, request)
