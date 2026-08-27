@@ -15,7 +15,7 @@ def test_database_readiness_requires_current_migration_revision(
     command.upgrade(alembic_config(clean_postgres_url), "head")
     engine = build_engine(clean_postgres_url)
     sessions = sessionmaker(engine)
-    probe = DatabaseReadinessProbe(sessions, expected_revision="0014")
+    probe = DatabaseReadinessProbe(sessions, expected_revision="0015")
 
     probe.check()
     with Session(engine) as database, database.begin():
