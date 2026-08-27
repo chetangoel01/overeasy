@@ -64,10 +64,9 @@ _PROMO_TAIL = re.compile(
     r"follow (me|for).*|subscribe .*)",
     re.IGNORECASE,
 )
-_SCRIPTISH = re.compile(
-    r"(?is)<(script|style|noscript|svg|iframe|head)[^>]*>.*?</\1>",
-)
-_TAG = re.compile(r"(?s)<[^>]+>")
+_SCRIPTISH_NAMES = ("script", "style", "noscript", "svg", "iframe", "head")
+_SCRIPTISH_OPEN = re.compile(rf"(?i)<({'|'.join(_SCRIPTISH_NAMES)})[^>]*>")
+_SCRIPTISH_CLOSE = {name: re.compile(rf"(?i)</{name}>") for name in _SCRIPTISH_NAMES}
 _WHITESPACE = re.compile(r"\s+")
 _LOC = re.compile(r"<loc>([^<]+)</loc>")
 
@@ -249,6 +248,60 @@ def _is_social(host: str) -> bool:
 
 
 def _readable(raw: str) -> str:
-    stripped = _TAG.sub(" ", _SCRIPTISH.sub(" ", raw))
+    stripped = _without_tags(_without_scriptish(raw))
     text = _WHITESPACE.sub(" ", html.unescape(stripped)).strip()
     return text[:_MAX_DOCUMENT_CHARACTERS]
+
+
+def _without_scriptish(raw: str) -> str:
+    """Drop <script>...</script>-style blocks in one linear pass.
+
+    The obvious one-liner — a lazy `<tag>[^>]*>.*?</tag>` regex — backtracks
+    quadratically when opening tags never close, and 2 MB of attacker HTML
+    (exactly the response cap) holds the worker's only thread for the better
+    part of an hour inside one uninterruptible C call. Forward searches give
+    the same result linearly: the scan position only moves forward, and a tag
+    name that never closes again is remembered, so each name costs at most
+    one failed search over the remainder.
+    """
+    parts: list[str] = []
+    position = 0
+    unclosed: set[str] = set()
+    while match := _SCRIPTISH_OPEN.search(raw, position):
+        name = match.group(1).casefold()
+        closing = (
+            None
+            if name in unclosed
+            else _SCRIPTISH_CLOSE[name].search(raw, match.end())
+        )
+        if closing is None:
+            # No close anywhere ahead. Leave the tag for _without_tags, the
+            # way the old regex left an unmatched opening tag alone.
+            unclosed.add(name)
+            parts.append(raw[position : match.end()])
+            position = match.end()
+            continue
+        parts.append(raw[position : match.start()])
+        parts.append(" ")
+        position = closing.end()
+    parts.append(raw[position:])
+    return "".join(parts)
+
+
+def _without_tags(raw: str) -> str:
+    """Replace every complete <...> region with a space, linearly.
+
+    `<[^>]+>` has the same quadratic shape as above: with no ">" left in the
+    body it re-scans to end-of-string from every "<".
+    """
+    parts: list[str] = []
+    position = 0
+    while (opening := raw.find("<", position)) != -1:
+        closing = raw.find(">", opening + 1)
+        if closing == -1:
+            break
+        parts.append(raw[position:opening])
+        parts.append(" ")
+        position = closing + 1
+    parts.append(raw[position:])
+    return "".join(parts)

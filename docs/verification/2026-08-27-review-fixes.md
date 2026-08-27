@@ -43,7 +43,8 @@ by the code they touch.
 | #28 | Delete during first upload came back | `d2ce167` | fixed |
 | #27 | Remote delete mislabeled as a remote edit | `2969c5a` | fixed |
 | #26 | Scrolling a focus-mode step changed the step | — | fixed |
-| #12 | Malformed caption URL killed the whole import | `_pending_` | fixed |
+| #12 | Malformed caption URL killed the whole import | `44b7b10` | fixed |
+| #13 | Hostile HTML pinned the worker for half an hour | `_pending_` | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -1147,6 +1148,74 @@ uv run pytest -q tests/unit/acquisition/test_free_links.py \
     tests/unit/acquisition/test_media_ssrf.py       -> 33 passed
 uv run ruff check ladle tests alembic               -> All checks passed
 uv run mypy --strict ladle                          -> clean
+```
+
+## Finding #13 — one hostile page pinned the import worker for half an hour
+
+### The defect
+
+`_readable` ran `_SCRIPTISH` — a lazy backreference regex,
+`<(script|style|…)[^>]*>.*?</\1>` — over response bodies as large as the
+2 MB fetch cap, and creator caption links resolve to servers the creator
+controls. On a body of opening tags that never close, the lazy `.*?` expands
+to end-of-string once per opening tag: quadratic. Measured scaling on the
+shipped regex — 2,000 tags 0.06 s, 4,000 tags 0.29 s — extrapolates to
+roughly 48 minutes at the cap (400,000 tags), all inside one uninterruptible
+`re.sub` C call, so even Celery's soft-limit SIGALRM cannot fire until the
+hard limit SIGKILLs the child. The tag stripper `_TAG` (`<[^>]+>`) had the
+same shape by a different payload: with no `>` anywhere, it re-scans to
+end-of-string from every `<`. One posted video with one caption link was
+enough to stall the single-threaded worker and everything queued behind it.
+
+### The fix
+
+`_readable` now uses two linear scanners instead of the two vulnerable
+regexes, bounding the work before the attacker-controlled body reaches any
+backtracking engine:
+
+- `_without_scriptish` finds each opening tag with a regex that cannot
+  backtrack across tags, then finds its literal close with a forward search.
+  The scan position only moves forward, and a tag name with no close ahead
+  is remembered — each of the six names costs at most one failed search over
+  the remainder, and an unmatched opening tag is left for the tag stripper
+  exactly as the old regex left it.
+- `_without_tags` replaces each complete `<...>` region using plain
+  `str.find`, again strictly forward.
+
+At the 2 MB cap the worst measured inputs now take 0.23 s (400,000 unclosed
+`<svg>`), 0.06 s (a megabyte of `<a` with no `>`), and 0.05 s (111,111
+closed `<script>` pairs). A 3,000-case randomized differential against the
+old pipeline shows byte-identical output except that a literal `<>` is now
+stripped like any other tag (the old `[^>]+` required one character);
+every behavioral case is also pinned by named tests: unclosed script keeps
+the text after it, closes match case-insensitively, scanning resumes after
+a closed block, and an empty body stays empty.
+
+### Verification
+
+Red on the shipped regexes — both timing tests, sized at 100–150 KB so the
+red run itself terminates:
+
+```text
+>       assert time.perf_counter() - started < 1.0
+E       assert (557307.652135166 - 557301.993815208) < 1.0   # 5.66 s
+FAILED test_free_links.py::test_unclosed_scriptish_soup_is_processed_in_linear_time
+>       assert time.perf_counter() - started < 1.0
+E       assert (557311.530182916 - 557307.683301) < 1.0      # 3.85 s
+FAILED test_free_links.py::test_unclosed_angle_bracket_soup_is_processed_in_linear_time
+2 failed, 5 passed, 30 deselected in 9.77s
+```
+
+The 5 passes are the semantics pins, written against the old behavior first
+so the swap provably changed speed and not meaning. Atypical states: empty
+body; body exactly at a fetcher byte cap kept, one byte over refused as
+`UnsafeURL`; unclosed blocks; case-crossed close tags; markup soup with no
+closing `>` at all.
+
+```text
+uv run pytest -q tests/unit/acquisition/test_free_links.py  -> 37 passed in 0.27s
+uv run ruff check ladle tests alembic                       -> All checks passed
+uv run mypy --strict ladle                                  -> clean
 ```
 
 ## Where this run stopped, and where the next one starts

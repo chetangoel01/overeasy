@@ -1,3 +1,4 @@
+import time
 from collections.abc import Sequence
 from dataclasses import dataclass
 
@@ -208,6 +209,81 @@ def test_fetch_text_strips_markup_and_scripts() -> None:
 
     assert "alert" not in text
     assert "Add 2 cups orzo" in text
+
+
+def test_unclosed_scriptish_soup_is_processed_in_linear_time() -> None:
+    # 100 KB of opening tags that never close. The lazy backreference regex
+    # backtracked quadratically over this — about seven seconds here and the
+    # better part of an hour at the 2 MB response cap, all inside a single
+    # uninterruptible re.sub call on the worker's only thread.
+    fetcher = fetcher_returning("<svg>" * 20_000)
+
+    started = time.perf_counter()
+    text = fetcher.fetch_text("https://example.com/recipe")
+    assert time.perf_counter() - started < 1.0
+    assert text == ""
+
+
+def test_unclosed_angle_bracket_soup_is_processed_in_linear_time() -> None:
+    # The tag stripper had the same quadratic shape: with no ">" anywhere,
+    # "<[^>]+>" re-scanned to end-of-string from every "<".
+    fetcher = fetcher_returning("<a" * 75_000)
+
+    started = time.perf_counter()
+    fetcher.fetch_text("https://example.com/recipe")
+    assert time.perf_counter() - started < 1.0
+
+
+def test_readable_keeps_text_after_an_unclosed_script() -> None:
+    fetcher = fetcher_returning("<p>Add 2 cups orzo</p><script>var x = 1")
+
+    assert "Add 2 cups orzo" in fetcher.fetch_text("https://example.com/recipe")
+
+
+def test_readable_strips_scriptish_blocks_case_insensitively() -> None:
+    fetcher = fetcher_returning(
+        "<p>Stir well.</p><SCRIPT type=module>secret()</SCRIPT><p>Serve.</p>"
+        "<style>p{color:red}</style><svg><path d='M0 0'/></svg>Done"
+    )
+
+    text = fetcher.fetch_text("https://example.com/recipe")
+
+    assert "Stir well." in text
+    assert "Serve." in text
+    assert "Done" in text
+    assert "secret" not in text
+    assert "color" not in text
+    assert "M0 0" not in text
+
+
+def test_readable_resumes_scanning_after_a_closed_block() -> None:
+    fetcher = fetcher_returning("<style>a<svg>b</style>keep<p>me</p></svg>")
+
+    assert fetcher.fetch_text("https://example.com/recipe") == "keep me"
+
+
+def test_fetch_text_of_an_empty_body_is_empty() -> None:
+    assert fetcher_returning("").fetch_text("https://example.com/recipe") == ""
+
+
+def test_response_at_the_byte_cap_is_kept_and_one_over_is_refused() -> None:
+    def serving(body: str) -> SafeLinkFetcher:
+        def handler(request: httpx.Request) -> httpx.Response:
+            del request
+            return httpx.Response(
+                200, text=body, headers={"content-type": "text/html"}
+            )
+
+        return SafeLinkFetcher(
+            http=httpx.Client(transport=httpx.MockTransport(handler)),
+            dns=FakeDNS({}),
+            max_response_bytes=10,
+        )
+
+    assert serving("x" * 10).fetch_text("https://example.com/r") == "x" * 10
+
+    with pytest.raises(UnsafeURL):
+        serving("x" * 11).fetch_text("https://example.com/r")
 
 
 def test_substack_candidates_match_creator_subdomain_by_slug() -> None:
