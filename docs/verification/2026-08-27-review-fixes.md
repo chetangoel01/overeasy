@@ -53,7 +53,7 @@ by the code they touch.
 | #14 | Import submission stalled every request on the worker | `1f2f0c1` | fixed |
 | #16 | Recipe child tables scanned on every fetch | `a75771f` | fixed |
 | #23 | One sync page fanned out to ~900 queries | `be5da00` | fixed |
-| #22 | Traces exported the USDA API key in the URL | `_pending_` | fixed |
+| #22 | Traces exported the USDA API key in the URL | `49d6bed` | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
