@@ -41,7 +41,7 @@ by the code they touch.
 | #33 | Cancelled requests reported as being offline | `fb9f643` | fixed |
 | #30 + #31 + #32 | Import-cancellation cluster | `814ba45` | fixed |
 | #28 | Delete during first upload came back | `d2ce167` | fixed |
-| #27 | Remote delete mislabeled as a remote edit | `_pending_` | fixed |
+| #27 | Remote delete mislabeled as a remote edit | `2969c5a` | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
