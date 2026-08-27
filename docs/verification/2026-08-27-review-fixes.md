@@ -47,7 +47,8 @@ by the code they touch.
 | #13 | Hostile HTML pinned the worker for half an hour | `356aa66` | fixed |
 | #11 | Reversed Whisper timings killed the transcription | `b590bb2` | fixed |
 | #17 | Model decimal exponent bomb allocated gigabytes | `9a8158f` | fixed |
-| #18 | Beat sweep deadlocked against import completions | `_pending_` | fixed |
+| #18 | Beat sweep deadlocked against import completions | `b215db5` | fixed |
+| #19 | Uploaded thumbnails leaked on rollback or discard | `_pending_` | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -1460,6 +1461,81 @@ The pre-existing terminal/stale/fresh matrix passes unchanged.
 uv run pytest -q tests/integration/imports/test_maintenance.py  -> 5 passed in 6.12s
 uv run ruff check ladle tests alembic                           -> All checks passed
 uv run mypy --strict ladle                                      -> clean
+```
+
+## Finding #19 — a rolled-back import stranded its thumbnail in the bucket forever
+
+### The defect
+
+`ImportOrchestrator.process` PUTs the downloaded thumbnail bytes into object
+storage (`thumbnails/<source_video_id>/<uuid4>.jpg`) *before* opening the
+completion transaction. If that transaction rolled back — the user deleted
+the target recipe mid-re-import (`ValueError("current recipe is
+unavailable")`), a stalled heartbeat raised `ClaimLost` (once per Celery
+retry, each retry storing a fresh key) — or the key was silently discarded
+because the job had been cancelled while extraction ran (the
+`ALREADY_COMPLETED` early return), then no `ExtractionCache` row and no
+`RecipeImage` row ever referenced the key. Every cleanup path in the
+codebase enumerates database rows: `delete_unreferenced_thumbnails` walks
+`ExtractionCache`, the retention sweep and account deletion enqueue
+DB-held keys into `ObjectDeletionQueue`, and the bucket lifecycle policy
+expires only `temporary/` and noncurrent versions. Nothing can ever find a
+current-version object under `thumbnails/` with no row, so the orphan
+stayed in the bucket permanently.
+
+### The fix
+
+Schedule-then-cancel, using the deletion queue the reaper already drains:
+
+- Immediately after `store()` returns a key, the orchestrator commits (in
+  its own short transaction) an `ObjectDeletionQueue` row for the key with
+  `reason="unreferencedThumbnail"` and `available_at = now + 1 hour`
+  (`_schedule_thumbnail_discard`). The grace keeps a mid-flight completion —
+  which follows the upload within seconds — out of the reaper's reach.
+- Inside the completion transaction, after `complete_private_for_job` /
+  `complete_shared`, `_cancel_thumbnail_discard` deletes that queue row —
+  but only when an `ExtractionCache` or `RecipeImage` row now references the
+  key, so the withdrawal commits atomically with the reference.
+
+Every failure shape then needs no code of its own: a rollback rolls back
+the withdrawal too; the `ALREADY_COMPLETED` return never reaches it; a
+worker crash between upload and completion leaves the schedule committed;
+and `complete_shared`'s silently-dropped-key branch (entry already had a
+thumbnail) fails the referenced-check, so the fresh upload is reaped rather
+than the withdrawal firing. The already-wired `ObjectDeletionProcessor`
+beat task deletes the object once the grace passes.
+
+### Verification
+
+`tests/integration/imports/test_thumbnail_discard.py`, three tests. Red on
+the unfixed code — the finding's two leak shapes, byte for byte:
+
+```text
+>           assert key in queued, "the orphaned upload must be queued for deletion"
+E           AssertionError: the orphaned upload must be queued for deletion
+E           assert 'thumbnails/eaf54e21-5f18-4731-a14d-be1664490b40/0.jpg' in {}
+FAILED tests/integration/imports/test_thumbnail_discard.py::test_rolled_back_completion_queues_the_uploaded_thumbnail_for_deletion
+FAILED tests/integration/imports/test_thumbnail_discard.py::test_job_finished_elsewhere_queues_the_discarded_thumbnail_for_deletion
+2 failed, 1 passed in 3.97s
+```
+
+The first drives a real re-import whose target recipe is soft-deleted
+mid-extraction (rollback path), then closes the loop end to end: the queue
+row is pinned at `available_at == now + 1h`, an early reaper pass deletes
+nothing, and a pass after the grace removes the object from the (fake)
+bucket. The second cancels the job mid-extraction — the no-exception
+discard path — and asserts the key is queued. The third is the green-side
+guard for the atypical inverse: a successful completion leaves the key
+referenced by both the cache entry and a `RecipeImage`, the queue empty,
+and a late reaper pass deleting nothing — scheduling deletions for every
+upload must never cost a live thumbnail.
+
+```text
+uv run pytest -q tests/integration/imports/test_thumbnail_discard.py               -> 3 passed in 4.18s
+uv run pytest -q tests/e2e/test_fake_import_round_trip.py \
+    tests/integration/imports/test_retry_reparse.py tests/integration/cache        -> 21 passed in 12.60s
+uv run ruff check ladle tests alembic                                              -> All checks passed
+uv run mypy --strict ladle                                                         -> clean
 ```
 
 ## Where this run stopped, and where the next one starts

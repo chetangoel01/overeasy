@@ -1,9 +1,11 @@
 from contextlib import AbstractContextManager, nullcontext
+from datetime import timedelta
 from enum import StrEnum
 from typing import Protocol
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import delete, exists, or_, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, sessionmaker
 
 from ladle.acquisition.errors import (
@@ -22,7 +24,13 @@ from ladle.cache.maintenance import CacheMaintenanceService
 from ladle.cache.service import CacheDisposition, ExtractionCacheService
 from ladle.clock import Clock
 from ladle.crypto.private_text import PrivateTextCipher
-from ladle.db.models import ImportJob, SourceVideo
+from ladle.db.models import (
+    ExtractionCache,
+    ImportJob,
+    ObjectDeletionQueue,
+    RecipeImage,
+    SourceVideo,
+)
 from ladle.extraction.claude import ExtractionUnavailable
 from ladle.extraction.evidence_gate import (
     InsufficientTextEvidence,
@@ -40,6 +48,11 @@ from ladle.recipes.template_clone import (
     RecipeTemplateCloner,
 )
 from ladle.usage.limits import UsageLimitExceeded
+
+# How long a freshly stored thumbnail may sit unreferenced before the object
+# reaper deletes it. Completion follows the upload within seconds; the grace
+# only has to outlast that window.
+_THUMBNAIL_DISCARD_GRACE = timedelta(hours=1)
 
 
 class ProcessOutcome(StrEnum):
@@ -91,6 +104,7 @@ class ImportOrchestrator:
         self._acquirer = acquirer
         self._extractor = extractor
         self._maintenance = CacheMaintenanceService(clock=clock)
+        self._clock = clock
         self._private_text = private_text
         self._private_completion = private_completion
         self._transitions = transitions
@@ -302,6 +316,8 @@ class ImportOrchestrator:
                         )
                         else None
                     )
+                    if thumbnail_key is not None:
+                        self._schedule_thumbnail_discard(thumbnail_key)
                     thumbnail_remote_url = (
                         context.thumbnail_url
                         if self._thumbnails is None
@@ -350,6 +366,7 @@ class ImportOrchestrator:
                     thumbnail_object_key=thumbnail_key,
                     thumbnail_remote_url=thumbnail_remote_url,
                 )
+                self._cancel_thumbnail_discard(database, thumbnail_key)
                 return self._outcome(
                     (
                         ProcessOutcome.PRIVATE_COMPLETED
@@ -374,6 +391,7 @@ class ImportOrchestrator:
                 thumbnail_object_key=thumbnail_key,
                 thumbnail_remote_url=thumbnail_remote_url,
             )
+            self._cancel_thumbnail_discard(database, thumbnail_key)
         return self._outcome(
             ProcessOutcome.COMPLETED,
             status=template.review_status.value,
@@ -390,6 +408,62 @@ class ImportOrchestrator:
         if self._metrics is not None:
             self._metrics.record_job(status, source)
         return outcome
+
+    def _schedule_thumbnail_discard(self, thumbnail_key: str) -> None:
+        """Schedule deletion of a thumbnail that was uploaded ahead of its
+        completion transaction.
+
+        The upload happens before any row references the key, so a rollback,
+        a crash, or a job finished some other way would otherwise strand the
+        object in the bucket where no database-driven cleanup can ever find
+        it. The schedule is committed on its own before completion is
+        attempted; `_cancel_thumbnail_discard` withdraws it in the completion
+        transaction once (and only if) a row actually references the key.
+        """
+        now = self._clock.now()
+        with self._sessions.begin() as database:
+            database.execute(
+                insert(ObjectDeletionQueue)
+                .values(
+                    object_key=thumbnail_key,
+                    reason="unreferencedThumbnail",
+                    available_at=now + _THUMBNAIL_DISCARD_GRACE,
+                    created_at=now,
+                )
+                .on_conflict_do_nothing(index_elements=[ObjectDeletionQueue.object_key])
+            )
+
+    def _cancel_thumbnail_discard(
+        self,
+        database: Session,
+        thumbnail_key: str | None,
+    ) -> None:
+        """Withdraw the scheduled discard, but only for a referenced key.
+
+        Runs inside the completion transaction, so the withdrawal commits
+        atomically with the rows that reference the key. When completion
+        chose not to record the key (for example the cache entry already had
+        a thumbnail), the schedule stays and the reaper removes the upload.
+        """
+        if thumbnail_key is None:
+            return
+        database.execute(
+            delete(ObjectDeletionQueue).where(
+                ObjectDeletionQueue.object_key == thumbnail_key,
+                or_(
+                    exists(
+                        select(ExtractionCache.id).where(
+                            ExtractionCache.thumbnail_object_key == thumbnail_key
+                        )
+                    ),
+                    exists(
+                        select(RecipeImage.id).where(
+                            RecipeImage.object_key == thumbnail_key
+                        )
+                    ),
+                ),
+            )
+        )
 
     def _fail_terminal(
         self,
