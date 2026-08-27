@@ -311,6 +311,58 @@ final class APIClientTests: XCTestCase {
         }
     }
 
+    func testCancelledRequestThrowsCancellationInsteadOfTransport() async {
+        // Cancelling the awaiting task makes URLSession fail the request
+        // with URLError(.cancelled). That must surface as cooperative
+        // cancellation, not as the offline transport failure. (#33)
+        URLProtocolStub.install { _ in
+            throw URLError(.cancelled)
+        }
+        let client = APIClient(
+            baseURL: URL(string: "https://api.ladle.test")!,
+            session: URLProtocolStub.session(),
+            tokenStore: InMemoryAuthTokenStore()
+        )
+
+        do {
+            let _: ResponseBody = try await client.request(
+                path: "/v1/recipes/discover",
+                authenticated: false
+            )
+            XCTFail("Expected the cancelled request to throw")
+        } catch is CancellationError {
+            // Downstream `catch is CancellationError` branches rely on this.
+        } catch {
+            XCTFail(
+                "Cancellation was reported as \(error), which renders as "
+                    + "\(RemoteFailure(error)) instead of being ignored"
+            )
+        }
+    }
+
+    func testGenuineTransportFailureStillMapsToTransport() async {
+        URLProtocolStub.install { _ in
+            throw URLError(.notConnectedToInternet)
+        }
+        let client = APIClient(
+            baseURL: URL(string: "https://api.ladle.test")!,
+            session: URLProtocolStub.session(),
+            tokenStore: InMemoryAuthTokenStore()
+        )
+
+        do {
+            let _: ResponseBody = try await client.request(
+                path: "/v1/recipes/discover",
+                authenticated: false
+            )
+            XCTFail("Expected the offline request to throw")
+        } catch APIError.transport {
+            // Real connectivity loss keeps reading as offline.
+        } catch {
+            XCTFail("Expected APIError.transport, got \(error)")
+        }
+    }
+
     private static func response(
         _ request: URLRequest,
         status: Int
