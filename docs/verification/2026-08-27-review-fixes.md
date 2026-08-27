@@ -31,7 +31,8 @@ by the code they touch.
 | #1 + #24 | Cancelled imports: downgrade and wire enum | `2de8bb2` | fixed |
 | #9 | Rejected delete wedged every later sync | `5eb298e` | fixed |
 | (new) | Tombstones lost on the next save of the row | `1af3345` | fixed |
-| #7 | Push acknowledgement erased an in-flight edit | `_pending_` | fixed |
+| #7 | Push acknowledgement erased an in-flight edit | `4dfbad2` | fixed |
+| #8 | Editor numbers parsed against the wrong locale | `_pending_` | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -418,3 +419,43 @@ testAcknowledgingAPushDoesNotResurrectARecipeDeletedInFlight
 `testAcknowledgingAnUnchangedPushAdoptsTheServerCopy` pins the ordinary path,
 so the fix cannot degrade into never adopting the server's copy. Full
 `-only-testing:LadleTests`: 259 executed, 1 skipped, 0 failures.
+
+## Finding #8 — the editor parsed numbers in the wrong locale
+
+Editor numeric fields use a `.decimalPad`, which renders the *current
+locale's* decimal separator. Both parsers — `RecipeDraft`'s and
+`RecipeEditorViewModel.validate()`'s — used a fixed `en_US_POSIX` locale, so a
+French user typing "1,5" into Servings got `Decimal(string:)` stopping at the
+comma and returning 1. Validation used the same parser, saw a valid 1, and
+raised nothing. The recipe was saved and synced at one serving, and every
+per-serving nutrition figure derived from it was wrong. The same truncation
+hit every nutrition field.
+
+The two duplicated parsers are now one `EditorNumber.decimal(_:locale:)` built
+on `NumberFormatter`, which reads the locale's own separator *and* digits
+(Arabic-Indic included) and returns nil for anything it cannot parse whole.
+That second property matters as much as the first: "1.2.3" and "12abc"
+previously truncated to 1.2 and 12 and saved silently; they are now rejected
+and reported by validation. `RecipeEditorViewModel` carries the locale
+(injectable, defaulting to `.current`) and passes it into
+`draft.recipe(updatedAt:locale:)`, so validation and persistence can never
+disagree about how a field was read.
+
+### Verification
+
+Locale behaviour was checked empirically before committing to `NumberFormatter`
+(en_US, fr_FR, de_DE, ar_EG against "1,5", "1.5", "1.500", "1,500", "12abc",
+"1.2.3", "٣٫٥"): each parses its own convention and rejects the rest, and
+grouping separators resolve per locale.
+
+`LadleTests/RecipeEditorViewModelTests`, red against the old POSIX parser:
+
+```text
+testCommaDecimalLocaleSavesTheYieldTheUserTyped
+  XCTAssertEqual failed: ("Optional(1)")  is not equal to ("Optional(1.5)")
+  XCTAssertEqual failed: ("Optional(12)") is not equal to ("Optional(12.5)")
+testUnparseableNumbersAreRejectedRatherThanTruncated
+  XCTAssertNil failed: "Recipe(… servings: 1.2 … calories: Optional(12) …)"
+```
+
+Green after: `-only-testing:LadleTests` at 261 executed, 1 skipped, 0 failures.

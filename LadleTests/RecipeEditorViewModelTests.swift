@@ -207,9 +207,55 @@ final class RecipeEditorViewModelTests: XCTestCase {
         XCTAssertEqual(repository.saveCount, 1)
     }
 
+    func testCommaDecimalLocaleSavesTheYieldTheUserTyped() throws {
+        let repository = EditorTestRepository(
+            recipes: [PreviewFixtures.recipes[1]]
+        )
+        let viewModel = makeViewModel(
+            repository: repository,
+            locale: Locale(identifier: "fr_FR")
+        )
+        // The .decimalPad renders this locale's separator, so this is what
+        // the comma key produces.
+        viewModel.draft.servings = "1,5"
+        viewModel.draft.nutrition.calories = "12,5"
+
+        let saved = try XCTUnwrap(viewModel.save())
+
+        XCTAssertTrue(viewModel.validationIssues.isEmpty)
+        XCTAssertEqual(saved.servings, Decimal(string: "1.5"))
+        XCTAssertEqual(
+            saved.nutrition?.calories,
+            Decimal(string: "12.5")
+        )
+    }
+
+    func testUnparseableNumbersAreRejectedRatherThanTruncated() {
+        let repository = EditorTestRepository(
+            recipes: [PreviewFixtures.recipes[1]]
+        )
+        let viewModel = makeViewModel(repository: repository)
+        viewModel.draft.servings = "1.2.3"
+        viewModel.draft.nutrition.calories = "12abc"
+
+        let saved = viewModel.save()
+
+        XCTAssertNil(saved)
+        XCTAssertTrue(
+            viewModel.validationIssues.contains(.servingsMustBePositive)
+        )
+        XCTAssertTrue(
+            viewModel.validationIssues.contains(
+                .nutritionValueInvalid("Calories")
+            )
+        )
+        XCTAssertEqual(repository.saveCount, 0)
+    }
+
     private func makeViewModel(
         recipe: Recipe = PreviewFixtures.recipes[1],
-        repository: EditorTestRepository? = nil
+        repository: EditorTestRepository? = nil,
+        locale: Locale = Locale(identifier: "en_US")
     ) -> RecipeEditorViewModel {
         RecipeEditorViewModel(
             recipe: recipe,
@@ -217,7 +263,8 @@ final class RecipeEditorViewModelTests: XCTestCase {
                 ?? EditorTestRepository(recipes: [recipe]),
             now: {
                 Date(timeIntervalSince1970: 1_784_900_000)
-            }
+            },
+            locale: locale
         )
     }
 }

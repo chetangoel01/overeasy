@@ -39,6 +39,7 @@ final class RecipeEditorViewModel: Identifiable {
 
     @ObservationIgnored
     private let now: () -> Date
+    private let locale: Locale
 
     @ObservationIgnored
     private let didSave:
@@ -50,6 +51,7 @@ final class RecipeEditorViewModel: Identifiable {
         recipe: Recipe,
         repository: RecipeRepository,
         now: @escaping () -> Date = Date.init,
+        locale: Locale = .current,
         didSave:
             @escaping @MainActor @Sendable () async -> Void = {}
     ) {
@@ -57,6 +59,7 @@ final class RecipeEditorViewModel: Identifiable {
         draft = RecipeDraft(recipe: recipe)
         self.repository = repository
         self.now = now
+        self.locale = locale
         self.didSave = didSave
     }
 
@@ -105,7 +108,7 @@ final class RecipeEditorViewModel: Identifiable {
             return nil
         }
 
-        let recipe = draft.recipe(updatedAt: now())
+        let recipe = draft.recipe(updatedAt: now(), locale: locale)
         do {
             try repository.save(recipe)
             originalRecipe = recipe
@@ -281,12 +284,7 @@ final class RecipeEditorViewModel: Identifiable {
     }
 
     private func decimal(_ text: String) -> Decimal? {
-        normalized(text).flatMap {
-            Decimal(
-                string: $0,
-                locale: Locale(identifier: "en_US_POSIX")
-            )
-        }
+        EditorNumber.decimal(text, locale: locale)
     }
 
     private func normalized(_ text: String) -> String? {
