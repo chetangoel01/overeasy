@@ -46,7 +46,7 @@ by the code they touch.
 | #12 | Malformed caption URL killed the whole import | `44b7b10` | fixed |
 | #13 | Hostile HTML pinned the worker for half an hour | `356aa66` | fixed |
 | #11 | Reversed Whisper timings killed the transcription | `b590bb2` | fixed |
-| #17 | Model decimal exponent bomb allocated gigabytes | `_pending_` | fixed |
+| #17 | Model decimal exponent bomb allocated gigabytes | `9a8158f` | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
