@@ -59,14 +59,47 @@ public enum RemoteContractJSON {
         )
     }
 
-    private static func canonicalizeUUIDs(in value: Any) -> Any {
+    /// The wire keys that carry identifiers. The backend rejects UUIDs
+    /// that are not lowercase, but `JSONEncoder` writes `UUID` as its
+    /// uppercase `uuidString`, and by the time the encoded JSON is
+    /// re-parsed a `UUID` field is indistinguishable from user-authored
+    /// text that merely looks like one. Only the keys named here are
+    /// rewritten, so a title or note that happens to be a UUID string
+    /// survives byte-for-byte. A new UUID-typed request field must be
+    /// added here — missing it fails loudly (the backend rejects the
+    /// uppercase form) instead of silently rewriting prose.
+    private static let identifierKeys: Set<String> = [
+        "id",
+        "ingredientIDs",
+        "jobID",
+        "recipeID",
+        "currentRecipeID",
+        "deviceID",
+        "challengeID",
+        "installationID",
+        "idempotencyKey",
+    ]
+
+    private static func canonicalizeUUIDs(
+        in value: Any,
+        key: String? = nil
+    ) -> Any {
         if let dictionary = value as? [String: Any] {
-            return dictionary.mapValues(canonicalizeUUIDs(in:))
+            return dictionary.reduce(into: [String: Any]()) {
+                result, entry in
+                result[entry.key] = canonicalizeUUIDs(
+                    in: entry.value,
+                    key: entry.key
+                )
+            }
         }
         if let array = value as? [Any] {
-            return array.map(canonicalizeUUIDs(in:))
+            // Elements of an identifier array ("ingredientIDs") inherit
+            // the array's own key.
+            return array.map { canonicalizeUUIDs(in: $0, key: key) }
         }
-        if let string = value as? String,
+        if let key, identifierKeys.contains(key),
+           let string = value as? String,
            let uuid = UUID(uuidString: string),
            string.caseInsensitiveCompare(uuid.uuidString) == .orderedSame {
             return uuid.uuidString.lowercased()

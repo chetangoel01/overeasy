@@ -61,6 +61,7 @@ by the code they touch.
 | #37 | Retention sweep silently refunded spent monthly quota | `2ad4f94` + `f021a8b` | fixed |
 | #38 | Retrying a needsReview job stranded its thumbnail | `ac9731a` | fixed |
 | #39 | USDA search cache grew for the life of the worker | `d6d5a24` | fixed |
+| #45 | Upload encoding rewrote UUID-shaped user text | — | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -2560,6 +2561,77 @@ uv run mypy --strict ladle                              -> clean
 (`ladle/nutrition/usda.py` and its test file are two of the 35 files whose
 formatting already drifted on `main`; the hunks this change adds are
 formatted per the locked ruff, verified against the pre-change files.)
+
+## Finding #45 — upload encoding rewrote user text that looked like a UUID
+
+### The defect
+
+`RemoteContractJSON.encode` re-parses every encoded request body and ran
+`canonicalizeUUIDs` over the whole JSON tree, lowercasing **any** string
+that parses as a UUID. The pass exists because the backend's
+`_parse_wire_uuid` rejects non-lowercase UUIDs while `JSONEncoder` writes
+Swift `UUID`s uppercase — but by the time the JSON is re-parsed, the type
+information separating a `UUID` field from a `String` field is gone. A
+recipe whose title, description, creator name, a note, an ingredient name,
+or a step instruction was exactly a 36-character UUID with uppercase hex
+(e.g. `550E8400-E29B-41D4-A716-446655440000`) was uploaded lowercased, the
+server stored the mutated text, the PUT response echoed it, and
+`markUpsertSynced` wrote it back over the local row — the user's casing was
+silently and permanently altered, and re-typing it repeated the cycle. The
+same walk also threatened server-issued opaque strings that must round-trip
+verbatim (`refreshToken`, the App Attest `challenge`) had they ever been
+UUID-shaped. Two reviewers reported this independently.
+
+### The fix
+
+Canonicalization is now keyed to the wire fields that actually carry
+identifiers: `id`, `ingredientIDs`, `jobID`, `recipeID`, `currentRecipeID`,
+`deviceID`, `challengeID`, `installationID`, `idempotencyKey`. The walk
+carries the enclosing key down (elements of an identifier array inherit the
+array's key), and any string under any other key is emitted byte-for-byte.
+`installationID` and `idempotencyKey` are client-minted already-lowercase,
+so keeping them listed changes nothing on the wire while insulating any
+historical install that minted them uppercase. A future UUID-typed request
+field missed by the list fails loudly — the backend rejects the uppercase
+form — instead of silently rewriting prose. Text already mutated by the old
+pass cannot be repaired: a stored lowercase UUID string is
+indistinguishable from one the user typed lowercase, so no migration is
+attempted.
+
+### Verification
+
+Two tests in `Packages/LadleCore/Tests/LadleCoreTests/RemoteContractTests`.
+`uuidShapedUserTextSurvivesRecipeUploadUnchanged` encodes a full
+`RemoteRecipeDTO` whose title, description, creator name, note, ingredient
+name, and step instruction are all the uppercase UUID string, and requires
+them back unchanged while `id` and `ingredientIDs` still go out lowercase
+(an already-lowercase id passes through untouched). Red on the unfixed
+code:
+
+```text
+✘ Test uuidShapedUserTextSurvivesRecipeUploadUnchanged() recorded an issue
+at RemoteContractTests.swift:221:9: Expectation failed: (object?["title"]
+as? String → "550e8400-e29b-41d4-a716-446655440000") == (uuidShapedText →
+"550E8400-E29B-41D4-A716-446655440000")
+```
+
+(and the same for description, creatorName, notes, ingredient name, and
+step instruction — 6 issues). The pre-existing
+`requestEncodingCanonicalizesNestedUUIDs` test pinned the buggy over-broad
+contract with a synthetic `nested` key that matches no real wire field; it
+is reworked into `requestEncodingCanonicalizesIdentifierFieldsOnly`, which
+keeps the nested-array coverage on the real `ingredientIDs` key and adds
+UUID-shaped `title`/`notes` that must survive (red before the fix with the
+same lowercasing failure). Green after:
+
+```text
+swift test --package-path Packages/LadleCore
+  -> ✔ Test run with 47 tests in 1 suite x 9 suites passed
+```
+
+The full LadleTests suite run recorded at the end of this session covers
+the app-side consumers of the changed encoder (sync PUTs, import
+submission, auth bodies).
 
 ## Where this run stopped, and where the next one starts
 
