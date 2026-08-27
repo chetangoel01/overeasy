@@ -55,6 +55,7 @@ by the code they touch.
 | #23 | One sync page fanned out to ~900 queries | `be5da00` | fixed |
 | #22 | Traces exported the USDA API key in the URL | `49d6bed` | fixed |
 | #25 | Guest-limit account creation was a local flip | `4ae136e` | fixed |
+| #34 | 429s and crash 500s shipped without security headers | _pending_ | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -2159,6 +2160,78 @@ Walked through in the simulator (`-ui-testing -onboarding-complete
 raises the sheet with the two real sign-in buttons, and completing the
 demo sign-in resumes the blocked import straight to "Recipe saved" —
 the flow the old button could never finish.
+
+## Finding #34 — 429s and crash 500s shipped without security headers
+
+### The defect
+
+Starlette's `add_middleware` prepends, so the registration order in
+`create_app` (`RequestBodyLimitMiddleware`, then `SecurityHeadersMiddleware`,
+then the `global_rate_limit` HTTP middleware down at the bottom of the
+factory, then `install_request_middleware`) produced the user stack
+request_context -> global_rate_limit -> SecurityHeaders -> RequestBodyLimit.
+When the shared global bucket rejected a request, `global_rate_limit`
+returned `rate_limit_response(...)` from a layer *outside*
+`SecurityHeadersMiddleware`, so the 429 shipped with only `Retry-After`,
+`X-Request-ID` and `Content-Type` — none of `Cache-Control: no-store`,
+`Content-Security-Policy`, `Permissions-Policy`, `Referrer-Policy`,
+`X-Content-Type-Options`, `X-Frame-Options`, nor HSTS in production. The
+catch-all `Exception` handler was worse off: Starlette serves it from
+`ServerErrorMiddleware`, outside the *entire* user-middleware stack, so its
+500s carried no mandatory header under any registration order. An
+intermediary cache is free to store a rate-limited or crashed response the
+design explicitly marks `no-store`.
+
+### The fix
+
+Two parts, because the two responses escape at two different layers:
+
+- The `global_rate_limit` registration moved up between
+  `RequestBodyLimitMiddleware` and `SecurityHeadersMiddleware`, with a
+  comment marking the position load-bearing. The user stack is now
+  request_context -> SecurityHeaders -> global_rate_limit ->
+  RequestBodyLimit, so a short-circuiting 429 passes through the header
+  middleware like every routed response.
+- `install_error_handlers` now takes the mandatory header mapping
+  (`SecurityHeadersMiddleware.headers(production=...)`) and attaches it to
+  the catch-all 500 alone. Every other handler's response flows back through
+  the middleware stack, so adding headers there too would create a second
+  source that could drift; only the `ServerErrorMiddleware`-served response
+  must carry them itself.
+
+### Verification
+
+Two new tests in `tests/api/test_security_headers.py`:
+`test_globally_rate_limited_responses_carry_the_security_headers` (an
+always-blocking backend, so `GET /health/live` observes the middleware 429)
+and `test_unhandled_exception_responses_carry_the_security_headers` (a route
+raising `RuntimeError`, client built with `raise_server_exceptions=False`).
+Both red on the unfixed code:
+
+```text
+response = <Response [429 Too Many Requests]>
+>           assert response.headers.get(name) == value, name
+E           AssertionError: Cache-Control
+E           assert None == 'no-store'
+E            +  where None = get('Cache-Control')
+E            +    where get = Headers({'retry-after': '30', 'content-length': '180',
+                  'content-type': 'application/json', 'x-request-id': '...'}).get
+
+response = <Response [500 Internal Server Error]>
+E           AssertionError: Cache-Control
+E           assert None == 'no-store'
+E            +    where get = Headers({'content-length': '166',
+                  'content-type': 'application/json'}).get
+```
+
+Green after the fix:
+
+```text
+uv run pytest -q tests/api/test_security_headers.py      -> 4 passed
+uv run ruff check ladle/api/app.py ladle/api/errors.py \
+    tests/api/test_security_headers.py                   -> All checks passed
+uv run mypy --strict ladle                               -> clean
+```
 
 ## Where this run stopped, and where the next one starts
 

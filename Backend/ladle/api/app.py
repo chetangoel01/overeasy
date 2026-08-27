@@ -141,6 +141,26 @@ def create_app(
         RequestBodyLimitMiddleware,
         maximum_bytes=configured.maximum_request_body_bytes,
     )
+
+    # Registered between the body limit and the security headers on purpose:
+    # add_middleware prepends, so SecurityHeadersMiddleware wraps this and a
+    # short-circuiting 429 still carries every mandatory header.
+    @application.middleware("http")
+    async def global_rate_limit(
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
+    ) -> Response:
+        try:
+            application.state.rate_limits.enforce(
+                application.state.rate_limit_policies.global_request()
+            )
+        except RateLimitExceeded as error:
+            return rate_limit_response(
+                request,
+                retry_after_seconds=error.retry_after_seconds,
+            )
+        return await call_next(request)
+
     application.add_middleware(
         SecurityHeadersMiddleware,
         production=configured.environment == "production",
@@ -428,26 +448,15 @@ def create_app(
     application.include_router(recipes_router)
     application.include_router(imports_router)
     application.include_router(health_router)
-    install_error_handlers(application)
+    install_error_handlers(
+        application,
+        security_headers=SecurityHeadersMiddleware.headers(
+            production=configured.environment == "production"
+        ),
+    )
     if interactive_docs:
         install_pipeline_openapi(application)
         patch_fastapi(application, redirect_from_root_to_docs=False)
-
-    @application.middleware("http")
-    async def global_rate_limit(
-        request: Request,
-        call_next: Callable[[Request], Awaitable[Response]],
-    ) -> Response:
-        try:
-            application.state.rate_limits.enforce(
-                application.state.rate_limit_policies.global_request()
-            )
-        except RateLimitExceeded as error:
-            return rate_limit_response(
-                request,
-                retry_after_seconds=error.retry_after_seconds,
-            )
-        return await call_next(request)
 
     install_request_middleware(
         application,
