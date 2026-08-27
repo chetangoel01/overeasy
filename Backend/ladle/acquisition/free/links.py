@@ -65,7 +65,9 @@ _PROMO_TAIL = re.compile(
     re.IGNORECASE,
 )
 _SCRIPTISH_NAMES = ("script", "style", "noscript", "svg", "iframe", "head")
-_SCRIPTISH_OPEN = re.compile(rf"(?i)<({'|'.join(_SCRIPTISH_NAMES)})[^>]*>")
+# Quantifier-free on purpose — the tag's "[^>]*>" part is str.find's job in
+# _without_scriptish, which explains why.
+_SCRIPTISH_NAME = re.compile(rf"(?i)<({'|'.join(_SCRIPTISH_NAMES)})")
 _SCRIPTISH_CLOSE = {name: re.compile(rf"(?i)</{name}>") for name in _SCRIPTISH_NAMES}
 _WHITESPACE = re.compile(r"\s+")
 _LOC = re.compile(r"<loc>([^<]+)</loc>")
@@ -256,30 +258,40 @@ def _readable(raw: str) -> str:
 def _without_scriptish(raw: str) -> str:
     """Drop <script>...</script>-style blocks in one linear pass.
 
-    The obvious one-liner — a lazy `<tag>[^>]*>.*?</tag>` regex — backtracks
-    quadratically when opening tags never close, and 2 MB of attacker HTML
-    (exactly the response cap) holds the worker's only thread for the better
-    part of an hour inside one uninterruptible C call. Forward searches give
-    the same result linearly: the scan position only moves forward, and a tag
-    name that never closes again is remembered, so each name costs at most
-    one failed search over the remainder.
+    Nothing here may backtrack over attacker text: caption links resolve to
+    servers the creator controls and bodies run to the 2 MB response cap.
+    Matching whole opening tags with `<name[^>]*>` fails that bar even from
+    a forward-only loop — on `<svg` repeated with no ">" anywhere, `[^>]*`
+    consumes to end-of-string once per candidate, all inside a single
+    search() C call that returns None, so the Python loop never even gets
+    to iterate: quadratic (measured 4x per size doubling, ~6 minutes at the
+    cap) and uninterruptible past Celery's soft time limit.
+
+    So no quantifier ever touches the body. A literal-alternation regex
+    finds `<name`, and str.find completes the tag at the next ">" — no ">"
+    ahead means no completable scriptish tag anywhere ahead, so the scan
+    stops. A name with no close ahead is remembered, costing each of the
+    six names at most one failed close search over the remainder.
     """
     parts: list[str] = []
     position = 0
     unclosed: set[str] = set()
-    while match := _SCRIPTISH_OPEN.search(raw, position):
+    while match := _SCRIPTISH_NAME.search(raw, position):
+        open_end = raw.find(">", match.end())
+        if open_end == -1:
+            # No ">" ahead, so no scriptish tag can complete anywhere ahead.
+            break
+        open_end += 1
         name = match.group(1).casefold()
         closing = (
-            None
-            if name in unclosed
-            else _SCRIPTISH_CLOSE[name].search(raw, match.end())
+            None if name in unclosed else _SCRIPTISH_CLOSE[name].search(raw, open_end)
         )
         if closing is None:
             # No close anywhere ahead. Leave the tag for _without_tags, the
             # way the old regex left an unmatched opening tag alone.
             unclosed.add(name)
-            parts.append(raw[position : match.end()])
-            position = match.end()
+            parts.append(raw[position:open_end])
+            position = open_end
             continue
         parts.append(raw[position : match.start()])
         parts.append(" ")

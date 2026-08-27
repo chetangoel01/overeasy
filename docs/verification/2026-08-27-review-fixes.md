@@ -44,7 +44,7 @@ by the code they touch.
 | #27 | Remote delete mislabeled as a remote edit | `2969c5a` | fixed |
 | #26 | Scrolling a focus-mode step changed the step | — | fixed |
 | #12 | Malformed caption URL killed the whole import | `44b7b10` + `08a010b` | fixed |
-| #13 | Hostile HTML pinned the worker for half an hour | `356aa66` | fixed |
+| #13 | Hostile HTML pinned the worker for half an hour | `356aa66` + `_pending_` | fixed |
 | #11 | Reversed Whisper timings killed the transcription | `b590bb2` | fixed |
 | #17 | Model decimal exponent bomb allocated gigabytes | `9a8158f` | fixed |
 | #18 | Beat sweep deadlocked against import completions | `b215db5` | fixed |
@@ -1179,6 +1179,11 @@ address. 38 links tests green after.
 
 ## Finding #13 — one hostile page pinned the import worker for half an hour
 
+> **Superseded.** An adversarial verifier measured this "fixed" code and
+> found the hang still reachable; see "Finding #13 — rework" below. The
+> claims in this section describe the first attempt and are kept as the
+> record of what it got wrong.
+
 ### The defect
 
 `_readable` ran `_SCRIPTISH` — a lazy backreference regex,
@@ -1912,6 +1917,145 @@ uv run pytest -q -m "not live_provider and not chaos" -> 763 passed
 uv run ruff check ladle tests alembic                 -> All checks passed
 uv run mypy --strict ladle                            -> clean
 ```
+
+## Finding #13 — rework: the quadratic scan survived the first fix
+
+### The defect
+
+Commit `356aa66` replaced the lazy backreference regex with a forward-only
+Python loop, reasoning that the loop's scan position advances linearly. The
+loop does — but its opening-tag matcher, `_SCRIPTISH_OPEN`
+(`<(script|style|noscript|svg|iframe|head)[^>]*>`), kept a greedy `[^>]*>`.
+On a body of opening-tag prefixes with no `>` anywhere — `"<svg"` repeated
+— `[^>]*` consumes to end-of-string and backtracks once per candidate
+start, all inside a SINGLE `.search()` C call that returns None after zero
+loop iterations. The quadratic had moved, not died. Measured end to end
+through `fetch_text` with `Content-Type: text/html`: 0.87 s at 100 KB,
+3.48 s at 200 KB, 13.78 s at 400 KB — 4x per doubling, extrapolating to
+~6 minutes of uninterruptible CPU at the 2 MB response cap, for each of up
+to three caption links per import. All six names trigger it, and Celery's
+soft-limit SIGALRM still cannot interrupt a C-level regex call, so the
+operator-visible effect was unchanged from the original finding: the
+worker's only thread pinned, every queued import stalled behind one
+hostile page.
+
+The first fix's own timing tests could not see this. `"<svg>" * 20_000`
+contains the `>` that lets every candidate complete without backtracking,
+and `"<a" * 75_000` never reaches the scriptish matcher at all. Neither
+exercised a scriptish name with the `>` missing — the payload class the
+rework's tests are built from.
+
+### The fix
+
+`_without_scriptish` no longer lets any quantifier touch the body. A
+quantifier-free literal alternation (`_SCRIPTISH_NAME`, `<(script|…)`)
+finds each candidate name, and `str.find` completes the opening tag at the
+next `>`. The load-bearing line is the new break: when no `>` exists ahead
+of a candidate, no scriptish opening tag can complete anywhere in the
+remainder (a matched name contains no `<`, so every later candidate would
+need a `>` even further on), so the scan stops — the fact the old regex
+spent minutes rediscovering once per candidate. Everything else — the
+unclosed-name memo, leftmost-match order, match spans, replacements — is
+unchanged, and the candidate-plus-find pair is equivalent to the old
+`.search()` by construction: full matches can start only at candidates,
+and the leftmost candidate either completes at the first `>` (the same
+span `[^>]*>` chose) or proves None for the whole remainder.
+
+Bounding `_readable`'s input — the finding's suggested remedy, which the
+first fix also did not apply — was considered and deliberately not
+adopted: truncation bounds the quadratic without eliminating it, and real
+recipe pages are mostly markup, so truncating raw HTML (rather than the
+extracted text, which the existing 16,000-character cap governs) would
+silently drop content from legitimate large pages. Removing the
+super-linear construct protects every size up to the cap with no
+behaviour change.
+
+One honesty note on the first fix's "byte-identical" differential claim:
+shipped behaviour already diverged from the original regexes beyond the
+documented `<>` case. On interleaved soup such as
+`<script>a</script><svg<script>b</script>` the original strips both script
+pairs and leaves `<svg` (readable text `"<svg"`), while the shipped loop
+lets the unclosed `<svg` swallow the following `<script>` bracket
+(readable text `"b"`). That divergence affects only malformed soup, is
+what ships today, and this rework pins it rather than relitigating it: the
+new scanner is byte-identical to the loop it replaces, proven by a
+committed 3,000-case seeded differential
+(`test_scanner_matches_the_regex_loop_on_3000_randomized_soups`) whose
+reference implementation is the replaced loop itself, over an alphabet of
+prefix-only opens, interleaved closed pairs, bare brackets, case-crossed
+and Unicode-casefolded (U+017F long s) names, `<>`, and the empty string.
+
+### Verification
+
+Red on `356aa66`'s code — the tests the first fix should have carried, all
+driven through the real `fetch_text` path with `Content-Type: text/html`,
+payloads sized 100–400 KB so the red run terminates (the 2 MB case is the
+same curve extrapolated, ~6 minutes, and was not run red):
+
+```text
+E   AssertionError: 200,000 chars took 3.46s
+E   assert 3.461571166990325 < 1.0
+E   AssertionError: <script soup took 2.00s
+E   AssertionError: <style soup took 2.30s
+E   AssertionError: <noscript soup took 1.53s
+E   AssertionError: <svg soup took 3.41s
+E   AssertionError: <iframe soup took 1.94s
+E   AssertionError: <head soup took 2.75s
+E   AssertionError: mixed body took 2.22s
+FAILED test_free_links.py::test_scriptish_opens_missing_their_bracket_grow_linearly
+FAILED test_free_links.py::test_every_scriptish_name_unclosed_and_bracketless_is_linear[script]
+FAILED test_free_links.py::test_every_scriptish_name_unclosed_and_bracketless_is_linear[style]
+FAILED test_free_links.py::test_every_scriptish_name_unclosed_and_bracketless_is_linear[noscript]
+FAILED test_free_links.py::test_every_scriptish_name_unclosed_and_bracketless_is_linear[svg]
+FAILED test_free_links.py::test_every_scriptish_name_unclosed_and_bracketless_is_linear[iframe]
+FAILED test_free_links.py::test_every_scriptish_name_unclosed_and_bracketless_is_linear[head]
+FAILED test_free_links.py::test_closed_blocks_followed_by_bracketless_soup_stay_linear
+8 failed, 38 deselected in 22.51s
+```
+
+Linearity is now asserted, not smoke-checked — the single under-a-second
+assertion is what let the first fix through.
+`test_scriptish_opens_missing_their_bracket_grow_linearly` times
+100 KB / 200 KB / 400 KB (best of three, every measurement also under an
+absolute 1 s ceiling) and requires the 4x input to cost under 8x the time:
+linear costs ~4x, the quadratic cost 16x. Measured on the fixed code,
+same payloads through `_readable`:
+
+```text
+100 KB   0.72 ms
+200 KB   1.46 ms   (x2.01 per doubling)
+400 KB   2.94 ms   (x2.01 per doubling)
+2 MB    14.70 ms   (the response cap; was ~6 extrapolated minutes)
+```
+
+All six names at 200,000 characters: 1.44–1.48 ms. Other adversarial
+shapes at the full 2 MB cap through `_without_scriptish`: 400,000 unclosed
+`<svg>` 164 ms, 111,111 closed `<script>` pairs 56 ms, closed-pair/prefix
+interleave 44 ms, one giant prefix whose only `>` is the last byte
+0.08 ms.
+
+Atypical states: each of the six names bracketless (parametrized, red then
+green); mixed closed blocks followed by bracketless soup mid-document (red
+then green); a body that is one giant unclosed tag prefix (green pin —
+already linear before, must pass through untouched); the exact attack body
+at the 2 MB response cap (green-only, ceiling 1.5 s; at-cap-kept and
+one-over-refused were already pinned by the byte-cap test); empty body and
+entirely-valid HTML (existing tests, plus the differential's empty and
+valid cases). The six-name payloads sit at 200 KB because `<noscript` — the
+longest name, so the fewest candidates per byte — needs that size to clear
+the 1 s ceiling red on the old code.
+
+```text
+uv run pytest -q tests/unit/acquisition/test_free_links.py  -> 49 passed in 0.39s
+uv run pytest -q -m "not live_provider and not chaos"       -> 774 passed, 5 deselected in 57.94s
+uv run ruff check ladle tests alembic                       -> All checks passed
+uv run ruff format --check <the two touched files>          -> 2 files already formatted
+uv run mypy --strict ladle                                  -> Success: no issues found in 121 source files
+```
+
+The `ruff format` line covers this rework's hunks and one 3-line hunk
+`356aa66` itself landed unformatted in the same test file; `main`'s copy
+of both files was clean, so neither is part of the known 35-file drift.
 
 ## Where this run stopped, and where the next one starts
 

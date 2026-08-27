@@ -1,3 +1,5 @@
+import random
+import re
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -251,6 +253,165 @@ def test_unclosed_angle_bracket_soup_is_processed_in_linear_time() -> None:
     assert time.perf_counter() - started < 1.0
 
 
+def test_scriptish_opens_missing_their_bracket_grow_linearly() -> None:
+    # "<svg" repeated, with no ">" anywhere in the body. Every candidate open
+    # makes the greedy [^>]*> consume to end-of-string and fail — once per
+    # candidate, quadratic — all inside a single .search() C call that
+    # returns None, so a linearly-advancing Python loop around it never even
+    # iterates. Measured on the regex loop: 0.87 s at 100 KB, 3.48 s at
+    # 200 KB, 13.78 s at 400 KB — 4x per doubling, ~6 minutes at the 2 MB
+    # response cap.
+    def best_of_three(characters: int) -> float:
+        fetcher = fetcher_returning("<svg" * (characters // 4))
+        best = float("inf")
+        for _ in range(3):
+            started = time.perf_counter()
+            fetcher.fetch_text("https://example.com/recipe")
+            elapsed = time.perf_counter() - started
+            assert elapsed < 1.0, f"{characters:,} chars took {elapsed:.2f}s"
+            best = min(best, elapsed)
+        return best
+
+    smallest = best_of_three(100_000)
+    best_of_three(200_000)
+    largest = best_of_three(400_000)
+
+    # Linear growth at most quadruples the time over a quadrupled input; the
+    # quadratic regex sixteenfolded it. The floor keeps timer noise on a
+    # sub-10ms smallest from deciding the ratio.
+    assert largest < 8 * max(smallest, 0.01), f"{smallest=:.4f}s {largest=:.4f}s"
+
+
+@pytest.mark.parametrize(
+    "name", ["script", "style", "noscript", "svg", "iframe", "head"]
+)
+def test_every_scriptish_name_unclosed_and_bracketless_is_linear(name: str) -> None:
+    # Each of the six names as an opening-tag prefix with no ">" to finish
+    # it. With no ">" there is no tag to strip, so the body must also pass
+    # through untouched, exactly as the original regexes left it.
+    unit = f"<{name}"
+    soup = unit * (200_000 // len(unit))
+    fetcher = fetcher_returning(soup)
+
+    started = time.perf_counter()
+    text = fetcher.fetch_text("https://example.com/recipe")
+    elapsed = time.perf_counter() - started
+
+    assert elapsed < 1.0, f"{unit} soup took {elapsed:.2f}s"
+    assert text == soup[: links._MAX_DOCUMENT_CHARACTERS]
+
+
+def test_closed_blocks_followed_by_bracketless_soup_stay_linear() -> None:
+    # Closed scriptish blocks are stripped as before, and the bracketless
+    # soup after them cannot send the scan quadratic mid-document.
+    body = "<script>secret()</script>Keep this. " * 200 + "<svg" * 40_000
+    fetcher = fetcher_returning(body)
+
+    started = time.perf_counter()
+    text = fetcher.fetch_text("https://example.com/recipe")
+    elapsed = time.perf_counter() - started
+
+    assert elapsed < 1.0, f"mixed body took {elapsed:.2f}s"
+    assert "secret" not in text
+    assert "Keep this." in text
+    assert "<svg<svg" in text
+
+
+def test_one_giant_unclosed_tag_prefix_passes_through() -> None:
+    # A single candidate open and never a ">": nothing is a tag, so the body
+    # passes through whole, up to the document cap.
+    body = "<svg" + "x" * 100_000
+    fetcher = fetcher_returning(body)
+
+    started = time.perf_counter()
+    text = fetcher.fetch_text("https://example.com/recipe")
+
+    assert time.perf_counter() - started < 1.0
+    assert text == body[: links._MAX_DOCUMENT_CHARACTERS]
+
+
+def test_scriptish_soup_at_the_full_response_cap_is_processed_quickly() -> None:
+    # The exact attack body: 2,000,000 bytes — the response cap, the most a
+    # fetch can hand _readable — of "<svg" prefixes. On the quadratic regex
+    # this size extrapolates to ~6 minutes of uninterruptible CPU.
+    body = "<svg" * (links._MAX_RESPONSE_BYTES // 4)
+    fetcher = fetcher_returning(body)
+
+    started = time.perf_counter()
+    text = fetcher.fetch_text("https://example.com/recipe")
+
+    assert time.perf_counter() - started < 1.5
+    assert text == body[: links._MAX_DOCUMENT_CHARACTERS]
+
+
+def test_scanner_matches_the_regex_loop_on_3000_randomized_soups() -> None:
+    # The reference is the loop this fix replaced: the same algorithm with the
+    # opening tag matched by the old quadratic regex. Byte-identical output
+    # proves the rewrite changed speed, not meaning. Inputs stay small here,
+    # so the reference's quadratic worst case stays microseconds — never lift
+    # it out of this test.
+    reference_open = re.compile(rf"(?i)<({'|'.join(links._SCRIPTISH_NAMES)})[^>]*>")
+
+    def reference(raw: str) -> str:
+        parts: list[str] = []
+        position = 0
+        unclosed: set[str] = set()
+        while match := reference_open.search(raw, position):
+            name = match.group(1).casefold()
+            closing = (
+                None
+                if name in unclosed
+                else links._SCRIPTISH_CLOSE[name].search(raw, match.end())
+            )
+            if closing is None:
+                unclosed.add(name)
+                parts.append(raw[position : match.end()])
+                position = match.end()
+                continue
+            parts.append(raw[position : match.start()])
+            parts.append(" ")
+            position = closing.end()
+        parts.append(raw[position:])
+        return "".join(parts)
+
+    tokens = [
+        "<svg",
+        "<svg>",
+        "</svg>",
+        "<script",
+        "<script>",
+        "</script>",
+        "<SCRIPT type=module>",
+        "</SCRIPT>",
+        # U+017F LONG S matches "s" under (?i); both sides must agree.
+        "<\u017fcript>",
+        "<style>",
+        "</style",
+        "<noscript>",
+        "</noscript>",
+        "<iframe src=x>",
+        "<head>",
+        "</head>",
+        "<header>",  # matches as "head" plus attribute junk, as it always did
+        "<svgx>",
+        "<p>",
+        "</p>",
+        "<a href=x>",
+        "<",
+        ">",
+        "</",
+        "<>",
+        "text",
+        " ",
+        "recipe &amp; notes",
+        "x",
+    ]
+    rng = random.Random(0)
+    for _ in range(3_000):
+        soup = "".join(rng.choice(tokens) for _ in range(rng.randrange(0, 40)))
+        assert links._without_scriptish(soup) == reference(soup)
+
+
 def test_readable_keeps_text_after_an_unclosed_script() -> None:
     fetcher = fetcher_returning("<p>Add 2 cups orzo</p><script>var x = 1")
 
@@ -287,9 +448,7 @@ def test_response_at_the_byte_cap_is_kept_and_one_over_is_refused() -> None:
     def serving(body: str) -> SafeLinkFetcher:
         def handler(request: httpx.Request) -> httpx.Response:
             del request
-            return httpx.Response(
-                200, text=body, headers={"content-type": "text/html"}
-            )
+            return httpx.Response(200, text=body, headers={"content-type": "text/html"})
 
         return SafeLinkFetcher(
             http=httpx.Client(transport=httpx.MockTransport(handler)),
