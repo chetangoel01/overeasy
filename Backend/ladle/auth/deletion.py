@@ -3,6 +3,7 @@ import hmac
 from dataclasses import dataclass
 from uuid import UUID, uuid4
 
+from cryptography.exceptions import InvalidTag
 from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, sessionmaker
@@ -112,7 +113,11 @@ class AccountDeletionService:
             try:
                 refresh = self._private_text.decrypt(encrypted_apple_token)
                 self._apple.revoke(refresh)
-            except (AppleTokenRevocationFailed, ValueError) as error:
+            # InvalidTag derives from Exception, not ValueError: an AEAD tag
+            # failure (keyring id kept, secret changed) must degrade exactly
+            # like a missing key id, not escape as a 500 with the audit
+            # wedged at 'revokingProvider'.
+            except (AppleTokenRevocationFailed, ValueError, InvalidTag) as error:
                 self._mark_failed(digest, type(error).__name__)
                 raise AccountDeletionUnavailable from error
 

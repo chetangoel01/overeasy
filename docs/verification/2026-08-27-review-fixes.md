@@ -57,6 +57,7 @@ by the code they touch.
 | #25 | Guest-limit account creation was a local flip | `4ae136e` | fixed |
 | #34 | 429s and crash 500s shipped without security headers | _pending_ | fixed |
 | #35 | Unauthenticated challenge endpoint had no rate limit | _pending_ | fixed |
+| #36 | AEAD failure wedged account deletion at revokingProvider | _pending_ | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -2294,6 +2295,69 @@ uv run pytest -q tests/api/test_rate_limit_wiring.py \
     tests/integration/auth/test_app_attest.py tests/unit/test_rate_limits.py \
     tests/unit/test_config.py tests/unit/observability  -> 84 passed
 uv run ruff check ladle tests alembic                   -> All checks passed
+uv run mypy --strict ladle                              -> clean
+```
+
+## Finding #36 — an AEAD failure wedged account deletion forever
+
+### The defect
+
+`AccountDeletionService.delete` commits `audit.status = 'revokingProvider'`
+in its first transaction, then decrypts the stored Apple refresh token and
+catches `except (AppleTokenRevocationFailed, ValueError)`. But
+`cryptography.exceptions.InvalidTag` derives from `Exception`, not
+`ValueError` — it is what `AESGCM.decrypt` raises whenever the ciphertext
+fails its tag check under the resolved key, i.e. whenever a keyring id is
+kept while its secret changes (an in-place rotation, or a database restored
+into an environment whose keyring maps the same id to different material;
+config validation checks only id format and secret length, so both pass
+startup). The exception escaped `delete`, so `_mark_failed` never ran and
+`AccountDeletionUnavailable` was never raised: the caller got an unhandled
+500 instead of the intended 503, the Apple grant was never revoked, and the
+audit stayed at the non-terminal 'revokingProvider' with `failure_code`
+NULL — a state `docs/account-deletion.md` says the machine never rests in.
+Retrying with the same idempotency key re-entered `delete` and crashed
+identically, so the account could never be deleted.
+
+### The fix
+
+`InvalidTag` joins the except tuple in `ladle/auth/deletion.py`, with a
+comment naming why it cannot ride on `ValueError`. An AEAD tag failure now
+degrades exactly like a missing keyring id: `_mark_failed(digest,
+"InvalidTag")`, then `AccountDeletionUnavailable` → the route's 503. No
+change inside `private_text.py` — normalising `InvalidTag` to `ValueError`
+there would silently rewrite the contract of every other decrypt caller.
+
+### Verification
+
+New `tests/integration/auth/test_account_deletion.py`, both atypical decrypt
+failures: `test_a_failed_tag_check_marks_the_deletion_failed_instead_of_crashing`
+(identity encrypted under key id `2026-q3`/secret A, service cipher holds
+`2026-q3`/secret B) and `test_a_missing_keyring_id_degrades_the_same_way`
+(service keyring lacks the id entirely — the ValueError control, green
+before and after). Red on the unfixed code — `pytest.raises(
+AccountDeletionUnavailable)` never sees its exception because the raw tag
+failure escapes the service:
+
+```text
+            value[key_id_end:nonce_end],
+            value[nonce_end:],
+            header,
+        )
+E       cryptography.exceptions.InvalidTag
+
+ladle/crypto/private_text.py:114: InvalidTag
+FAILED tests/integration/auth/test_account_deletion.py::test_a_failed_tag_check_marks_the_deletion_failed_instead_of_crashing
+1 failed, 1 passed in 2.93s
+```
+
+Green after the fix (audit at `failed`/`InvalidTag`, Apple `revoke` never
+called with a token that failed authentication):
+
+```text
+uv run pytest -q tests/integration/auth/test_account_deletion.py \
+    tests/api/test_apple_auth.py                        -> 6 passed
+uv run ruff check ladle/auth/deletion.py ...            -> All checks passed
 uv run mypy --strict ladle                              -> clean
 ```
 
