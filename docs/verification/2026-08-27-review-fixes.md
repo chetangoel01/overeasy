@@ -32,7 +32,8 @@ by the code they touch.
 | #9 | Rejected delete wedged every later sync | `5eb298e` | fixed |
 | (new) | Tombstones lost on the next save of the row | `1af3345` | fixed |
 | #7 | Push acknowledgement erased an in-flight edit | `4dfbad2` | fixed |
-| #8 | Editor numbers parsed against the wrong locale | `_pending_` | fixed |
+| #8 | Editor numbers parsed against the wrong locale | `1733928` | fixed |
+| #2 | A limiter outage became an API outage | `_pending_` | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -459,3 +460,37 @@ testUnparseableNumbersAreRejectedRatherThanTruncated
 ```
 
 Green after: `-only-testing:LadleTests` at 261 executed, 1 skipped, 0 failures.
+
+## Finding #2 — a Redis blip took the whole API down
+
+`RateLimitService.enforce` ran the backend call bare, and the global
+middleware caught only `RateLimitExceeded`. A `redis.exceptions.ConnectionError`
+from a restart or failover therefore escaped `enforce` *before* `call_next`
+was ever reached, hit the catch-all handler, and returned 500 for every
+request on every path — including `GET /health/live`, which is meant to be
+dependency-free. Production mandates rate limiting, so a transient Redis blip
+became a total outage plus failing liveness checks and an orchestrator restart
+loop.
+
+`RedisTokenBucketBackend` now wraps its `eval` and raises the new
+`RateLimitBackendUnavailable`, keeping provider-specific client exceptions
+from leaking out of the limiter. `RateLimitService.enforce` catches it, logs a
+warning naming the buckets, and returns — serving the request unlimited. The
+limiter is a guard on the service, not the service; `RateLimitExceeded` is an
+answer, and this is the absence of one, so the two are separate types and only
+the second fails open. Every route that calls `enforce` directly gets the same
+degradation, not just the middleware.
+
+### Verification
+
+`tests/api/test_rate_limit_wiring.py::test_an_unreachable_rate_limit_store_degrades_instead_of_failing_requests`
+builds the app with a backend that always raises and asserts `/health/live`
+answers 200 and `POST /v1/auth/guest` still registers. Red with the catch
+disabled: `assert client.get("/health/live").status_code == 200` fails on the
+liveness probe — the finding's exact claim.
+
+```text
+uv run pytest -q -m "not live_provider and not chaos"  -> 701 passed
+uv run ruff check ladle tests                          -> All checks passed
+uv run mypy --strict ladle                             -> clean
+```
