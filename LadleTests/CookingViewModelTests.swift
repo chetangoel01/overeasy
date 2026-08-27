@@ -191,6 +191,63 @@ final class CookingViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.finishedTimerForCurrentStep)
     }
 
+    func testEndCookingCancelsEveryPendingTimerNotification() async throws {
+        let recipe = PreviewFixtures.recipes[3]
+        let timerIDs = recipe.orderedSteps.flatMap(\.timers).map(\.id)
+        XCTAssertEqual(timerIDs.count, 2)
+        let notifications = TestTimerNotificationScheduler()
+        let viewModel = makeViewModel(
+            recipe: recipe,
+            notifications: notifications
+        )
+
+        viewModel.beginCooking()
+        for timerID in timerIDs {
+            await viewModel.startTimer(id: timerID)
+        }
+        viewModel.pauseTimer(id: timerIDs[1])
+        XCTAssertEqual(notifications.scheduled.count, 2)
+        XCTAssertEqual(notifications.cancelled, [timerIDs[1]])
+
+        viewModel.endCooking()
+
+        XCTAssertTrue(
+            Set(notifications.cancelled).isSuperset(of: Set(timerIDs)),
+            "Ending the session must cancel the running timer's pending"
+                + " notification, not just the paused one's"
+        )
+    }
+
+    func testEndCookingWithNothingStartedSchedulesNothing() {
+        let recipe = PreviewFixtures.recipes[1]
+        let notifications = TestTimerNotificationScheduler()
+        let viewModel = makeViewModel(
+            recipe: recipe,
+            notifications: notifications
+        )
+
+        viewModel.beginCooking()
+        viewModel.endCooking()
+
+        XCTAssertTrue(notifications.scheduled.isEmpty)
+    }
+
+    func testEndCookingOnARecipeWithoutTimersCancelsNothing() {
+        let recipe = PreviewFixtures.recipes[4]
+        XCTAssertTrue(recipe.orderedSteps.allSatisfy(\.timers.isEmpty))
+        let notifications = TestTimerNotificationScheduler()
+        let viewModel = makeViewModel(
+            recipe: recipe,
+            notifications: notifications
+        )
+
+        viewModel.beginCooking()
+        viewModel.endCooking()
+
+        XCTAssertTrue(notifications.scheduled.isEmpty)
+        XCTAssertTrue(notifications.cancelled.isEmpty)
+    }
+
     func testKeepAwakeIsExplicitAndRestoresPreviousSettingOnExit() {
         let idleTimer = TestIdleTimerController()
         idleTimer.isIdleTimerDisabled = false

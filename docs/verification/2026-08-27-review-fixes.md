@@ -62,7 +62,8 @@ by the code they touch.
 | #38 | Retrying a needsReview job stranded its thumbnail | `ac9731a` | fixed |
 | #39 | USDA search cache grew for the life of the worker | `d6d5a24` | fixed |
 | #45 | Upload encoding rewrote UUID-shaped user text | `e10e9cc` | fixed |
-| #42 | Edited quantities synced a stale machine amount | — | fixed |
+| #42 | Edited quantities synced a stale machine amount | `ffa1c46` | fixed |
+| #40 | Ended cooking sessions left uncancelable notifications | — | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -2689,6 +2690,64 @@ the fix, `-only-testing:LadleTests/RecipeEditorViewModelTests`:
 Executed 18 tests, with 0 failures (0 unexpected) in 0.065 (0.072) seconds
 ** TEST SUCCEEDED **
 ```
+
+## Finding #40 — an ended cooking session left uncancelable notifications
+
+### The defect
+
+Closing the cooking screen runs `endCooking()`, which restored the idle
+timer and nothing else; the dismiss then set `cookingViewModel = nil`.
+Any running step timer's scheduled `UNTimeIntervalNotificationTrigger`
+stayed pending in the notification center while the
+`LocalTimerNotificationScheduler` — whose private `requestIDs` map held
+the only copy of the per-schedule random request identifier — was
+deallocated with the view model. The orphaned notification could never be
+cancelled again by any code in the app: eighteen minutes after abandoning
+a 20-minute simmer, the cook is told "Simmer is ready" for a session that
+no longer exists, and restarting the same timer in a new session stacks a
+second alert on top.
+
+### The fix
+
+`endCooking()` now cancels every timer's pending notification through the
+scheduler before the pair is deallocated. The scheduler's `cancel` is
+already a no-op for a timer with nothing pending (idle, paused — whose
+request was cancelled at pause time — or finished), so the sweep is safe
+in every state. Backgrounding the app does not run `onDisappear`, so a
+cook who locks the phone mid-session deliberately keeps their timer
+notification — only really closing the session sweeps it.
+
+### Verification
+
+Three new tests in `LadleTests/CookingViewModelTests` against the
+recorded scheduler fake. Red on the unfixed code — with two timers
+started and one paused, ending the session cancelled nothing beyond the
+pause's own cancellation:
+
+```text
+CookingViewModelTests.swift:214: error: -[LadleTests.CookingViewModelTests
+testEndCookingCancelsEveryPendingTimerNotification] : XCTAssertTrue
+failed - Ending the session must cancel the running timer's pending
+notification, not just the paused one's
+```
+
+The empty and atypical states are pinned alongside: a session ended with
+timers present but none started schedules nothing
+(`testEndCookingWithNothingStartedSchedulesNothing`), and a recipe with no
+timers at all ends without a single cancel call
+(`testEndCookingOnARecipeWithoutTimersCancelsNothing`). After the fix,
+`-only-testing:LadleTests/CookingViewModelTests`:
+
+```text
+Executed 10 tests, with 0 failures (0 unexpected) in 0.019 (0.024) seconds
+** TEST SUCCEEDED **
+```
+
+To see it on device: open any recipe with a step timer (e.g. Sheet-Pan
+Gochujang Chicken) → Start Cooking → tap a timer card to start it → tap
+the X to close cooking. Before the fix the timer's notification still
+arrives at its original fire time; after the fix it does not, and
+restarting the timer in a new session produces exactly one alert.
 
 ## Where this run stopped, and where the next one starts
 
