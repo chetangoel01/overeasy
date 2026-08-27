@@ -44,7 +44,7 @@ by the code they touch.
 | #27 | Remote delete mislabeled as a remote edit | `2969c5a` | fixed |
 | #26 | Scrolling a focus-mode step changed the step | — | fixed |
 | #12 | Malformed caption URL killed the whole import | `44b7b10` + `08a010b` | fixed |
-| #13 | Hostile HTML pinned the worker for half an hour | `356aa66` + `_pending_` | fixed |
+| #13 | Hostile HTML pinned the worker for half an hour | `356aa66` + `65c7032` | fixed |
 | #11 | Reversed Whisper timings killed the transcription | `b590bb2` | fixed |
 | #17 | Model decimal exponent bomb allocated gigabytes | `9a8158f` | fixed |
 | #18 | Beat sweep deadlocked against import completions | `b215db5` | fixed |
