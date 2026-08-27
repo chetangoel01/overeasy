@@ -269,6 +269,93 @@ final class CookingViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.keepsScreenAwake)
     }
 
+    func testTimerButtonFeedbackSitsInsideTheTimelineRefresh() throws {
+        // Timer completion is purely time-derived: the stored phase never
+        // mutates to .finished, so nothing re-evaluates the button's own
+        // body at 0:00. Only the TimelineView's per-second content refresh
+        // observes the .running -> .finished transition — a sensoryFeedback
+        // modifier attached outside it keeps a stale trigger forever and
+        // the finish haptic never fires. The modifiers must therefore sit
+        // inside the TimelineView's content, which its static body type
+        // proves.
+        let recipe = PreviewFixtures.recipes[1]
+        let detectedTimer = try XCTUnwrap(
+            recipe.orderedSteps[1].timers.first
+        )
+        let button = RecipeTimerButton(
+            viewModel: makeViewModel(recipe: recipe),
+            detectedTimer: detectedTimer
+        )
+
+        let structure = String(describing: type(of: button.body))
+        let timelineSpan = try XCTUnwrap(
+            Self.genericSpan(of: "TimelineView", in: structure),
+            "RecipeTimerButton must keep its per-second TimelineView"
+        )
+        let feedbackSites = Self.occurrences(
+            of: "FeedbackGenerator<RecipeTimerPhase>",
+            in: structure
+        )
+        XCTAssertEqual(
+            feedbackSites.count,
+            3,
+            "Expected the started, paused, and finished feedback"
+                + " modifiers in \(structure)"
+        )
+        for site in feedbackSites {
+            XCTAssertTrue(
+                timelineSpan.contains(site),
+                "Every timer feedback trigger must be re-read by the"
+                    + " TimelineView refresh, but one sits outside it"
+                    + " in \(structure)"
+            )
+        }
+    }
+
+    /// The range spanned by `name`'s generic parameter list in a type
+    /// description, angle brackets balanced (`->` ignored).
+    private static func genericSpan(
+        of name: String,
+        in description: String
+    ) -> Range<String.Index>? {
+        guard let start = description.range(of: "\(name)<") else {
+            return nil
+        }
+        var depth = 0
+        var previous: Character = " "
+        var index = description.index(before: start.upperBound)
+        while index < description.endIndex {
+            let character = description[index]
+            if character == "<" {
+                depth += 1
+            } else if character == ">", previous != "-" {
+                depth -= 1
+                if depth == 0 {
+                    return start.upperBound ..< index
+                }
+            }
+            previous = character
+            index = description.index(after: index)
+        }
+        return nil
+    }
+
+    private static func occurrences(
+        of needle: String,
+        in description: String
+    ) -> [String.Index] {
+        var found: [String.Index] = []
+        var searchStart = description.startIndex
+        while let range = description.range(
+            of: needle,
+            range: searchStart ..< description.endIndex
+        ) {
+            found.append(range.lowerBound)
+            searchStart = range.upperBound
+        }
+        return found
+    }
+
     private func makeViewModel(
         recipe: Recipe = PreviewFixtures.recipes[1],
         clock: CookingClock = TestCookingClock(),

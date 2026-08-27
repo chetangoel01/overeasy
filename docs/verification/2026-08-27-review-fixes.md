@@ -63,7 +63,8 @@ by the code they touch.
 | #39 | USDA search cache grew for the life of the worker | `d6d5a24` | fixed |
 | #45 | Upload encoding rewrote UUID-shaped user text | `e10e9cc` | fixed |
 | #42 | Edited quantities synced a stale machine amount | `ffa1c46` | fixed |
-| #40 | Ended cooking sessions left uncancelable notifications | — | fixed |
+| #40 | Ended cooking sessions left uncancelable notifications | `fa097b2` | fixed |
+| #41 | Timer-finished haptic never fired on the full-recipe screen | — | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -2748,6 +2749,74 @@ Gochujang Chicken) → Start Cooking → tap a timer card to start it → tap
 the X to close cooking. Before the fix the timer's notification still
 arrives at its original fire time; after the fix it does not, and
 restarting the timer in a new session produces exactly one alert.
+
+## Finding #41 — the timer-finished haptic could never fire on the full-recipe screen
+
+### The defect
+
+`RecipeTimerButton`'s three `.sensoryFeedback` modifiers were attached
+*outside* the TimelineView that drives its per-second refresh. Their
+`trigger: phase` value is only re-read when the button's own body is
+re-evaluated, which requires an observable mutation — and timer completion
+is purely time-derived: `RecipeTimer.phase(at:)` returns `.finished` while
+the stored phase stays `.running`, so nothing mutates at 0:00. The
+countdown inside the TimelineView reached 0:00 and the card turned green,
+but the trigger stored by the modifiers stayed `.running` forever: the
+success haptic marking the timer done never played on the full-recipe
+screen. (In Focus Mode the same button happens to sit inside that screen's
+own outer TimelineView, so the identical control behaved differently in
+the two places — and if the cook later toggled an unrelated step, the
+deferred transition fired the "finished" haptic at that unrelated moment
+instead.)
+
+### The fix
+
+The three modifiers moved inside the TimelineView's content closure,
+attached to the card's HStack. Each per-second refresh now re-reads the
+trigger, so the `.running -> .finished` transition is observed at the tick
+the countdown reaches zero — the same arrangement that already made the
+button work under FocusModeView's outer TimelineView. Tap-driven
+transitions (started/paused) still fire as before, since a `timers`
+mutation re-evaluates the body and re-runs the closure immediately. The
+timer-at-exactly-0:00 boundary is the already-pinned
+`testRunningTimerReportsFinishedWhenCountdownReachesZero`
+(`phase(at:)` flips exactly when remaining hits 0), and
+`LadleFeedbackPolicy.timerFeedback(.running, .finished) == .finished` is
+pinned in `DesignTokenTests`. A timer finishing while backgrounded is
+covered by the scheduled local notification, not the haptic — unchanged.
+
+### Verification
+
+Placement is provable from the button's static body type, so
+`testTimerButtonFeedbackSitsInsideTheTimelineRefresh`
+(`LadleTests/CookingViewModelTests`) walks
+`String(describing: type(of: body))` with a bracket-balanced scanner and
+requires all three phase-feedback modifiers
+(`FeedbackGenerator<RecipeTimerPhase>`) to sit inside the TimelineView's
+generic span — asserting the count first, so deleting the modifiers cannot
+green the test vacuously. Red on the unfixed code, once per stranded
+modifier:
+
+```text
+CookingViewModelTests.swift:306: error: -[LadleTests.CookingViewModelTests
+testTimerButtonFeedbackSitsInsideTheTimelineRefresh] : XCTAssertTrue
+failed - Every timer feedback trigger must be re-read by the TimelineView
+refresh, but one sits outside it in ModifiedContent<ModifiedContent<
+ModifiedContent<TimelineView<PeriodicTimelineSchedule ...
+(Executed 1 test, with 3 failures (0 unexpected))
+```
+
+After the move, `-only-testing:LadleTests/CookingViewModelTests`:
+
+```text
+Executed 11 tests, with 0 failures (0 unexpected) in 0.028 (0.033) seconds
+** TEST SUCCEEDED **
+```
+
+To feel it on device: open a recipe with a step timer → Start Cooking →
+stay on the full-recipe list (not Focus Mode) → start a timer and wait it
+out with the app foregrounded. The success haptic now plays the moment the
+card flips to "finished".
 
 ## Where this run stopped, and where the next one starts
 
