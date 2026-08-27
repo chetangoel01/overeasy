@@ -42,6 +42,7 @@ by the code they touch.
 | #30 + #31 + #32 | Import-cancellation cluster | `814ba45` | fixed |
 | #28 | Delete during first upload came back | `d2ce167` | fixed |
 | #27 | Remote delete mislabeled as a remote edit | `2969c5a` | fixed |
+| #26 | Scrolling a focus-mode step changed the step | — | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -1018,6 +1019,66 @@ forever, because the server cannot resurrect a soft-deleted recipe. Every
 pull-side arrival of the delete now corrects the label, but closing the
 push path needs the sync-conflict contract to say "deleted" — a backend
 plus LadleCore change outside this finding.
+
+## Finding #26 — scrolling a focus-mode step changed the step
+
+### The defect
+
+`FocusModeView` attaches a `DragGesture(minimumDistance: 44)` to the whole
+screen with `.simultaneousGesture`, and its `onEnded` looked only at
+`translation.width` against ±44. `minimumDistance` is a Euclidean threshold,
+so a normal one-handed thumb scroll of long step content — ~200pt of
+vertical travel with ~50pt of sideways arc — began the gesture on vertical
+travel alone and then passed the width check on the drift. Mid-recipe that
+silently advanced the cook to the next step; on the last step, `advance()`
+falls through to `exitFocusMode()`, so the same scroll threw the cook out of
+Focus Mode entirely. A rightward-arcing scroll fired `movePrevious()`
+symmetrically. Long steps are exactly the ones that need scrolling — at
+accessibility Dynamic Type sizes the 36pt step text does not shrink at all
+(`minimumScaleFactor` is disabled), so the overflow case is the common case.
+
+### The fix
+
+The classification is extracted into `FocusModeSwipe` (same file), and a
+drag now counts as a swipe only when it is *predominantly horizontal* —
+`abs(width) > abs(height)` — as well as travelling more than 44pt on the
+horizontal axis. A vertically-dominated drag classifies as nil and changes
+nothing, whatever its sideways drift. The gesture stays a
+`.simultaneousGesture` with the same 44pt activation distance, so the
+ScrollView's own pan is never blocked or delayed: scrolling keeps scrolling,
+and a deliberate sideways swipe (dominant horizontal travel) still moves
+between steps or, on the last step, exits Focus Mode.
+
+### Verification
+
+`LadleTests/FocusModeSwipeTests` drives the classifier with the reviewer's
+own translations. The extraction was landed first with the old width-only
+logic verbatim, so the new tests ran red against the shipping behavior:
+
+```text
+FocusModeSwipeTests.swift:13: error: -[LadleTests.FocusModeSwipeTests
+testVerticalScrollWithLeftwardDriftIsNotASwipe] : XCTAssertNil failed:
+"nextStep" - A vertical scroll drifting left must not read as a next-step
+swipe
+FocusModeSwipeTests.swift:22: error: -[LadleTests.FocusModeSwipeTests
+testVerticalScrollWithRightwardDriftIsNotASwipe] : XCTAssertNil failed:
+"previousStep" - A vertical scroll drifting right must not read as a
+previous-step swipe
+FocusModeSwipeTests.swift:31: error: -[LadleTests.FocusModeSwipeTests
+testPerfectDiagonalIsNotASwipe] : XCTAssertNil failed: "nextStep" - An
+ambiguous 45-degree drag must not change the step
+```
+
+The four companion tests — deliberate left/right swipes still classify, and
+the 44pt boundary is exclusive on both sides — passed against the extracted
+old logic too, proving the extraction changed nothing before the fix did.
+After the dominance guard, `-only-testing:LadleTests/FocusModeSwipeTests`
+is 7/7 (`** TEST SUCCEEDED **`), and
+`-only-testing:LadleTests/CookingViewModelTests` still passes to sweep the
+step-navigation neighbors (clamping at the first/last step, mode switching,
+single-step recipes are all view-model behavior this change does not touch —
+the classifier returning nil is what now protects them from accidental
+drags; a genuine horizontal swipe behaves exactly as before).
 
 ## Where this run stopped, and where the next one starts
 
