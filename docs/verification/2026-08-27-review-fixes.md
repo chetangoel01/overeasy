@@ -47,6 +47,7 @@ by the code they touch.
 | #13 | Hostile HTML pinned the worker for half an hour | `356aa66` | fixed |
 | #11 | Reversed Whisper timings killed the transcription | `b590bb2` | fixed |
 | #17 | Model decimal exponent bomb allocated gigabytes | `9a8158f` | fixed |
+| #18 | Beat sweep deadlocked against import completions | `_pending_` | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -1374,6 +1375,91 @@ review, and the call returns in bounded time with no expansion.
 uv run pytest -q tests/unit/extraction/  -> 104 passed in 0.95s
 uv run ruff check ladle tests alembic    -> All checks passed
 uv run mypy --strict ladle               -> clean
+```
+
+## Finding #18 — the reservation sweep took locks backwards and deadlocked
+
+### The defect
+
+Every path that completes, fails, retries, or cancels an import takes the
+`import_jobs` row lock first and the `recipe_slot_reservations` row lock
+second: `ExtractionCacheService.complete_shared` locks the batch of parsing
+jobs and then `ReservationService.consume` locks each job's reservation;
+`ImportTransitionService.fail`, `ImportRetryService.retry` and
+`ImportCancellationService.cancel` do the same for a single job.
+
+`ImportMaintenanceService.release_expired_reservations` did the opposite. Its
+join query used `.with_for_update(of=RecipeSlotReservation)` — locking only
+the reservation rows — and then mutated the joined `ImportJob` objects, whose
+`UPDATE import_jobs` was emitted later, at the next autoflush or at commit.
+A worker finishing (or a user cancelling) a job the sweep had matched would
+lock `import_jobs` and block on the sweep's reservation lock, while the
+sweep's deferred update blocked on that job lock: a cycle Postgres resolves
+by aborting one side with `deadlock detected` (SQLSTATE 40P01). When the
+sweep loses, the whole beat transaction rolls back — reservation release,
+`recover_abandoned`'s stuck-job requeue, and operational-metrics capture are
+all lost for that 30-second interval, and `dispatch_pending` never runs.
+
+### The fix
+
+`release_expired_reservations` now scans for candidates lock-free (ordered
+by `ImportJob.created_at, ImportJob.id` — the same global order
+`complete_shared` uses for its batch lock), then locks each pair in the
+shared order: the import-job row first, the reservation second. Because the
+candidate scan is unlocked, each pair is re-checked once both locks are held
+(`state == "reserved"`, still expired, row still present); a reservation
+consumed or reactivated in the window is skipped. The job mutation now
+happens on a row the sweep already holds, so the deferred-update cycle
+cannot form. Behavior is otherwise byte-for-byte: terminal jobs release,
+stale parsing jobs release and fail with `abandonedImport`, completed jobs
+with a recipe mark their reservation consumed, and the released count
+excludes consumed slots.
+
+A sweep can never race a *fresh* submission: a just-created reservation has
+`expires_at = now + lifetime`, so the candidate predicate cannot select it.
+The reachable race is with completion/cancellation of an already-expired
+job, which is exactly what the new test drives.
+
+Sibling hazard noted, not fixed here: `ImportTransitionService.fail` locks
+its shared-follower batch with no `ORDER BY`, so two concurrent `fail`
+batches over the same source video are not globally ordered against
+`complete_shared`. Pre-existing, independent of the sweep, and left alone.
+
+### Verification
+
+`test_sweep_does_not_deadlock_with_a_concurrent_cancellation` seeds one
+stale parsing job with an expired reservation, runs the sweep in one
+transaction that holds its locks for two seconds after doing its work, and
+cancels the same job from a second thread the moment the sweep's work is
+done — the beat-vs-user interleaving from the finding. Red, on the old code
+(the cancellation locks the job and blocks on the sweep's reservation lock;
+the sweep's commit then flushes `UPDATE import_jobs` into the cycle):
+
+```text
+E           sqlalchemy.exc.OperationalError: (psycopg.errors.DeadlockDetected) deadlock detected
+E           DETAIL:  Process 78 waits for ShareLock on transaction 736; blocked by process 79.
+E           Process 79 waits for ShareLock on transaction 735; blocked by process 78.
+E           CONTEXT:  while updating tuple (0,1) in relation "import_jobs"
+E           [SQL: UPDATE import_jobs SET status=%(status)s::VARCHAR, stage=%(stage)s::VARCHAR, ...]
+FAILED tests/integration/imports/test_maintenance.py::test_sweep_does_not_deadlock_with_a_concurrent_cancellation
+1 failed, 2 passed in 6.73s
+```
+
+Green: the cancellation serializes behind the job lock instead, finds the
+job already failed by the sweep, and raises
+`ImportCancellationUnavailable`; the sweep commits — released reservation,
+failed job, nothing aborted. Atypical states pinned alongside it:
+`test_sweep_with_nothing_to_reclaim_takes_no_locks_and_releases_nothing`
+(zero-row sweep returns 0), and
+`test_sweep_marks_completed_jobs_consumed_and_skips_consumed_reservations`
+(a ready job with its recipe keeps the slot as `consumed` — a branch no
+prior test covered — and an already-consumed reservation is untouched).
+The pre-existing terminal/stale/fresh matrix passes unchanged.
+
+```text
+uv run pytest -q tests/integration/imports/test_maintenance.py  -> 5 passed in 6.12s
+uv run ruff check ladle tests alembic                           -> All checks passed
+uv run mypy --strict ladle                                      -> clean
 ```
 
 ## Where this run stopped, and where the next one starts
