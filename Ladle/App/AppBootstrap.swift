@@ -372,7 +372,7 @@ final class LadleRuntime {
             accountSession.signOut()
         }
         googleSignIn?.signOut()
-        clearLocalSession()
+        await clearLocalSession()
     }
 
     func deleteAccount() async throws {
@@ -382,7 +382,7 @@ final class LadleRuntime {
             accountSession.signOut()
         }
         await googleSignIn?.disconnect()
-        clearLocalSession()
+        await clearLocalSession()
     }
 
     func handleOpenURL(_ url: URL) {
@@ -412,7 +412,10 @@ final class LadleRuntime {
         }
     }
 
-    private func clearLocalSession() {
+    private func clearLocalSession() async {
+        // A sync still in flight holds an authorized token and would write the
+        // signed-out account's rows straight back into the wiped store.
+        await syncService?.cancelActiveSync()
         libraryViewModel.clearLocalLibrary()
         try? SyncCursorStore().reset()
         syncStatus.reset()

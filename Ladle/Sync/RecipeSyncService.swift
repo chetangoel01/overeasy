@@ -104,6 +104,20 @@ actor RecipeSyncService {
         }
     }
 
+    /// Cancels the run in flight and waits for it to unwind.
+    ///
+    /// Sign-out wipes the local store, so it must know that no pulled page can
+    /// still be written into it. Returning before the run drains would leave
+    /// exactly that window open.
+    func cancelActiveSync() async {
+        guard let run = inFlight else {
+            return
+        }
+        inFlight = nil
+        run.task.cancel()
+        _ = try? await run.task.value
+    }
+
     private func finish(runID: UUID) {
         guard inFlight?.id == runID else {
             return
@@ -185,7 +199,9 @@ actor RecipeSyncService {
                     }
                 }
             }
+            try Task.checkCancellation()
             try await repository.applySyncPage(page)
+            try Task.checkCancellation()
             try cursorStore.save(page.nextCursor)
             cursor = page.nextCursor
             if !page.hasMore {

@@ -25,8 +25,8 @@ by the code they touch.
 | Finding | Area | Commit | State |
 | --- | --- | --- | --- |
 | #6 (backend half) | Device binding survives sign-out | `b648aed` | fixed |
-| #6 (iOS half) | Installation ID never rotated | `_pending_` | fixed |
-| #10 | Uncancelled sync task writes after wipe | `_pending_` | pending |
+| #6 (iOS half) | Installation ID never rotated | `f203232` | fixed |
+| #10 | Uncancelled sync task writes after wipe | `_pending_` | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -150,3 +150,59 @@ and declined. With rotation on the device and unbinding on the server, the
 identifier is no longer a durable bearer credential for a real account, so the
 migration would add a Keychain dependency and an upgrade path for no remaining
 security gain.
+
+## Finding #10 — a cancelled sign-out leaves the sync running
+
+### The defect
+
+`RecipeSyncService.startSync` runs the pull in an unstructured `Task` that
+nothing ever cancelled. Sign-out wipes the local store and resets the cursor,
+but a pull already on the wire carried an authorized token and finished
+regardless: `applySyncPage` re-inserted the signed-out account's recipes into
+the just-wiped store and `cursorStore.save` re-wrote the cursor sign-out had
+just reset. The rows then survived the next sign-in, because a fresh session
+starts at cursor 0 and so never takes the snapshot-reconcile path that would
+have pruned them. `StoredRecipe` has no owner field, so the next account saw
+the previous account's library.
+
+The `Task.checkCancellation()` calls already in the push loop could not help:
+no one was cancelling the task they ran in.
+
+### The fix
+
+`RecipeSyncService.cancelActiveSync()` cancels the run in flight **and awaits
+its unwind** before returning. Firing the cancel without waiting would not
+close the window — the task can sit between suspension points, and sign-out
+would race it to the store anyway. `LadleRuntime.clearLocalSession()` is now
+`async` and calls it before `libraryViewModel.clearLocalLibrary()`, so both
+`signOut()` and `deleteAccount()` drain the sync before wiping.
+
+The pull loop also gained `Task.checkCancellation()` after the page request
+returns — once before `applySyncPage` and once before `cursorStore.save`.
+Cancelling a URLSession call usually throws, but not if the response landed
+just before the cancel; the explicit checks make "a cancelled run writes
+nothing" true by construction rather than by timing.
+
+### Verification
+
+- `LadleTests/RecipeSyncServiceTests.testCancellingAnInFlightSyncAppliesNothingAndKeepsTheCursor`
+  holds a pull open on a semaphore, runs the sign-out cancel, releases the
+  response, and asserts nothing was applied and the cursor stayed at 0 — both
+  right after the cancel returns and after the sync task itself finishes. Red
+  state (cancel removed, matching the previous behaviour):
+  `XCTAssertEqual failed: ("2") is not equal to ("0")` for the cursor and
+  `XCTAssertTrue failed` for the applied-page assertion — the reviewer's
+  scenario exactly. Green after the fix.
+- `LadleTests/SwiftDataRecipeRepositoryTests.testWipingLocalDataClearsEverythingWithoutQueueingTombstones`
+  fills the missing coverage for `wipeAllData`: recipes (synced and unsynced)
+  and import jobs are gone, and — the property that matters for sign-out — no
+  pending delete is left queued for the next push, so the server library is
+  untouched. This is characterisation coverage of behaviour that was already
+  correct, not a red-green fix.
+
+```text
+xcodebuild test -project Ladle.xcodeproj -scheme Ladle \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5' \
+  -only-testing:LadleTests
+  -> 254 executed, 1 skipped, 0 failures
+```

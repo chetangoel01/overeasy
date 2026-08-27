@@ -162,6 +162,45 @@ final class RecipeSyncServiceTests: XCTestCase {
         XCTAssertEqual(try cursor.load(), 0)
     }
 
+    func testCancellingAnInFlightSyncAppliesNothingAndKeepsTheCursor()
+        async throws
+    {
+        let requestArrived = Locked<Bool>(false)
+        let releaseRequest = DispatchSemaphore(value: 0)
+        URLProtocolStub.install { request in
+            requestArrived.withValue { $0 = true }
+            _ = releaseRequest.wait(timeout: .now() + 5)
+            return (
+                Self.response(request),
+                try! Self.fixture(named: "sync-page")
+            )
+        }
+        let repository = SyncTestRepository()
+        let cursor = InMemorySyncCursorStore()
+        let service = RecipeSyncService(
+            api: makeAPI(),
+            repository: repository,
+            cursorStore: cursor
+        )
+        let sync = Task { try await service.synchronize() }
+        while !requestArrived.snapshot {
+            await Task.yield()
+        }
+
+        // Sign-out cancels the run before wiping the local store; the pulled
+        // page must never land in the store the wipe is about to clear.
+        let signOut = Task { await service.cancelActiveSync() }
+        await Task.yield()
+        releaseRequest.signal()
+        await signOut.value
+
+        XCTAssertTrue(repository.appliedSequences.isEmpty)
+        XCTAssertEqual(try cursor.load(), 0)
+        _ = try? await sync.value
+        XCTAssertTrue(repository.appliedSequences.isEmpty)
+        XCTAssertEqual(try cursor.load(), 0)
+    }
+
     func testExpiredCursorRestartsFromSnapshotAndReconcilesMissingRecipes()
         async throws
     {

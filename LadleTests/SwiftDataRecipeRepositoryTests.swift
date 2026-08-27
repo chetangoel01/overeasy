@@ -316,6 +316,29 @@ final class SwiftDataRecipeRepositoryTests: XCTestCase {
         XCTAssertTrue(try repository.pendingRecipeMutations().isEmpty)
     }
 
+    func testWipingLocalDataClearsEverythingWithoutQueueingTombstones() throws {
+        let fixture = try makeFixture()
+        let repository = fixture.repository
+        let synced = makeRecipe()
+        try repository.saveRemote(synced, revision: 3)
+        var unsynced = makeRecipe()
+        unsynced.title = "Never Pushed"
+        try repository.save(unsynced)
+        let job = ImportJob.queued(
+            sourceURL: URL(string: "https://www.tiktok.com/@cook/video/77")!
+        )
+        try repository.save(job)
+
+        try repository.wipeAllData()
+
+        XCTAssertTrue(try repository.fetchRecipes().isEmpty)
+        XCTAssertTrue(try repository.fetchImportJobs().isEmpty)
+        // Sign-out drops the device's copy; the server library must survive,
+        // so a wipe may never leave a delete queued for the next push.
+        XCTAssertTrue(try repository.pendingRecipeMutations().isEmpty)
+        XCTAssertEqual(try repository.syncConflictCount(), 0)
+    }
+
     private func makeFixture() throws -> RepositoryFixture {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(
