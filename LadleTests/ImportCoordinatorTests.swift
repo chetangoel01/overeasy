@@ -1837,6 +1837,24 @@ final class ImportCoordinatorTests: XCTestCase {
         )
     }
 
+    func testFailedInboxSheetRendersACancelledRetryNotStaleRetryActions() throws {
+        // After a retried row is cancelled elsewhere the durable row is
+        // gone, but the sheet's captured job still carries the old
+        // failure: its content would keep offering Retry, which can
+        // only land .persistenceFailed against the deleted row. The
+        // sheet must branch on the owned .cancelled state and show the
+        // cancelled outcome instead.
+        let text = try source("Ladle/Import/FailedImportSheet.swift")
+        XCTAssertTrue(
+            text.contains("case .cancelled = coordinator.state"),
+            "FailedImportSheet must branch on the owned cancelled state"
+        )
+        XCTAssertTrue(
+            text.contains("Import cancelled"),
+            "FailedImportSheet must render the cancelled outcome"
+        )
+    }
+
     func testCancelBeforeRemoteJobAssignedStaysCancelledAndSkipsRemoteCancel() async throws {
         // The cancel lands while the initial submit POST is still in
         // flight, before any remote job ID exists. (#30, #31)

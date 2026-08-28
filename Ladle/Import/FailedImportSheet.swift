@@ -61,6 +61,11 @@ struct FailedImportSheet: View {
                 accept: acceptCandidate,
                 keepCurrent: keepCurrent
             )
+        } else if isRetryCancelled {
+            // The retried job was cancelled elsewhere and its durable
+            // row is gone; the captured failure content would keep
+            // offering a Retry that can only land .persistenceFailed.
+            cancelledContent
         } else if coordinator.operation != nil,
                   !coordinator.owns(jobID: job.id) {
             unavailableContent
@@ -166,6 +171,27 @@ struct FailedImportSheet: View {
             systemImage: "hourglass",
             description: Text(
                 "Finish or review that import before retrying this one."
+            )
+        )
+        .foregroundStyle(LadleTheme.Label.primary)
+        .padding(LadleTheme.Spacing.generous)
+    }
+
+    private var isRetryCancelled: Bool {
+        if case .cancelled = coordinator.state {
+            return coordinator.owns(jobID: job.id)
+        }
+        return false
+    }
+
+    private var cancelledContent: some View {
+        ContentUnavailableView(
+            "Import cancelled",
+            systemImage: "xmark.circle",
+            description: Text(
+                job.currentRecipeID != nil
+                    ? "This re-import was cancelled. Your current recipe is unchanged."
+                    : "This import was cancelled. The recipe was not added."
             )
         )
         .foregroundStyle(LadleTheme.Label.primary)
