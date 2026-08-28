@@ -1047,6 +1047,268 @@ final class ImportCoordinatorTests: XCTestCase {
         )
     }
 
+    func testReimportCancelledDuringResumeReleasesWithoutAnySheet() async throws {
+        // The app died mid-reimport: the durable row is .parsing with a
+        // remote id, and on relaunch resumePendingImports adopts it with
+        // no sheet existing anywhere. The poll learns the job was
+        // cancelled elsewhere. Releasing only through the sheet's
+        // dismissal cannot cover this — no dismissal can ever come — so
+        // a finished reimport nobody is presenting must release itself,
+        // or Add Recipe is wedged behind "Re-import in progress" with no
+        // Inbox row left to finish it from.
+        let current = importRecipe(
+            title: "Current Curry",
+            originalURL: URL(string: "https://youtu.be/current-curry")!
+        )
+        let newRecipe = importRecipe(
+            title: "After The Wedge",
+            originalURL: URL(string: "https://youtu.be/after-the-wedge")!
+        )
+        var row = ImportJob.reimporting(
+            sourceURL: current.originalURL,
+            source: current.source,
+            currentRecipeID: current.id,
+            candidateRecipeID: UUID()
+        )
+        row.remoteJobID = row.id.uuidString
+        let repository = ImportTestRepository(
+            recipes: [current],
+            importJobs: [row]
+        )
+        let coordinator = ImportCoordinator(
+            repository: repository,
+            service: CancelledReimportThenReadyImportService(
+                readyRecipe: newRecipe
+            ),
+            accountSession: AccountSession(
+                store: ImportTestPreferenceStore()
+            ),
+            clock: ImmediateImportClock()
+        )
+
+        await coordinator.resumePendingImports()
+
+        XCTAssertNil(
+            coordinator.operation,
+            "A cancelled reimport nobody is presenting must release itself"
+        )
+        XCTAssertEqual(coordinator.state, .idle)
+        XCTAssertTrue(repository.importJobs.isEmpty)
+
+        // A second relaunch finds nothing to resume and stays released.
+        await coordinator.resumePendingImports()
+        XCTAssertNil(coordinator.operation)
+        XCTAssertEqual(coordinator.state, .idle)
+
+        await coordinator.submit(
+            urlText: "https://youtu.be/after-the-wedge"
+        )
+        XCTAssertEqual(
+            coordinator.state,
+            .completed(recipeID: newRecipe.id),
+            "Add Recipe must be usable after the unpresented release"
+        )
+        XCTAssertTrue(repository.recipes.contains(newRecipe))
+    }
+
+    func testReimportFailedDuringResumeReleasesAndKeepsTheInboxRow() async throws {
+        // Same relaunch adoption, but the resumed poll fails. The
+        // durable row must stay failed for the Inbox's recovery actions
+        // while the unpresented operation frees Add Recipe.
+        let current = importRecipe(
+            title: "Current Curry",
+            originalURL: URL(string: "https://youtu.be/current-curry")!
+        )
+        var row = ImportJob.reimporting(
+            sourceURL: current.originalURL,
+            source: current.source,
+            currentRecipeID: current.id,
+            candidateRecipeID: UUID()
+        )
+        row.remoteJobID = row.id.uuidString
+        let repository = ImportTestRepository(
+            recipes: [current],
+            importJobs: [row]
+        )
+        let coordinator = ImportCoordinator(
+            repository: repository,
+            service: FixedImportService(
+                outcome: .failed(.parserUnavailable)
+            ),
+            accountSession: AccountSession(
+                store: ImportTestPreferenceStore()
+            ),
+            clock: ImmediateImportClock()
+        )
+
+        await coordinator.resumePendingImports()
+
+        XCTAssertNil(
+            coordinator.operation,
+            "A failed reimport nobody is presenting must release itself"
+        )
+        XCTAssertEqual(coordinator.state, .idle)
+        XCTAssertEqual(
+            repository.importJobs.first?.status,
+            .failed(.parserUnavailable),
+            "The durable row must stay for the Inbox's recovery actions"
+        )
+        XCTAssertEqual(
+            repository.importJobs.first?.currentRecipeID,
+            current.id
+        )
+    }
+
+    func testResumedReimportKeepsItsOutcomeWhileTheSheetIsOpen() async throws {
+        // The resume-adopted reimport starts with no presentation, but
+        // the user opens Re-import on that recipe while it polls: the
+        // sheet's onAppear attaches, so the terminal outcome must stay
+        // published for the sheet to render — not silently reset under
+        // the user. Dismissal then releases it as usual.
+        let current = importRecipe(
+            title: "Current Curry",
+            originalURL: URL(string: "https://youtu.be/current-curry")!
+        )
+        var row = ImportJob.reimporting(
+            sourceURL: current.originalURL,
+            source: current.source,
+            currentRecipeID: current.id,
+            candidateRecipeID: UUID()
+        )
+        row.remoteJobID = row.id.uuidString
+        let service = HeldCancelledImportService()
+        let repository = ImportTestRepository(
+            recipes: [current],
+            importJobs: [row]
+        )
+        let coordinator = ImportCoordinator(
+            repository: repository,
+            service: service,
+            accountSession: AccountSession(
+                store: ImportTestPreferenceStore()
+            ),
+            clock: ImmediateImportClock()
+        )
+        let driver = Task {
+            await coordinator.resumePendingImports()
+        }
+        var isPolling = false
+        while !isPolling {
+            isPolling = await service.isPolling
+            await Task.yield()
+        }
+        XCTAssertEqual(coordinator.state, .importing(jobID: row.id))
+
+        coordinator.attachReimport(for: current.id)
+        await service.releaseHeldPolls()
+        await driver.value
+
+        XCTAssertEqual(
+            coordinator.state,
+            .cancelled(jobID: row.id),
+            "An open sheet must still render the terminal outcome"
+        )
+        XCTAssertEqual(
+            coordinator.operation,
+            .reimport(jobID: row.id, currentRecipeID: current.id)
+        )
+
+        coordinator.releaseReimport(for: current.id)
+
+        XCTAssertNil(coordinator.operation)
+        XCTAssertEqual(coordinator.state, .idle)
+    }
+
+    func testDetachedLiveReimportReleasesItselfWhenTheOutcomeLands() async throws {
+        // A live reimport's presentation is torn down structurally.
+        // releaseReimport must leave the running operation alone for a
+        // reopened sheet to re-attach to — but if none does, the outcome
+        // that later lands has no sheet left to render it and must
+        // release itself instead of wedging Add Recipe.
+        let current = importRecipe(
+            title: "Current Curry",
+            originalURL: URL(string: "https://youtu.be/current-curry")!
+        )
+        let service = HeldCancelledImportService()
+        let repository = ImportTestRepository(recipes: [current])
+        let coordinator = ImportCoordinator(
+            repository: repository,
+            service: service,
+            accountSession: AccountSession(
+                store: ImportTestPreferenceStore()
+            ),
+            clock: ImmediateImportClock()
+        )
+        let task = Task {
+            await coordinator.reimport(recipe: current)
+        }
+        var isPolling = false
+        while !isPolling {
+            isPolling = await service.isPolling
+            await Task.yield()
+        }
+        let jobID = try XCTUnwrap(coordinator.operation?.jobID)
+
+        coordinator.releaseReimport(for: current.id)
+
+        XCTAssertEqual(
+            coordinator.state,
+            .importing(jobID: jobID),
+            "A live reimport keeps its published state on teardown"
+        )
+
+        await service.releaseHeldPolls()
+        await task.value
+
+        XCTAssertNil(
+            coordinator.operation,
+            "The outcome landed with no sheet left to dismiss it"
+        )
+        XCTAssertEqual(coordinator.state, .idle)
+        XCTAssertTrue(repository.importJobs.isEmpty)
+    }
+
+    func testNormalImportCancelledOnResumeKeepsItsCancelledOutcome() async throws {
+        // A non-reimport row adopted on relaunch and cancelled elsewhere
+        // keeps its published .cancelled outcome: no gate keys on an
+        // .importJob operation, and the Add sheet's cancelled screen
+        // explains what happened and resets on close. Pins the
+        // unpresented release as reimport-scoped.
+        var row = ImportJob.queued(
+            sourceURL: URL(string: "https://youtu.be/plain-import")!,
+            source: .youtube
+        )
+        row.remoteJobID = row.id.uuidString
+        let repository = ImportTestRepository(importJobs: [row])
+        let coordinator = ImportCoordinator(
+            repository: repository,
+            service: CancelledRemotelyImportService(),
+            accountSession: AccountSession(
+                store: ImportTestPreferenceStore()
+            ),
+            clock: ImmediateImportClock()
+        )
+
+        await coordinator.resumePendingImports()
+
+        XCTAssertEqual(coordinator.operation, .importJob(row.id))
+        XCTAssertEqual(coordinator.state, .cancelled(jobID: row.id))
+        XCTAssertTrue(repository.importJobs.isEmpty)
+    }
+
+    func testReimportSheetAppearanceIsWiredToAttachThePresentation() throws {
+        // The unpresented release keys off whether a sheet is presenting
+        // the operation; the sheet's onAppear must attach, or a
+        // resume-adopted outcome would reset under the user the moment
+        // it lands.
+        XCTAssertTrue(
+            try source("Ladle/Edit/ReimportSheet.swift")
+                .contains(
+                    "coordinator.attachReimport(for: currentRecipe.id)"
+                )
+        )
+    }
+
     func testCancelBeforeRemoteJobAssignedStaysCancelledAndSkipsRemoteCancel() async throws {
         // The cancel lands while the initial submit POST is still in
         // flight, before any remote job ID exists. (#30, #31)
@@ -2060,6 +2322,48 @@ private actor CancelledRemotelyImportService: ImportService {
     }
 
     func status(remoteJobID: String) async throws -> ImportServiceUpdate {
+        throw RemoteContractError.importCancelled
+    }
+
+    func retry(
+        remoteJobID: String,
+        correctionNotes: String?,
+        pastedRecipeText: String?
+    ) async throws -> ImportServiceUpdate {
+        ImportServiceUpdate(
+            remoteJobID: remoteJobID,
+            progress: .parsing
+        )
+    }
+}
+
+/// Holds the status poll open until released, then reports the job as
+/// cancelled elsewhere — the window in which a sheet can attach to or
+/// detach from a running reimport before its outcome lands.
+private actor HeldCancelledImportService: ImportService {
+    private var released = false
+    private(set) var isPolling = false
+
+    func releaseHeldPolls() {
+        released = true
+    }
+
+    func submit(
+        _ job: ImportJob,
+        allowingDuplicate: Bool
+    ) async throws -> ImportServiceUpdate {
+        ImportServiceUpdate(
+            remoteJobID: job.id.uuidString,
+            progress: .parsing
+        )
+    }
+
+    func status(remoteJobID: String) async throws -> ImportServiceUpdate {
+        isPolling = true
+        while !released {
+            try Task.checkCancellation()
+            await Task.yield()
+        }
         throw RemoteContractError.importCancelled
     }
 

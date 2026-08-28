@@ -197,6 +197,17 @@ final class ImportCoordinator {
     /// job it could pick up still belongs to the signed-out account.
     private var isSignedOut = false
 
+    /// Whether some sheet is presenting the published reimport
+    /// `operation` and will render its terminal outcome. Presentation-
+    /// driven entry points (`reimport`, `retry`, `resumePendingReimport`,
+    /// the sheet's `attachReimport`) mark it; adoption with no sheet
+    /// anywhere leaves it false (`resumePendingImports` after a relaunch,
+    /// and `attach(to:)`, whose Add sheet never renders a reimport's
+    /// outcome); a dismissal that must leave a live import running
+    /// (`releaseReimport`) clears it. Consulted only when a reimport
+    /// outcome lands: see `releaseUnpresentedReimport(after:)`.
+    private var reimportHasPresentation = false
+
     private(set) var state: ImportCoordinatorState = .idle
     private(set) var operation: ImportOperation?
     private(set) var existingDuplicate: Recipe?
@@ -386,6 +397,10 @@ final class ImportCoordinator {
                     currentRecipeID: $0
                 )
             } ?? .importJob(job.id)
+            // Retries only start from a sheet (the reimport sheet or the
+            // Inbox's failed-import sheet), so that sheet presents the
+            // outcome.
+            reimportHasPresentation = currentRecipeID != nil
             if currentRecipeID != nil {
                 job = try job.retryingReimport(
                     candidateRecipeID: UUID()
@@ -493,6 +508,8 @@ final class ImportCoordinator {
             jobID: job.id,
             currentRecipeID: recipe.id
         )
+        // Only the reimport sheet's own button starts one.
+        reimportHasPresentation = true
         do {
             try repository.save(job)
             await runProcess(
@@ -530,6 +547,11 @@ final class ImportCoordinator {
                     operation = job.currentRecipeID.map {
                         .reimport(jobID: job.id, currentRecipeID: $0)
                     } ?? .importJob(job.id)
+                    // Adopted after a relaunch: no sheet exists anywhere
+                    // yet. One that opens attaches through the
+                    // coordinator; until then a terminal outcome has no
+                    // presentation and releases itself.
+                    reimportHasPresentation = false
                 }
                 await runProcess(job, operation: .resume)
             }
@@ -550,6 +572,7 @@ final class ImportCoordinator {
         pendingSubmission = nil
         pendingManualSubmission = nil
         isResolvingReplacement = false
+        reimportHasPresentation = false
     }
 
     func attach(to jobID: UUID) -> Bool {
@@ -566,6 +589,10 @@ final class ImportCoordinator {
             operation = job.currentRecipeID.map {
                 .reimport(jobID: job.id, currentRecipeID: $0)
             } ?? .importJob(job.id)
+            // The Add sheet this attach serves renders a reimport
+            // operation only as "Re-import in progress", never its
+            // outcome.
+            reimportHasPresentation = false
             state = .importing(jobID: job.id)
             return true
         } catch {
@@ -653,6 +680,8 @@ final class ImportCoordinator {
                 jobID: job.id,
                 currentRecipeID: currentRecipeID
             )
+            // Only the reimport sheet's onAppear resumes a decision.
+            reimportHasPresentation = true
             completedRecipe = candidate
             state = candidate.reviewStatus == .needsReview
                 ? .needsReview(recipeID: candidate.id)
@@ -674,10 +703,27 @@ final class ImportCoordinator {
     /// decision released here survives durably: `resumePendingReimport`
     /// re-presents it the next time the sheet opens for that recipe.
     func releaseReimport(for recipeID: UUID) {
-        guard ownsReimport(for: recipeID), !isImporting else {
+        guard ownsReimport(for: recipeID) else { return }
+        guard !isImporting else {
+            // Torn down mid-import (both dismissal affordances are
+            // disabled then): the live operation stays for a reopened
+            // sheet to re-attach to, but nothing presents it now — if
+            // nothing does, its outcome must release itself when it
+            // lands.
+            reimportHasPresentation = false
             return
         }
         reset()
+    }
+
+    /// The reimport sheet for `recipeID` came on screen. A resume-
+    /// adopted operation has no presentation until then; attaching keeps
+    /// a terminal outcome that lands while the sheet is open published
+    /// for the sheet to render, instead of self-releasing under the
+    /// user.
+    func attachReimport(for recipeID: UUID) {
+        guard ownsReimport(for: recipeID) else { return }
+        reimportHasPresentation = true
     }
 
     func prepareForNewImport() {
@@ -838,6 +884,30 @@ final class ImportCoordinator {
                 state = .persistenceFailed
             }
         }
+        releaseUnpresentedReimport(after: initialJob.id)
+    }
+
+    /// The processing task for the published reimport just landed a
+    /// terminal outcome with no sheet anywhere to render it — adopted by
+    /// `resumePendingImports` after a relaunch, or its presentation was
+    /// torn down mid-import. `releaseReimport` frees the coordinator on
+    /// dismissal, but no dismissal can ever come for a sheet that never
+    /// existed, and keeping the operation would wedge Add Recipe behind
+    /// "Re-import in progress" with nothing left to finish. Everything a
+    /// user could still act on is durable — a failed row keeps its Inbox
+    /// recovery actions, a pending decision re-presents through
+    /// `resumePendingReimport` — so the unpresented outcome releases
+    /// here. One with a live sheet stays published for the sheet to
+    /// render, and a task torn down before any outcome (`.idle`, its row
+    /// still `.parsing`) keeps the operation for the next resume to
+    /// drive.
+    private func releaseUnpresentedReimport(after jobID: UUID) {
+        guard case .reimport = operation, owns(jobID: jobID),
+              !reimportHasPresentation,
+              !isImporting, state != .idle else {
+            return
+        }
+        reset()
     }
 
     /// The processing task was torn down — by `cancelImport`, which has

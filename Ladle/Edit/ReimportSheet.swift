@@ -42,6 +42,10 @@ struct ReimportSheet: View {
                 coordinator.reset()
                 coordinator.resumePendingReimport(for: currentRecipe.id)
             }
+            // A resume-adopted reimport has no presentation until this
+            // sheet appears; attaching keeps its terminal outcome
+            // rendered here instead of self-releasing under the user.
+            coordinator.attachReimport(for: currentRecipe.id)
         }
     }
 
