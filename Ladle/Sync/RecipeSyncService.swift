@@ -236,3 +236,9 @@ actor RecipeSyncService {
         return RecipeSyncResult(conflictCount: conflictCount)
     }
 }
+
+extension RecipeSyncService: SessionWriter {
+    func quiesceForSignOut() async {
+        await cancelActiveSync()
+    }
+}

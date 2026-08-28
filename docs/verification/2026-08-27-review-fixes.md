@@ -3360,6 +3360,130 @@ app past the 6-hour URL expiry with the detail still pushed, then switch
 tabs away and back. The hero now refreshes through the Discover detail
 and renders instead of showing the broken-photo glyph.
 
+## Final sweep — an in-flight import survives sign-out
+
+Found by the sweep over the combined diff: this defect only exists because
+of how two verified fixes interact, so neither fix's own verification could
+see it.
+
+### The defect
+
+Fix #10 (`d49b549`) established the sign-out invariant — no in-flight
+writer survives into the wipe — but enforced it only against the sync
+service. The import processing tasks that #30–#32 (`814ba45`) moved into
+`ImportCoordinator.processingTasks` are a second writer, and
+`clearLocalSession()` never cancelled them: it drained the sync run, wiped
+the store, and left every import task alive.
+
+No race is required. An import polls with sleeps of up to 30 seconds
+between status calls. Sign out during one of those sleeps and the task
+wakes uncancelled after the wipe: its status call finds the cleared token
+store, `APIClient` throws `missingAuthentication`, and the coordinator's
+`catch ... where !Task.isCancelled` maps that to a durable
+`failed(.authenticationExpired)` row — which `repository.save(job)`
+re-inserts into the emptied store, complete with the signed-out account's
+source URL, correction notes, and pasted recipe text. The next account
+signs in on the same device and inherits that Inbox row with a retry
+affordance; `didAuthenticate`'s `resumePendingImports` would even re-drive
+a resurrected `.parsing` row under the new account's token. In the race
+variant — the final status response already in flight at sign-out — the
+poll resumes with a successful update after the wipe and `apply()` writes
+the previous account's whole recipe into the next account's library.
+Commits `b648aed`/`f203232` define sign-out as a security boundary for
+exactly this shared-device threat.
+
+### The fix
+
+One enforced choke point instead of a second ad-hoc cancel call. A new
+`SessionWriter` protocol names the contract — cancel in-flight work and
+wait for it to unwind — and `LadleRuntime` registers every conforming
+writer in `sessionWriters`, the one list `clearLocalSession()` drains
+before wiping. A future third writer registers there or is visibly absent
+from the only quiesce loop sign-out has; there is no per-writer call left
+to forget. Imports drain before the sync writer because a completing
+import starts a follow-up sync through `didCompleteRemoteImport`.
+
+`RecipeSyncService`'s conformance delegates to the existing
+`cancelActiveSync()`. `ImportCoordinator.quiesceForSignOut()` cancels and
+awaits every processing task until the map is empty — a response that has
+already resumed still writes nothing, because every save in `process` sits
+behind a cancellation check — then resets the published state, so the
+stale operation cannot block the next account's first import. The remote
+job is deliberately not cancelled: it belongs to the signed-out account's
+server library and should finish there.
+
+`LadleRuntime.init` also gained an `accountStore:` parameter (defaulted to
+`UserDefaults.standard`) so the runtime-level test can sign out against an
+in-memory store instead of writing the test host's real defaults —
+mirroring the seam `InstallationIdentity` already had.
+
+### Verification
+
+- `LadleTests/AppBootstrapTests.testSignOutCancelsAnInFlightImportSoItCannotRepopulateTheWipedStore`
+  is the end-to-end reproduction with no new API: a demo-service runtime
+  starts an import whose response is still in flight, signs out, then
+  drains the import task. Red, against the unfixed runtime — the response
+  landed after the wipe and repopulated the store, the reviewer's scenario
+  exactly:
+
+  ```text
+  XCTAssertTrue failed - Sign-out left the previous account's import job
+    in the store: ["https://youtu.be/slow-green-curry"]
+  XCTAssertTrue failed - The previous account's import wrote into the
+    wiped store: ["Weeknight Green Curry"]
+  XCTAssertEqual failed: ("completed(recipeID:
+    4DB9675F-FCEE-418E-9AF9-BE9E16503255)") is not equal to ("idle")
+  XCTAssertNil failed: "importJob(4DB9675F-FCEE-418E-9AF9-BE9E16503255)"
+  -> Executed 1 test, with 4 failures (0 unexpected) in 3.292 seconds
+  ```
+
+  Green after the fix — and in 0.032s, because the quiesce actually
+  cancels the held response instead of waiting it out. The test then
+  submits again and asserts the next account's import completes, covering
+  sign-out followed immediately by a new sign-in.
+- `LadleTests/ImportCoordinatorTests` adds four quiesce tests for the
+  atypical interleavings: `testSignOutQuiesceDropsARacingStatusResponseWithoutWriting`
+  (the response resumed successfully mid-quiesce — nothing written, and
+  the remote job is left running for the account that owns it),
+  `testSignOutQuiesceDoesNotResurrectAWipedJobAsAuthExpired` (the
+  deterministic trace: the woken poll's `missingAuthentication` unwinds as
+  a cancellation instead of re-inserting a durable failure),
+  `testSignOutQuiesceCancelsEveryConcurrentImport` (a foreground import
+  and a resume-driven background import drained by one quiesce), and
+  `testSignOutQuiesceWithNothingInFlightClearsStaleOperationState`
+  (quiesce with nothing running returns immediately and clears the
+  completed operation, without touching durable rows — the wipe owns
+  those). The submit-phase window — sign-out before a remote job id
+  exists — is the runtime test above, whose demo service holds the
+  response inside `submit`.
+
+```text
+xcodebuild test ... -only-testing:LadleTests/AppBootstrapTests \
+  -only-testing:LadleTests/ImportCoordinatorTests
+  -> Executed 39 tests, with 0 failures (0 unexpected) in 0.149 seconds
+
+xcodebuild test ... -only-testing:LadleTests
+  -> Executed 322 tests, with 1 test skipped and 0 failures (0 unexpected)
+     ** TEST SUCCEEDED **
+
+swift test --package-path Packages/LadleCore
+  -> ✔ Test run with 47 tests in 9 suites passed
+```
+
+No backend files were touched, so the backend gates did not need to
+re-run.
+
+### Noted, out of scope
+
+The Discover save path shares the shape but not the register: WatchView
+and DiscoverView run `Task { if let saved = await viewModel.save(...) }`
+and write through `LibraryViewModel.storeDiscoveredRecipe` when the
+network response lands. Those tasks are view-owned, so quiescing them
+means routing them through a runtime-held service first; when that
+happens, `sessionWriters` is where it registers. The window is a single
+tapped save racing sign-out — far narrower than an import poll's
+30-second sleeps — and is left for its own change.
+
 ## Where this run stopped, and where the next one starts
 
 Every HIGH finding (#1–#10) is closed, plus MEDIUM #20, #21 and #24 — 13 of

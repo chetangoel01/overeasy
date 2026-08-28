@@ -146,6 +146,19 @@ enum LadleServiceConfiguration {
     case remote(URL)
 }
 
+/// A service that can hold an in-flight write into the local store — work
+/// still carrying the authority of the session being torn down. Sign-out
+/// must quiesce every such writer before wiping the store, or the write
+/// lands after the wipe and the next account inherits the rows.
+/// `LadleRuntime` registers each writer in `sessionWriters`, the one list
+/// `clearLocalSession` drains; add new writers there, never as one-off
+/// cancel calls.
+protocol SessionWriter: Sendable {
+    /// Cancel in-flight work and wait for it to unwind. On return, the
+    /// writer holds no task that could still write into the local store.
+    func quiesceForSignOut() async
+}
+
 @MainActor
 final class LadleRuntime {
     let appEnvironment: AppEnvironment
@@ -161,16 +174,19 @@ final class LadleRuntime {
     let installationIdentity: InstallationIdentity
 
     private let sharedQueueReconciler: SharedQueueReconciler?
+    private let sessionWriters: [any SessionWriter]
 
     init(
         configuration: LadleRuntimeConfiguration,
         appEnvironment: AppEnvironment,
         services: LadleServiceConfiguration,
         installationIdentity: InstallationIdentity,
-        resetsBackendSession: Bool
+        resetsBackendSession: Bool,
+        accountStore: any PreferenceStoring = UserDefaults.standard
     ) {
         let launchArguments = configuration.launchArguments
         let accountSession = AccountSession(
+            store: accountStore,
             launchArguments: launchArguments
         )
         if launchArguments.contains("-reset-library-preferences") {
@@ -314,11 +330,20 @@ final class LadleRuntime {
             }
         )
 
+        // Order matters: a completing import starts a follow-up sync
+        // through didCompleteRemoteImport, so imports drain before the
+        // sync writer.
+        var sessionWriters: [any SessionWriter] = [importCoordinator]
+        if let syncService {
+            sessionWriters.append(syncService)
+        }
+
         self.appEnvironment = appEnvironment
         self.accountSession = accountSession
         self.syncStatus = syncStatus
         self.libraryViewModel = libraryViewModel
         self.importCoordinator = importCoordinator
+        self.sessionWriters = sessionWriters
         self.authClient = authClient
         self.googleSignIn = googleSignIn
         self.syncService = syncService
@@ -413,9 +438,14 @@ final class LadleRuntime {
     }
 
     private func clearLocalSession() async {
-        // A sync still in flight holds an authorized token and would write the
-        // signed-out account's rows straight back into the wiped store.
-        await syncService?.cancelActiveSync()
+        // No in-flight writer may survive into the wipe: a task still on
+        // the wire holds the signed-out session's authority and would
+        // write that account's rows into the store the next account
+        // inherits. Every writer registers in `sessionWriters`; this loop
+        // is the only place sign-out quiesces them.
+        for writer in sessionWriters {
+            await writer.quiesceForSignOut()
+        }
         libraryViewModel.clearLocalLibrary()
         try? SyncCursorStore().reset()
         syncStatus.reset()

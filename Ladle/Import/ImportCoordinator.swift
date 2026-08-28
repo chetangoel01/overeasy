@@ -586,6 +586,27 @@ final class ImportCoordinator {
         }
     }
 
+    /// Sign-out is about to wipe the local store. Cancel every processing
+    /// task and wait for each to unwind: a task that survived here would
+    /// resume after the wipe still holding the signed-out account's
+    /// response, and save that account's rows into the store the next
+    /// account inherits. The remote job is left running — it belongs to
+    /// the signed-out account's server library, not to this device.
+    func quiesceForSignOut() async {
+        while let (jobID, task) = processingTasks.first {
+            task.cancel()
+            await task.value
+            // `runProcess` clears its entry when its own await resumes,
+            // but that continuation may still be queued behind this one;
+            // remove the entry here so the loop observes progress.
+            processingTasks.removeValue(forKey: jobID)
+        }
+        // Published state still points at the signed-out account's
+        // operation and would block or mislabel the next account's first
+        // import.
+        reset()
+    }
+
     func resumePendingReimport(for currentRecipeID: UUID) {
         guard operation == nil else {
             return
@@ -1052,6 +1073,8 @@ final class ImportCoordinator {
         return value
     }
 }
+
+extension ImportCoordinator: SessionWriter {}
 
 extension ImportFailure {
     var recoveryTitle: String {

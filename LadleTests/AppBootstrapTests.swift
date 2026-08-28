@@ -101,6 +101,60 @@ final class AppBootstrapTests: XCTestCase {
         XCTAssertEqual(attempts, 2)
     }
 
+    func testSignOutCancelsAnInFlightImportSoItCannotRepopulateTheWipedStore() async throws {
+        let environment = try AppEnvironment(isStoredInMemoryOnly: true)
+        let runtime = LadleRuntime(
+            configuration: LadleRuntimeConfiguration(
+                launchArguments: ["-empty-library"],
+                environment: ["XCTestConfigurationFilePath": "test"]
+            ),
+            appEnvironment: environment,
+            services: .demo,
+            installationIdentity: InstallationIdentity(
+                store: BootstrapMemoryPreferenceStore()
+            ),
+            resetsBackendSession: false,
+            accountStore: BootstrapMemoryPreferenceStore()
+        )
+        let repository = environment.recipeRepository
+
+        // Account A's import is on the wire: the durable row is saved and
+        // the demo service is still holding the response.
+        let importTask = Task {
+            await runtime.importCoordinator.submit(
+                urlText: "https://youtu.be/slow-green-curry"
+            )
+        }
+        while try repository.fetchImportJobs().isEmpty {
+            await Task.yield()
+        }
+
+        // A signs out while the response is still in flight.
+        await runtime.signOut()
+
+        // The response lands after the wipe. Nothing from A's session may
+        // survive into the store the next account inherits.
+        await importTask.value
+        let jobs = try repository.fetchImportJobs()
+        let recipes = try repository.fetchRecipes()
+        XCTAssertTrue(
+            jobs.isEmpty,
+            "Sign-out left the previous account's import job in the store: \(jobs.map(\.sourceURL.absoluteString))"
+        )
+        XCTAssertTrue(
+            recipes.isEmpty,
+            "The previous account's import wrote into the wiped store: \(recipes.map(\.title))"
+        )
+        XCTAssertEqual(runtime.importCoordinator.state, .idle)
+        XCTAssertNil(runtime.importCoordinator.operation)
+
+        // The next account starts clean and can import immediately.
+        await runtime.importCoordinator.submit(
+            urlText: "https://youtu.be/green-curry"
+        )
+        XCTAssertEqual(try repository.fetchRecipes().count, 1)
+    }
+
     private var testConfiguration: LadleRuntimeConfiguration {
         LadleRuntimeConfiguration(
             launchArguments: ["-ui-testing", "-empty-library"],

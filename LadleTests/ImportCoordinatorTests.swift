@@ -941,6 +941,180 @@ final class ImportCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.state, .idle)
     }
 
+    func testSignOutQuiesceDropsARacingStatusResponseWithoutWriting() async throws {
+        // Sign-out quiesces the coordinator while the final status
+        // response is already in flight; the poll resumes with a
+        // successful update after cancellation. Nothing may be written,
+        // and the remote job is not cancelled — it still belongs to the
+        // signed-out account's server library. (final sweep S1)
+        let service = RacingStatusImportService()
+        let repository = ImportTestRepository()
+        let coordinator = ImportCoordinator(
+            repository: repository,
+            service: service,
+            accountSession: AccountSession(
+                store: ImportTestPreferenceStore()
+            ),
+            clock: ImmediateImportClock()
+        )
+        let task = Task {
+            await coordinator.submit(
+                urlText: "https://youtu.be/sign-out-races-response"
+            )
+        }
+        var polling = false
+        while !polling {
+            polling = await service.statusStarted
+            await Task.yield()
+        }
+
+        await coordinator.quiesceForSignOut()
+        await task.value
+
+        XCTAssertTrue(
+            repository.recipes.isEmpty,
+            "The raced response was written after sign-out: \(repository.recipes.map(\.title))"
+        )
+        XCTAssertEqual(repository.importJobs.first?.status, .parsing)
+        XCTAssertEqual(coordinator.state, .idle)
+        XCTAssertNil(coordinator.operation)
+        let cancelCount = await service.cancelCount
+        XCTAssertEqual(
+            cancelCount,
+            0,
+            "Sign-out must not cancel the account's remote job"
+        )
+    }
+
+    func testSignOutQuiesceDoesNotResurrectAWipedJobAsAuthExpired() async throws {
+        // The deterministic sweep trace: sign-out clears the token store,
+        // so the woken poll's status call throws missingAuthentication.
+        // Quiesced, that must unwind as a cancellation — not transition
+        // the row to failed(.authenticationExpired) and re-insert it into
+        // the store the wipe empties next. (final sweep S1)
+        let service = AuthExpiredOnCancelPollingImportService()
+        let repository = ImportTestRepository()
+        let coordinator = ImportCoordinator(
+            repository: repository,
+            service: service,
+            accountSession: AccountSession(
+                store: ImportTestPreferenceStore()
+            ),
+            clock: ImmediateImportClock()
+        )
+        let task = Task {
+            await coordinator.submit(
+                urlText: "https://youtu.be/sign-out-auth-expiry"
+            )
+        }
+        var polling = false
+        while !polling {
+            polling = await service.statusStarted
+            await Task.yield()
+        }
+
+        await coordinator.quiesceForSignOut()
+        XCTAssertEqual(
+            repository.importJobs.first?.status,
+            .parsing,
+            "The quiesced import repersisted itself as a durable failure"
+        )
+
+        // The runtime wipes after quiescing; nothing may come back.
+        repository.importJobs.removeAll()
+        await task.value
+        XCTAssertTrue(
+            repository.importJobs.isEmpty,
+            "The wiped job was re-inserted: \(repository.importJobs)"
+        )
+        XCTAssertEqual(coordinator.state, .idle)
+    }
+
+    func testSignOutQuiesceCancelsEveryConcurrentImport() async throws {
+        // A foreground import polls in the sheet while resume drives a
+        // second shared-queue job. Sign-out must drain both writers, not
+        // just the one the coordinator's operation points at.
+        // (final sweep S1)
+        let service = GatedImportService()
+        let repository = ImportTestRepository()
+        let coordinator = ImportCoordinator(
+            repository: repository,
+            service: service,
+            accountSession: AccountSession(
+                store: ImportTestPreferenceStore()
+            ),
+            clock: ImmediateImportClock()
+        )
+        let submitTask = Task {
+            await coordinator.submit(
+                urlText: "https://youtu.be/foreground-import"
+            )
+        }
+        while repository.importJobs.first?.remoteJobID == nil {
+            await Task.yield()
+        }
+        let jobA = try XCTUnwrap(repository.importJobs.first)
+
+        var jobB = ImportJob.queued(
+            sourceURL: URL(string: "https://youtu.be/background-share")!,
+            source: .youtube
+        )
+        jobB.remoteJobID = jobB.id.uuidString.lowercased()
+        try repository.save(jobB)
+        let resumeTask = Task {
+            await coordinator.resumePendingImports()
+        }
+        var pollingBoth = false
+        while !pollingBoth {
+            let polling = await service.polling
+            pollingBoth = polling.count == 2
+            await Task.yield()
+        }
+
+        await coordinator.quiesceForSignOut()
+        await submitTask.value
+        await resumeTask.value
+
+        XCTAssertTrue(repository.recipes.isEmpty)
+        XCTAssertEqual(
+            repository.importJobs.map(\.status),
+            [.parsing, .parsing]
+        )
+        XCTAssertEqual(coordinator.state, .idle)
+        XCTAssertNil(coordinator.operation)
+        XCTAssertEqual(
+            Set(repository.importJobs.map(\.id)),
+            [jobA.id, jobB.id]
+        )
+    }
+
+    func testSignOutQuiesceWithNothingInFlightClearsStaleOperationState() async throws {
+        // Sign-out with no import running: quiesce returns immediately,
+        // and the completed operation's published state is cleared so the
+        // next account's first import or reimport is not blocked by it.
+        // (final sweep S1)
+        let repository = ImportTestRepository()
+        let coordinator = makeCoordinator(repository: repository)
+
+        await coordinator.submit(
+            urlText: "https://youtu.be/ready-green-curry"
+        )
+        guard case .completed = coordinator.state else {
+            return XCTFail("Expected a completed import to quiesce after")
+        }
+        XCTAssertNotNil(coordinator.operation)
+
+        await coordinator.quiesceForSignOut()
+
+        XCTAssertEqual(coordinator.state, .idle)
+        XCTAssertNil(coordinator.operation)
+        XCTAssertNil(coordinator.completedRecipe)
+        // Quiescing never touches durable rows — the wipe that follows
+        // owns those.
+        XCTAssertEqual(repository.recipes.count, 1)
+        XCTAssertEqual(repository.importJobs.count, 1)
+    }
+
     func testAuthenticationExpiryMakesAdmissionJobDurablyFailed() async {
         let repository = ImportTestRepository()
         let coordinator = ImportCoordinator(
@@ -1351,11 +1525,48 @@ private actor TransportOnCancelPollingImportService: ImportService {
     }
 }
 
+/// Sign-out has already cleared the token store, so a poll that wakes
+/// while being quiesced fails with the missing-authentication error the
+/// real APIClient throws.
+private actor AuthExpiredOnCancelPollingImportService: ImportService {
+    private(set) var statusStarted = false
+
+    func submit(
+        _ job: ImportJob,
+        allowingDuplicate: Bool
+    ) async throws -> ImportServiceUpdate {
+        ImportServiceUpdate(
+            remoteJobID: job.id.uuidString,
+            progress: .parsing
+        )
+    }
+
+    func status(remoteJobID: String) async throws -> ImportServiceUpdate {
+        statusStarted = true
+        while !Task.isCancelled {
+            await Task.yield()
+        }
+        throw APIError.missingAuthentication
+    }
+
+    func retry(
+        remoteJobID: String,
+        correctionNotes: String?,
+        pastedRecipeText: String?
+    ) async throws -> ImportServiceUpdate {
+        ImportServiceUpdate(
+            remoteJobID: remoteJobID,
+            progress: .parsing
+        )
+    }
+}
+
 /// Holds every job in `.parsing` until the test releases it, then resolves
 /// it `.ready` with the recipe registered for that job.
 private actor GatedImportService: ImportService {
     private var released: Set<String> = []
     private var recipes: [String: Recipe] = [:]
+    private(set) var polling: Set<String> = []
 
     func setRecipe(_ recipe: Recipe, forJob remoteJobID: String) {
         recipes[remoteJobID.lowercased()] = recipe
@@ -1377,6 +1588,7 @@ private actor GatedImportService: ImportService {
 
     func status(remoteJobID: String) async throws -> ImportServiceUpdate {
         let key = remoteJobID.lowercased()
+        polling.insert(key)
         while !released.contains(key) {
             try Task.checkCancellation()
             await Task.yield()
