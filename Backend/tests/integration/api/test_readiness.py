@@ -15,7 +15,9 @@ def test_database_readiness_requires_current_migration_revision(
     command.upgrade(alembic_config(clean_postgres_url), "head")
     engine = build_engine(clean_postgres_url)
     sessions = sessionmaker(engine)
-    probe = DatabaseReadinessProbe(sessions, expected_revision="0017")
+    # No expected_revision override: constructed exactly as production does
+    # (ladle/api/app.py), so the default pin is checked against the real head.
+    probe = DatabaseReadinessProbe(sessions)
 
     probe.check()
     with Session(engine) as database, database.begin():

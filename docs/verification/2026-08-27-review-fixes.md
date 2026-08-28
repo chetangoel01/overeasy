@@ -3722,6 +3722,108 @@ session (or resubmit one already cancelled), swipe the sheet down when
 "Re-import cancelled" appears, then tap Add Recipe. The form appears;
 before this fix it said "Re-import in progress" until app relaunch.
 
+## Final sweep — the readiness pin's only test was a copy of the pin
+
+Found by the sweep over the combined diff: two verified fixes each bumped
+the database readiness pin as a companion change — `c745cb8` (with #15) to
+`0015`, `f021a8b` (with #37) to `0017` — and both bumped the probe's
+default *and* the test's literal in the same commit. Seen together, the
+pattern is the defect: the only test of the pin carried its own copy of
+it, hand-edited in lockstep, so the guard could never disagree with the
+thing it guarded.
+
+### The defect
+
+Production builds the probe with the default: `ladle/api/app.py` does
+`DatabaseReadinessProbe(database_sessions)` with no argument, and the
+default lives in `ladle/api/routes/health.py` as
+`expected_revision: str = "0017"`. But the readiness integration test
+constructed its probe as
+`DatabaseReadinessProbe(sessions, expected_revision="0017")` — an explicit
+literal — and the stub-probe tests in `tests/api/test_health.py` never
+touch the class. No test anywhere exercised the production default.
+
+So the drift this pin exists to catch was invisible to the suite. Revert
+only `health.py`'s default to `0016`, or land migration 0018 and update
+the failing test's literal (the natural edit) while forgetting
+`health.py`, and all 796 backend tests stay green — while every deployed
+API over an up-to-date database fails readiness forever:
+`StartupDependencyGate` raises "database migration revision does not match
+the application", exhausts its attempts, and the app crash-loops at 503
+not-ready until someone diffs the pin by hand. `f021a8b`'s note that the
+stale pin was "caught by the readiness integration test" only held because
+the test's literal happened to be stale in lockstep with the default.
+
+### The fix
+
+Test-only; the pin and the probe are untouched. Two layers, neither of
+which duplicates the literal:
+
+- `tests/api/test_health.py::test_default_database_revision_pin_matches_the_migration_head`
+  derives the truth from the migrations themselves —
+  `ScriptDirectory.from_config(...).get_current_head()` over
+  `Backend/alembic.ini` — and asserts the constructor's default equals it,
+  reading the default off the signature so it checks exactly what
+  production deploys. It runs in the unit tranche with no database, and
+  its failure message names the file that must move. A branched migration
+  history (two heads) fails it too, via alembic's own multiple-heads
+  error.
+- `tests/integration/api/test_readiness.py` now constructs the probe
+  exactly as production does — `DatabaseReadinessProbe(sessions)`, no
+  override — after `alembic upgrade head`, so its first `probe.check()`
+  passes only when the default matches the real head. The mismatch path is
+  still covered by flipping `alembic_version` to `0008`, which duplicates
+  nothing. The explicit-literal construction is removed as redundant: that
+  literal was the defect's mechanism. The `expected_revision` kwarg itself
+  stays — it is a legitimate injection seam — it just no longer shields
+  the default from ever being tested.
+
+### Verification
+
+Red three ways, each a drift the old suite could not see.
+
+Default behind head (`health.py` reverted to `0016` — the exact
+hand-bump-forgotten scenario): both new guards fail.
+
+```text
+E   AssertionError: the default expected_revision in ladle/api/routes/health.py
+      must move with every migration, or a deployed API over an up-to-date
+      database reports not-ready forever
+E   assert '0016' == '0017'
+FAILED tests/api/test_health.py::test_default_database_revision_pin_matches_the_migration_head
+E   RuntimeError: database migration revision does not match the application
+FAILED tests/integration/api/test_readiness.py::test_database_readiness_requires_current_migration_revision
+2 failed in 3.39s
+```
+
+A migration lands with no pin bump (temporary empty revision `0018` in
+`alembic/versions/`, default left at `0017` — the forward drift that
+crash-loops the next deploy):
+
+```text
+E   assert '0017' == '0018'
+FAILED tests/api/test_health.py::test_default_database_revision_pin_matches_the_migration_head
+INFO  [alembic.runtime.migration] Running upgrade 0017 -> 0018, temporary red-run dummy
+E   RuntimeError: database migration revision does not match the application
+FAILED tests/integration/api/test_readiness.py::test_database_readiness_requires_current_migration_revision
+```
+
+Default ahead of head (`health.py` set to `0018` with head at `0017`):
+`assert '0018' == '0017'` fails the unit guard the same way; the
+integration probe raises over a database correctly at `0017`.
+
+Green with the pin correct and the dummy revision deleted, then the full
+gates:
+
+```text
+uv run pytest -q tests/api/test_health.py tests/integration/api/test_readiness.py
+  -> 7 passed
+uv run ruff check ladle tests            -> All checks passed
+uv run mypy --strict ladle               -> no issues in 121 source files
+uv run pytest -q -m "not live_provider and not chaos"
+  -> 797 passed, 5 deselected (was 796; the derived-head guard is the +1)
+```
+
 ## Where this run stopped, and where the next one starts
 
 Every HIGH finding (#1–#10) is closed, plus MEDIUM #20, #21 and #24 — 13 of
