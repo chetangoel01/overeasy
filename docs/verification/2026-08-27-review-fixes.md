@@ -6,9 +6,9 @@
 
 **Started:** August 27, 2026
 
-**Status:** complete — all 45 findings closed, plus 11 defects the review
-had not found (3 surfaced while fixing, 8 by the final sweep over the
-combined diff)
+**Status:** complete — all 45 findings closed, plus 5 defects the review had
+not found: one surfaced while writing a failing test, four by the final
+adversarial sweep over the combined diff
 
 ## Purpose
 
@@ -4180,9 +4180,19 @@ uv run pytest -q -m "not live_provider and not chaos"
 
 ## Outcome
 
-All 45 review findings are closed, together with 11 defects the review had
-not found: 3 surfaced while writing the failing test for a neighbouring
-finding, and 8 by a final adversarial sweep over the combined diff.
+All 45 review findings are closed, together with 5 defects the review had not
+found: one surfaced while writing the failing test for a neighbouring finding
+(tombstones lost on the next save of their row), and four by a final
+adversarial sweep over the combined diff — an in-flight import surviving
+sign-out into the next account, a recipe-ready banner tap that landed dead and
+then poisoned itself, a swiped-away re-import sheet that wedged Add Recipe,
+and a readiness pin whose only test was a copy of the pin.
+
+Two further fixes are folded into the rows of the findings that produced them
+rather than counted separately: an overlong redirect target that crashed the
+fetch (found while fixing #12) and a readiness revision that a new migration
+left stale (found while fixing #37). The final sweep also produced three
+documentation corrections, which were applied but are not defects.
 
 Three findings needed more than one attempt, and each failure is recorded in
 its own section above rather than being rewritten away:
