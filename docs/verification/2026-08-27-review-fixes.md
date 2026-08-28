@@ -67,6 +67,7 @@ by the code they touch.
 | #41 | Timer-finished haptic never fired on the full-recipe screen | `b7c714b` | fixed |
 | #43 | Foreground notifications silently suppressed | `8f8db48` | fixed |
 | #44 | Expired Discover thumbnails could never refresh | `a30e9db` + `20ff675` | fixed |
+| #29 | A save rejected for an off-screen field looked like a dead button | `8ec476a` | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -650,6 +651,77 @@ uv run pytest -q -m "not live_provider and not chaos"  -> 706 passed
 uv run mypy --strict ladle                             -> clean
 ```
 
+## Finding #29 — a rejected save read as a dead button
+
+### The defect
+
+Every validation message renders inside the section that owns its field. A
+save rejected for a field in a section the user was not looking at therefore
+produced no visible change anywhere on screen: the Save tap did nothing, said
+nothing, and moved nothing. The reviewer's repro is a blank Method step
+entered while Basics is on screen.
+
+### The fix
+
+`RecipeEditorSection` moved from a private enum in the view onto the view
+model, gaining `owning(_:)` — a total mapping from every
+`RecipeDraftValidationIssue` to the section that holds it. The view model
+derives `sectionsNeedingAttention` (in tab order) and a `validationSummary`
+naming what is wrong and where. The editor renders that summary above the
+section tabs, where it is visible from any section, and a rejected save moves
+`selectedSection` to the first offending section so the inline message the
+user needs is on screen when they arrive.
+
+The mapping and the summary live on the view model rather than in the view so
+they are directly testable, and so an issue that maps nowhere fails a test
+rather than silently producing a summary that names no section.
+
+### Verification
+
+The defect was first proved at runtime through a rendered host: the editor
+exposed no failure message anywhere after a rejected save.
+
+```text
+RecipeEditorViewTests.swift:45: error: XCTAssertTrue failed - Save failed on a
+blank Method step while Basics was on screen, but the editor exposes no failure
+message anywhere - the tap looks like a silent no-op.
+issues=1 identifiers=["AdditionalDimmingOverlay", "Edit recipe", "recipe.editor",
+"xmark.circle.fill"]
+```
+
+That harness was then removed rather than kept. Its accessibility walk cannot
+see nested SwiftUI elements — the identifier dump above shows it reaching only
+the hosting view and the UIKit navigation bar, not even the section tabs — so
+no assertion about a nested element could ever have passed. It was newly
+written for this fix, not the proven approach its own comment claimed to
+mirror, and a test that cannot fail honestly is worse than no test.
+
+The regression guard therefore sits on the view model, where this repository
+already tests editor behaviour, and the rendered behaviour is evidenced by the
+simulator capture below.
+
+- `testSaveRejectedForAnOffScreenFieldStillNamesWhereToLook` — the reviewer's
+  repro; summary names Method.
+- `testSummaryNamesEverySectionHoldingARejectedFieldInTabOrder` — seeded out of
+  tab order; sections come back in tab order, headline pluralises.
+- `testAValidDraftHasNoSummaryBeforeOrAfterSaving`,
+  `testFixingTheRejectedFieldClearsTheSummary` — the summary appears only for a
+  rejected save and clears once fixed.
+- `testEveryValidationIssueBelongsToASection` — every issue the draft can raise
+  maps to a section, so a summary can never name nowhere.
+
+```text
+xcodebuild test -only-testing:LadleTests/RecipeEditorViewModelTests
+  -> Executed 14 tests, 0 failures
+xcodebuild test -only-testing:LadleTests
+  -> Executed 292 tests, 1 skipped, 0 failures
+```
+
+Capture: `docs/verification/captures/2026-08-27-review-fixes/29-rejected-save.png`
+— Basics with Save tapped and nothing happening, beside the same tap after the
+fix surfacing the summary and moving to Method.
+
+
 ## Milestone verification
 
 Run at the end of the branch, on the iOS 26.5 simulator destination this
@@ -1103,6 +1175,11 @@ step-navigation neighbors (clamping at the first/last step, mode switching,
 single-step recipes are all view-model behavior this change does not touch —
 the classifier returning nil is what now protects them from accidental
 drags; a genuine horizontal swipe behaves exactly as before).
+
+Capture: `docs/verification/captures/2026-08-27-review-fixes/26-focus-mode-swipe.png`
+— three panels: the starting step, the same step after a diagonal drag
+(unchanged), and the next step after a deliberate horizontal swipe, so the
+fix is shown not to have simply disabled the gesture.
 
 ## Finding #12 — a malformed caption URL crashed the import instead of being skipped
 
@@ -2171,6 +2248,10 @@ Walked through in the simulator (`-ui-testing -onboarding-complete
 raises the sheet with the two real sign-in buttons, and completing the
 demo sign-in resumes the blocked import straight to "Recipe saved" —
 the flow the old button could never finish.
+
+Capture: `docs/verification/captures/2026-08-27-review-fixes/25-guest-limit-sign-in.png`
+— the guest-limit sheet rendering the real Apple and Google providers in place
+of the button that only flipped local state.
 
 ## Finding #34 — 429s and crash 500s shipped without security headers
 
