@@ -29,11 +29,11 @@ final class RemoteImageCacheTests: XCTestCase {
         )
 
         let first = try await cache.localURL(
-            recipeID: UUID(),
+            owner: .recipe(id: UUID()),
             image: image
         )
         let second = try await cache.localURL(
-            recipeID: UUID(),
+            owner: .recipe(id: UUID()),
             image: image
         )
 
@@ -73,7 +73,7 @@ final class RemoteImageCacheTests: XCTestCase {
         let cache = makeCache(directory: directory)
 
         let local = try await cache.localURL(
-            recipeID: recipeID,
+            owner: .recipe(id: recipeID),
             image: RemoteRecipeImageDTO(
                 id: imageID,
                 remoteURL: URL(
@@ -103,7 +103,7 @@ final class RemoteImageCacheTests: XCTestCase {
 
         do {
             _ = try await makeCache(directory: directory).localURL(
-                recipeID: UUID(),
+                owner: .recipe(id: UUID()),
                 image: RemoteRecipeImageDTO(
                     id: UUID(),
                     remoteURL: URL(
@@ -135,7 +135,7 @@ final class RemoteImageCacheTests: XCTestCase {
 
         do {
             _ = try await makeCache(directory: directory).localURL(
-                recipeID: UUID(),
+                owner: .recipe(id: UUID()),
                 image: RemoteRecipeImageDTO(
                     id: UUID(),
                     remoteURL: URL(
@@ -144,6 +144,113 @@ final class RemoteImageCacheTests: XCTestCase {
                 )
             )
             XCTFail("Expected missing refreshed image")
+        } catch {
+            XCTAssertEqual(
+                error as? RemoteImageCacheError,
+                .refreshedImageMissing
+            )
+        }
+    }
+
+    func testExpiredDiscoverThumbnailRefreshesThroughTheDiscoverDetail()
+        async throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        // A Discover card passes the sourceID, which is not a recipe in
+        // the caller's library, and mints its own image id from it — so
+        // the refreshed thumbnail's server-minted id never matches.
+        let sourceID = UUID(
+            uuidString: "90000000-0000-4000-8000-000000000001"
+        )!
+        let paths = Locked<[String]>([])
+        URLProtocolStub.install { request in
+            paths.withValue {
+                $0.append(request.url?.absoluteString ?? "")
+            }
+            if request.url?.path == "/expired" {
+                return (Self.response(request, status: 403), Data())
+            }
+            if request.url?.path
+                == "/v1/recipes/discover/\(sourceID.uuidString)" {
+                return (
+                    Self.response(request),
+                    try! Self.refreshedRecipeFixture()
+                )
+            }
+            if request.url?.path == "/refreshed" {
+                return (
+                    Self.response(request),
+                    Data([0xFF, 0xD8, 0xFF])
+                )
+            }
+            // Every other endpoint — /v1/recipes/{id} included — cannot
+            // serve a Discover source.
+            return (Self.response(request, status: 404), Data())
+        }
+        let cache = makeCache(directory: directory)
+
+        let local: URL
+        do {
+            local = try await cache.localURL(
+                owner: .discoverSource(id: sourceID),
+                image: RemoteRecipeImageDTO(
+                    id: sourceID,
+                    remoteURL: URL(
+                        string: "https://images.ladle.test/expired"
+                    )!
+                )
+            )
+        } catch {
+            XCTFail(
+                "Refreshing an expired Discover thumbnail must succeed"
+                    + " through the Discover detail, but requested"
+                    + " \(paths.snapshot)"
+            )
+            return
+        }
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: local.path))
+        XCTAssertEqual(
+            paths.snapshot.filter {
+                $0.contains("/v1/recipes/discover/")
+            }.count,
+            1
+        )
+        XCTAssertEqual(
+            paths.snapshot.filter { $0.contains("/refreshed") }.count,
+            1
+        )
+    }
+
+    func testDiscoverRefreshFailsWhenTheDetailHasNoThumbnail()
+        async throws {
+        let directory = temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        URLProtocolStub.install { request in
+            if request.url?.host == "images.ladle.test" {
+                return (Self.response(request, status: 403), Data())
+            }
+            if request.url?.path.hasPrefix("/v1/recipes/discover/")
+                == true {
+                return (
+                    Self.response(request),
+                    try! Self.refreshedRecipeFixture(includesImage: false)
+                )
+            }
+            return (Self.response(request, status: 404), Data())
+        }
+
+        do {
+            _ = try await makeCache(directory: directory).localURL(
+                owner: .discoverSource(id: UUID()),
+                image: RemoteRecipeImageDTO(
+                    id: UUID(),
+                    remoteURL: URL(
+                        string: "https://images.ladle.test/expired"
+                    )!
+                )
+            )
+            XCTFail("Expected missing refreshed thumbnail")
         } catch {
             XCTAssertEqual(
                 error as? RemoteImageCacheError,

@@ -65,7 +65,8 @@ by the code they touch.
 | #42 | Edited quantities synced a stale machine amount | `ffa1c46` | fixed |
 | #40 | Ended cooking sessions left uncancelable notifications | `fa097b2` | fixed |
 | #41 | Timer-finished haptic never fired on the full-recipe screen | `b7c714b` | fixed |
-| #43 | Foreground notifications silently suppressed | — | fixed |
+| #43 | Foreground notifications silently suppressed | `8f8db48` | fixed |
+| #44 | Expired Discover thumbnails could never refresh | — | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -2877,6 +2878,75 @@ import-side callers by the three coordinator tests in the same file.
 To see it on device: Add Recipe → paste a URL → dismiss the sheet and
 browse the library while the extraction runs. When the import completes,
 the "Recipe ready" banner now appears in-app.
+
+## Finding #44 — an expired Discover thumbnail could never refresh
+
+### The defect
+
+When an image's signed URL has expired (403), `RemoteImageCache` refreshed
+it by fetching `/v1/recipes/{recipeID}` and matching the returned images by
+id. Discover and Watch artwork, however, pass a Discover `sourceID` — not a
+recipe in the caller's library — so the refresh requested a recipe the
+server cannot find: 404, download failed, and `RecipeArtworkView` rendered
+the broken-photo glyph. Every Discover and Watch card whose 6-hour
+presigned URL had lapsed (feed loaded, app resumed later with the in-memory
+state still `.loaded`) was permanently imageless, and each scroll past it
+re-issued the same doomed 403 + 404 pair. Even with the right endpoint the
+id match could never succeed: the Discover detail mints its thumbnail id
+server-side (`uuid5(source, "discover-thumbnail")`) while the client, given
+no image id by the feed, mints its own from the sourceID.
+
+### The fix
+
+The cache now takes a `RemoteImageOwner` — `.recipe(id:)` or
+`.discoverSource(id:)` — instead of a bare `recipeID`, and the refresh
+branch routes by it: a library recipe refreshes exactly as before
+(`/v1/recipes/{id}`, matched by image id), while a Discover source
+refreshes through `/v1/recipes/discover/{id}` and takes the single
+refreshed thumbnail by position, since its server-minted id can never match
+the client's. `RecipeArtworkView` carries the owner (a `recipeID:`
+convenience init keeps the seven library call sites unchanged); the
+Discover feed card passes `.discoverSource`, and the Watch pages pass
+whichever the page actually shows — a saved recipe in My Recipes, a
+Discover source in the Discover feed.
+
+### Verification
+
+The owner seam was landed first with the old behavior verbatim — the five
+pre-existing cache tests (saved-recipe refresh included) passed unchanged,
+proving the seam moved nothing — and the two new Discover tests then ran
+red against the shipping logic, the first printing the doomed request pair
+itself:
+
+```text
+RemoteImageCacheTests.swift:204: error: -[LadleTests.RemoteImageCacheTests
+testExpiredDiscoverThumbnailRefreshesThroughTheDiscoverDetail] : failed -
+Refreshing an expired Discover thumbnail must succeed through the Discover
+detail, but requested ["https://images.ladle.test/expired",
+"https://api.ladle.test/v1/recipes/90000000-0000-4000-8000-000000000001"]
+RemoteImageCacheTests.swift:255: error: -[LadleTests.RemoteImageCacheTests
+testDiscoverRefreshFailsWhenTheDetailHasNoThumbnail] : XCTAssertEqual
+failed: ("nil") is not equal to
+("Optional(Ladle.RemoteImageCacheError.refreshedImageMissing)")
+```
+
+The first test's stub serves only the Discover detail (every other server
+path 404s, `/v1/recipes/{id}` included) and its fixture's image id
+deliberately differs from the client's — pinning both the endpoint and the
+match-by-position rule. The second pins the empty case: a Discover detail
+that no longer carries a thumbnail fails with `refreshedImageMissing`, not
+an endless retry. After the fix,
+`-only-testing:LadleTests/RemoteImageCacheTests`:
+
+```text
+Executed 7 tests, with 0 failures (0 unexpected) in 0.048 (0.052) seconds
+** TEST SUCCEEDED **
+```
+
+To see it on device: open Discover (or Watch's Discover feed), leave the
+app backgrounded past the 6-hour URL expiry, resume, and scroll to a card
+whose image was never cached. It now refreshes and renders instead of
+showing the broken-photo glyph.
 
 ## Where this run stopped, and where the next one starts
 
