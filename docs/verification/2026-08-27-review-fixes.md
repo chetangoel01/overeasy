@@ -71,7 +71,7 @@ by the code they touch.
 | #29 | A save rejected for an off-screen field looked like a dead button | `8ec476a` | fixed |
 | (sweep) | In-flight import survived sign-out into the next account | `f8ee7c6` | fixed |
 | (sweep) | A recipe-ready banner tap landed dead, then poisoned itself | `01a8723` | fixed |
-| (sweep) | A swiped-away re-import sheet wedged Add Recipe | `16eb179` + `08ad8b4` | fixed |
+| (sweep) | A swiped-away re-import sheet wedged Add Recipe | `16eb179` + `08ad8b4` + `9778f90` + `23f0324` + `a5963f7` | fixed |
 | (sweep) | The readiness pin's only test was a copy of the pin | `42b6473` | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
@@ -3697,15 +3697,18 @@ did nothing and that banner never worked again.
 
 ## Final sweep — a swiped-away re-import sheet wedged Add Recipe
 
-Found by the sweep over the combined diff, then reworked when
-verification showed the first fix covered only half the routes in:
-`814ba45` gave a remotely-cancelled job a presentable outcome —
+Found by the sweep over the combined diff, then reworked twice more
+when verification kept finding another open route into the same end
+state: `814ba45` gave a remotely-cancelled job a presentable outcome —
 `finishRemoteCancellation` deletes the durable row and sets `.cancelled`
 while deliberately keeping `operation` so the sheet can show it — but
-that outcome stays published until something releases it, and two routes
-released nothing. A swipe-down dismissal of the sheet ran no cleanup
-(`16eb179`), and a re-import finished on the resume path had no sheet
-anywhere for any dismissal to come from (`08ad8b4`).
+that outcome stays published until something releases it, and three
+routes released nothing. A swipe-down dismissal of the re-import sheet
+ran no cleanup (`16eb179`), a re-import finished on the resume path had
+no sheet anywhere for any dismissal to come from (`08ad8b4`), and a
+re-import retried from the Inbox's FailedImportSheet had a sheet none
+of whose dismissals released (`9778f90`, with `23f0324` and `a5963f7`
+closing the two smaller defects the same verifier surfaced).
 
 ### The defect
 
@@ -3732,6 +3735,28 @@ a release scoped to dismissal can never run. A resumed reimport whose
 poll failed wedged Add Recipe the same way; it at least left an Inbox
 row with recovery actions.
 
+The third route was the Inbox. `retry()` marks a retried re-import as
+presented — retries only ever start from a sheet — and that assumption
+was the hole: the sheet it starts from can be the Inbox's
+FailedImportSheet, none of whose dismissals released. Its presentation
+in `LibraryView` had no coordinator `onDismiss`, its Close performed a
+raw `reset()` outside the `releaseReimport` seam, and interactive
+dismissal is enabled once the state is terminal. So retry a failed
+re-import from the Inbox, let the retried job be cancelled elsewhere,
+swipe the sheet down — and the presentation claim outlived its sheet:
+`operation = .reimport`, `state = .cancelled`, durable row deleted.
+Byte-for-byte the same wedge, reached through a sheet the first two
+fixes never wired. Two smaller defects sat in the same family. A
+`ReimportSheet` opened before `resumePendingImports` adopts the row
+(launch resume runs after network sync) never attached —
+`attachReimport` no-ops on a nil operation and nothing re-attached at
+adoption — so the terminal outcome self-released under the user's open
+sheet, silently flipping the cancelled/failed/decision notice to the
+blank re-import form. And after a cancelled-on-retry, the
+FailedImportSheet kept rendering its captured row's stale failure
+content, offering a Retry that could only land `.persistenceFailed`
+against the deleted row, with the operation still kept.
+
 Either way the coordinator was then wedged. AddRecipeSheet's body
 short-circuits on `operation?.isReimport == true` into "Re-import in
 progress — finish reviewing that replacement before adding another
@@ -3745,8 +3770,8 @@ resume route, merely re-ran the same adoption).
 
 ### The fix
 
-Two layers enforcing one distinction: a terminal outcome stays published
-exactly as long as some sheet will render it.
+Three layers enforcing one distinction: a terminal outcome stays
+published exactly as long as some sheet will render it.
 
 The dismissal layer (`16eb179`, kept verbatim by the rework): every
 dismissal of the sheet funnels through the
@@ -3769,8 +3794,9 @@ deliberately at every reimport adoption — `reimport`, `retry`, and
 `resumePendingReimport` are only ever driven from a sheet, so they mark
 it; `resumePendingImports` adopts after a relaunch with no sheet
 anywhere, and `attach(to:)` serves the Add sheet, which renders a
-reimport operation only as "Re-import in progress", so both leave it
-clear. The ReimportSheet's `onAppear` attaches through the new
+reimport operation only as "Re-import in progress", so both originally
+left it clear (the third rework derives it from the presentation
+registry instead — below). The ReimportSheet's `onAppear` attaches through the new
 `attachReimport(for:)` — the resume-adopted operation gains its
 presentation the moment the user opens Re-import on that recipe — and
 `releaseReimport` on a live import now records the detach it cannot
@@ -3793,6 +3819,40 @@ rather than inviting a duplicate re-import through a prematurely freed
 form. A non-reimport import cancelled on resume is untouched: nothing
 gates on an `.importJob` operation, and the Add sheet's cancelled screen
 explains what happened and resets on close.
+
+The pairing layer (`9778f90`, with `23f0324` and `a5963f7`) exists
+because each earlier layer closed a real route while leaving the next
+one open: the claim and its release could still be wired separately,
+and the Inbox sheet had one without the other. The coordinator now
+keeps a registry of the presentations actually on screen — token →
+recipe, maintained only by `beginReimportPresentation` /
+`endReimportPresentation`, the two halves of the one
+`reimportPresentation` view modifier: appearing registers, and any
+disappearance whatsoever — Close, swipe-down, structural teardown —
+ends the presentation and releases through the same `releaseReimport`
+seam as every other dismissal. Both sheets that can drive a re-import
+declare it (`FailedImportSheet` over `job.currentRecipeID`, inert for a
+plain import row; `ReimportSheet` alongside its pinned bespoke wiring),
+and adoption now derives the claim from that registry rather than
+assuming — `resumePendingImports` and `attach(to:)` ask which sheets
+exist, which closes the attach race: a sheet opened before adoption
+keeps the outcome it is presenting, and its dismissal releases it as
+always. The entry points that imply a presentation (`reimport`,
+`retry`, `resumePendingReimport`) keep the implication — the prior
+attempts' tests pin it, and it holds in production because those calls
+only issue from declared sheets — so the by-construction guarantee is
+honestly two-layered: the modifier makes attach and release travel
+together in one declaration, and a source pin sweeps every app view
+that can drive a re-import and fails for one without the pairing.
+AddRecipeSheet is the pinned exception: its body short-circuits any
+reimport operation into "Re-import in progress" before its retry
+button can render, so its retry only ever reaches plain import rows —
+and the pin asserts that short-circuit too, so the exemption cannot
+silently outlive its justification. The stale-content defect closes in
+the sheet itself: an owned `.cancelled` renders the cancelled outcome
+— current recipe unchanged for a re-import row, nothing added for a
+plain one — instead of the captured row's failure content and its dead
+Retry.
 
 ### Verification
 
@@ -3897,6 +3957,96 @@ swift test --package-path Packages/LadleCore
   -> ✔ Test run with 47 tests in 9 suites passed
 ```
 
+Pairing layer last (`9778f90`), red the same way as its predecessors:
+`beginReimportPresentation`/`endReimportPresentation` landed as empty
+seams — the shipping swipe behavior verbatim — and the new tests drove
+the Inbox route end to end against them, retry through cancelled
+through refused release:
+
+```text
+ImportCoordinatorTests.swift:1371: error: ...
+  testInboxRetriedReimportCancelledElsewhereReleasesOnSwipe] :
+  XCTAssertNil failed: "reimport(jobID: ECDC2387-9E6D-4140-A9E1-
+  9E68A72C56DB, currentRecipeID: 6DEDA3A1-56A5-4FEF-819A-0E11C78C8D69)"
+  - A swiped-away cancelled retry must release the coordinator
+ImportCoordinatorTests.swift:1375: ... XCTAssertEqual failed:
+  ("cancelled(jobID: ECDC2387-9E6D-4140-A9E1-9E68A72C56DB)") is not
+  equal to ("idle")
+ImportCoordinatorTests.swift:1380: ... XCTAssertEqual failed:
+  ("cancelled(jobID: ECDC2387-9E6D-4140-A9E1-9E68A72C56DB)") is not
+  equal to ("completed(recipeID:
+  44D75A97-C18F-4B30-83BA-ACEA2F9CAFA3)") - Add Recipe must be usable
+  again after the sheet is gone
+ImportCoordinatorTests.swift:1430: error: ...
+  testInboxRetriedReimportFailedAgainReleasesOnSwipeAndKeepsTheRow] :
+  XCTAssertNil failed: "reimport(jobID: 7B0B70F3-EA89-48C6-8A6D-
+  A5B0F08128B4, ...)" - A swiped-away failed retry must release the
+  coordinator
+ImportCoordinatorTests.swift:1613: error: ...
+  testTwoInboxRetriesInARowThenSwipeReleases] : XCTAssertNil failed:
+  "reimport(jobID: B54E1435-7817-479D-9CEC-07A7BBFFE716, ...)"
+ImportCoordinatorTests.swift:1754: error: ...
+  testEverySheetDrivingAReimportCarriesThePairedPresentation] :
+  XCTAssertTrue failed - ReimportSheet.swift drives a re-import
+  without the paired presentation modifier
+ImportCoordinatorTests.swift:1754: ... XCTAssertTrue failed -
+  FailedImportSheet.swift drives a re-import without the paired
+  presentation modifier
+-> Executed 56 tests, with 10 failures (0 unexpected) in 0.356 seconds
+```
+
+Alongside the red tests, three pins were green by design against
+overcorrection and stayed green through the fix: Close's reset followed
+by the sheet's late teardown releases exactly once and cannot clobber a
+fresh import started in between (an already-ended token is a no-op); a
+plain non-reimport failed row is untouched by the pairing — its retried
+`.importJob` outcome stays published and ending unrelated presentations
+does not release it; and a relaunch mid-retry self-releases through the
+resume path exactly as `08ad8b4` pinned.
+
+The attach race (`23f0324`) reproduced red on the pairing commit —
+adoption still hardcoded the claim to false, so the outcome
+self-released under the registered sheet:
+
+```text
+ImportCoordinatorTests.swift:1760: error: ...
+  testReimportSheetOpenBeforeResumeAdoptionKeepsItsOutcome] :
+  XCTAssertEqual failed: ("idle") is not equal to ("cancelled(jobID:
+  88CEFEF4-BBB4-4916-B05C-9972351B6D8F)") - The open sheet must render
+  the outcome, not lose it
+ImportCoordinatorTests.swift:1765: ... XCTAssertEqual failed: ("nil")
+  is not equal to ("Optional(Ladle.ImportOperation.reimport(jobID:
+  88CEFEF4-BBB4-4916-B05C-9972351B6D8F, ...))")
+-> Executed 1 test, with 2 failures (0 unexpected) in 0.176 seconds
+```
+
+and the stale-content pin (`a5963f7`) was red until the sheet gained
+its cancelled branch:
+
+```text
+ImportCoordinatorTests.swift:1848: ... XCTAssertTrue failed -
+  FailedImportSheet must branch on the owned cancelled state
+ImportCoordinatorTests.swift:1852: ... XCTAssertTrue failed -
+  FailedImportSheet must render the cancelled outcome
+-> Executed 1 test, with 2 failures (0 unexpected) in 0.138 seconds
+```
+
+After the registry, the modifier, both sheet declarations, the
+adoption derivation, and the cancelled branch landed:
+
+```text
+xcodebuild test ... -only-testing:LadleTests/ImportCoordinatorTests
+  -only-testing:LadleTests/ReimportSafetyTests
+  -> Executed 69 tests, with 0 failures (0 unexpected) in 0.215 seconds
+
+xcodebuild test ... -only-testing:LadleTests
+  -> Executed 352 tests, with 1 test skipped and 0 failures (0 unexpected)
+     ** TEST SUCCEEDED **
+
+swift test --package-path Packages/LadleCore
+  -> ✔ Test run with 47 tests in 9 suites passed
+```
+
 No backend files were touched, so the backend gates did not need to
 re-run.
 
@@ -3906,14 +4056,25 @@ tap Add Recipe — the form appears (before `16eb179` it said "Re-import
 in progress" until relaunch). For the resume route: start a re-import,
 force-quit before it finishes, cancel the job from another session,
 relaunch, then tap Add Recipe — the form appears; before `08ad8b4` it
-said "Re-import in progress" on every relaunch, forever.
+said "Re-import in progress" on every relaunch, forever. For the Inbox
+route: retry a failed re-import from the Inbox, cancel the job from
+another session, swipe the sheet down when "Import cancelled" appears
+(before `a5963f7` the sheet instead kept its stale failure screen with
+a Retry that could not work), then tap Add Recipe — the form appears;
+before `9778f90` it said "Re-import in progress" until relaunch.
 
-A residual in the same family is deliberately left open: the Inbox's
-FailedImportSheet can retry a failed re-import and be swiped away after
-another failure, leaving the operation published. That route keeps its
-Inbox row and recovery actions (using one frees the operation), and its
-fix is more dismissal wiring on a different sheet — out of scope for
-this rework and recorded here rather than half-fixed.
+A correction to the residual note recorded here after `08ad8b4`: it
+described the Inbox route as one that "keeps its Inbox row and recovery
+actions", which is true only for a retry that failed again. A retry
+cancelled elsewhere deleted its durable row, so the swiped-away sheet
+left no row, no recovery actions, and no escape short of re-opening
+Re-import on exactly that recipe or relaunching — the full wedge, not
+the benign leak the note claimed. That route is now closed by the
+pairing layer above; the correction stands so the record shows what the
+note missed. The one deliberate non-wedge left in the family: a plain
+(non-re-import) failed import retried from the Inbox and swiped away
+keeps its published `.importJob` outcome — Add Recipe attaches to and
+renders that operation itself, so nothing is blocked.
 
 ## Final sweep — the readiness pin's only test was a copy of the pin
 
