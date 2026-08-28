@@ -32,6 +32,11 @@ struct ReimportSheet: View {
         .interactiveDismissDisabled(
             isOwnedImporting || isDecisionPending
         )
+        // Registers this sheet with the coordinator so an adoption
+        // that races the presentation still sees it, and releases on
+        // every disappearance — the same seam Close and the
+        // presentation's onDismiss already run.
+        .reimportPresentation(coordinator, for: currentRecipe.id)
         .onAppear {
             if let operation = coordinator.operation,
                !operation.isReimport,

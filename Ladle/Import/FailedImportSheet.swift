@@ -34,6 +34,11 @@ struct FailedImportSheet: View {
         .interactiveDismissDisabled(
             isRetrying || isOwnedImporting || isDecisionPending
         )
+        // A retried re-import's outcome stays published for this sheet
+        // to render; the pairing releases it however the sheet leaves
+        // the screen — a swipe-down runs no other cleanup. Inert for a
+        // plain import row (no recipe to present).
+        .reimportPresentation(coordinator, for: job.currentRecipeID)
         .sheet(item: $recoveryInputMode) { mode in
             CorrectionNotesView(mode: mode) { notes, pastedText in
                 runRetry(

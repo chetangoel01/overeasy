@@ -1309,6 +1309,465 @@ final class ImportCoordinatorTests: XCTestCase {
         )
     }
 
+    func testInboxRetriedReimportCancelledElsewhereReleasesOnSwipe() async throws {
+        // The Inbox's FailedImportSheet retries a failed re-import;
+        // retry() marks the operation as presented because that sheet
+        // is on screen. When the retried job is then cancelled
+        // elsewhere, finishRemoteCancellation deletes the durable row
+        // and keeps the operation for the sheet to render — so every
+        // way that sheet can leave the screen must release it. A
+        // swipe-down runs no view code of its own: the release must
+        // come from the presentation pairing, or Add Recipe is wedged
+        // behind "Re-import in progress" with no Inbox row left to
+        // finish it from.
+        let current = importRecipe(
+            title: "Current Curry",
+            originalURL: URL(string: "https://youtu.be/current-curry")!
+        )
+        let newRecipe = importRecipe(
+            title: "After The Wedge",
+            originalURL: URL(string: "https://youtu.be/after-the-wedge")!
+        )
+        var row = ImportJob.reimporting(
+            sourceURL: current.originalURL,
+            source: current.source,
+            currentRecipeID: current.id,
+            candidateRecipeID: UUID()
+        )
+        row.remoteJobID = row.id.uuidString
+        row = try row.transitioning(to: .failed(.parserUnavailable))
+        let repository = ImportTestRepository(
+            recipes: [current],
+            importJobs: [row]
+        )
+        let coordinator = ImportCoordinator(
+            repository: repository,
+            service: CancelledReimportThenReadyImportService(
+                readyRecipe: newRecipe
+            ),
+            accountSession: AccountSession(
+                store: ImportTestPreferenceStore()
+            ),
+            clock: ImmediateImportClock()
+        )
+
+        // The failed-import sheet comes on screen and drives the retry.
+        let sheet = UUID()
+        coordinator.beginReimportPresentation(sheet, for: current.id)
+        await coordinator.retry(jobID: row.id)
+
+        XCTAssertEqual(coordinator.state, .cancelled(jobID: row.id))
+        XCTAssertEqual(
+            coordinator.operation,
+            .reimport(jobID: row.id, currentRecipeID: current.id),
+            "The open sheet still renders the cancelled outcome"
+        )
+        XCTAssertTrue(repository.importJobs.isEmpty)
+
+        // The user swipes the sheet away; the presentation pairing is
+        // all that runs.
+        coordinator.endReimportPresentation(sheet)
+
+        XCTAssertNil(
+            coordinator.operation,
+            "A swiped-away cancelled retry must release the coordinator"
+        )
+        XCTAssertEqual(coordinator.state, .idle)
+
+        await coordinator.submit(
+            urlText: "https://youtu.be/after-the-wedge"
+        )
+        XCTAssertEqual(
+            coordinator.state,
+            .completed(recipeID: newRecipe.id),
+            "Add Recipe must be usable again after the sheet is gone"
+        )
+        XCTAssertTrue(repository.recipes.contains(newRecipe))
+    }
+
+    func testInboxRetriedReimportFailedAgainReleasesOnSwipeAndKeepsTheRow() async throws {
+        // Same Inbox retry, but the retried job fails again. The swipe
+        // must free Add Recipe while the durable row keeps its Inbox
+        // recovery actions.
+        let current = importRecipe(
+            title: "Current Curry",
+            originalURL: URL(string: "https://youtu.be/current-curry")!
+        )
+        var row = ImportJob.reimporting(
+            sourceURL: current.originalURL,
+            source: current.source,
+            currentRecipeID: current.id,
+            candidateRecipeID: UUID()
+        )
+        row.remoteJobID = row.id.uuidString
+        row = try row.transitioning(to: .failed(.parserUnavailable))
+        let repository = ImportTestRepository(
+            recipes: [current],
+            importJobs: [row]
+        )
+        let coordinator = ImportCoordinator(
+            repository: repository,
+            service: FixedImportService(
+                outcome: .failed(.parserUnavailable)
+            ),
+            accountSession: AccountSession(
+                store: ImportTestPreferenceStore()
+            ),
+            clock: ImmediateImportClock()
+        )
+
+        let sheet = UUID()
+        coordinator.beginReimportPresentation(sheet, for: current.id)
+        await coordinator.retry(jobID: row.id)
+
+        XCTAssertEqual(
+            coordinator.state,
+            .failed(jobID: row.id, reason: .parserUnavailable)
+        )
+
+        coordinator.endReimportPresentation(sheet)
+
+        XCTAssertNil(
+            coordinator.operation,
+            "A swiped-away failed retry must release the coordinator"
+        )
+        XCTAssertEqual(coordinator.state, .idle)
+        XCTAssertEqual(
+            repository.importJobs.first?.status,
+            .failed(.parserUnavailable),
+            "The durable row must stay for the Inbox's recovery actions"
+        )
+        XCTAssertEqual(
+            repository.importJobs.first?.currentRecipeID,
+            current.id
+        )
+    }
+
+    func testInboxCloseAndTheSheetTeardownReleaseWithoutClobbering() async throws {
+        // Close resets the coordinator itself, and the sheet's
+        // teardown then runs the paired release too — after the
+        // dismissal animation, possibly after the user has already
+        // started something new. The late release must not clobber it.
+        let current = importRecipe(
+            title: "Current Curry",
+            originalURL: URL(string: "https://youtu.be/current-curry")!
+        )
+        let newRecipe = importRecipe(
+            title: "After The Wedge",
+            originalURL: URL(string: "https://youtu.be/after-the-wedge")!
+        )
+        var row = ImportJob.reimporting(
+            sourceURL: current.originalURL,
+            source: current.source,
+            currentRecipeID: current.id,
+            candidateRecipeID: UUID()
+        )
+        row.remoteJobID = row.id.uuidString
+        row = try row.transitioning(to: .failed(.parserUnavailable))
+        let repository = ImportTestRepository(
+            recipes: [current],
+            importJobs: [row]
+        )
+        let coordinator = ImportCoordinator(
+            repository: repository,
+            service: CancelledReimportThenReadyImportService(
+                readyRecipe: newRecipe
+            ),
+            accountSession: AccountSession(
+                store: ImportTestPreferenceStore()
+            ),
+            clock: ImmediateImportClock()
+        )
+
+        let sheet = UUID()
+        coordinator.beginReimportPresentation(sheet, for: current.id)
+        await coordinator.retry(jobID: row.id)
+        XCTAssertEqual(coordinator.state, .cancelled(jobID: row.id))
+
+        // Close resets, the user starts a fresh import, and only then
+        // does the dismissed sheet's teardown fire.
+        coordinator.reset()
+        await coordinator.submit(
+            urlText: "https://youtu.be/after-the-wedge"
+        )
+        XCTAssertEqual(
+            coordinator.state,
+            .completed(recipeID: newRecipe.id)
+        )
+
+        coordinator.endReimportPresentation(sheet)
+
+        XCTAssertEqual(
+            coordinator.state,
+            .completed(recipeID: newRecipe.id),
+            "The late teardown must not clobber the fresh import"
+        )
+        coordinator.endReimportPresentation(sheet)
+        XCTAssertEqual(
+            coordinator.state,
+            .completed(recipeID: newRecipe.id),
+            "An already-ended token is a no-op"
+        )
+    }
+
+    func testInboxCloseOfAFailedRetryReleasesAndTheTeardownIsANoOp() async throws {
+        let current = importRecipe(
+            title: "Current Curry",
+            originalURL: URL(string: "https://youtu.be/current-curry")!
+        )
+        var row = ImportJob.reimporting(
+            sourceURL: current.originalURL,
+            source: current.source,
+            currentRecipeID: current.id,
+            candidateRecipeID: UUID()
+        )
+        row.remoteJobID = row.id.uuidString
+        row = try row.transitioning(to: .failed(.parserUnavailable))
+        let repository = ImportTestRepository(
+            recipes: [current],
+            importJobs: [row]
+        )
+        let coordinator = ImportCoordinator(
+            repository: repository,
+            service: FixedImportService(
+                outcome: .failed(.parserUnavailable)
+            ),
+            accountSession: AccountSession(
+                store: ImportTestPreferenceStore()
+            ),
+            clock: ImmediateImportClock()
+        )
+
+        let sheet = UUID()
+        coordinator.beginReimportPresentation(sheet, for: current.id)
+        await coordinator.retry(jobID: row.id)
+        XCTAssertEqual(
+            coordinator.state,
+            .failed(jobID: row.id, reason: .parserUnavailable)
+        )
+
+        coordinator.reset()
+        coordinator.endReimportPresentation(sheet)
+
+        XCTAssertNil(coordinator.operation)
+        XCTAssertEqual(coordinator.state, .idle)
+        XCTAssertEqual(
+            repository.importJobs.first?.status,
+            .failed(.parserUnavailable)
+        )
+    }
+
+    func testTwoInboxRetriesInARowThenSwipeReleases() async throws {
+        // The sheet stays up across a failed retry and a second retry
+        // that is then cancelled elsewhere; the one registered
+        // presentation must survive both and still release on the
+        // final swipe.
+        let current = importRecipe(
+            title: "Current Curry",
+            originalURL: URL(string: "https://youtu.be/current-curry")!
+        )
+        var row = ImportJob.reimporting(
+            sourceURL: current.originalURL,
+            source: current.source,
+            currentRecipeID: current.id,
+            candidateRecipeID: UUID()
+        )
+        row.remoteJobID = row.id.uuidString
+        row = try row.transitioning(to: .failed(.parserUnavailable))
+        let repository = ImportTestRepository(
+            recipes: [current],
+            importJobs: [row]
+        )
+        let coordinator = ImportCoordinator(
+            repository: repository,
+            service: FailedThenCancelledRetryImportService(),
+            accountSession: AccountSession(
+                store: ImportTestPreferenceStore()
+            ),
+            clock: ImmediateImportClock()
+        )
+
+        let sheet = UUID()
+        coordinator.beginReimportPresentation(sheet, for: current.id)
+
+        await coordinator.retry(jobID: row.id)
+        XCTAssertEqual(
+            coordinator.state,
+            .failed(jobID: row.id, reason: .parserUnavailable),
+            "The open sheet renders the first retry's failure"
+        )
+
+        await coordinator.retry(jobID: row.id)
+        XCTAssertEqual(
+            coordinator.state,
+            .cancelled(jobID: row.id),
+            "The open sheet renders the second retry's cancellation"
+        )
+        XCTAssertEqual(
+            coordinator.operation,
+            .reimport(jobID: row.id, currentRecipeID: current.id)
+        )
+
+        coordinator.endReimportPresentation(sheet)
+
+        XCTAssertNil(coordinator.operation)
+        XCTAssertEqual(coordinator.state, .idle)
+    }
+
+    func testNonReimportInboxRowIsUntouchedByThePresentationPairing() async throws {
+        // A plain failed import's sheet has no recipe to present, so
+        // the pairing is inert for it: its retried outcome stays
+        // published exactly as before, and ending an unrelated
+        // presentation must not release the .importJob operation.
+        let failed = try failedJob(slug: "plain-noodles")
+        let repository = ImportTestRepository(importJobs: [failed])
+        let coordinator = ImportCoordinator(
+            repository: repository,
+            service: FixedImportService(
+                outcome: .failed(.parserUnavailable)
+            ),
+            accountSession: AccountSession(
+                store: ImportTestPreferenceStore()
+            ),
+            clock: ImmediateImportClock()
+        )
+
+        await coordinator.retry(jobID: failed.id)
+
+        XCTAssertEqual(coordinator.operation, .importJob(failed.id))
+        XCTAssertEqual(
+            coordinator.state,
+            .failed(jobID: failed.id, reason: .parserUnavailable)
+        )
+
+        coordinator.endReimportPresentation(UUID())
+        let unrelated = UUID()
+        coordinator.beginReimportPresentation(unrelated, for: UUID())
+        coordinator.endReimportPresentation(unrelated)
+
+        XCTAssertEqual(
+            coordinator.operation,
+            .importJob(failed.id),
+            "A plain import's published failure is not a reimport's to release"
+        )
+        XCTAssertEqual(
+            coordinator.state,
+            .failed(jobID: failed.id, reason: .parserUnavailable)
+        )
+    }
+
+    func testRelaunchMidInboxRetryReleasesTheResumedOutcome() async throws {
+        // The app dies while an Inbox retry is polling: the durable row
+        // is .parsing again with its remote id, and the relaunch's
+        // resumePendingImports adopts it with no sheet anywhere — the
+        // registered presentations died with the process. The cancelled
+        // outcome must self-release exactly as a resumed reimport
+        // always has.
+        let current = importRecipe(
+            title: "Current Curry",
+            originalURL: URL(string: "https://youtu.be/current-curry")!
+        )
+        let newRecipe = importRecipe(
+            title: "After The Wedge",
+            originalURL: URL(string: "https://youtu.be/after-the-wedge")!
+        )
+        var row = ImportJob.reimporting(
+            sourceURL: current.originalURL,
+            source: current.source,
+            currentRecipeID: current.id,
+            candidateRecipeID: UUID()
+        )
+        row.remoteJobID = row.id.uuidString
+        row = try row.transitioning(to: .failed(.parserUnavailable))
+        row = try row.retryingReimport(candidateRecipeID: UUID())
+        let repository = ImportTestRepository(
+            recipes: [current],
+            importJobs: [row]
+        )
+        let coordinator = ImportCoordinator(
+            repository: repository,
+            service: CancelledReimportThenReadyImportService(
+                readyRecipe: newRecipe
+            ),
+            accountSession: AccountSession(
+                store: ImportTestPreferenceStore()
+            ),
+            clock: ImmediateImportClock()
+        )
+
+        await coordinator.resumePendingImports()
+
+        XCTAssertNil(
+            coordinator.operation,
+            "A resumed retry nobody is presenting must release itself"
+        )
+        XCTAssertEqual(coordinator.state, .idle)
+        XCTAssertTrue(repository.importJobs.isEmpty)
+
+        await coordinator.submit(
+            urlText: "https://youtu.be/after-the-wedge"
+        )
+        XCTAssertEqual(
+            coordinator.state,
+            .completed(recipeID: newRecipe.id)
+        )
+    }
+
+    func testEverySheetDrivingAReimportCarriesThePairedPresentation() throws {
+        // The presentation registry can only be marked through
+        // beginReimportPresentation, whose view modifier carries the
+        // paired release — so a sheet cannot claim the presentation
+        // without also releasing it. This pin makes the pairing
+        // structural across the app's sources: any view that can
+        // start, retry, or resume a re-import must declare itself
+        // through that one modifier. AddRecipeSheet is the deliberate
+        // exception — its body short-circuits every reimport operation
+        // into the "Re-import in progress" screen before its retry
+        // button can render, so its retry can only ever reach plain
+        // import rows; the short-circuit itself is pinned below.
+        let drivers = [
+            "coordinator.reimport(",
+            "coordinator.retry(",
+            "coordinator.resumependingreimport("
+        ]
+        let appSources = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Ladle")
+        let enumerator = FileManager.default.enumerator(
+            at: appSources,
+            includingPropertiesForKeys: nil
+        )
+        var drivingViews = 0
+        while let url = enumerator?.nextObject() as? URL {
+            guard url.pathExtension == "swift",
+                  url.lastPathComponent != "ImportCoordinator.swift",
+                  url.lastPathComponent != "AddRecipeSheet.swift" else {
+                continue
+            }
+            let text = try String(contentsOf: url, encoding: .utf8)
+                .lowercased()
+            guard drivers.contains(where: text.contains) else {
+                continue
+            }
+            drivingViews += 1
+            XCTAssertTrue(
+                text.contains(".reimportpresentation("),
+                "\(url.lastPathComponent) drives a re-import without the paired presentation modifier"
+            )
+        }
+        XCTAssertGreaterThanOrEqual(
+            drivingViews,
+            2,
+            "ReimportSheet and FailedImportSheet must be swept"
+        )
+        XCTAssertTrue(
+            try source("Ladle/Import/AddRecipeSheet.swift")
+                .contains("operation?.isReimport == true"),
+            "AddRecipeSheet's exemption rests on its reimport short-circuit"
+        )
+    }
+
     func testCancelBeforeRemoteJobAssignedStaysCancelledAndSkipsRemoteCancel() async throws {
         // The cancel lands while the initial submit POST is still in
         // flight, before any remote job ID exists. (#30, #31)
@@ -2414,6 +2873,44 @@ private actor CancelledReimportThenReadyImportService: ImportService {
         pastedRecipeText: String?
     ) async throws -> ImportServiceUpdate {
         ImportServiceUpdate(
+            remoteJobID: remoteJobID,
+            progress: .parsing
+        )
+    }
+}
+
+/// The first retry fails; the second is accepted and then reported as
+/// cancelled elsewhere — two Inbox retries driven from one open sheet.
+private actor FailedThenCancelledRetryImportService: ImportService {
+    private var retries = 0
+
+    func submit(
+        _ job: ImportJob,
+        allowingDuplicate: Bool
+    ) async throws -> ImportServiceUpdate {
+        ImportServiceUpdate(
+            remoteJobID: job.id.uuidString,
+            progress: .parsing
+        )
+    }
+
+    func status(remoteJobID: String) async throws -> ImportServiceUpdate {
+        throw RemoteContractError.importCancelled
+    }
+
+    func retry(
+        remoteJobID: String,
+        correctionNotes: String?,
+        pastedRecipeText: String?
+    ) async throws -> ImportServiceUpdate {
+        retries += 1
+        if retries == 1 {
+            return ImportServiceUpdate(
+                remoteJobID: remoteJobID,
+                progress: .failed(.parserUnavailable)
+            )
+        }
+        return ImportServiceUpdate(
             remoteJobID: remoteJobID,
             progress: .parsing
         )

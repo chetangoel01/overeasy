@@ -208,6 +208,16 @@ final class ImportCoordinator {
     /// outcome lands: see `releaseUnpresentedReimport(after:)`.
     private var reimportHasPresentation = false
 
+    /// The sheets currently on screen that render re-import outcomes,
+    /// as presentation token → presented recipe ID. Maintained only by
+    /// `beginReimportPresentation`/`endReimportPresentation`, the two
+    /// halves of the `reimportPresentation` view modifier — so a sheet
+    /// cannot register a claim here without carrying the release that
+    /// retires it. Deliberately untouched by `reset()`: the map
+    /// reflects which sheets exist, which no coordinator state change
+    /// alters.
+    private var reimportPresentations: [UUID: UUID] = [:]
+
     private(set) var state: ImportCoordinatorState = .idle
     private(set) var operation: ImportOperation?
     private(set) var existingDuplicate: Recipe?
@@ -724,6 +734,39 @@ final class ImportCoordinator {
     func attachReimport(for recipeID: UUID) {
         guard ownsReimport(for: recipeID) else { return }
         reimportHasPresentation = true
+    }
+
+    /// A sheet that renders re-import outcomes for `recipeID` came on
+    /// screen; `token` identifies that one presentation until its
+    /// paired `endReimportPresentation`. Registering is idempotent and
+    /// independent of ownership — the sheet may open before any
+    /// operation exists — and also attaches an owned reimport exactly
+    /// as `attachReimport` does.
+    func beginReimportPresentation(_ token: UUID, for recipeID: UUID) {
+        reimportPresentations[token] = recipeID
+        attachReimport(for: recipeID)
+    }
+
+    /// The presentation identified by `token` left the screen — Close,
+    /// a swipe-down, or structural teardown cannot behave differently,
+    /// because the `reimportPresentation` modifier runs this for every
+    /// disappearance. Once no sheet presents the recipe, the operation
+    /// is released through the same `releaseReimport` seam as every
+    /// other dismissal; an unknown token (already ended, or never
+    /// begun) is a no-op.
+    func endReimportPresentation(_ token: UUID) {
+        guard let recipeID = reimportPresentations.removeValue(
+            forKey: token
+        ) else {
+            return
+        }
+        guard !hasReimportPresenter(for: recipeID) else { return }
+        releaseReimport(for: recipeID)
+    }
+
+    private func hasReimportPresenter(for recipeID: UUID?) -> Bool {
+        guard let recipeID else { return false }
+        return reimportPresentations.values.contains(recipeID)
     }
 
     func prepareForNewImport() {
