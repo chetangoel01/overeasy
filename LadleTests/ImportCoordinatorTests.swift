@@ -1713,6 +1713,75 @@ final class ImportCoordinatorTests: XCTestCase {
         )
     }
 
+    func testReimportSheetOpenBeforeResumeAdoptionKeepsItsOutcome() async throws {
+        // Launch resume runs after network sync, so the user can open
+        // Re-import on the recipe before resumePendingImports adopts
+        // its row. The sheet's attach no-ops while the operation is
+        // still nil, and nothing re-attaches at adoption — so adoption
+        // must derive the presentation from the sheets actually
+        // registered, or the terminal outcome self-releases under the
+        // user and silently flips the cancelled notice to the blank
+        // re-import form.
+        let current = importRecipe(
+            title: "Current Curry",
+            originalURL: URL(string: "https://youtu.be/current-curry")!
+        )
+        let newRecipe = importRecipe(
+            title: "After The Wedge",
+            originalURL: URL(string: "https://youtu.be/after-the-wedge")!
+        )
+        var row = ImportJob.reimporting(
+            sourceURL: current.originalURL,
+            source: current.source,
+            currentRecipeID: current.id,
+            candidateRecipeID: UUID()
+        )
+        row.remoteJobID = row.id.uuidString
+        let repository = ImportTestRepository(
+            recipes: [current],
+            importJobs: [row]
+        )
+        let coordinator = ImportCoordinator(
+            repository: repository,
+            service: CancelledReimportThenReadyImportService(
+                readyRecipe: newRecipe
+            ),
+            accountSession: AccountSession(
+                store: ImportTestPreferenceStore()
+            ),
+            clock: ImmediateImportClock()
+        )
+
+        // The sheet is already on screen when adoption runs.
+        let sheet = UUID()
+        coordinator.beginReimportPresentation(sheet, for: current.id)
+        await coordinator.resumePendingImports()
+
+        XCTAssertEqual(
+            coordinator.state,
+            .cancelled(jobID: row.id),
+            "The open sheet must render the outcome, not lose it"
+        )
+        XCTAssertEqual(
+            coordinator.operation,
+            .reimport(jobID: row.id, currentRecipeID: current.id)
+        )
+
+        // Dismissal then releases it exactly as any other presentation.
+        coordinator.endReimportPresentation(sheet)
+
+        XCTAssertNil(coordinator.operation)
+        XCTAssertEqual(coordinator.state, .idle)
+
+        await coordinator.submit(
+            urlText: "https://youtu.be/after-the-wedge"
+        )
+        XCTAssertEqual(
+            coordinator.state,
+            .completed(recipeID: newRecipe.id)
+        )
+    }
+
     func testEverySheetDrivingAReimportCarriesThePairedPresentation() throws {
         // The presentation registry can only be marked through
         // beginReimportPresentation, whose view modifier carries the

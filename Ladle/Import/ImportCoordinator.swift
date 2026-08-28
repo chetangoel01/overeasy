@@ -557,11 +557,16 @@ final class ImportCoordinator {
                     operation = job.currentRecipeID.map {
                         .reimport(jobID: job.id, currentRecipeID: $0)
                     } ?? .importJob(job.id)
-                    // Adopted after a relaunch: no sheet exists anywhere
-                    // yet. One that opens attaches through the
-                    // coordinator; until then a terminal outcome has no
-                    // presentation and releases itself.
-                    reimportHasPresentation = false
+                    // Usually adopted after a relaunch with no sheet
+                    // anywhere — but launch resume runs after network
+                    // sync, and the re-import sheet can already be on
+                    // screen (its attach no-oped while the operation
+                    // was nil). Derive from the sheets actually
+                    // registered rather than assume; without one, a
+                    // terminal outcome releases itself.
+                    reimportHasPresentation = hasReimportPresenter(
+                        for: job.currentRecipeID
+                    )
                 }
                 await runProcess(job, operation: .resume)
             }
@@ -601,8 +606,12 @@ final class ImportCoordinator {
             } ?? .importJob(job.id)
             // The Add sheet this attach serves renders a reimport
             // operation only as "Re-import in progress", never its
-            // outcome.
-            reimportHasPresentation = false
+            // outcome — but a registered re-import sheet elsewhere
+            // would, so adoption derives the claim rather than
+            // assuming.
+            reimportHasPresentation = hasReimportPresenter(
+                for: job.currentRecipeID
+            )
             state = .importing(jobID: job.id)
             return true
         } catch {
