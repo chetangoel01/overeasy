@@ -66,7 +66,7 @@ by the code they touch.
 | #40 | Ended cooking sessions left uncancelable notifications | `fa097b2` | fixed |
 | #41 | Timer-finished haptic never fired on the full-recipe screen | `b7c714b` | fixed |
 | #43 | Foreground notifications silently suppressed | `8f8db48` | fixed |
-| #44 | Expired Discover thumbnails could never refresh | `a30e9db` | fixed |
+| #44 | Expired Discover thumbnails could never refresh | `a30e9db` + `20ff675` | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
