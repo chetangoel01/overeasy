@@ -22,9 +22,7 @@ def context() -> AcquiredVideoContext:
             source_video_id=uuid4(),
             platform="tiktok",
             platform_video_id="7612708181004799263",
-            canonical_url=(
-                "https://www.tiktok.com/@cook/video/7612708181004799263"
-            ),
+            canonical_url=("https://www.tiktok.com/@cook/video/7612708181004799263"),
             source_revision="1",
         ),
         is_public=True,

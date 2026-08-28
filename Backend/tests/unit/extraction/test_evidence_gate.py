@@ -93,9 +93,7 @@ def test_unsupported_sparse_text_is_rejected(context: AcquiredVideoContext) -> N
 @pytest.mark.parametrize(
     "context",
     [
-        _context(
-            transcript="Add 2 cans chickpeas and simmer for ten minutes."
-        ),
+        _context(transcript="Add 2 cans chickpeas and simmer for ten minutes."),
         _context(transcript="1 slice bread. Toast the bread."),
         _context(
             linked_document=(
@@ -138,7 +136,4 @@ def test_quantity_noun_alone_is_not_mistaken_for_a_cooking_action() -> None:
 
 
 def test_insufficient_evidence_has_a_typed_client_failure() -> None:
-    assert (
-        ImportFailure.INSUFFICIENT_TEXT_EVIDENCE.value
-        == "insufficientTextEvidence"
-    )
+    assert ImportFailure.INSUFFICIENT_TEXT_EVIDENCE.value == "insufficientTextEvidence"

@@ -373,9 +373,7 @@ def deterministic_issues(
             issues.append(
                 VerificationIssue(
                     field_path=f"ingredients[{index}]",
-                    reason=(
-                        f"{ingredient.name} is not connected to any method step."
-                    ),
+                    reason=(f"{ingredient.name} is not connected to any method step."),
                     supporting_evidence=ingredient_text,
                 )
             )

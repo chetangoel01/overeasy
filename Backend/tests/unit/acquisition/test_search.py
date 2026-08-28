@@ -122,9 +122,7 @@ def test_enricher_queries_identity_and_accepts_only_matching_creator_recipe() ->
 
 def test_search_snippet_is_never_used_without_independent_page_fetch() -> None:
     url = "https://justinesnacks.com/creamy-lemon-chickpeas"
-    search = Search(
-        [candidate(url, "Creamy Lemon Chickpeas", snippet=recipe_page())]
-    )
+    search = Search([candidate(url, "Creamy Lemon Chickpeas", snippet=recipe_page())])
     fetcher = Fetcher({url: ""})
 
     documents = SparseTextEnricher(search=search, fetcher=fetcher).enrich(

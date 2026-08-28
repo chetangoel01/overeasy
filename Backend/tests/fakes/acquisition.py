@@ -18,9 +18,7 @@ class FakeAcquirer:
     context: AcquiredVideoContext | None = None
     title: str = "Lemon Orzo"
     description: str = "A fast one-pot recipe."
-    transcript_text: str | None = (
-        "Add two cups orzo, then simmer for ten minutes."
-    )
+    transcript_text: str | None = "Add two cups orzo, then simmer for ten minutes."
 
     def check_public(
         self,

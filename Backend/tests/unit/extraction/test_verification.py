@@ -279,9 +279,7 @@ def test_detects_material_ingredient_missing_from_the_method() -> None:
 
 
 def test_detects_conflicting_source_amounts() -> None:
-    value = recipe().model_copy(
-        update={"ingredients": [ingredient("sugar", 0)]}
-    )
+    value = recipe().model_copy(update={"ingredients": [ingredient("sugar", 0)]})
 
     issues = deterministic_issues(
         value,
@@ -334,10 +332,7 @@ def test_recipe_scale_decimals_still_parse(value: object, expected: Decimal) -> 
 
 
 def test_model_can_patch_only_a_flagged_field_with_exact_source_support() -> None:
-    source = (
-        "Makes 1 serving. Prep 5 minutes and cook 10 minutes. "
-        "Total 15 minutes."
-    )
+    source = "Makes 1 serving. Prep 5 minutes and cook 10 minutes. Total 15 minutes."
     model = Model(
         patches=[
             VerificationPatch(
@@ -451,9 +446,7 @@ def test_verification_is_recorded_as_a_distinct_provider_operation() -> None:
 
     service.verify(value, evidence=spans, job_id=uuid4())
 
-    assert {call["operation"] for call in usage.starts} == {
-        "recipeVerification"
-    }
+    assert {call["operation"] for call in usage.starts} == {"recipeVerification"}
     assert usage.completions == 1
     assert usage.completion_values["cost_usd"] == Decimal("0.009")
     assert usage.failures == 0

@@ -125,9 +125,7 @@ def test_wrong_required_nutrient_units_are_not_guessed(
 def test_missing_required_macro_returns_no_candidate() -> None:
     detail = copy.deepcopy(FOOD)
     detail["foodNutrients"] = [
-        value
-        for value in detail["foodNutrients"]
-        if value["nutrient"]["id"] != 1005
+        value for value in detail["foodNutrients"] if value["nutrient"]["id"] != 1005
     ]
 
     def respond(request: httpx.Request) -> httpx.Response:

@@ -505,9 +505,7 @@ class Settings(BaseSettings):
             self.usda_api_key is None
             or self._is_placeholder(self.usda_api_key.get_secret_value())
         ):
-            raise ValueError(
-                "production nutrition requires a configured usda_api_key"
-            )
+            raise ValueError("production nutrition requires a configured usda_api_key")
         for field_name in (
             "supadata_base_url",
             "soscripted_base_url",

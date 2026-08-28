@@ -74,9 +74,7 @@ class RecipeSyncService:
         )
         changes: list[RecipeChangeDTO] = []
         for row in visible:
-            recipe = (
-                recipes.get(row.recipe_id) if row.kind == "upsert" else None
-            )
+            recipe = recipes.get(row.recipe_id) if row.kind == "upsert" else None
             if recipe is not None:
                 kind = SyncChangeKind.UPSERT
                 revision = recipe.revision

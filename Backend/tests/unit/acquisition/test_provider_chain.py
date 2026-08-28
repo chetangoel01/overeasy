@@ -65,6 +65,7 @@ class Primary:
             raise value
         return value
 
+
 @dataclass
 class Fallback:
     result: TranscriptResult

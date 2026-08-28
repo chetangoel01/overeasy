@@ -167,9 +167,7 @@ def main() -> int:
             )
         )
 
-    print(
-        f"\n{'source':<24} {'extract':>10} {'transcribe':>11} {'total':>10}"
-    )
+    print(f"\n{'source':<24} {'extract':>10} {'transcribe':>11} {'total':>10}")
     print("-" * 70)
     totals: dict[str, float] = {}
     for name, extraction, media in rows:

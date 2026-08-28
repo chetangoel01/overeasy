@@ -195,9 +195,7 @@ class RecipeTemplate(WireModel):
                     serving_basis=nutrition.serving_basis,
                     is_estimated=nutrition.is_estimated,
                     basis=(
-                        "usdaCalculated"
-                        if nutrition.is_estimated
-                        else "creatorStated"
+                        "usdaCalculated" if nutrition.is_estimated else "creatorStated"
                     ),
                     evidence=None,
                 )

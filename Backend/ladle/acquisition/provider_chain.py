@@ -45,6 +45,7 @@ class PrimaryProvider(Protocol):
         mode: str,
     ) -> TranscriptResult: ...
 
+
 class TranscriptFallback(Protocol):
     def transcript(
         self, source: SourceVideoDescriptor, *, job_id: UUID

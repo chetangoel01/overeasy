@@ -50,6 +50,7 @@ class Primary:
         self.calls.append(f"transcript:{mode}")
         raise TranscriptUnavailable()
 
+
 @dataclass
 class Fallback:
     calls: int = 0

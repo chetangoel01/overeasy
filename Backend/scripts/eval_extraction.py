@@ -473,9 +473,7 @@ def _benchmark_summary(cases: list[dict[str, Any]]) -> dict[str, Any]:
     steps_matched = sum(
         structure["orderedStepPhrasesMatched"] for structure in structures
     )
-    steps_total = sum(
-        structure["orderedStepPhrasesTotal"] for structure in structures
-    )
+    steps_total = sum(structure["orderedStepPhrasesTotal"] for structure in structures)
     usages = [case["usage"] for case in cases]
     extraction_input = sum(value["extractionInputTokens"] for value in usages)
     extraction_output = sum(value["extractionOutputTokens"] for value in usages)
@@ -683,10 +681,7 @@ def extract(
                 if nutrition_recorder is not None
                 else VerificationUsage()
             )
-            print(
-                f"FAILED   {reference.cache_key}: "
-                f"{type(error).__name__}: {error}"
-            )
+            print(f"FAILED   {reference.cache_key}: {type(error).__name__}: {error}")
             nutrition_score = score_nutrition_case(
                 reference.nutrition,
                 None,
@@ -697,12 +692,8 @@ def extract(
                 {
                     "id": reference.id,
                     "sourceURL": reference.source_url,
-                    "expectedNutritionBasis": (
-                        reference.expected_nutrition_basis
-                    ),
-                    "nutrition": nutrition_score.model_dump(
-                        mode="json", by_alias=True
-                    ),
+                    "expectedNutritionBasis": (reference.expected_nutrition_basis),
+                    "nutrition": nutrition_score.model_dump(mode="json", by_alias=True),
                     "structure": None,
                     "latencyMs": latency_ms,
                     "usage": _case_usage(None, verification, normalization),
@@ -775,9 +766,7 @@ def extract(
                 "id": reference.id,
                 "sourceURL": reference.source_url,
                 "expectedNutritionBasis": reference.expected_nutrition_basis,
-                "nutrition": nutrition_score.model_dump(
-                    mode="json", by_alias=True
-                ),
+                "nutrition": nutrition_score.model_dump(mode="json", by_alias=True),
                 "prediction": (
                     prediction.model_dump(mode="json", by_alias=True)
                     if prediction is not None
@@ -821,9 +810,7 @@ def extract(
         )
 
     safety_references = [
-        case
-        for case in corpus.safety_cases
-        if only is None or only in case.id
+        case for case in corpus.safety_cases if only is None or only in case.id
     ]
     safety_results: list[dict[str, object]] = []
     for safety_reference in safety_references:
@@ -844,9 +831,7 @@ def extract(
     dump["sparseSafety"] = {
         "passed": safety_passed,
         "total": len(safety_results),
-        "meetsGate": (
-            bool(safety_results) and safety_passed == len(safety_results)
-        ),
+        "meetsGate": (bool(safety_results) and safety_passed == len(safety_results)),
         "cases": safety_results,
     }
 

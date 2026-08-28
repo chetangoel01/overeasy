@@ -377,41 +377,31 @@ class RecipeRepository:
         for ingredient in database.scalars(
             select(Ingredient)
             .where(Ingredient.recipe_id.in_(recipe_ids))
-            .order_by(
-                Ingredient.recipe_id, Ingredient.order_index, Ingredient.id
-            )
+            .order_by(Ingredient.recipe_id, Ingredient.order_index, Ingredient.id)
         ):
             ingredients[ingredient.recipe_id].append(ingredient)
         steps: dict[UUID, list[RecipeStep]] = defaultdict(list)
         for step in database.scalars(
             select(RecipeStep)
             .where(RecipeStep.recipe_id.in_(recipe_ids))
-            .order_by(
-                RecipeStep.recipe_id, RecipeStep.order_index, RecipeStep.id
-            )
+            .order_by(RecipeStep.recipe_id, RecipeStep.order_index, RecipeStep.id)
         ):
             steps[step.recipe_id].append(step)
         links_by_step: dict[UUID, list[UUID]] = defaultdict(list)
         for link in database.scalars(
-            select(StepIngredient).where(
-                StepIngredient.recipe_id.in_(recipe_ids)
-            )
+            select(StepIngredient).where(StepIngredient.recipe_id.in_(recipe_ids))
         ):
             links_by_step[link.step_id].append(link.ingredient_id)
         timers_by_step: dict[UUID, list[DetectedTimer]] = defaultdict(list)
         step_ids = [step.id for value in steps.values() for step in value]
         if step_ids:
             for timer in database.scalars(
-                select(DetectedTimer).where(
-                    DetectedTimer.recipe_step_id.in_(step_ids)
-                )
+                select(DetectedTimer).where(DetectedTimer.recipe_step_id.in_(step_ids))
             ):
                 timers_by_step[timer.recipe_step_id].append(timer)
         uncertainties: dict[UUID, list[FieldUncertainty]] = defaultdict(list)
         for value in database.scalars(
-            select(FieldUncertainty).where(
-                FieldUncertainty.recipe_id.in_(recipe_ids)
-            )
+            select(FieldUncertainty).where(FieldUncertainty.recipe_id.in_(recipe_ids))
         ):
             uncertainties[value.recipe_id].append(value)
         nutrition = {

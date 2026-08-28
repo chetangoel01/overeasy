@@ -65,12 +65,8 @@ def assess_coverage(context: AcquiredVideoContext) -> CoverageReport:
             *(document.text for document in context.linked_documents),
         ]
     )
-    spoken = " ".join(
-        [context.title or "", context.description, recipe_text]
-    )
-    platform_text = " ".join(
-        value.text for value in context.visual_observations
-    )
+    spoken = " ".join([context.title or "", context.description, recipe_text])
+    platform_text = " ".join(value.text for value in context.visual_observations)
     spoken_has_quantities = has_quantities(spoken)
     platform_has_quantities = has_quantities(platform_text)
     quantities = spoken_has_quantities or platform_has_quantities

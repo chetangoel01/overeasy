@@ -106,9 +106,7 @@ class ModelSummary(WireModel):
     ingredient_pair_recall: Decimal
     ordered_step_phrase_recall: Decimal
     cook_time_accuracy: Decimal
-    reported_cost_usd_per_run: Decimal | None = Field(
-        alias="reportedCostUSDPerRun"
-    )
+    reported_cost_usd_per_run: Decimal | None = Field(alias="reportedCostUSDPerRun")
     reported_cost_complete: bool
     median_latency_ms: Decimal
     p95_latency_ms: Decimal
@@ -217,9 +215,7 @@ def _summarize(model_id: str, runs: Sequence[RunArtifact]) -> ModelSummary:
         median_latency_ms=Decimal(
             str(mean(run.benchmark.latency.median_ms for run in runs))
         ),
-        p95_latency_ms=Decimal(
-            str(mean(run.benchmark.latency.p95_ms for run in runs))
-        ),
+        p95_latency_ms=Decimal(str(mean(run.benchmark.latency.p95_ms for run in runs))),
         valid_output_rate_range=_range(
             [run.benchmark.valid_structured_outputs.pass_rate for run in runs]
         ),
@@ -256,8 +252,7 @@ def _comparable(candidate: ModelSummary, leader: ModelSummary) -> bool:
         and abs(candidate.ingredient_pair_recall - leader.ingredient_pair_recall)
         <= _EQUIVALENCE
         and abs(
-            candidate.ordered_step_phrase_recall
-            - leader.ordered_step_phrase_recall
+            candidate.ordered_step_phrase_recall - leader.ordered_step_phrase_recall
         )
         <= _EQUIVALENCE
         and abs(candidate.cook_time_accuracy - leader.cook_time_accuracy)
@@ -300,8 +295,7 @@ def compare_runs(runs: Sequence[Mapping[str, Any]]) -> ComparisonReport:
     priced = [
         model
         for model in comparable
-        if model.reported_cost_complete
-        and model.reported_cost_usd_per_run is not None
+        if model.reported_cost_complete and model.reported_cost_usd_per_run is not None
     ]
     value_winner = min(
         priced,

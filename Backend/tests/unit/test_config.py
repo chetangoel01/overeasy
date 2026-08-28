@@ -160,10 +160,7 @@ def test_nutrition_normalization_defaults_to_selected_gemini() -> None:
     settings = Settings(_env_file=None)
 
     assert settings.nutrition_normalization_enabled
-    assert (
-        settings.nutrition_normalization_model_id
-        == "google/gemini-3.7-flash"
-    )
+    assert settings.nutrition_normalization_model_id == "google/gemini-3.7-flash"
     assert settings.nutrition_normalization_max_tokens == 5000
 
 

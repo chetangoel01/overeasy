@@ -14,9 +14,7 @@ from decimal import Decimal
 from pathlib import Path
 from urllib.parse import quote, unquote
 
-NHLBI_URL = (
-    "https://www.nhlbi.nih.gov/sites/default/files/publications/10-2921.pdf"
-)
+NHLBI_URL = "https://www.nhlbi.nih.gov/sites/default/files/publications/10-2921.pdf"
 USDA_ROOT = "https://www.fns.usda.gov/sites/default/files/resource-files/"
 RETRIEVED_AT = "2026-08-24"
 LICENSE = "usGovernmentPublicDomain"
@@ -25,8 +23,7 @@ NHLBI_ATTRIBUTION = (
     "Deliciously Healthy Dinners, NIH Publication No. 10-2921."
 )
 USDA_ATTRIBUTION = (
-    "USDA Food and Nutrition Service, CACFP Home Childcare 6-Serving "
-    "Recipe Project."
+    "USDA Food and Nutrition Service, CACFP Home Childcare 6-Serving Recipe Project."
 )
 
 _VULGAR = "¼½¾⅐⅓⅔⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞"
@@ -78,8 +75,7 @@ def _clean(text: str) -> str:
         line.rstrip()
         for line in text.replace("\f", "").splitlines()
         if not (
-            "Food and Nutrition Service | USDA is an equal opportunity"
-            in line
+            "Food and Nutrition Service | USDA is an equal opportunity" in line
             or (
                 "deliciously healthy dinners" in line.casefold()
                 and re.search(r"\s\d+\s*$", line)
@@ -95,8 +91,7 @@ def _title(text: str, fallback: str) -> str:
         (
             index
             for index, line in enumerate(lines)
-            if line.strip()
-            and "United States Department of Agriculture" not in line
+            if line.strip() and "United States Department of Agriculture" not in line
         ),
         None,
     )
@@ -123,7 +118,9 @@ def _ingredient_pair(text: str) -> dict[str, str]:
         candidate_name = (
             name
             if maybe_unit and maybe_unit.casefold() in _UNITS
-            else f"{maybe_unit} {name}" if maybe_unit else name
+            else f"{maybe_unit} {name}"
+            if maybe_unit
+            else name
         )
         if candidate_name.casefold().startswith(
             ("preheat", "heat", "combine", "add", "place", "serve", "cook")
@@ -228,9 +225,7 @@ def _usda_case(path: Path, *, index: int, held_out: bool) -> dict[str, object]:
         "retrievedAt": RETRIEVED_AT,
         "license": LICENSE,
         "attribution": USDA_ATTRIBUTION,
-        "expectedNutritionBasis": (
-            "usdaCalculated" if calculated else "creatorStated"
-        ),
+        "expectedNutritionBasis": ("usdaCalculated" if calculated else "creatorStated"),
         "evidence": {
             "title": title,
             "description": "Official USDA standardized recipe.",
@@ -301,9 +296,7 @@ def _nhlbi_cases(path: Path) -> list[dict[str, object]]:
             cook = timing.group(2)
         number = len(cases) + 1
         nutrition_values = {
-            key: value.group(1)
-            for key, value in nutrients.items()
-            if value
+            key: value.group(1) for key, value in nutrients.items() if value
         }
         cases.append(
             {

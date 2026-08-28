@@ -212,10 +212,7 @@ class USDAClient:
             expected_unit = "kcal" if nutrient_id in _ENERGY_IDS else "g"
             if nutrient_id not in {*_ENERGY_IDS, *_MACRO_IDS.values()}:
                 continue
-            if (
-                str(nutrient.get("unitName", "")).casefold()
-                != expected_unit.casefold()
-            ):
+            if str(nutrient.get("unitName", "")).casefold() != expected_unit.casefold():
                 return None
             amount = _decimal(row.get("amount"))
             if amount is not None and amount >= 0:

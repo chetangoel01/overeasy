@@ -196,9 +196,7 @@ def test_recording_verification_client_captures_and_resets_usage() -> None:
         def propose_patches(self, **_kwargs) -> StructuredVerificationResponse:
             return response
 
-    recorder = eval_extraction.RecordingVerificationClient(
-        StubVerificationClient()
-    )
+    recorder = eval_extraction.RecordingVerificationClient(StubVerificationClient())
 
     assert recorder.usage == eval_extraction.VerificationUsage()
     returned = recorder.propose_patches(
@@ -233,9 +231,7 @@ def test_recording_verification_client_marks_missing_cost_incomplete() -> None:
         def propose_patches(self, **_kwargs) -> StructuredVerificationResponse:
             return response
 
-    recorder = eval_extraction.RecordingVerificationClient(
-        StubVerificationClient()
-    )
+    recorder = eval_extraction.RecordingVerificationClient(StubVerificationClient())
 
     recorder.propose_patches(
         model="candidate-model",
@@ -253,9 +249,7 @@ def test_recording_verification_client_marks_failed_call_incomplete() -> None:
         def propose_patches(self, **_kwargs) -> StructuredVerificationResponse:
             raise VerificationUnavailable("provider failed")
 
-    recorder = eval_extraction.RecordingVerificationClient(
-        FailingVerificationClient()
-    )
+    recorder = eval_extraction.RecordingVerificationClient(FailingVerificationClient())
 
     try:
         recorder.propose_patches(
@@ -286,9 +280,7 @@ def test_pipeline_resets_verification_usage_before_each_case() -> None:
         def propose_patches(self, **_kwargs) -> StructuredVerificationResponse:
             return verification_response
 
-    recorder = eval_extraction.RecordingVerificationClient(
-        StubVerificationClient()
-    )
+    recorder = eval_extraction.RecordingVerificationClient(StubVerificationClient())
     recorder.propose_patches(
         model="candidate-model",
         max_tokens=100,

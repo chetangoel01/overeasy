@@ -91,8 +91,7 @@ def test_provider_cost_migration_upgrades_and_downgrades(
     command.downgrade(config, "0012")
     engine = create_engine(clean_postgres_url)
     names = {
-        value["name"]
-        for value in inspect(engine).get_columns("provider_attempts")
+        value["name"] for value in inspect(engine).get_columns("provider_attempts")
     }
     assert "cost_usd" not in names
     engine.dispose()
@@ -400,9 +399,7 @@ def test_identity_uniqueness_migration_dedupes_and_enforces_one_per_user(
 
     with engine.connect() as connection:
         apple_subs = set(
-            connection.execute(
-                text("SELECT apple_sub FROM apple_identities")
-            ).scalars()
+            connection.execute(text("SELECT apple_sub FROM apple_identities")).scalars()
         )
         google_subs = set(
             connection.execute(

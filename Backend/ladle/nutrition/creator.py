@@ -118,21 +118,13 @@ def _yield(evidence: tuple[str, ...]) -> Decimal | None:
 
 def _panel_values(block: str) -> tuple[Decimal, Decimal, Decimal, Decimal] | None:
     calories = _preferred_decimal(
-        (
-            rf"\bcalories?\s*:?\s*(?P<value>{_NUMBER})\b",
-        ),
-        (
-            rf"(?P<value>{_NUMBER})\s*(?:kcal|calories?)\b",
-        ),
+        (rf"\bcalories?\s*:?\s*(?P<value>{_NUMBER})\b",),
+        (rf"(?P<value>{_NUMBER})\s*(?:kcal|calories?)\b",),
         block,
     )
     protein = _preferred_decimal(
-        (
-            rf"\bprotein\s*:?\s*(?P<value>{_NUMBER})\s*(?:g|grams?)\b",
-        ),
-        (
-            rf"(?P<value>{_NUMBER})\s*(?:g|grams?)\s+(?:of\s+)?protein\b",
-        ),
+        (rf"\bprotein\s*:?\s*(?P<value>{_NUMBER})\s*(?:g|grams?)\b",),
+        (rf"(?P<value>{_NUMBER})\s*(?:g|grams?)\s+(?:of\s+)?protein\b",),
         block,
     )
     carbohydrate = _preferred_decimal(
@@ -256,11 +248,7 @@ def _minutes(value: str) -> int | None:
         re.IGNORECASE,
     )
     hours = _decimal(hours_match.group("value")) if hours_match else Decimal(0)
-    minutes = (
-        _decimal(minutes_match.group("value"))
-        if minutes_match
-        else Decimal(0)
-    )
+    minutes = _decimal(minutes_match.group("value")) if minutes_match else Decimal(0)
     if hours is None or minutes is None:
         return None
     total = hours * 60 + minutes
@@ -289,9 +277,7 @@ def _times(evidence: tuple[str, ...]) -> dict[str, int]:
                 if (value := _minutes(match.group("duration"))) is not None:
                     found[field].add(value)
     return {
-        field: next(iter(values))
-        for field, values in found.items()
-        if len(values) == 1
+        field: next(iter(values)) for field, values in found.items() if len(values) == 1
     }
 
 
@@ -343,9 +329,6 @@ def apply_creator_facts(
         if value.field not in resolved_uncertainties
     ]
     updates["uncertainties"] = uncertainties
-    if (
-        template.review_status == RecipeReviewStatus.NEEDS_REVIEW
-        and not uncertainties
-    ):
+    if template.review_status == RecipeReviewStatus.NEEDS_REVIEW and not uncertainties:
         updates["review_status"] = RecipeReviewStatus.READY
     return template.model_copy(update=updates)

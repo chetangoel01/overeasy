@@ -149,9 +149,7 @@ class OpenRouterStructuredClient:
                 ) from error
             if response.status_code != 429 or attempt == 3:
                 break
-            self._sleep(
-                _retry_after_seconds(response, default=2 ** (attempt + 1))
-            )
+            self._sleep(_retry_after_seconds(response, default=2 ** (attempt + 1)))
         if response.status_code >= 400:
             raise ExtractionUnavailable(
                 f"OpenRouter extraction failed with HTTP {response.status_code}"

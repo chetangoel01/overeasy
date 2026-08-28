@@ -137,9 +137,7 @@ def test_sync_page_statement_count_does_not_grow_with_the_page(
     page fanned out to ~900 sequential queries on one pooled connection."""
     command.upgrade(alembic_config(clean_postgres_url), "head")
     engine = build_engine(clean_postgres_url)
-    recipes = RecipeService(
-        clock=FrozenClock(datetime(2026, 7, 23, 21, 0, tzinfo=UTC))
-    )
+    recipes = RecipeService(clock=FrozenClock(datetime(2026, 7, 23, 21, 0, tzinfo=UTC)))
     sync = RecipeSyncService()
 
     with Session(engine) as database, database.begin():
@@ -188,9 +186,7 @@ def test_all_tombstone_page_needs_no_per_recipe_queries(
     and it must never touch the recipe child tables."""
     command.upgrade(alembic_config(clean_postgres_url), "head")
     engine = build_engine(clean_postgres_url)
-    recipes = RecipeService(
-        clock=FrozenClock(datetime(2026, 7, 23, 21, 0, tzinfo=UTC))
-    )
+    recipes = RecipeService(clock=FrozenClock(datetime(2026, 7, 23, 21, 0, tzinfo=UTC)))
     sync = RecipeSyncService()
 
     with Session(engine) as database, database.begin():
@@ -311,12 +307,8 @@ def test_batched_page_matches_single_recipe_reads(
 
     with Session(engine) as database:
         page = sync.page(database, user_id=user_id, cursor=0, limit=10)
-        expected_full = recipes.get(
-            database, user_id=user_id, recipe_id=full_id
-        )
-        expected_bare = recipes.get(
-            database, user_id=user_id, recipe_id=bare_id
-        )
+        expected_full = recipes.get(database, user_id=user_id, recipe_id=full_id)
+        expected_bare = recipes.get(database, user_id=user_id, recipe_id=bare_id)
     engine.dispose()
 
     full, bare, doomed_upsert, doomed_delete = page.changes

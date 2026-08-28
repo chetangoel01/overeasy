@@ -293,9 +293,7 @@ def _nutrition_service(
     if calculator is None or not settings.nutrition_normalization_enabled:
         return None
     if settings.openrouter_api_key is None:
-        raise RuntimeError(
-            "nutrition normalization requires an OpenRouter API key"
-        )
+        raise RuntimeError("nutrition normalization requires an OpenRouter API key")
     normalizer = RecipeNutritionNormalizer(
         client=OpenRouterNutritionNormalizationClient(
             http=httpx.Client(
