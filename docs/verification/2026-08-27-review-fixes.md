@@ -6,8 +6,9 @@
 
 **Started:** August 27, 2026
 
-**Status:** paused — 13 of the 45 findings closed (32 open), plus one
-defect the review had not found
+**Status:** complete — all 45 findings closed, plus 11 defects the review
+had not found (3 surfaced while fixing, 8 by the final sweep over the
+combined diff)
 
 ## Purpose
 
@@ -42,7 +43,7 @@ by the code they touch.
 | #30 + #31 + #32 | Import-cancellation cluster | `814ba45` | fixed |
 | #28 | Delete during first upload came back | `d2ce167` | fixed |
 | #27 | Remote delete mislabeled as a remote edit | `2969c5a` | fixed |
-| #26 | Scrolling a focus-mode step changed the step | — | fixed |
+| #26 | Scrolling a focus-mode step changed the step | `6b2a685` | fixed |
 | #12 | Malformed caption URL killed the whole import | `44b7b10` + `08a010b` | fixed |
 | #13 | Hostile HTML pinned the worker for half an hour | `356aa66` + `65c7032` + `28b2657` | fixed |
 | #11 | Reversed Whisper timings killed the transcription | `b590bb2` | fixed |
@@ -2013,6 +2014,14 @@ uv run mypy --strict ladle                            -> clean
 ```
 
 ## Finding #13 — rework: the quadratic scan survived the first fix
+
+> **Superseded.** This section records the second of three attempts. Its fix
+> (`65c7032`) removed the quadratic blow-up but introduced a `KeyError` crash
+> on two Unicode codepoints, and the differential test described below —
+> `test_scanner_matches_the_regex_loop_on_3000_randomized_soups` — no longer
+> exists: its oracle was a copy of the buggy loop, so it could not detect that
+> crash. The standing fix is `28b2657`; see "Finding #13 — second rework"
+> below for the final state.
 
 ### The defect
 
@@ -4008,43 +4017,47 @@ uv run pytest -q -m "not live_provider and not chaos"
   -> 797 passed, 5 deselected (was 796; the derived-head guard is the +1)
 ```
 
-## Where this run stopped, and where the next one starts
+## Outcome
 
-Every HIGH finding (#1–#10) is closed, plus MEDIUM #20, #21 and #24 — 13 of
-the 45 — along with one defect the review had not found. 32 findings remain,
-all MEDIUM or LOW.
+All 45 review findings are closed, together with 11 defects the review had
+not found: 3 surfaced while writing the failing test for a neighbouring
+finding, and 8 by a final adversarial sweep over the combined diff.
 
-### Not attempted, and why
+Three findings needed more than one attempt, and each failure is recorded in
+its own section above rather than being rewritten away:
 
-- **#25 (GuestLimitView's fake account creation)** needs a product decision,
-  not a fix. The sheet's "Create a free account" button only flips local
-  `AccountState` to `.freeAccount`; whether that should call a real
-  registration depends on whether real account creation exists yet, which is
-  a question for the user rather than a guess to make here. Left untouched.
-- **#30/#31/#32 (ImportCoordinator cancellation)** are the natural next
-  group, and #24 already laid a seam for them:
-  `RemoteContractError.importCancelled` is thrown but nothing catches it yet,
-  so a cancelled job currently surfaces as a generic import failure. That
-  cluster should decide how a cancelled job presents and catch it there.
-- **#28 (hard delete without a tombstone)** is referenced by a comment in
-  `markUpsertSynced`'s row-is-gone branch; that branch is deliberately a
-  no-op until #28 provides the server-side delete.
+- **#13** took three. The first fix left the hang reachable; the second removed
+  it but crashed on `<ıframe>`/`<İframe>`; the third holds. Its differential
+  test now checks against the original pre-fix implementation, because the
+  second attempt's oracle was a copy of the buggy loop and could not detect
+  its own defect.
+- **#44** took two. The first closed six call sites and missed a seventh, where
+  a Discover preview is pushed into the recipe detail screen.
+- **The sign-out writer** (final sweep) took three. Draining the in-flight
+  tasks was not enough; a suspended resume driver could start a fresh writer
+  during the next suspension point, so the coordinator is now latched as well
+  as drained.
 
-### Suggested order for the next session
+That pattern is the run's main lesson: a fix verified against the path its
+finding described can still leave the same bad state reachable from a
+lifecycle entry point nobody enumerated. Every fix here was checked by a
+refute-by-default verifier that had to reproduce the failure against the
+changed code, and those verifiers rejected five fixes that shipped green
+tests.
 
-1. #30/#31/#32 together, catching `importCancelled` as part of it.
-2. #27 and #28, which sit in the same `applySyncPage`/`deleteRecipe` code as
-   this run's #7, #9 and the tombstone fix — that context is fresh in the
-   commits above.
-3. #11–#19, #22, #23 (backend MEDIUM), which are independent of each other.
+### Deliberately not done
 
-### Known repository-level issue, untouched
-
-`uv run ruff format --check .` reports 35 files that would be reformatted
-under the locked ruff 0.16.0, all of them already drifted on `main`. Every
-hunk this branch adds or modifies is formatted per that version, but two of
-the 35 are files this branch also touches — `ladle/recipes/template_clone.py`
-and `tests/integration/test_migrations.py` — whose drift sits in hunks this
-branch did not change, so those files still fail the whole-file check.
-Reformatting all 35 is a large mechanical diff that would bury this branch's
-changes, so it is left for a separate commit.
+- **Repo-wide ruff formatting.** `uv run ruff format --check .` reports 35
+  files that would be reformatted under the locked ruff 0.16.0, all already
+  drifted on `main`. Every hunk this branch adds or modifies is formatted per
+  that version, but two of the 35 are files this branch also touches —
+  `ladle/recipes/template_clone.py` and `tests/integration/test_migrations.py`
+  — whose drift sits in hunks this branch did not change, so those files still
+  fail the whole-file check. Reformatting all 35 is a large mechanical diff
+  that would bury this branch's changes, and belongs in its own commit.
+- **Residuals recorded in place.** Several sections close by naming a related
+  weakness left open with its reasoning — a sibling writer in the Discover
+  save path, a crash-consistency window between sign-out's persisted state
+  flip and the local wipe, and the share-extension queue's deliberate survival
+  of sign-out. They are adjacent to the findings fixed here but are separate
+  defects, and are written down rather than quietly folded in.
