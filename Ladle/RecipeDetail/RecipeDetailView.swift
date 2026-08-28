@@ -222,7 +222,18 @@ struct RecipeDetailView: View {
                 applyChangedRecipe(recipe)
             }
         }
-        .sheet(isPresented: $isReimportPresented) {
+        .sheet(
+            isPresented: $isReimportPresented,
+            onDismiss: {
+                // A swipe-down runs none of the sheet's own cleanup, so
+                // every dismissal funnels through the coordinator: a
+                // finished reimport left published here would wedge the
+                // Add Recipe sheet behind "Re-import in progress".
+                importCoordinator.releaseReimport(
+                    for: displayedRecipe.id
+                )
+            }
+        ) {
             ReimportSheet(
                 currentRecipe: displayedRecipe,
                 coordinator: importCoordinator

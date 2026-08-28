@@ -633,6 +633,24 @@ final class ImportCoordinator {
         }
     }
 
+    /// The reimport sheet for `recipeID` is gone — Close, or a swipe-down
+    /// that runs no view cleanup of its own. `finishRemoteCancellation`
+    /// and the failure paths deliberately keep `operation` so the sheet
+    /// can present the outcome; once the sheet is dismissed, an owned
+    /// reimport that is no longer running must not stay published, or it
+    /// wedges the Add Recipe sheet behind "Re-import in progress" with
+    /// nothing left to finish. A live import keeps its state (dismissal
+    /// is disabled, and reopening the sheet re-attaches to it); an
+    /// operation for another recipe or job is left alone. A pending
+    /// decision released here survives durably: `resumePendingReimport`
+    /// re-presents it the next time the sheet opens for that recipe.
+    func releaseReimport(for recipeID: UUID) {
+        guard ownsReimport(for: recipeID), !isImporting else {
+            return
+        }
+        reset()
+    }
+
     func prepareForNewImport() {
         guard operation?.isReimport == true,
               state.isReplacementDecision else {

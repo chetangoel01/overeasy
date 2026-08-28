@@ -292,9 +292,9 @@ struct ReimportSheet: View {
         if isDecisionPending {
             keepCurrent()
         } else {
-            if coordinator.ownsReimport(for: currentRecipe.id) {
-                coordinator.reset()
-            }
+            // The same release the presentation's onDismiss runs for a
+            // swipe-down, so the two dismissals cannot behave differently.
+            coordinator.releaseReimport(for: currentRecipe.id)
             dismiss()
         }
     }
