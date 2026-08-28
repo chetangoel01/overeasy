@@ -373,15 +373,13 @@ struct LibraryView: View {
     }
 
     private func openNotificationRecipeIfNeeded() {
-        guard let recipeID = notificationNavigation.recipeID,
-              let recipe = viewModel.recipes.first(
-                  where: { $0.id == recipeID }
-              ) else {
+        guard let recipe = notificationNavigation.claimRecipe(
+            in: viewModel
+        ) else {
             return
         }
         navigation.select(.recipes)
         showRecipe(recipe, statusText: "Imported recipe")
-        notificationNavigation.clear()
     }
 
     private func recipeDetail(
@@ -630,6 +628,31 @@ struct LibraryRecipeDestination: Hashable {
 enum LibraryRecipeAccess: Hashable {
     case saved
     case discover
+}
+
+extension NotificationNavigation {
+    /// Claims the recipe a tapped import-ready notification points at,
+    /// consuming the pending navigation on every path.
+    ///
+    /// An import job the coordinator does not own (a share-extension job
+    /// resumed in the background) saves its recipe durably and posts the
+    /// banner without touching the published import state, so the
+    /// in-memory library can be stale when the tap lands — reload once
+    /// before deciding the recipe is gone. And the claim must consume
+    /// `recipeID` even when no recipe matches: left set, a failed match
+    /// pins `.task(id:)` on an unchanged value and permanently swallows
+    /// every later tap for that recipe.
+    func claimRecipe(in library: LibraryViewModel) -> Recipe? {
+        guard let recipeID else { return nil }
+        defer { clear() }
+        if let recipe = library.recipes.first(
+            where: { $0.id == recipeID }
+        ) {
+            return recipe
+        }
+        library.load()
+        return library.recipes.first { $0.id == recipeID }
+    }
 }
 
 private extension View {
