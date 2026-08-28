@@ -66,7 +66,7 @@ by the code they touch.
 | #40 | Ended cooking sessions left uncancelable notifications | `fa097b2` | fixed |
 | #41 | Timer-finished haptic never fired on the full-recipe screen | `b7c714b` | fixed |
 | #43 | Foreground notifications silently suppressed | `8f8db48` | fixed |
-| #44 | Expired Discover thumbnails could never refresh | — | fixed |
+| #44 | Expired Discover thumbnails could never refresh | `a30e9db` | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -2947,6 +2947,25 @@ To see it on device: open Discover (or Watch's Discover feed), leave the
 app backgrounded past the 6-hour URL expiry, resume, and scroll to a card
 whose image was never cached. It now refreshes and renders instead of
 showing the broken-photo glyph.
+
+## Milestone verification — the six iOS LOW findings (#40–#45)
+
+After the last of the six fixes landed, the full iOS unit suite and the
+shared-domain package ran clean:
+
+```text
+xcodebuild test ... -only-testing:LadleTests
+  -> Executed 314 tests, with 1 test skipped and 0 failures (0 unexpected)
+     ** TEST SUCCEEDED **
+     (the skip is the pre-existing live App Attest device test, gated
+     behind OTHER_SWIFT_FLAGS=-DLADLE_LIVE_APP_ATTEST)
+
+swift test --package-path Packages/LadleCore
+  -> ✔ Test run with 47 tests in 9 suites passed
+```
+
+No backend files were touched by these six commits, so the backend gates
+did not need to re-run for them.
 
 ## Where this run stopped, and where the next one starts
 
