@@ -2967,6 +2967,159 @@ swift test --package-path Packages/LadleCore
 No backend files were touched by these six commits, so the backend gates
 did not need to re-run for them.
 
+## Finding #13 — second rework: the linear scan crashed on two Unicode codepoints
+
+### The defect
+
+Commit `65c7032` killed the quadratic for good — that part survives this
+rework untouched — but its opening-tag matcher and its close-table lookup
+disagreed about Unicode. `_SCRIPTISH_NAME` used plain `(?i)`, under which
+Python folds U+0131 (dotless i) and U+0130 (dotted capital I) into ASCII
+"i", so `<ıframe>` matched the opener. The matched name was then
+casefolded to pick a key out of `_SCRIPTISH_CLOSE` — but U+0131 casefolds
+to itself and U+0130 casefolds to "i" plus a combining dot, so the lookup
+raised `KeyError: 'ıframe'` (links.py:287). An exhaustive sweep over every
+Unicode codepoint confirmed U+0130 and U+0131 are the only two that match
+the opener under `(?i)` while casefolding away from the ASCII key; U+017F
+(long s) also matches but casefolds INTO the table, which is why it never
+crashed. All six substitutions crash: `<ıframe>`, `<İframe>`, `<scrıpt>`,
+`<scrİpt>`, `<noscrıpt>`, `<noscrİpt>`.
+
+Reachability is the same as the original finding: `fetch_text` →
+`_readable` → `_without_scriptish`, and `_fetch_all` catches only
+`(UnsafeURL, OSError, httpx.HTTPError)`, so the `KeyError` propagates and
+kills the import — eight bytes of hostile HTML achieving what the
+quadratic hang achieved in half an hour. The original pre-`356aa66` regex
+did not crash on any input; both reworked loops did. The regression was
+introduced by the fixes.
+
+The committed 3,000-case differential could not see it, structurally: its
+oracle was a verbatim copy of the `356aa66` loop, performing the identical
+dict lookup — on any U+0130/U+0131 input both sides raise the identical
+`KeyError` before the `==` ever runs. And the alphabet, which deliberately
+probed the Unicode-folding axis with U+017F, picked the one confusable
+that does not crash and included neither of the two that do. The same
+loop-copy oracle also blessed an ASCII divergence from the original that
+`65c7032`'s notes documented and pinned: on `<svg<script>evil()</script>`
+the original regex retried at every index, found the `<script>` block
+starting inside the unclosed candidate's junk, and stripped it — the
+shipped loops resumed after the ">" and let the script body leak into
+readable text.
+
+### The fix
+
+Three changes, one commit, because they are one invariant: what the
+opener can match, the close table must know.
+
+1. **ASCII-only matching.** `_SCRIPTISH_NAME` and `_SCRIPTISH_CLOSE` now
+   compile with `(?ai)`. HTML tag names are ASCII-case-insensitive, so
+   this is what a browser does: `<ıframe>` and `<ſcript>` are unknown
+   elements whose content renders as text. U+0130/U+0131 can no longer
+   match at all — the crash is removed at the matcher, not patched at the
+   lookup — and the fix does not depend on those two being the only bad
+   codepoints staying true across future Unicode revisions. One deliberate
+   behaviour change rides along: `<ſcript>x</ſcript>` was stripped by the
+   old Unicode fold and its content is now kept, matching what a reader of
+   the page sees.
+2. **Defensive lookup.** The dict access became `_SCRIPTISH_CLOSE.get`;
+   a name the opener matches but the table does not know degrades to
+   leaving the tag for `_without_tags` — the document gets a little worse,
+   the import survives. Unreachable today by construction; kept so the
+   next drift between matcher and table cannot be a crash either.
+3. **Engine-faithful resume.** A candidate that cannot complete is now
+   stepped past by one name (`scan = match.end()`) instead of past its
+   would-be ">", so a real block starting inside its junk is found and
+   stripped exactly as the original regex did — `evil()` no longer leaks.
+   Linearity survives: the ">" is found once and reused across the
+   candidates that share it (`next_gt`), the unclosed-name memo still
+   bounds failed close searches to one per name, and no quantifier ever
+   touches the body.
+
+The differential's oracle is now the pre-`356aa66` implementation itself,
+byte-for-byte (`git show 356aa66^:Backend/ladle/acquisition/free/links.py`),
+not a copy of any reworked loop. The alphabet gained U+0130 and U+0131
+open and close tokens alongside the existing U+017F. Because the original's
+own confusable behaviour was internally inconsistent — literals and
+backreferences fold through different tables, so `<scrİpt>x</script>` was
+stripped while `<ıframe>x</iframe>` was not — the oracle sees the three
+confusable codepoints masked as private-use characters (inert bytes,
+exactly how the ASCII scanner treats them) and the mask is inverted on the
+way out. It is an input transform only: on soups without those codepoints
+it is the identity and the comparison is against the original verbatim. A
+reintroduced fold or a reintroduced crash both fail the test.
+
+### Verification
+
+Red on `65c7032`'s code, all through the real `fetch_text` path with
+`Content-Type: text/html`:
+
+```text
+ladle/acquisition/free/links.py:201: in fetch_text
+    return _readable(body)
+ladle/acquisition/free/links.py:253: in _readable
+    stripped = _without_tags(_without_scriptish(raw))
+E           KeyError: 'ıframe'
+ladle/acquisition/free/links.py:287: KeyError
+  (all six variants: dotless-i/dotted-I x script/noscript/iframe)
+
+test_scanner_matches_the_original_regex_on_3000_randomized_soups
+E           KeyError: 'scri̇pt'          (the scanner side raises; the
+                                         original oracle returns)
+test_scriptish_open_inside_anothers_junk_is_still_stripped
+E       AssertionError: assert 'evil' not in 'evil() Whisk.'
+test_long_s_script_is_ordinary_text_not_a_script_block
+E       AssertionError: assert 'shown()' in 'Stir well.'
+test_a_matched_name_missing_its_close_entry_degrades_not_raises
+E           KeyError: 'video'
+10 failed, 1 passed
+```
+
+Beyond the committed 3,000-case differential, an out-of-band fuzz drove
+190,000 randomized soups (five token-level seeds of 20,000 plus three
+char-level seeds of 30,000, alphabets including all three confusables)
+through the fixed scanner: byte-identical to the masked original on every
+one. An exhaustive sweep substituting every Unicode codepoint into
+`<Xframe>y</Xframe>` raised nothing.
+
+The performance fix survives, re-measured on the fixed code with the
+finding's own payload shape through `_readable`:
+
+```text
+100 KB   0.72 ms
+200 KB   1.44 ms   (x2.00 per doubling)
+400 KB   2.91 ms   (x2.02 per doubling)
+2 MB    14.75 ms   (the response cap)
+```
+
+Adversarial shapes at the full 2 MB cap through `_without_scriptish`,
+with doubling ratios measured at 500 KB / 1 MB / 2 MB: 400,000 unclosed
+`<svg>` 154 ms (x1.97, x2.00), six names sharing one ">" per block —
+the shape that exercises the new `next_gt` cache and the memo together —
+107 ms (x2.00, x2.03), 111,111 closed `<script>` pairs 57 ms,
+closed-pair/prefix interleave 116 ms (up from 44 ms: the scan now visits
+the candidates inside junk that the leak skipped — still linear, still
+three orders of magnitude under the ceiling), one giant prefix whose only
+">" is the last byte 0.68 ms. The committed linearity assertions
+(100/200/400 KB ratio bound, per-name 200 KB ceilings, 2 MB cap ceiling)
+all pass unchanged, and a new committed test pins the shared-bracket
+shape under the 1 s ceiling.
+
+Atypical states: all six confusable names with each of U+0130 and U+0131,
+end to end (red then green); U+017F long-s open/close, end to end (still
+works — no crash, content now kept; red then green); a name that matches
+the opener but has no close entry at all (monkeypatched drift, red then
+green); confusable opens and closes in the differential alphabet; empty
+body, the 2 MB response cap body, at-cap-kept/one-over-refused, and
+entirely-valid HTML unchanged (existing tests, still green).
+
+```text
+uv run pytest -q tests/unit/acquisition/test_free_links.py  -> 59 passed in 0.44s
+uv run pytest -q -m "not live_provider and not chaos"       -> 796 passed, 5 deselected
+uv run ruff check ladle tests alembic                       -> All checks passed
+uv run ruff format --check <the two touched files>          -> 2 files already formatted
+uv run mypy --strict ladle                                  -> Success: no issues found in 121 source files
+```
+
 ## Where this run stopped, and where the next one starts
 
 Every HIGH finding (#1–#10) is closed, plus MEDIUM #20, #21 and #24 — 13 of

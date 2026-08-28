@@ -344,35 +344,36 @@ def test_scriptish_soup_at_the_full_response_cap_is_processed_quickly() -> None:
     assert text == body[: links._MAX_DOCUMENT_CHARACTERS]
 
 
-def test_scanner_matches_the_regex_loop_on_3000_randomized_soups() -> None:
-    # The reference is the loop this fix replaced: the same algorithm with the
-    # opening tag matched by the old quadratic regex. Byte-identical output
-    # proves the rewrite changed speed, not meaning. Inputs stay small here,
-    # so the reference's quadratic worst case stays microseconds — never lift
-    # it out of this test.
-    reference_open = re.compile(rf"(?i)<({'|'.join(links._SCRIPTISH_NAMES)})[^>]*>")
+def test_scanner_matches_the_original_regex_on_3000_randomized_soups() -> None:
+    # The oracle is the pre-356aa66 implementation itself -- the lazy
+    # backreference regex both reworks replaced, byte-for-byte from
+    # `git show 356aa66^:Backend/ladle/acquisition/free/links.py` -- NOT a
+    # copy of either reworked loop. The previous oracle was such a copy: it
+    # performed the same close-table lookup and raised the same KeyError on
+    # U+0131/U+0130 tag names, so on exactly the inputs that crashed, the
+    # comparison never ran. An oracle that shares a bug cannot detect it.
+    # Inputs stay small here, so the oracle's quadratic worst case stays
+    # microseconds -- never lift it out of this test.
+    original = re.compile(
+        r"(?is)<(script|style|noscript|svg|iframe|head)[^>]*>.*?</\1>",
+    )
 
-    def reference(raw: str) -> str:
-        parts: list[str] = []
-        position = 0
-        unclosed: set[str] = set()
-        while match := reference_open.search(raw, position):
-            name = match.group(1).casefold()
-            closing = (
-                None
-                if name in unclosed
-                else links._SCRIPTISH_CLOSE[name].search(raw, match.end())
-            )
-            if closing is None:
-                unclosed.add(name)
-                parts.append(raw[position : match.end()])
-                position = match.end()
-                continue
-            parts.append(raw[position : match.start()])
-            parts.append(" ")
-            position = closing.end()
-        parts.append(raw[position:])
-        return "".join(parts)
+    # One deliberate, documented divergence: HTML tag names are
+    # ASCII-case-insensitive, and the scanner now matches them ASCII-only,
+    # while the original's Unicode (?i) folded U+0130/U+0131/U+017F into
+    # ASCII "i"/"s" -- and only half-way, because literals and backreferences
+    # fold through different tables: <scr{U+0130}pt>x</script> was stripped,
+    # <{U+0131}frame>x</iframe> was not. The scanner now treats all three
+    # codepoints as ordinary text, the way a browser does. The oracle sees
+    # them masked as private-use characters -- inert bytes, exactly how the
+    # ASCII scanner treats them -- and the mask is inverted on the way out.
+    # The mask is an input transform only: on soups without the three
+    # codepoints it is the identity and the comparison is against the
+    # original verbatim. A reintroduced Unicode fold strips what the masked
+    # oracle keeps, and a reintroduced KeyError raises out of the left-hand
+    # side; either fails this test.
+    mask = str.maketrans({0x130: "\ue000", 0x131: "\ue001", 0x17F: "\ue002"})
+    unmask = str.maketrans({0xE000: "\u0130", 0xE001: "\u0131", 0xE002: "\u017f"})
 
     tokens = [
         "<svg",
@@ -383,8 +384,20 @@ def test_scanner_matches_the_regex_loop_on_3000_randomized_soups() -> None:
         "</script>",
         "<SCRIPT type=module>",
         "</SCRIPT>",
-        # U+017F LONG S matches "s" under (?i); both sides must agree.
+        # U+017F LONG S folds to "s" under Unicode (?i) and also casefolds
+        # to "s". U+0131 DOTLESS I and U+0130 DOTTED CAPITAL I fold to "i"
+        # but casefold AWAY from it -- the only two codepoints in Unicode
+        # that do, and the KeyError of the second rework.
         "<\u017fcript>",
+        "</\u017fcript>",
+        "<\u0131frame>",
+        "</\u0131frame>",
+        "<\u0130frame>",
+        "</\u0130frame>",
+        "<scr\u0131pt>",
+        "</scr\u0131pt>",
+        "<scr\u0130pt>",
+        "<noscr\u0130pt>",
         "<style>",
         "</style",
         "<noscript>",
@@ -409,7 +422,89 @@ def test_scanner_matches_the_regex_loop_on_3000_randomized_soups() -> None:
     rng = random.Random(0)
     for _ in range(3_000):
         soup = "".join(rng.choice(tokens) for _ in range(rng.randrange(0, 40)))
-        assert links._without_scriptish(soup) == reference(soup)
+        expected = original.sub(" ", soup.translate(mask)).translate(unmask)
+        assert links._without_scriptish(soup) == expected
+
+
+@pytest.mark.parametrize("name", ["script", "noscript", "iframe"])
+@pytest.mark.parametrize("dot", ["\u0131", "\u0130"], ids=["dotless-i", "dotted-I"])
+def test_turkish_i_tag_names_cannot_crash_the_fetch(name: str, dot: str) -> None:
+    # U+0131 and U+0130 match ASCII "i" under Python's Unicode (?i) but
+    # casefold away from it (U+0131 to itself, U+0130 to "i" plus a
+    # combining dot), so the opener matched while the casefolded name
+    # missed every close-table key: _without_scriptish raised KeyError, and
+    # _fetch_all catches only (UnsafeURL, OSError, httpx.HTTPError), so one
+    # hostile page killed the whole import. HTML tag names are
+    # ASCII-case-insensitive, so these are not scriptish tags at all: a
+    # browser renders their content, and now so does the scanner.
+    tag = name.replace("i", dot, 1)
+    fetcher = fetcher_returning(f"<p>Add 2 cups orzo</p><{tag}>between</{tag}>")
+
+    text = fetcher.fetch_text("https://example.com/recipe")
+
+    assert "Add 2 cups orzo" in text
+    assert "between" in text
+
+
+def test_long_s_script_is_ordinary_text_not_a_script_block() -> None:
+    # U+017F LONG S folds to "s" under Unicode (?i) and casefolds to "s",
+    # so it never crashed -- but a browser does not treat <(U+017F)cript>
+    # as a script tag either (HTML tag names are ASCII-case-insensitive):
+    # it renders the content. The ASCII-only matcher now agrees with the
+    # browser instead of hiding text a reader would see.
+    fetcher = fetcher_returning("<p>Stir well.</p><\u017fcript>shown()</\u017fcript>")
+
+    text = fetcher.fetch_text("https://example.com/recipe")
+
+    assert "Stir well." in text
+    assert "shown()" in text
+
+
+def test_scriptish_open_inside_anothers_junk_is_still_stripped() -> None:
+    # "<svg" never completes here -- its ">" belongs to the <script> tag --
+    # but the original regex retried at every index, found the <script>
+    # block starting inside the junk, and stripped it. The reworked loops
+    # resumed after the ">" and let the script body leak into readable
+    # text. The scan now steps past an incomplete candidate by one name,
+    # exactly like the regex engine.
+    fetcher = fetcher_returning("<svg<script>evil()</script><p>Whisk.</p>")
+
+    text = fetcher.fetch_text("https://example.com/recipe")
+
+    assert "evil" not in text
+    assert "Whisk." in text
+
+
+def test_a_matched_name_missing_its_close_entry_degrades_not_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Belt and braces for the invariant the crash violated: nothing the
+    # opener matches may ever miss the close table. If the two drift again,
+    # the tag is left for _without_tags like any unclosed tag -- degrade
+    # the document, never kill the import.
+    monkeypatch.setattr(links, "_SCRIPTISH_NAME", re.compile(r"(?ai)<(video|script)"))
+
+    stripped = links._without_scriptish("<video>v()</video><script>s()</script>")
+
+    assert stripped == "<video>v()</video> "
+
+
+def test_many_candidates_sharing_one_distant_bracket_stay_linear() -> None:
+    # All six names open back to back and share the single ">" that ends
+    # the block, so the scan revisits candidates inside earlier candidates'
+    # junk. The shared ">" must be found once per block, not once per
+    # candidate, and each name's failed close search must run once in
+    # total.
+    block = "<svg<iframe<script<style<noscript<head>"
+    soup = block * (200_000 // len(block))
+    fetcher = fetcher_returning(soup)
+
+    started = time.perf_counter()
+    text = fetcher.fetch_text("https://example.com/recipe")
+    elapsed = time.perf_counter() - started
+
+    assert elapsed < 1.0, f"shared-bracket soup took {elapsed:.2f}s"
+    assert text == ""
 
 
 def test_readable_keeps_text_after_an_unclosed_script() -> None:

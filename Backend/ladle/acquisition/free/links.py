@@ -66,9 +66,13 @@ _PROMO_TAIL = re.compile(
 )
 _SCRIPTISH_NAMES = ("script", "style", "noscript", "svg", "iframe", "head")
 # Quantifier-free on purpose — the tag's "[^>]*>" part is str.find's job in
-# _without_scriptish, which explains why.
-_SCRIPTISH_NAME = re.compile(rf"(?i)<({'|'.join(_SCRIPTISH_NAMES)})")
-_SCRIPTISH_CLOSE = {name: re.compile(rf"(?i)</{name}>") for name in _SCRIPTISH_NAMES}
+# _without_scriptish, which explains why. ASCII-only case-insensitivity is
+# load-bearing too: HTML tag names fold ASCII-only, but Python's plain (?i)
+# also folds U+0131/U+0130 into "i", so "<(U+0131)frame>" matched the opener
+# while its casefolded name missed every _SCRIPTISH_CLOSE key — a KeyError
+# any hostile page could raise. Under (?ai) those bytes never match at all.
+_SCRIPTISH_NAME = re.compile(rf"(?ai)<({'|'.join(_SCRIPTISH_NAMES)})")
+_SCRIPTISH_CLOSE = {name: re.compile(rf"(?ai)</{name}>") for name in _SCRIPTISH_NAMES}
 _WHITESPACE = re.compile(r"\s+")
 _LOC = re.compile(r"<loc>([^<]+)</loc>")
 
@@ -272,31 +276,44 @@ def _without_scriptish(raw: str) -> str:
     ahead means no completable scriptish tag anywhere ahead, so the scan
     stops. A name with no close ahead is remembered, costing each of the
     six names at most one failed close search over the remainder.
+
+    The scan mirrors the original regex engine, which retried at every
+    index: a candidate that cannot complete is stepped past by one name,
+    not past its would-be ">", so a real block starting inside its junk
+    (`<svg<script>…`) is still found and stripped. Candidates sharing a
+    ">" reuse it through next_gt, keeping that re-scan linear. And a name
+    the opener matched but the close table does not know — the drift that
+    once made this function raise over attacker HTML — degrades to leaving
+    the tag alone rather than killing the import.
     """
     parts: list[str] = []
-    position = 0
+    emitted = 0
+    scan = 0
+    next_gt = -1
     unclosed: set[str] = set()
-    while match := _SCRIPTISH_NAME.search(raw, position):
-        open_end = raw.find(">", match.end())
-        if open_end == -1:
-            # No ">" ahead, so no scriptish tag can complete anywhere ahead.
-            break
-        open_end += 1
+    while match := _SCRIPTISH_NAME.search(raw, scan):
+        if next_gt < match.end():
+            next_gt = raw.find(">", match.end())
+            if next_gt == -1:
+                # No ">" ahead, so no scriptish tag can complete ahead.
+                break
         name = match.group(1).casefold()
+        close = _SCRIPTISH_CLOSE.get(name)
         closing = (
-            None if name in unclosed else _SCRIPTISH_CLOSE[name].search(raw, open_end)
+            None
+            if close is None or name in unclosed
+            else close.search(raw, next_gt + 1)
         )
         if closing is None:
-            # No close anywhere ahead. Leave the tag for _without_tags, the
-            # way the old regex left an unmatched opening tag alone.
-            unclosed.add(name)
-            parts.append(raw[position:open_end])
-            position = open_end
+            if close is not None:
+                unclosed.add(name)
+            scan = match.end()
             continue
-        parts.append(raw[position : match.start()])
+        parts.append(raw[emitted : match.start()])
         parts.append(" ")
-        position = closing.end()
-    parts.append(raw[position:])
+        emitted = closing.end()
+        scan = emitted
+    parts.append(raw[emitted:])
     return "".join(parts)
 
 
