@@ -69,6 +69,8 @@ by the code they touch.
 | #44 | Expired Discover thumbnails could never refresh | `a30e9db` + `20ff675` | fixed |
 | #29 | A save rejected for an off-screen field looked like a dead button | `8ec476a` | fixed |
 | (sweep) | In-flight import survived sign-out into the next account | `f8ee7c6` | fixed |
+| (sweep) | A recipe-ready banner tap landed dead, then poisoned itself | `01a8723` | fixed |
+| (sweep) | A swiped-away re-import sheet wedged Add Recipe | `16eb179` | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
@@ -3484,6 +3486,241 @@ means routing them through a runtime-held service first; when that
 happens, `sessionWriters` is where it registers. The window is a single
 tapped save racing sign-out — far narrower than an import poll's
 30-second sleeps — and is left for its own change.
+
+## Final sweep — a recipe-ready banner tap landed dead, then poisoned itself
+
+Found by the sweep over the combined diff: two verified fixes interact.
+#43 (`8f8db48`) made the "Recipe ready" banner appear while the app is
+foregrounded, and the #30–#32 ownership fix (`814ba45`) made a background
+job's completion deliberately silent — together they hand the user a
+banner whose tap does nothing, and whose second tap can never fire.
+
+### The defect
+
+Share several recipe links through the share extension and return to the
+app. `sceneBecameActive` reconciles them and `resumePendingImports`
+adopts only the first job as the owned operation; the later jobs run
+unowned, and by design of `814ba45` an unowned job's `apply()` saves its
+recipe durably and fires `notifyImportReady` without touching
+`coordinator.state`. So LibraryView's `refreshesLibrary` onChange never
+calls `viewModel.load()`, the trailing load in `sceneBecameActive` waits
+on the last resumed job (minutes away for a video import), and
+`didCompleteRemoteImport` starts a sync without reloading the view model
+either. The banner `8f8db48` now shows in the foreground is the user's
+only signal — and it pointed at a recipe the in-memory library did not
+contain.
+
+The tap flowed `didReceive` → `NotificationNavigation.recipeID` →
+LibraryView's `.task(id:)` → `openNotificationRecipeIfNeeded`, whose
+guard looked the recipe up in the stale `viewModel.recipes` and returned
+silently on a miss — without running `notificationNavigation.clear()`.
+The first tap did nothing. Worse, because the recipe ID stayed set,
+tapping the same banner again from Notification Center assigned the same
+UUID, `.task(id:)` saw no change and never re-fired: that recipe's
+notification navigation was dead for the rest of the session, even after
+the library later reloaded.
+
+### The fix
+
+The view's inline lookup became `NotificationNavigation.claimRecipe(in:)`
+(in `LibraryView.swift`, beside the file's other extracted view logic),
+which resolves the tap against the library and consumes the pending
+navigation on every path. Recipe in memory → open it, no reload. Not in
+memory → reload once — the unowned job's save is durable, so a stale
+library finds it, and a cold tap before the first load loads it — and
+open it if it appears. And the claim clears `recipeID` even when no
+recipe matches (deleted recipe, failing store), so the mailbox can accept
+the same recipe ID afresh and the next tap re-fires `.task(id:)` instead
+of landing on a poisoned value.
+
+Deliberately unchanged: the general staleness of the library while
+unowned jobs finish is a design consequence of `814ba45`'s silent
+background completion, and the claim's reload makes the tap
+self-sufficient regardless of what produced the staleness; `.task(id:)`'s
+idle pre-load also stays, since it serves the ordinary first appearance.
+
+### Verification
+
+Seam first, in the branch's established style: `claimRecipe(in:)` landed
+carrying the shipping logic verbatim (in-memory lookup, clear only on
+success) with the view rewired through it. Against that seam the
+pre-existing suites passed unchanged while the new composed tests — the
+real `NotificationNavigation` driving the real `LibraryViewModel` —
+printed both halves of the defect:
+
+```text
+NotificationServiceTests.swift:137: error: ...
+  testBannerTapForABackgroundImportReloadsTheStaleLibraryAndOpensIt] :
+  XCTAssertEqual failed: ("nil") is not equal to
+  ("Optional(7A0C21D4-93BE-4A5D-8F0E-2B85F8C4A11B)") - A tapped banner
+  must open the recipe even when the loaded library predates the
+  background import
+NotificationServiceTests.swift:143: ... XCTAssertNil failed:
+  "7A0C21D4-93BE-4A5D-8F0E-2B85F8C4A11B" - A handled tap must consume
+  the pending navigation
+NotificationServiceTests.swift:160: ... XCTAssertNil failed:
+  "7A0C21D4-93BE-4A5D-8F0E-2B85F8C4A11B" - A failed match must not leave
+  the navigation pinned to the same recipe ID — .task(id:) would never
+  re-fire and every later tap for that recipe would land dead
+NotificationServiceTests.swift:213: ... XCTAssertEqual failed: ("nil")
+  is not equal to ("Optional(D3798F1B-5670-451D-B7F3-9FC78A85619D)") -
+  A tap that arrives before the first load must load the library rather
+  than land dead
+-> Executed 11 tests, with 7 failures (0 unexpected) in 0.182 seconds
+```
+
+The five composed tests cover the atypical states: an unowned job's
+banner against a stale library (reload and open), an owned job's banner
+with the recipe already loaded (opens with no reload, pinned by the
+repository's fetch count), a tap before the first library load, a tap
+for a recipe that no longer exists (consumed — and its tail taps the
+same banner again after the import lands, which must fire and open), and
+a reload that fails mid-claim (consumed, no poison). Offline needs no
+case of its own — `load()` is a local fetch. A banner tapped for a
+recipe already on screen re-navigates through the same
+`select(.recipes)` + push the previous behavior used. A sixth test pins
+the wiring so LibraryView cannot quietly go back to the bare in-memory
+lookup. After the claim gained the reload and the unconditional consume:
+
+```text
+xcodebuild test ... -only-testing:LadleTests/NotificationServiceTests
+  -> Executed 11 tests, with 0 failures (0 unexpected) in 0.026 seconds
+
+xcodebuild test ... -only-testing:LadleTests
+  -> Executed 328 tests, with 1 test skipped and 0 failures (0 unexpected)
+     ** TEST SUCCEEDED **
+```
+
+No backend or LadleCore files were touched, so those gates did not need
+to re-run.
+
+To see it on device: share three video links to Overeasy, open the app,
+and tap the "Recipe ready" banner of a job other than the first while
+the rest are still processing. The recipe opens; before this fix the tap
+did nothing and that banner never worked again.
+
+## Final sweep — a swiped-away re-import sheet wedged Add Recipe
+
+Found by the sweep over the combined diff: `814ba45` gave a
+remotely-cancelled job a presentable outcome — `finishRemoteCancellation`
+deletes the durable row and sets `.cancelled` while deliberately keeping
+`operation` so the sheet can show it (its own test pins `operation` as
+non-nil there, which is why the release cannot live inside
+`finishRemoteCancellation`) — but only one of the ReimportSheet's two
+dismissal gestures ever released that operation.
+
+### The defect
+
+Start a re-import of recipe R and let the job be cancelled elsewhere
+(another session's cancel, or an idempotent resubmission matching an
+already-cancelled job): the status poll throws
+`RemoteContractError.importCancelled` and the coordinator lands in
+`.cancelled` with `operation = .reimport(jobID, R)`. In that state
+neither `isOwnedImporting` nor `isDecisionPending` holds, so interactive
+dismissal is enabled — and a swipe-down, unlike the Close button's
+`coordinator.reset()`, ran no cleanup at all: the `.sheet` presentation
+in `RecipeDetailView` had no `onDismiss`.
+
+The coordinator was then wedged. AddRecipeSheet's body short-circuits on
+`operation?.isReimport == true` into "Re-import in progress — finish
+reviewing that replacement before adding another recipe"; its `onAppear`
+cannot recover (`prepareForNewImport` requires a replacement decision,
+which `.cancelled` is not, and the reset branch requires
+`operation == nil`); and `submit()` silently refuses. Because the
+cancelled job's durable row was already deleted there was no Inbox
+escape either — the only ways out were re-opening Re-import on exactly
+recipe R and tapping Close, or relaunching the app. A swiped-away failed
+re-import leaked the same way; it at least left an Inbox row with
+recovery actions, but Add Recipe stayed wedged until one was used.
+
+### The fix
+
+Structural, not a `.cancelled` special case: every dismissal of the
+sheet funnels through the new `ImportCoordinator.releaseReimport(for:)`.
+The presentation in `RecipeDetailView` gained an `onDismiss` that calls
+it — covering the swipe-down, which runs no view code of its own — and
+the Close button routes through the same method, so the two dismissals
+cannot behave differently and no terminal state, current or future, can
+leak past a dismissal (the same swipe from `.failed` or
+`.persistenceFailed` is covered by construction).
+
+The release is guarded to what a dismissal may touch: only an owned
+reimport for the presented recipe — the "Another import is active"
+sheet's dismissal must not clobber an operation it was not presenting —
+and never while importing, since dismissal is disabled during an owned
+import and a presentation torn down some other way must leave the live
+operation for the sheet to re-attach to. A pending decision released on
+teardown strands nothing: the durable row re-presents it through
+`resumePendingReimport` the next time the sheet opens, while Close keeps
+resolving it explicitly through `keepCurrent` and swipe stays disabled
+until the decision is made.
+
+### Verification
+
+Seam first: `releaseReimport(for:)` landed with the shipping swipe
+behavior verbatim — an empty body, because a swipe ran nothing — wired
+to the presentation's new `onDismiss`, with Close untouched. Against
+that seam the pre-existing suites passed unchanged while the new tests
+reproduced the wedge end to end, `.cancelled` through refused submit:
+
+```text
+ImportCoordinatorTests.swift:848: error: ...
+  testDismissedCancelledReimportReleasesTheOperationForNewImports] :
+  XCTAssertNil failed: "reimport(jobID: FF4D976E-F810-492D-85D2-
+  5873D043F33C, currentRecipeID: 0A966029-78C7-41A0-B3D6-555DFFBDCAE3)"
+  - A dismissed cancelled reimport must release the coordinator
+ImportCoordinatorTests.swift:852: ... XCTAssertEqual failed:
+  ("cancelled(jobID: FF4D976E-F810-492D-85D2-5873D043F33C)") is not
+  equal to ("idle")
+ImportCoordinatorTests.swift:858: ... XCTAssertEqual failed:
+  ("cancelled(jobID: FF4D976E-F810-492D-85D2-5873D043F33C)") is not
+  equal to ("completed(recipeID:
+  0A6D5603-21EA-4C0B-9141-2E6D7A573EE5)") - Add Recipe must be usable
+  again after the sheet is gone
+ImportCoordinatorTests.swift:894: ...
+  testDismissedFailedReimportKeepsTheInboxRowAndFreesAddRecipe] :
+  XCTAssertEqual failed: ("failed(jobID: 6A2404A6-0ACD-428A-94FD-
+  0FECB95B90F1, reason: LadleCore.ImportFailure.parserUnavailable)") is
+  not equal to ("idle")
+-> Executed 40 tests, with 8 failures (0 unexpected) in 0.239 seconds
+```
+
+The dismissal states each have a test: `.cancelled` (release, then a new
+import runs to completion — the un-wedged Add Recipe), `.failed`
+(release frees Add Recipe while the durable row keeps its Inbox recovery
+actions), an owned import still running (release is a no-op; the live
+operation and its `.importing` state survive, exercised through a hung
+submit in the existing `TransportOnCancelSubmitImportService` style),
+another recipe's operation (untouched), and a pending decision released
+on teardown (recoverable via `resumePendingReimport` — swipe and Close
+both stay unavailable-or-resolving there, pinned by the sheet's
+`interactiveDismissDisabled` and the existing decision tests). A source
+pin holds the wiring: `RecipeDetailView`'s `onDismiss` and
+`ReimportSheet`'s Close both route through `releaseReimport`, so the two
+paths cannot drift apart again — that pin was itself red until Close was
+rerouted. After the release gained its body and Close was routed through
+it:
+
+```text
+xcodebuild test ... -only-testing:LadleTests/ImportCoordinatorTests
+  -only-testing:LadleTests/ReimportSafetyTests
+  -> Executed 51 tests, with 0 failures (0 unexpected) in 0.117 seconds
+
+xcodebuild test ... -only-testing:LadleTests
+  -> Executed 334 tests, with 1 test skipped and 0 failures (0 unexpected)
+     ** TEST SUCCEEDED **
+
+swift test --package-path Packages/LadleCore
+  -> ✔ Test run with 47 tests in 9 suites passed
+```
+
+No backend files were touched, so the backend gates did not need to
+re-run.
+
+To see it on device: start a re-import, cancel the job from another
+session (or resubmit one already cancelled), swipe the sheet down when
+"Re-import cancelled" appears, then tap Add Recipe. The form appears;
+before this fix it said "Re-import in progress" until app relaunch.
 
 ## Where this run stopped, and where the next one starts
 
