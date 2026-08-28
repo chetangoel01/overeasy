@@ -124,7 +124,11 @@ def _http_error(request: Request, error: HTTPException) -> JSONResponse:
     )
 
 
-def install_error_handlers(application: FastAPI) -> None:
+def install_error_handlers(
+    application: FastAPI,
+    *,
+    security_headers: Mapping[str, str],
+) -> None:
     @application.exception_handler(RateLimitExceeded)
     async def handle_rate_limit(
         request: Request,
@@ -169,10 +173,15 @@ def install_error_handlers(application: FastAPI) -> None:
                 "exception_type": type(error).__name__,
             },
         )
+        # This handler runs in Starlette's ServerErrorMiddleware, outside the
+        # whole user-middleware stack, so SecurityHeadersMiddleware never sees
+        # its response. Every other handler's response flows back through that
+        # middleware; only this one must carry the headers itself.
         return error_response(
             request,
             code=ErrorCode.INTERNAL_ERROR,
             message="An unexpected server error occurred.",
             retryable=True,
             http_status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            headers=security_headers,
         )

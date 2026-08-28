@@ -32,6 +32,11 @@ struct ReimportSheet: View {
         .interactiveDismissDisabled(
             isOwnedImporting || isDecisionPending
         )
+        // Registers this sheet with the coordinator so an adoption
+        // that races the presentation still sees it, and releases on
+        // every disappearance — the same seam Close and the
+        // presentation's onDismiss already run.
+        .reimportPresentation(coordinator, for: currentRecipe.id)
         .onAppear {
             if let operation = coordinator.operation,
                !operation.isReimport,
@@ -42,6 +47,10 @@ struct ReimportSheet: View {
                 coordinator.reset()
                 coordinator.resumePendingReimport(for: currentRecipe.id)
             }
+            // A resume-adopted reimport has no presentation until this
+            // sheet appears; attaching keeps its terminal outcome
+            // rendered here instead of self-releasing under the user.
+            coordinator.attachReimport(for: currentRecipe.id)
         }
     }
 
@@ -64,6 +73,8 @@ struct ReimportSheet: View {
                 decisionContent(requiresReview: true)
             case .failed:
                 failedContent
+            case .cancelled:
+                cancelledContent
             case .persistenceFailed:
                 persistenceFailureContent
             case .idle, .validationFailed, .duplicate, .guestLimit:
@@ -200,6 +211,17 @@ struct ReimportSheet: View {
         )
     }
 
+    private var cancelledContent: some View {
+        resultContent(
+            icon: "xmark.circle",
+            title: "Re-import cancelled",
+            message:
+                "This re-import was cancelled. Your current recipe is unchanged.",
+            buttonTitle: "Close",
+            action: close
+        )
+    }
+
     private func resultContent(
         icon: String,
         title: String,
@@ -279,9 +301,9 @@ struct ReimportSheet: View {
         if isDecisionPending {
             keepCurrent()
         } else {
-            if coordinator.ownsReimport(for: currentRecipe.id) {
-                coordinator.reset()
-            }
+            // The same release the presentation's onDismiss runs for a
+            // swipe-down, so the two dismissals cannot behave differently.
+            coordinator.releaseReimport(for: currentRecipe.id)
             dismiss()
         }
     }

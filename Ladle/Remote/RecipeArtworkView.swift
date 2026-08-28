@@ -47,11 +47,21 @@ enum RecipeArtworkLoadState: Equatable {
 struct RecipeArtworkView: View {
     @Environment(\.remoteImageCache) private var imageCache
 
-    let recipeID: UUID
+    let owner: RemoteImageOwner
     let image: RecipeImage?
 
     @State private var downloadedImage: UIImage?
     @State private var loadState = RecipeArtworkLoadState.placeholder
+
+    init(owner: RemoteImageOwner, image: RecipeImage?) {
+        self.owner = owner
+        self.image = image
+    }
+
+    /// Artwork owned by a recipe saved in the caller's own library.
+    init(recipeID: UUID, image: RecipeImage?) {
+        self.init(owner: .recipe(id: recipeID), image: image)
+    }
 
     var body: some View {
         Group {
@@ -84,7 +94,7 @@ struct RecipeArtworkView: View {
             loadState = .loading
             do {
                 let localURL = try await imageCache.localURL(
-                    recipeID: recipeID,
+                    owner: owner,
                     image: RemoteRecipeImageDTO(
                         id: image.id,
                         remoteURL: remoteURL

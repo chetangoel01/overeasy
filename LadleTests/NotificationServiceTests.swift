@@ -1,5 +1,6 @@
 import Foundation
 import LadleCore
+import UserNotifications
 import XCTest
 @testable import Ladle
 
@@ -90,6 +91,196 @@ final class NotificationServiceTests: XCTestCase {
         XCTAssertEqual(notifications.notifiedRecipeIDs, [recipe.id])
     }
 
+    func testForegroundDeliveryIsPresentedNotSilenced() {
+        // Import completion effectively always happens with the app
+        // active (there are no background modes), and iOS silences a
+        // delivery while foregrounded unless the delegate implements
+        // willPresent and returns presentation options.
+        XCTAssertTrue(
+            LadleAppDelegate().responds(
+                to: #selector(
+                    UNUserNotificationCenterDelegate
+                        .userNotificationCenter(
+                            _:
+                            willPresent:
+                            withCompletionHandler:
+                        )
+                )
+            ),
+            "Without willPresent, a notification posted while the app is"
+                + " foregrounded shows no banner while notifyImportReady"
+                + " still reports .scheduled"
+        )
+        XCTAssertEqual(
+            LadleAppDelegate.foregroundPresentationOptions,
+            [.banner, .list, .sound]
+        )
+    }
+
+    func testBannerTapForABackgroundImportReloadsTheStaleLibraryAndOpensIt() {
+        // Several links shared together resume as one owned operation
+        // plus unowned background jobs. An unowned job saves its recipe
+        // durably and posts the "Recipe ready" banner without touching
+        // the published import state, so nothing reloads the in-memory
+        // library before the tap lands.
+        let alreadyVisible = notificationRecipe()
+        let repository = NotificationTestRepository()
+        repository.recipes = [alreadyVisible]
+        let navigation = NotificationNavigation()
+        let library = makeLibrary(repository: repository)
+        library.load()
+
+        let imported = backgroundImportedRecipe()
+        repository.recipes.append(imported)
+        navigation.open(recipeID: imported.id)
+
+        XCTAssertEqual(
+            navigation.claimRecipe(in: library)?.id,
+            imported.id,
+            "A tapped banner must open the recipe even when the loaded"
+                + " library predates the background import"
+        )
+        XCTAssertNil(
+            navigation.recipeID,
+            "A handled tap must consume the pending navigation"
+        )
+    }
+
+    func testBannerTapForAMissingRecipeIsConsumedSoTheNextTapStillFires() {
+        let repository = NotificationTestRepository()
+        repository.recipes = [notificationRecipe()]
+        let navigation = NotificationNavigation()
+        let library = makeLibrary(repository: repository)
+        library.load()
+
+        let lateRecipe = backgroundImportedRecipe()
+        navigation.open(recipeID: lateRecipe.id)
+
+        XCTAssertNil(navigation.claimRecipe(in: library))
+        XCTAssertNil(
+            navigation.recipeID,
+            "A failed match must not leave the navigation pinned to the"
+                + " same recipe ID — .task(id:) would never re-fire and"
+                + " every later tap for that recipe would land dead"
+        )
+
+        // The import lands afterwards and the user taps the banner
+        // again from Notification Center: the same recipe ID must be
+        // accepted afresh and the claim must now succeed.
+        repository.recipes.append(lateRecipe)
+        navigation.open(recipeID: lateRecipe.id)
+
+        XCTAssertEqual(navigation.recipeID, lateRecipe.id)
+        XCTAssertEqual(
+            navigation.claimRecipe(in: library)?.id,
+            lateRecipe.id
+        )
+    }
+
+    func testBannerTapForALoadedRecipeOpensWithoutReloading() {
+        let recipe = notificationRecipe()
+        let repository = NotificationTestRepository()
+        repository.recipes = [recipe]
+        let navigation = NotificationNavigation()
+        let library = makeLibrary(repository: repository)
+        library.load()
+        let loadsBeforeTap = repository.fetchRecipesCallCount
+
+        navigation.open(recipeID: recipe.id)
+
+        XCTAssertEqual(
+            navigation.claimRecipe(in: library)?.id,
+            recipe.id
+        )
+        XCTAssertEqual(
+            repository.fetchRecipesCallCount,
+            loadsBeforeTap,
+            "A recipe already in the loaded library needs no reload"
+        )
+        XCTAssertNil(navigation.recipeID)
+    }
+
+    func testBannerTapBeforeTheFirstLibraryLoadStillOpensTheRecipe() {
+        let recipe = notificationRecipe()
+        let repository = NotificationTestRepository()
+        repository.recipes = [recipe]
+        let navigation = NotificationNavigation()
+        let library = makeLibrary(repository: repository)
+
+        navigation.open(recipeID: recipe.id)
+
+        XCTAssertEqual(library.loadState, .idle)
+        XCTAssertEqual(
+            navigation.claimRecipe(in: library)?.id,
+            recipe.id,
+            "A tap that arrives before the first load must load the"
+                + " library rather than land dead"
+        )
+        XCTAssertNil(navigation.recipeID)
+    }
+
+    func testBannerTapConsumesTheNavigationEvenWhenTheReloadFails() {
+        let repository = NotificationTestRepository()
+        repository.recipes = [notificationRecipe()]
+        let navigation = NotificationNavigation()
+        let library = makeLibrary(repository: repository)
+        library.load()
+
+        let imported = backgroundImportedRecipe()
+        repository.recipes.append(imported)
+        repository.fetchRecipesError =
+            NotificationTestRepositoryError.unavailable
+        navigation.open(recipeID: imported.id)
+
+        XCTAssertNil(navigation.claimRecipe(in: library))
+        XCTAssertNil(
+            navigation.recipeID,
+            "A failed reload must not poison later notification taps"
+        )
+    }
+
+    func testLibraryOpensNotificationTapsThroughTheClaimingResolver() throws {
+        // The composed tests above pin the claim semantics; this pins
+        // the wiring so LibraryView cannot quietly go back to the bare
+        // in-memory lookup that dropped stale-library taps.
+        let source = try String(
+            contentsOf: URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent(
+                    "Ladle/Library/LibraryView.swift"
+                ),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(
+            source.contains("notificationNavigation.claimRecipe(")
+        )
+    }
+
+    private func makeLibrary(
+        repository: NotificationTestRepository
+    ) -> LibraryViewModel {
+        LibraryViewModel(
+            repository: repository,
+            preferenceStore: NotificationTestPreferenceStore()
+        )
+    }
+
+    private func backgroundImportedRecipe() -> Recipe {
+        Recipe(
+            id: UUID(
+                uuidString: "7A0C21D4-93BE-4A5D-8F0E-2B85F8C4A11B"
+            )!,
+            title: "Background Bibimbap",
+            source: .youtube,
+            originalURL: URL(
+                string: "https://youtu.be/notification-background"
+            )!,
+            servings: 2
+        )
+    }
+
     private func makeCoordinator(
         repository: NotificationTestRepository,
         outcome: ImportServiceProgress,
@@ -169,13 +360,23 @@ private struct NotificationImmediateClock: ImportClock {
     func sleep(for duration: Duration) async throws {}
 }
 
+private enum NotificationTestRepositoryError: Error {
+    case unavailable
+}
+
 @MainActor
 private final class NotificationTestRepository: RecipeRepository {
     var recipes: [Recipe] = []
     var importJobs: [ImportJob] = []
+    var fetchRecipesError: Error?
+    private(set) var fetchRecipesCallCount = 0
 
     func fetchRecipes() throws -> [Recipe] {
-        recipes
+        fetchRecipesCallCount += 1
+        if let fetchRecipesError {
+            throw fetchRecipesError
+        }
+        return recipes
     }
 
     func fetchRecipe(id: UUID) throws -> Recipe? {

@@ -1,12 +1,17 @@
+import inspect
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import pytest
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 from fastapi.testclient import TestClient
 
 from ladle.api.app import create_app
 from ladle.api.routes.health import (
     CeleryWorkerReadinessProbe,
+    DatabaseReadinessProbe,
     ReadinessService,
     StartupDependencyGate,
 )
@@ -144,3 +149,18 @@ def test_metrics_endpoint_requires_its_dedicated_bearer_token() -> None:
     assert hidden.status_code == 404
     assert authorized.status_code == 200
     assert authorized.headers["content-type"].startswith("text/plain")
+
+
+def test_default_database_revision_pin_matches_the_migration_head() -> None:
+    # Production builds DatabaseReadinessProbe with no expected_revision
+    # (ladle/api/app.py), so the default IS the deployed pin. Derive the truth
+    # from the migration scripts instead of duplicating the literal here.
+    scripts = ScriptDirectory.from_config(
+        Config(str(Path(__file__).parents[2] / "alembic.ini"))
+    )
+    parameters = inspect.signature(DatabaseReadinessProbe.__init__).parameters
+    assert parameters["expected_revision"].default == scripts.get_current_head(), (
+        "the default expected_revision in ladle/api/routes/health.py must move "
+        "with every migration, or a deployed API over an up-to-date database "
+        "reports not-ready forever"
+    )

@@ -2,7 +2,7 @@ import hashlib
 from typing import Annotated, Literal, cast
 from uuid import UUID
 
-from fastapi import APIRouter, Header, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from fastapi.responses import JSONResponse, Response
 from pydantic import AnyHttpUrl, Field, ValidationError, field_validator
 from sqlalchemy.orm import Session
@@ -67,6 +67,18 @@ class RetryImportRequest(WireModel):
     @classmethod
     def validate_private_text_bytes(cls, value: str | None) -> str | None:
         return validate_private_text(value) if value is not None else None
+
+
+async def _request_body(request: Request) -> bytes:
+    """Read the raw request body (for the App Attest hash) on the event loop.
+
+    This is the only genuinely asynchronous step these endpoints need. The
+    handlers themselves are `def` like every other route in the app, so
+    their blocking I/O — sync SQLAlchemy sessions, the rate-limit Redis
+    call, the outbox row lock and broker publish — runs in the anyio
+    threadpool instead of stalling the event loop for every other request.
+    """
+    return await request.body()
 
 
 def _admission(request: Request) -> AdmissionService:
@@ -213,14 +225,15 @@ def _quota_error(
     response_model=ImportJobResponse,
     status_code=status.HTTP_202_ACCEPTED,
 )
-async def submit_import(
+def submit_import(
     body: ImportSubmissionRequest,
     request: Request,
+    raw_body: Annotated[bytes, Depends(_request_body)],
     authorization: Annotated[str | None, Header()] = None,
 ) -> ImportJobResponse | JSONResponse:
     claims = access_claims(request, authorization)
     _enforce_import_rate_limit(request, operation="submit", claims=claims)
-    body_sha256 = hashlib.sha256(await request.body()).hexdigest()
+    body_sha256 = hashlib.sha256(raw_body).hexdigest()
     rejection: AttestationRejected | None = None
     admitted = None
     try:
@@ -339,15 +352,16 @@ def cancel_import(
     response_model=ImportJobResponse,
     status_code=status.HTTP_202_ACCEPTED,
 )
-async def retry_import(
+def retry_import(
     job_id: UUID,
     body: RetryImportRequest,
     request: Request,
+    raw_body: Annotated[bytes, Depends(_request_body)],
     authorization: Annotated[str | None, Header()] = None,
 ) -> ImportJobResponse | JSONResponse:
     claims = access_claims(request, authorization)
     _enforce_import_rate_limit(request, operation="retry", claims=claims)
-    body_sha256 = hashlib.sha256(await request.body()).hexdigest()
+    body_sha256 = hashlib.sha256(raw_body).hexdigest()
     rejection: AttestationRejected | None = None
     job = None
     try:

@@ -64,10 +64,15 @@ _PROMO_TAIL = re.compile(
     r"follow (me|for).*|subscribe .*)",
     re.IGNORECASE,
 )
-_SCRIPTISH = re.compile(
-    r"(?is)<(script|style|noscript|svg|iframe|head)[^>]*>.*?</\1>",
-)
-_TAG = re.compile(r"(?s)<[^>]+>")
+_SCRIPTISH_NAMES = ("script", "style", "noscript", "svg", "iframe", "head")
+# Quantifier-free on purpose — the tag's "[^>]*>" part is str.find's job in
+# _without_scriptish, which explains why. ASCII-only case-insensitivity is
+# load-bearing too: HTML tag names fold ASCII-only, but Python's plain (?i)
+# also folds U+0131/U+0130 into "i", so "<(U+0131)frame>" matched the opener
+# while its casefolded name missed every _SCRIPTISH_CLOSE key — a KeyError
+# any hostile page could raise. Under (?ai) those bytes never match at all.
+_SCRIPTISH_NAME = re.compile(rf"(?ai)<({'|'.join(_SCRIPTISH_NAMES)})")
+_SCRIPTISH_CLOSE = {name: re.compile(rf"(?ai)</{name}>") for name in _SCRIPTISH_NAMES}
 _WHITESPACE = re.compile(r"\s+")
 _LOC = re.compile(r"<loc>([^<]+)</loc>")
 
@@ -229,6 +234,9 @@ class SafeLinkFetcher:
 def _host_of(url: str) -> str:
     try:
         parts = urlsplit(url)
+        # Reading the port forces its parse: "host:abc" raises here, at the
+        # caption boundary, instead of as httpx.InvalidURL mid-fetch.
+        _ = parts.port
     except ValueError as error:
         raise UnsafeURL(str(error)) from error
     if parts.scheme not in ("http", "https"):
@@ -246,6 +254,83 @@ def _is_social(host: str) -> bool:
 
 
 def _readable(raw: str) -> str:
-    stripped = _TAG.sub(" ", _SCRIPTISH.sub(" ", raw))
+    stripped = _without_tags(_without_scriptish(raw))
     text = _WHITESPACE.sub(" ", html.unescape(stripped)).strip()
     return text[:_MAX_DOCUMENT_CHARACTERS]
+
+
+def _without_scriptish(raw: str) -> str:
+    """Drop <script>...</script>-style blocks in one linear pass.
+
+    Nothing here may backtrack over attacker text: caption links resolve to
+    servers the creator controls and bodies run to the 2 MB response cap.
+    Matching whole opening tags with `<name[^>]*>` fails that bar even from
+    a forward-only loop — on `<svg` repeated with no ">" anywhere, `[^>]*`
+    consumes to end-of-string once per candidate, all inside a single
+    search() C call that returns None, so the Python loop never even gets
+    to iterate: quadratic (measured 4x per size doubling, ~6 minutes at the
+    cap) and uninterruptible past Celery's soft time limit.
+
+    So no quantifier ever touches the body. A literal-alternation regex
+    finds `<name`, and str.find completes the tag at the next ">" — no ">"
+    ahead means no completable scriptish tag anywhere ahead, so the scan
+    stops. A name with no close ahead is remembered, costing each of the
+    six names at most one failed close search over the remainder.
+
+    The scan mirrors the original regex engine, which retried at every
+    index: a candidate that cannot complete is stepped past by one name,
+    not past its would-be ">", so a real block starting inside its junk
+    (`<svg<script>…`) is still found and stripped. Candidates sharing a
+    ">" reuse it through next_gt, keeping that re-scan linear. And a name
+    the opener matched but the close table does not know — the drift that
+    once made this function raise over attacker HTML — degrades to leaving
+    the tag alone rather than killing the import.
+    """
+    parts: list[str] = []
+    emitted = 0
+    scan = 0
+    next_gt = -1
+    unclosed: set[str] = set()
+    while match := _SCRIPTISH_NAME.search(raw, scan):
+        if next_gt < match.end():
+            next_gt = raw.find(">", match.end())
+            if next_gt == -1:
+                # No ">" ahead, so no scriptish tag can complete ahead.
+                break
+        name = match.group(1).casefold()
+        close = _SCRIPTISH_CLOSE.get(name)
+        closing = (
+            None
+            if close is None or name in unclosed
+            else close.search(raw, next_gt + 1)
+        )
+        if closing is None:
+            if close is not None:
+                unclosed.add(name)
+            scan = match.end()
+            continue
+        parts.append(raw[emitted : match.start()])
+        parts.append(" ")
+        emitted = closing.end()
+        scan = emitted
+    parts.append(raw[emitted:])
+    return "".join(parts)
+
+
+def _without_tags(raw: str) -> str:
+    """Replace every complete <...> region with a space, linearly.
+
+    `<[^>]+>` has the same quadratic shape as above: with no ">" left in the
+    body it re-scans to end-of-string from every "<".
+    """
+    parts: list[str] = []
+    position = 0
+    while (opening := raw.find("<", position)) != -1:
+        closing = raw.find(">", opening + 1)
+        if closing == -1:
+            break
+        parts.append(raw[position:opening])
+        parts.append(" ")
+        position = closing + 1
+    parts.append(raw[position:])
+    return "".join(parts)

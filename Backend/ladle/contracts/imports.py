@@ -10,6 +10,9 @@ class ImportStatus(StrEnum):
     READY = "ready"
     NEEDS_REVIEW = "needsReview"
     FAILED = "failed"
+    # The database CHECK constraint permits this and ImportCancellationService
+    # writes it, so an idempotent re-submission can match a cancelled job.
+    CANCELLED = "cancelled"
 
 
 class ImportFailure(StrEnum):
@@ -44,6 +47,11 @@ class ImportJobResponse(WireModel):
         if self.status in {ImportStatus.READY, ImportStatus.NEEDS_REVIEW}:
             if self.recipe_id is None:
                 raise ValueError("successful terminal imports require a recipe ID")
-        elif self.status == ImportStatus.PARSING and self.recipe_id is not None:
-            raise ValueError("parsing imports cannot expose a candidate recipe")
+        elif (
+            self.status in {ImportStatus.PARSING, ImportStatus.CANCELLED}
+            and self.recipe_id is not None
+        ):
+            raise ValueError(
+                "parsing and cancelled imports cannot expose a candidate recipe"
+            )
         return self

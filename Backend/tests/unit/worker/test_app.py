@@ -105,9 +105,7 @@ def test_nutrition_runtime_builder_respects_explicit_disable() -> None:
     from ladle.worker.runtime import _nutrition_calculator
 
     assert (
-        _nutrition_calculator(
-            Settings(usda_nutrition_enabled=False, _env_file=None)
-        )
+        _nutrition_calculator(Settings(usda_nutrition_enabled=False, _env_file=None))
         is None
     )
 

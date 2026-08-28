@@ -34,6 +34,11 @@ struct FailedImportSheet: View {
         .interactiveDismissDisabled(
             isRetrying || isOwnedImporting || isDecisionPending
         )
+        // A retried re-import's outcome stays published for this sheet
+        // to render; the pairing releases it however the sheet leaves
+        // the screen — a swipe-down runs no other cleanup. Inert for a
+        // plain import row (no recipe to present).
+        .reimportPresentation(coordinator, for: job.currentRecipeID)
         .sheet(item: $recoveryInputMode) { mode in
             CorrectionNotesView(mode: mode) { notes, pastedText in
                 runRetry(
@@ -56,6 +61,11 @@ struct FailedImportSheet: View {
                 accept: acceptCandidate,
                 keepCurrent: keepCurrent
             )
+        } else if isRetryCancelled {
+            // The retried job was cancelled elsewhere and its durable
+            // row is gone; the captured failure content would keep
+            // offering a Retry that can only land .persistenceFailed.
+            cancelledContent
         } else if coordinator.operation != nil,
                   !coordinator.owns(jobID: job.id) {
             unavailableContent
@@ -161,6 +171,27 @@ struct FailedImportSheet: View {
             systemImage: "hourglass",
             description: Text(
                 "Finish or review that import before retrying this one."
+            )
+        )
+        .foregroundStyle(LadleTheme.Label.primary)
+        .padding(LadleTheme.Spacing.generous)
+    }
+
+    private var isRetryCancelled: Bool {
+        if case .cancelled = coordinator.state {
+            return coordinator.owns(jobID: job.id)
+        }
+        return false
+    }
+
+    private var cancelledContent: some View {
+        ContentUnavailableView(
+            "Import cancelled",
+            systemImage: "xmark.circle",
+            description: Text(
+                job.currentRecipeID != nil
+                    ? "This re-import was cancelled. Your current recipe is unchanged."
+                    : "This import was cancelled. The recipe was not added."
             )
         )
         .foregroundStyle(LadleTheme.Label.primary)

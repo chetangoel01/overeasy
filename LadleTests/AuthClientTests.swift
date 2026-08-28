@@ -61,13 +61,13 @@ final class AuthClientTests: XCTestCase {
         let auth = AuthClient(
             api: api,
             tokenStore: tokenStore,
-            accountSession: account
+            accountSession: account,
+            installationIdentity: InstallationIdentity(
+                store: InMemoryAuthPreferenceStore()
+            )
         )
 
-        let guest = try await auth.bootstrapGuest(
-            installationID: "ios-installation",
-            attestation: nil
-        )
+        let guest = try await auth.bootstrapGuest(attestation: nil)
         let apple = try await auth.signInWithApple(
             identityToken: "identity-token",
             authorizationCode: "authorization-code",
@@ -124,13 +124,13 @@ final class AuthClientTests: XCTestCase {
         let auth = AuthClient(
             api: api,
             tokenStore: tokenStore,
-            accountSession: account
+            accountSession: account,
+            installationIdentity: InstallationIdentity(
+                store: InMemoryAuthPreferenceStore()
+            )
         )
 
-        _ = try await auth.bootstrapGuest(
-            installationID: "ios-installation",
-            attestation: nil
-        )
+        _ = try await auth.bootstrapGuest(attestation: nil)
         let google = try await auth.signInWithGoogle(
             identityToken: "google-id-token",
             idempotencyKey: "google-attempt"
@@ -165,13 +165,13 @@ final class AuthClientTests: XCTestCase {
             accountSession: AccountSession(
                 store: InMemoryAuthPreferenceStore()
             ),
+            installationIdentity: InstallationIdentity(
+                store: InMemoryAuthPreferenceStore()
+            ),
             appAttester: GuestEvidenceAppAttester()
         )
 
-        _ = try await auth.bootstrapGuest(
-            installationID: "ios-installation",
-            attestation: nil
-        )
+        _ = try await auth.bootstrapGuest(attestation: nil)
 
         let body = try JSONSerialization.jsonObject(
             with: URLProtocolStub.bodyData(for: requests.snapshot[0])
@@ -196,7 +196,10 @@ final class AuthClientTests: XCTestCase {
                 tokenStore: tokenStore
             ),
             tokenStore: tokenStore,
-            accountSession: account
+            accountSession: account,
+            installationIdentity: InstallationIdentity(
+                store: InMemoryAuthPreferenceStore()
+            )
         )
 
         let restored = try auth.restoreSession()
@@ -223,7 +226,10 @@ final class AuthClientTests: XCTestCase {
                 tokenStore: tokenStore
             ),
             tokenStore: tokenStore,
-            accountSession: account
+            accountSession: account,
+            installationIdentity: InstallationIdentity(
+                store: InMemoryAuthPreferenceStore()
+            )
         )
 
         try await auth.deleteAccount()
@@ -276,7 +282,10 @@ final class AuthClientTests: XCTestCase {
                 tokenStore: tokenStore
             ),
             tokenStore: tokenStore,
-            accountSession: account
+            accountSession: account,
+            installationIdentity: InstallationIdentity(
+                store: InMemoryAuthPreferenceStore()
+            )
         )
 
         do {
@@ -291,6 +300,114 @@ final class AuthClientTests: XCTestCase {
         XCTAssertEqual(try tokenStore.load(), tokens)
         XCTAssertEqual(account.state, .signedInWithGoogle)
         XCTAssertFalse(account.shouldPresentWelcome)
+    }
+
+    func testSignOutRotatesTheInstallationIDOfARealAccount() async throws {
+        let requests = Locked<[URLRequest]>([])
+        URLProtocolStub.install { request in
+            requests.withValue { $0.append(request) }
+            if request.url?.path == "/v1/auth/guest" {
+                return (
+                    Self.response(request, status: 201),
+                    Self.tokensJSON(
+                        accessToken: "guest-access",
+                        userKind: "apple"
+                    )
+                )
+            }
+            return (Self.response(request, status: 204), Data())
+        }
+        let identity = InstallationIdentity(
+            store: InMemoryAuthPreferenceStore()
+        )
+        let attester = RecordingAppAttester()
+        let auth = Self.makeAuthClient(
+            installationIdentity: identity,
+            appAttester: attester
+        )
+
+        _ = try await auth.bootstrapGuest(attestation: nil)
+        let claimed = Self.installationID(in: requests.snapshot)
+        await auth.signOut()
+        _ = try await auth.bootstrapGuest(attestation: nil)
+
+        let replayed = Self.installationID(in: requests.snapshot)
+        XCTAssertNotNil(claimed)
+        XCTAssertNotEqual(claimed, replayed)
+        XCTAssertEqual(replayed, identity.current)
+        let didReset = await attester.didReset
+        XCTAssertTrue(didReset)
+    }
+
+    func testSignOutKeepsTheInstallationIDOfAGuest() async throws {
+        let requests = Locked<[URLRequest]>([])
+        URLProtocolStub.install { request in
+            requests.withValue { $0.append(request) }
+            if request.url?.path == "/v1/auth/guest" {
+                return (
+                    Self.response(request, status: 201),
+                    Self.tokensJSON(
+                        accessToken: "guest-access",
+                        userKind: "guest"
+                    )
+                )
+            }
+            return (Self.response(request, status: 204), Data())
+        }
+        let identity = InstallationIdentity(
+            store: InMemoryAuthPreferenceStore()
+        )
+        let attester = RecordingAppAttester()
+        let auth = Self.makeAuthClient(
+            installationIdentity: identity,
+            appAttester: attester
+        )
+
+        _ = try await auth.bootstrapGuest(attestation: nil)
+        let created = Self.installationID(in: requests.snapshot)
+        await auth.signOut()
+        _ = try await auth.bootstrapGuest(attestation: nil)
+
+        XCTAssertNotNil(created)
+        XCTAssertEqual(created, Self.installationID(in: requests.snapshot))
+        let didReset = await attester.didReset
+        XCTAssertFalse(didReset)
+    }
+
+    private static func makeAuthClient(
+        installationIdentity: InstallationIdentity,
+        appAttester: (any AppAttesting)? = nil
+    ) -> AuthClient {
+        let tokenStore = InMemoryAuthTokenStore()
+        return AuthClient(
+            api: APIClient(
+                baseURL: URL(string: "https://api.ladle.test")!,
+                session: URLProtocolStub.session(),
+                tokenStore: tokenStore
+            ),
+            tokenStore: tokenStore,
+            accountSession: AccountSession(
+                store: InMemoryAuthPreferenceStore()
+            ),
+            installationIdentity: installationIdentity,
+            appAttester: appAttester
+        )
+    }
+
+    private static func installationID(
+        in requests: [URLRequest]
+    ) -> String? {
+        guard
+            let request = requests.last(where: {
+                $0.url?.path == "/v1/auth/guest"
+            }),
+            let body = try? JSONSerialization.jsonObject(
+                with: URLProtocolStub.bodyData(for: request)
+            ) as? [String: Any]
+        else {
+            return nil
+        }
+        return body["installationID"] as? String
     }
 
     nonisolated private static func response(
@@ -332,6 +449,25 @@ final class AuthClientTests: XCTestCase {
                 "retryable": true,
             ],
         ])
+    }
+}
+
+private actor RecordingAppAttester: AppAttesting {
+    private(set) var didReset = false
+
+    func guestEvidence() async throws -> AppAttestEvidence? {
+        nil
+    }
+
+    func authorize(
+        _ request: URLRequest,
+        purpose: AppAttestPurpose
+    ) async throws -> URLRequest {
+        request
+    }
+
+    func reset() async throws {
+        didReset = true
     }
 }
 

@@ -1,4 +1,6 @@
 import json
+import threading
+import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -10,9 +12,16 @@ from sqlalchemy.orm import Session
 
 from alembic import command
 from ladle.contracts.recipes import RecipeDTO
-from ladle.db.models import Recipe, RecipeChange, User, UserSyncState
+from ladle.db.models import (
+    Recipe,
+    RecipeChange,
+    RecipeImage,
+    User,
+    UserSyncState,
+)
 from ladle.db.session import build_engine
 from ladle.recipes.limits import GuestRecipeLimitReached
+from ladle.recipes.repository import RecipeRepository
 from ladle.recipes.service import (
     InvalidManualRecipe,
     RecipeService,
@@ -233,5 +242,151 @@ def test_manual_source_and_guest_limit_are_enforced_under_user_lock(
             recipe=manual_recipe(uuid4(), title="Eleventh"),
             base_revision=0,
         )
+
+    engine.dispose()
+
+
+@pytest.mark.integration
+def test_concurrent_updates_at_the_same_base_revision_cannot_both_win(
+    clean_postgres_url: str,
+) -> None:
+    """Two devices PUT the same recipe with the same base revision.
+
+    The revision check reads the row without a lock and the resulting UPDATE
+    carries no revision predicate, so under READ COMMITTED both writers can
+    pass the check and the second silently overwrites the first — two
+    recipe_changes rows both claiming the same revision, and no sync consumer
+    able to tell an edit was dropped.
+    """
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    engine = build_engine(clean_postgres_url)
+    service = RecipeService(clock=FrozenClock(datetime(2026, 7, 23, 21, 0, tzinfo=UTC)))
+    recipe_id = uuid4()
+
+    with Session(engine) as database, database.begin():
+        user_id = seed_user(database)
+        service.upsert(
+            database,
+            user_id=user_id,
+            recipe=manual_recipe(recipe_id),
+            base_revision=0,
+        )
+
+    second_outcome: list[object] = []
+    second_started = threading.Event()
+
+    def second_writer() -> None:
+        with Session(engine) as database, database.begin():
+            second_started.set()
+            try:
+                service.upsert(
+                    database,
+                    user_id=user_id,
+                    recipe=manual_recipe(recipe_id, title="Second"),
+                    base_revision=1,
+                )
+                second_outcome.append("committed")
+            except SyncConflict as conflict:
+                second_outcome.append(conflict)
+
+    with Session(engine) as first, first.begin():
+        service.upsert(
+            first,
+            user_id=user_id,
+            recipe=manual_recipe(recipe_id, title="First"),
+            base_revision=1,
+        )
+        writer = threading.Thread(target=second_writer)
+        writer.start()
+        second_started.wait(timeout=5)
+        # Give the second writer time to reach its revision check; with the
+        # row locked it blocks here until this transaction commits.
+        time.sleep(0.5)
+
+    writer.join(timeout=10)
+    assert not writer.is_alive()
+
+    assert len(second_outcome) == 1
+    assert isinstance(second_outcome[0], SyncConflict), (
+        "the second writer overwrote the first at the same base revision"
+    )
+
+    with Session(engine) as database:
+        stored = database.get(Recipe, recipe_id)
+        assert stored is not None
+        assert stored.title == "First"
+        assert stored.revision == 2
+        revisions = list(
+            database.scalars(
+                select(RecipeChange.recipe_revision).where(
+                    RecipeChange.recipe_id == recipe_id
+                )
+            )
+        )
+        assert sorted(revisions) == [1, 2]
+
+    engine.dispose()
+
+
+@pytest.mark.integration
+def test_round_tripping_a_recipe_keeps_its_object_storage_image(
+    clean_postgres_url: str,
+) -> None:
+    """A stored image's locator must survive an edit that round-trips it.
+
+    to_dto renders an object-storage image as a short-lived presigned URL.
+    Writing that URL back as the image's location loses the durable key: the
+    image 403s once the signature expires, and the cache sweep that guards on
+    RecipeImage.object_key stops matching, so it deletes the object the live
+    recipe still points at.
+    """
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    engine = build_engine(clean_postgres_url)
+    repository = RecipeRepository(
+        object_url=lambda key: f"https://objects.ladle.test/{key}?signature=abc"
+    )
+    service = RecipeService(
+        clock=FrozenClock(datetime(2026, 7, 23, 21, 0, tzinfo=UTC)),
+        repository=repository,
+    )
+    recipe_id = uuid4()
+
+    with Session(engine) as database, database.begin():
+        user_id = seed_user(database)
+        service.upsert(
+            database,
+            user_id=user_id,
+            recipe=manual_recipe(recipe_id),
+            base_revision=0,
+        )
+        stored_image = database.scalars(
+            select(RecipeImage).where(RecipeImage.recipe_id == recipe_id)
+        ).one()
+        image_id = stored_image.id
+        stored_image.remote_url = None
+        stored_image.object_key = "thumbs/lemon-orzo"
+
+    with Session(engine) as database, database.begin():
+        stored = database.get(Recipe, recipe_id)
+        assert stored is not None
+        rendered = repository.to_dto(database, stored)
+        assert str(rendered.images[0].remote_url).startswith(
+            "https://objects.ladle.test/thumbs/lemon-orzo"
+        )
+        edited = rendered.model_copy(update={"title": "Edited"})
+        service.upsert(
+            database,
+            user_id=user_id,
+            recipe=edited,
+            base_revision=rendered.revision,
+        )
+
+    with Session(engine) as database:
+        image = database.scalars(
+            select(RecipeImage).where(RecipeImage.recipe_id == recipe_id)
+        ).one()
+        assert image.id == image_id
+        assert image.object_key == "thumbs/lemon-orzo"
+        assert image.remote_url is None
 
     engine.dispose()

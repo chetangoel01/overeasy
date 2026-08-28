@@ -9,12 +9,13 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from alembic import command
-from ladle.auth.merge import AccountMergeService
+from ladle.auth.merge import AccountMergeInvalid, AccountMergeService
 from ladle.auth.tokens import RefreshTokenCodec
 from ladle.db.models import (
     AppleIdentity,
     AuthSession,
     Device,
+    GoogleIdentity,
     ImportJob,
     ImportQuotaEvent,
     Recipe,
@@ -304,6 +305,161 @@ def test_existing_apple_account_merge_preserves_data_and_is_idempotent(
                 .where(RecipeChange.user_id == guest_id)
             )
             == 0
+        )
+
+    engine.dispose()
+
+
+@pytest.mark.integration
+def test_a_user_with_an_apple_identity_cannot_claim_a_second_one(
+    clean_postgres_url: str,
+) -> None:
+    """A second Apple ID on one account would leave a refresh token that
+    account deletion never revokes: deletion looks up ONE identity row."""
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    engine = build_engine(clean_postgres_url)
+    clock = FrozenClock(datetime(2026, 7, 23, 21, 0, tzinfo=UTC))
+    merger = AccountMergeService(clock=clock)
+
+    with Session(engine) as database, database.begin():
+        user_id = seed_user(database, kind="guest", now=clock.now())
+
+    with Session(engine) as database, database.begin():
+        claimed = merger.merge(
+            database,
+            guest_user_id=user_id,
+            apple_subject="first-apple-id",
+            idempotency_key="first-sign-in",
+            apple_refresh_token_encrypted=b"token-first",
+        )
+    assert claimed == user_id
+
+    with (
+        pytest.raises(AccountMergeInvalid),
+        Session(engine) as database,
+        database.begin(),
+    ):
+        merger.merge(
+            database,
+            guest_user_id=user_id,
+            apple_subject="second-apple-id",
+            idempotency_key="second-sign-in",
+            apple_refresh_token_encrypted=b"token-second",
+        )
+
+    with Session(engine) as database:
+        identities = list(
+            database.scalars(
+                select(AppleIdentity).where(AppleIdentity.user_id == user_id)
+            )
+        )
+        assert [identity.apple_sub for identity in identities] == ["first-apple-id"]
+
+    # The same-subject re-sign-in stays idempotent and refreshes the token.
+    with Session(engine) as database, database.begin():
+        again = merger.merge(
+            database,
+            guest_user_id=user_id,
+            apple_subject="first-apple-id",
+            idempotency_key="repeat-sign-in",
+            apple_refresh_token_encrypted=b"token-rotated",
+        )
+    assert again == user_id
+    with Session(engine) as database:
+        refreshed = database.get(AppleIdentity, "first-apple-id")
+        assert refreshed is not None
+        assert refreshed.refresh_token_encrypted == b"token-rotated"
+
+    engine.dispose()
+
+
+@pytest.mark.integration
+def test_a_user_with_a_google_identity_cannot_claim_a_second_one(
+    clean_postgres_url: str,
+) -> None:
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    engine = build_engine(clean_postgres_url)
+    clock = FrozenClock(datetime(2026, 7, 23, 21, 0, tzinfo=UTC))
+    merger = AccountMergeService(clock=clock)
+
+    with Session(engine) as database, database.begin():
+        user_id = seed_user(database, kind="guest", now=clock.now())
+
+    with Session(engine) as database, database.begin():
+        merger.merge_google(
+            database,
+            guest_user_id=user_id,
+            google_subject="first-google-id",
+            idempotency_key="first-google-sign-in",
+        )
+
+    with (
+        pytest.raises(AccountMergeInvalid),
+        Session(engine) as database,
+        database.begin(),
+    ):
+        merger.merge_google(
+            database,
+            guest_user_id=user_id,
+            google_subject="second-google-id",
+            idempotency_key="second-google-sign-in",
+        )
+
+    with Session(engine) as database:
+        subjects = list(
+            database.scalars(
+                select(GoogleIdentity.google_sub).where(
+                    GoogleIdentity.user_id == user_id
+                )
+            )
+        )
+        assert subjects == ["first-google-id"]
+
+    engine.dispose()
+
+
+@pytest.mark.integration
+def test_concurrent_claims_of_two_apple_identities_admit_exactly_one(
+    clean_postgres_url: str,
+) -> None:
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    engine = build_engine(clean_postgres_url)
+    database_sessions = sessionmaker(engine, expire_on_commit=False)
+    clock = FrozenClock(datetime(2026, 7, 23, 21, 0, tzinfo=UTC))
+    merger = AccountMergeService(clock=clock)
+    with database_sessions.begin() as database:
+        user_id = seed_user(database, kind="guest", now=clock.now())
+
+    rendezvous = Barrier(3)
+
+    def claim(subject: str) -> UUID | type[AccountMergeInvalid]:
+        with database_sessions.begin() as database:
+            rendezvous.wait()
+            try:
+                return merger.merge(
+                    database,
+                    guest_user_id=user_id,
+                    apple_subject=subject,
+                    idempotency_key=f"claim-{subject}",
+                )
+            except AccountMergeInvalid:
+                return AccountMergeInvalid
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        first = executor.submit(claim, "race-apple-a")
+        second = executor.submit(claim, "race-apple-b")
+        rendezvous.wait()
+        results = [first.result(timeout=10), second.result(timeout=10)]
+
+    assert sorted(results, key=str) == sorted([user_id, AccountMergeInvalid], key=str)
+    with database_sessions() as database:
+        assert (
+            database.scalar(
+                select(func.count())
+                .select_from(AppleIdentity)
+                .where(AppleIdentity.user_id == user_id)
+            )
+            == 1
         )
 
     engine.dispose()

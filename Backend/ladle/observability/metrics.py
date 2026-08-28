@@ -29,10 +29,13 @@ _PROVIDER_OUTCOMES = frozenset(
 _JOB_STATUSES = frozenset({"parsing", "ready", "needsReview", "failed"})
 _SOURCES = frozenset({"youtube", "tiktok", "instagram", "other"})
 _SYNC_OUTCOMES = frozenset({"success", "conflict", "failure", "reset"})
-_HTTP_METHODS = frozenset({"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"})
+_HTTP_METHODS = frozenset({"GET", "HEAD", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"})
+_OTHER_HTTP_METHOD = "OTHER"
 _RATE_LIMIT_POLICIES = frozenset(
     {
         "global",
+        "attestation:ip",
+        "attestation:installation",
         "guest:ip",
         "guest:installation",
         "refresh:ip",
@@ -196,7 +199,11 @@ class MetricsRegistry:
         *,
         duration_seconds: float | None = None,
     ) -> None:
-        self._require(method, _HTTP_METHODS)
+        # Unlike the internal outcome enums, the request method is supplied
+        # by the caller. Refusing it would let anyone turn a served request
+        # into a 500, so it is folded into a bounded label instead.
+        if method not in _HTTP_METHODS:
+            method = _OTHER_HTTP_METHOD
         if not route.startswith("/") and route != "unmatched":
             raise ValueError("HTTP route labels must be route templates")
         status_group = f"{status_code // 100}xx"

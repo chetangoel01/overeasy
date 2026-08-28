@@ -1,11 +1,18 @@
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from ladle.clock import Clock
 from ladle.crypto.private_text import PrivateTextCipher
-from ladle.db.models import ImportJob, Recipe
+from ladle.db.models import (
+    ExtractionCache,
+    ImportJob,
+    ObjectDeletionQueue,
+    Recipe,
+    RecipeImage,
+)
 from ladle.imports.outbox import DispatchOutboxService
 from ladle.imports.quotas import ImportQuotaService
 from ladle.imports.reservations import ReservationService
@@ -108,7 +115,17 @@ class ImportRetryService:
             job.candidate_recipe_id = None
             database.flush()
             if candidate is not None:
+                thumbnail_keys = list(
+                    database.scalars(
+                        select(RecipeImage.object_key).where(
+                            RecipeImage.recipe_id == candidate.id,
+                            RecipeImage.object_key.is_not(None),
+                        )
+                    )
+                )
                 database.delete(candidate)
+                database.flush()
+                self._queue_orphaned_thumbnails(database, thumbnail_keys)
 
         if job.current_recipe_id is None:
             self._reservations.reactivate(database, job.id)
@@ -140,6 +157,46 @@ class ImportRetryService:
             self._outbox.queue(database, job.id)
         database.flush()
         return job
+
+    def _queue_orphaned_thumbnails(
+        self,
+        database: Session,
+        keys: list[str | None],
+    ) -> None:
+        """Deleting the candidate cascade-deletes its RecipeImage rows.
+
+        For a bypass import that row was the only reference to the freshly
+        uploaded private thumbnail — the orchestrator's discard schedule was
+        withdrawn at completion precisely because the row existed — and every
+        cleanup path enumerates database rows, so an unreferenced object
+        would stay in the bucket forever. Schedule any key no row references
+        any more; a key still referenced (a shared-cache thumbnail, or an
+        image shared with the current recipe) is left alone.
+        """
+        now = self._clock.now()
+        for key in keys:
+            if key is None:
+                continue
+            cache_reference = database.scalar(
+                select(ExtractionCache.id)
+                .where(ExtractionCache.thumbnail_object_key == key)
+                .limit(1)
+            )
+            image_reference = database.scalar(
+                select(RecipeImage.id).where(RecipeImage.object_key == key).limit(1)
+            )
+            if cache_reference is not None or image_reference is not None:
+                continue
+            database.execute(
+                insert(ObjectDeletionQueue)
+                .values(
+                    object_key=key,
+                    reason="unreferencedThumbnail",
+                    available_at=now,
+                    created_at=now,
+                )
+                .on_conflict_do_nothing(index_elements=[ObjectDeletionQueue.object_key])
+            )
 
 
 class ImportTransitionService:

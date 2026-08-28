@@ -43,7 +43,7 @@ final class AppAttestClientTests: XCTestCase {
         let secureStore = AppAttestMemoryStore()
         let client = AppAttestClient(
             baseURL: URL(string: "https://api.ladle.test")!,
-            installationID: "installation-1",
+            installationIdentity: Self.identity("installation-1"),
             session: URLProtocolStub.session(),
             platform: platform,
             secureStore: secureStore
@@ -116,7 +116,7 @@ final class AppAttestClientTests: XCTestCase {
             let keychainService = "com.ladle.ios.live-app-attest-tests"
             let client = AppAttestClient(
                 baseURL: baseURL,
-                installationID: installationID,
+                installationIdentity: Self.identity(installationID),
                 secureStore: SystemKeychainDataStore(),
                 keychainService: keychainService,
                 keychainAccount: "key-id"
@@ -275,6 +275,12 @@ final class AppAttestClientTests: XCTestCase {
         #endif
     }
 
+    private static func identity(_ value: String) -> InstallationIdentity {
+        let store = AppAttestMemoryPreferenceStore()
+        store.set(value, forKey: InstallationIdentity.storeKey)
+        return InstallationIdentity(store: store)
+    }
+
     private static func createGuest(
         baseURL: URL,
         installationID: String,
@@ -416,5 +422,26 @@ private final class AppAttestMemoryStore:
         _ = lock.withLock {
             values.removeValue(forKey: "\(service):\(account)")
         }
+    }
+}
+
+
+private final class AppAttestMemoryPreferenceStore: PreferenceStoring {
+    private var values: [String: Any] = [:]
+
+    func bool(forKey defaultName: String) -> Bool {
+        values[defaultName] as? Bool ?? false
+    }
+
+    func string(forKey defaultName: String) -> String? {
+        values[defaultName] as? String
+    }
+
+    func set(_ value: Any?, forKey defaultName: String) {
+        values[defaultName] = value
+    }
+
+    func removeObject(forKey defaultName: String) {
+        values.removeValue(forKey: defaultName)
     }
 }

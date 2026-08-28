@@ -192,7 +192,7 @@ final class SwiftDataRecipeRepositoryTests: XCTestCase {
         )
 
         let remote = RemoteRecipeDTO(recipe: local, revision: 1)
-        try repository.markUpsertSynced(remote)
+        try repository.markUpsertSynced(remote, pushed: local)
         XCTAssertTrue(try repository.pendingRecipeMutations().isEmpty)
 
         var edited = local
@@ -216,7 +216,7 @@ final class SwiftDataRecipeRepositoryTests: XCTestCase {
         let remote = RemoteRecipeDTO(recipe: server, revision: 2)
 
         try repository.preserveConflict(
-            localRecipe: local,
+            localRecipeID: local.id,
             remoteRecipe: remote,
             remoteRevision: 2
         )
@@ -243,7 +243,7 @@ final class SwiftDataRecipeRepositoryTests: XCTestCase {
         var server = local
         server.title = "Server Title"
         try repository.preserveConflict(
-            localRecipe: local,
+            localRecipeID: local.id,
             remoteRecipe: RemoteRecipeDTO(recipe: server, revision: 2),
             remoteRevision: 2
         )
@@ -271,7 +271,7 @@ final class SwiftDataRecipeRepositoryTests: XCTestCase {
         var server = local
         server.title = "Server Title"
         try repository.preserveConflict(
-            localRecipe: local,
+            localRecipeID: local.id,
             remoteRecipe: RemoteRecipeDTO(recipe: server, revision: 2),
             remoteRevision: 2
         )
@@ -289,17 +289,18 @@ final class SwiftDataRecipeRepositoryTests: XCTestCase {
     func testAcceptingRemoteDeletionConflictRemovesLocalRecipe() throws {
         let fixture = try makeFixture()
         let repository = fixture.repository
-        let local = makeRecipe()
+        var local = makeRecipe()
         try repository.saveRemote(local, revision: 1)
+        local.title = "Edited Offline"
         try repository.save(local)
-        let stored = try XCTUnwrap(
-            fixture.container.mainContext
-                .fetch(FetchDescriptor<StoredRecipe>())
-                .first
+
+        // No conflict stored yet: the pulled delete change alone must
+        // produce the deletion conflict.
+        try repository.applySyncPage(
+            makeSyncPage([
+                deleteChange(recipeID: local.id, revision: 2, sequence: 5),
+            ])
         )
-        stored.conflictRemoteRevision = 2
-        stored.conflictRemotePayload = nil
-        try fixture.container.mainContext.save()
 
         let conflict = try XCTUnwrap(
             repository.fetchSyncConflicts().first
@@ -316,6 +317,296 @@ final class SwiftDataRecipeRepositoryTests: XCTestCase {
         XCTAssertTrue(try repository.pendingRecipeMutations().isEmpty)
     }
 
+    func testAcknowledgingAPushKeepsAnEditMadeWhileItWasInFlight() throws {
+        let fixture = try makeFixture()
+        let repository = fixture.repository
+        var recipe = makeRecipe()
+        try repository.saveRemote(recipe, revision: 1)
+        recipe.isFavorite = true
+        try repository.save(recipe)
+        let pushed = recipe
+
+        // The PUT is in flight; the user renames the recipe before it lands.
+        var edited = pushed
+        edited.title = "Miso Ramen"
+        try repository.save(edited)
+
+        try repository.markUpsertSynced(
+            RemoteRecipeDTO(recipe: pushed, revision: 2),
+            pushed: pushed
+        )
+
+        XCTAssertEqual(
+            try repository.fetchRecipe(id: recipe.id)?.title,
+            "Miso Ramen"
+        )
+        XCTAssertEqual(
+            try repository.pendingRecipeMutations(),
+            [.upsert(recipe: edited, baseRevision: 2)]
+        )
+    }
+
+    func testAcknowledgingAPushDoesNotResurrectARecipeDeletedInFlight() throws {
+        let fixture = try makeFixture()
+        let repository = fixture.repository
+        var recipe = makeRecipe()
+        try repository.saveRemote(recipe, revision: 1)
+        recipe.isFavorite = true
+        try repository.save(recipe)
+        let pushed = recipe
+
+        try repository.deleteRecipe(id: recipe.id)
+
+        try repository.markUpsertSynced(
+            RemoteRecipeDTO(recipe: pushed, revision: 2),
+            pushed: pushed
+        )
+
+        XCTAssertNil(try repository.fetchRecipe(id: recipe.id))
+        XCTAssertEqual(
+            try repository.pendingRecipeMutations(),
+            [.delete(recipeID: recipe.id, baseRevision: 2)]
+        )
+    }
+
+    func testAcknowledgingAnUnchangedPushAdoptsTheServerCopy() throws {
+        let fixture = try makeFixture()
+        let repository = fixture.repository
+        let recipe = makeRecipe()
+        try repository.save(recipe)
+
+        try repository.markUpsertSynced(
+            RemoteRecipeDTO(recipe: recipe, revision: 1),
+            pushed: recipe
+        )
+
+        XCTAssertEqual(try repository.fetchRecipe(id: recipe.id), recipe)
+        XCTAssertTrue(try repository.pendingRecipeMutations().isEmpty)
+    }
+
+    func testTombstoneSurvivesALaterSaveOfTheSameRow() throws {
+        let fixture = try makeFixture()
+        let repository = fixture.repository
+        let recipe = makeRecipe()
+        try repository.saveRemote(recipe, revision: 1)
+        try repository.deleteRecipe(id: recipe.id)
+        XCTAssertNil(try repository.fetchRecipe(id: recipe.id))
+
+        // Any later write to the row — here the conflict a rejected delete
+        // preserves — must not bring the recipe back.
+        try repository.preserveConflict(
+            localRecipeID: recipe.id,
+            remoteRecipe: RemoteRecipeDTO(recipe: recipe, revision: 2),
+            remoteRevision: 2
+        )
+
+        XCTAssertNil(try repository.fetchRecipe(id: recipe.id))
+        XCTAssertTrue(try repository.fetchRecipes().isEmpty)
+        XCTAssertEqual(
+            try repository.pendingRecipeMutations(),
+            [.delete(recipeID: recipe.id, baseRevision: 1)]
+        )
+    }
+
+    func testDeletingARecipeMidFirstUploadQueuesTheServerSideDelete() throws {
+        let fixture = try makeFixture()
+        let repository = fixture.repository
+        let recipe = makeRecipe()
+        try repository.save(recipe)
+
+        // The first PUT is in flight; the user deletes the recipe. Nothing
+        // is known to exist server-side yet, so the row is hard-deleted.
+        try repository.deleteRecipe(id: recipe.id)
+        XCTAssertNil(try repository.fetchRecipe(id: recipe.id))
+
+        // The PUT lands: the server now has the recipe at revision 1.
+        try repository.markUpsertSynced(
+            RemoteRecipeDTO(recipe: recipe, revision: 1),
+            pushed: recipe
+        )
+
+        // The recipe must stay deleted on this device, and the copy the PUT
+        // just created must be queued for a server-side delete.
+        XCTAssertNil(try repository.fetchRecipe(id: recipe.id))
+        XCTAssertTrue(try repository.fetchRecipes().isEmpty)
+        XCTAssertEqual(
+            try repository.pendingRecipeMutations(),
+            [.delete(recipeID: recipe.id, baseRevision: 1)]
+        )
+        XCTAssertEqual(try repository.syncConflictCount(), 0)
+    }
+
+    func testFirstUploadEchoDoesNotConflictWithTheQueuedServerDelete() throws {
+        let fixture = try makeFixture()
+        let repository = fixture.repository
+        let recipe = makeRecipe()
+        try repository.save(recipe)
+        try repository.deleteRecipe(id: recipe.id)
+        try repository.markUpsertSynced(
+            RemoteRecipeDTO(recipe: recipe, revision: 1),
+            pushed: recipe
+        )
+
+        // The same sync run's pull returns the upload's own change row.
+        try repository.applySyncPage(
+            makeSyncPage([
+                try upsertChange(recipe, revision: 1, sequence: 1),
+            ])
+        )
+
+        XCTAssertNil(try repository.fetchRecipe(id: recipe.id))
+        XCTAssertEqual(try repository.syncConflictCount(), 0)
+        XCTAssertEqual(
+            try repository.pendingRecipeMutations(),
+            [.delete(recipeID: recipe.id, baseRevision: 1)]
+        )
+    }
+
+    func testDeletingANeverUploadedRecipeQueuesNothing() throws {
+        // Created and deleted before any sync: nothing exists server-side,
+        // so nothing may be queued and no row may linger.
+        let fixture = try makeFixture()
+        let repository = fixture.repository
+        let recipe = makeRecipe()
+        try repository.save(recipe)
+
+        try repository.deleteRecipe(id: recipe.id)
+
+        XCTAssertTrue(try repository.fetchRecipes().isEmpty)
+        XCTAssertTrue(try repository.pendingRecipeMutations().isEmpty)
+        XCTAssertEqual(
+            try fixture.container.mainContext.fetchCount(
+                FetchDescriptor<StoredRecipe>()
+            ),
+            0
+        )
+    }
+
+    func testRemoteDeleteChangeConvertsAStoredEditConflictToADeleteConflict()
+        throws
+    {
+        let fixture = try makeFixture()
+        let repository = fixture.repository
+        var local = makeRecipe()
+        try repository.saveRemote(local, revision: 4)
+        local.title = "My Offline Title"
+        try repository.save(local)
+
+        // Another device edited the recipe (revision 5) and then deleted it
+        // (revision 6). The push phase preserved a conflict carrying the
+        // revision-5 copy; the pull now delivers both change rows.
+        var server = local
+        server.title = "Server Title"
+        try repository.preserveConflict(
+            localRecipeID: local.id,
+            remoteRecipe: RemoteRecipeDTO(recipe: server, revision: 5),
+            remoteRevision: 5
+        )
+        try repository.applySyncPage(
+            makeSyncPage([
+                try upsertChange(server, revision: 5, sequence: 100),
+                deleteChange(recipeID: local.id, revision: 6, sequence: 101),
+            ])
+        )
+
+        // The conflict must present as a deletion, not as the stale
+        // revision-5 edit.
+        let conflict = try XCTUnwrap(repository.fetchSyncConflicts().first)
+        XCTAssertNil(conflict.remoteRecipe)
+        XCTAssertEqual(conflict.remoteRevision, 6)
+        XCTAssertEqual(conflict.localRecipe, local)
+
+        // Accepting the remote side removes the recipe instead of restoring
+        // a copy the server will never serve again.
+        try repository.resolveSyncConflict(
+            recipeID: local.id,
+            resolution: .acceptRemote
+        )
+        XCTAssertNil(try repository.fetchRecipe(id: local.id))
+        XCTAssertTrue(try repository.fetchRecipes().isEmpty)
+        XCTAssertTrue(try repository.pendingRecipeMutations().isEmpty)
+        XCTAssertEqual(try repository.syncConflictCount(), 0)
+    }
+
+    func testMatchingLocalAndRemoteDeletesResolveWithoutReview() throws {
+        let fixture = try makeFixture()
+        let repository = fixture.repository
+        let recipe = makeRecipe()
+        try repository.saveRemote(recipe, revision: 2)
+        try repository.deleteRecipe(id: recipe.id)
+
+        // The other device deleted it too: both sides agree, so there is
+        // nothing to review and nothing left to push.
+        try repository.applySyncPage(
+            makeSyncPage([
+                deleteChange(recipeID: recipe.id, revision: 3, sequence: 7),
+            ])
+        )
+
+        XCTAssertNil(try repository.fetchRecipe(id: recipe.id))
+        XCTAssertEqual(try repository.syncConflictCount(), 0)
+        XCTAssertTrue(try repository.pendingRecipeMutations().isEmpty)
+    }
+
+    func testEmptyAndUnknownRecipeSyncChangesAreHarmless() throws {
+        let fixture = try makeFixture()
+        let repository = fixture.repository
+
+        // An empty page over an empty store.
+        try repository.applySyncPage(makeSyncPage([]))
+        XCTAssertTrue(try repository.fetchRecipes().isEmpty)
+
+        // A delete for a recipe this device never had.
+        try repository.applySyncPage(
+            makeSyncPage([
+                deleteChange(recipeID: UUID(), revision: 9, sequence: 1),
+            ])
+        )
+        XCTAssertTrue(try repository.fetchRecipes().isEmpty)
+        XCTAssertEqual(try repository.syncConflictCount(), 0)
+
+        // An empty page over a stored conflict leaves it untouched.
+        var local = makeRecipe()
+        try repository.saveRemote(local, revision: 1)
+        local.title = "Edited Offline"
+        try repository.save(local)
+        var server = local
+        server.title = "Server Title"
+        try repository.preserveConflict(
+            localRecipeID: local.id,
+            remoteRecipe: RemoteRecipeDTO(recipe: server, revision: 2),
+            remoteRevision: 2
+        )
+        try repository.applySyncPage(makeSyncPage([]))
+        XCTAssertEqual(
+            try repository.fetchSyncConflicts().first?.remoteRecipe,
+            server
+        )
+    }
+
+    func testWipingLocalDataClearsEverythingWithoutQueueingTombstones() throws {
+        let fixture = try makeFixture()
+        let repository = fixture.repository
+        let synced = makeRecipe()
+        try repository.saveRemote(synced, revision: 3)
+        var unsynced = makeRecipe()
+        unsynced.title = "Never Pushed"
+        try repository.save(unsynced)
+        let job = ImportJob.queued(
+            sourceURL: URL(string: "https://www.tiktok.com/@cook/video/77")!
+        )
+        try repository.save(job)
+
+        try repository.wipeAllData()
+
+        XCTAssertTrue(try repository.fetchRecipes().isEmpty)
+        XCTAssertTrue(try repository.fetchImportJobs().isEmpty)
+        // Sign-out drops the device's copy; the server library must survive,
+        // so a wipe may never leave a delete queued for the next push.
+        XCTAssertTrue(try repository.pendingRecipeMutations().isEmpty)
+        XCTAssertEqual(try repository.syncConflictCount(), 0)
+    }
+
     private func makeFixture() throws -> RepositoryFixture {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try ModelContainer(
@@ -329,6 +620,71 @@ final class SwiftDataRecipeRepositoryTests: XCTestCase {
                 modelContext: container.mainContext
             )
         )
+    }
+
+    /// The sync-page DTOs are decode-only, so tests build them the way the
+    /// server does: as contract JSON.
+    private func makeSyncPage(
+        _ changes: [[String: Any]]
+    ) throws -> RemoteSyncPageDTO {
+        let payload = try JSONSerialization.data(withJSONObject: [
+            "changes": changes,
+            "nextCursor": 1,
+            "hasMore": false,
+        ] as [String: Any])
+        return try RemoteContractJSON.decoder().decode(
+            RemoteSyncPageDTO.self,
+            from: payload
+        )
+    }
+
+    private func upsertChange(
+        _ recipe: Recipe,
+        revision: Int,
+        sequence: Int
+    ) throws -> [String: Any] {
+        let dto = RemoteRecipeDTO(recipe: recipe, revision: revision)
+        let recipeJSON = try JSONSerialization.jsonObject(
+            with: RemoteContractJSON.encoder().encode(dto)
+        )
+        return syncChange(
+            kind: "upsert",
+            recipeID: recipe.id,
+            revision: revision,
+            sequence: sequence,
+            recipe: recipeJSON
+        )
+    }
+
+    private func deleteChange(
+        recipeID: UUID,
+        revision: Int,
+        sequence: Int
+    ) -> [String: Any] {
+        syncChange(
+            kind: "delete",
+            recipeID: recipeID,
+            revision: revision,
+            sequence: sequence,
+            recipe: NSNull()
+        )
+    }
+
+    private func syncChange(
+        kind: String,
+        recipeID: UUID,
+        revision: Int,
+        sequence: Int,
+        recipe: Any
+    ) -> [String: Any] {
+        [
+            "sequence": sequence,
+            "recipeID": recipeID.uuidString,
+            "kind": kind,
+            "recipeRevision": revision,
+            "changedAt": "2026-08-27T12:00:00.000Z",
+            "recipe": recipe,
+        ]
     }
 
     private func makeRecipe() -> Recipe {

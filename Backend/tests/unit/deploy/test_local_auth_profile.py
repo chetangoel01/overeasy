@@ -23,6 +23,5 @@ def test_local_api_receives_oauth_configuration_and_read_only_apple_key() -> Non
         "/run/secrets/apple_private_key"
     )
     assert (
-        "${LADLE_APPLE_PRIVATE_KEY_FILE:-/dev/null}"
-        ":/run/secrets/apple_private_key:ro"
+        "${LADLE_APPLE_PRIVATE_KEY_FILE:-/dev/null}:/run/secrets/apple_private_key:ro"
     ) in profile["services"]["api"]["volumes"]

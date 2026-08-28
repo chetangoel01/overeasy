@@ -31,6 +31,35 @@ struct RemoteContractTests {
     }
 
     @Test
+    func cancelledImportDecodesAndReportsItselfAsCancelled() throws {
+        // An idempotent re-submission can match a job the user already
+        // cancelled, so the wire status has to decode rather than fail.
+        let payload = Data(
+            """
+            {
+              "jobID": "10000000-0000-4000-8000-000000000001",
+              "status": "cancelled",
+              "failureReason": null,
+              "recipeID": null,
+              "retryCount": 0,
+              "createdAt": "2026-08-27T12:00:00.000Z",
+              "updatedAt": "2026-08-27T12:00:00.000Z"
+            }
+            """.utf8
+        )
+
+        let dto = try RemoteContractJSON.decoder().decode(
+            RemoteImportJobDTO.self,
+            from: payload
+        )
+
+        #expect(dto.status == .cancelled)
+        #expect(throws: RemoteContractError.importCancelled) {
+            try dto.importStatus()
+        }
+    }
+
+    @Test
     func importFixturesMapFlatStatusesIntoDomainEnum() throws {
         let ready: RemoteImportJobDTO = try decodeFixture("import-ready")
         let review: RemoteImportJobDTO = try decodeFixture("import-needs-review")
@@ -114,17 +143,25 @@ struct RemoteContractTests {
     }
 
     @Test
-    func requestEncodingCanonicalizesNestedUUIDs() throws {
+    func requestEncodingCanonicalizesIdentifierFieldsOnly() throws {
         struct Body: Encodable {
             let jobID: UUID
-            let nested: [UUID]
+            let ingredientIDs: [UUID]
+            let title: String
+            let notes: [String]
         }
         let id = UUID(
             uuidString: "10000000-0000-4000-8000-0000000000AA"
         )!
+        let uuidShapedText = "550E8400-E29B-41D4-A716-446655440000"
 
         let data = try RemoteContractJSON.encode(
-            Body(jobID: id, nested: [id])
+            Body(
+                jobID: id,
+                ingredientIDs: [id],
+                title: uuidShapedText,
+                notes: [uuidShapedText]
+            )
         )
         let object = try JSONSerialization.jsonObject(with: data)
             as? [String: Any]
@@ -134,8 +171,73 @@ struct RemoteContractTests {
                 == "10000000-0000-4000-8000-0000000000aa"
         )
         #expect(
-            (object?["nested"] as? [String])?.first
+            (object?["ingredientIDs"] as? [String])?.first
                 == "10000000-0000-4000-8000-0000000000aa"
+        )
+        #expect(object?["title"] as? String == uuidShapedText)
+        #expect((object?["notes"] as? [String])?.first == uuidShapedText)
+    }
+
+    @Test
+    func uuidShapedUserTextSurvivesRecipeUploadUnchanged() throws {
+        // A user can type a UUID into any freeform field. Only identifier
+        // fields may be rewritten to the backend's lowercase wire form.
+        let uuidShapedText = "550E8400-E29B-41D4-A716-446655440000"
+        let recipeID = UUID(
+            uuidString: "20000000-0000-4000-8000-0000000000BB"
+        )!
+        let ingredient = Ingredient(
+            quantityText: "2",
+            name: uuidShapedText,
+            orderIndex: 0
+        )
+        let recipe = Recipe(
+            id: recipeID,
+            title: uuidShapedText,
+            description: uuidShapedText,
+            creatorName: uuidShapedText,
+            source: .tiktok,
+            originalURL: URL(string: "https://example.com/video")!,
+            servings: 2,
+            ingredients: [ingredient],
+            steps: [
+                RecipeStep(
+                    orderIndex: 0,
+                    instruction: uuidShapedText,
+                    ingredientIDs: [ingredient.id]
+                ),
+            ],
+            notes: [uuidShapedText]
+        )
+
+        let data = try RemoteContractJSON.encode(
+            RemoteRecipeDTO(recipe: recipe, revision: 1)
+        )
+        let object = try JSONSerialization.jsonObject(with: data)
+            as? [String: Any]
+        let ingredients = object?["ingredients"] as? [[String: Any]]
+        let steps = object?["steps"] as? [[String: Any]]
+
+        #expect(object?["title"] as? String == uuidShapedText)
+        #expect(object?["description"] as? String == uuidShapedText)
+        #expect(object?["creatorName"] as? String == uuidShapedText)
+        #expect((object?["notes"] as? [String]) == [uuidShapedText])
+        #expect(ingredients?.first?["name"] as? String == uuidShapedText)
+        #expect(steps?.first?["instruction"] as? String == uuidShapedText)
+
+        // The genuine identifiers still go out lowercase — including an
+        // already-lowercase one, which passes through unchanged.
+        #expect(
+            object?["id"] as? String
+                == "20000000-0000-4000-8000-0000000000bb"
+        )
+        #expect(
+            ingredients?.first?["id"] as? String
+                == ingredient.id.uuidString.lowercased()
+        )
+        #expect(
+            (steps?.first?["ingredientIDs"] as? [String])
+                == [ingredient.id.uuidString.lowercased()]
         )
     }
 }

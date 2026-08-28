@@ -75,9 +75,7 @@ def test_valid_source_is_canonicalized_and_completed() -> None:
         "https://www.tiktok.com/@cook/video/7612708181004799263?sender_device=pc"
     )
 
-    assert runner.urls == [
-        "https://www.tiktok.com/@cook/video/7612708181004799263"
-    ]
+    assert runner.urls == ["https://www.tiktok.com/@cook/video/7612708181004799263"]
     assert jobs.status(job_id) == {
         "jobID": job_id,
         "status": "succeeded",
@@ -186,7 +184,7 @@ def test_results_page_embeds_five_safe_complete_recipe_records() -> None:
     assert '<meta name="viewport"' in html
     assert "<main" in html and "<nav" in html
     assert "@media (prefers-reduced-motion: reduce)" in html
-    assert '<script src=' not in html
+    assert "<script src=" not in html
     assert "sk-or-v1" not in html
     assert match is not None
     records = json.loads(match.group(1))
@@ -246,7 +244,7 @@ def test_validator_page_has_accessible_safe_live_pipeline_contract() -> None:
     assert "location.protocol === 'file:'" in html
     assert "textContent" in html
     assert "innerHTML" not in html
-    assert '<script src=' not in html
+    assert "<script src=" not in html
     assert "sk-or-v1" not in html
 
 

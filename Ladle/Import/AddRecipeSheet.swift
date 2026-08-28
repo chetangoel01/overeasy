@@ -6,6 +6,9 @@ struct AddRecipeSheet: View {
 
     @Bindable var coordinator: ImportCoordinator
     let accountSession: AccountSession
+    let authClient: AuthClient?
+    let googleSignIn: (any GoogleSignInProviding)?
+    let onAuthenticated: @MainActor () async -> Void
     let viewRecipe: (Recipe, String) -> Void
 
     @State private var linkText = ""
@@ -20,11 +23,18 @@ struct AddRecipeSheet: View {
     init(
         coordinator: ImportCoordinator,
         accountSession: AccountSession,
+        authClient: AuthClient? = nil,
+        googleSignIn: (any GoogleSignInProviding)? = nil,
+        onAuthenticated:
+            @escaping @MainActor () async -> Void = {},
         initialLink: String = "",
         viewRecipe: @escaping (Recipe, String) -> Void
     ) {
         self.coordinator = coordinator
         self.accountSession = accountSession
+        self.authClient = authClient
+        self.googleSignIn = googleSignIn
+        self.onAuthenticated = onAuthenticated
         self.viewRecipe = viewRecipe
         _linkText = State(initialValue: initialLink)
     }
@@ -48,6 +58,8 @@ struct AddRecipeSheet: View {
                         guestLimitContent(decision: decision)
                     case let .failed(jobID, reason):
                         failedContent(jobID: jobID, reason: reason)
+                    case .cancelled:
+                        cancelledContent
                     case .idle, .validationFailed, .persistenceFailed:
                         if isManualEntry {
                             manualContent
@@ -110,17 +122,6 @@ struct AddRecipeSheet: View {
             }
             if coordinator.isImporting {
                 selectedDetent = .large
-            }
-        }
-        .onChange(of: accountSession.state) { _, state in
-            guard state == .freeAccount
-                    || state == .signedInWithApple
-                    || state == .signedInWithGoogle,
-                  case .guestLimit = coordinator.state else {
-                return
-            }
-            Task {
-                await coordinator.continueAfterGuestPrompt()
             }
         }
         .onChange(of: coordinator.state) { _, state in
@@ -307,6 +308,39 @@ struct AddRecipeSheet: View {
         .padding(LadleTheme.Spacing.generous)
     }
 
+    private var cancelledContent: some View {
+        VStack(spacing: LadleTheme.Layout.sectionGap) {
+            Image(systemName: "xmark.circle")
+                .font(
+                    .system(
+                        size: LadleTheme.IconSize.feature,
+                        weight: .bold
+                    )
+                )
+                .foregroundStyle(LadleTheme.Label.primary)
+                .frame(width: 62, height: 62)
+                .background(LadleTheme.Surface.steel, in: Circle())
+
+            VStack(spacing: 8) {
+                Text("Import cancelled")
+                    .ladleFont(.title)
+                    .foregroundStyle(LadleTheme.Label.primary)
+                Text(
+                    "This import was cancelled and removed from Inbox. Paste the link again if you still want the recipe."
+                )
+                .ladleFont(.body)
+                .foregroundStyle(LadleTheme.Label.primary.opacity(0.64))
+                .multilineTextAlignment(.center)
+            }
+
+            Button("Add another recipe") {
+                coordinator.reset()
+            }
+            .buttonStyle(LadleButtonStyle(role: .primary))
+        }
+        .padding(LadleTheme.Spacing.generous)
+    }
+
     private func successContent(needsReview: Bool) -> some View {
         VStack(spacing: LadleTheme.Layout.sectionGap) {
             Image(
@@ -406,7 +440,15 @@ struct AddRecipeSheet: View {
     ) -> some View {
         GuestLimitView(
             decision: decision,
-            accountSession: accountSession
+            accountSession: accountSession,
+            authClient: authClient,
+            googleSignIn: googleSignIn,
+            onAuthenticated: {
+                // The backend has confirmed the account. Sync the merged
+                // library first, then resume the import that hit the cap.
+                await onAuthenticated()
+                await coordinator.continueAfterGuestPrompt()
+            }
         ) {
             Task {
                 await coordinator.continueAfterGuestPrompt()

@@ -264,31 +264,37 @@ struct RecipeTimerButton: View {
                     )
                 }
             }
-        }
-        .sensoryFeedback(
-            .impact(weight: .medium, intensity: 0.8),
-            trigger: phase
-        ) { oldPhase, newPhase in
-            LadleFeedbackPolicy.timerFeedback(
-                from: oldPhase,
-                to: newPhase
-            ) == .started
-        }
-        .sensoryFeedback(.selection, trigger: phase) {
-            oldPhase,
-            newPhase in
-            LadleFeedbackPolicy.timerFeedback(
-                from: oldPhase,
-                to: newPhase
-            ) == .paused
-        }
-        .sensoryFeedback(.success, trigger: phase) {
-            oldPhase,
-            newPhase in
-            LadleFeedbackPolicy.timerFeedback(
-                from: oldPhase,
-                to: newPhase
-            ) == .finished
+            // Inside the TimelineView content, so each per-second refresh
+            // re-reads the trigger. Completion is purely time-derived —
+            // the stored phase never mutates to .finished — and this
+            // refresh is the only place the .running -> .finished
+            // transition is ever observed; attached outside, the finish
+            // haptic could never fire.
+            .sensoryFeedback(
+                .impact(weight: .medium, intensity: 0.8),
+                trigger: phase
+            ) { oldPhase, newPhase in
+                LadleFeedbackPolicy.timerFeedback(
+                    from: oldPhase,
+                    to: newPhase
+                ) == .started
+            }
+            .sensoryFeedback(.selection, trigger: phase) {
+                oldPhase,
+                newPhase in
+                LadleFeedbackPolicy.timerFeedback(
+                    from: oldPhase,
+                    to: newPhase
+                ) == .paused
+            }
+            .sensoryFeedback(.success, trigger: phase) {
+                oldPhase,
+                newPhase in
+                LadleFeedbackPolicy.timerFeedback(
+                    from: oldPhase,
+                    to: newPhase
+                ) == .finished
+            }
         }
     }
 

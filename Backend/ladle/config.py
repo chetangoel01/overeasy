@@ -99,6 +99,8 @@ class Settings(BaseSettings):
     )
     rate_limit_trusted_proxy_cidrs: str = ""
     rate_limit_global_per_minute: int = Field(default=3_000, gt=0)
+    rate_limit_attestation_ip_per_hour: int = Field(default=60, gt=0)
+    rate_limit_attestation_installation_per_hour: int = Field(default=30, gt=0)
     rate_limit_guest_ip_per_hour: int = Field(default=20, gt=0)
     rate_limit_guest_installation_per_day: int = Field(default=5, gt=0)
     rate_limit_refresh_ip_per_minute: int = Field(default=60, gt=0)
@@ -503,9 +505,7 @@ class Settings(BaseSettings):
             self.usda_api_key is None
             or self._is_placeholder(self.usda_api_key.get_secret_value())
         ):
-            raise ValueError(
-                "production nutrition requires a configured usda_api_key"
-            )
+            raise ValueError("production nutrition requires a configured usda_api_key")
         for field_name in (
             "supadata_base_url",
             "soscripted_base_url",

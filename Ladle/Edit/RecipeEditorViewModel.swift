@@ -26,6 +26,56 @@ enum RecipeEditorState: Equatable {
     case persistenceFailed
 }
 
+/// The editor's tab sections. The view model owns this so it can say which
+/// section a rejected save should send the user to.
+enum RecipeEditorSection: String, CaseIterable, Identifiable {
+    case basics = "Basics"
+    case media = "Media"
+    case timing = "Timing"
+    case ingredients = "Ingredients"
+    case method = "Method"
+    case nutrition = "Nutrition"
+
+    var id: String { rawValue }
+
+    /// The section whose fields own `issue`. Every issue the draft can raise
+    /// belongs to exactly one section, so a rejected save can always name
+    /// somewhere to look.
+    static func owning(
+        _ issue: RecipeDraftValidationIssue
+    ) -> RecipeEditorSection {
+        switch issue {
+        case .titleRequired,
+             .titleTooLong,
+             .creatorNameTooLong,
+             .descriptionTooLong:
+            .basics
+        case .servingsMustBePositive,
+             .preparationMinutesInvalid,
+             .cookingMinutesInvalid,
+             .totalMinutesInvalid:
+            .timing
+        case .tooManyIngredients,
+             .ingredientNameRequired,
+             .ingredientFieldTooLong:
+            .ingredients
+        case .tooManySteps,
+             .stepInstructionRequired,
+             .stepInstructionTooLong:
+            .method
+        case .nutritionValueInvalid:
+            .nutrition
+        }
+    }
+}
+
+/// A rejected save, described for the user: what is wrong, and where to look.
+struct RecipeEditorValidationSummary: Equatable {
+    let headline: String
+    let detail: String
+    let sections: [RecipeEditorSection]
+}
+
 @MainActor
 @Observable
 final class RecipeEditorViewModel: Identifiable {
@@ -34,11 +84,35 @@ final class RecipeEditorViewModel: Identifiable {
         Set<RecipeDraftValidationIssue> = []
     private(set) var state: RecipeEditorState = .editing
 
+    /// Sections holding at least one rejected field, in tab order.
+    var sectionsNeedingAttention: [RecipeEditorSection] {
+        let owning = Set(validationIssues.map(RecipeEditorSection.owning))
+        return RecipeEditorSection.allCases.filter(owning.contains)
+    }
+
+    /// Non-nil once a save has been rejected. Each inline message renders
+    /// inside its own field's section, so a save rejected for a field the
+    /// user is not looking at needs a summary that travels with them —
+    /// otherwise the Save tap reads as a dead button.
+    var validationSummary: RecipeEditorValidationSummary? {
+        let sections = sectionsNeedingAttention
+        guard !sections.isEmpty else { return nil }
+        let count = validationIssues.count
+        return RecipeEditorValidationSummary(
+            headline: count == 1
+                ? "Can't save yet — one field needs attention"
+                : "Can't save yet — \(count) fields need attention",
+            detail: "Check \(sections.map(\.rawValue).formatted(.list(type: .and))).",
+            sections: sections
+        )
+    }
+
     @ObservationIgnored
     private let repository: RecipeRepository
 
     @ObservationIgnored
     private let now: () -> Date
+    private let locale: Locale
 
     @ObservationIgnored
     private let didSave:
@@ -50,6 +124,7 @@ final class RecipeEditorViewModel: Identifiable {
         recipe: Recipe,
         repository: RecipeRepository,
         now: @escaping () -> Date = Date.init,
+        locale: Locale = .current,
         didSave:
             @escaping @MainActor @Sendable () async -> Void = {}
     ) {
@@ -57,6 +132,7 @@ final class RecipeEditorViewModel: Identifiable {
         draft = RecipeDraft(recipe: recipe)
         self.repository = repository
         self.now = now
+        self.locale = locale
         self.didSave = didSave
     }
 
@@ -105,7 +181,7 @@ final class RecipeEditorViewModel: Identifiable {
             return nil
         }
 
-        let recipe = draft.recipe(updatedAt: now())
+        let recipe = draft.recipe(updatedAt: now(), locale: locale)
         do {
             try repository.save(recipe)
             originalRecipe = recipe
@@ -281,12 +357,7 @@ final class RecipeEditorViewModel: Identifiable {
     }
 
     private func decimal(_ text: String) -> Decimal? {
-        normalized(text).flatMap {
-            Decimal(
-                string: $0,
-                locale: Locale(identifier: "en_US_POSIX")
-            )
-        }
+        EditorNumber.decimal(text, locale: locale)
     }
 
     private func normalized(_ text: String) -> String? {

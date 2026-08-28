@@ -1,4 +1,4 @@
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -11,6 +11,25 @@ from ladle.auth.attestation import (
 from ladle.auth.sessions import SessionService, SessionTokens
 from ladle.clock import Clock
 from ladle.db.models import Device, User, UserSyncState
+
+
+def release_device_binding(database: Session, *, device_id: UUID) -> None:
+    """Drop the installation-ID-to-account binding for a signed-out device.
+
+    `register_guest` issues a session for whatever user the device row points
+    at, so a device claimed by an Apple or Google identity would keep minting
+    full sessions for that account after sign-out. A guest keeps its binding:
+    the installation ID is the only credential a guest account ever has.
+    """
+    device = database.execute(
+        select(Device).where(Device.id == device_id).with_for_update()
+    ).scalar_one_or_none()
+    if device is None:
+        return
+    user = database.get(User, device.user_id)
+    if user is None or user.kind == "guest":
+        return
+    database.delete(device)
 
 
 def register_guest(

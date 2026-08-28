@@ -1,77 +1,26 @@
 import AuthenticationServices
-import CryptoKit
-import Security
 import SwiftUI
 
-enum WelcomeAuthenticationFailure: Equatable {
-    case missingConfiguration
-    case remote(RemoteFailureReport)
-    case other(String)
-
-    init?(_ error: any Error, fallback: String) {
-        if error is CancellationError {
-            return nil
-        }
-        if let googleError = error as? GoogleSignInProviderError {
-            switch googleError {
-            case .cancelled:
-                return nil
-            case .missingConfiguration:
-                self = .missingConfiguration
-                return
-            case .missingPresenter, .missingIdentityToken:
-                break
-            }
-        }
-        if (error as? ASAuthorizationError)?.code == .canceled {
-            return nil
-        }
-        if error is APIError {
-            self = .remote(RemoteFailureReport(error))
-        } else {
-            self = .other(fallback)
-        }
-    }
-
-    var message: String {
-        switch self {
-        case .missingConfiguration:
-            "Google sign-in isn’t configured for this build."
-        case let .remote(report):
-            switch report.failure {
-            case .offline:
-                "You’re offline. Reconnect and try again."
-            case .serviceUnavailable:
-                "Overeasy is temporarily unavailable. Try again in a moment."
-            case let .rateLimited(retryAt):
-                "Too many attempts. Try again after \(retryAt.formatted(date: .omitted, time: .shortened))."
-            case .quotaExceeded:
-                "Account setup has reached its current limit. Try again later."
-            case .authenticationExpired:
-                "That sign-in session expired. Start sign-in again."
-            case .invalidResponse:
-                "Overeasy couldn’t read the sign-in response. Try again."
-            case .unknown:
-                "Account setup didn’t complete. Please try again."
-            }
-        case let .other(message):
-            message
-        }
-    }
-}
-
 struct WelcomeView: View {
-    let accountSession: AccountSession
-    let authClient: AuthClient?
-    let googleSignIn: (any GoogleSignInProviding)?
-    let installationID: String
-    let onAuthenticated: @MainActor () async -> Void
-
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    @State private var rawNonce: String?
-    @State private var isAuthenticating = false
-    @State private var authenticationFailure: WelcomeAuthenticationFailure?
+    @State private var flow: AccountSignInFlow
+
+    init(
+        accountSession: AccountSession,
+        authClient: AuthClient?,
+        googleSignIn: (any GoogleSignInProviding)?,
+        onAuthenticated: @escaping @MainActor () async -> Void
+    ) {
+        _flow = State(
+            initialValue: AccountSignInFlow(
+                accountSession: accountSession,
+                authClient: authClient,
+                googleSignIn: googleSignIn,
+                onAuthenticated: onAuthenticated
+            )
+        )
+    }
 
     var body: some View {
         ZStack {
@@ -187,13 +136,9 @@ struct WelcomeView: View {
     private var accountActions: some View {
         VStack(spacing: 0) {
             SignInWithAppleButton(.continue) { request in
-                authenticationFailure = nil
-                let nonce = Self.randomNonce()
-                rawNonce = nonce
-                request.requestedScopes = [.email, .fullName]
-                request.nonce = Self.sha256(nonce)
+                flow.prepareAppleRequest(request)
             } onCompletion: { result in
-                handleAppleCompletion(result)
+                Task { await flow.handleAppleCompletion(result) }
             }
             // Always white. The welcome surface is unconditionally graphite,
             // so a style chosen from the device appearance is wrong half the
@@ -207,10 +152,13 @@ struct WelcomeView: View {
                     cornerRadius: LadleTheme.Corner.control
                 )
             )
-            .disabled(isAuthenticating)
+            .disabled(flow.isAuthenticating)
 
-            GoogleSignInControl(isEnabled: !isAuthenticating) {
-                authenticateWithGoogle()
+            GoogleSignInControl(
+                isEnabled: !flow.isAuthenticating,
+                accessibilityIdentifier: "welcome.google-sign-in"
+            ) {
+                Task { await flow.signInWithGoogle() }
             }
             .padding(.top, LadleTheme.Spacing.medium)
 
@@ -218,7 +166,7 @@ struct WelcomeView: View {
                 .padding(.vertical, LadleTheme.Spacing.medium)
 
             Button {
-                authenticateAsGuest()
+                Task { await flow.continueAsGuest() }
             } label: {
                 Text("Try as a guest")
                     .ladleFont(.bodyStrong)
@@ -227,7 +175,7 @@ struct WelcomeView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .disabled(isAuthenticating)
+            .disabled(flow.isAuthenticating)
 
             Text(
                 "Guests can save up to 10 recipes. Sign in later without losing them."
@@ -238,7 +186,7 @@ struct WelcomeView: View {
             .fixedSize(horizontal: false, vertical: true)
             .padding(.top, LadleTheme.Spacing.compact)
 
-            if isAuthenticating {
+            if flow.isAuthenticating {
                 ProgressView("Setting up Overeasy")
                     .ladleFont(.metadata)
                     .tint(LadleTheme.Intent.accent)
@@ -246,7 +194,7 @@ struct WelcomeView: View {
                     .padding(.top, LadleTheme.Spacing.medium)
             }
 
-            if let authenticationFailure {
+            if let authenticationFailure = flow.failure {
                 Text(authenticationFailure.message)
                     .ladleFont(.metadata)
                     .foregroundStyle(LadleTheme.Label.accent)
@@ -272,181 +220,11 @@ struct WelcomeView: View {
         .accessibilityHidden(true)
     }
 
-    private func authenticateWithGoogle() {
-        guard !isAuthenticating else {
-            return
-        }
-        guard let googleSignIn else {
-            accountSession.signInWithGoogle()
-            Task { await onAuthenticated() }
-            return
-        }
-        isAuthenticating = true
-        authenticationFailure = nil
-        Task { @MainActor in
-            defer { isAuthenticating = false }
-            do {
-                let identityToken = try await googleSignIn.signIn()
-                if let authClient {
-                    if try authClient.restoreSession() == nil {
-                        _ = try await authClient.bootstrapGuest(
-                            installationID: installationID,
-                            attestation: nil,
-                            applyAccountState: false
-                        )
-                    }
-                    _ = try await authClient.signInWithGoogle(
-                        identityToken: identityToken,
-                        idempotencyKey: UUID().uuidString.lowercased()
-                    )
-                } else {
-                    accountSession.signInWithGoogle()
-                }
-                await onAuthenticated()
-            } catch {
-                authenticationFailure = WelcomeAuthenticationFailure(
-                    error,
-                    fallback: "Sign in with Google didn’t complete. Please try again."
-                )
-            }
-        }
-    }
-
-    private func authenticateAsGuest() {
-        guard !isAuthenticating else {
-            return
-        }
-        isAuthenticating = true
-        authenticationFailure = nil
-        Task { @MainActor in
-            defer { isAuthenticating = false }
-            do {
-                if let authClient {
-                    _ = try await authClient.bootstrapGuest(
-                        installationID: installationID,
-                        attestation: nil
-                    )
-                } else {
-                    accountSession.continueAsGuest()
-                }
-                await onAuthenticated()
-            } catch {
-                authenticationFailure = WelcomeAuthenticationFailure(
-                    error,
-                    fallback: "Account setup didn’t complete. Please try again."
-                )
-            }
-        }
-    }
-
-    private func handleAppleCompletion(
-        _ result: Result<ASAuthorization, any Error>
-    ) {
-        guard !isAuthenticating else {
-            return
-        }
-        switch result {
-        case let .failure(error):
-            authenticationFailure = WelcomeAuthenticationFailure(
-                error,
-                fallback: "Sign in with Apple didn’t complete. Please try again."
-            )
-        case let .success(authorization):
-            guard
-                let credential =
-                    authorization.credential
-                    as? ASAuthorizationAppleIDCredential,
-                let identityData = credential.identityToken,
-                let identityToken = String(
-                    data: identityData,
-                    encoding: .utf8
-                ),
-                let codeData = credential.authorizationCode,
-                let authorizationCode = String(
-                    data: codeData,
-                    encoding: .utf8
-                ),
-                let nonce = rawNonce
-            else {
-                authenticationFailure = .other(
-                    "Apple didn’t return a complete credential. Please try again."
-                )
-                return
-            }
-            authenticateWithApple(
-                identityToken: identityToken,
-                authorizationCode: authorizationCode,
-                nonce: nonce
-            )
-        }
-    }
-
-    private func authenticateWithApple(
-        identityToken: String,
-        authorizationCode: String,
-        nonce: String
-    ) {
-        guard let authClient else {
-            accountSession.signInWithApple()
-            Task { await onAuthenticated() }
-            return
-        }
-        isAuthenticating = true
-        authenticationFailure = nil
-        Task { @MainActor in
-            defer { isAuthenticating = false }
-            do {
-                if try authClient.restoreSession() == nil {
-                    _ = try await authClient.bootstrapGuest(
-                        installationID: installationID,
-                        attestation: nil,
-                        applyAccountState: false
-                    )
-                }
-                _ = try await authClient.signInWithApple(
-                    identityToken: identityToken,
-                    authorizationCode: authorizationCode,
-                    nonce: nonce,
-                    idempotencyKey: UUID().uuidString.lowercased()
-                )
-                await onAuthenticated()
-            } catch {
-                authenticationFailure = WelcomeAuthenticationFailure(
-                    error,
-                    fallback: "Sign in with Apple didn’t complete. Please try again."
-                )
-            }
-        }
-    }
-
-    private static func randomNonce(length: Int = 32) -> String {
-        let alphabet = Array(
-            "0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._"
-        )
-        var result = ""
-        var bytes = [UInt8](repeating: 0, count: length)
-        guard SecRandomCopyBytes(
-            kSecRandomDefault,
-            bytes.count,
-            &bytes
-        ) == errSecSuccess else {
-            return UUID().uuidString
-        }
-        for byte in bytes {
-            result.append(alphabet[Int(byte) % alphabet.count])
-        }
-        return result
-    }
-
-    private static func sha256(_ value: String) -> String {
-        SHA256.hash(data: Data(value.utf8))
-            .map { String(format: "%02x", $0) }
-            .joined()
-    }
 }
 
-private struct GoogleSignInControl: View {
+struct GoogleSignInControl: View {
     let isEnabled: Bool
+    let accessibilityIdentifier: String
     let action: @MainActor () -> Void
 
     var body: some View {
@@ -462,7 +240,7 @@ private struct GoogleSignInControl: View {
         .buttonStyle(GoogleSignInButtonStyle())
         .disabled(!isEnabled)
         .accessibilityLabel("Sign in with Google")
-        .accessibilityIdentifier("welcome.google-sign-in")
+        .accessibilityIdentifier(accessibilityIdentifier)
     }
 }
 

@@ -294,9 +294,7 @@ class RecipeNutritionNormalizer:
         updated = template.model_copy(
             update={
                 "servings": servings,
-                "servings_basis": (
-                    "stated" if stated else "estimatedFromYield"
-                ),
+                "servings_basis": ("stated" if stated else "estimatedFromYield"),
                 "ingredients": ingredients,
                 "uncertainties": uncertainties,
             }

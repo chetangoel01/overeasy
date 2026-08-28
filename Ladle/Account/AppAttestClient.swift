@@ -102,7 +102,7 @@ actor AppAttestClient: AppAttesting {
     }
 
     private let baseURL: URL
-    private let installationID: String
+    private let installationIdentity: InstallationIdentity
     private let session: URLSession
     private let platform: any AppAttestPlatformServing
     private let secureStore: any SecureDataStoring
@@ -111,7 +111,7 @@ actor AppAttestClient: AppAttesting {
 
     init(
         baseURL: URL,
-        installationID: String,
+        installationIdentity: InstallationIdentity,
         session: URLSession = .shared,
         platform: any AppAttestPlatformServing = SystemAppAttestPlatform(),
         secureStore: any SecureDataStoring = SystemKeychainDataStore(),
@@ -119,7 +119,7 @@ actor AppAttestClient: AppAttesting {
         keychainAccount: String = "key-id"
     ) {
         self.baseURL = baseURL
-        self.installationID = installationID
+        self.installationIdentity = installationIdentity
         self.session = session
         self.platform = platform
         self.secureStore = secureStore
@@ -131,8 +131,10 @@ actor AppAttestClient: AppAttesting {
         guard platform.isSupported else {
             return nil
         }
+        let installationID = installationIdentity.current
         let keyID = try await keyID()
         let challenge = try await issueChallenge(
+            installationID: installationID,
             purpose: .guestCreation,
             keyID: keyID
         )
@@ -157,6 +159,7 @@ actor AppAttestClient: AppAttesting {
             )
         }
         return try await assertionEvidence(
+            installationID: installationID,
             keyID: keyID,
             challenge: challenge,
             purpose: .guestCreation,
@@ -176,7 +179,9 @@ actor AppAttestClient: AppAttesting {
         guard let keyID = try storedKeyID() else {
             throw AppAttestClientError.keyRequiresAttestation
         }
+        let installationID = installationIdentity.current
         let challenge = try await issueChallenge(
+            installationID: installationID,
             purpose: purpose,
             keyID: keyID
         )
@@ -184,6 +189,7 @@ actor AppAttestClient: AppAttesting {
             throw AppAttestClientError.keyRequiresAttestation
         }
         let evidence = try await assertionEvidence(
+            installationID: installationID,
             keyID: keyID,
             challenge: challenge,
             purpose: purpose,
@@ -227,6 +233,7 @@ actor AppAttestClient: AppAttesting {
     }
 
     private func assertionEvidence(
+        installationID: String,
         keyID: String,
         challenge: ChallengeResponse,
         purpose: AppAttestPurpose,
@@ -258,6 +265,7 @@ actor AppAttestClient: AppAttesting {
     }
 
     private func issueChallenge(
+        installationID: String,
         purpose: AppAttestPurpose,
         keyID: String
     ) async throws -> ChallengeResponse {

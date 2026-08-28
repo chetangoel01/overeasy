@@ -87,9 +87,7 @@ def test_compare_runs_rejects_a_summary_with_the_wrong_case_total() -> None:
 def test_compare_runs_rejects_a_nutrition_summary_missing_a_case() -> None:
     first = _run("first")
     second = deepcopy(_run("second"))
-    second["wholeRecipeNutrition"].update(
-        {"total": 79, "passRate": "0.9620253165"}
-    )
+    second["wholeRecipeNutrition"].update({"total": 79, "passRate": "0.9620253165"})
 
     with pytest.raises(ValueError, match=r"wholeRecipeNutrition\.total"):
         compare_runs([first, second])
@@ -168,9 +166,7 @@ def test_compare_runs_groups_repeats_and_requires_every_run_to_pass() -> None:
     cheap_first = _run("cheap")
     cheap_repeat = deepcopy(_run("cheap"))
     cheap_repeat["label"] = "cheap-run-2"
-    cheap_repeat["sparseSafety"].update(
-        {"passed": 19, "meetsGate": False}
-    )
+    cheap_repeat["sparseSafety"].update({"passed": 19, "meetsGate": False})
     cheap_repeat["benchmark"]["structure"].update(
         {
             "ingredientPairsMatched": 800,
@@ -193,14 +189,10 @@ def test_compare_runs_groups_repeats_and_requires_every_run_to_pass() -> None:
 def test_sparse_gate_requires_all_twenty_safety_cases() -> None:
     opus = _run("opus")
     incomplete = deepcopy(_run("incomplete"))
-    incomplete["sparseSafety"].update(
-        {"passed": 19, "total": 19, "meetsGate": True}
-    )
+    incomplete["sparseSafety"].update({"passed": 19, "total": 19, "meetsGate": True})
 
     report = compare_runs([opus, incomplete])
-    summary = next(
-        model for model in report.models if model.model_id == "incomplete"
-    )
+    summary = next(model for model in report.models if model.model_id == "incomplete")
 
     assert summary.eligible is False
     assert summary.gate_failures == ["sparseSafety"]
@@ -214,9 +206,7 @@ def test_valid_output_gate_is_derived_from_counts() -> None:
     )
 
     report = compare_runs([opus, unreliable])
-    summary = next(
-        model for model in report.models if model.model_id == "unreliable"
-    )
+    summary = next(model for model in report.models if model.model_id == "unreliable")
 
     assert summary.eligible is False
     assert summary.gate_failures == ["validStructuredOutputs"]
@@ -230,9 +220,7 @@ def test_nutrition_gate_is_derived_from_counts() -> None:
     )
 
     report = compare_runs([opus, inaccurate])
-    summary = next(
-        model for model in report.models if model.model_id == "inaccurate"
-    )
+    summary = next(model for model in report.models if model.model_id == "inaccurate")
 
     assert summary.eligible is False
     assert summary.gate_failures == ["wholeRecipeNutrition"]

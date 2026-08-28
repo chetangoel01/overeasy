@@ -106,13 +106,59 @@ final class RecipeSyncServiceTests: XCTestCase {
         let result = try await service.synchronize()
 
         XCTAssertEqual(repository.conflicts.count, 1)
-        XCTAssertEqual(repository.conflicts.first?.local, local)
+        XCTAssertEqual(repository.conflicts.first?.localRecipeID, local.id)
         XCTAssertEqual(
             repository.conflicts.first?.remote.title,
             "Tomato Toast"
         )
         XCTAssertEqual(repository.conflicts.first?.revision, 2)
         XCTAssertEqual(result.conflictCount, 1)
+    }
+
+    func testRejectedDeletePreservesAConflictInsteadOfWedgingSync()
+        async throws
+    {
+        let recipeID = UUID(
+            uuidString: "20000000-0000-4000-8000-000000000002"
+        )!
+        let repository = SyncTestRepository(
+            pending: [
+                .delete(recipeID: recipeID, baseRevision: 1),
+            ]
+        )
+        let cursor = InMemorySyncCursorStore()
+        URLProtocolStub.install { request in
+            if request.httpMethod == "DELETE" {
+                let errors = try! JSONSerialization.jsonObject(
+                    with: Self.fixture(named: "errors")
+                ) as! [[String: Any]]
+                return (
+                    Self.response(request, status: 409),
+                    try! JSONSerialization.data(withJSONObject: errors[1])
+                )
+            }
+            return (
+                Self.response(request),
+                try! Self.fixture(named: "sync-page")
+            )
+        }
+        let service = RecipeSyncService(
+            api: makeAPI(),
+            repository: repository,
+            cursorStore: cursor
+        )
+
+        let result = try await service.synchronize()
+
+        // The rejected delete becomes a conflict the user can resolve, and
+        // the pull still runs — otherwise the device never syncs again.
+        XCTAssertEqual(repository.conflicts.count, 1)
+        XCTAssertEqual(repository.conflicts.first?.localRecipeID, recipeID)
+        XCTAssertEqual(repository.conflicts.first?.revision, 2)
+        XCTAssertEqual(repository.appliedSequences, [1, 2])
+        XCTAssertEqual(try cursor.load(), 2)
+        XCTAssertEqual(result.conflictCount, 1)
+        XCTAssertTrue(repository.syncedDeletes.isEmpty)
     }
 
     func testResetWaitsForCurrentRunThenStartsAFullSync() async throws {
@@ -159,6 +205,45 @@ final class RecipeSyncServiceTests: XCTestCase {
         _ = try await reset.value
 
         XCTAssertEqual(requestCount.snapshot, 2)
+        XCTAssertEqual(try cursor.load(), 0)
+    }
+
+    func testCancellingAnInFlightSyncAppliesNothingAndKeepsTheCursor()
+        async throws
+    {
+        let requestArrived = Locked<Bool>(false)
+        let releaseRequest = DispatchSemaphore(value: 0)
+        URLProtocolStub.install { request in
+            requestArrived.withValue { $0 = true }
+            _ = releaseRequest.wait(timeout: .now() + 5)
+            return (
+                Self.response(request),
+                try! Self.fixture(named: "sync-page")
+            )
+        }
+        let repository = SyncTestRepository()
+        let cursor = InMemorySyncCursorStore()
+        let service = RecipeSyncService(
+            api: makeAPI(),
+            repository: repository,
+            cursorStore: cursor
+        )
+        let sync = Task { try await service.synchronize() }
+        while !requestArrived.snapshot {
+            await Task.yield()
+        }
+
+        // Sign-out cancels the run before wiping the local store; the pulled
+        // page must never land in the store the wipe is about to clear.
+        let signOut = Task { await service.cancelActiveSync() }
+        await Task.yield()
+        releaseRequest.signal()
+        await signOut.value
+
+        XCTAssertTrue(repository.appliedSequences.isEmpty)
+        XCTAssertEqual(try cursor.load(), 0)
+        _ = try? await sync.value
+        XCTAssertTrue(repository.appliedSequences.isEmpty)
         XCTAssertEqual(try cursor.load(), 0)
     }
 
@@ -250,7 +335,7 @@ final class RecipeSyncServiceTests: XCTestCase {
 @MainActor
 private final class SyncTestRepository: RecipeSyncRepository {
     struct Conflict {
-        let local: Recipe
+        let localRecipeID: UUID
         let remote: RemoteRecipeDTO
         let revision: Int
     }
@@ -270,7 +355,7 @@ private final class SyncTestRepository: RecipeSyncRepository {
         pending
     }
 
-    func markUpsertSynced(_ recipe: RemoteRecipeDTO) throws {
+    func markUpsertSynced(_ recipe: RemoteRecipeDTO, pushed: Recipe) throws {
         syncedUpserts.append(recipe)
         pending.removeAll { $0.recipeID == recipe.id }
     }
@@ -281,13 +366,13 @@ private final class SyncTestRepository: RecipeSyncRepository {
     }
 
     func preserveConflict(
-        localRecipe: Recipe,
+        localRecipeID: UUID,
         remoteRecipe: RemoteRecipeDTO,
         remoteRevision: Int
     ) throws {
         conflicts.append(
             Conflict(
-                local: localRecipe,
+                localRecipeID: localRecipeID,
                 remote: remoteRecipe,
                 revision: remoteRevision
             )

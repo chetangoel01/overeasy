@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import timedelta
@@ -10,6 +11,8 @@ from fastapi import Request
 
 from ladle.config import Settings
 from ladle.observability.metrics import MetricsRegistry
+
+logger = logging.getLogger(__name__)
 
 IPAddress = IPv4Address | IPv6Address
 
@@ -80,6 +83,14 @@ class RateLimitExceeded(Exception):
         super().__init__("rate limit exceeded")
 
 
+class RateLimitBackendUnavailable(Exception):
+    """The limiter could not be consulted at all.
+
+    Distinct from `RateLimitExceeded`, which is an answer. This one means
+    there was no answer, and callers degrade rather than reject.
+    """
+
+
 class RateLimitBackend(Protocol):
     def retry_after(self, checks: Sequence[RateLimitCheck]) -> int | None: ...
 
@@ -118,12 +129,19 @@ class RedisTokenBucketBackend:
                     max(1, ceil(check.period.total_seconds() * 1000)),
                 ]
             )
-        result = self._redis.eval(
-            _TOKEN_BUCKET_SCRIPT,
-            len(keys),
-            *keys,
-            *arguments,
-        )
+        try:
+            result = self._redis.eval(
+                _TOKEN_BUCKET_SCRIPT,
+                len(keys),
+                *keys,
+                *arguments,
+            )
+        except Exception as error:
+            # Redis client failures are provider-specific, so they are typed
+            # here rather than leaking out of the limiter.
+            raise RateLimitBackendUnavailable(
+                "rate-limit store is unreachable"
+            ) from error
         if not isinstance(result, str | bytes | int | float):
             raise RuntimeError("Redis returned an invalid rate-limit result")
         seconds = int(result)
@@ -195,7 +213,19 @@ class RateLimitService:
         return self._client_ips.resolve(request)
 
     def enforce(self, checks: Sequence[RateLimitCheck]) -> None:
-        retry_after = self._backend.retry_after(checks)
+        try:
+            retry_after = self._backend.retry_after(checks)
+        except RateLimitBackendUnavailable:
+            # enforce() runs before call_next on every request, so refusing
+            # here would turn a limiter blip into a total API outage —
+            # including the dependency-free liveness probe, which an
+            # orchestrator reads as a dead container. Serve the request and
+            # say so; the limiter is a guard, not the service.
+            logger.warning(
+                "rate limit store unavailable; serving request unlimited",
+                extra={"buckets": sorted({check.bucket for check in checks})},
+            )
+            return
         if retry_after is not None:
             if self._metrics is not None:
                 for check in checks:
@@ -206,6 +236,8 @@ class RateLimitService:
 @dataclass(frozen=True)
 class RateLimitPolicies:
     global_per_minute: int
+    attestation_ip_per_hour: int
+    attestation_installation_per_hour: int
     guest_ip_per_hour: int
     guest_installation_per_day: int
     refresh_ip_per_minute: int
@@ -222,6 +254,10 @@ class RateLimitPolicies:
     def from_settings(cls, settings: Settings) -> "RateLimitPolicies":
         return cls(
             global_per_minute=settings.rate_limit_global_per_minute,
+            attestation_ip_per_hour=settings.rate_limit_attestation_ip_per_hour,
+            attestation_installation_per_hour=(
+                settings.rate_limit_attestation_installation_per_hour
+            ),
             guest_ip_per_hour=settings.rate_limit_guest_ip_per_hour,
             guest_installation_per_day=(settings.rate_limit_guest_installation_per_day),
             refresh_ip_per_minute=settings.rate_limit_refresh_ip_per_minute,
@@ -243,6 +279,21 @@ class RateLimitPolicies:
 
     def global_request(self) -> tuple[RateLimitCheck, ...]:
         return (self._check("global", "all", self.global_per_minute, minutes=1),)
+
+    def attestation_challenge(
+        self,
+        ip: str,
+        installation: str,
+    ) -> tuple[RateLimitCheck, ...]:
+        return (
+            self._check("attestation:ip", ip, self.attestation_ip_per_hour, hours=1),
+            self._check(
+                "attestation:installation",
+                installation,
+                self.attestation_installation_per_hour,
+                hours=1,
+            ),
+        )
 
     def guest(self, ip: str, installation: str) -> tuple[RateLimitCheck, ...]:
         return (

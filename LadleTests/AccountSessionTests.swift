@@ -66,6 +66,14 @@ final class AccountSessionTests: XCTestCase {
         session.continueAsGuest()
 
         XCTAssertEqual(
+            session.saveDecision(savedRecipeCount: 0),
+            .allow
+        )
+        XCTAssertEqual(
+            session.saveDecision(savedRecipeCount: 8),
+            .allow
+        )
+        XCTAssertEqual(
             session.saveDecision(savedRecipeCount: 9),
             .allowWithAccountPrompt
         )
@@ -73,11 +81,19 @@ final class AccountSessionTests: XCTestCase {
             session.saveDecision(savedRecipeCount: 10),
             .limitReached
         )
+        XCTAssertEqual(
+            session.saveDecision(savedRecipeCount: 11),
+            .limitReached
+        )
     }
 
-    func testFreeAccountRemovesGuestSaveLimit() {
+    func testBackendConfirmedAccountRemovesGuestSaveLimit() {
         let session = AccountSession(store: InMemoryPreferenceStore())
-        session.createFreeAccount()
+        session.continueAsGuest()
+
+        // Only a user kind reported by the backend can lift the cap; there
+        // is no local action that mints an account.
+        session.applyRemoteUserKind("free")
 
         XCTAssertEqual(session.state, .freeAccount)
         XCTAssertEqual(

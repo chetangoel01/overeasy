@@ -380,6 +380,14 @@ private struct WatchRecipePage: View {
 
     @State private var isPlaybackPaused = false
 
+    /// Discover pages carry a preview Recipe whose id is the Discover
+    /// sourceID, which only the Discover detail endpoint can refresh.
+    private var artworkOwner: RemoteImageOwner {
+        discoverRecipe == nil
+            ? .recipe(id: recipe.id)
+            : .discoverSource(id: recipe.id)
+    }
+
     var body: some View {
         contextualVideoLayout
             .frame(width: viewportSize.width, height: viewportSize.height)
@@ -398,7 +406,10 @@ private struct WatchRecipePage: View {
                         Button("Save Recipe", systemImage: "plus", action: save)
                     }
                 } preview: {
-                    WatchRecipeContextPreview(recipe: recipe)
+                    WatchRecipeContextPreview(
+                        recipe: recipe,
+                        owner: artworkOwner
+                    )
                 }
         } else {
             videoLayout
@@ -420,7 +431,7 @@ private struct WatchRecipePage: View {
                         isMuted: isMuted
                     )
                 } else {
-                    WatchRecipeImage(recipe: recipe)
+                    WatchRecipeImage(recipe: recipe, owner: artworkOwner)
                         .accessibilityHidden(true)
                 }
             }
@@ -652,11 +663,12 @@ private struct WatchRecipePage: View {
 
 private struct WatchRecipeContextPreview: View {
     let recipe: Recipe
+    let owner: RemoteImageOwner
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             RecipeArtworkView(
-                recipeID: recipe.id,
+                owner: owner,
                 image: recipe.images.first
             )
             .frame(height: 210)
@@ -682,12 +694,13 @@ private struct WatchRecipeContextPreview: View {
 
 private struct WatchRecipeImage: View {
     let recipe: Recipe
+    let owner: RemoteImageOwner
 
     @ViewBuilder
     var body: some View {
         if recipe.images.first != nil {
             RecipeArtworkView(
-                recipeID: recipe.id,
+                owner: owner,
                 image: recipe.images.first
             )
         } else {

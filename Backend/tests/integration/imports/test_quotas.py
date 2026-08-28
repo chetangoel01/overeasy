@@ -18,6 +18,7 @@ from ladle.imports.quotas import ImportQuotaExceeded, ImportQuotaService
 from ladle.imports.reservations import ReservationService
 from ladle.imports.source_identity import SourceIdentityParser
 from ladle.imports.transitions import ImportRetryService, ImportTransitionService
+from ladle.privacy.retention import RetentionPolicy, RetentionService
 from tests.integration.recipes.test_recipe_service import seed_user
 from tests.integration.test_migrations import alembic_config
 
@@ -222,4 +223,109 @@ def test_retries_consume_the_same_user_quota(
             )
         )
         assert sorted(operations) == ["retry", "submit"]
+    engine.dispose()
+
+
+@pytest.mark.integration
+def test_monthly_quota_survives_the_retention_sweep_of_terminal_jobs(
+    clean_postgres_url: str,
+) -> None:
+    """Quota spent this month must not vanish with its retained job.
+
+    The monthly window is a calendar month (up to 31 days) while terminal
+    import jobs are hard-deleted after 30 — so in every 31-day month the
+    sweep can reclaim quota the user already spent, unless the events
+    outlive their job.
+    """
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    engine = build_engine(clean_postgres_url)
+    clock = MutableClock(datetime(2026, 3, 1, 9, 0, tzinfo=UTC))
+    quota = ImportQuotaService(clock=clock, daily_limit=2, monthly_limit=2)
+    service = admission(clock, quota)
+    retention = RetentionService(
+        clock=clock,
+        policy=RetentionPolicy(
+            expired_session_days=7,
+            terminal_import_days=30,
+            private_text_hours=24,
+            provider_attempt_days=30,
+            sync_history_days=365,
+            invalid_cache_days=30,
+            deletion_audit_days=365,
+        ),
+    )
+
+    with Session(engine) as database, database.begin():
+        user_id = seed_user(database)
+        submit(service, database, user_id=user_id, key="march-first")
+        submit(service, database, user_id=user_id, key="march-second")
+        for job in database.scalars(select(ImportJob)):
+            job.status = "ready"
+            job.completed_at = clock.value
+
+    # 30 days later — still inside March — the sweep deletes both jobs.
+    clock.value = datetime(2026, 3, 31, 11, 0, tzinfo=UTC)
+    with Session(engine) as database, database.begin():
+        outcome = retention.sweep(database)
+    assert outcome.terminal_import_jobs == 2
+
+    # The monthly allowance was fully spent inside March, so March 31 must
+    # still be over quota.
+    with (
+        pytest.raises(ImportQuotaExceeded) as monthly,
+        Session(engine) as database,
+        database.begin(),
+    ):
+        submit(service, database, user_id=user_id, key="march-third")
+    assert monthly.value.period == "monthly"
+    assert monthly.value.retry_at == datetime(2026, 4, 1, tzinfo=UTC)
+
+    # The month boundary still resets the window...
+    clock.value = datetime(2026, 4, 1, 0, 5, tzinfo=UTC)
+    with Session(engine) as database, database.begin():
+        submit(service, database, user_id=user_id, key="april-first")
+
+    # ...and once March can never be counted again, the sweep prunes its
+    # detached events instead of hoarding them forever.
+    with Session(engine) as database, database.begin():
+        pruned = retention.sweep(database)
+    assert pruned.quota_events == 2
+    with Session(engine) as database:
+        assert database.scalar(select(func.count()).select_from(ImportQuotaEvent)) == 1
+    engine.dispose()
+
+
+@pytest.mark.integration
+def test_quota_event_migration_detaches_on_upgrade_and_downgrades_cleanly(
+    clean_postgres_url: str,
+) -> None:
+    """Deleting a job must detach its quota event, not delete it — and the
+    downgrade must survive rows that are already detached, which can never
+    satisfy the old NOT NULL + CASCADE shape again."""
+    config = alembic_config(clean_postgres_url)
+    command.upgrade(config, "head")
+    engine = build_engine(clean_postgres_url)
+    clock = MutableClock(datetime(2026, 3, 1, 9, 0, tzinfo=UTC))
+    service = admission(
+        clock, ImportQuotaService(clock=clock, daily_limit=2, monthly_limit=2)
+    )
+
+    with Session(engine) as database, database.begin():
+        user_id = seed_user(database)
+        submit(service, database, user_id=user_id, key="detach-me")
+
+    with Session(engine) as database, database.begin():
+        job = database.execute(select(ImportJob)).scalar_one()
+        database.delete(job)
+
+    with Session(engine) as database:
+        event = database.execute(select(ImportQuotaEvent)).scalar_one()
+        assert event.import_job_id is None
+        assert event.user_id == user_id
+    engine.dispose()
+
+    command.downgrade(config, "0016")
+    engine = build_engine(clean_postgres_url)
+    with Session(engine) as database:
+        assert database.scalar(select(func.count()).select_from(ImportQuotaEvent)) == 0
     engine.dispose()

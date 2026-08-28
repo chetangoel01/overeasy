@@ -341,9 +341,9 @@ final class ProjectSmokeTests: XCTestCase {
         )
     }
 
-    func testWelcomeAuthenticationFailureDistinguishesOfflineAndCancellation() throws {
+    func testAccountAuthenticationFailureDistinguishesOfflineAndCancellation() throws {
         let offline = try XCTUnwrap(
-            WelcomeAuthenticationFailure(
+            AccountAuthenticationFailure(
                 APIError.transport,
                 fallback: "Account setup didn’t complete."
             )
@@ -358,13 +358,13 @@ final class ProjectSmokeTests: XCTestCase {
             "You’re offline. Reconnect and try again."
         )
         XCTAssertNil(
-            WelcomeAuthenticationFailure(
+            AccountAuthenticationFailure(
                 GoogleSignInProviderError.cancelled,
                 fallback: "Sign-in failed."
             )
         )
         XCTAssertNil(
-            WelcomeAuthenticationFailure(
+            AccountAuthenticationFailure(
                 CancellationError(),
                 fallback: "Sign-in failed."
             )

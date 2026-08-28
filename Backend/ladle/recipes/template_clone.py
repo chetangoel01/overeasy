@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session
 from ladle.clock import Clock
 from ladle.contracts.common import WireDecimal, WireModel
 from ladle.contracts.recipes import (
+    MAX_RECIPE_NOTE_LENGTH,
+    MAX_RECIPE_NOTES,
     DetectedTimerDTO,
     FieldUncertaintyDTO,
     IngredientDTO,
@@ -112,6 +114,18 @@ class RecipeTemplate(WireModel):
                 raise ValueError("step ingredient references must be unique")
         return self
 
+    def recipe_notes(self) -> list[str]:
+        """Notes trimmed to what a recipe is allowed to carry.
+
+        A template keeps whatever extraction produced, so already-cached
+        entries stay loadable; `RecipeDTO.notes` caps them at
+        `MAX_RECIPE_NOTES` entries of `MAX_RECIPE_NOTE_LENGTH` characters.
+        Overflow cannot be represented on a recipe at all, so it is dropped
+        here rather than failing the import with a validation error.
+        """
+        kept = [note.strip()[:MAX_RECIPE_NOTE_LENGTH] for note in self.notes]
+        return [note for note in kept if note][:MAX_RECIPE_NOTES]
+
     @classmethod
     def from_recipe(cls, recipe: RecipeDTO) -> "RecipeTemplate":
         ingredient_indexes = {
@@ -181,15 +195,14 @@ class RecipeTemplate(WireModel):
                     serving_basis=nutrition.serving_basis,
                     is_estimated=nutrition.is_estimated,
                     basis=(
-                        "usdaCalculated"
-                        if nutrition.is_estimated
-                        else "creatorStated"
+                        "usdaCalculated" if nutrition.is_estimated else "creatorStated"
                     ),
                     evidence=None,
                 )
                 if nutrition is not None
                 else None
             ),
+            notes=list(recipe.notes),
             review_status=recipe.review_status,
             uncertainties=recipe.uncertainties,
         )
@@ -267,6 +280,7 @@ class RecipeTemplate(WireModel):
                 if nutrition is not None
                 else None
             ),
+            notes=self.recipe_notes(),
             is_favorite=False,
             review_status=self.review_status,
             uncertainties=self.uncertainties,

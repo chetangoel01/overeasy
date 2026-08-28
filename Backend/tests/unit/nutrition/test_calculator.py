@@ -158,9 +158,7 @@ def test_uses_usda_portion_weights_for_volume_and_counts(
     )
     source = Foods({"chickpeas drained": [food(portions=[portion_value])]})
 
-    result = NutritionCalculator(source).calculate(
-        recipe([value], servings="4")
-    )
+    result = NutritionCalculator(source).calculate(recipe([value], servings="4"))
 
     assert result is not None
     assert result.calories == expected_calories
@@ -174,11 +172,7 @@ def test_metric_volume_requires_a_matching_usda_volume_portion() -> None:
         metric_unit="ml",
     )
     source = Foods(
-        {
-            "chickpeas drained": [
-                food(portions=[portion("ml", "103", amount="100")])
-            ]
-        }
+        {"chickpeas drained": [food(portions=[portion("ml", "103", amount="100")])]}
     )
 
     result = NutritionCalculator(source).calculate(recipe([value], servings="1"))
@@ -284,9 +278,7 @@ def test_unknown_servings_exposes_diagnostic() -> None:
     calculator = NutritionCalculator(Foods({"chickpeas drained": [food()]}))
 
     with pytest.raises(NutritionCalculationUnavailable) as error:
-        calculator.calculate_required(
-            recipe([ingredient()], servings_basis="unknown")
-        )
+        calculator.calculate_required(recipe([ingredient()], servings_basis="unknown"))
 
     assert error.value.code == "invalidYield"
     assert error.value.ingredient_index is None

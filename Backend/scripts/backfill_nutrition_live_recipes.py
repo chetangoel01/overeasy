@@ -40,14 +40,8 @@ from ladle.nutrition.usda import USDAClient
 from ladle.recipes.template_clone import RecipeTemplate
 
 ROOT = Path(__file__).resolve().parent.parent
-SOURCE = (
-    ROOT
-    / ".eval-cache/live-imports/2026-08-24-gemini-3.7-corrected-results.json"
-)
-OUTPUT = (
-    ROOT
-    / ".eval-cache/live-imports/2026-08-24-nutrition-first-results.json"
-)
+SOURCE = ROOT / ".eval-cache/live-imports/2026-08-24-gemini-3.7-corrected-results.json"
+OUTPUT = ROOT / ".eval-cache/live-imports/2026-08-24-nutrition-first-results.json"
 RESULTS_HTML = ROOT / "tools/pipeline-results.html"
 
 
@@ -162,9 +156,7 @@ def _audit_evidence(fdc_evidence: str, result: dict[str, Any]) -> str:
     if result["servingsRationale"]:
         values.append(f"Yield rationale: {result['servingsRationale']}")
     if result["assumptions"]:
-        assumptions = "; ".join(
-            value.rstrip(". ") for value in result["assumptions"]
-        )
+        assumptions = "; ".join(value.rstrip(". ") for value in result["assumptions"])
         values.append("Assumptions: " + assumptions)
     return ". ".join(value.rstrip(". ") for value in values) + "."
 
@@ -280,13 +272,10 @@ def main() -> int:
                 result["recipe"] = template.model_dump(mode="json")
                 result["blocker"] = None
             status = (
-                "nutrition ready"
-                if result["blocker"] is None
-                else result["blocker"]
+                "nutrition ready" if result["blocker"] is None else result["blocker"]
             )
             print(
-                f"[{position}/{len(results)}] {result['title']}: "
-                f"{status}",
+                f"[{position}/{len(results)}] {result['title']}: {status}",
                 flush=True,
             )
             _write(results)

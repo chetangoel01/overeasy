@@ -65,11 +65,13 @@ struct LibraryView: View {
     @Bindable var viewModel: LibraryViewModel
     @Bindable var importCoordinator: ImportCoordinator
     let accountSession: AccountSession
+    var authClient: AuthClient?
+    var googleSignIn: (any GoogleSignInProviding)?
     var discoverService: any DiscoverServing = DemoDiscoverService()
     var syncStatus: SyncStatus = SyncStatus()
-    var installationID: String = "preview-installation"
     var notificationNavigation: NotificationNavigation = .shared
     var canImport = true
+    var onAuthenticated: @MainActor () async -> Void = {}
     var onSignOut: @MainActor () async -> Void = {}
     var onDeleteAccount: @MainActor () async throws -> Void = {}
 
@@ -140,6 +142,9 @@ struct LibraryView: View {
                 AddRecipeSheet(
                     coordinator: importCoordinator,
                     accountSession: accountSession,
+                    authClient: authClient,
+                    googleSignIn: googleSignIn,
+                    onAuthenticated: onAuthenticated,
                     viewRecipe: queueNavigation
                 )
             }
@@ -368,15 +373,13 @@ struct LibraryView: View {
     }
 
     private func openNotificationRecipeIfNeeded() {
-        guard let recipeID = notificationNavigation.recipeID,
-              let recipe = viewModel.recipes.first(
-                  where: { $0.id == recipeID }
-              ) else {
+        guard let recipe = notificationNavigation.claimRecipe(
+            in: viewModel
+        ) else {
             return
         }
         navigation.select(.recipes)
         showRecipe(recipe, statusText: "Imported recipe")
-        notificationNavigation.clear()
     }
 
     private func recipeDetail(
@@ -394,7 +397,7 @@ struct LibraryView: View {
             toggleFavorite: viewModel.toggleFavorite,
             completeReview: viewModel.completeReview,
             deleteRecipe: viewModel.deleteRecipe,
-            allowsLibraryEdits: destination.allowsLibraryEdits,
+            access: destination.access,
             openAccount: { isAccountPresented = true }
         )
     }
@@ -620,13 +623,36 @@ struct LibraryRecipeDestination: Hashable {
         self.statusText = statusText
         self.access = access
     }
-
-    var allowsLibraryEdits: Bool { access == .saved }
 }
 
 enum LibraryRecipeAccess: Hashable {
     case saved
     case discover
+}
+
+extension NotificationNavigation {
+    /// Claims the recipe a tapped import-ready notification points at,
+    /// consuming the pending navigation on every path.
+    ///
+    /// An import job the coordinator does not own (a share-extension job
+    /// resumed in the background) saves its recipe durably and posts the
+    /// banner without touching the published import state, so the
+    /// in-memory library can be stale when the tap lands — reload once
+    /// before deciding the recipe is gone. And the claim must consume
+    /// `recipeID` even when no recipe matches: left set, a failed match
+    /// pins `.task(id:)` on an unchanged value and permanently swallows
+    /// every later tap for that recipe.
+    func claimRecipe(in library: LibraryViewModel) -> Recipe? {
+        guard let recipeID else { return nil }
+        defer { clear() }
+        if let recipe = library.recipes.first(
+            where: { $0.id == recipeID }
+        ) {
+            return recipe
+        }
+        library.load()
+        return library.recipes.first { $0.id == recipeID }
+    }
 }
 
 private extension View {
@@ -649,7 +675,7 @@ private extension View {
 private extension ImportCoordinatorState {
     var refreshesLibrary: Bool {
         switch self {
-        case .importing, .completed, .needsReview, .failed:
+        case .importing, .completed, .needsReview, .failed, .cancelled:
             true
         case .idle, .validationFailed, .duplicate, .guestLimit,
              .persistenceFailed:

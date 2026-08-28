@@ -8,7 +8,11 @@ from sqlalchemy.orm import sessionmaker
 
 from alembic import command
 from ladle.api.app import create_app
-from ladle.api.rate_limits import RateLimitBackend, RateLimitCheck
+from ladle.api.rate_limits import (
+    RateLimitBackend,
+    RateLimitBackendUnavailable,
+    RateLimitCheck,
+)
 from ladle.auth.attestation import AttestationService
 from ladle.auth.sessions import SessionService
 from ladle.auth.tokens import AccessTokenCodec, RefreshTokenCodec
@@ -55,6 +59,27 @@ def test_every_sensitive_route_enforces_its_distributed_policy(
     )
 
     with TestClient(app) as client:
+        challenge_body = {
+            "installationID": "rate-limit-installation",
+            "purpose": "guestCreation",
+        }
+        backend.blocked_bucket = "attestation:installation"
+        assert (
+            client.post("/v1/attestation/challenges", json=challenge_body).status_code
+            == 429
+        )
+
+        # The IP bucket must hold even when every request rotates to a fresh
+        # installation ID — the unauthenticated-flood shape.
+        backend.blocked_bucket = "attestation:ip"
+        assert (
+            client.post(
+                "/v1/attestation/challenges",
+                json={**challenge_body, "installationID": f"rotated-{uuid4()}"},
+            ).status_code
+            == 429
+        )
+
         guest_body = {
             "installationID": "rate-limit-installation",
             "attestation": None,
@@ -128,5 +153,61 @@ def test_every_sensitive_route_enforces_its_distributed_policy(
             ).status_code
             == 429
         )
+
+    engine.dispose()
+
+
+class UnavailableRateLimitBackend(RateLimitBackend):
+    """Stands in for a Redis that is restarting or briefly unreachable."""
+
+    def retry_after(self, checks: Sequence[RateLimitCheck]) -> int | None:
+        raise RateLimitBackendUnavailable("rate-limit store unreachable")
+
+
+@pytest.mark.integration
+def test_an_unreachable_rate_limit_store_degrades_instead_of_failing_requests(
+    clean_postgres_url: str,
+) -> None:
+    """A limiter outage must not become an API outage.
+
+    enforce() runs before call_next on every request, so an exception from the
+    backend would 500 every path — including the dependency-free liveness
+    probe, which an orchestrator reads as a dead container.
+    """
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    engine = build_engine(clean_postgres_url)
+    access_tokens = AccessTokenCodec(
+        signing_secret="test-signing-secret-that-is-long-enough",
+        issuer="ladle-test",
+        lifetime=timedelta(minutes=15),
+    )
+    clock = SystemClock()
+    app = create_app(
+        session_factory=sessionmaker(engine, expire_on_commit=False),
+        session_service=SessionService(
+            access_tokens=access_tokens,
+            refresh_tokens=RefreshTokenCodec(),
+            refresh_lifetime=timedelta(days=30),
+            rotation_grace=timedelta(seconds=5),
+            clock=clock,
+        ),
+        clock=clock,
+        access_tokens=access_tokens,
+        attestation=AttestationService(enforced=False),
+        rate_limit_backend=UnavailableRateLimitBackend(),
+    )
+
+    with TestClient(app) as client:
+        assert client.get("/health/live").status_code == 200
+
+        # A route with its own limiter call must serve the request too.
+        guest = client.post(
+            "/v1/auth/guest",
+            json={
+                "installationID": "unavailable-limiter-installation",
+                "attestation": None,
+            },
+        )
+        assert guest.status_code == 201
 
     engine.dispose()

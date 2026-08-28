@@ -9,7 +9,9 @@ final class AppBootstrapTests: XCTestCase {
             makeEnvironment: { _ in
                 throw BootstrapTestError.store
             },
-            makeInstallationID: { "test-installation" }
+            installationIdentity: InstallationIdentity(
+                store: BootstrapMemoryPreferenceStore()
+            )
         )
 
         guard case let .failed(failure) = bootstrap.run() else {
@@ -30,7 +32,9 @@ final class AppBootstrapTests: XCTestCase {
             makeBaseURL: {
                 throw BootstrapTestError.configuration
             },
-            makeInstallationID: { "test-installation" }
+            installationIdentity: InstallationIdentity(
+                store: BootstrapMemoryPreferenceStore()
+            )
         )
 
         guard case let .failed(failure) = bootstrap.run() else {
@@ -53,7 +57,9 @@ final class AppBootstrapTests: XCTestCase {
                 requestedBaseURL = true
                 return URL(string: "https://example.com")!
             },
-            makeInstallationID: { "test-installation" }
+            installationIdentity: InstallationIdentity(
+                store: BootstrapMemoryPreferenceStore()
+            )
         )
 
         guard case let .ready(runtime) = bootstrap.run() else {
@@ -81,7 +87,9 @@ final class AppBootstrapTests: XCTestCase {
                 }
                 return try AppEnvironment(isStoredInMemoryOnly: true)
             },
-            makeInstallationID: { "test-installation" }
+            installationIdentity: InstallationIdentity(
+                store: BootstrapMemoryPreferenceStore()
+            )
         )
 
         guard case .failed = bootstrap.run() else {
@@ -91,6 +99,71 @@ final class AppBootstrapTests: XCTestCase {
             return XCTFail("Expected retry to produce a runtime")
         }
         XCTAssertEqual(attempts, 2)
+    }
+
+    func testSignOutCancelsAnInFlightImportSoItCannotRepopulateTheWipedStore() async throws {
+        let environment = try AppEnvironment(isStoredInMemoryOnly: true)
+        let runtime = LadleRuntime(
+            configuration: LadleRuntimeConfiguration(
+                launchArguments: ["-empty-library"],
+                environment: ["XCTestConfigurationFilePath": "test"]
+            ),
+            appEnvironment: environment,
+            services: .demo,
+            installationIdentity: InstallationIdentity(
+                store: BootstrapMemoryPreferenceStore()
+            ),
+            resetsBackendSession: false,
+            accountStore: BootstrapMemoryPreferenceStore()
+        )
+        let repository = environment.recipeRepository
+
+        // Account A's import is on the wire: the durable row is saved and
+        // the demo service is still holding the response.
+        let importTask = Task {
+            await runtime.importCoordinator.submit(
+                urlText: "https://youtu.be/slow-green-curry"
+            )
+        }
+        while try repository.fetchImportJobs().isEmpty {
+            await Task.yield()
+        }
+
+        // A signs out while the response is still in flight.
+        await runtime.signOut()
+
+        // The response lands after the wipe. Nothing from A's session may
+        // survive into the store the next account inherits.
+        await importTask.value
+        let jobs = try repository.fetchImportJobs()
+        let recipes = try repository.fetchRecipes()
+        XCTAssertTrue(
+            jobs.isEmpty,
+            "Sign-out left the previous account's import job in the store: \(jobs.map(\.sourceURL.absoluteString))"
+        )
+        XCTAssertTrue(
+            recipes.isEmpty,
+            "The previous account's import wrote into the wiped store: \(recipes.map(\.title))"
+        )
+        XCTAssertEqual(runtime.importCoordinator.state, .idle)
+        XCTAssertNil(runtime.importCoordinator.operation)
+
+        // Until someone signs in, the coordinator stays latched: a stale
+        // task calling in on the signed-out session's behalf starts
+        // nothing and writes nothing.
+        await runtime.importCoordinator.submit(
+            urlText: "https://youtu.be/green-curry"
+        )
+        XCTAssertTrue(try repository.fetchImportJobs().isEmpty)
+        XCTAssertTrue(try repository.fetchRecipes().isEmpty)
+
+        // The next account signs in — every re-entry path funnels
+        // through didAuthenticate — and can import immediately.
+        await runtime.didAuthenticate()
+        await runtime.importCoordinator.submit(
+            urlText: "https://youtu.be/green-curry"
+        )
+        XCTAssertEqual(try repository.fetchRecipes().count, 1)
     }
 
     private var testConfiguration: LadleRuntimeConfiguration {
@@ -111,4 +184,24 @@ final class AppBootstrapTests: XCTestCase {
 private enum BootstrapTestError: Error {
     case store
     case configuration
+}
+
+private final class BootstrapMemoryPreferenceStore: PreferenceStoring {
+    private var values: [String: Any] = [:]
+
+    func bool(forKey defaultName: String) -> Bool {
+        values[defaultName] as? Bool ?? false
+    }
+
+    func string(forKey defaultName: String) -> String? {
+        values[defaultName] as? String
+    }
+
+    func set(_ value: Any?, forKey defaultName: String) {
+        values[defaultName] = value
+    }
+
+    func removeObject(forKey defaultName: String) {
+        values.removeValue(forKey: defaultName)
+    }
 }

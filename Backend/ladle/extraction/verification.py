@@ -373,9 +373,7 @@ def deterministic_issues(
             issues.append(
                 VerificationIssue(
                     field_path=f"ingredients[{index}]",
-                    reason=(
-                        f"{ingredient.name} is not connected to any method step."
-                    ),
+                    reason=(f"{ingredient.name} is not connected to any method step."),
                     supporting_evidence=ingredient_text,
                 )
             )
@@ -647,14 +645,29 @@ def _with_issues(
     )
 
 
+# The values parsed here are servings, quantities and gram amounts, offered
+# by a model reading untrusted text. `format(..., "f")` later expands what is
+# accepted to full fixed-point notation, so the exponent must be bounded
+# before parsing succeeds: "1E+1000000000" is thirteen characters that would
+# otherwise materialize as a gigabyte of digits. Nothing in a recipe leaves
+# this band.
+_MAX_DECIMAL_CHARACTERS = 64
+_MAX_DECIMAL_MAGNITUDE = 12
+
+
 def _decimal(value: object) -> Decimal | None:
     if isinstance(value, bool | list) or value is None:
         return None
+    text = str(value).strip()
+    if len(text) > _MAX_DECIMAL_CHARACTERS:
+        return None
     try:
-        result = Decimal(str(value).strip())
+        result = Decimal(text)
     except (InvalidOperation, ValueError):
         return None
-    return result if result.is_finite() else None
+    if not result.is_finite() or abs(result.adjusted()) > _MAX_DECIMAL_MAGNITUDE:
+        return None
+    return result
 
 
 def _reported_cost(value: object) -> Decimal | None:

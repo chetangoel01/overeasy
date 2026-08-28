@@ -29,7 +29,7 @@ final class SwiftDataRecipeRepository:
 
     func fetchRecipes() throws -> [Recipe] {
         let descriptor = FetchDescriptor<StoredRecipe>(
-            predicate: #Predicate { !$0.isDeleted },
+            predicate: #Predicate { !$0.isTombstoned },
             sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
         )
         return try modelContext.fetch(descriptor).map(decodeRecipe)
@@ -37,7 +37,7 @@ final class SwiftDataRecipeRepository:
 
     func fetchRecipe(id: UUID) throws -> Recipe? {
         var descriptor = FetchDescriptor<StoredRecipe>(
-            predicate: #Predicate { $0.id == id && !$0.isDeleted }
+            predicate: #Predicate { $0.id == id && !$0.isTombstoned }
         )
         descriptor.fetchLimit = 1
         return try modelContext.fetch(descriptor).first.map(decodeRecipe)
@@ -47,7 +47,7 @@ final class SwiftDataRecipeRepository:
         let payload = try encoder.encode(recipe)
         if let stored = try storedRecipe(id: recipe.id) {
             apply(recipe, payload: payload, to: stored)
-            stored.isDeleted = false
+            stored.isTombstoned = false
             stored.pendingMutationKey = PendingMutation.upsert.rawValue
         } else {
             modelContext.insert(
@@ -67,7 +67,7 @@ final class SwiftDataRecipeRepository:
             apply(recipe, payload: payload, to: stored)
             stored.serverRevision = revision
             stored.pendingMutationKey = nil
-            stored.isDeleted = false
+            stored.isTombstoned = false
             stored.conflictRemotePayload = nil
             stored.conflictRemoteRevision = nil
         } else {
@@ -87,7 +87,7 @@ final class SwiftDataRecipeRepository:
             if stored.serverRevision == 0 {
                 modelContext.delete(stored)
             } else {
-                stored.isDeleted = true
+                stored.isTombstoned = true
                 stored.pendingMutationKey = PendingMutation.delete.rawValue
                 stored.updatedAt = .now
             }
@@ -171,7 +171,7 @@ final class SwiftDataRecipeRepository:
             let recipePayload = try encoder.encode(recipe)
             if let stored = try storedRecipe(id: recipe.id) {
                 apply(recipe, payload: recipePayload, to: stored)
-                stored.isDeleted = false
+                stored.isTombstoned = false
                 stored.pendingMutationKey = PendingMutation.upsert.rawValue
             } else {
                 modelContext.insert(
@@ -311,7 +311,44 @@ final class SwiftDataRecipeRepository:
         }
     }
 
-    func markUpsertSynced(_ remoteRecipe: RemoteRecipeDTO) throws {
+    func markUpsertSynced(
+        _ remoteRecipe: RemoteRecipeDTO,
+        pushed: Recipe
+    ) throws {
+        guard let stored = try storedRecipe(id: remoteRecipe.id) else {
+            // The row is gone: the user hard-deleted this never-synced
+            // recipe (or a re-import replaced it) while the PUT was in
+            // flight. Re-inserting the server's copy would resurrect it.
+            // The response is also the first moment this device holds a
+            // valid base revision for the recipe, so queue the delete that
+            // removes the copy the push just created from the server.
+            let recipe = try remoteRecipe.recipe()
+            let tombstone = makeStoredRecipe(
+                recipe,
+                payload: try encoder.encode(recipe),
+                serverRevision: remoteRecipe.revision,
+                pendingMutation: .delete
+            )
+            tombstone.isTombstoned = true
+            tombstone.updatedAt = .now
+            modelContext.insert(tombstone)
+            try modelContext.save()
+            return
+        }
+        let stillPendingTheSameUpsert =
+            stored.isTombstoned == false
+            && stored.pendingMutationKey == PendingMutation.upsert.rawValue
+        let matchesPush = try stillPendingTheSameUpsert
+            && decodeRecipe(stored) == pushed
+        guard matchesPush else {
+            // The user changed the recipe while the PUT was in flight.
+            // Adopting the server's copy here would erase that change and
+            // clear the pending mutation, so it would never be pushed either.
+            // Keep it and rebase it on the revision the server just assigned.
+            stored.serverRevision = remoteRecipe.revision
+            try modelContext.save()
+            return
+        }
         try saveRemote(
             remoteRecipe.recipe(),
             revision: remoteRecipe.revision
@@ -326,11 +363,11 @@ final class SwiftDataRecipeRepository:
     }
 
     func preserveConflict(
-        localRecipe: Recipe,
+        localRecipeID: UUID,
         remoteRecipe: RemoteRecipeDTO,
         remoteRevision: Int
     ) throws {
-        guard let stored = try storedRecipe(id: localRecipe.id) else {
+        guard let stored = try storedRecipe(id: localRecipeID) else {
             return
         }
         stored.conflictRemotePayload = try encoder.encode(
@@ -395,7 +432,7 @@ final class SwiftDataRecipeRepository:
                 apply(remote, payload: payload, to: stored)
                 stored.serverRevision = remoteRevision
                 stored.pendingMutationKey = nil
-                stored.isDeleted = false
+                stored.isTombstoned = false
                 clearConflict(on: stored)
             } else {
                 modelContext.delete(stored)
@@ -412,17 +449,32 @@ final class SwiftDataRecipeRepository:
     func applySyncPage(_ page: RemoteSyncPageDTO) throws {
         for change in page.changes {
             let stored = try storedRecipe(id: change.recipeID)
-            if let stored, stored.pendingMutationKey != nil {
-                if let remote = change.recipe {
-                    stored.conflictRemotePayload = try encoder.encode(
-                        remote.recipe()
-                    )
-                }
-                stored.conflictRemoteRevision = change.recipeRevision
-                continue
-            }
             if let stored,
                change.recipeRevision <= stored.serverRevision {
+                // Already incorporated — including the echo of this device's
+                // own acknowledged push, which must not read as a conflict.
+                continue
+            }
+            if let stored, stored.pendingMutationKey != nil {
+                switch change.kind {
+                case .upsert:
+                    if let remote = change.recipe {
+                        stored.conflictRemotePayload = try encoder.encode(
+                            remote.recipe()
+                        )
+                    }
+                    stored.conflictRemoteRevision = change.recipeRevision
+                case .delete where stored.isTombstoned:
+                    // Deleted on both sides: nothing to review, nothing
+                    // left to push.
+                    modelContext.delete(stored)
+                case .delete:
+                    // A delete change carries no recipe; a payload stored
+                    // by an earlier change or a rejected push is now stale
+                    // and would present this deletion as an edit.
+                    stored.conflictRemotePayload = nil
+                    stored.conflictRemoteRevision = change.recipeRevision
+                }
                 continue
             }
             switch change.kind {
@@ -435,7 +487,7 @@ final class SwiftDataRecipeRepository:
                 if let stored {
                     apply(recipe, payload: payload, to: stored)
                     stored.serverRevision = remote.revision
-                    stored.isDeleted = false
+                    stored.isTombstoned = false
                     stored.conflictRemotePayload = nil
                     stored.conflictRemoteRevision = nil
                 } else {

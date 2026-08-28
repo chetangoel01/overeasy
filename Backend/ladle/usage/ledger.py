@@ -223,9 +223,7 @@ class ProviderUsageLedger:
         latency_ms: int | None,
         cost_usd: Decimal | None = None,
     ) -> None:
-        if cost_usd is not None and (
-            not cost_usd.is_finite() or cost_usd < 0
-        ):
+        if cost_usd is not None and (not cost_usd.is_finite() or cost_usd < 0):
             raise ValueError("provider USD cost must be finite and nonnegative")
         provider: str | None = None
         actual = Decimal(0)

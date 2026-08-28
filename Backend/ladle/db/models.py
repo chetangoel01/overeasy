@@ -106,6 +106,7 @@ class ObjectDeletionQueue(Base):
 
 class AppleIdentity(Base):
     __tablename__ = "apple_identities"
+    __table_args__ = (UniqueConstraint("user_id", name="uq_apple_identities_user_id"),)
 
     apple_sub: Mapped[str] = mapped_column(String(255), primary_key=True)
     user_id: Mapped[UUID] = mapped_column(
@@ -121,6 +122,7 @@ class AppleIdentity(Base):
 
 class GoogleIdentity(Base):
     __tablename__ = "google_identities"
+    __table_args__ = (UniqueConstraint("user_id", name="uq_google_identities_user_id"),)
 
     google_sub: Mapped[str] = mapped_column(String(255), primary_key=True)
     user_id: Mapped[UUID] = mapped_column(
@@ -558,8 +560,12 @@ class ImportQuotaEvent(Base):
     user_id: Mapped[UUID] = mapped_column(
         Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    import_job_id: Mapped[UUID] = mapped_column(
-        Uuid, ForeignKey("import_jobs.id", ondelete="CASCADE"), nullable=False
+    # SET NULL, not CASCADE: the monthly quota window (a calendar month, up
+    # to 31 days) can outlast the 30-day retention of the job itself, so the
+    # spend record must survive the job. The retention sweep prunes events
+    # once their month can no longer be counted.
+    import_job_id: Mapped[UUID | None] = mapped_column(
+        Uuid, ForeignKey("import_jobs.id", ondelete="SET NULL"), nullable=True
     )
     operation: Mapped[str] = mapped_column(String(16), nullable=False)
     event_key: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -791,6 +797,7 @@ class StepIngredient(Base):
 
 class DetectedTimer(Base):
     __tablename__ = "detected_timers"
+    __table_args__ = (Index("ix_detected_timers_recipe_step_id", "recipe_step_id"),)
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     recipe_step_id: Mapped[UUID] = mapped_column(
@@ -826,6 +833,9 @@ class Nutrition(Base):
 
 class OtherNutrient(Base):
     __tablename__ = "other_nutrients"
+    __table_args__ = (
+        Index("ix_other_nutrients_nutrition_recipe_id", "nutrition_recipe_id"),
+    )
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     nutrition_recipe_id: Mapped[UUID] = mapped_column(
@@ -838,6 +848,7 @@ class OtherNutrient(Base):
 
 class FieldUncertainty(Base):
     __tablename__ = "field_uncertainties"
+    __table_args__ = (Index("ix_field_uncertainties_recipe_id", "recipe_id"),)
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     recipe_id: Mapped[UUID] = mapped_column(

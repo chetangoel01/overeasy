@@ -15,6 +15,14 @@ protocol DiscoverServing {
     ) async throws -> SavedDiscoverRecipe
 }
 
+/// The one Discover-detail path; RemoteImageCache refreshes expired
+/// Discover thumbnails through the same endpoint.
+enum DiscoverAPI {
+    static func detailPath(sourceID: UUID) -> String {
+        "/v1/recipes/discover/\(sourceID.uuidString)"
+    }
+}
+
 struct RemoteDiscoverService: DiscoverServing {
     let api: APIClient
 
@@ -27,7 +35,7 @@ struct RemoteDiscoverService: DiscoverServing {
 
     func fetchDiscoverRecipe(sourceID: UUID) async throws -> Recipe {
         let remote: RemoteRecipeDTO = try await api.request(
-            path: "/v1/recipes/discover/\(sourceID.uuidString)"
+            path: DiscoverAPI.detailPath(sourceID: sourceID)
         )
         return try remote.recipe()
     }
@@ -36,7 +44,7 @@ struct RemoteDiscoverService: DiscoverServing {
         sourceID: UUID
     ) async throws -> SavedDiscoverRecipe {
         let remote: RemoteRecipeDTO = try await api.request(
-            path: "/v1/recipes/discover/\(sourceID.uuidString)/save",
+            path: DiscoverAPI.detailPath(sourceID: sourceID) + "/save",
             method: .post
         )
         return SavedDiscoverRecipe(

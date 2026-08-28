@@ -25,9 +25,10 @@ def require_recipe_evidence(context: AcquiredVideoContext) -> None:
         ]
     )
     trusted_recipe = has_quantities(recipe_text) and has_instructions(recipe_text)
-    caption_recipe = (
-        quantity_mention_count(context.description) >= _MINIMUM_CAPTION_QUANTITIES
-        and has_instructions(f"{context.description} {recipe_text}")
+    caption_recipe = quantity_mention_count(
+        context.description
+    ) >= _MINIMUM_CAPTION_QUANTITIES and has_instructions(
+        f"{context.description} {recipe_text}"
     )
     if not trusted_recipe and not caption_recipe:
         raise InsufficientTextEvidence(

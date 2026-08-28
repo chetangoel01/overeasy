@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import UTC, timedelta
 from typing import Any, Protocol, cast
 from uuid import UUID
 
@@ -16,6 +16,7 @@ from ladle.db.models import (
     AuthSession,
     ExtractionCache,
     ImportJob,
+    ImportQuotaEvent,
     NegativeExtractionCache,
     ObjectDeletionQueue,
     ProviderAttempt,
@@ -46,6 +47,7 @@ class RetentionPolicy:
 class RetentionOutcome:
     expired_sessions: int = 0
     terminal_import_jobs: int = 0
+    quota_events: int = 0
     private_text_fields: int = 0
     provider_attempts: int = 0
     expired_challenges: int = 0
@@ -92,6 +94,20 @@ class RetentionService:
                 <= now - timedelta(days=self._policy.terminal_import_days),
             ),
         )
+        # Quota events deliberately outlive their job (the FK sets NULL on
+        # job deletion) because the monthly window can outlast the job's own
+        # retention. Once the calendar month they were counted in has
+        # passed, ImportQuotaService can never read them again — computed
+        # the same way consume() computes month_start, so the two agree.
+        month_start = (
+            now.astimezone(UTC)
+            .replace(hour=0, minute=0, second=0, microsecond=0)
+            .replace(day=1)
+        )
+        quota_events = _delete_count(
+            database,
+            delete(ImportQuotaEvent).where(ImportQuotaEvent.occurred_at < month_start),
+        )
         private_cutoff = now - timedelta(hours=self._policy.private_text_hours)
         private_jobs = list(
             database.scalars(
@@ -134,6 +150,7 @@ class RetentionService:
         return RetentionOutcome(
             expired_sessions=expired_sessions,
             terminal_import_jobs=terminal_import_jobs,
+            quota_events=quota_events,
             private_text_fields=private_text_fields,
             provider_attempts=provider_attempts,
             expired_challenges=expired_challenges,

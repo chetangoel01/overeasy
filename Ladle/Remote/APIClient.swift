@@ -352,6 +352,15 @@ actor APIClient {
             return (data, response)
         } catch let error as APIError {
             throw error
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as URLError where error.code == .cancelled {
+            // URLSession reports a cooperatively cancelled request as
+            // URLError(.cancelled), not CancellationError. Folding both
+            // into APIError.transport made ordinary navigation-driven
+            // cancellation read as "You're offline" and left every
+            // downstream `catch is CancellationError` unreachable.
+            throw CancellationError()
         } catch {
             throw APIError.transport
         }

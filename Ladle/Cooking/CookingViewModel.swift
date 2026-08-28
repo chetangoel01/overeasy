@@ -103,6 +103,13 @@ final class CookingViewModel: Identifiable {
     func endCooking() {
         screenAwakeController.endScope()
         keepsScreenAwake = false
+        // The session's pending timer notifications must die with it: the
+        // scheduler holding their request identifiers is deallocated with
+        // this view model, so anything left pending could never be
+        // cancelled again and would fire for an abandoned session.
+        for timerID in timers.keys {
+            notificationScheduler.cancel(timerID: timerID)
+        }
     }
 
     func setKeepsScreenAwake(_ keepsScreenAwake: Bool) {

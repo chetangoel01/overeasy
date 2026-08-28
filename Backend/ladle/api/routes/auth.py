@@ -23,7 +23,7 @@ from ladle.auth.google import (
     GoogleCredentials,
     GoogleIdentityTokenInvalid,
 )
-from ladle.auth.guest import register_guest
+from ladle.auth.guest import register_guest, release_device_binding
 from ladle.auth.merge import AccountMergeInvalid, AccountMergeService
 from ladle.auth.sessions import (
     RefreshTokenInvalid,
@@ -339,6 +339,7 @@ def delete_session(
             current_database,
             session_id=claims.session_id,
         )
+        release_device_binding(current_database, device_id=claims.device_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

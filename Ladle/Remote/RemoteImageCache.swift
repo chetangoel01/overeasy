@@ -7,6 +7,16 @@ enum RemoteImageCacheError: Error, Equatable {
     case refreshedImageMissing
 }
 
+/// Which server object can re-issue a fresh signed URL for an image
+/// whose stored URL has expired.
+enum RemoteImageOwner: Equatable, Sendable {
+    /// A recipe saved in the caller's own library.
+    case recipe(id: UUID)
+    /// A Discover source video, which is not a recipe in the caller's
+    /// library.
+    case discoverSource(id: UUID)
+}
+
 actor RemoteImageCache {
     private let directoryURL: URL
     private let session: URLSession
@@ -24,7 +34,7 @@ actor RemoteImageCache {
     }
 
     func localURL(
-        recipeID: UUID,
+        owner: RemoteImageOwner,
         image: RemoteRecipeImageDTO
     ) async throws -> URL {
         let destination = directoryURL.appendingPathComponent(
@@ -43,7 +53,7 @@ actor RemoteImageCache {
         let api = api
         let task = Task {
             try await Self.download(
-                recipeID: recipeID,
+                owner: owner,
                 image: image,
                 destination: destination,
                 directoryURL: directoryURL,
@@ -57,7 +67,7 @@ actor RemoteImageCache {
     }
 
     private static func download(
-        recipeID: UUID,
+        owner: RemoteImageOwner,
         image: RemoteRecipeImageDTO,
         destination: URL,
         directoryURL: URL,
@@ -69,18 +79,8 @@ actor RemoteImageCache {
         if (200 ..< 300).contains(initial.statusCode) {
             data = initial.data
         } else if initial.statusCode == 401 || initial.statusCode == 403 {
-            let refreshed: RemoteRecipeDTO = try await api.request(
-                path: "/v1/recipes/\(recipeID.uuidString)"
-            )
-            guard
-                let refreshedImage = refreshed.images.first(
-                    where: { $0.id == image.id }
-                )
-            else {
-                throw RemoteImageCacheError.refreshedImageMissing
-            }
             let retry = try await fetch(
-                refreshedImage.remoteURL,
+                refreshedImageURL(owner: owner, image: image, api: api),
                 session: session
             )
             guard (200 ..< 300).contains(retry.statusCode) else {
@@ -101,6 +101,41 @@ actor RemoteImageCache {
         )
         try data.write(to: destination, options: .atomic)
         return destination
+    }
+
+    private static func refreshedImageURL(
+        owner: RemoteImageOwner,
+        image: RemoteRecipeImageDTO,
+        api: APIClient
+    ) async throws -> URL {
+        switch owner {
+        case let .recipe(id):
+            let refreshed: RemoteRecipeDTO = try await api.request(
+                path: "/v1/recipes/\(id.uuidString)"
+            )
+            guard
+                let refreshedImage = refreshed.images.first(
+                    where: { $0.id == image.id }
+                )
+            else {
+                throw RemoteImageCacheError.refreshedImageMissing
+            }
+            return refreshedImage.remoteURL
+        case let .discoverSource(id):
+            // A Discover source is not a recipe in the caller's library,
+            // so only the Discover detail can re-sign its thumbnail —
+            // and that detail mints the image id server-side
+            // (uuid5(source, "discover-thumbnail")) while the feed hands
+            // the client no image id at all, so the single refreshed
+            // thumbnail is taken by position, not by id.
+            let refreshed: RemoteRecipeDTO = try await api.request(
+                path: DiscoverAPI.detailPath(sourceID: id)
+            )
+            guard let refreshedImage = refreshed.images.first else {
+                throw RemoteImageCacheError.refreshedImageMissing
+            }
+            return refreshedImage.remoteURL
+        }
     }
 
     private static func fetch(

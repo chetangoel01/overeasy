@@ -40,7 +40,7 @@ struct RecipeDetailView: View {
     let toggleFavorite: (UUID) -> Bool
     let completeReview: (UUID) -> Recipe?
     let deleteRecipe: (UUID) -> Bool
-    let allowsLibraryEdits: Bool
+    let access: LibraryRecipeAccess
     let openAccount: () -> Void
 
     @State private var displayedRecipe: Recipe
@@ -58,6 +58,21 @@ struct RecipeDetailView: View {
     @State private var reviewPresentation =
         ReviewCompletionPresentation()
 
+    private var allowsLibraryEdits: Bool { access == .saved }
+
+    /// Which server object can re-sign the hero image's expired URL.
+    /// It follows the access the screen was opened with, never the id
+    /// alone: a Discover preview's recipe id IS the Discover sourceID,
+    /// which /v1/recipes/{id} answers with a 404.
+    var artworkOwner: RemoteImageOwner {
+        switch access {
+        case .saved:
+            .recipe(id: displayedRecipe.id)
+        case .discover:
+            .discoverSource(id: displayedRecipe.id)
+        }
+    }
+
     init(
         recipe: Recipe,
         statusText: String = "Saved recipe",
@@ -68,7 +83,7 @@ struct RecipeDetailView: View {
         toggleFavorite: @escaping (UUID) -> Bool,
         completeReview: @escaping (UUID) -> Recipe? = { _ in nil },
         deleteRecipe: @escaping (UUID) -> Bool = { _ in false },
-        allowsLibraryEdits: Bool = true,
+        access: LibraryRecipeAccess = .saved,
         openAccount: @escaping () -> Void
     ) {
         self.statusText = statusText
@@ -79,7 +94,7 @@ struct RecipeDetailView: View {
         self.toggleFavorite = toggleFavorite
         self.completeReview = completeReview
         self.deleteRecipe = deleteRecipe
-        self.allowsLibraryEdits = allowsLibraryEdits
+        self.access = access
         self.openAccount = openAccount
         _displayedRecipe = State(initialValue: recipe)
         _isFavorite = State(initialValue: recipe.isFavorite)
@@ -207,7 +222,18 @@ struct RecipeDetailView: View {
                 applyChangedRecipe(recipe)
             }
         }
-        .sheet(isPresented: $isReimportPresented) {
+        .sheet(
+            isPresented: $isReimportPresented,
+            onDismiss: {
+                // A swipe-down runs none of the sheet's own cleanup, so
+                // every dismissal funnels through the coordinator: a
+                // finished reimport left published here would wedge the
+                // Add Recipe sheet behind "Re-import in progress".
+                importCoordinator.releaseReimport(
+                    for: displayedRecipe.id
+                )
+            }
+        ) {
             ReimportSheet(
                 currentRecipe: displayedRecipe,
                 coordinator: importCoordinator
@@ -245,7 +271,7 @@ struct RecipeDetailView: View {
     @ViewBuilder
     private var heroImage: some View {
         RecipeArtworkView(
-            recipeID: displayedRecipe.id,
+            owner: artworkOwner,
             image: displayedRecipe.images.first
         )
         .frame(height: 322)

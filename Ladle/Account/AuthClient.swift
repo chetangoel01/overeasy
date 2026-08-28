@@ -28,22 +28,24 @@ final class AuthClient {
     private let api: APIClient
     private let tokenStore: any AuthTokenStoring
     private let accountSession: AccountSession
+    private let installationIdentity: InstallationIdentity
     private let appAttester: (any AppAttesting)?
 
     init(
         api: APIClient,
         tokenStore: any AuthTokenStoring,
         accountSession: AccountSession,
+        installationIdentity: InstallationIdentity,
         appAttester: (any AppAttesting)? = nil
     ) {
         self.api = api
         self.tokenStore = tokenStore
         self.accountSession = accountSession
+        self.installationIdentity = installationIdentity
         self.appAttester = appAttester
     }
 
     func bootstrapGuest(
-        installationID: String,
         attestation: AppAttestEvidence?,
         applyAccountState: Bool = true
     ) async throws -> AuthTokens {
@@ -56,7 +58,7 @@ final class AuthClient {
             path: "/v1/auth/guest",
             method: .post,
             body: GuestRequest(
-                installationID: installationID,
+                installationID: installationIdentity.current,
                 attestation: evidence
             ),
             authenticated: false
@@ -77,12 +79,21 @@ final class AuthClient {
     }
 
     func signOut() async {
+        let signedOutKind = ((try? tokenStore.load()) ?? nil)?.userKind
         // Best-effort server revoke; local sign-out proceeds regardless.
         try? await api.requestWithoutResponse(
             path: "/v1/auth/session",
             method: .delete
         )
         try? tokenStore.clear()
+        // The server binds the installation ID to a real account, so carrying
+        // it into the next session would hand that account to whoever uses
+        // this device next. A guest keeps its identifier: the binding is the
+        // only credential a guest library has.
+        if let signedOutKind, signedOutKind != "guest" {
+            installationIdentity.rotate()
+            try? await appAttester?.reset()
+        }
         accountSession.signOut()
     }
 
@@ -104,6 +115,7 @@ final class AuthClient {
             )
         )
         try? tokenStore.clear()
+        installationIdentity.rotate()
         try? await appAttester?.reset()
         accountSession.signOut()
     }

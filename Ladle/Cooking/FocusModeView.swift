@@ -1,6 +1,26 @@
 import LadleCore
 import SwiftUI
 
+/// Classifies a completed Focus Mode drag as a step change. A drag counts
+/// only when it is predominantly horizontal and travelled far enough on
+/// that axis, so vertically scrolling long step content — however much it
+/// drifts sideways — never changes the step or exits Focus Mode.
+enum FocusModeSwipe {
+    case nextStep
+    case previousStep
+
+    /// The horizontal travel below which a drag never reads as a swipe.
+    static let minimumTravel: CGFloat = 44
+
+    init?(translation: CGSize) {
+        guard abs(translation.width) > Self.minimumTravel,
+              abs(translation.width) > abs(translation.height) else {
+            return nil
+        }
+        self = translation.width < 0 ? .nextStep : .previousStep
+    }
+}
+
 struct FocusModeView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -30,12 +50,15 @@ struct FocusModeView: View {
         .contentShape(Rectangle())
         .accessibilityIdentifier("cooking.focus-mode")
         .simultaneousGesture(
-            DragGesture(minimumDistance: 44)
+            DragGesture(minimumDistance: FocusModeSwipe.minimumTravel)
                 .onEnded { value in
-                    if value.translation.width < -44 {
+                    switch FocusModeSwipe(translation: value.translation) {
+                    case .nextStep:
                         advance()
-                    } else if value.translation.width > 44 {
+                    case .previousStep:
                         viewModel.movePrevious()
+                    case nil:
+                        break
                     }
                 }
         )

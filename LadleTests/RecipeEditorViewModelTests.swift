@@ -61,6 +61,99 @@ final class RecipeEditorViewModelTests: XCTestCase {
         )
     }
 
+    /// The reviewer's repro: the offending field lives in a section the user
+    /// is not looking at, so the inline message is off screen and the Save
+    /// tap reads as a dead button.
+    func testSaveRejectedForAnOffScreenFieldStillNamesWhereToLook() {
+        let viewModel = makeViewModel()
+        viewModel.addStep()
+
+        XCTAssertNil(viewModel.save(), "A blank step must block the save")
+
+        let summary = viewModel.validationSummary
+        XCTAssertNotNil(
+            summary,
+            "A rejected save must surface a summary, or the tap looks like a no-op"
+        )
+        XCTAssertEqual(summary?.sections, [.method])
+        XCTAssertEqual(
+            summary?.headline,
+            "Can't save yet — one field needs attention"
+        )
+        XCTAssertEqual(summary?.detail, "Check Method.")
+    }
+
+    func testSummaryNamesEverySectionHoldingARejectedFieldInTabOrder() {
+        let viewModel = makeViewModel()
+        // Seeded out of tab order on purpose: Method first, then Basics.
+        viewModel.addStep()
+        viewModel.draft.title = "   "
+
+        XCTAssertNil(viewModel.save())
+
+        let summary = viewModel.validationSummary
+        XCTAssertEqual(
+            summary?.sections,
+            [.basics, .method],
+            "Sections must be listed in tab order, not issue order"
+        )
+        XCTAssertEqual(
+            summary?.headline,
+            "Can't save yet — 2 fields need attention"
+        )
+        XCTAssertEqual(summary?.detail, "Check Basics and Method.")
+    }
+
+    func testAValidDraftHasNoSummaryBeforeOrAfterSaving() throws {
+        let viewModel = makeViewModel()
+
+        XCTAssertNil(
+            viewModel.validationSummary,
+            "An untouched draft has not been rejected, so there is nothing to say"
+        )
+        XCTAssertNotNil(viewModel.save())
+        XCTAssertNil(viewModel.validationSummary)
+    }
+
+    func testFixingTheRejectedFieldClearsTheSummary() throws {
+        let viewModel = makeViewModel()
+        viewModel.addStep()
+        XCTAssertNil(viewModel.save())
+        XCTAssertNotNil(viewModel.validationSummary)
+
+        let added = try XCTUnwrap(viewModel.draft.steps.indices.last)
+        viewModel.draft.steps[added].instruction =
+            "Rest the dough for twenty minutes."
+
+        XCTAssertNotNil(viewModel.save())
+        XCTAssertNil(viewModel.validationSummary)
+        XCTAssertTrue(viewModel.sectionsNeedingAttention.isEmpty)
+    }
+
+    /// Every issue the draft can raise must map to a section, or a rejected
+    /// save could produce a summary that names nowhere.
+    func testEveryValidationIssueBelongsToASection() {
+        let identifier = UUID()
+        let issues: [RecipeDraftValidationIssue] = [
+            .titleRequired, .titleTooLong, .creatorNameTooLong,
+            .descriptionTooLong, .servingsMustBePositive,
+            .preparationMinutesInvalid, .cookingMinutesInvalid,
+            .totalMinutesInvalid, .tooManyIngredients, .tooManySteps,
+            .ingredientNameRequired(identifier),
+            .ingredientFieldTooLong(identifier),
+            .stepInstructionRequired(identifier),
+            .stepInstructionTooLong(identifier),
+            .nutritionValueInvalid("calories"),
+        ]
+        for issue in issues {
+            XCTAssertTrue(
+                RecipeEditorSection.allCases
+                    .contains(RecipeEditorSection.owning(issue)),
+                "\(issue) maps outside the editor's sections"
+            )
+        }
+    }
+
     func testInvalidStructuredFieldsStayInlineAndDoNotPersist() {
         let repository = EditorTestRepository(
             recipes: [PreviewFixtures.recipes[1]]
@@ -207,9 +300,141 @@ final class RecipeEditorViewModelTests: XCTestCase {
         XCTAssertEqual(repository.saveCount, 1)
     }
 
+    func testEditedQuantityRederivesTheNormalizedAmountInLocale() throws {
+        let recipe = importedFlourRecipe()
+        let viewModel = makeViewModel(
+            recipe: recipe,
+            locale: Locale(identifier: "fr_FR")
+        )
+
+        viewModel.draft.ingredients[0].quantityText = "1,5"
+
+        let saved = try XCTUnwrap(viewModel.save())
+        XCTAssertEqual(saved.orderedIngredients[0].quantityText, "1,5")
+        XCTAssertEqual(
+            saved.orderedIngredients[0].normalizedQuantity,
+            Decimal(string: "1.5")
+        )
+    }
+
+    func testClearedQuantityDropsTheStaleNormalizedAmount() throws {
+        let viewModel = makeViewModel(recipe: importedFlourRecipe())
+
+        viewModel.draft.ingredients[0].quantityText = ""
+
+        let saved = try XCTUnwrap(viewModel.save())
+        XCTAssertNil(saved.orderedIngredients[0].quantityText)
+        XCTAssertNil(saved.orderedIngredients[0].normalizedQuantity)
+    }
+
+    func testNonNumericQuantityEditDropsTheStaleNormalizedAmount() throws {
+        let viewModel = makeViewModel(recipe: importedFlourRecipe())
+
+        viewModel.draft.ingredients[0].quantityText = "a splash"
+
+        let saved = try XCTUnwrap(viewModel.save())
+        XCTAssertEqual(
+            saved.orderedIngredients[0].quantityText,
+            "a splash"
+        )
+        XCTAssertNil(saved.orderedIngredients[0].normalizedQuantity)
+    }
+
+    func testUntouchedAndRevertedQuantityKeepTheImportedAmount() throws {
+        // The imported machine-readable amount can be richer than the
+        // editor's own parser derives (the server reads "2" here, but
+        // fractions like "2 1/2" too), so it survives while the text
+        // still reads exactly as imported — including after an edit is
+        // reverted.
+        let untouched = makeViewModel(recipe: importedFlourRecipe())
+        let savedUntouched = try XCTUnwrap(untouched.save())
+        XCTAssertEqual(
+            savedUntouched.orderedIngredients[0].normalizedQuantity,
+            2
+        )
+
+        let reverted = makeViewModel(recipe: importedFlourRecipe())
+        reverted.draft.ingredients[0].quantityText = "4"
+        reverted.draft.ingredients[0].quantityText = "2"
+        let savedReverted = try XCTUnwrap(reverted.save())
+        XCTAssertEqual(
+            savedReverted.orderedIngredients[0].normalizedQuantity,
+            2
+        )
+    }
+
+    func testCommaDecimalLocaleSavesTheYieldTheUserTyped() throws {
+        let repository = EditorTestRepository(
+            recipes: [PreviewFixtures.recipes[1]]
+        )
+        let viewModel = makeViewModel(
+            repository: repository,
+            locale: Locale(identifier: "fr_FR")
+        )
+        // The .decimalPad renders this locale's separator, so this is what
+        // the comma key produces.
+        viewModel.draft.servings = "1,5"
+        viewModel.draft.nutrition.calories = "12,5"
+
+        let saved = try XCTUnwrap(viewModel.save())
+
+        XCTAssertTrue(viewModel.validationIssues.isEmpty)
+        XCTAssertEqual(saved.servings, Decimal(string: "1.5"))
+        XCTAssertEqual(
+            saved.nutrition?.calories,
+            Decimal(string: "12.5")
+        )
+    }
+
+    func testUnparseableNumbersAreRejectedRatherThanTruncated() {
+        let repository = EditorTestRepository(
+            recipes: [PreviewFixtures.recipes[1]]
+        )
+        let viewModel = makeViewModel(repository: repository)
+        viewModel.draft.servings = "1.2.3"
+        viewModel.draft.nutrition.calories = "12abc"
+
+        let saved = viewModel.save()
+
+        XCTAssertNil(saved)
+        XCTAssertTrue(
+            viewModel.validationIssues.contains(.servingsMustBePositive)
+        )
+        XCTAssertTrue(
+            viewModel.validationIssues.contains(
+                .nutritionValueInvalid("Calories")
+            )
+        )
+        XCTAssertEqual(repository.saveCount, 0)
+    }
+
+    /// An imported recipe whose ingredient carries the machine-readable
+    /// amount the server derived from its quantity text.
+    private func importedFlourRecipe() -> Recipe {
+        Recipe(
+            title: "Imported Flour Cake",
+            source: .other,
+            originalURL: URL(string: "https://example.com/cake")!,
+            servings: 4,
+            ingredients: [
+                Ingredient(
+                    quantityText: "2",
+                    normalizedQuantity: 2,
+                    unit: "cups",
+                    name: "flour",
+                    orderIndex: 0
+                ),
+            ],
+            steps: [
+                RecipeStep(orderIndex: 0, instruction: "Mix the flour."),
+            ]
+        )
+    }
+
     private func makeViewModel(
         recipe: Recipe = PreviewFixtures.recipes[1],
-        repository: EditorTestRepository? = nil
+        repository: EditorTestRepository? = nil,
+        locale: Locale = Locale(identifier: "en_US")
     ) -> RecipeEditorViewModel {
         RecipeEditorViewModel(
             recipe: recipe,
@@ -217,7 +442,8 @@ final class RecipeEditorViewModelTests: XCTestCase {
                 ?? EditorTestRepository(recipes: [recipe]),
             now: {
                 Date(timeIntervalSince1970: 1_784_900_000)
-            }
+            },
+            locale: locale
         )
     }
 }

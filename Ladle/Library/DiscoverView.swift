@@ -565,7 +565,7 @@ private struct DiscoverArtwork: View {
 
     var body: some View {
         RecipeArtworkView(
-            recipeID: recipe.sourceID,
+            owner: .discoverSource(id: recipe.sourceID),
             image: recipe.imageURL.map {
                 RecipeImage(id: recipe.sourceID, remoteURL: $0)
             }

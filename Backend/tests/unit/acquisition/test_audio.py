@@ -81,6 +81,73 @@ def test_verbose_json_becomes_timed_generated_evidence(tmp_path: Path) -> None:
     assert result.billed_units == Decimal(1)
 
 
+def test_reversed_segment_window_degrades_to_untimed_evidence(
+    tmp_path: Path,
+) -> None:
+    # A host that ignores timestamp_granularities returns only segments; one
+    # whose end precedes its start must degrade that window, not the job.
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(
+            200,
+            json={
+                "text": "stir the pot",
+                "segments": [{"start": 12.0, "end": 3.0, "text": "stir the pot"}],
+            },
+        )
+
+    result = transcriber(handler).transcribe(
+        audio_file(tmp_path), job_id=uuid4(), source_revision="rev-1"
+    )
+
+    assert [segment.text for segment in result.segments] == ["stir the pot"]
+    assert result.segments[0].start_seconds is None
+    assert result.segments[0].end_seconds is None
+
+
+def test_zero_length_segment_window_is_kept(tmp_path: Path) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(
+            200,
+            json={"text": "hi", "segments": [{"start": 3.0, "end": 3.0, "text": "hi"}]},
+        )
+
+    result = transcriber(handler).transcribe(
+        audio_file(tmp_path), job_id=uuid4(), source_revision="rev-1"
+    )
+
+    assert result.segments[0].start_seconds == 3.0
+    assert result.segments[0].end_seconds == 3.0
+
+
+def test_out_of_order_word_timings_cannot_produce_a_reversed_window(
+    tmp_path: Path,
+) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(
+            200,
+            json={
+                "text": "later earlier",
+                "words": [
+                    {"word": "later", "start": 10.0, "end": 10.4},
+                    {"word": "earlier", "start": 0.5, "end": 0.9},
+                ],
+            },
+        )
+
+    result = transcriber(handler).transcribe(
+        audio_file(tmp_path), job_id=uuid4(), source_revision="rev-1"
+    )
+
+    # Transcripts are temporal: out-of-order words are read back in time
+    # order, and the segment window they produce must be monotonic.
+    assert [segment.text for segment in result.segments] == ["earlier later"]
+    assert result.segments[0].start_seconds == 0.5
+    assert result.segments[0].end_seconds == 10.4
+
+
 def test_provider_reported_transcription_cost_is_recorded(tmp_path: Path) -> None:
     class Usage:
         def __init__(self) -> None:

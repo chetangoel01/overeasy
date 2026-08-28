@@ -1,43 +1,119 @@
+import AuthenticationServices
 import LadleCore
 import SwiftUI
 
 struct GuestLimitView: View {
     let decision: GuestSaveDecision
-    let accountSession: AccountSession
     var continueAction: () -> Void
 
+    @Environment(\.colorScheme) private var colorScheme
+
+    @State private var flow: AccountSignInFlow
+
+    init(
+        decision: GuestSaveDecision,
+        accountSession: AccountSession,
+        authClient: AuthClient?,
+        googleSignIn: (any GoogleSignInProviding)?,
+        onAuthenticated: @escaping @MainActor () async -> Void,
+        continueAction: @escaping () -> Void
+    ) {
+        self.decision = decision
+        self.continueAction = continueAction
+        _flow = State(
+            initialValue: AccountSignInFlow(
+                accountSession: accountSession,
+                authClient: authClient,
+                googleSignIn: googleSignIn,
+                onAuthenticated: onAuthenticated
+            )
+        )
+    }
+
     var body: some View {
-        VStack(spacing: LadleTheme.Spacing.generous) {
-            LadleSheetHandle()
+        ScrollView {
+            VStack(spacing: LadleTheme.Spacing.generous) {
+                LadleSheetHandle()
 
-            Image(systemName: "books.vertical")
-                .font(.system(size: LadleTheme.IconSize.feature, weight: .semibold))
-                .foregroundStyle(LadleTheme.Label.accent)
-                .frame(width: 54, height: 54)
-                .background(LadleTheme.Surface.badge, in: Circle())
+                Image(systemName: "books.vertical")
+                    .font(.system(size: LadleTheme.IconSize.feature, weight: .semibold))
+                    .foregroundStyle(LadleTheme.Label.accent)
+                    .frame(width: 54, height: 54)
+                    .background(LadleTheme.Surface.badge, in: Circle())
 
-            VStack(spacing: LadleTheme.Spacing.compact) {
-                Text(title)
-                    .ladleFont(.title)
-                    .foregroundStyle(LadleTheme.Label.primary)
-                    .multilineTextAlignment(.center)
-                Text(message)
-                    .ladleFont(.body)
-                    .foregroundStyle(LadleTheme.Label.primary.opacity(0.65))
-                    .multilineTextAlignment(.center)
+                VStack(spacing: LadleTheme.Spacing.compact) {
+                    Text(title)
+                        .ladleFont(.title)
+                        .foregroundStyle(LadleTheme.Label.primary)
+                        .multilineTextAlignment(.center)
+                    Text(message)
+                        .ladleFont(.body)
+                        .foregroundStyle(LadleTheme.Label.primary.opacity(0.65))
+                        .multilineTextAlignment(.center)
+                }
+
+                VStack(spacing: LadleTheme.Spacing.medium) {
+                    SignInWithAppleButton(.continue) { request in
+                        flow.prepareAppleRequest(request)
+                    } onCompletion: { result in
+                        Task { await flow.handleAppleCompletion(result) }
+                    }
+                    // Unlike the welcome screen's fixed graphite, porcelain
+                    // adapts to the appearance, so the button must too.
+                    .signInWithAppleButtonStyle(
+                        colorScheme == .dark ? .white : .black
+                    )
+                    .frame(height: LadleTheme.Control.primary)
+                    .clipShape(
+                        RoundedRectangle(
+                            cornerRadius: LadleTheme.Corner.control
+                        )
+                    )
+                    .disabled(flow.isAuthenticating)
+
+                    GoogleSignInControl(
+                        isEnabled: !flow.isAuthenticating,
+                        accessibilityIdentifier: "guest-limit.google-sign-in"
+                    ) {
+                        Task { await flow.signInWithGoogle() }
+                    }
+                    .overlay(
+                        RoundedRectangle(
+                            cornerRadius: LadleTheme.Corner.control,
+                            style: .continuous
+                        )
+                        .strokeBorder(
+                            LadleTheme.Label.primary.opacity(0.08),
+                            lineWidth: 1
+                        )
+                    )
+                }
+
+                if decision == .allowWithAccountPrompt {
+                    Button("Save recipe and continue", action: continueAction)
+                        .buttonStyle(LadleButtonStyle(role: .secondary))
+                        .disabled(flow.isAuthenticating)
+                }
+
+                if flow.isAuthenticating {
+                    ProgressView("Creating your free account")
+                        .ladleFont(.metadata)
+                        .tint(LadleTheme.Intent.accent)
+                        .foregroundStyle(LadleTheme.Label.secondary)
+                }
+
+                if let failure = flow.failure {
+                    Text(failure.message)
+                        .ladleFont(.metadata)
+                        .foregroundStyle(LadleTheme.Label.accent)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("guest-limit.sign-in-failure")
+                }
             }
-
-            Button("Create a free account") {
-                accountSession.createFreeAccount()
-            }
-            .buttonStyle(LadleButtonStyle(role: .primary))
-
-            if decision == .allowWithAccountPrompt {
-                Button("Save recipe and continue", action: continueAction)
-                    .buttonStyle(LadleButtonStyle(role: .secondary))
-            }
+            .padding(LadleTheme.Spacing.generous)
         }
-        .padding(LadleTheme.Spacing.generous)
+        .scrollIndicators(.hidden)
         .background(LadleTheme.Surface.porcelain)
     }
 

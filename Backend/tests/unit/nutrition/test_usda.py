@@ -19,12 +19,18 @@ SEARCH = json.loads((FIXTURES / "search.json").read_text())
 FOOD = json.loads((FIXTURES / "food.json").read_text())
 
 
-def client(handler, *, maximum_candidates: int = 3) -> USDAClient:
+def client(
+    handler,
+    *,
+    maximum_candidates: int = 3,
+    maximum_cache_entries: int = 512,
+) -> USDAClient:
     return USDAClient(
         http=httpx.Client(transport=httpx.MockTransport(handler)),
         api_key="usda-test-key",
         base_url="https://api.nal.usda.gov/fdc/v1",
         maximum_candidates=maximum_candidates,
+        maximum_cache_entries=maximum_cache_entries,
     )
 
 
@@ -119,9 +125,7 @@ def test_wrong_required_nutrient_units_are_not_guessed(
 def test_missing_required_macro_returns_no_candidate() -> None:
     detail = copy.deepcopy(FOOD)
     detail["foodNutrients"] = [
-        value
-        for value in detail["foodNutrients"]
-        if value["nutrient"]["id"] != 1005
+        value for value in detail["foodNutrients"] if value["nutrient"]["id"] != 1005
     ]
 
     def respond(request: httpx.Request) -> httpx.Response:
@@ -181,3 +185,63 @@ def test_malformed_search_response_is_typed() -> None:
         client(lambda _: httpx.Response(200, json={"foods": "not-a-list"})).candidates(
             "chickpeas"
         )
+
+
+def test_the_search_cache_is_bounded_and_evicts_the_oldest_entry() -> None:
+    """The worker process lives for weeks and the keys are model-generated
+    ingredient phrasings — an effectively unbounded space. Past the bound
+    the least recently used entry must be dropped, not kept forever."""
+    searches: list[str] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        searches.append(json.loads(request.content)["query"])
+        return httpx.Response(200, json={"foods": []})
+
+    usda = client(respond)
+
+    for index in range(513):
+        usda.candidates(f"ingredient {index}")
+    assert len(searches) == 513
+
+    # The newest entry sits inside the default bound of 512 and stays cached.
+    usda.candidates("ingredient 512")
+    assert searches.count("ingredient 512") == 1
+
+    # The oldest fell past the bound, so asking again must refetch.
+    usda.candidates("ingredient 0")
+    assert searches.count("ingredient 0") == 2, (
+        "the oldest entry must have been evicted, forcing a refetch"
+    )
+
+
+def test_a_cache_hit_refreshes_recency_before_eviction() -> None:
+    searches: list[str] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        searches.append(json.loads(request.content)["query"])
+        return httpx.Response(200, json={"foods": []})
+
+    usda = client(respond, maximum_cache_entries=2)
+
+    usda.candidates("alpha")
+    usda.candidates("beta")
+    # At the bound: both entries are still served from cache.
+    usda.candidates("alpha")
+    usda.candidates("beta")
+    assert searches == ["alpha", "beta"]
+
+    # alpha was touched last, so inserting gamma must evict beta, not alpha.
+    usda.candidates("alpha")
+    usda.candidates("gamma")
+    usda.candidates("alpha")
+    usda.candidates("beta")
+
+    assert searches == ["alpha", "beta", "gamma", "beta"]
+
+
+def test_a_nonpositive_cache_bound_is_rejected() -> None:
+    def respond(request: httpx.Request) -> httpx.Response:
+        raise AssertionError("no request should be made")
+
+    with pytest.raises(ValueError, match="cache entries"):
+        client(respond, maximum_cache_entries=0)

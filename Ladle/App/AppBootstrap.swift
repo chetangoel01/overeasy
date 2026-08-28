@@ -57,12 +57,10 @@ struct AppBootstrap {
     typealias EnvironmentFactory = (Bool) throws -> AppEnvironment
     typealias BaseURLFactory = () throws -> URL
 
-    private static let installationIDKey = "ladle.installation.id"
-
     let configuration: LadleRuntimeConfiguration
     private let makeEnvironment: EnvironmentFactory
     private let makeBaseURL: BaseURLFactory
-    private let makeInstallationID: () -> String
+    private let installationIdentity: InstallationIdentity
 
     init(
         configuration: LadleRuntimeConfiguration,
@@ -72,13 +70,12 @@ struct AppBootstrap {
         makeBaseURL: @escaping BaseURLFactory = {
             try APIConfiguration().baseURL
         },
-        makeInstallationID: (() -> String)? = nil
+        installationIdentity: InstallationIdentity = InstallationIdentity()
     ) {
         self.configuration = configuration
         self.makeEnvironment = makeEnvironment
         self.makeBaseURL = makeBaseURL
-        self.makeInstallationID = makeInstallationID
-            ?? Self.installationID
+        self.installationIdentity = installationIdentity
     }
 
     func run() -> AppBootstrapResult {
@@ -90,7 +87,7 @@ struct AppBootstrap {
             "-reset-backend-session"
         )
         if resetsBackendSession {
-            Self.resetBackendSession()
+            resetBackendSession()
         }
 
         let environment: AppEnvironment
@@ -131,33 +128,35 @@ struct AppBootstrap {
                 configuration: configuration,
                 appEnvironment: environment,
                 services: services,
-                installationID: makeInstallationID(),
+                installationIdentity: installationIdentity,
                 resetsBackendSession: resetsBackendSession
             )
         )
     }
 
-    private static func installationID() -> String {
-        if let existing = UserDefaults.standard.string(
-            forKey: installationIDKey
-        ) {
-            return existing
-        }
-        let created = UUID().uuidString.lowercased()
-        UserDefaults.standard.set(created, forKey: installationIDKey)
-        return created
-    }
-
-    private static func resetBackendSession() {
+    private func resetBackendSession() {
         try? KeychainTokenStore().clear()
         try? SyncCursorStore().reset()
-        UserDefaults.standard.removeObject(forKey: installationIDKey)
+        installationIdentity.clear()
     }
 }
 
 enum LadleServiceConfiguration {
     case demo
     case remote(URL)
+}
+
+/// A service that can hold an in-flight write into the local store — work
+/// still carrying the authority of the session being torn down. Sign-out
+/// must quiesce every such writer before wiping the store, or the write
+/// lands after the wipe and the next account inherits the rows.
+/// `LadleRuntime` registers each writer in `sessionWriters`, the one list
+/// `clearLocalSession` drains; add new writers there, never as one-off
+/// cancel calls.
+protocol SessionWriter: Sendable {
+    /// Cancel in-flight work and wait for it to unwind. On return, the
+    /// writer holds no task that could still write into the local store.
+    func quiesceForSignOut() async
 }
 
 @MainActor
@@ -172,19 +171,22 @@ final class LadleRuntime {
     let syncService: RecipeSyncService?
     let remoteImageCache: RemoteImageCache?
     let discoverService: any DiscoverServing
-    let installationID: String
+    let installationIdentity: InstallationIdentity
 
     private let sharedQueueReconciler: SharedQueueReconciler?
+    private let sessionWriters: [any SessionWriter]
 
     init(
         configuration: LadleRuntimeConfiguration,
         appEnvironment: AppEnvironment,
         services: LadleServiceConfiguration,
-        installationID: String,
-        resetsBackendSession: Bool
+        installationIdentity: InstallationIdentity,
+        resetsBackendSession: Bool,
+        accountStore: any PreferenceStoring = UserDefaults.standard
     ) {
         let launchArguments = configuration.launchArguments
         let accountSession = AccountSession(
+            store: accountStore,
             launchArguments: launchArguments
         )
         if launchArguments.contains("-reset-library-preferences") {
@@ -256,7 +258,7 @@ final class LadleRuntime {
             let appAttester: AppAttestClient? = configuration.usesAppAttest
                 ? AppAttestClient(
                     baseURL: baseURL,
-                    installationID: installationID
+                    installationIdentity: installationIdentity
                 )
                 : nil
             let api = APIClient(
@@ -274,6 +276,7 @@ final class LadleRuntime {
                 api: api,
                 tokenStore: tokenStore,
                 accountSession: accountSession,
+                installationIdentity: installationIdentity,
                 appAttester: appAttester
             )
             importService = RemoteImportService(api: api)
@@ -327,17 +330,26 @@ final class LadleRuntime {
             }
         )
 
+        // Order matters: a completing import starts a follow-up sync
+        // through didCompleteRemoteImport, so imports drain before the
+        // sync writer.
+        var sessionWriters: [any SessionWriter] = [importCoordinator]
+        if let syncService {
+            sessionWriters.append(syncService)
+        }
+
         self.appEnvironment = appEnvironment
         self.accountSession = accountSession
         self.syncStatus = syncStatus
         self.libraryViewModel = libraryViewModel
         self.importCoordinator = importCoordinator
+        self.sessionWriters = sessionWriters
         self.authClient = authClient
         self.googleSignIn = googleSignIn
         self.syncService = syncService
         self.remoteImageCache = remoteImageCache
         self.discoverService = discoverService
-        self.installationID = installationID
+        self.installationIdentity = installationIdentity
         self.sharedQueueReconciler = sharedQueueReconciler
     }
 
@@ -348,7 +360,6 @@ final class LadleRuntime {
                 if restored == nil,
                    accountSession.state != .undecided {
                     _ = try await authClient.bootstrapGuest(
-                        installationID: installationID,
                         attestation: nil
                     )
                 }
@@ -368,6 +379,11 @@ final class LadleRuntime {
     }
 
     func didAuthenticate() async {
+        // Sign-out latched the import coordinator against adopting or
+        // starting any job. Every re-entry path — Apple, Google, and
+        // guest — funnels through here, so this is where the next
+        // session lifts the latch, before its own resume below.
+        importCoordinator.beginSession()
         if let syncService {
             await Self.performSync(
                 using: syncService,
@@ -386,7 +402,7 @@ final class LadleRuntime {
             accountSession.signOut()
         }
         googleSignIn?.signOut()
-        clearLocalSession()
+        await clearLocalSession()
     }
 
     func deleteAccount() async throws {
@@ -396,7 +412,7 @@ final class LadleRuntime {
             accountSession.signOut()
         }
         await googleSignIn?.disconnect()
-        clearLocalSession()
+        await clearLocalSession()
     }
 
     func handleOpenURL(_ url: URL) {
@@ -426,7 +442,15 @@ final class LadleRuntime {
         }
     }
 
-    private func clearLocalSession() {
+    private func clearLocalSession() async {
+        // No in-flight writer may survive into the wipe: a task still on
+        // the wire holds the signed-out session's authority and would
+        // write that account's rows into the store the next account
+        // inherits. Every writer registers in `sessionWriters`; this loop
+        // is the only place sign-out quiesces them.
+        for writer in sessionWriters {
+            await writer.quiesceForSignOut()
+        }
         libraryViewModel.clearLocalLibrary()
         try? SyncCursorStore().reset()
         syncStatus.reset()

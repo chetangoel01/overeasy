@@ -248,9 +248,7 @@ def test_arbitrary_method_duration_does_not_set_top_level_time() -> None:
 def test_all_frozen_creator_panels_reproduce_whole_recipe_reference(
     fixture: str,
 ) -> None:
-    corpus = EvaluationCorpus.model_validate_json(
-        (FIXTURES / fixture).read_text()
-    )
+    corpus = EvaluationCorpus.model_validate_json((FIXTURES / fixture).read_text())
     failures: dict[str, list[str]] = {}
 
     for case in corpus.cases:

@@ -108,6 +108,11 @@ actor DemoImportService: ImportService {
             return .ready(makeRecipe(kind: kind, job: job))
         }
 
+        if slug.contains("cancelled") {
+            // The server reports a job the user had already cancelled,
+            // e.g. from another session.
+            throw RemoteContractError.importCancelled
+        }
         if slug.contains("private") || slug.contains("deleted") {
             return .failed(.privateOrDeleted)
         }
