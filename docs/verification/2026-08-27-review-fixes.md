@@ -68,6 +68,7 @@ by the code they touch.
 | #43 | Foreground notifications silently suppressed | `8f8db48` | fixed |
 | #44 | Expired Discover thumbnails could never refresh | `a30e9db` + `20ff675` | fixed |
 | #29 | A save rejected for an off-screen field looked like a dead button | `8ec476a` | fixed |
+| (sweep) | In-flight import survived sign-out into the next account | `f8ee7c6` | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
