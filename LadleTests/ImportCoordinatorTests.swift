@@ -1359,6 +1359,147 @@ final class ImportCoordinatorTests: XCTestCase {
         XCTAssertEqual(repository.importJobs.count, 1)
     }
 
+    func testSignOutQuiesceLatchesAgainstAResumeDriverStartingFreshWork() async throws {
+        // Draining alone is not enough. A resume driver suspended on job
+        // A's processing task resumes during sign-out's NEXT suspension
+        // point (the sync writer's own quiesce), re-fetches job B —
+        // still .parsing, because the wipe has not run yet — and starts
+        // a fresh processing task the drain never saw. That task
+        // survives into the wipe, its poll fails against the cleared
+        // token store, and finishRemoteFailure re-inserts the signed-out
+        // account's job into the emptied store. (final sweep S1 rework)
+        let service = LatchProbeImportService()
+        let repository = ImportTestRepository()
+        let coordinator = ImportCoordinator(
+            repository: repository,
+            service: service,
+            accountSession: AccountSession(
+                store: ImportTestPreferenceStore()
+            ),
+            clock: ImmediateImportClock()
+        )
+
+        // Jobs A, B, and C are durable and .parsing with remote ids, as
+        // after a relaunch mid-import.
+        for slug in ["job-a", "job-b", "job-c"] {
+            var job = ImportJob.queued(
+                sourceURL: URL(string: "https://youtu.be/\(slug)")!,
+                source: .youtube
+            )
+            job.remoteJobID = slug
+            try repository.save(job)
+        }
+
+        // The resume driver — restoreAndLoad, didAuthenticate, and
+        // sceneBecameActive all share this call — suspends awaiting job
+        // A's processing task.
+        let driver = Task {
+            await coordinator.resumePendingImports()
+        }
+        var pollingA = false
+        while !pollingA {
+            pollingA = await service.didStartPolling("job-a")
+            await Task.yield()
+        }
+
+        // clearLocalSession's real sequence: quiesce the import writer...
+        await coordinator.quiesceForSignOut()
+
+        // ...suspend on the next writer (the sync service unwinding its
+        // active run) — the window in which the drained driver's
+        // continuation gets to run...
+        var pumps = 0
+        var pollingB = await service.didStartPolling("job-b")
+        while pumps < 200, !pollingB {
+            await Task.yield()
+            pollingB = await service.didStartPolling("job-b")
+            pumps += 1
+        }
+
+        // ...then wipe the store.
+        repository.importJobs.removeAll()
+        repository.recipes.removeAll()
+
+        // Sign-out is done; a poll that escaped the quiesce now fails
+        // against the cleared token store, exactly like the real
+        // APIClient, and the driver unwinds.
+        await service.releaseHeldPolls()
+        await driver.value
+
+        XCTAssertFalse(
+            pollingB,
+            "A fresh processing task was started after quiesce began"
+        )
+        XCTAssertTrue(
+            repository.importJobs.isEmpty,
+            "The signed-out account's job was re-inserted into the wiped store: \(repository.importJobs.map(\.sourceURL.absoluteString))"
+        )
+        XCTAssertTrue(repository.recipes.isEmpty)
+        XCTAssertEqual(
+            coordinator.state,
+            .idle,
+            "Published state was re-claimed after quiesce reset it"
+        )
+        XCTAssertNil(
+            coordinator.operation,
+            "The signed-out operation was re-claimed after quiesce reset it"
+        )
+    }
+
+    func testBeginSessionLiftsTheSignOutLatchForTheNextAccount() async throws {
+        // Between quiesce and the next session, the latch holds against
+        // every door: a stale submit adopts and writes nothing, and a
+        // resume driver refuses rows the wipe has not reached yet.
+        // beginSession — the next account signing in — lifts it.
+        // (final sweep S1 rework)
+        let repository = ImportTestRepository()
+        let coordinator = makeCoordinator(repository: repository)
+
+        await coordinator.quiesceForSignOut()
+
+        await coordinator.submit(
+            urlText: "https://youtu.be/stale-submit"
+        )
+        XCTAssertTrue(repository.importJobs.isEmpty)
+        XCTAssertTrue(repository.recipes.isEmpty)
+        XCTAssertEqual(coordinator.state, .idle)
+        XCTAssertNil(coordinator.operation)
+
+        var leftover = ImportJob.queued(
+            sourceURL: URL(string: "https://youtu.be/old-account-row")!,
+            source: .youtube
+        )
+        try repository.save(leftover)
+        await coordinator.resumePendingImports()
+        XCTAssertEqual(repository.importJobs.map(\.status), [.parsing])
+        XCTAssertTrue(repository.recipes.isEmpty)
+        XCTAssertNil(coordinator.operation)
+        // The wipe finishes sign-out.
+        repository.importJobs.removeAll()
+
+        // The next account signs in; didAuthenticate lifts the latch,
+        // and both its resume and its own imports work again.
+        coordinator.beginSession()
+        leftover = ImportJob.queued(
+            sourceURL: URL(string: "https://youtu.be/ready-orzo")!,
+            source: .youtube
+        )
+        try repository.save(leftover)
+        await coordinator.resumePendingImports()
+        XCTAssertEqual(repository.recipes.count, 1)
+        coordinator.reset()
+
+        await coordinator.submit(
+            urlText: "https://youtu.be/ready-green-curry"
+        )
+        XCTAssertEqual(repository.recipes.count, 2)
+        guard case .completed = coordinator.state else {
+            return XCTFail(
+                "Expected the next account's import to complete, got \(coordinator.state)"
+            )
+        }
+    }
+
     func testAuthenticationExpiryMakesAdmissionJobDurablyFailed() async {
         let repository = ImportTestRepository()
         let coordinator = ImportCoordinator(
@@ -1788,6 +1929,54 @@ private actor AuthExpiredOnCancelPollingImportService: ImportService {
     func status(remoteJobID: String) async throws -> ImportServiceUpdate {
         statusStarted = true
         while !Task.isCancelled {
+            await Task.yield()
+        }
+        throw APIError.missingAuthentication
+    }
+
+    func retry(
+        remoteJobID: String,
+        correctionNotes: String?,
+        pastedRecipeText: String?
+    ) async throws -> ImportServiceUpdate {
+        ImportServiceUpdate(
+            remoteJobID: remoteJobID,
+            progress: .parsing
+        )
+    }
+}
+
+/// Every poll blocks until the test releases it, so a processing task
+/// stays observably in flight; a released poll fails with the
+/// missing-authentication error the real `APIClient` throws once
+/// sign-out has cleared the token store. A cancelled poll unwinds like
+/// a torn-down request.
+private actor LatchProbeImportService: ImportService {
+    private var released = false
+    private var polling: Set<String> = []
+
+    func didStartPolling(_ remoteJobID: String) -> Bool {
+        polling.contains(remoteJobID.lowercased())
+    }
+
+    func releaseHeldPolls() {
+        released = true
+    }
+
+    func submit(
+        _ job: ImportJob,
+        allowingDuplicate: Bool
+    ) async throws -> ImportServiceUpdate {
+        ImportServiceUpdate(
+            remoteJobID: job.id.uuidString.lowercased(),
+            progress: .parsing
+        )
+    }
+
+    func status(remoteJobID: String) async throws -> ImportServiceUpdate {
+        polling.insert(remoteJobID.lowercased())
+        while !released {
+            try Task.checkCancellation()
             await Task.yield()
         }
         throw APIError.missingAuthentication

@@ -3398,23 +3398,64 @@ exactly this shared-device threat.
 
 ### The fix
 
-One enforced choke point instead of a second ad-hoc cancel call. A new
-`SessionWriter` protocol names the contract — cancel in-flight work and
-wait for it to unwind — and `LadleRuntime` registers every conforming
-writer in `sessionWriters`, the one list `clearLocalSession()` drains
-before wiping. A future third writer registers there or is visibly absent
-from the only quiesce loop sign-out has; there is no per-writer call left
-to forget. Imports drain before the sync writer because a completing
-import starts a follow-up sync through `didCompleteRemoteImport`.
+Two mechanisms, because the defect has two halves: work that already
+exists, and work that could still start. (The first attempt shipped only
+the first half; a verifier reproduced the defect against it on the first
+try, and the latch below is the rework that closed the remainder.)
 
-`RecipeSyncService`'s conformance delegates to the existing
-`cancelActiveSync()`. `ImportCoordinator.quiesceForSignOut()` cancels and
-awaits every processing task until the map is empty — a response that has
-already resumed still writes nothing, because every save in `process` sits
-behind a cancellation check — then resets the published state, so the
-stale operation cannot block the next account's first import. The remote
-job is deliberately not cancelled: it belongs to the signed-out account's
-server library and should finish there.
+**Drain what exists.** A new `SessionWriter` protocol names the contract
+— cancel in-flight work and wait for it to unwind — and `LadleRuntime`
+registers every conforming writer in `sessionWriters`, the one list
+`clearLocalSession()` drains before wiping. A future third writer
+registers there or is visibly absent from the only quiesce loop sign-out
+has; there is no per-writer call left to forget. Imports drain before the
+sync writer because a completing import starts a follow-up sync through
+`didCompleteRemoteImport`. `RecipeSyncService`'s conformance delegates to
+the existing `cancelActiveSync()`. `ImportCoordinator.quiesceForSignOut()`
+cancels and awaits every processing task until the map is empty — a
+response that has already resumed still writes nothing, because every
+save in `process` sits behind a cancellation check — then resets the
+published state, so the stale operation cannot block the next account's
+first import. The remote job is deliberately not cancelled: it belongs to
+the signed-out account's server library and should finish there.
+
+**Latch against what would start.** Draining only covers the processing
+tasks that exist at that instant. The resume drivers do not appear in
+`processingTasks`: `resumePendingImports` is driven from
+`restoreAndLoad`, `didAuthenticate`, and `sceneBecameActive`'s
+unstructured task, and one of those drivers sits suspended awaiting job
+A's processing task. The drain cancels job A and moves on; the driver's
+continuation then resumes during sign-out's next suspension point — the
+sync writer unwinding its active run — re-fetches job B, still
+`.parsing` because the wipe has not run yet, and starts a fresh
+processing task the drain never saw. That task survives into the wipe,
+its poll throws `missingAuthentication` against the cleared token store,
+and `finishRemoteFailure` re-inserts the signed-out account's row into
+the emptied store — re-claiming `operation`/`state` after the quiesce's
+`reset()` on the way.
+
+So `quiesceForSignOut()` now latches before its first suspension point:
+`isSignedOut` stays set until the next session begins, and while it is
+set the coordinator adopts and starts nothing. `runProcess` — the one
+place every processing task is born — refuses, so no caller, present or
+future, can start work past the boundary; the `resumePendingImports`
+loop re-checks the latch at the top of every iteration, after each
+resumption and before it can adopt a row; and the entry points that
+adopt an operation or write directly (`submit`, `retry`, `reimport`,
+`createManualRecipe`, `attach`, `resumePendingReimport`) guard on it, so
+a stale UI task cannot write into or claim state over the wiped store.
+Every entry point runs synchronously from its guard to `runProcess`'s
+task creation, so no check can pass before the latch lands and act after
+it — a processing task either predates the latch and is drained, or its
+path sees the latch.
+
+`LadleRuntime.didAuthenticate` lifts the latch with
+`importCoordinator.beginSession()` before its own sync-and-resume. Every
+re-entry path — Apple, Google, and continue-as-guest, demo runtimes
+included — funnels through `AccountSignInFlow.run`, which calls
+`onAuthenticated` (`didAuthenticate`) after any successful entry, so the
+next account unlatches the coordinator on arrival and its own pending
+imports resume normally.
 
 `LadleRuntime.init` also gained an `accountStore:` parameter (defaulted to
 `UserDefaults.standard`) so the runtime-level test can sign out against an
@@ -3423,12 +3464,47 @@ mirroring the seam `InstallationIdentity` already had.
 
 ### Verification
 
+- `LadleTests/ImportCoordinatorTests.testSignOutQuiesceLatchesAgainstAResumeDriverStartingFreshWork`
+  is the verifier's reproduction against the drain-only attempt: jobs A,
+  B, and C durable and `.parsing`, a resume driver suspended on job A's
+  processing task, then `clearLocalSession`'s real sequence — quiesce, a
+  suspension window (the sync writer's unwind, where the drained
+  driver's continuation gets to run), then the wipe — with the service
+  failing any surviving poll with the `missingAuthentication` the real
+  `APIClient` throws once the token store is cleared. It asserts the
+  wiped store stays empty and `operation`/`state` stay reset. Red,
+  against the drain-only fix:
+
+  ```text
+  XCTAssertFalse failed - A fresh processing task was started after
+    quiesce began
+  XCTAssertTrue failed - The signed-out account's job was re-inserted
+    into the wiped store: ["https://youtu.be/job-b"]
+  XCTAssertEqual failed: ("failed(jobID:
+    47F60C23-F248-4045-87AD-8182766C92F8, reason:
+    LadleCore.ImportFailure.authenticationExpired)") is not equal to
+    ("idle") - Published state was re-claimed after quiesce reset it
+  XCTAssertNil failed: "importJob(47F60C23-F248-4045-87AD-8182766C92F8)"
+    - The signed-out operation was re-claimed after quiesce reset it
+  -> Executed 1 test, with 4 failures (0 unexpected) in 0.170 seconds
+  ```
+
+  Green with the latch. The coordinator-level probe is the faithful
+  venue for all three drivers: `restoreAndLoad`, `didAuthenticate`, and
+  `sceneBecameActive` share the one `resumePendingImports` call it
+  drives, and the demo runtime nils the sync service and shared-queue
+  reconciler those runtime entry points hang off.
+- `testBeginSessionLiftsTheSignOutLatchForTheNextAccount` pins the
+  window and the release: while latched, a stale submit adopts nothing
+  and writes nothing, and a resume driver refuses a row the wipe has not
+  reached yet; after `beginSession()` — the next account signing in —
+  both that account's resume and a fresh submit complete.
 - `LadleTests/AppBootstrapTests.testSignOutCancelsAnInFlightImportSoItCannotRepopulateTheWipedStore`
-  is the end-to-end reproduction with no new API: a demo-service runtime
-  starts an import whose response is still in flight, signs out, then
-  drains the import task. Red, against the unfixed runtime — the response
-  landed after the wipe and repopulated the store, the reviewer's scenario
-  exactly:
+  is the end-to-end runtime reproduction of the original defect: a
+  demo-service runtime starts an import whose response is still in
+  flight, signs out, then drains the import task. Red, against the
+  runtime with no quiesce at all — the response landed after the wipe
+  and repopulated the store, the reviewer's scenario exactly:
 
   ```text
   XCTAssertTrue failed - Sign-out left the previous account's import job
@@ -3441,17 +3517,20 @@ mirroring the seam `InstallationIdentity` already had.
   -> Executed 1 test, with 4 failures (0 unexpected) in 3.292 seconds
   ```
 
-  Green after the fix — and in 0.032s, because the quiesce actually
-  cancels the held response instead of waiting it out. The test then
-  submits again and asserts the next account's import completes, covering
-  sign-out followed immediately by a new sign-in.
-- `LadleTests/ImportCoordinatorTests` adds four quiesce tests for the
-  atypical interleavings: `testSignOutQuiesceDropsARacingStatusResponseWithoutWriting`
-  (the response resumed successfully mid-quiesce — nothing written, and
-  the remote job is left running for the account that owns it),
-  `testSignOutQuiesceDoesNotResurrectAWipedJobAsAuthExpired` (the
-  deterministic trace: the woken poll's `missingAuthentication` unwinds as
-  a cancellation instead of re-inserting a durable failure),
+  After the rework it also covers the latched window and the hand-off:
+  a post-sign-out submit starts nothing and writes nothing, and the test
+  re-enters through `runtime.didAuthenticate()` — the funnel every real
+  re-entry path uses — before asserting the next account imports
+  immediately, covering sign-out followed at once by a new sign-in and
+  verifying the `beginSession` wiring end to end.
+- The four quiesce tests from the drain half still pass unchanged:
+  `testSignOutQuiesceDropsARacingStatusResponseWithoutWriting` (the
+  response resumed successfully mid-quiesce — nothing written, and the
+  remote job is left running for the account that owns it; this is also
+  the import-completes-during-the-window case),
+  `testSignOutQuiesceDoesNotResurrectAWipedJobAsAuthExpired` (the woken
+  poll's `missingAuthentication` unwinds as a cancellation instead of
+  re-inserting a durable failure),
   `testSignOutQuiesceCancelsEveryConcurrentImport` (a foreground import
   and a resume-driven background import drained by one quiesce), and
   `testSignOutQuiesceWithNothingInFlightClearsStaleOperationState`
@@ -3464,10 +3543,10 @@ mirroring the seam `InstallationIdentity` already had.
 ```text
 xcodebuild test ... -only-testing:LadleTests/AppBootstrapTests \
   -only-testing:LadleTests/ImportCoordinatorTests
-  -> Executed 39 tests, with 0 failures (0 unexpected) in 0.149 seconds
+  -> Executed 47 tests, with 0 failures (0 unexpected) in 0.143 seconds
 
 xcodebuild test ... -only-testing:LadleTests
-  -> Executed 322 tests, with 1 test skipped and 0 failures (0 unexpected)
+  -> Executed 336 tests, with 1 test skipped and 0 failures (0 unexpected)
      ** TEST SUCCEEDED **
 
 swift test --package-path Packages/LadleCore
@@ -3487,6 +3566,13 @@ means routing them through a runtime-held service first; when that
 happens, `sessionWriters` is where it registers. The window is a single
 tapped save racing sign-out — far narrower than an import poll's
 30-second sleeps — and is left for its own change.
+
+One residual on the latch itself: a sign-in that completed while
+`clearLocalSession` was still mid-drain would run `didAuthenticate` and
+lift the latch before the wipe — but that needs an auth network
+round-trip plus a user tap to fit inside the sync writer's unwind, and
+sequencing sign-in behind sign-out completion is a runtime-level change
+outside this fix.
 
 ## Final sweep — a recipe-ready banner tap landed dead, then poisoned itself
 

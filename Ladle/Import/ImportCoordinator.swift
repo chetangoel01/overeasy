@@ -188,6 +188,15 @@ final class ImportCoordinator {
     private var isResolvingReplacement = false
     private var processingTasks: [UUID: Task<Void, Never>] = [:]
 
+    /// Latched by `quiesceForSignOut()` and lifted only by
+    /// `beginSession()`. Draining alone is not enough: a resume driver
+    /// suspended on a drained task resumes during one of sign-out's later
+    /// suspension points, re-fetches a row the wipe has not removed yet,
+    /// and would start a fresh processing task the drain never saw.
+    /// While latched, the coordinator adopts and starts nothing — every
+    /// job it could pick up still belongs to the signed-out account.
+    private var isSignedOut = false
+
     private(set) var state: ImportCoordinatorState = .idle
     private(set) var operation: ImportOperation?
     private(set) var existingDuplicate: Recipe?
@@ -246,7 +255,8 @@ final class ImportCoordinator {
         allowingDuplicate: Bool = false,
         bypassingGuestPrompt: Bool = false
     ) async {
-        guard operation?.isReimport != true, !isImporting else {
+        guard !isSignedOut, operation?.isReimport != true,
+              !isImporting else {
             return
         }
         existingDuplicate = nil
@@ -343,7 +353,7 @@ final class ImportCoordinator {
         correctionNotes: String? = nil,
         pastedRecipeText: String? = nil
     ) async {
-        guard operation == nil || owns(jobID: jobID) else {
+        guard !isSignedOut, operation == nil || owns(jobID: jobID) else {
             return
         }
         completedRecipe = nil
@@ -406,7 +416,8 @@ final class ImportCoordinator {
         details: String,
         bypassingGuestPrompt: Bool
     ) async {
-        guard operation?.isReimport != true, !isImporting else {
+        guard !isSignedOut, operation?.isReimport != true,
+              !isImporting else {
             return
         }
         let normalizedTitle = normalized(title) ?? "Manual Recipe"
@@ -460,7 +471,7 @@ final class ImportCoordinator {
         recipe: Recipe,
         correctionNotes: String? = nil
     ) async {
-        guard operation == nil else {
+        guard !isSignedOut, operation == nil else {
             return
         }
         existingDuplicate = nil
@@ -500,6 +511,11 @@ final class ImportCoordinator {
             }
             for pending in pendingJobs {
                 try Task.checkCancellation()
+                // Earlier iterations suspended, and sign-out may have
+                // latched in the meantime. The rows this loop would adopt
+                // still belong to the signed-out account — the wipe just
+                // hasn't reached them yet.
+                guard !isSignedOut else { return }
                 // A job with a live task is already being driven — usually
                 // the foreground import the user is watching. Joining it or
                 // re-adopting it would overwrite that operation.
@@ -537,6 +553,7 @@ final class ImportCoordinator {
     }
 
     func attach(to jobID: UUID) -> Bool {
+        guard !isSignedOut else { return false }
         if owns(jobID: jobID), isImporting {
             return true
         }
@@ -593,6 +610,10 @@ final class ImportCoordinator {
     /// account inherits. The remote job is left running — it belongs to
     /// the signed-out account's server library, not to this device.
     func quiesceForSignOut() async {
+        // Latch before the first suspension point so anything that
+        // resumes after it — a resume driver, a stale UI task — sees the
+        // gate; the drain below only covers tasks that already exist.
+        isSignedOut = true
         while let (jobID, task) = processingTasks.first {
             task.cancel()
             await task.value
@@ -607,8 +628,16 @@ final class ImportCoordinator {
         reset()
     }
 
+    /// The next session is on: every re-entry path — Apple, Google, and
+    /// guest — funnels through `LadleRuntime.didAuthenticate`, which
+    /// calls this to lift the sign-out latch so the new account's
+    /// imports can run.
+    func beginSession() {
+        isSignedOut = false
+    }
+
     func resumePendingReimport(for currentRecipeID: UUID) {
-        guard operation == nil else {
+        guard !isSignedOut, operation == nil else {
             return
         }
         do {
@@ -729,6 +758,10 @@ final class ImportCoordinator {
         _ job: ImportJob,
         operation: RemoteOperation
     ) async {
+        // Structural backstop: every processing task is born here, so no
+        // caller — present or future — can start one while sign-out has
+        // the coordinator latched.
+        guard !isSignedOut else { return }
         if let running = processingTasks[job.id] {
             await running.value
             return

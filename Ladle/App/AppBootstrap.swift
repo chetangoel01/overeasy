@@ -379,6 +379,11 @@ final class LadleRuntime {
     }
 
     func didAuthenticate() async {
+        // Sign-out latched the import coordinator against adopting or
+        // starting any job. Every re-entry path — Apple, Google, and
+        // guest — funnels through here, so this is where the next
+        // session lifts the latch, before its own resume below.
+        importCoordinator.beginSession()
         if let syncService {
             await Self.performSync(
                 using: syncService,

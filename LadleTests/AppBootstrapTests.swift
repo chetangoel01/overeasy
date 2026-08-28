@@ -148,7 +148,18 @@ final class AppBootstrapTests: XCTestCase {
         XCTAssertEqual(runtime.importCoordinator.state, .idle)
         XCTAssertNil(runtime.importCoordinator.operation)
 
-        // The next account starts clean and can import immediately.
+        // Until someone signs in, the coordinator stays latched: a stale
+        // task calling in on the signed-out session's behalf starts
+        // nothing and writes nothing.
+        await runtime.importCoordinator.submit(
+            urlText: "https://youtu.be/green-curry"
+        )
+        XCTAssertTrue(try repository.fetchImportJobs().isEmpty)
+        XCTAssertTrue(try repository.fetchRecipes().isEmpty)
+
+        // The next account signs in — every re-entry path funnels
+        // through didAuthenticate — and can import immediately.
+        await runtime.didAuthenticate()
         await runtime.importCoordinator.submit(
             urlText: "https://youtu.be/green-curry"
         )
