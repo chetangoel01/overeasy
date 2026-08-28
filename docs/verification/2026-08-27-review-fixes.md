@@ -71,6 +71,7 @@ by the code they touch.
 | (sweep) | In-flight import survived sign-out into the next account | `f8ee7c6` | fixed |
 | (sweep) | A recipe-ready banner tap landed dead, then poisoned itself | `01a8723` | fixed |
 | (sweep) | A swiped-away re-import sheet wedged Add Recipe | `16eb179` | fixed |
+| (sweep) | The readiness pin's only test was a copy of the pin | `42b6473` | fixed |
 
 ## Finding #6 — sign-out leaves the device bound to the account
 
