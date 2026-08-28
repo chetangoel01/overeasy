@@ -126,7 +126,7 @@ final class LibraryNavigationStateTests: XCTestCase {
             access: .discover
         )
 
-        XCTAssertFalse(destination.allowsLibraryEdits)
+        XCTAssertEqual(destination.access, .discover)
     }
 
     func testRecipeContextMenuOffersOpenAndFavoriteActions() {

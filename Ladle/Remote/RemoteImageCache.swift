@@ -129,7 +129,7 @@ actor RemoteImageCache {
             // the client no image id at all, so the single refreshed
             // thumbnail is taken by position, not by id.
             let refreshed: RemoteRecipeDTO = try await api.request(
-                path: "/v1/recipes/discover/\(id.uuidString)"
+                path: DiscoverAPI.detailPath(sourceID: id)
             )
             guard let refreshedImage = refreshed.images.first else {
                 throw RemoteImageCacheError.refreshedImageMissing

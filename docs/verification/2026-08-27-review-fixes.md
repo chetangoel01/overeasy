@@ -3120,6 +3120,165 @@ uv run ruff format --check <the two touched files>          -> 2 files already f
 uv run mypy --strict ladle                                  -> Success: no issues found in 121 source files
 ```
 
+## Finding #44 — rework: the pushed Discover detail still refreshed through the library
+
+### The residual defect
+
+The #44 fix (`a30e9db`) routed Discover artwork's expired-URL refresh
+through the Discover detail, but its claim that the seven `recipeID:`
+call sites were all library-owned was wrong for one of them: the recipe
+detail screen. `RecipeDetailView` passed `recipeID: displayedRecipe.id`
+— a `.recipe` owner — unconditionally, yet `LibraryView` pushes Discover
+previews into that same screen (`showRecipe(..., access: .discover)`
+from both the Discover tab's card and Watch's `openDiscoverRecipe`). A
+pushed Discover detail's recipe id IS the Discover sourceID — the server
+instantiates the preview with `recipe_id=source_video_id`
+(`Backend/ladle/recipes/service.py::discover_detail`) — so once its
+6-hour presigned thumbnail URL lapsed while the detail stayed pushed, the
+screen's refresh statically issued the same doomed pair the finding
+describes: 403 on the image, then `GET /v1/recipes/{sourceID}` → 404,
+and the hero rendered the broken-photo glyph. The trigger is narrower
+than the original card case — the initial download must already have
+failed while the URL was fresh, and the detail must re-appear after
+expiry (a tab switch away and back restarts `.task`) — but just as
+permanent once it hits.
+
+### The fix
+
+The screen's artwork owner now follows the access it was opened with,
+never the id it happens to hold. `RecipeDetailView` takes the
+destination's `access: LibraryRecipeAccess` instead of the lossy
+`allowsLibraryEdits: Bool` that was derived from it (the Bool survives
+as a private derivation inside the view), and computes `artworkOwner`
+from it — `.saved` → `.recipe(id:)`, `.discover` →
+`.discoverSource(id:)` — which the hero image renders through. The
+now-unused `LibraryRecipeDestination.allowsLibraryEdits` derivation is
+deleted, so a destination's access can no longer fork into two flags
+that disagree; its one test now asserts the access itself.
+
+Two subtleties the next verifier should not have to re-derive:
+
+- **A Discover detail the user has since saved keeps working.**
+  `discover_detail` looks the source video up with no user filter
+  (unlike the feed, which excludes saved sources), so
+  `/v1/recipes/discover/{sourceID}` keeps re-signing the pushed
+  preview's thumbnail after a save. The saved copy is a different
+  recipe entirely — `save_discovered` mints `uuid4()` recipe and image
+  ids — and library screens correctly own it as `.recipe`.
+- **The client-minted image id never matches the server's.** The pushed
+  detail's image id is the sourceID while the server mints
+  `uuid5(source, "discover-thumbnail")` — harmless, because the
+  `.discoverSource` refresh takes the single thumbnail by position, a
+  rule the composed test's fixture deliberately exercises.
+
+### The call-site audit
+
+Every construction of an image reference in the app, and why each
+remaining `.recipe` owner can never be handed a Discover sourceID:
+
+1. `RecipeDetailView.heroImage` — was the residual defect; now
+   access-driven (this rework).
+2. `RecipeGridCard`, 3. `RecipeGalleryCard`, 4. `RecipeListRow`
+   (`recipeID: recipe.id`) — all three render only
+   `AllRecipesView`'s `viewModel.visibleRecipes`, the saved library.
+   Discover previews are never stored: `storeDiscoveredRecipe` persists
+   the server's saved copy (`uuid4()` id), not the preview.
+5. `RecipeContextPreview` in `RecipeContextMenu`
+   (`recipeID: recipe.id`) — applied by the three library components
+   above and by Watch's saved-recipes branch only; Watch's Discover
+   branch uses its own owner-carrying preview (6).
+6. `WatchRecipeContextPreview` / `WatchRecipeImage` — owner-driven
+   since `a30e9db` via `WatchRecipePage.artworkOwner`
+   (`discoverRecipe == nil ? .recipe : .discoverSource`), and
+   `discoverRecipe(id:)` is non-nil exactly for Discover-feed pages.
+7. `RecipeEditorView.mediaSection` (`recipeID: viewModel.draft.id`) —
+   the editor is only presented from `RecipeDetailView`, and every
+   presentation is gated on `allowsLibraryEdits`, i.e. `.saved` access.
+8. `DiscoverArtwork` — `.discoverSource(id: recipe.sourceID)` since
+   `a30e9db`.
+
+The `.saved`-defaulted navigation paths all carry library recipes:
+`openRecipe` (grid/list/gallery and Watch's saved feed),
+`openNotificationRecipeIfNeeded` (looked up in `viewModel.recipes`),
+the inbox's `openReview` (imported recipes), and both `queueNavigation`
+callers (`AddRecipeSheet` and `FailedImportSheet`, both post-import).
+`RecipeArtworkView` is the only caller of
+`RemoteImageCache.localURL`, and `LadleShare` renders no artwork.
+
+### The two riders
+
+**Discover refreshes can 429 where library refreshes cannot; accepted.**
+`/v1/recipes/discover/{id}` sits behind the per-user `sync_poll` bucket
+(default 120/minute) while `GET /v1/recipes/{id}` has no limiter. The
+worst burst is bounded by the feed itself — 30 cards by default, 100 at
+the query cap, sharing the bucket with the feed poll — so simultaneous
+expiry cannot exhaust it in normal use; a 429'd refresh renders the
+failure glyph for that appearance only, because failures are not
+memoized and `.task` re-runs on the card's next appearance, and one
+success is permanent (the image lands in the on-disk cache). Routing
+Discover refreshes through the unlimited recipe endpoint is structurally
+impossible anyway — that is the 404 this whole finding is about — and
+dropping the limiter would unprotect a catalog endpoint for no user
+benefit. Offline behaves the same way: the initial fetch throws, the
+glyph shows, the next appearance retries.
+
+**The duplicated Discover-detail path is gone.** The
+`/v1/recipes/discover/{id}` string lived in both `DiscoverService.swift`
+and `RemoteImageCache.swift`; it is now built once by
+`DiscoverAPI.detailPath(sourceID:)`, which the detail fetch, the save
+(`+ "/save"`), and the expired-thumbnail refresh all share.
+
+### Verification
+
+Seam first, in `a30e9db`'s own style: `RecipeDetailView` gained the
+`access` parameter and an `artworkOwner` seam carrying the shipping
+behavior verbatim (`.recipe` unconditionally), the hero image rendering
+through it. Against that seam the pre-existing suites passed unchanged
+(22 tests across `RemoteImageCacheTests` + `LibraryNavigationStateTests`
+minus the one new red) — proving the seam moved nothing — while the new
+composed test, which feeds the real view's owner for a Discover-access
+detail through the real cache against a stub where only the Discover
+detail answers, printed the doomed pair itself:
+
+```text
+RemoteImageCacheTests.swift:334: error: -[LadleTests.RemoteImageCacheTests
+testDiscoverAccessDetailRefreshesItsExpiredHeroImageThroughTheDiscoverDetail]
+: failed - A Discover-access detail must refresh its expired hero image
+through the Discover detail, but requested
+["https://images.ladle.test/expired",
+"https://api.ladle.test/v1/recipes/91000000-0000-4000-8000-000000000001"]
+```
+
+Two companions pin the other directions: a `.saved`-access detail keeps
+`.recipe(id:)` (the saved-recipe endpoint still owns library artwork),
+and a source pin in the repo's smoke-test style asserts the hero renders
+`owner: artworkOwner` and that `recipeID: displayedRecipe.id` does not
+come back. After the owner switched to follow access:
+
+```text
+-only-testing:LadleTests/RemoteImageCacheTests
+  -only-testing:LadleTests/LibraryNavigationStateTests
+  -> Executed 22 tests, with 0 failures (0 unexpected)
+     ** TEST SUCCEEDED **
+
+xcodebuild test ... -only-testing:LadleTests
+  -> Executed 317 tests, with 1 test skipped and 0 failures (0 unexpected)
+     ** TEST SUCCEEDED **
+     (the skip is the pre-existing live App Attest device test)
+
+swift test --package-path Packages/LadleCore
+  -> ✔ Test run with 47 tests in 9 suites passed
+```
+
+No backend files were touched, so the backend gates did not need to
+re-run.
+
+To see it on device: open a Discover card's detail from the Discover tab
+or Watch while the thumbnail download fails (network blip), leave the
+app past the 6-hour URL expiry with the detail still pushed, then switch
+tabs away and back. The hero now refreshes through the Discover detail
+and renders instead of showing the broken-photo glyph.
+
 ## Where this run stopped, and where the next one starts
 
 Every HIGH finding (#1–#10) is closed, plus MEDIUM #20, #21 and #24 — 13 of

@@ -399,7 +399,7 @@ struct LibraryView: View {
             toggleFavorite: viewModel.toggleFavorite,
             completeReview: viewModel.completeReview,
             deleteRecipe: viewModel.deleteRecipe,
-            allowsLibraryEdits: destination.allowsLibraryEdits,
+            access: destination.access,
             openAccount: { isAccountPresented = true }
         )
     }
@@ -625,8 +625,6 @@ struct LibraryRecipeDestination: Hashable {
         self.statusText = statusText
         self.access = access
     }
-
-    var allowsLibraryEdits: Bool { access == .saved }
 }
 
 enum LibraryRecipeAccess: Hashable {
