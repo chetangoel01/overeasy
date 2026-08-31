@@ -171,3 +171,72 @@ ones fall back to save order, and paging walks the ranking without repeats.
 - View, comment and repost counts stored, not surfaced.
 - The health probe's `expected_revision` was stale at `0017` after migration
   0018; their guard test caught it and it now reads `0019`.
+
+---
+
+# Addendum 2: end-to-end run against the live stack
+
+Commit: `6bff7b6`. Run on 2026-08-31 against the local docker stack in
+`LADLE_WORKER_PROVIDER_MODE=live`.
+
+## Two blockers that had nothing to do with this work
+
+**The local stack could not import anything, and had not since 25 Aug.**
+`docker-compose.yml` defaults `LADLE_USDA_NUTRITION_ENABLED=true`, no USDA key
+exists locally, and the worker raises `RuntimeError: nutrition requires a USDA
+API key` while *constructing the orchestrator* — so every import failed in
+~12ms and surfaced as `networkUnavailable`, which is misleading. Worked around
+with `LADLE_USDA_NUTRITION_ENABLED=false` appended to `Backend/.env` (original
+saved as `.env.bak-before-e2e`). Chetan believes the real key is on the VPS.
+
+**The `migrate` image was seven migrations stale.** `docker compose build api
+worker` does not rebuild `migrate`, which carries its own image tag, so the
+local database sat at `0012` while head was `0019`. Rebuilding `migrate`
+applied 0013–0019 cleanly.
+
+Neither was caused by this change, but both would bite anyone setting the
+stack up.
+
+## Results
+
+| Source | Import | Counts captured |
+| --- | --- | --- |
+| TikTok — @feelingtastyy | ready | 54,600 likes / 722,400 views / 188 comments / 10,200 shares / published 2025-11-19 |
+| TikTok — @arianamariaa11 | failed | `insufficientTextEvidence` — no usable recipe text |
+| YouTube Short | needsReview | 624,765 likes / 12,561,733 views / 2,700 comments / published 2024-06-01 |
+| Instagram — DS3DPehEnpA | needsReview | 272,605 likes / 3,951,951 views / 2,027 comments |
+| Instagram — DWOyR1zE7HB | failed | `insufficientTextEvidence` |
+
+Two failures are content outcomes, not defects: the pipeline judged those two
+posts to carry too little recipe text. Worth a look if you disagree with the
+call on them.
+
+`GET /v1/recipes/discover?sort=mostLiked` on live data put the counted recipe
+first and fell back to save order (6, 5, 3, 1…) for the rest — NULLS LAST
+behaving as designed outside the test fixtures.
+
+## What the run exposed
+
+TikTok captured nothing at first, through two layers:
+
+1. **TikTok rejects yt-dlp from the container's address.** The same binary
+   version that works from a laptop fails inside Docker. The lock was also two
+   months stale (2026.7.4), so it was upgraded to 2026.8.19 — which did not
+   fix it, and is recorded here so nobody re-tries that.
+2. **The free TikTok page scrape supplies metadata**, so the paid Supadata
+   metadata call that carries counts was never reached.
+
+Both are now moot: the TikTok page blob already contains `stats.diggCount`,
+`playCount`, `commentCount`, `shareCount` and `createTime`, so counts come
+free from a page already being fetched. Supadata's `stats` and `createdAt` are
+mapped too, for whenever the free path yields nothing.
+
+Note the refresh path is still free-path-only by design, so a TikTok cache-hit
+refresh now works via the page scrape rather than yt-dlp.
+
+## Still open
+
+- The USDA key, if nutrition is wanted locally. Card facts show
+  "cal · protein", which no imported recipe here exercised.
+- `published_at` is absent for Instagram — the embed carries no timestamp — so
+  a future "recent" sort would cover TikTok and YouTube only.
