@@ -1,5 +1,9 @@
 import SwiftUI
 
+/// Filters as a standard grouped form rather than hand-drawn chip grids.
+/// Every row is a system control, so spacing, grouping, selection and Dynamic
+/// Type come from iOS instead of being re-derived here — which is what made
+/// the old sheet read as arbitrary.
 struct FilterSheet: View {
     @Environment(\.dismiss) private var dismiss
 
@@ -25,106 +29,94 @@ struct FilterSheet: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    favoritesSection
-                    timeSection
-                    DecimalFilterSection(
-                        title: "Calories",
-                        detail: "Maximum per serving",
-                        options: [400, 600, 800],
-                        selection: $maximumCalories,
-                        titleForOption: { "\($0)" },
-                        accessibilityLabel: { "\($0) calories or less" }
-                    )
-                    DecimalFilterSection(
-                        title: "Protein",
-                        detail: "Minimum per serving",
-                        options: [20, 30, 40],
-                        selection: $minimumProtein,
-                        titleForOption: { "\($0) g+" },
-                        accessibilityLabel: { "\($0) grams protein or more" }
-                    )
-                    DecimalFilterSection(
-                        title: "Carbohydrates",
-                        detail: "Maximum per serving",
-                        options: [30, 50],
-                        selection: $maximumCarbohydrates,
-                        titleForOption: { "Under \($0) g" },
-                        accessibilityLabel: {
-                            "Under \($0) grams carbohydrates"
-                        }
-                    )
-                    DecimalFilterSection(
-                        title: "Fat",
-                        detail: "Maximum per serving",
-                        options: [15, 25],
-                        selection: $maximumFat,
-                        titleForOption: { "Under \($0) g" },
-                        accessibilityLabel: { "Under \($0) grams fat" }
-                    )
+            Form {
+                Section {
+                    Toggle("Favorites only", isOn: $favoritesOnly)
                 }
-                .padding(.horizontal, LadleTheme.Spacing.generous)
-                .padding(.vertical, LadleTheme.Spacing.regular)
+
+                Section("Time") {
+                    Picker("Total time", selection: $maximumTotalMinutes) {
+                        Text("Any").tag(Int?.none)
+                        ForEach([15, 30, 45, 60], id: \.self) { minutes in
+                            Text("\(minutes) min or less")
+                                .tag(Int?.some(minutes))
+                        }
+                    }
+                }
+
+                Section {
+                    decimalPicker(
+                        "Calories",
+                        selection: $maximumCalories,
+                        options: [400, 600, 800],
+                        label: { "\($0) or fewer" }
+                    )
+                    decimalPicker(
+                        "Protein",
+                        selection: $minimumProtein,
+                        options: [20, 30, 40],
+                        label: { "\($0) g or more" }
+                    )
+                    decimalPicker(
+                        "Carbohydrates",
+                        selection: $maximumCarbohydrates,
+                        options: [30, 50],
+                        label: { "Under \($0) g" }
+                    )
+                    decimalPicker(
+                        "Fat",
+                        selection: $maximumFat,
+                        options: [15, 25],
+                        label: { "Under \($0) g" }
+                    )
+                } header: {
+                    Text("Nutrition")
+                } footer: {
+                    Text("Measured per serving.")
+                }
+
+                Section {
+                    Button("Reset filters", role: .destructive, action: reset)
+                        .disabled(!hasActiveFilters)
+                }
             }
-            .scrollIndicators(.hidden)
-            .background(LadleTheme.Surface.porcelain)
             .navigationTitle("Filter recipes")
             .navigationBarTitleDisplayMode(.inline)
-            .safeAreaInset(edge: .bottom) {
-                Button("Apply Filters", action: apply)
-                    .buttonStyle(LadleButtonStyle(role: .primary))
-                    .padding(.horizontal, LadleTheme.Spacing.generous)
-                    .padding(.vertical, 12)
-                    .background(.ultraThinMaterial)
-            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel", action: dismiss.callAsFunction)
-                        .padding(
-                            .leading,
-                            LadleTheme.Layout.sheetToolbarInset
-                        )
                 }
-                ToolbarItem(placement: .primaryAction) {
-                    Button("Reset", action: reset)
-                        .foregroundStyle(LadleTheme.Label.accent)
-                        .padding(
-                            .trailing,
-                            LadleTheme.Layout.sheetToolbarInset
-                        )
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Apply", action: apply)
                 }
             }
         }
         .presentationDetents([.large])
-        .presentationBackground(LadleTheme.Surface.porcelain)
     }
 
-    private var favoritesSection: some View {
-        Toggle("Favorites only", isOn: $favoritesOnly)
-            .ladleFont(.bodyStrong)
-            .foregroundStyle(LadleTheme.Label.primary)
-            .tint(LadleTheme.Surface.graphite)
-            .padding(.horizontal, LadleTheme.Layout.cardPadding)
-            .frame(minHeight: LadleTheme.Control.primary)
-            .background(
-                LadleTheme.Surface.raised,
-                in: RoundedRectangle(
-                    cornerRadius: LadleTheme.Corner.control,
-                    style: .continuous
-                )
-            )
-    }
-
-    private var timeSection: some View {
-        FilterSection(title: "Total time", detail: "Maximum") {
-            FilterChoices(
-                options: [15, 30, 45, 60],
-                selection: $maximumTotalMinutes,
-                title: { "\($0) min" },
-                accessibilityLabel: { "\($0) minutes or less" }
-            )
+    /// The nutrition filters differ only in their options and phrasing, so
+    /// they share one row builder rather than four near-identical blocks.
+    private func decimalPicker(
+        _ title: String,
+        selection: Binding<Decimal?>,
+        options: [Int],
+        label: @escaping (Int) -> String
+    ) -> some View {
+        Picker(title, selection: selection) {
+            Text("Any").tag(Decimal?.none)
+            ForEach(options, id: \.self) { option in
+                Text(label(option)).tag(Decimal?.some(Decimal(option)))
+            }
         }
+    }
+
+    private var hasActiveFilters: Bool {
+        favoritesOnly
+            || maximumTotalMinutes != nil
+            || maximumCalories != nil
+            || minimumProtein != nil
+            || maximumCarbohydrates != nil
+            || maximumFat != nil
     }
 
     private func apply() {
@@ -144,112 +136,5 @@ struct FilterSheet: View {
         minimumProtein = nil
         maximumCarbohydrates = nil
         maximumFat = nil
-    }
-}
-
-private struct DecimalFilterSection: View {
-    let title: String
-    let detail: String
-    let options: [Int]
-    @Binding var selection: Decimal?
-    let titleForOption: (Int) -> String
-    let accessibilityLabel: (Int) -> String
-
-    var body: some View {
-        FilterSection(title: title, detail: detail) {
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 82), spacing: 8)],
-                spacing: 8
-            ) {
-                FilterChoiceButton(
-                    title: "Any",
-                    accessibilityLabel: "Any \(title.lowercased())",
-                    isSelected: selection == nil
-                ) {
-                    selection = nil
-                }
-                ForEach(options, id: \.self) { option in
-                    let value = Decimal(option)
-                    FilterChoiceButton(
-                        title: titleForOption(option),
-                        accessibilityLabel: accessibilityLabel(option),
-                        isSelected: selection == value
-                    ) {
-                        selection = selection == value ? nil : value
-                    }
-                }
-            }
-        }
-    }
-}
-
-private struct FilterSection<Content: View>: View {
-    let title: String
-    let detail: String
-    @ViewBuilder let content: Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: LadleTheme.Layout.rowGap) {
-            LadleSectionHeader(title: title, detail: detail)
-            content
-        }
-    }
-}
-
-private struct FilterChoices: View {
-    let options: [Int]
-    @Binding var selection: Int?
-    let title: (Int) -> String
-    let accessibilityLabel: (Int) -> String
-
-    var body: some View {
-        LazyVGrid(
-            columns: [GridItem(.adaptive(minimum: 72), spacing: 8)],
-            spacing: 8
-        ) {
-            FilterChoiceButton(
-                title: "Any",
-                accessibilityLabel: "Any total time",
-                isSelected: selection == nil
-            ) {
-                selection = nil
-            }
-            ForEach(options, id: \.self) { option in
-                FilterChoiceButton(
-                    title: title(option),
-                    accessibilityLabel: accessibilityLabel(option),
-                    isSelected: selection == option
-                ) {
-                    selection = selection == option ? nil : option
-                }
-            }
-        }
-    }
-}
-
-private struct FilterChoiceButton: View {
-    let title: String
-    let accessibilityLabel: String
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Text(title)
-                .ladleFont(.metadata)
-                .foregroundStyle(
-                    isSelected ? LadleTheme.Label.onAccent : LadleTheme.Label.primary
-                )
-                .frame(maxWidth: .infinity, minHeight: LadleTheme.Control.hitTarget)
-                .background(
-                    isSelected ? LadleTheme.Surface.graphite : LadleTheme.Surface.raised,
-                    in: RoundedRectangle(
-                        cornerRadius: LadleTheme.Corner.control,
-                        style: .continuous
-                    )
-                )
-        }
-        .accessibilityLabel(accessibilityLabel)
-        .accessibilityValue(isSelected ? "Selected" : "Not selected")
     }
 }
