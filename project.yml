@@ -100,6 +100,22 @@ schemes:
         LadleTests: [test]
     run:
       config: Debug
+    # Tests are disabled on this scheme for now, so day-to-day builds and
+    # runs stay fast. Nothing is deleted: both test targets still build, and
+    # the `LadleAllTests` scheme below runs them when you want them.
+
+  # Tests on demand: `xcodebuild test -scheme LadleAllTests` (add
+  # `-only-testing:LadleTests` for just the fast unit suite). Re-enable them
+  # by default by moving this `test:` block back onto the `Ladle` scheme.
+  LadleAllTests:
+    build:
+      targets:
+        Ladle: all
+        LadleShare: all
+        LadleTests: [test]
+        LadleUITests: [test]
+    run:
+      config: Debug
     test:
       config: Debug
       gatherCoverageData: true
