@@ -11,5 +11,7 @@
       "savedCount": 12,
       "savedRecipeID": null
     }
-  ]
+  ],
+  "nextCursor": 1,
+  "hasMore": true
 }

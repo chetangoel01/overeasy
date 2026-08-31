@@ -224,6 +224,11 @@ public struct RemoteDiscoverRecipeDTO: Codable, Hashable, Sendable {
 
 public struct RemoteDiscoverPageDTO: Codable, Hashable, Sendable {
     public let items: [RemoteDiscoverRecipeDTO]
+    /// Offset to pass back as `cursor` for the next page. Counts ranked rows
+    /// consumed, not items returned, so a page may be shorter than the limit
+    /// without paging stalling.
+    public let nextCursor: Int
+    public let hasMore: Bool
 }
 
 extension RemoteRecipeSource: Codable {

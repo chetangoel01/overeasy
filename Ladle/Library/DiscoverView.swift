@@ -2,56 +2,6 @@ import LadleCore
 import Observation
 import SwiftUI
 
-/// How the Discover feed is ordered. Only orders the feed data can actually
-/// support: `DiscoverRecipe` carries a save count but no publish date and no
-/// cook time, so "recent" and "quickest" are not options until the contract
-/// grows those fields.
-enum DiscoverSort: String, CaseIterable, Identifiable {
-    case featured
-    case mostSaved
-    case alphabetical
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .featured: "Featured"
-        case .mostSaved: "Most saved"
-        case .alphabetical: "A to Z"
-        }
-    }
-
-    var systemImage: String {
-        switch self {
-        case .featured: "sparkles"
-        case .mostSaved: "bookmark.fill"
-        case .alphabetical: "textformat.abc"
-        }
-    }
-
-    /// What the feed header promises under this order.
-    var caption: String {
-        switch self {
-        case .featured:
-            "Popular public recipe videos, ranked by saves."
-        case .mostSaved:
-            "Every public recipe video, most saved first."
-        case .alphabetical:
-            "Every public recipe video, A to Z."
-        }
-    }
-}
-
-extension DiscoverRecipe {
-    /// Discover search is client-side over the page already loaded: title,
-    /// creator and description are the only text the feed carries.
-    func matches(_ query: String) -> Bool {
-        [title, description, creatorName ?? ""].contains { field in
-            field.localizedCaseInsensitiveContains(query)
-        }
-    }
-}
-
 @MainActor
 @Observable
 final class DiscoverViewModel {
@@ -72,6 +22,21 @@ final class DiscoverViewModel {
     private let removesSavedRecipeImmediately: Bool
     private(set) var state: State = .idle
     private(set) var refreshState: RefreshState = .current
+    private(set) var isLoadingMore = false
+    private(set) var hasMore = false
+    private var nextCursor = 0
+    /// Bumped on every query or sort change. A page that finishes after the
+    /// criteria moved on carries a stale generation and is discarded, so a
+    /// slow first page cannot overwrite the results of a later search.
+    private var generation = 0
+
+    var query = "" {
+        didSet { if query != oldValue { criteriaChanged() } }
+    }
+
+    var sort: DiscoverSort = .popular {
+        didSet { if sort != oldValue { criteriaChanged() } }
+    }
     private(set) var savingSourceIDs: Set<UUID> = []
     private(set) var loadingDetailSourceIDs: Set<UUID> = []
     private(set) var savedSourceIDs: Set<UUID> = []
@@ -86,10 +51,20 @@ final class DiscoverViewModel {
         self.removesSavedRecipeImmediately = removesSavedRecipeImmediately
     }
 
+    private func criteriaChanged() {
+        generation += 1
+        nextCursor = 0
+        hasMore = false
+        state = .loading
+    }
+
+    /// Loads the first page for the current query and sort, replacing
+    /// whatever is on screen. Also the refresh path.
     func load() async {
-        guard state != .loading, refreshState != .refreshing else { return }
+        guard refreshState != .refreshing else { return }
+        let token = generation
         let cachedRecipes: [DiscoverRecipe]?
-        if case let .loaded(recipes) = state {
+        if case let .loaded(recipes) = state, !recipes.isEmpty {
             cachedRecipes = recipes
             refreshState = .refreshing
         } else {
@@ -97,17 +72,23 @@ final class DiscoverViewModel {
             state = .loading
         }
         do {
-            let recipes = try await service.fetchDiscoverRecipes()
+            let page = try await service.fetchDiscoverPage(
+                cursor: 0,
+                query: query,
+                sort: sort
+            )
+            guard token == generation else { return }
             savedSourceIDs = Set(
-                recipes.lazy.compactMap { recipe in
+                page.recipes.lazy.compactMap { recipe in
                     recipe.savedRecipeID == nil ? nil : recipe.sourceID
                 }
             )
-            state = .loaded(
-                recipes.filter { $0.savedRecipeID == nil }
-            )
+            nextCursor = page.nextCursor
+            hasMore = page.hasMore
+            state = .loaded(page.recipes.filter { $0.savedRecipeID == nil })
             refreshState = .current
         } catch is CancellationError {
+            guard token == generation else { return }
             if let cachedRecipes {
                 state = .loaded(cachedRecipes)
                 refreshState = .current
@@ -115,6 +96,7 @@ final class DiscoverViewModel {
                 state = .idle
             }
         } catch {
+            guard token == generation else { return }
             let report = RemoteFailureReport(error)
             if let cachedRecipes {
                 state = .loaded(cachedRecipes)
@@ -123,6 +105,50 @@ final class DiscoverViewModel {
                 state = .failed(report)
             }
         }
+    }
+
+    /// Appends the next page. A failure here leaves the rows already on
+    /// screen alone — the reader keeps what they have and can scroll again.
+    func loadMore() async {
+        guard hasMore, !isLoadingMore, refreshState != .refreshing,
+              case let .loaded(existing) = state
+        else { return }
+        let token = generation
+        isLoadingMore = true
+        defer { isLoadingMore = false }
+        do {
+            let page = try await service.fetchDiscoverPage(
+                cursor: nextCursor,
+                query: query,
+                sort: sort
+            )
+            guard token == generation, case .loaded = state else { return }
+            let seen = Set(existing.map(\.sourceID))
+            let fresh = page.recipes.filter {
+                $0.savedRecipeID == nil
+                    && !seen.contains($0.sourceID)
+                    && !savedSourceIDs.contains($0.sourceID)
+            }
+            nextCursor = page.nextCursor
+            hasMore = page.hasMore
+            state = .loaded(existing + fresh)
+        } catch is CancellationError {
+            return
+        } catch {
+            guard token == generation else { return }
+            // Stop walking rather than retrying the same cursor forever.
+            hasMore = false
+        }
+    }
+
+    /// True once the reader is close enough to the end to start the next page.
+    func shouldLoadMore(after recipe: DiscoverRecipe) -> Bool {
+        guard hasMore, !isLoadingMore, case let .loaded(recipes) = state,
+              let index = recipes.firstIndex(where: {
+                  $0.sourceID == recipe.sourceID
+              })
+        else { return false }
+        return index >= recipes.count - DiscoverPaging.prefetchThreshold
     }
 
     func isSaving(_ recipe: DiscoverRecipe) -> Bool {
@@ -197,8 +223,6 @@ final class DiscoverViewModel {
 
 struct DiscoverView: View {
     @State private var viewModel: DiscoverViewModel
-    @State private var searchText = ""
-    @State private var sort: DiscoverSort = .featured
     let saveRecipe: (SavedDiscoverRecipe) -> Void
     let openRecipe: (Recipe) -> Void
 
@@ -227,7 +251,7 @@ struct DiscoverView: View {
         }
         .background(LadleTheme.Surface.porcelain)
         .searchable(
-            text: $searchText,
+            text: $viewModel.query,
             placement: .navigationBarDrawer(displayMode: .automatic),
             prompt: "Search Discover"
         )
@@ -243,12 +267,25 @@ struct DiscoverView: View {
                 await viewModel.load()
             }
         }
+        // Debounced: searching is a round trip now, so wait for a pause in
+        // typing rather than firing a request per keystroke. The task is
+        // cancelled and restarted on every change, so only the last one runs.
+        .task(id: viewModel.query) {
+            guard viewModel.state != .idle else { return }
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled else { return }
+            await viewModel.load()
+        }
+        .task(id: viewModel.sort) {
+            guard viewModel.state != .idle else { return }
+            await viewModel.load()
+        }
         .accessibilityIdentifier("library.discover")
     }
 
     private var sortMenu: some View {
         Menu {
-            Picker("Sort Discover", selection: $sort) {
+            Picker("Sort Discover", selection: $viewModel.sort) {
                 ForEach(DiscoverSort.allCases) { option in
                     Label(option.title, systemImage: option.systemImage)
                         .tag(option)
@@ -261,36 +298,6 @@ struct DiscoverView: View {
             )
         }
         .accessibilityIdentifier("discover.sort")
-    }
-
-    /// Search first, then order. Featured keeps whatever order the service
-    /// returned, which is already the ranking the backend intends.
-    private func arranged(
-        _ recipes: [DiscoverRecipe]
-    ) -> [DiscoverRecipe] {
-        let query = searchText.trimmingCharacters(
-            in: .whitespacesAndNewlines
-        )
-        let matched = query.isEmpty
-            ? recipes
-            : recipes.filter { $0.matches(query) }
-        switch sort {
-        case .featured:
-            return matched
-        case .mostSaved:
-            return matched.sorted { $0.savedCount > $1.savedCount }
-        case .alphabetical:
-            return matched.sorted { first, second in
-                first.title.localizedCaseInsensitiveCompare(second.title)
-                    == .orderedAscending
-            }
-        }
-    }
-
-    private var noSearchResults: some View {
-        ContentUnavailableView.search(text: searchText)
-            .foregroundStyle(LadleTheme.Label.primary)
-            .accessibilityIdentifier("discover.no-results")
     }
 
     private var loadingContent: some View {
@@ -323,14 +330,20 @@ struct DiscoverView: View {
     private func loadedContent(_ recipes: [DiscoverRecipe]) -> some View {
         Group {
             if recipes.isEmpty {
-                emptyContent
-            } else {
-                let shown = arranged(recipes)
-                if shown.isEmpty {
-                    noSearchResults
+                // The server already applied the query, so an empty page
+                // under an active search is a no-results state, not an
+                // empty feed.
+                if viewModel.query.trimmingCharacters(
+                    in: .whitespacesAndNewlines
+                ).isEmpty {
+                    emptyContent
                 } else {
-                    recipeList(shown)
+                    ContentUnavailableView.search(text: viewModel.query)
+                        .foregroundStyle(LadleTheme.Label.primary)
+                        .accessibilityIdentifier("discover.no-results")
                 }
+            } else {
+                recipeList(recipes)
             }
         }
         .safeAreaInset(edge: .top, spacing: 0) {
@@ -374,7 +387,7 @@ struct DiscoverView: View {
                     Text("Saved by cooks")
                         .ladleFont(.section)
                         .foregroundStyle(LadleTheme.Label.primary)
-                    Text(sort.caption)
+                    Text(viewModel.sort.caption)
                         .ladleFont(.metadata)
                         .foregroundStyle(LadleTheme.Label.secondary)
                 }
@@ -405,8 +418,27 @@ struct DiscoverView: View {
                             }
                         }
                     )
+                    // Rows are lazy, so this fires as the reader approaches
+                    // the end rather than for the whole list at once.
+                    .onAppear {
+                        guard viewModel.shouldLoadMore(after: recipe) else {
+                            return
+                        }
+                        Task { await viewModel.loadMore() }
+                    }
                     Divider()
                         .overlay(LadleTheme.Label.primary.opacity(0.08))
+                }
+
+                if viewModel.isLoadingMore {
+                    HStack {
+                        Spacer()
+                        ProgressView()
+                            .controlSize(.small)
+                        Spacer()
+                    }
+                    .padding(.vertical, LadleTheme.Spacing.medium)
+                    .accessibilityLabel("Loading more recipes")
                 }
             }
             .padding(.horizontal, LadleTheme.Spacing.regular)

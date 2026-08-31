@@ -34,6 +34,103 @@ final class DiscoverViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.state, .loaded([unsaved]))
     }
 
+    // MARK: - Paging
+
+    func testLoadMoreAppendsTheNextPage() async {
+        let all = (1...5).map { paged($0) }
+        let service = DiscoverTestService(result: .success(all))
+        service.pageSize = 2
+        let viewModel = DiscoverViewModel(service: service)
+
+        await viewModel.load()
+        XCTAssertEqual(viewModel.state, .loaded(Array(all.prefix(2))))
+        XCTAssertTrue(viewModel.hasMore)
+
+        await viewModel.loadMore()
+        XCTAssertEqual(viewModel.state, .loaded(Array(all.prefix(4))))
+
+        await viewModel.loadMore()
+        XCTAssertEqual(viewModel.state, .loaded(all))
+        XCTAssertFalse(viewModel.hasMore)
+
+        // Nothing left: loadMore is a no-op rather than refetching the tail.
+        let requestCount = service.requests.count
+        await viewModel.loadMore()
+        XCTAssertEqual(service.requests.count, requestCount)
+    }
+
+    func testLoadMoreAdvancesTheCursorRatherThanRefetchingPageOne() async {
+        let service = DiscoverTestService(
+            result: .success((1...4).map { paged($0) })
+        )
+        service.pageSize = 2
+        let viewModel = DiscoverViewModel(service: service)
+
+        await viewModel.load()
+        await viewModel.loadMore()
+
+        XCTAssertEqual(service.requests.map(\.cursor), [0, 2])
+    }
+
+    func testLoadMoreDropsRecipesAlreadyOnScreen() async {
+        // A save between pages shifts the server's window, so the same source
+        // can arrive twice. It must not render twice.
+        let all = (1...4).map { paged($0) }
+        let service = DiscoverTestService(result: .success(all))
+        service.pageSize = 3
+        let viewModel = DiscoverViewModel(service: service)
+
+        await viewModel.load()
+        service.overrideNextPage = [all[2], all[3]]
+        await viewModel.loadMore()
+
+        XCTAssertEqual(viewModel.state, .loaded(all))
+    }
+
+    func testSearchRestartsPagingAndAsksTheServer() async {
+        let service = DiscoverTestService(
+            result: .success((1...4).map { paged($0) })
+        )
+        service.pageSize = 2
+        let viewModel = DiscoverViewModel(service: service)
+
+        await viewModel.load()
+        await viewModel.loadMore()
+        viewModel.query = "lemon"
+        await viewModel.load()
+
+        XCTAssertEqual(service.requests.map(\.cursor), [0, 2, 0])
+        XCTAssertEqual(service.requests.last?.query, "lemon")
+    }
+
+    func testSortChangeAsksTheServerForTheWholeOrder() async {
+        let service = DiscoverTestService(
+            result: .success((1...3).map { paged($0) })
+        )
+        let viewModel = DiscoverViewModel(service: service)
+
+        await viewModel.load()
+        viewModel.sort = .alphabetical
+        await viewModel.load()
+
+        XCTAssertEqual(service.requests.last?.sort, .alphabetical)
+        XCTAssertEqual(service.requests.last?.cursor, 0)
+    }
+
+    func testLoadMoreFailureKeepsWhatIsAlreadyOnScreen() async {
+        let all = (1...4).map { paged($0) }
+        let service = DiscoverTestService(result: .success(all))
+        service.pageSize = 2
+        let viewModel = DiscoverViewModel(service: service)
+
+        await viewModel.load()
+        service.result = .failure(TestError.failed)
+        await viewModel.loadMore()
+
+        XCTAssertEqual(viewModel.state, .loaded(Array(all.prefix(2))))
+        XCTAssertFalse(viewModel.hasMore)
+    }
+
     func testInitialLoadClassifiesRemoteFailures() async throws {
         let retryAt = Date(timeIntervalSince1970: 1_800_000_000)
         let rateLimit = try remoteError(
@@ -275,14 +372,49 @@ private final class DiscoverTestService: DiscoverServing {
         self.detailResult = detailResult
     }
 
-    func fetchDiscoverRecipes() async throws -> [DiscoverRecipe] {
+    struct FetchRequest: Equatable {
+        let cursor: Int
+        let query: String
+        let sort: DiscoverSort
+    }
+
+    private(set) var requests: [FetchRequest] = []
+    /// Forces the next page's contents, to simulate the server's window
+    /// shifting between requests.
+    var overrideNextPage: [DiscoverRecipe]?
+    /// One page by default, so tests that predate paging keep their meaning.
+    var pageSize: Int?
+
+    func fetchDiscoverPage(
+        cursor: Int,
+        query: String,
+        sort: DiscoverSort
+    ) async throws -> DiscoverPage {
+        requests.append(
+            FetchRequest(cursor: cursor, query: query, sort: sort)
+        )
         if pausesFetch {
             fetchIsSuspended = true
             await withCheckedContinuation { fetchContinuation = $0 }
             fetchIsSuspended = false
             pausesFetch = false
         }
-        return try result.get()
+        let all = try result.get()
+        if let overrideNextPage {
+            self.overrideNextPage = nil
+            return DiscoverPage(
+                recipes: overrideNextPage,
+                nextCursor: cursor + overrideNextPage.count,
+                hasMore: false
+            )
+        }
+        let start = min(cursor, all.count)
+        let end = pageSize.map { min(start + $0, all.count) } ?? all.count
+        return DiscoverPage(
+            recipes: Array(all[start..<end]),
+            nextCursor: end,
+            hasMore: end < all.count
+        )
     }
 
     func saveDiscoverRecipe(
@@ -347,6 +479,14 @@ private func discoveredRecipe(
         imageURL: nil,
         savedCount: 12,
         savedRecipeID: savedRecipeID
+    )
+}
+
+private func paged(_ index: Int) -> DiscoverRecipe {
+    discoveredRecipe(
+        sourceID: UUID(
+            uuidString: "90000000-0000-4000-8000-00000000000\(index)"
+        )!
     )
 }
 
