@@ -153,8 +153,18 @@ class FreeAcquirer:
         """Engagement counts alone, without downloading any media.
 
         This is the refresh path: it runs when someone imports a video that is
-        already cached, so it must stay a single metadata call.
+        already cached, so it must stay a single metadata call. Platform
+        routing mirrors `acquire`, because the counts come from whichever
+        source can actually read that platform.
         """
+        if source.platform == "instagram":
+            if self._instagram is None:
+                return SourceCounts()
+            try:
+                media = self._instagram.metadata(source)
+            except Exception:
+                return SourceCounts()
+            return media.metadata.counts if media is not None else SourceCounts()
         if not self._ytdlp.available:
             return SourceCounts()
         try:
