@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from ladle.clock import Clock
 from ladle.contracts.recipes import (
     DiscoverPageDTO,
+    DiscoverSort,
     RecipeDTO,
     RecipeImageDTO,
     RecipeReviewStatus,
@@ -76,11 +77,17 @@ class RecipeService:
         *,
         user_id: UUID,
         limit: int,
+        cursor: int = 0,
+        query: str | None = None,
+        sort: DiscoverSort = DiscoverSort.POPULAR,
     ) -> DiscoverPageDTO:
         return self._repository.discover(
             database,
             user_id=user_id,
             limit=limit,
+            cursor=cursor,
+            query=query,
+            sort=sort,
         )
 
     def discover_detail(

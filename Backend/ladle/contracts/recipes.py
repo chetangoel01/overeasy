@@ -258,8 +258,21 @@ class DiscoverRecipeDTO(WireModel):
     saved_recipe_id: WireUUID | None = None
 
 
+class DiscoverSort(StrEnum):
+    """How the Discover feed is ordered.
+
+    Ordering is the server's job now that the feed is paged: sorting one page
+    on the client would only sort that page, which is worse than not sorting.
+    """
+
+    POPULAR = "popular"
+    ALPHABETICAL = "alphabetical"
+
+
 class DiscoverPageDTO(WireModel):
     items: list[DiscoverRecipeDTO] = Field(max_length=100)
+    next_cursor: int = Field(ge=0)
+    has_more: bool
 
 
 class SyncChangeKind(StrEnum):
