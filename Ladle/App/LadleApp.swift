@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 import SwiftUI
+import UIKit
 
 struct LadleRuntimeConfiguration {
     let launchArguments: [String]
@@ -77,12 +78,27 @@ struct LadleApp: App {
     private let bootstrap: AppBootstrap
 
     init() {
+        Self.configureSegmentedControlAppearance()
         let processInfo = ProcessInfo.processInfo
         bootstrap = AppBootstrap(
             configuration: LadleRuntimeConfiguration(
                 launchArguments: processInfo.arguments,
                 environment: processInfo.environment
             )
+        )
+    }
+
+    /// The system's selected-segment thumb is a grey that vanishes against
+    /// the dark chrome over Watch video. A white pill with ink text reads on
+    /// both that chrome and the light in-app tracks, which already looked
+    /// this way. Unselected titles are left to the system so they keep
+    /// adapting to the surrounding colour scheme.
+    private static func configureSegmentedControlAppearance() {
+        let segmented = UISegmentedControl.appearance()
+        segmented.selectedSegmentTintColor = .white
+        segmented.setTitleTextAttributes(
+            [.foregroundColor: UIColor(LadleTheme.Label.onFixedPale)],
+            for: .selected
         )
     }
 

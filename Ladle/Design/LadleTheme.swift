@@ -82,12 +82,12 @@ enum LadleTheme {
     // Palette values are private vocabulary for the semantic roles below.
     // Production screens consume Surface, Label, Intent, and Stroke instead.
     static let plumHex = "#14181B"
-    static let paperHex = "#F2F4F6"
-    static let oatHex = "#E3E7EA"
+    static let paperHex = "#F7F4EF"
+    static let oatHex = "#ECE7E1"
     static let inkHex = "#14181B"
     static let brickHex = "#EE4B2F"
     static let celeryHex = "#83A18A"
-    static let ubeHex = "#D7DDE2"
+    static let ubeHex = "#E3DDD6"
     static let mutedInkHex = "#64707A"
     static let darkPaperHex = "#101214"
     static let darkOatHex = "#1C2024"
@@ -149,7 +149,7 @@ enum LadleTheme {
         /// `steel` is only about four percent off `raised`, so a badge drawn
         /// in it disappears into the card behind it. This role is separated
         /// far enough to read as a badge at 34 points.
-        static let badge = dynamicColor(light: 0xCDD5DC, dark: 0x303840)
+        static let badge = dynamicColor(light: 0xDCD5CC, dark: 0x303840)
     }
 
     /// Foregrounds. Each one names the surface it is legible on.

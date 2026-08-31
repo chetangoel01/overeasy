@@ -241,12 +241,12 @@ final class DesignTokenTests: XCTestCase {
 
     func testPorcelainPaletteUsesApprovedHexValues() {
         XCTAssertEqual(LadleTheme.plumHex, "#14181B")
-        XCTAssertEqual(LadleTheme.paperHex, "#F2F4F6")
-        XCTAssertEqual(LadleTheme.oatHex, "#E3E7EA")
+        XCTAssertEqual(LadleTheme.paperHex, "#F7F4EF")
+        XCTAssertEqual(LadleTheme.oatHex, "#ECE7E1")
         XCTAssertEqual(LadleTheme.inkHex, "#14181B")
         XCTAssertEqual(LadleTheme.brickHex, "#EE4B2F")
         XCTAssertEqual(LadleTheme.celeryHex, "#83A18A")
-        XCTAssertEqual(LadleTheme.ubeHex, "#D7DDE2")
+        XCTAssertEqual(LadleTheme.ubeHex, "#E3DDD6")
         XCTAssertEqual(LadleTheme.mutedInkHex, "#64707A")
     }
 
@@ -334,14 +334,15 @@ final class DesignTokenTests: XCTestCase {
     }
 
     func testWatchOverlayLayoutUsesProvidedSafeAreaInsets() {
+        // Top chrome is already inside the safe area, so it must not add the
+        // inset again; only the bottom padding clears the home indicator.
         XCTAssertEqual(
-            WatchOverlayLayout.topPadding(safeAreaTop: 59),
-            59 + LadleTheme.Spacing.compact
+            WatchOverlayLayout.topPadding,
+            LadleTheme.Spacing.compact
         )
         XCTAssertEqual(
-            WatchOverlayLayout.refreshTopPadding(safeAreaTop: 59),
-            59 + LadleTheme.Spacing.compact
-                + LadleTheme.Control.hitTarget
+            WatchOverlayLayout.refreshTopPadding,
+            LadleTheme.Spacing.compact + LadleTheme.Control.hitTarget
         )
         XCTAssertEqual(
             WatchOverlayLayout.bottomPadding(safeAreaBottom: 34),
@@ -349,8 +350,8 @@ final class DesignTokenTests: XCTestCase {
                 + LadleTheme.Spacing.regular
         )
         XCTAssertNotEqual(
-            WatchOverlayLayout.topPadding(safeAreaTop: 0),
-            WatchOverlayLayout.topPadding(safeAreaTop: 59)
+            WatchOverlayLayout.bottomPadding(safeAreaBottom: 0),
+            WatchOverlayLayout.bottomPadding(safeAreaBottom: 34)
         )
     }
 
@@ -369,7 +370,6 @@ final class DesignTokenTests: XCTestCase {
             "Ladle/Library/FilterSheet.swift",
             "Ladle/Library/VideoEmbedSheet.swift",
             "Ladle/Nutrition/NutritionView.swift",
-            "Ladle/RecipeDetail/RecipeOptionsSheet.swift",
         ]
         var offenders: [String] = []
 
@@ -474,19 +474,18 @@ final class DesignTokenTests: XCTestCase {
     }
 
     func testRecipeOptionsUseSemanticRolesWithoutIndentingRows() {
-        XCTAssertEqual(
-            RecipeOption.delete.buttonRole.fill,
-            LadleTheme.Intent.destructive
-        )
+        // The options live in a native Menu, so destructive styling comes
+        // from the system's button role rather than a filled CTA background.
+        XCTAssertTrue(RecipeOption.delete.isDestructive)
         for option in [
             RecipeOption.edit,
             .reimport,
             .nutrition,
             .source,
         ] {
-            XCTAssertNil(
-                option.buttonRole.fill,
-                "\(option) should remain a tertiary action"
+            XCTAssertFalse(
+                option.isDestructive,
+                "\(option) should remain a non-destructive action"
             )
         }
         XCTAssertEqual(

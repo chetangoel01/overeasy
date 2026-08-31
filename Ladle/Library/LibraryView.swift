@@ -19,7 +19,29 @@ enum LibraryToolbarAction: Hashable {
 
 struct LibraryNavigationState: Equatable {
     var tab: LibraryTab = .recipes
-    var path: [LibraryNavigationDestination] = []
+    private var paths: [LibraryTab: [LibraryNavigationDestination]] = [:]
+
+    init(
+        tab: LibraryTab = .recipes,
+        path: [LibraryNavigationDestination] = []
+    ) {
+        self.tab = tab
+        if !path.isEmpty {
+            paths[tab] = path
+        }
+    }
+
+    /// Each tab keeps its own stack so switching tabs never re-binds a
+    /// shared navigation bar to a different tab's scroll view.
+    subscript(pathFor tab: LibraryTab) -> [LibraryNavigationDestination] {
+        get { paths[tab] ?? [] }
+        set { paths[tab] = newValue }
+    }
+
+    var path: [LibraryNavigationDestination] {
+        get { self[pathFor: tab] }
+        set { self[pathFor: tab] = newValue }
+    }
 
     mutating func open(_ destination: LibraryNavigationDestination) {
         path.append(destination)
@@ -27,12 +49,12 @@ struct LibraryNavigationState: Equatable {
 
     mutating func select(_ tab: LibraryTab) {
         self.tab = tab
-        path = []
+        paths[tab] = []
     }
 
     mutating func reviewDidComplete(hasActionableImports: Bool) {
         tab = hasActionableImports ? .inbox : .recipes
-        path = []
+        paths = [:]
     }
 }
 
@@ -85,27 +107,9 @@ struct LibraryView: View {
     @State private var watchRefreshVersion = 0
 
     var body: some View {
-        NavigationStack(path: $navigation.path) {
-            workspace
+        workspace
             .background(LadleTheme.Surface.porcelain)
             .tint(LadleTheme.Intent.accent)
-            .navigationTitle(navigation.tab.title)
-            .navigationBarTitleDisplayMode(.large)
-            .toolbar(
-                navigation.tab == .watch
-                    ? .hidden
-                    : .visible,
-                for: .navigationBar
-            )
-            .toolbar {
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    accountButton
-                    if workspacePresentation.displaysTabs,
-                       navigation.tab == .recipes {
-                        addRecipeButton
-                    }
-                }
-            }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("library.root")
             .task(id: notificationNavigation.recipeID) {
@@ -165,13 +169,6 @@ struct LibraryView: View {
                     }
                 )
             }
-            .navigationDestination(for: LibraryNavigationDestination.self) {
-                destination in
-                switch destination {
-                case let .recipe(destination):
-                    recipeDetail(destination)
-                }
-            }
             .onChange(of: importCoordinator.state) { _, state in
                 if state.refreshesLibrary {
                     viewModel.load()
@@ -187,34 +184,42 @@ struct LibraryView: View {
                 message: operationErrorText,
                 clear: viewModel.clearOperationError
             )
-        }
-        .sensoryFeedback(.selection, trigger: navigation.tab)
-        .sensoryFeedback(
-            .impact(weight: .light, intensity: 0.65),
-            trigger: navigation.path.count
-        ) { oldCount, newCount in
-            LadleFeedbackPolicy.didPush(
-                from: oldCount,
-                to: newCount
+            .sensoryFeedback(.selection, trigger: navigation.tab)
+            .sensoryFeedback(
+                .impact(weight: .light, intensity: 0.65),
+                trigger: navigation,
+                condition: isPushWithinTab
             )
-        }
-        .sensoryFeedback(
-            .error,
-            trigger: viewModel.operationErrorMessage
-        ) { oldMessage, newMessage in
-            newMessage != nil && newMessage != oldMessage
-        }
+            .sensoryFeedback(
+                .error,
+                trigger: viewModel.operationErrorMessage
+            ) { oldMessage, newMessage in
+                newMessage != nil && newMessage != oldMessage
+            }
     }
 
     @ViewBuilder
     private var workspace: some View {
         switch workspacePresentation {
         case .loading:
-            LibraryLoadStateView(message: nil, retry: viewModel.load)
+            loadState(message: nil)
         case let .blockingFailure(message):
-            LibraryLoadStateView(message: message, retry: viewModel.load)
+            loadState(message: message)
         case let .content(reloadError):
             workspaceTabs(reloadError: reloadError)
+        }
+    }
+
+    private func loadState(message: String?) -> some View {
+        NavigationStack {
+            LibraryLoadStateView(message: message, retry: viewModel.load)
+                .navigationTitle(LibraryTab.recipes.title)
+                .navigationBarTitleDisplayMode(.large)
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        accountButton
+                    }
+                }
         }
     }
 
@@ -227,28 +232,54 @@ struct LibraryView: View {
 
     private func workspaceTabs(reloadError: String?) -> some View {
         TabView(selection: $navigation.tab) {
-            recipesTab
-            discoverTab
+            recipesTab(reloadError: reloadError)
+            discoverTab(reloadError: reloadError)
             watchTab
-            inboxTab
+            inboxTab(reloadError: reloadError)
         }
-        .safeAreaInset(edge: .top, spacing: 0) {
-            VStack(spacing: 0) {
-                if let reloadError {
-                    LibraryReloadErrorBanner(
-                        message: reloadError,
-                        retry: viewModel.load
-                    )
-                }
-                if !viewModel.syncConflicts.isEmpty {
-                    SyncConflictBanner(
-                        count: viewModel.syncConflicts.count,
-                        review: { isConflictReviewPresented = true }
-                    )
-                }
-                SyncStatusBanner(status: syncStatus)
+    }
+
+    /// Banners sit inside each tab's own stack so they render below that
+    /// tab's navigation bar rather than above every bar at once.
+    @ViewBuilder
+    private func banners(reloadError: String?) -> some View {
+        VStack(spacing: 0) {
+            if let reloadError {
+                LibraryReloadErrorBanner(
+                    message: reloadError,
+                    retry: viewModel.load
+                )
             }
+            if !viewModel.syncConflicts.isEmpty {
+                SyncConflictBanner(
+                    count: viewModel.syncConflicts.count,
+                    review: { isConflictReviewPresented = true }
+                )
+            }
+            SyncStatusBanner(status: syncStatus)
         }
+    }
+
+    /// Per-tab stacks mean the current path count also changes when
+    /// switching tabs; only a push inside one tab should feel like a push.
+    private func isPushWithinTab(
+        _ oldValue: LibraryNavigationState,
+        _ newValue: LibraryNavigationState
+    ) -> Bool {
+        guard oldValue.tab == newValue.tab else { return false }
+        return LadleFeedbackPolicy.didPush(
+            from: oldValue.path.count,
+            to: newValue.path.count
+        )
+    }
+
+    private func pathBinding(
+        for tab: LibraryTab
+    ) -> Binding<[LibraryNavigationDestination]> {
+        Binding(
+            get: { navigation[pathFor: tab] },
+            set: { navigation[pathFor: tab] = $0 }
+        )
     }
 
     private var recipes: some View {
@@ -261,23 +292,82 @@ struct LibraryView: View {
         )
     }
 
-    private var recipesTab: some View {
-        recipes
-            .tabItem {
-                Label("Recipes", systemImage: "book.closed")
-            }
-            .tag(LibraryTab.recipes)
+    private func recipesTab(reloadError: String?) -> some View {
+        tabStack(.recipes, reloadError: reloadError) {
+            recipes
+                .toolbar {
+                    ToolbarItemGroup(placement: .topBarTrailing) {
+                        accountButton
+                        addRecipeButton
+                    }
+                }
+        }
+        .tabItem {
+            Label("Recipes", systemImage: "book.closed")
+        }
+        .tag(LibraryTab.recipes)
     }
 
-    private var discoverTab: some View {
-        discover
-            .tabItem {
-                Label("Discover", systemImage: "fork.knife")
-            }
-            .tag(LibraryTab.discover)
+    private func discoverTab(reloadError: String?) -> some View {
+        tabStack(.discover, reloadError: reloadError) {
+            discover
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        accountButton
+                    }
+                }
+        }
+        .tabItem {
+            Label("Discover", systemImage: "fork.knife")
+        }
+        .tag(LibraryTab.discover)
+    }
+
+    /// One navigation stack per tab: each tab owns its bar, so the large
+    /// title is already in place when the tab appears.
+    private func tabStack<Content: View>(
+        _ tab: LibraryTab,
+        reloadError: String?,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        NavigationStack(path: pathBinding(for: tab)) {
+            content()
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    banners(reloadError: reloadError)
+                }
+                .navigationTitle(tab.title)
+                .navigationBarTitleDisplayMode(.large)
+                .navigationDestination(
+                    for: LibraryNavigationDestination.self
+                ) { destination in
+                    switch destination {
+                    case let .recipe(destination):
+                        recipeDetail(destination)
+                    }
+                }
+        }
     }
 
     private var watchTab: some View {
+        NavigationStack(path: pathBinding(for: .watch)) {
+            watchContent
+                .toolbar(.hidden, for: .navigationBar)
+                .navigationDestination(
+                    for: LibraryNavigationDestination.self
+                ) { destination in
+                    switch destination {
+                    case let .recipe(destination):
+                        recipeDetail(destination)
+                    }
+                }
+        }
+        .tabItem {
+            Label("Watch", systemImage: "play.rectangle")
+        }
+        .tag(LibraryTab.watch)
+    }
+
+    private var watchContent: some View {
         WatchView(
             viewModel: viewModel,
             discoverService: discoverService,
@@ -292,16 +382,27 @@ struct LibraryView: View {
             },
             saveRecipe: { saved in
                 viewModel.storeDiscoveredRecipe(saved)
-            },
-            openAccount: { isAccountPresented = true }
+            }
         )
-        .tabItem {
-            Label("Watch", systemImage: "play.rectangle")
-        }
-        .tag(LibraryTab.watch)
     }
 
-    private var inboxTab: some View {
+    private func inboxTab(reloadError: String?) -> some View {
+        tabStack(.inbox, reloadError: reloadError) {
+            inboxContent
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        accountButton
+                    }
+                }
+        }
+        .tabItem {
+            Label("Inbox", systemImage: "tray")
+        }
+        .badge(viewModel.importAttentionCount)
+        .tag(LibraryTab.inbox)
+    }
+
+    private var inboxContent: some View {
         ImportInboxView(
             viewModel: viewModel,
             recoverImport: { failedImportJob = $0 },
@@ -317,11 +418,6 @@ struct LibraryView: View {
             },
             operationFailure: importCoordinator.failure
         )
-        .tabItem {
-            Label("Inbox", systemImage: "tray")
-        }
-        .badge(viewModel.importAttentionCount)
-        .tag(LibraryTab.inbox)
     }
 
     private var discover: some View {

@@ -40,7 +40,11 @@ final class DiscoverInteractionUITests: XCTestCase {
         let firstPageControl = pageControls.element(boundBy: 0)
         XCTAssertTrue(firstPageControl.waitForExistence(timeout: 3))
         XCTAssertTrue(firstPageControl.isHittable)
-        XCTAssertTrue(app.buttons["Account"].firstMatch.isHittable)
+        // Watch shares one control row: no account button there, and the
+        // playback controls sit beside the feed picker rather than per page.
+        XCTAssertFalse(app.buttons["Account"].exists)
+        XCTAssertTrue(app.buttons["Pause video"].firstMatch.isHittable)
+        XCTAssertTrue(app.buttons["Mute video"].firstMatch.isHittable)
         XCTAssertTrue(app.buttons["Save"].firstMatch.isHittable)
 
         app.swipeUp()
@@ -266,7 +270,13 @@ final class DiscoverInteractionUITests: XCTestCase {
         let mute = app.buttons["Mute video"].firstMatch
         XCTAssertTrue(pause.waitForExistence(timeout: 2))
         XCTAssertTrue(mute.isHittable)
-        let firstPageIdentifier = pause.identifier
+        // Playback controls are shared across pages, so page identity comes
+        // from the per-page action row rather than from the pause button.
+        let firstPageControl = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'watch.'")
+        ).firstMatch
+        XCTAssertTrue(firstPageControl.waitForExistence(timeout: 2))
+        let firstPageIdentifier = firstPageControl.identifier
 
         pause.tap()
         let resume = app.buttons["Resume video"].firstMatch
@@ -300,7 +310,13 @@ final class DiscoverInteractionUITests: XCTestCase {
             )
         ).firstMatch
         XCTAssertTrue(nextPageControl.waitForExistence(timeout: 3))
-        XCTAssertTrue(nextPageControl.isHittable)
+        // The page identifier rides the action row, which settles last
+        // after a scroll, so wait for it rather than asserting instantly.
+        let nextPageIsVisible = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "hittable == true"),
+            object: nextPageControl
+        )
+        wait(for: [nextPageIsVisible], timeout: 3)
         let previousPageControl = app.buttons.matching(
             NSPredicate(format: "identifier == %@", firstPageIdentifier)
         ).firstMatch
