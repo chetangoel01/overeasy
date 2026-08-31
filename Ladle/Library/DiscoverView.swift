@@ -2,6 +2,56 @@ import LadleCore
 import Observation
 import SwiftUI
 
+/// How the Discover feed is ordered. Only orders the feed data can actually
+/// support: `DiscoverRecipe` carries a save count but no publish date and no
+/// cook time, so "recent" and "quickest" are not options until the contract
+/// grows those fields.
+enum DiscoverSort: String, CaseIterable, Identifiable {
+    case featured
+    case mostSaved
+    case alphabetical
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .featured: "Featured"
+        case .mostSaved: "Most saved"
+        case .alphabetical: "A to Z"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .featured: "sparkles"
+        case .mostSaved: "bookmark.fill"
+        case .alphabetical: "textformat.abc"
+        }
+    }
+
+    /// What the feed header promises under this order.
+    var caption: String {
+        switch self {
+        case .featured:
+            "Popular public recipe videos, ranked by saves."
+        case .mostSaved:
+            "Every public recipe video, most saved first."
+        case .alphabetical:
+            "Every public recipe video, A to Z."
+        }
+    }
+}
+
+extension DiscoverRecipe {
+    /// Discover search is client-side over the page already loaded: title,
+    /// creator and description are the only text the feed carries.
+    func matches(_ query: String) -> Bool {
+        [title, description, creatorName ?? ""].contains { field in
+            field.localizedCaseInsensitiveContains(query)
+        }
+    }
+}
+
 @MainActor
 @Observable
 final class DiscoverViewModel {
@@ -147,6 +197,8 @@ final class DiscoverViewModel {
 
 struct DiscoverView: View {
     @State private var viewModel: DiscoverViewModel
+    @State private var searchText = ""
+    @State private var sort: DiscoverSort = .featured
     let saveRecipe: (SavedDiscoverRecipe) -> Void
     let openRecipe: (Recipe) -> Void
 
@@ -174,12 +226,71 @@ struct DiscoverView: View {
             }
         }
         .background(LadleTheme.Surface.porcelain)
+        .searchable(
+            text: $searchText,
+            placement: .navigationBarDrawer(displayMode: .automatic),
+            prompt: "Search Discover"
+        )
+        .textInputAutocapitalization(.never)
+        .autocorrectionDisabled()
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                sortMenu
+            }
+        }
         .task {
             if viewModel.state == .idle {
                 await viewModel.load()
             }
         }
         .accessibilityIdentifier("library.discover")
+    }
+
+    private var sortMenu: some View {
+        Menu {
+            Picker("Sort Discover", selection: $sort) {
+                ForEach(DiscoverSort.allCases) { option in
+                    Label(option.title, systemImage: option.systemImage)
+                        .tag(option)
+                }
+            }
+        } label: {
+            Label(
+                "Sort Discover",
+                systemImage: "line.3.horizontal.decrease"
+            )
+        }
+        .accessibilityIdentifier("discover.sort")
+    }
+
+    /// Search first, then order. Featured keeps whatever order the service
+    /// returned, which is already the ranking the backend intends.
+    private func arranged(
+        _ recipes: [DiscoverRecipe]
+    ) -> [DiscoverRecipe] {
+        let query = searchText.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        let matched = query.isEmpty
+            ? recipes
+            : recipes.filter { $0.matches(query) }
+        switch sort {
+        case .featured:
+            return matched
+        case .mostSaved:
+            return matched.sorted { $0.savedCount > $1.savedCount }
+        case .alphabetical:
+            return matched.sorted { first, second in
+                first.title.localizedCaseInsensitiveCompare(second.title)
+                    == .orderedAscending
+            }
+        }
+    }
+
+    private var noSearchResults: some View {
+        ContentUnavailableView.search(text: searchText)
+            .foregroundStyle(LadleTheme.Label.primary)
+            .accessibilityIdentifier("discover.no-results")
     }
 
     private var loadingContent: some View {
@@ -214,7 +325,12 @@ struct DiscoverView: View {
             if recipes.isEmpty {
                 emptyContent
             } else {
-                recipeList(recipes)
+                let shown = arranged(recipes)
+                if shown.isEmpty {
+                    noSearchResults
+                } else {
+                    recipeList(shown)
+                }
             }
         }
         .safeAreaInset(edge: .top, spacing: 0) {
@@ -258,7 +374,7 @@ struct DiscoverView: View {
                     Text("Saved by cooks")
                         .ladleFont(.section)
                         .foregroundStyle(LadleTheme.Label.primary)
-                    Text("Popular public recipe videos, ranked by saves.")
+                    Text(sort.caption)
                         .ladleFont(.metadata)
                         .foregroundStyle(LadleTheme.Label.secondary)
                 }
