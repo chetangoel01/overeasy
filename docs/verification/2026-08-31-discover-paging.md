@@ -87,3 +87,87 @@ did not get worse with paging, so it stayed out of scope.
 - Fix the discover N+1 if request latency matters under load.
 - `recent` / `quickest` sorts still need publish date and cook time on
   `DiscoverRecipe`.
+
+---
+
+# Addendum: source engagement counts and Most liked
+
+Commit: `3408fd2`
+
+## Why
+
+Ranking existed only for saves inside Overeasy. yt-dlp already returns like,
+view, comment and repost counts plus the publish timestamp on every
+acquisition — `_media_from_payload` read `uploader` and `duration` and dropped
+the rest.
+
+Verified before building, against a live TikTok video: `like_count 4331`,
+`view_count 107200`, `comment_count 78`, `repost_count 38`, `timestamp`. A
+second fetch minutes later read `4334` — the drift this design has to live
+with, observed rather than assumed.
+
+**This also unblocks "recent"**, which an earlier note recorded as impossible:
+the publish date was in the payload all along. It is stored but not exposed.
+
+## Provider coverage — the important limitation
+
+| Platform | Metadata source | Counts? |
+| --- | --- | --- |
+| TikTok | yt-dlp | **yes** |
+| YouTube | yt-dlp | **yes** |
+| Instagram | `/embed/captioned/` endpoint | **no** |
+
+Instagram takes the embed path because yt-dlp is cookie-gated there — checked
+against a live reel URL, which returned "Instagram sent an empty media
+response... use --cookies-from-browser". The embed's `gql_data` may carry
+counts, but that could not be confirmed without a known-good reel URL, so it
+is untested rather than ruled out.
+
+So Most liked is a TikTok/YouTube ranking. If Instagram is a large share of
+the corpus, it is systematically absent from the top of that feed.
+
+## Shape
+
+Typed nullable columns on `source_videos` — `like_count`, `view_count`,
+`comment_count`, `repost_count`, `published_at`, `counts_refreshed_at` — not
+keys inside the existing `source_metadata` JSON, which stays empty. Discover
+ranks on these, and a JSON expression takes no plain index and cannot sort
+NULLs last. Migration 0019, partial index on `like_count`.
+
+## Refresh
+
+The chosen behavior was "reload when a user asks for the same video through
+the import". That is the cache-hit path — and it returned *before*
+acquisition, so the obvious write site in `complete_shared` would only ever
+have written once per source revision, which is the snapshot behavior that was
+explicitly declined.
+
+The cache-hit branch now calls a new `VideoAcquirer.refresh_counts` — one
+yt-dlp JSON read, no media download — **outside** the transaction, because the
+job row is held `FOR UPDATE` inside it. Throttled by `counts_refreshed_at` to
+twice a day per source. It never raises: a failed refresh leaves the previous
+snapshot, and a provider returning nothing does not erase what is stored.
+
+## Ranking
+
+`sort=mostLiked` orders by `like_count DESC NULLS LAST, saved_count DESC,
+source_video_id`.
+
+- **NULLS LAST** because nothing is backfilled — most of an existing corpus
+  has no counts, and Postgres `DESC` puts NULLs first, which would open the
+  feed with countless rows on day one.
+- **saved_count** tiebreak degrades the ranking to the popular order while
+  counts accrue.
+- **source_video_id** keeps the order total, or the offset cursor skips and
+  repeats rows across the ties the null tail is full of.
+
+Covered by an integration test that asserts counted sources lead, uncounted
+ones fall back to save order, and paging walks the ranking without repeats.
+
+## Not done
+
+- No backfill. Counts accrue from the next import of each source onward.
+- `published_at` stored, no `recent` sort exposed.
+- View, comment and repost counts stored, not surfaced.
+- The health probe's `expected_revision` was stale at `0017` after migration
+  0018; their guard test caught it and it now reads `0019`.
