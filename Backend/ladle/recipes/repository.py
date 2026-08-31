@@ -151,8 +151,24 @@ class RecipeRepository:
         # min() picks one deterministic title per source for A-to-Z; the
         # savers' copies of one video agree on it in all but edited cases.
         sort_title = func.min(Recipe.title).label("sort_title")
+        # SourceVideo joins 1:1 on the group key, but Postgres still needs an
+        # aggregate over a non-grouped column.
+        like_count = func.max(SourceVideo.like_count).label("like_count")
         if sort == DiscoverSort.ALPHABETICAL:
             ordering = [sort_title.asc(), Recipe.source_video_id]
+        elif sort == DiscoverSort.MOST_LIKED:
+            # NULLS LAST matters: counts are only captured from the import
+            # that introduced them onward, so most of an existing corpus has
+            # none and would otherwise fill the first page. Save count is the
+            # tiebreak, which degrades this to the popular order while counts
+            # accrue, and source id keeps the total order deterministic —
+            # without it an offset cursor skips and repeats rows across the
+            # ties this ranking is full of.
+            ordering = [
+                like_count.desc().nullslast(),
+                saved_count.desc(),
+                Recipe.source_video_id,
+            ]
         else:
             ordering = [
                 saved_count.desc(),
@@ -166,7 +182,9 @@ class RecipeRepository:
                 saved_count,
                 latest_save,
                 sort_title,
+                like_count,
             )
+            .join(SourceVideo, SourceVideo.id == Recipe.source_video_id)
             .where(*conditions)
             .group_by(Recipe.source_video_id)
             .order_by(*ordering)
@@ -178,7 +196,7 @@ class RecipeRepository:
         has_more = len(ranked) > limit
         consumed = ranked[:limit]
         items: list[DiscoverRecipeDTO] = []
-        for source_video_id, count, _latest, _title in consumed:
+        for source_video_id, count, _latest, _title, likes in consumed:
             source = database.get(SourceVideo, source_video_id)
             if source is None:
                 continue
@@ -207,6 +225,7 @@ class RecipeRepository:
                     original_url=source.canonical_url,
                     image_url=image_url,
                     saved_count=count,
+                    like_count=likes,
                     saved_recipe_id=None,
                 )
             )

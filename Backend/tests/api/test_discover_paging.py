@@ -19,6 +19,9 @@ FIXTURE = Path(__file__).parents[3] / "Contracts" / "Fixtures" / "recipe-ready.j
 
 # Titles chosen so search can be asserted against a known subset: three
 # "Lemon" sources and two that must not match.
+# Only two sources have counts; the rest are NULL like a pre-existing corpus.
+LIKES = {"Smash Burgers": 9_000, "Preserved Lemon Salad": 5_000}
+
 TITLES = [
     "Lemon Orzo",
     "Lemon Chicken",
@@ -85,6 +88,11 @@ def _seed(engine, recipe: dict, savers: list[dict]) -> None:
                     public_access_confirmed_at=datetime(2026, 8, 23, 12, tzinfo=UTC),
                     source_revision="1",
                     source_metadata={},
+                    # Only the last two carry counts, and in the reverse of
+                    # the save ranking, so "most liked" cannot accidentally
+                    # agree with "popular". The rest stay NULL, standing in
+                    # for a corpus imported before counts existed.
+                    like_count=LIKES.get(title),
                 )
             )
             database.flush()
@@ -208,5 +216,63 @@ def test_discover_pages_searches_and_sorts(clean_postgres_url: str) -> None:
         assert missing.status_code == 200
         assert missing.json()["items"] == []
         assert missing.json()["hasMore"] is False
+
+    engine.dispose()
+
+
+@pytest.mark.integration
+def test_discover_most_liked_ranks_counted_sources_first(
+    clean_postgres_url: str,
+) -> None:
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    engine = build_engine(clean_postgres_url)
+    app = create_app(
+        session_factory=sessionmaker(engine, expire_on_commit=False),
+        attestation=AttestationService(enforced=False),
+    )
+    recipe = json.loads(FIXTURE.read_text())
+
+    with TestClient(app) as client:
+        users = [
+            client.post(
+                "/v1/auth/guest",
+                json={"installationID": f"discover-likes-{index}", "attestation": None},
+            ).json()
+            for index in range(6)
+        ]
+        headers = {"Authorization": f"Bearer {users[0]['accessToken']}"}
+        _seed(engine, recipe, users[1:])
+
+        page = client.get(
+            "/v1/recipes/discover?sort=mostLiked", headers=headers
+        ).json()
+
+        titles = _titles(page)
+        # The two counted sources lead, most-liked first, even though both sit
+        # last under the save ranking.
+        assert titles[:2] == ["Smash Burgers", "Preserved Lemon Salad"]
+        # Uncounted sources sort last rather than first, which is what a bare
+        # DESC would do with NULLs — and they fall back to save order.
+        assert titles[2:] == ["Lemon Orzo", "Lemon Chicken", "Garlic Butter Udon"]
+        assert page["items"][0]["likeCount"] == 9_000
+        assert page["items"][-1]["likeCount"] is None
+
+        # Paging stays consistent under the ties the null tail is full of.
+        first = client.get(
+            "/v1/recipes/discover?sort=mostLiked&limit=2", headers=headers
+        ).json()
+        second = client.get(
+            f"/v1/recipes/discover?sort=mostLiked&limit=2"
+            f"&cursor={first['nextCursor']}",
+            headers=headers,
+        ).json()
+        third = client.get(
+            f"/v1/recipes/discover?sort=mostLiked&limit=2"
+            f"&cursor={second['nextCursor']}",
+            headers=headers,
+        ).json()
+        walked = _titles(first) + _titles(second) + _titles(third)
+        assert walked == titles
+        assert len(set(walked)) == len(walked)
 
     engine.dispose()

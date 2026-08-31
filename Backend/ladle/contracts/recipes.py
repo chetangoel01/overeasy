@@ -255,6 +255,10 @@ class DiscoverRecipeDTO(WireModel):
     original_url: AnyHttpUrl = Field(max_length=2_048)
     image_url: AnyHttpUrl | None = Field(default=None, max_length=2_048)
     saved_count: int = Field(gt=0)
+    #: The source platform's like count when it was last read. Absent for
+    #: videos imported before counts were captured, and for providers that
+    #: withhold them — Instagram among them.
+    like_count: int | None = Field(default=None, ge=0)
     saved_recipe_id: WireUUID | None = None
 
 
@@ -266,6 +270,7 @@ class DiscoverSort(StrEnum):
     """
 
     POPULAR = "popular"
+    MOST_LIKED = "mostLiked"
     ALPHABETICAL = "alphabetical"
 
 

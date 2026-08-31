@@ -396,6 +396,7 @@ struct DiscoverView: View {
                 ForEach(recipes) { recipe in
                     DiscoverRecipeRow(
                         recipe: recipe,
+                        sort: viewModel.sort,
                         isLoadingDetail: viewModel.isLoadingDetail(recipe),
                         isSaving: viewModel.isSaving(recipe),
                         isSaved: viewModel.isSaved(recipe),
@@ -518,6 +519,7 @@ private struct DiscoverRecipeRow: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     let recipe: DiscoverRecipe
+    let sort: DiscoverSort
     let isLoadingDetail: Bool
     let isSaving: Bool
     let isSaved: Bool
@@ -667,8 +669,13 @@ private struct DiscoverRecipeRow: View {
         )
     }
 
+    /// Under Most liked the row shows the number it is ranked by; showing
+    /// saves there would leave the order looking arbitrary.
     private var saveCountText: String {
-        recipe.savedCount == 1
+        if sort == .mostLiked, let likeCount = recipe.likeCount {
+            return "\(likeCount.formatted(.number.notation(.compactName))) likes"
+        }
+        return recipe.savedCount == 1
             ? "Saved by 1 cook"
             : "Saved by \(recipe.savedCount) cooks"
     }

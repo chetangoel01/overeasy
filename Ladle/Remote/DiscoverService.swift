@@ -11,6 +11,7 @@ struct SavedDiscoverRecipe: Equatable, Sendable {
 /// sort that page.
 enum DiscoverSort: String, CaseIterable, Identifiable, Sendable {
     case popular
+    case mostLiked
     case alphabetical
 
     var id: String { rawValue }
@@ -18,6 +19,7 @@ enum DiscoverSort: String, CaseIterable, Identifiable, Sendable {
     var title: String {
         switch self {
         case .popular: "Most saved"
+        case .mostLiked: "Most liked"
         case .alphabetical: "A to Z"
         }
     }
@@ -25,6 +27,7 @@ enum DiscoverSort: String, CaseIterable, Identifiable, Sendable {
     var systemImage: String {
         switch self {
         case .popular: "bookmark.fill"
+        case .mostLiked: "heart.fill"
         case .alphabetical: "textformat.abc"
         }
     }
@@ -32,8 +35,12 @@ enum DiscoverSort: String, CaseIterable, Identifiable, Sendable {
     /// What the feed header promises under this order.
     var caption: String {
         switch self {
-        case .popular: "Popular public recipe videos, ranked by saves."
-        case .alphabetical: "Every public recipe video, A to Z."
+        case .popular:
+            "Popular public recipe videos, ranked by saves."
+        case .mostLiked:
+            "Ranked by likes on the original video, counted when it was saved."
+        case .alphabetical:
+            "Every public recipe video, A to Z."
         }
     }
 }
@@ -167,6 +174,12 @@ struct DemoDiscoverService: DiscoverServing {
                 originalURL: recipe.originalURL,
                 imageURL: recipe.images.first?.remoteURL,
                 savedCount: max(2, 18 - (index * 3)),
+                // Deliberately not the save order, so Most liked is visibly
+                // a different ranking in the demo. The last fixture has none,
+                // standing in for a video imported before counts existed.
+                likeCount: index == PreviewFixtures.recipes.count - 1
+                    ? nil
+                    : (index + 1) * 12_400,
                 savedRecipeID: nil
             )
         }
@@ -177,6 +190,20 @@ struct DemoDiscoverService: DiscoverServing {
         let ordered = switch sort {
         case .popular:
             matched.sorted { $0.savedCount > $1.savedCount }
+        case .mostLiked:
+            // Same rule as the server: counted videos first, then save order.
+            matched.sorted { first, second in
+                switch (first.likeCount, second.likeCount) {
+                case let (left?, right?) where left != right:
+                    left > right
+                case (nil, .some):
+                    false
+                case (.some, nil):
+                    true
+                default:
+                    first.savedCount > second.savedCount
+                }
+            }
         case .alphabetical:
             matched.sorted { first, second in
                 first.title.localizedCaseInsensitiveCompare(second.title)

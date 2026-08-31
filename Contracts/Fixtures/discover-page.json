@@ -9,7 +9,8 @@
       "originalURL": "https://www.tiktok.com/@mia_cooks/video/1234567890",
       "imageURL": "https://images.ladle.example/discover/lemon-orzo.jpg",
       "savedCount": 12,
-      "savedRecipeID": null
+      "savedRecipeID": null,
+      "likeCount": 48210
     }
   ],
   "nextCursor": 1,

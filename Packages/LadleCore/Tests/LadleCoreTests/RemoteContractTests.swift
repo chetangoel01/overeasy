@@ -112,6 +112,7 @@ struct RemoteContractTests {
         #expect(page.items[0].savedCount == 12)
         #expect(page.items[0].imageURL?.host == "images.ladle.example")
         #expect(page.items[0].savedRecipeID == nil)
+        #expect(page.items[0].likeCount == 48210)
         #expect(page.nextCursor == 1)
         #expect(page.hasMore)
     }

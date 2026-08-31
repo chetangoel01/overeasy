@@ -171,6 +171,10 @@ public struct DiscoverRecipe: Hashable, Identifiable, Sendable {
     public let originalURL: URL
     public let imageURL: URL?
     public let savedCount: Int
+    /// The source platform's like count when it was last read. Nil for
+    /// videos imported before counts were captured, and for providers that
+    /// withhold them.
+    public let likeCount: Int?
     public let savedRecipeID: UUID?
 
     public init(
@@ -182,6 +186,7 @@ public struct DiscoverRecipe: Hashable, Identifiable, Sendable {
         originalURL: URL,
         imageURL: URL?,
         savedCount: Int,
+        likeCount: Int? = nil,
         savedRecipeID: UUID? = nil
     ) {
         self.sourceID = sourceID
@@ -192,6 +197,7 @@ public struct DiscoverRecipe: Hashable, Identifiable, Sendable {
         self.originalURL = originalURL
         self.imageURL = imageURL
         self.savedCount = savedCount
+        self.likeCount = likeCount
         self.savedRecipeID = savedRecipeID
     }
 }
@@ -205,6 +211,7 @@ public struct RemoteDiscoverRecipeDTO: Codable, Hashable, Sendable {
     public let originalURL: URL
     public let imageURL: URL?
     public let savedCount: Int
+    public let likeCount: Int?
     public let savedRecipeID: UUID?
 
     public func recipe() -> DiscoverRecipe {
@@ -217,6 +224,7 @@ public struct RemoteDiscoverRecipeDTO: Codable, Hashable, Sendable {
             originalURL: originalURL,
             imageURL: imageURL,
             savedCount: savedCount,
+            likeCount: likeCount,
             savedRecipeID: savedRecipeID
         )
     }
