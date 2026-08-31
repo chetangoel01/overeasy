@@ -355,6 +355,11 @@ final class DesignTokenTests: XCTestCase {
         )
     }
 
+    /// Sheets that lay out their own content at `sheetMargin` need their
+    /// toolbar controls nudged by `sheetToolbarInset` to line up with it.
+    /// `FilterSheet` is deliberately absent: it is a native `Form`, so its
+    /// rows sit on the system's margins and its toolbar controls already
+    /// align with them. Applying the correction there would push them out.
     func testSheetToolbarControlsUseTheSemanticInset() throws {
         let project = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -367,7 +372,6 @@ final class DesignTokenTests: XCTestCase {
             "Ladle/Import/AddRecipeSheet.swift",
             "Ladle/Import/CorrectionNotesView.swift",
             "Ladle/Import/FailedImportSheet.swift",
-            "Ladle/Library/FilterSheet.swift",
             "Ladle/Library/VideoEmbedSheet.swift",
             "Ladle/Nutrition/NutritionView.swift",
         ]
