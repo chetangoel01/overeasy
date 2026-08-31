@@ -34,6 +34,27 @@ final class DiscoverViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.state, .loaded([unsaved]))
     }
 
+    /// The demo feed rendered placeholder pans because fixture artwork is a
+    /// bundled asset with no remote URL, and demo builds run without a
+    /// RemoteImageCache — so only the local-asset path can ever draw.
+    func testDemoDiscoverRowsResolveBundledArtwork() async throws {
+        let service = DemoDiscoverService()
+
+        let page = try await service.fetchDiscoverPage(
+            cursor: 0,
+            query: "",
+            sort: .popular
+        )
+
+        XCTAssertFalse(page.recipes.isEmpty)
+        for recipe in page.recipes {
+            XCTAssertNotNil(
+                PreviewFixtures.discoverArtwork(sourceID: recipe.sourceID),
+                "\(recipe.title) resolves no artwork, so its row is a placeholder"
+            )
+        }
+    }
+
     // MARK: - Paging
 
     func testLoadMoreAppendsTheNextPage() async {

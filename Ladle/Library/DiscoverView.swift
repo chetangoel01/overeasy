@@ -714,10 +714,18 @@ private struct DiscoverArtwork: View {
     var body: some View {
         RecipeArtworkView(
             owner: .discoverSource(id: recipe.sourceID),
-            image: recipe.imageURL.map {
-                RecipeImage(id: recipe.sourceID, remoteURL: $0)
-            }
+            image: image
         )
+    }
+
+    /// A served Discover row carries a remote thumbnail URL. Demo rows carry
+    /// none — fixture artwork is a bundled asset — so they fall back to the
+    /// fixture, which is why the demo feed showed placeholder pans.
+    private var image: RecipeImage? {
+        if let imageURL = recipe.imageURL {
+            return RecipeImage(id: recipe.sourceID, remoteURL: imageURL)
+        }
+        return PreviewFixtures.discoverArtwork(sourceID: recipe.sourceID)
     }
 }
 
