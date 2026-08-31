@@ -14,13 +14,19 @@ import json
 import logging
 import re
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
 
 from ladle.acquisition.free.links import LinkFetcher, UnsafeURL
 from ladle.acquisition.free.ytdlp import parse_vtt
-from ladle.acquisition.models import MediaMetadata, TextEvidence, VisualEvidence
+from ladle.acquisition.models import (
+    MediaMetadata,
+    SourceCounts,
+    TextEvidence,
+    VisualEvidence,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -118,6 +124,50 @@ def _metadata(item: dict[str, Any], *, title: str | None) -> MediaMetadata | Non
         creator_name=creator or None,
         thumbnail_url=thumbnail or None,
         duration_seconds=duration,
+        counts=_counts(item),
+    )
+
+
+def _tiktok_number(value: object) -> int | None:
+    """statsV2 repeats every stat as a string, so accept both shapes."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value if value >= 0 else None
+    if isinstance(value, str) and value.isdigit():
+        return int(value)
+    return None
+
+
+def _counts(item: dict[str, Any]) -> SourceCounts:
+    """Engagement counts from the page blob the caption already comes from.
+
+    Free, and the only count source that works for TikTok on server
+    infrastructure: TikTok rejects yt-dlp from datacenter addresses, and the
+    paid metadata call is never reached because this page supplies the
+    metadata that would have triggered it.
+    """
+    stats = item.get("stats")
+    stats = stats if isinstance(stats, dict) else {}
+    fallback = item.get("statsV2")
+    fallback = fallback if isinstance(fallback, dict) else {}
+
+    def stat(key: str) -> int | None:
+        return _tiktok_number(stats.get(key)) or _tiktok_number(fallback.get(key))
+
+    created = _tiktok_number(item.get("createTime"))
+    published_at: datetime | None = None
+    if created:
+        try:
+            published_at = datetime.fromtimestamp(created, tz=UTC)
+        except (OverflowError, OSError, ValueError):
+            published_at = None
+    return SourceCounts(
+        like_count=stat("diggCount"),
+        view_count=stat("playCount"),
+        comment_count=stat("commentCount"),
+        repost_count=stat("shareCount"),
+        published_at=published_at,
     )
 
 
