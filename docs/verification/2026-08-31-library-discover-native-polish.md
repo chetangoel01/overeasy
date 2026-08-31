@@ -50,6 +50,11 @@ implementation.
 
 ## 3. Discover search and sort (`adb23e6`)
 
+> **Superseded** by `2026-08-31-discover-paging.md`. The client-side search and
+> the three-way sort described here lasted one commit: paging moved both to the
+> server, because a search that only reads the loaded page returns "no results"
+> while matches sit just outside it.
+
 Discover had no way to narrow the feed at all. Added a system search field over
 title, creator and description, and a sort menu in the toolbar.
 
