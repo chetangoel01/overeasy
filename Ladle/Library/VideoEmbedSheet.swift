@@ -32,7 +32,7 @@ enum VideoEmbed {
             }
             return URL(
                 string:
-                    "https://www.youtube.com/embed/\(videoID)?playsinline=1&enablejsapi=1&rel=0"
+                    "https://www.youtube.com/embed/\(videoID)?playsinline=1&rel=0"
             )
         case .instagram:
             let kind: String
@@ -86,6 +86,13 @@ enum VideoEmbed {
 
 /// Keeps playback inside Overeasy. Provider links and unsupported main-frame
 /// navigations are swallowed instead of escaping to another app or browser.
+/// Host claimed by the synthetic document the YouTube embed is framed in.
+/// The embed must be inside an iframe on some host page, and YouTube will
+/// not play when that host page is youtube.com itself.
+private enum EmbedPlayerHost {
+    static let name = "player.ladle.localhost"
+}
+
 private struct EmbedNavigationDecider: WebPage.NavigationDeciding {
     func decidePolicy(
         for action: WebPage.NavigationAction,
@@ -119,6 +126,8 @@ private struct EmbedNavigationDecider: WebPage.NavigationDeciding {
         "tiktok.com",
         "youtube.com",
         "youtube-nocookie.com",
+        // The synthetic host document the YouTube embed is framed in.
+        EmbedPlayerHost.name,
     ]
 }
 
@@ -208,6 +217,54 @@ struct InlineVideoPlayer: View {
         )
     }
 
+    /// YouTube's `/embed/` endpoint is built to run inside an iframe on a
+    /// host page. Navigating straight to it as the top-level document makes
+    /// the player answer "Video player configuration error / Error 153", so
+    /// it is framed in a minimal host document on the platform's own origin.
+    private static func isYouTube(_ url: URL) -> Bool {
+        guard let host = url.host()?.lowercased() else { return false }
+        return host == "youtube.com" || host.hasSuffix(".youtube.com")
+    }
+
+    private static func youtubeHostDocument(embedding url: URL) -> String {
+        """
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta name="viewport"
+                  content="width=device-width, initial-scale=1,
+                           viewport-fit=cover">
+            <style>
+              html, body {
+                margin: 0; height: 100%;
+                background: #000; overflow: hidden;
+              }
+              iframe { display: block; border: 0; width: 100%; height: 100%; }
+            </style>
+          </head>
+          <body>
+            <iframe src="\(url.absoluteString)"
+                    allow="autoplay; encrypted-media; picture-in-picture"
+                    allowfullscreen></iframe>
+          </body>
+        </html>
+        """
+    }
+
+    private static func load(_ url: URL, into page: WebPage) {
+        guard isYouTube(url),
+              let origin = URL(
+                  string: "https://\(EmbedPlayerHost.name)/player"
+              ) else {
+            page.load(URLRequest(url: url))
+            return
+        }
+        page.load(
+            simulatedRequest: URLRequest(url: origin),
+            responseHTML: youtubeHostDocument(embedding: url)
+        )
+    }
+
     var body: some View {
         Group {
             if let url = VideoEmbed.url(for: recipe) {
@@ -238,7 +295,7 @@ struct InlineVideoPlayer: View {
                     .onAppear {
                         if !didLoad {
                             didLoad = true
-                            page.load(URLRequest(url: url))
+                            Self.load(url, into: page)
                         }
                         updatePlaybackSuspension()
                         applyMutedState()
