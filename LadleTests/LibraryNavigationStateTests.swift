@@ -163,7 +163,7 @@ final class LibraryNavigationStateTests: XCTestCase {
             ),
             URL(
                 string:
-                    "https://www.youtube.com/embed/M7lc1UVf-VE?playsinline=1&enablejsapi=1&rel=0"
+                    "https://www.youtube.com/embed/M7lc1UVf-VE?playsinline=1&rel=0"
             )
         )
         XCTAssertEqual(
