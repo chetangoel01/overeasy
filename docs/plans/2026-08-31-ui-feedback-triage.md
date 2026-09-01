@@ -1,12 +1,13 @@
 # UI feedback triage — Discover, Settings, Inbox, accent
 
 Date: August 31, 2026
-Status: **validated, nothing implemented.** More notes are expected; this
-document is the running list.
+Status: **validated, nothing implemented.** This is the running list. Items
+1–11 came from a spoken list on August 31; item 12 was added on September 1
+from a reimport on the phone, after the VPS was brought up to date.
 
 ## Purpose
 
-Chetan gave a spoken list of eleven observations after using the app against the
+Chetan gave a spoken list of observations after using the app against the
 live backend. This records each one in his words, says whether it holds up,
 shows the evidence, names every file a fix would touch, and proposes a
 direction. Two items need a product decision before any code is written; the
@@ -30,6 +31,7 @@ should stay clean until this list is agreed.
 | 9 | Sort menu looks jarring | Confirmed — the **Recipes** one | `AllRecipesView.swift` |
 | 10 | Accent doesn't update behind the sheet | Same bug as #6 | see #6 |
 | 11 | Pull-to-refresh should show new recipes | Partly | backend `repository.py` |
+| 12 | Reimported recipe had no calorie information | Confirmed — root cause found | `usda.py`, `calculator.py` |
 
 Items 6 and 10 are one bug. Items 7 and 9 are the same class of problem as the
 filter sheet that was already rewritten: hand-rolled chrome where a system
@@ -506,6 +508,101 @@ without changing the ranking at all.
 | [`Ladle/Library/DiscoverView.swift:462`](../../Ladle/Library/DiscoverView.swift:462) | new seed per pull, held for the session's paging |
 
 **Effort:** small (1) to medium (2).
+
+---
+
+## 12. A reimport came back with no calorie information
+
+> "Look into the latest reimport I just did, no calorie information came with
+> it."
+
+**Confirmed, root cause found, and it is not what the earlier note in this
+document guessed.** I previously attributed the one-in-five nutrition failures
+to the coverage gate in `normalization.py`. That was wrong. Normalization
+succeeds; the failure is in the calculator, and it is caused by **USDA search
+ranking preferring branded junk records over the real ones.**
+
+### What actually happened
+
+The recipe is "Madras Curry" (Instagram, imported 2026-09-01 05:34 UTC). The
+worker ran nutrition to completion: four USDA searches and fifteen food-detail
+fetches, every one `HTTP 200`. The USDA key on the VPS works. Then the whole
+block was discarded. The reason is persisted on the recipe:
+
+```
+Nutrition enrichment blocked: inconsistentNutrients at ingredient 2 (cumin seeds (jeera)).
+```
+
+Every nutrition failure in the database is the same check, and every offending
+ingredient is a dried spice:
+
+| Recipe | Blocked on |
+|--------|-----------|
+| Madras Curry | `inconsistentNutrients` — cumin seeds (jeera) |
+| Shaved Tofu Wrap | `inconsistentNutrients` — cumin |
+| Lasagna Soup | `inconsistentNutrients` — onion powder |
+| Single-Serving Shakshuka | `inconsistentNutrients` — garlic powder |
+
+### The chain
+
+1. The normalizer resolves the ingredient to the search term `cumin seeds`.
+2. `_search_rank` ([usda.py:180](../../Backend/ladle/nutrition/usda.py:180))
+   sorts by **token-match count first** and data-type quality only second. The
+   branded product literally named `CUMIN SEEDS GRINDER REFILL, CUMIN SEEDS`
+   matches both query tokens; the real `Spices, cumin seed` matches only one,
+   because "seeds" ≠ "seed". The junk record wins before data type is consulted.
+3. That record (`fdcId 2427784`) reports **0 kcal, 0 g protein, 0 g fat and
+   133 g carbohydrate per 100 g** — physically impossible, and exactly what the
+   worker fetched in this run.
+4. `_consistent` ([calculator.py:235](../../Backend/ladle/nutrition/calculator.py:235))
+   correctly rejects it: the Atwater estimate is 533 kcal against a stated 0.
+5. But `_food_required` ([calculator.py:144](../../Backend/ladle/nutrition/calculator.py:144))
+   returns only `provider_ranked[0]` and the calculator raises immediately.
+   **It never tries candidate 2**, even though all five were already fetched —
+   and candidate 2 was `Spices, cumin seed` (`fdcId 170923`), which passes at a
+   16.4% delta.
+6. `enrich` catches the error and blocks nutrition for the **entire recipe**.
+
+So one bad spice record costs the calories for every ingredient in the dish.
+Almost every recipe has a spice, which is why this looks like a coin flip.
+
+### Measured, not inferred
+
+Reproducing the app's own ranking against the live USDA API:
+
+```
+cumin seeds    rank0 Branded   CUMIN SEEDS GRINDER REFILL   0 kcal / 133 g carb  REJECTED
+               rank1 SR Legacy Spices, cumin seed         375 kcal              would pass
+garlic powder  rank0..4 all Branded — four are junk, the fifth is all zeros
+onion powder   rank0..4 all Branded
+```
+
+Restricting the same searches to Foundation / SR Legacy / Survey returns the
+correct records immediately: `Spices, garlic powder` (171325), `Spices, onion
+powder` (171327), `Spices, cumin seed` (170923).
+
+One trap worth noting: garlic powder candidate `2104649` reports zero for
+energy *and* every macro, so it **passes** the consistency check while
+contributing nothing. Candidate fallback alone would silently zero that
+ingredient.
+
+### Files to change
+
+| File | Change |
+|------|--------|
+| [`Backend/ladle/nutrition/usda.py:180`](../../Backend/ladle/nutrition/usda.py:180) | `_search_rank` — rank data type before token-match count, so Foundation/SR Legacy beat Branded |
+| [`Backend/ladle/nutrition/usda.py:192`](../../Backend/ladle/nutrition/usda.py:192) | `_parse_food` — drop structurally impossible records: macros summing over 100 g per 100 g, or zero energy with non-zero macros, or all-zero |
+| [`Backend/ladle/nutrition/calculator.py:144`](../../Backend/ladle/nutrition/calculator.py:144) | `_food_required` — walk candidates in rank order, return the first that passes consistency and yields a mass |
+| [`Backend/ladle/nutrition/calculator.py:101`](../../Backend/ladle/nutrition/calculator.py:101) | move the consistency and mass checks into the candidate loop so a rejection advances instead of aborting |
+| `Backend/tests/nutrition/` | fixtures for the three real junk records above, and a regression proving one bad candidate no longer voids the dish |
+
+**Open question:** when *every* candidate for one ingredient is unusable,
+should the recipe still lose all nutrition, or should that ingredient be
+excluded with an uncertainty note and the rest be totalled? The second is more
+useful and slightly less accurate.
+
+**Effort:** small — the ranking and fallback are a few lines each; the value is
+in the test fixtures.
 
 ---
 
