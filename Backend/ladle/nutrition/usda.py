@@ -37,6 +37,10 @@ _DATA_TYPE_PRIORITY: dict[object, int] = {
 _GENERIC_DATA_TYPES: tuple[FoodDataType, ...] = _DATA_TYPES[:-1]
 _ENERGY_IDS = (2048, 2047, 1008)
 _MACRO_IDS = {"protein": 1003, "fat": 1004, "carbohydrate": 1005}
+#: Dietary fibre. Optional, and deliberately not part of `_MACRO_IDS`: a
+#: record without it is still usable, and a record reporting it in the wrong
+#: unit should lose the fibre rather than be thrown away.
+_FIBRE_ID = 1079
 
 
 class _FoodDetailNotFound(Exception):
@@ -59,6 +63,8 @@ class FoodNutrients(WireModel):
     protein_grams_per_100g: WireDecimal = Field(ge=0)
     carbohydrate_grams_per_100g: WireDecimal = Field(ge=0)
     fat_grams_per_100g: WireDecimal = Field(ge=0)
+    #: `None` when USDA did not report it, which is not the same as zero.
+    fibre_grams_per_100g: WireDecimal | None = Field(default=None, ge=0)
     portions: list[FoodPortion] = Field(default_factory=list)
     search_rank: int | None = Field(default=None, ge=0)
 
@@ -276,6 +282,12 @@ class USDAClient:
                 continue
             nutrient_id = nutrient.get("id")
             expected_unit = "kcal" if nutrient_id in _ENERGY_IDS else "g"
+            if nutrient_id == _FIBRE_ID:
+                if str(nutrient.get("unitName", "")).casefold() == "g":
+                    fibre = _decimal(row.get("amount"))
+                    if fibre is not None and fibre >= 0:
+                        amounts[_FIBRE_ID] = fibre
+                continue
             if nutrient_id not in {*_ENERGY_IDS, *_MACRO_IDS.values()}:
                 continue
             if str(nutrient.get("unitName", "")).casefold() != expected_unit.casefold():
@@ -306,6 +318,7 @@ class USDAClient:
             protein_grams_per_100g=amounts[_MACRO_IDS["protein"]],
             carbohydrate_grams_per_100g=amounts[_MACRO_IDS["carbohydrate"]],
             fat_grams_per_100g=amounts[_MACRO_IDS["fat"]],
+            fibre_grams_per_100g=amounts.get(_FIBRE_ID),
             portions=portions,
         )
 

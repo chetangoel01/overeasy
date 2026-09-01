@@ -135,6 +135,32 @@ ingredients this deployment has never seen.
 - Full backend suite: **813 passed**, 2 skipped. Ruff check and format clean.
 - The schema-drift and expected-table tests cover migration 0020.
 
+## Fibre: a fourth defect, found by reimporting
+
+After the first three fixes deployed, a reimport still produced nothing — the
+block had simply moved from cumin to **cloves**. The cause was the consistency
+check itself, not candidate selection.
+
+Atwater charges every gram of carbohydrate 4 kcal. Fibre is largely
+unavailable and USDA's stated calories reflect that, so a high-fibre food
+looks inconsistent under the naive sum:
+
+| `Spices, cloves, ground` (fdcId 171321, SR Legacy) | |
+|---|---|
+| USDA stated energy | 274 kcal |
+| Naive Atwater on total carbohydrate | 403 → **32% off, rejected** |
+| Fibre (33.9 g/100g) treated as unavailable | 267 → 2.4% off |
+
+Consistency is now a band: a panel agrees if its stated energy lies between
+"fibre is free" and "fibre is sugar", or within the existing 25% tolerance of
+the nearer edge. Where fibre is unreported the band collapses to the naive sum,
+which is exactly the previous behaviour, so nothing that passed before can
+start failing. Fibre is parsed as an optional nutrient — a record without it,
+or reporting it in the wrong unit, keeps working rather than being discarded.
+
+This would have hit every high-fibre ingredient: cloves, cinnamon, cardamom,
+chilli powder, cocoa, bran. The recipe that exposed it lists nine spices.
+
 ## Still open
 
 When *every* candidate for one ingredient is unusable, the recipe still loses

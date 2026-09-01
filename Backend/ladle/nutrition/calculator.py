@@ -262,15 +262,36 @@ def _portion_grams(
 
 
 def _consistent(food: FoodNutrients, *, query: str = "") -> bool:
+    """Whether stated calories agree with the macronutrients beside them.
+
+    Fibre is why this is a band rather than a single number. Atwater charges
+    every gram of carbohydrate 4 kcal, but fibre is largely unavailable and
+    USDA's stated calories reflect that, so a high-fibre food looks wildly
+    inconsistent under the naive sum: `Spices, cloves, ground` states 274 kcal
+    against a naive 403, and was rejected for 32% disagreement despite being a
+    laboratory record. Treating fibre as free gives 267.
+
+    A panel is consistent when its stated energy lies between those two, or
+    within the tolerance of the nearer edge. Where fibre is unreported the
+    band collapses to the naive sum, which is the behaviour this replaces.
+    """
     if set(_tokens(query)) & {"alcohol", "beer", "liquor", "vinegar", "wine"}:
         return True
-    macro_calories = (
+    upper = (
         food.protein_grams_per_100g * 4
         + food.carbohydrate_grams_per_100g * 4
         + food.fat_grams_per_100g * 9
     )
-    denominator = max(food.calories_per_100g, macro_calories, Decimal(1))
-    return abs(food.calories_per_100g - macro_calories) / denominator <= Decimal("0.25")
+    fibre = min(
+        food.fibre_grams_per_100g or Decimal(0), food.carbohydrate_grams_per_100g
+    )
+    lower = upper - fibre * 4
+    energy = food.calories_per_100g
+    if lower <= energy <= upper:
+        return True
+    nearest = lower if energy < lower else upper
+    denominator = max(energy, nearest, Decimal(1))
+    return abs(energy - nearest) / denominator <= Decimal("0.25")
 
 
 def _tokens(value: str) -> list[str]:
