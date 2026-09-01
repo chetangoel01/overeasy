@@ -31,6 +31,17 @@ final class AccountSession {
 
     private let store: PreferenceStoring
 
+    /// Set only by `-account-state` under `-ui-testing`. While it holds, the
+    /// backend's answer no longer decides the account state.
+    ///
+    /// Nothing else can pin the state, and for a good reason: the backend is
+    /// authoritative everywhere else, because a client that could assert its
+    /// own account kind could assert its way past a quota. This exists so the
+    /// signed-in screens can be run and asserted on at all — until it did,
+    /// every launch registered a guest session and overwrote whatever local
+    /// state said, so no UI test could reach them.
+    private let isStatePinned: Bool
+
     private(set) var state: AccountState
     private(set) var shouldPresentWelcome: Bool
     private(set) var shouldPresentWalkthrough: Bool
@@ -41,6 +52,12 @@ final class AccountSession {
         launchArguments: [String] = ProcessInfo.processInfo.arguments
     ) {
         self.store = store
+
+        let pinnedState: AccountState? =
+            launchArguments.contains("-ui-testing")
+            ? Self.pinnedState(in: launchArguments)
+            : nil
+        isStatePinned = pinnedState != nil
 
         if launchArguments.contains("-reset-onboarding") {
             store.removeObject(forKey: Key.onboardingComplete)
@@ -61,15 +78,29 @@ final class AccountSession {
             }
         }
 
+        if let pinnedState {
+            store.set(pinnedState.rawValue, forKey: Key.accountState)
+        }
         let storedState = store.string(forKey: Key.accountState)
             .flatMap(AccountState.init(rawValue:))
-        state = storedState ?? .undecided
+        state = pinnedState ?? storedState ?? .undecided
         shouldPresentWelcome = !store.bool(
             forKey: Key.onboardingComplete
         )
         shouldPresentWalkthrough =
             store.bool(forKey: Key.walkthroughPending)
             && !store.bool(forKey: Key.walkthroughComplete)
+    }
+
+    /// `-account-state <value>`, honoured only alongside `-ui-testing`.
+    private static func pinnedState(
+        in launchArguments: [String]
+    ) -> AccountState? {
+        guard
+            let index = launchArguments.firstIndex(of: "-account-state"),
+            launchArguments.indices.contains(index + 1)
+        else { return nil }
+        return AccountState(rawValue: launchArguments[index + 1])
     }
 
     func continueAsGuest() {
@@ -86,6 +117,10 @@ final class AccountSession {
 
     func applyRemoteUserKind(_ userKind: String) {
         isRemoteSessionReady = true
+        // A pinned state still wants the session to come up — the library and
+        // Discover need it — it just does not want the guest registration that
+        // brings it to reset what was pinned.
+        guard !isStatePinned else { return }
         switch userKind {
         case "apple":
             completeWelcome(as: .signedInWithApple)
