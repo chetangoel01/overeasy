@@ -179,7 +179,9 @@ buttons a different text origin per button.
 - Recipe detail remains a pushed destination. Import and account flows remain
   native sheets.
 - Account management stays in the top-right toolbar on Recipes, Discover,
-  Watch, and Inbox. Add Recipe remains specific to Recipes.
+  Watch, and Inbox. Add Recipe sits beside it on Recipes and Inbox, the two
+  tabs where a link arrives; Discover and Watch are consumption surfaces and
+  carry no import affordance.
 
 ## Watch and Inbox
 
