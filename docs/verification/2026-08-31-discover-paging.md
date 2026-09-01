@@ -240,3 +240,70 @@ refresh now works via the page scrape rather than yt-dlp.
   "cal · protein", which no imported recipe here exercised.
 - `published_at` is absent for Instagram — the embed carries no timestamp — so
   a future "recent" sort would cover TikTok and YouTube only.
+
+---
+
+# Addendum 3: the real end-to-end run, with nutrition on
+
+Run 2026-09-01 against the live local stack, `LADLE_WORKER_PROVIDER_MODE=live`,
+with the production USDA key in `Backend/.env`. Every extraction was genuinely
+fresh: `PROMPT_VERSION` moved to `recipe-2026-08-31-v13`, which is part of the
+extraction cache key, so nothing could cache-hit.
+
+## Imports: 5 of 5, no failures
+
+| Source | Before | Now |
+| --- | --- | --- |
+| TikTok @feelingtastyy | ready | ready |
+| TikTok @arianamariaa11 | **failed** | needsReview |
+| YouTube Short | needsReview | needsReview |
+| Instagram DWOyR1zE7HB | **failed** | needsReview |
+| Instagram DS3DPehEnpA | needsReview | needsReview |
+
+Both previous failures were the caption-quantity threshold, and both now
+import. Ariana's produced "Lemon Pepper Chicken Skewers": 9 ingredients with
+quantities left null where she gave none, "1 stick" kept for the butter, and
+5 correct steps.
+
+## Counts: all three platforms
+
+| Platform | Likes | Views | Comments | Reposts | Published |
+| --- | --- | --- | --- | --- | --- |
+| YouTube | 624,768 | 12,561,931 | 2,700 | — | 2024-06-01 |
+| Instagram | 272,610 | 3,952,089 | 2,028 | — | — |
+| TikTok | 203,500 | 3,500,000 | 242 | 33,500 | 2025-11-17 |
+| TikTok | 54,600 | 722,500 | 188 | 10,200 | 2025-11-19 |
+| Instagram | 3,989 | 293,977 | 12 | — | — |
+
+`GET /v1/recipes/discover?sort=mostLiked` ranked the counted recipe first and
+fell back to save order (6, 5, 3, 1) for the rest — NULLS LAST on real data.
+
+## Nutrition works, but persists for 1 recipe in 5
+
+The USDA key is correct and the enricher runs: the worker log shows dozens of
+`api.nal.usda.gov` calls returning 200 on every import. One recipe stored a
+nutrition block (Tamattar Bharta, 405 cal / 7 g protein, estimated).
+
+The other four ran the same lookups and stored nothing, because
+`_validate_coverage` (`ladle/nutrition/normalization.py:321`) raises
+`NutritionNormalizationUnavailable` unless the normalizer accounts for **every
+material ingredient**. It is all-or-nothing: one unmatched ingredient out of
+26 discards the whole block. The recipes that failed have 13, 19 and 26
+ingredients; the one that succeeded has 10.
+
+Pre-existing, not caused by this work, and not fixed here — partial nutrition
+versus none is a product decision. But it means the library card facts
+("680 cal · 38g protein") will be blank for most imports as things stand.
+
+## Also worth fixing
+
+The USDA key is written to the worker log in plaintext on every call, because
+it travels in the query string and httpx logs full URLs. Anyone with log
+access has the key.
+
+## Local environment notes
+
+- `Backend/.env` now holds the real USDA key; `.env.bak-before-e2e` is the
+  copy from before this session and can be deleted.
+- `docker compose build api worker` does **not** rebuild `migrate`, which has
+  its own image tag. That left the local database seven migrations behind.
