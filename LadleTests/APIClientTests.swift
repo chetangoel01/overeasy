@@ -184,6 +184,62 @@ final class APIClientTests: XCTestCase {
         XCTAssertEqual(try store.load()?.accessToken, "new-access")
     }
 
+    /// The profile rides on the tokens, so a refresh is also how a name
+    /// edited on another device reaches this one — but only if the refreshed
+    /// tokens are handed back to whoever holds the session.
+    func testRefreshReportsTheProfileItReturns() async throws {
+        let store = InMemoryAuthTokenStore(
+            tokens: .fixture(
+                accessToken: "old-access",
+                refreshToken: "refresh-token"
+            )
+        )
+        URLProtocolStub.install { request in
+            if request.url?.path == "/v1/auth/refresh" {
+                return (
+                    Self.response(request, status: 200),
+                    Self.tokensJSON(
+                        accessToken: "new-access",
+                        profile: [
+                            "displayName": "Priya Raman",
+                            "avatarURL": "https://cdn.test/priya.jpg",
+                        ]
+                    )
+                )
+            }
+            if request.value(forHTTPHeaderField: "Authorization")
+                == "Bearer old-access"
+            {
+                return (Self.response(request, status: 401), Data())
+            }
+            return (
+                Self.response(request, status: 200),
+                Self.json(["value": "replayed"])
+            )
+        }
+        let refreshed = Locked<AuthTokens?>(nil)
+        let client = APIClient(
+            baseURL: URL(string: "https://api.ladle.test")!,
+            session: URLProtocolStub.session(),
+            tokenStore: store,
+            sessionRefreshed: { tokens in
+                refreshed.withValue { $0 = tokens }
+            }
+        )
+
+        let _: ResponseBody = try await client.request(
+            path: "/v1/protected",
+            authenticated: true
+        )
+
+        XCTAssertEqual(refreshed.snapshot?.displayName, "Priya Raman")
+        XCTAssertEqual(
+            refreshed.snapshot?.avatarURL,
+            URL(string: "https://cdn.test/priya.jpg")
+        )
+        XCTAssertEqual(try store.load()?.displayName, "Priya Raman")
+    }
+
     func testRejectedRefreshClearsSessionAndReportsExpiry() async throws {
         let store = InMemoryAuthTokenStore(
             tokens: .fixture(
@@ -379,15 +435,20 @@ final class APIClientTests: XCTestCase {
         try! JSONSerialization.data(withJSONObject: value)
     }
 
-    private static func tokensJSON(accessToken: String) -> Data {
-        json([
+    private static func tokensJSON(
+        accessToken: String,
+        profile: [String: String] = [:]
+    ) -> Data {
+        var payload: [String: Any] = [
             "accessToken": accessToken,
             "accessTokenExpiresAt": "2026-07-23T21:15:00.000Z",
             "refreshToken": "rotated-refresh",
             "userID": "10000000-0000-4000-8000-000000000001",
             "deviceID": "10000000-0000-4000-8000-000000000002",
             "userKind": "guest",
-        ])
+        ]
+        payload.merge(profile) { _, updated in updated }
+        return json(payload)
     }
 }
 

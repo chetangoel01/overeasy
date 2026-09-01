@@ -124,6 +124,16 @@ struct AccountHeaderView: View {
                 .focused($isNameFocused)
                 .onAppear { isNameFocused = true }
                 .onSubmit(submitName)
+                .onChange(of: isNameFocused) { _, focused in
+                    // Done is not the only way out of a field: a scroll, a
+                    // tap elsewhere or a drag on the sheet all end editing,
+                    // and iOS commits an inline edit on blur rather than
+                    // stranding the field open. `submitName` clears
+                    // `isEditingName` first, so this cannot re-enter.
+                    if !focused, isEditingName {
+                        submitName()
+                    }
+                }
                 .onChange(of: draftName) { _, value in
                     // The server rejects a longer name outright, so the
                     // field stops rather than letting the save fail.

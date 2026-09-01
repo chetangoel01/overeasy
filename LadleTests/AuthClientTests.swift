@@ -16,7 +16,11 @@ final class AuthClientTests: XCTestCase {
             account: "tokens",
             secureStore: secureStore
         )
-        let tokens = AuthTokens.fixture(accessToken: "stored-access")
+        let tokens = AuthTokens.fixture(
+            accessToken: "stored-access",
+            displayName: "Priya Raman",
+            avatarURL: URL(string: "https://cdn.test/priya.jpg")
+        )
 
         try tokenStore.save(tokens)
 
