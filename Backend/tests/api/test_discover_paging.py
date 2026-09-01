@@ -243,9 +243,7 @@ def test_discover_most_liked_ranks_counted_sources_first(
         headers = {"Authorization": f"Bearer {users[0]['accessToken']}"}
         _seed(engine, recipe, users[1:])
 
-        page = client.get(
-            "/v1/recipes/discover?sort=mostLiked", headers=headers
-        ).json()
+        page = client.get("/v1/recipes/discover?sort=mostLiked", headers=headers).json()
 
         titles = _titles(page)
         # The two counted sources lead, most-liked first, even though both sit
@@ -262,8 +260,7 @@ def test_discover_most_liked_ranks_counted_sources_first(
             "/v1/recipes/discover?sort=mostLiked&limit=2", headers=headers
         ).json()
         second = client.get(
-            f"/v1/recipes/discover?sort=mostLiked&limit=2"
-            f"&cursor={first['nextCursor']}",
+            f"/v1/recipes/discover?sort=mostLiked&limit=2&cursor={first['nextCursor']}",
             headers=headers,
         ).json()
         third = client.get(

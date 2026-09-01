@@ -387,9 +387,7 @@ class Recipe(Base):
             "review_status",
             "source",
             "source_video_id",
-            postgresql_where=text(
-                "deleted_at IS NULL AND source_cache_id IS NOT NULL"
-            ),
+            postgresql_where=text("deleted_at IS NULL AND source_cache_id IS NOT NULL"),
         ),
         CheckConstraint(
             "source IN ('tiktok', 'instagram', 'youtube', 'other')",
@@ -943,5 +941,39 @@ class RecipeChange(Base):
     kind: Mapped[str] = mapped_column(String(16), nullable=False)
     recipe_revision: Mapped[int] = mapped_column(Integer, nullable=False)
     changed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class USDAFood(Base):
+    """A FoodData Central detail response, stored exactly as it arrived.
+
+    The payload is kept raw rather than parsed into columns so that changes to
+    how a record is validated or ranked apply to everything already collected.
+    The branded panels that used to cost recipes their nutrition are still in
+    here; they are simply rejected at read time now.
+    """
+
+    __tablename__ = "usda_foods"
+
+    fdc_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    fetched_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class USDASearch(Base):
+    """A FoodData Central search response for one normalized query.
+
+    Keyed by the same normalization the client applies before searching, so
+    "  Chickpeas   CANNED " and "chickpeas canned" are one row.
+    """
+
+    __tablename__ = "usda_searches"
+
+    query: Mapped[str] = mapped_column(String(255), primary_key=True)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    fetched_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

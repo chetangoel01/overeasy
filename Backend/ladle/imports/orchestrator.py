@@ -57,8 +57,8 @@ from ladle.usage.limits import UsageLimitExceeded
 _THUMBNAIL_DISCARD_GRACE = timedelta(hours=1)
 
 
-
 LOGGER = logging.getLogger(__name__)
+
 
 class ProcessOutcome(StrEnum):
     COMPLETED = "completed"
@@ -152,9 +152,7 @@ class ImportOrchestrator:
         try:
             counts = self._acquirer.refresh_counts(descriptor, job_id=job_id)
         except Exception:
-            LOGGER.info(
-                "Count refresh failed for %s", descriptor.canonical_url
-            )
+            LOGGER.info("Count refresh failed for %s", descriptor.canonical_url)
             return
         if counts.is_empty:
             return

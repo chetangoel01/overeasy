@@ -41,6 +41,8 @@ EXPECTED_TABLES = {
     "recipes",
     "source_videos",
     "step_ingredients",
+    "usda_foods",
+    "usda_searches",
     "user_sync_state",
     "users",
 }

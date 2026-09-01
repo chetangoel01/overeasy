@@ -67,9 +67,7 @@ class SupadataClient:
         published_at: datetime | None = None
         if published:
             try:
-                published_at = datetime.fromisoformat(
-                    published.replace("Z", "+00:00")
-                )
+                published_at = datetime.fromisoformat(published.replace("Z", "+00:00"))
             except ValueError:
                 published_at = None
         return SourceCounts(

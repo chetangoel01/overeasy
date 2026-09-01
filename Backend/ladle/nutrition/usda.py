@@ -4,7 +4,7 @@ import json
 import re
 from collections import OrderedDict
 from decimal import Decimal, InvalidOperation
-from typing import Literal, Protocol
+from typing import TYPE_CHECKING, Literal, Protocol
 
 import httpx
 from pydantic import Field
@@ -16,6 +16,9 @@ from ladle.acquisition.errors import (
     ProviderTransientError,
 )
 from ladle.contracts.common import WireDecimal, WireModel
+
+if TYPE_CHECKING:
+    from ladle.nutrition.store import USDAPayloadStore
 
 FoodDataType = Literal["Foundation", "SR Legacy", "Survey (FNDDS)", "Branded"]
 _DATA_TYPES: tuple[FoodDataType, ...] = (
@@ -70,6 +73,7 @@ class USDAClient:
         base_url: str,
         maximum_candidates: int = 5,
         maximum_cache_entries: int = 512,
+        store: "USDAPayloadStore | None" = None,
     ) -> None:
         if not api_key.strip():
             raise ValueError("USDA API key must not be blank")
@@ -82,6 +86,7 @@ class USDAClient:
         self._base_url = base_url.rstrip("/")
         self._maximum_candidates = maximum_candidates
         self._maximum_cache_entries = maximum_cache_entries
+        self._store = store
         # Keys are model-generated ingredient phrasings — an effectively
         # unbounded space — and the client lives as long as the worker
         # process, so the cache is LRU-bounded rather than a bare dict.
@@ -96,16 +101,20 @@ class USDAClient:
             self._cache.move_to_end(normalized)
             return list(cached)
 
-        response = self._request(
-            "POST",
-            "/foods/search",
-            json={
-                "query": normalized,
-                "dataType": list(_DATA_TYPES),
-                "pageSize": self._maximum_candidates,
-            },
-        )
-        payload = self._json_object(response, "search")
+        payload = self._store.search(normalized) if self._store else None
+        if payload is None:
+            response = self._request(
+                "POST",
+                "/foods/search",
+                json={
+                    "query": normalized,
+                    "dataType": list(_DATA_TYPES),
+                    "pageSize": self._maximum_candidates,
+                },
+            )
+            payload = self._json_object(response, "search")
+            if self._store is not None:
+                self._store.save_search(normalized, payload)
         rows = payload.get("foods")
         if not isinstance(rows, list):
             raise MalformedProviderResponse("USDA search returned invalid foods")
@@ -119,11 +128,15 @@ class USDAClient:
             fdc_id = row.get("fdcId")
             if not isinstance(fdc_id, int) or fdc_id <= 0:
                 continue
-            try:
-                detail_response = self._request("GET", f"/food/{fdc_id}")
-            except _FoodDetailNotFound:
-                continue
-            detail = self._json_object(detail_response, "food detail")
+            detail = self._store.food(fdc_id) if self._store else None
+            if detail is None:
+                try:
+                    detail_response = self._request("GET", f"/food/{fdc_id}")
+                except _FoodDetailNotFound:
+                    continue
+                detail = self._json_object(detail_response, "food detail")
+                if self._store is not None:
+                    self._store.save_food(fdc_id, detail)
             parsed = self._parse_food(detail)
             if parsed is not None:
                 foods.append(parsed.model_copy(update={"search_rank": search_rank}))
