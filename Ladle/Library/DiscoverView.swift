@@ -251,17 +251,24 @@ struct DiscoverView: View {
     @State private var viewModel: DiscoverViewModel
     let saveRecipe: (SavedDiscoverRecipe) -> Void
     let openRecipe: (Recipe) -> Void
+    /// Discover owns its view model, so the library above it cannot watch
+    /// the feed. This reports the one thing it needs: the first page never
+    /// arrived, and there is nothing cached to show instead.
+    let onInitialLoadFailed: () -> Void
+    @State private var initialLoadSettled = false
 
     init(
         service: any DiscoverServing,
         saveRecipe: @escaping (SavedDiscoverRecipe) -> Void,
-        openRecipe: @escaping (Recipe) -> Void
+        openRecipe: @escaping (Recipe) -> Void,
+        onInitialLoadFailed: @escaping () -> Void = {}
     ) {
         _viewModel = State(
             initialValue: DiscoverViewModel(service: service)
         )
         self.saveRecipe = saveRecipe
         self.openRecipe = openRecipe
+        self.onInitialLoadFailed = onInitialLoadFailed
     }
 
     var body: some View {
@@ -293,7 +300,26 @@ struct DiscoverView: View {
                 await viewModel.load()
             }
         }
+        .onChange(of: viewModel.state) { _, state in
+            reportInitialLoad(state)
+        }
         .accessibilityIdentifier("library.discover")
+    }
+
+    /// `load()` only writes `.failed` when it has nothing cached to keep, so
+    /// that state alone means the first page failed — no need to inspect the
+    /// state it came from, which a synchronous failure can skip past.
+    private func reportInitialLoad(_ state: DiscoverViewModel.State) {
+        guard !initialLoadSettled else { return }
+        switch state {
+        case .loaded:
+            initialLoadSettled = true
+        case .failed:
+            initialLoadSettled = true
+            onInitialLoadFailed()
+        case .idle, .loading:
+            break
+        }
     }
 
     private var sortMenu: some View {
