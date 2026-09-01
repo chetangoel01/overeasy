@@ -92,10 +92,6 @@ struct CorrectionNotesView: View {
                     Button("Cancel") {
                         dismiss()
                     }
-                    .padding(
-                        .leading,
-                        LadleTheme.Layout.sheetToolbarInset
-                    )
                 }
             }
         }

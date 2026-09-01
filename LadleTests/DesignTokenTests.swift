@@ -358,15 +358,6 @@ final class DesignTokenTests: XCTestCase {
         XCTAssertEqual(LadleTheme.Layout.sheetMargin, 24)
     }
 
-    func testSheetToolbarInsetCompletesTheSheetMargin() {
-        XCTAssertEqual(
-            LadleTheme.Layout.sheetToolbarInset,
-            LadleTheme.Layout.sheetMargin
-                - LadleTheme.Layout.screenMargin
-        )
-        XCTAssertEqual(LadleTheme.Layout.sheetToolbarInset, 8)
-    }
-
     func testWatchOverlayLayoutUsesProvidedSafeAreaInsets() {
         // Top chrome is already inside the safe area, so it must not add the
         // inset again; only the bottom padding clears the home indicator.
@@ -389,39 +380,40 @@ final class DesignTokenTests: XCTestCase {
         )
     }
 
-    /// Sheets that lay out their own content at `sheetMargin` need their
-    /// toolbar controls nudged by `sheetToolbarInset` to line up with it.
-    /// `FilterSheet` is deliberately absent: it is a native `Form`, so its
-    /// rows sit on the system's margins and its toolbar controls already
-    /// align with them. Applying the correction there would push them out.
-    func testSheetToolbarControlsUseTheSemanticInset() throws {
+    /// No sheet may inset its own toolbar controls.
+    ///
+    /// This asserted the opposite until September 1. The inset moved a bar
+    /// button from the system's 16-point edge onto the sheet's 24-point
+    /// content margin, which was right when a bar button was bare text. Under
+    /// iOS 26 the toolbar draws a glass capsule *around the padded label*, so
+    /// the padding inflated the capsule by 8 points and pushed the label 4
+    /// points off its own centre — on all ten sheets that carried it.
+    ///
+    /// Scanning for the token by name rather than for a padding shape is
+    /// deliberate: the name is what a future call site would have to write,
+    /// and a structural scan for ".padding near ToolbarItem" would be fragile
+    /// enough to pass by accident.
+    func testSheetToolbarControlsAreNotInset() throws {
         let project = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-        let sheetSources = [
-            "Ladle/Account/AccountSheet.swift",
-            "Ladle/Edit/RecipeEditorView.swift",
-            "Ladle/Edit/ReimportSheet.swift",
-            "Ladle/Health/HealthExportSheet.swift",
-            "Ladle/Import/AddRecipeSheet.swift",
-            "Ladle/Import/CorrectionNotesView.swift",
-            "Ladle/Import/FailedImportSheet.swift",
-            "Ladle/Library/VideoEmbedSheet.swift",
-            "Ladle/Nutrition/NutritionView.swift",
-        ]
+        let sources = try productionSwiftSources(
+            under: project.appendingPathComponent("Ladle")
+        )
         var offenders: [String] = []
 
-        for path in sheetSources {
-            let source = try String(
-                contentsOf: project.appendingPathComponent(path),
-                encoding: .utf8
-            )
-            if !source.contains("LadleTheme.Layout.sheetToolbarInset") {
-                offenders.append(path)
+        for file in sources {
+            let source = try String(contentsOf: file, encoding: .utf8)
+            if source.contains("sheetToolbarInset") {
+                offenders.append(file.lastPathComponent)
             }
         }
 
-        XCTAssertEqual(offenders, [])
+        XCTAssertEqual(
+            offenders.sorted(),
+            [],
+            "A sheet's toolbar controls sit on the system's own margin"
+        )
     }
 
     func testRecipeEditorUsesTheSheetMargin() throws {

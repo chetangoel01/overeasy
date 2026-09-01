@@ -21,10 +21,6 @@ struct ReimportSheet: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close", action: close)
                         .disabled(isOwnedImporting)
-                        .padding(
-                            .leading,
-                            LadleTheme.Layout.sheetToolbarInset
-                        )
                 }
             }
         }

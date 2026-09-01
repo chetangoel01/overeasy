@@ -366,20 +366,12 @@ struct VideoEmbedSheet: View {
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Close", action: dismiss.callAsFunction)
-                            .padding(
-                                .leading,
-                                LadleTheme.Layout.sheetToolbarInset
-                            )
                     }
                     ToolbarItem(placement: .primaryAction) {
                         ShareLink(item: recipe.originalURL) {
                             Image(systemName: "square.and.arrow.up")
                         }
                         .accessibilityLabel("Share original video")
-                        .padding(
-                            .trailing,
-                            LadleTheme.Layout.sheetToolbarInset
-                        )
                     }
                 }
         }

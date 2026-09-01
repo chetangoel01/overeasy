@@ -79,10 +79,6 @@ struct AddRecipeSheet: View {
                             .frame(width: LadleTheme.Control.hitTarget, height: LadleTheme.Control.hitTarget)
                     }
                     .accessibilityLabel("Close")
-                    .padding(
-                        .leading,
-                        LadleTheme.Layout.sheetToolbarInset
-                    )
                 }
             }
         }

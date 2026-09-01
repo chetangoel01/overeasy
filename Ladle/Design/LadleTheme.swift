@@ -251,9 +251,6 @@ enum LadleTheme {
         /// Leading and trailing margin for content inside a sheet, including
         /// the sheet's own toolbar control.
         static let sheetMargin = Spacing.generous
-        /// Extra inset that moves a native toolbar item from the system's
-        /// 16-point edge onto the 24-point sheet content margin.
-        static let sheetToolbarInset = sheetMargin - screenMargin
         /// Inner padding for a grouped card or field.
         static let cardPadding = Spacing.regular
         /// Gap between two sections of a screen.
