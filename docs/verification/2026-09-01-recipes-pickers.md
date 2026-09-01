@@ -84,7 +84,8 @@ downward.
 Unchanged and asserted. `accessibilityLabel("Sort recipes")`,
 `accessibilityLabel("Recipe view")` and `accessibilityValue(displayModeTitle)`
 all survive, and `DiscoverInteractionUITests` still reaches a picker row inside
-the menu as `app.buttons["List"]`.
+the menu as `app.buttons["List"]`. That is the only UI test that drives either
+menu — nothing else under `LadleUITests/` references them.
 
 ## Evidence
 
@@ -134,7 +135,7 @@ rows:
 xcodebuild test -project Ladle.xcodeproj -scheme LadleAllTests \
   -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:LadleTests
 ```
-`Executed 364 tests, with 1 test skipped and 0 failures (0 unexpected) in 3.652 (3.777) seconds`
+`Executed 364 tests, with 1 test skipped and 0 failures (0 unexpected) in 3.689 (3.819) seconds`
 
 ```
 xcodebuild test -project Ladle.xcodeproj -scheme LadleAllTests \
