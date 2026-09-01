@@ -13,6 +13,11 @@ apps or websites.
   security records provide sign-in, sync, fraud prevention, and replay defense.
   Apple or Google supplies its stable account identifier only when you choose
   that sign-in method.
+- A display name and a profile picture link, when the sign-in provider supplies
+  them, identify your account to you inside the app. The display name is
+  editable and is never overwritten by a later sign-in; the picture is a link
+  to the provider's own copy, which Overeasy does not host. Both are removed
+  when you delete your account.
 - Imported URLs, public-source metadata, recipe content, thumbnails, and edit
   history provide imports and device sync.
 - Discover ranks public recipe-video sources by aggregate saves. It shows the
@@ -69,8 +74,9 @@ are destroyed by the infrastructure provider's lifecycle.
 Every guest, Apple, and Google account can be permanently deleted in
 **Account → Delete account**. The operation verifies the current session,
 revokes Sign in with Apple credentials when applicable, and removes or
-anonymizes recipes, imports, sessions, devices, identity links, provider usage,
-private text, sync history, and unreferenced objects. It is idempotent so a
+anonymizes recipes, imports, sessions, devices, identity links, the display
+name and profile picture link, provider usage, private text, sync history, and
+unreferenced objects. It is idempotent so a
 network retry cannot recreate or partially delete the account.
 
 Deletion cannot be undone. Backups are not used to restore an individual
