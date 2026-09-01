@@ -725,13 +725,18 @@ final class DesignTokenTests: XCTestCase {
             .filter { !$0.isEmpty }
             .joined(separator: " ")
 
-        XCTAssertTrue(
-            code.contains("Picker( \"Sort recipes\", selection: $viewModel.sort"),
-            "The sort menu should wrap a Picker bound to the view model"
+        XCTAssertEqual(
+            source.components(separatedBy: "Picker(").count - 1,
+            2,
+            "One picker per menu, and no third one"
         )
         XCTAssertTrue(
-            code.contains("Picker( \"Recipe view\", selection:"),
-            "The display-mode menu should wrap a Picker too"
+            code.contains("\"Sort recipes\", selection: $viewModel.sort"),
+            "The sort menu's picker binds straight to the view model"
+        )
+        XCTAssertTrue(
+            code.contains("\"Recipe view\", selection: Binding("),
+            "The view menu's picker routes writes through setDisplayMode"
         )
         XCTAssertFalse(
             source.contains("\"checkmark\""),
