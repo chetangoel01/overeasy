@@ -186,6 +186,13 @@ removing them — a candidate qualifies when it carries the query's
 distinguishing word — and singular and plural are folded together, which is
 the "seeds" against `Spices, cumin seed` problem that started all of this.
 
+Relevance requires the query's **first** word — the one naming the food —
+before weighing the rest. Sharing only the qualifiers is how `coriander leaf
+raw` matched `Lettuce, leaf, green, raw`: two words of three agreed, and the
+one that did not was the only one that mattered. `Carrots, baby, raw` for
+`carrot raw` still passes, because the record is free to qualify the food it
+names.
+
 **Nothing new blocks.** When no candidate is relevant the recipe is still
 costed from the closest row, and a `WeakFoodMatch` is recorded and surfaced as
 an `ingredients[n].nutritionMatch` uncertainty. That is deliberate: blocking

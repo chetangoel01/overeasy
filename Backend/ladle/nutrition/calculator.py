@@ -363,10 +363,21 @@ def _relevant(query: str, description: str) -> bool:
     and more than half for a longer one, since USDA writes "Spices, cinnamon,
     ground" where a cook writes "cinnamon stick".
     """
-    wanted = _stems(query)
-    if not wanted:
+    tokens = [
+        token[:-1] if len(token) > 3 and token.endswith("s") else token
+        for token in _tokens(query)
+    ]
+    if not tokens:
         return False
-    shared = wanted & _stems(description)
+    described = _stems(description)
+    # The first word names the food; the rest qualify it. Sharing only the
+    # qualifiers is how "coriander leaf raw" matched "Lettuce, leaf, green,
+    # raw" — two words of three agreed, and the one that did not was the only
+    # one that mattered.
+    if tokens[0] not in described:
+        return False
+    wanted = set(tokens)
+    shared = wanted & described
     if len(wanted) == 1:
         return bool(shared)
     return len(shared) * 2 > len(wanted)
