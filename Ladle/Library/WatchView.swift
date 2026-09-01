@@ -694,6 +694,8 @@ private struct WatchRecipePage: View {
 }
 
 private struct WatchRecipeContextPreview: View {
+    @Environment(\.ladleAccent) private var accent
+
     let recipe: Recipe
     let owner: RemoteImageOwner
 
@@ -712,7 +714,7 @@ private struct WatchRecipeContextPreview: View {
             )
             Text(recipe.creatorAccountLabel)
                 .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.Label.accent)
+                .foregroundStyle(accent.label)
             Text(recipe.title)
                 .ladleFont(.section)
                 .foregroundStyle(LadleTheme.Label.primary)

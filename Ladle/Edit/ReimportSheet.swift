@@ -3,6 +3,7 @@ import SwiftUI
 
 struct ReimportSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.ladleAccent) private var accent
 
     let currentRecipe: Recipe
     @Bindable var coordinator: ImportCoordinator
@@ -155,7 +156,7 @@ struct ReimportSheet: View {
         VStack(spacing: LadleTheme.Layout.sectionGap) {
             ProgressView()
                 .controlSize(.large)
-                .tint(LadleTheme.Intent.accent)
+                .tint(accent.intent)
             Text("Building a replacement")
                 .ladleFont(.title)
                 .foregroundStyle(LadleTheme.Label.primary)
@@ -234,7 +235,7 @@ struct ReimportSheet: View {
                 .font(.system(size: LadleTheme.IconSize.feature, weight: .bold))
                 .foregroundStyle(LadleTheme.Label.onAccent)
                 .frame(width: 62, height: 62)
-                .background(LadleTheme.Intent.accent, in: Circle())
+                .background(accent.intent, in: Circle())
             Text(title)
                 .ladleFont(.title)
                 .foregroundStyle(LadleTheme.Label.primary)
@@ -257,7 +258,7 @@ struct ReimportSheet: View {
         VStack(alignment: .leading, spacing: LadleTheme.Spacing.medium) {
             Image(systemName: icon)
                 .font(.system(size: LadleTheme.IconSize.large, weight: .semibold))
-                .foregroundStyle(LadleTheme.Label.accent)
+                .foregroundStyle(accent.label)
                 .frame(width: 50, height: 50)
                 .background(LadleTheme.Surface.badge, in: Circle())
             Text(title)
@@ -321,6 +322,8 @@ struct ReimportSheet: View {
 }
 
 struct ReimportDecisionView: View {
+    @Environment(\.ladleAccent) private var accent
+
     let currentRecipe: Recipe
     let candidate: Recipe?
     let requiresReview: Bool
@@ -375,7 +378,7 @@ struct ReimportDecisionView: View {
                     : "checkmark"
             )
             .font(.system(size: LadleTheme.IconSize.large, weight: .semibold))
-            .foregroundStyle(LadleTheme.Label.accent)
+            .foregroundStyle(accent.label)
             .frame(width: 50, height: 50)
             .background(LadleTheme.Surface.badge, in: Circle())
             Text(
@@ -396,7 +399,7 @@ struct ReimportDecisionView: View {
     private var currentRecipeNotice: some View {
         HStack(spacing: 12) {
             Image(systemName: "shield.checkered")
-                .foregroundStyle(LadleTheme.Label.accent)
+                .foregroundStyle(accent.label)
             VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
                 Text("Current recipe is safe")
                     .ladleFont(.bodyStrong)

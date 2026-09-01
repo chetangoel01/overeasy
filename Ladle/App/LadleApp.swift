@@ -102,14 +102,21 @@ struct LadleApp: App {
         )
     }
 
+    /// The chosen accent, resolved once and published into the environment
+    /// so every screen re-renders when it changes.
+    ///
+    /// `.tint` takes the `label` role rather than `intent`: a tint lands on
+    /// bar buttons and tab labels at small sizes, where the fill-weight
+    /// accent does not hold its contrast.
+    private var resolvedAccent: LadleAccentColor {
+        LadleAccentColor.resolve(storedValue: accentColor)
+    }
+
     var body: some Scene {
         WindowGroup {
             content
-                .tint(
-                    LadleAccentColor.resolve(
-                        storedValue: accentColor
-                    ).textColor
-                )
+                .environment(\.ladleAccent, resolvedAccent)
+                .tint(resolvedAccent.label)
                 .task {
                     guard bootstrapResult.isPreparing else { return }
                     bootstrapResult = bootstrap.run()

@@ -3,6 +3,7 @@ import SwiftUI
 
 struct WelcomeView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.ladleAccent) private var accent
 
     @State private var flow: AccountSignInFlow
 
@@ -110,7 +111,7 @@ struct WelcomeView: View {
         VStack(spacing: LadleTheme.Spacing.compact) {
             Text("Overeasy")
                 .ladleFont(.section)
-                .foregroundStyle(LadleTheme.Label.accent)
+                .foregroundStyle(accent.label)
 
             Text("Recipes, rescued from the scroll.")
                 .ladleScaledFont(
@@ -189,7 +190,7 @@ struct WelcomeView: View {
             if flow.isAuthenticating {
                 ProgressView("Setting up Overeasy")
                     .ladleFont(.metadata)
-                    .tint(LadleTheme.Intent.accent)
+                    .tint(accent.intent)
                     .foregroundStyle(LadleTheme.Label.onAccent.opacity(0.8))
                     .padding(.top, LadleTheme.Spacing.medium)
             }
@@ -197,7 +198,7 @@ struct WelcomeView: View {
             if let authenticationFailure = flow.failure {
                 Text(authenticationFailure.message)
                     .ladleFont(.metadata)
-                    .foregroundStyle(LadleTheme.Label.accent)
+                    .foregroundStyle(accent.label)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, LadleTheme.Spacing.medium)

@@ -2,6 +2,8 @@ import LadleCore
 import SwiftUI
 
 struct RecipeGridCard: View {
+    @Environment(\.ladleAccent) private var accent
+
     let recipe: Recipe
     let openRecipe: () -> Void
     let toggleFavorite: () -> Void
@@ -20,7 +22,7 @@ struct RecipeGridCard: View {
                     .font(.system(size: LadleTheme.IconSize.small, weight: .semibold))
                     .foregroundStyle(
                         recipe.isFavorite
-                            ? LadleTheme.Label.accent
+                            ? accent.label
                             : LadleTheme.Label.primary
                     )
                     .frame(width: 38, height: 38)

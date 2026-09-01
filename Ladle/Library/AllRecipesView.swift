@@ -4,6 +4,7 @@ import SwiftUI
 struct AllRecipesView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.ladleAccent) private var accent
 
     @Bindable var viewModel: LibraryViewModel
     let addRecipe: () -> Void
@@ -174,7 +175,7 @@ struct AllRecipesView: View {
                         HStack(spacing: 12) {
                             Image(systemName: row.systemImage)
                                 .font(.system(size: LadleTheme.IconSize.small, weight: .semibold))
-                                .foregroundStyle(LadleTheme.Label.accent)
+                                .foregroundStyle(accent.label)
                                 .frame(width: Self.collectionIconWidth)
                             Text(row.title)
                                 .ladleFont(.body)
@@ -299,7 +300,7 @@ struct AllRecipesView: View {
         VStack(spacing: LadleTheme.Spacing.medium) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: LadleTheme.IconSize.feature))
-                .foregroundStyle(LadleTheme.Label.accent)
+                .foregroundStyle(accent.label)
             Text("No recipes found")
                 .ladleFont(.section)
                 .foregroundStyle(LadleTheme.Label.primary)

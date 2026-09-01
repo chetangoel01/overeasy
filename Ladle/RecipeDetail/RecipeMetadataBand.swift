@@ -4,6 +4,7 @@ import SwiftUI
 
 struct RecipeMetadataBand: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.ladleAccent) private var accent
 
     let recipe: Recipe
 
@@ -57,7 +58,7 @@ struct RecipeMetadataBand: View {
         VStack(spacing: LadleTheme.Spacing.compact) {
             Image(systemName: systemImage)
                 .font(.system(size: LadleTheme.IconSize.small, weight: .semibold))
-                .foregroundStyle(LadleTheme.Label.accent)
+                .foregroundStyle(accent.label)
                 .accessibilityHidden(true)
             Text(value)
                 .ladleFont(.bodyStrong)
@@ -96,6 +97,7 @@ struct RecipeMetadataBand: View {
 
 struct RecipeNutritionSummary: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.ladleAccent) private var accent
 
     let nutrition: Nutrition
     let openDetails: () -> Void
@@ -110,7 +112,7 @@ struct RecipeNutritionSummary: View {
                     if displayed.isEstimated {
                         Text("Estimated")
                             .ladleFont(.metadata)
-                            .foregroundStyle(LadleTheme.Label.accent)
+                            .foregroundStyle(accent.label)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
                             .background(LadleTheme.Surface.steel, in: Capsule())

@@ -163,8 +163,8 @@ final class DesignTokenTests: XCTestCase {
 
         for file in sources {
             let source = try String(contentsOf: file, encoding: .utf8)
-            if source.contains(".tint(LadleTheme.Label.accent)")
-                || source.contains(".fill(LadleTheme.Label.accent)") {
+            if source.contains(".tint(accent.label)")
+                || source.contains(".fill(accent.label)") {
                 offenders.append(file.lastPathComponent)
             }
         }
@@ -176,7 +176,41 @@ final class DesignTokenTests: XCTestCase {
             ),
             encoding: .utf8
         )
-        XCTAssertTrue(editor.contains("? LadleTheme.Intent.accent"))
+        XCTAssertTrue(editor.contains("? accent.intent"))
+    }
+
+    /// The accent may only be read out of storage in the two places that have
+    /// a reason to: the root, which publishes it into the environment, and the
+    /// picker, which writes it. Everywhere else reads
+    /// `@Environment(\.ladleAccent)`.
+    ///
+    /// This is the regression guard for the bug that prompted the change. The
+    /// accent used to be a theme property that read `UserDefaults` at
+    /// body-evaluation time; SwiftUI has no dependency on `UserDefaults`, so
+    /// changing the accent invalidated nothing and a screen only picked up the
+    /// new colour when it re-rendered for some unrelated reason. A third
+    /// storage reader would reintroduce exactly that.
+    func testAccentIsReadFromStorageOnlyWhereItIsPublishedOrChosen() throws {
+        let project = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let sources = try productionSwiftSources(
+            under: project.appendingPathComponent("Ladle")
+        )
+
+        let readers = try sources.filter { file in
+            let source = try String(contentsOf: file, encoding: .utf8)
+            return source.contains("LadleAccentColor.resolve(storedValue:")
+        }
+        .map(\.lastPathComponent)
+        .sorted()
+
+        XCTAssertEqual(
+            readers,
+            ["AccountSheet.swift", "LadleApp.swift"],
+            "Only the root and the accent picker may resolve the accent from "
+                + "storage; everything else reads the environment"
+        )
     }
 
     func testProductionUsesNamedControlHeights() throws {
@@ -449,22 +483,63 @@ final class DesignTokenTests: XCTestCase {
     }
 
     func testButtonRolesCarryDistinctFillAndLabelIntent() {
-        XCTAssertNotNil(LadleButtonRole.primary.fill)
-        XCTAssertNotNil(LadleButtonRole.secondary.fill)
-        XCTAssertNotNil(LadleButtonRole.destructive.fill)
+        let accent = LadleAccentColor.tomato
+        XCTAssertNotNil(LadleButtonRole.primary.fill(accent))
+        XCTAssertNotNil(LadleButtonRole.secondary.fill(accent))
+        XCTAssertNotNil(LadleButtonRole.destructive.fill(accent))
         XCTAssertNil(
-            LadleButtonRole.tertiary.fill,
+            LadleButtonRole.tertiary.fill(accent),
             "A tertiary button carries no fill"
         )
-        XCTAssertEqual(LadleButtonRole.destructive.fill, Color.red)
+        XCTAssertEqual(LadleButtonRole.destructive.fill(accent), Color.red)
         XCTAssertEqual(
-            LadleButtonRole.primary.label,
+            LadleButtonRole.primary.label(accent),
             LadleTheme.Label.onAccent
         )
         XCTAssertEqual(
-            LadleButtonRole.secondary.label,
+            LadleButtonRole.secondary.label(accent),
             LadleTheme.Label.primary
         )
+    }
+
+    /// The roles that carry the accent must actually follow it. This is the
+    /// property the old implementation looked like it had and did not: the
+    /// colour was read from `UserDefaults` at call time, so nothing observed
+    /// a change. Taking the accent as an argument is what makes it testable
+    /// at all.
+    func testAccentBearingRolesFollowTheChosenAccent() {
+        for other in LadleAccentColor.allCases where other != .tomato {
+            XCTAssertNotEqual(
+                LadleButtonRole.primary.fill(.tomato),
+                LadleButtonRole.primary.fill(other),
+                "A primary fill must differ between Tomato and \(other.title)"
+            )
+            XCTAssertNotEqual(
+                LadleButtonRole.tertiary.label(.tomato),
+                LadleButtonRole.tertiary.label(other),
+                "A tertiary label must differ between Tomato and \(other.title)"
+            )
+            XCTAssertNotEqual(
+                LadleIconButtonTone.primary.background(.tomato),
+                LadleIconButtonTone.primary.background(other),
+                "An icon button fill must differ between Tomato and \(other.title)"
+            )
+        }
+    }
+
+    /// The roles that do *not* carry the accent must be indifferent to it.
+    func testNeutralRolesIgnoreTheAccent() {
+        for accent in LadleAccentColor.allCases {
+            XCTAssertEqual(LadleButtonRole.destructive.fill(accent), Color.red)
+            XCTAssertEqual(
+                LadleButtonRole.secondary.fill(accent),
+                LadleTheme.Surface.raised
+            )
+            XCTAssertEqual(
+                LadleIconButtonTone.quiet.background(accent),
+                LadleTheme.Surface.steel
+            )
+        }
     }
 
     func testFilledButtonsShareOneWidthAndTertiaryHugsItsLabel() {

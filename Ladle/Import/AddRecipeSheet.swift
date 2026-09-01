@@ -3,6 +3,7 @@ import SwiftUI
 
 struct AddRecipeSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.ladleAccent) private var accent
 
     @Bindable var coordinator: ImportCoordinator
     let accountSession: AccountSession
@@ -193,7 +194,7 @@ struct AddRecipeSheet: View {
 
                 HStack(spacing: LadleTheme.Layout.iconGap) {
                     Image(systemName: "square.and.arrow.up")
-                        .foregroundStyle(LadleTheme.Label.accent)
+                        .foregroundStyle(accent.label)
                     Text("Tip: sharing a video to Overeasy is even faster.")
                         .ladleFont(.metadata)
                         .foregroundStyle(LadleTheme.Label.primary.opacity(0.62))
@@ -286,7 +287,7 @@ struct AddRecipeSheet: View {
         VStack(spacing: LadleTheme.Layout.sectionGap) {
             ProgressView()
                 .controlSize(.large)
-                .tint(LadleTheme.Intent.accent)
+                .tint(accent.intent)
                 .frame(width: 64, height: 64)
                 .background(LadleTheme.Surface.badge, in: Circle())
 
@@ -398,7 +399,7 @@ struct AddRecipeSheet: View {
         VStack(spacing: LadleTheme.Layout.sectionGap) {
             Image(systemName: "rectangle.on.rectangle")
                 .font(.system(size: LadleTheme.IconSize.feature, weight: .semibold))
-                .foregroundStyle(LadleTheme.Label.accent)
+                .foregroundStyle(accent.label)
                 .frame(width: 60, height: 60)
                 .background(LadleTheme.Surface.badge, in: Circle())
 
@@ -470,7 +471,7 @@ struct AddRecipeSheet: View {
                         ?? "exclamationmark.triangle.fill"
                 )
                     .font(.system(size: LadleTheme.IconSize.feature))
-                    .foregroundStyle(LadleTheme.Label.accent)
+                    .foregroundStyle(accent.label)
                     .frame(width: 60, height: 60)
                     .background(LadleTheme.Surface.badge, in: Circle())
                 Text(failure.title)
@@ -521,14 +522,14 @@ struct AddRecipeSheet: View {
         case let .validationFailed(error):
             Label(error.addRecipeMessage, systemImage: "exclamationmark.circle")
                 .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.Label.accent)
+                .foregroundStyle(accent.label)
         case .persistenceFailed:
             Label(
                 "Overeasy couldn’t save that import. Please try again.",
                 systemImage: "exclamationmark.circle"
             )
             .ladleFont(.metadata)
-            .foregroundStyle(LadleTheme.Label.accent)
+            .foregroundStyle(accent.label)
         default:
             EmptyView()
         }
@@ -542,7 +543,7 @@ struct AddRecipeSheet: View {
         VStack(alignment: .leading, spacing: 12) {
             Image(systemName: icon)
                 .font(.system(size: LadleTheme.IconSize.large, weight: .semibold))
-                .foregroundStyle(LadleTheme.Label.accent)
+                .foregroundStyle(accent.label)
                 .frame(width: 48, height: 48)
                 .background(LadleTheme.Surface.badge, in: Circle())
             Text(title)

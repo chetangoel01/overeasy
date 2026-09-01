@@ -56,6 +56,19 @@ enum LadleAccentColor: String, CaseIterable, Identifiable {
         Self(rawValue: storedValue ?? "") ?? .tomato
     }
 
+    /// Primary actions, favourites, active navigation, attention badges.
+    ///
+    /// The `Intent.accent` role, resolved against a chosen accent. Nothing
+    /// decorative may use this: an accent-coloured creator handle or bullet
+    /// is a misuse of the intent layer.
+    var intent: Color { actionColor }
+
+    /// Tinted text and icons that must still pass small-text contrast.
+    ///
+    /// The `Label.accent` role. Darker than `intent`, because `intent` is
+    /// sized for a fill and this has to survive at footnote size.
+    var label: Color { textColor }
+
     private static func dynamicColor(light: Int, dark: Int) -> Color {
         Color(
             uiColor: UIColor { traits in
@@ -64,6 +77,25 @@ enum LadleAccentColor: String, CaseIterable, Identifiable {
                 )
             }
         )
+    }
+}
+
+/// The accent the cook chose, carried down the view tree.
+///
+/// This is an environment value rather than a global read because SwiftUI
+/// has no dependency on `UserDefaults`: a theme property that read the
+/// preference directly invalidated nothing when it changed, so a view only
+/// picked up a new accent when it happened to re-render for some unrelated
+/// reason. Publishing it here means changing the accent invalidates every
+/// view that reads it, which is all of them.
+private struct LadleAccentEnvironmentKey: EnvironmentKey {
+    static let defaultValue: LadleAccentColor = .tomato
+}
+
+extension EnvironmentValues {
+    var ladleAccent: LadleAccentColor {
+        get { self[LadleAccentEnvironmentKey.self] }
+        set { self[LadleAccentEnvironmentKey.self] = newValue }
     }
 }
 
@@ -105,11 +137,9 @@ enum LadleTheme {
     static let paper = Color("Paper")
     static let oat = Color("Oat")
     static let ink = Color("Ink")
-    static var brick: Color { selectedAccent.actionColor }
     static let celery = Color("Celery")
     static let ube = Color("Ube")
     static let mutedInk = Color("MutedInk")
-    static var accentText: Color { selectedAccent.textColor }
     static let onAccent = Color(
         red: 250 / 255,
         green: 251 / 255,
@@ -162,15 +192,15 @@ enum LadleTheme {
         static let onAccent = LadleTheme.onAccent
         /// Text on a surface that stays pale in both appearances.
         static let onFixedPale = LadleTheme.fixedInk
-        /// Tinted text and icons that must still pass small-text contrast.
-        static var accent: Color { LadleTheme.accentText }
+        // The accent roles are not here. They depend on a value the cook
+        // chooses at runtime, so they live on `LadleAccentColor` and are
+        // reached through `@Environment(\.ladleAccent)`. A static property
+        // could only read `UserDefaults`, which SwiftUI cannot observe.
     }
 
     /// Colours that carry meaning. Nothing here may be used for decoration:
     /// an accent-coloured creator handle or bullet is a misuse of this layer.
     enum Intent {
-        /// Primary actions, favourites, active navigation, attention badges.
-        static var accent: Color { LadleTheme.brick }
         /// Destructive actions. The system role, so it matches the platform's
         /// own delete affordances.
         static let destructive = Color.red
@@ -197,14 +227,6 @@ enum LadleTheme {
                     rgb: traits.userInterfaceStyle == .dark ? dark : light
                 )
             }
-        )
-    }
-
-    private static var selectedAccent: LadleAccentColor {
-        LadleAccentColor.resolve(
-            storedValue: UserDefaults.standard.string(
-                forKey: LadleAccentColor.preferenceKey
-            )
         )
     }
 

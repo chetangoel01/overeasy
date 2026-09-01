@@ -47,6 +47,7 @@ struct AccountDeletionFailure: Equatable {
 struct AccountSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.ladleAccent) private var accent
     @AppStorage(LadleAccentColor.preferenceKey)
     private var accentColor = LadleAccentColor.tomato.rawValue
 
@@ -102,7 +103,7 @@ struct AccountSheet: View {
         HStack(alignment: .top, spacing: LadleTheme.Spacing.regular) {
             Image(systemName: "person.crop.circle.badge.checkmark")
                 .font(.system(size: LadleTheme.IconSize.feature, weight: .semibold))
-                .foregroundStyle(LadleTheme.Label.accent)
+                .foregroundStyle(accent.label)
                 .frame(width: 52, height: 52)
                 .background(LadleTheme.Surface.badge, in: Circle())
                 .accessibilityHidden(true)
@@ -173,7 +174,7 @@ struct AccountSheet: View {
                 HStack(spacing: LadleTheme.Layout.iconGap) {
                     Image(systemName: "hand.raised")
                         .font(.system(size: LadleTheme.IconSize.medium, weight: .semibold))
-                        .foregroundStyle(LadleTheme.Label.accent)
+                        .foregroundStyle(accent.label)
                         .frame(width: Self.rowIconWidth, height: Self.rowIconWidth)
                         .background(LadleTheme.Surface.badge, in: Circle())
                     VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
@@ -438,7 +439,7 @@ struct AccountSheet: View {
         ) {
             Image(systemName: icon)
                 .font(.system(size: LadleTheme.IconSize.medium, weight: .semibold))
-                .foregroundStyle(LadleTheme.Label.accent)
+                .foregroundStyle(accent.label)
                 .frame(width: Self.rowIconWidth, height: Self.rowIconWidth)
                 .background(LadleTheme.Surface.badge, in: Circle())
 

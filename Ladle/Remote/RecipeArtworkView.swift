@@ -69,6 +69,7 @@ enum RecipeArtworkMemoryCache {
 
 struct RecipeArtworkView: View {
     @Environment(\.remoteImageCache) private var imageCache
+    @Environment(\.ladleAccent) private var accent
 
     let owner: RemoteImageOwner
     let image: RecipeImage?
@@ -159,11 +160,11 @@ struct RecipeArtworkView: View {
     private var artworkPlaceholder: some View {
         if loadState == .loading {
             ProgressView()
-                .tint(LadleTheme.Intent.accent)
+                .tint(accent.intent)
                 .accessibilityLabel(loadState.accessibilityLabel)
         } else {
             Image(systemName: loadState.systemImage)
-                .foregroundStyle(LadleTheme.Label.accent)
+                .foregroundStyle(accent.label)
                 .accessibilityLabel(loadState.accessibilityLabel)
         }
     }

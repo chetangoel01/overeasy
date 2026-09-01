@@ -530,6 +530,7 @@ private struct DiscoverRefreshBanner: View {
 
 private struct DiscoverRecipeRow: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.ladleAccent) private var accent
 
     let recipe: DiscoverRecipe
     let sort: DiscoverSort
@@ -597,7 +598,7 @@ private struct DiscoverRecipeRow: View {
             systemImage: report.failure.systemImage
         )
         .ladleFont(.metadata)
-        .foregroundStyle(LadleTheme.Label.accent)
+        .foregroundStyle(accent.label)
         .fixedSize(horizontal: false, vertical: true)
     }
 
@@ -609,7 +610,7 @@ private struct DiscoverRecipeRow: View {
             VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
                 Text(recipe.creatorName ?? recipe.source.libraryTitle)
                     .ladleFont(.metadata)
-                    .foregroundStyle(LadleTheme.Label.accent)
+                    .foregroundStyle(accent.label)
                     .lineLimit(1)
                 Text(recipe.title)
                     .ladleFont(.bodyStrong)
@@ -643,7 +644,7 @@ private struct DiscoverRecipeRow: View {
                 ZStack {
                     Rectangle().fill(.thinMaterial)
                     ProgressView()
-                        .tint(LadleTheme.Intent.accent)
+                        .tint(accent.intent)
                 }
             }
         }
@@ -671,7 +672,7 @@ private struct DiscoverRecipeRow: View {
                 .padding(.horizontal, LadleTheme.Spacing.medium)
                 .frame(minHeight: LadleTheme.Control.hitTarget)
                 .background(
-                    isSaved ? LadleTheme.Intent.success : LadleTheme.Intent.accent,
+                    isSaved ? LadleTheme.Intent.success : accent.intent,
                     in: Capsule()
                 )
         }
@@ -695,6 +696,7 @@ private struct DiscoverRecipeRow: View {
 }
 
 private struct DiscoverRecipeContextPreview: View {
+    @Environment(\.ladleAccent) private var accent
     let recipe: DiscoverRecipe
 
     var body: some View {
@@ -710,7 +712,7 @@ private struct DiscoverRecipeContextPreview: View {
 
             Text(recipe.creatorName ?? recipe.source.libraryTitle)
                 .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.Label.accent)
+                .foregroundStyle(accent.label)
             Text(recipe.title)
                 .ladleFont(.section)
                 .foregroundStyle(LadleTheme.Label.primary)

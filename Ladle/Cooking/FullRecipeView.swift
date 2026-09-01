@@ -3,6 +3,7 @@ import SwiftUI
 
 struct FullRecipeView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.ladleAccent) private var accent
 
     @Bindable var viewModel: CookingViewModel
 
@@ -120,7 +121,7 @@ struct FullRecipeView: View {
             )
             .ladleFont(.bodyStrong)
             .foregroundStyle(LadleTheme.Label.primary)
-            .tint(LadleTheme.Intent.accent)
+            .tint(accent.intent)
             .padding(.horizontal, 16)
             .frame(minHeight: LadleTheme.Control.primary)
             .background(
@@ -167,7 +168,7 @@ struct FullRecipeView: View {
                 .foregroundStyle(LadleTheme.Label.onAccent)
                 .padding(.horizontal, 12)
                 .frame(minHeight: LadleTheme.Control.hitTarget)
-                .background(LadleTheme.Intent.accent, in: Capsule())
+                .background(accent.intent, in: Capsule())
         }
         .buttonStyle(LadlePressButtonStyle())
     }

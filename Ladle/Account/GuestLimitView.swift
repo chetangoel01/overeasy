@@ -3,6 +3,8 @@ import LadleCore
 import SwiftUI
 
 struct GuestLimitView: View {
+    @Environment(\.ladleAccent) private var accent
+
     let decision: GuestSaveDecision
     var continueAction: () -> Void
 
@@ -37,7 +39,7 @@ struct GuestLimitView: View {
 
                 Image(systemName: "books.vertical")
                     .font(.system(size: LadleTheme.IconSize.feature, weight: .semibold))
-                    .foregroundStyle(LadleTheme.Label.accent)
+                    .foregroundStyle(accent.label)
                     .frame(width: 54, height: 54)
                     .background(LadleTheme.Surface.badge, in: Circle())
 
@@ -98,14 +100,14 @@ struct GuestLimitView: View {
                 if flow.isAuthenticating {
                     ProgressView("Creating your free account")
                         .ladleFont(.metadata)
-                        .tint(LadleTheme.Intent.accent)
+                        .tint(accent.intent)
                         .foregroundStyle(LadleTheme.Label.secondary)
                 }
 
                 if let failure = flow.failure {
                     Text(failure.message)
                         .ladleFont(.metadata)
-                        .foregroundStyle(LadleTheme.Label.accent)
+                        .foregroundStyle(accent.label)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("guest-limit.sign-in-failure")

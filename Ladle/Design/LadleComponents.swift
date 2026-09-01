@@ -113,10 +113,14 @@ enum LadleButtonRole {
     case tertiary
 
     /// `nil` draws no fill at all.
-    var fill: Color? {
+    ///
+    /// Takes the accent rather than reading it: an enum sits outside the view
+    /// graph, so it cannot reach `@Environment` itself. The view that draws
+    /// the button passes its own.
+    func fill(_ accent: LadleAccentColor) -> Color? {
         switch self {
         case .primary:
-            LadleTheme.Intent.accent
+            accent.intent
         case .secondary:
             LadleTheme.Surface.raised
         case .destructive:
@@ -126,14 +130,14 @@ enum LadleButtonRole {
         }
     }
 
-    var label: Color {
+    func label(_ accent: LadleAccentColor) -> Color {
         switch self {
         case .primary, .destructive:
             LadleTheme.Label.onAccent
         case .secondary:
             LadleTheme.Label.primary
         case .tertiary:
-            LadleTheme.Label.accent
+            accent.label
         }
     }
 }
@@ -180,6 +184,7 @@ struct LadleButtonStyle: ButtonStyle {
     private struct Content: View {
         @Environment(\.accessibilityReduceMotion) private var reduceMotion
         @Environment(\.isEnabled) private var isEnabled
+        @Environment(\.ladleAccent) private var accent
 
         let role: LadleButtonRole
         let isFullWidth: Bool
@@ -192,14 +197,14 @@ struct LadleButtonStyle: ButtonStyle {
                     ? nil
                     : LadleTheme.Intent.disabledFill
             }
-            return role.fill
+            return role.fill(accent)
         }
 
         var body: some View {
             configuration.label
                 .ladleFont(.bodyStrong)
                 .foregroundStyle(
-                    isEnabled ? role.label : LadleTheme.Intent.disabledLabel
+                    isEnabled ? role.label(accent) : LadleTheme.Intent.disabledLabel
                 )
                 .padding(
                     .horizontal,
@@ -322,12 +327,13 @@ enum LadleIconButtonTone {
     case primary
     case onDark
 
-    var background: Color {
+    /// See `LadleButtonRole.fill(_:)` for why this takes the accent.
+    func background(_ accent: LadleAccentColor) -> Color {
         switch self {
         case .quiet:
             LadleTheme.Surface.steel
         case .primary:
-            LadleTheme.Intent.accent
+            accent.intent
         case .onDark:
             LadleTheme.Label.onAccent.opacity(0.12)
         }
@@ -346,6 +352,8 @@ enum LadleIconButtonTone {
 }
 
 struct LadleIconButton: View {
+    @Environment(\.ladleAccent) private var accent
+
     let systemImage: String
     let accessibilityLabel: String
     var tone: LadleIconButtonTone = .quiet
@@ -357,7 +365,7 @@ struct LadleIconButton: View {
                 .font(.system(size: LadleTheme.IconSize.medium, weight: .bold))
                 .foregroundStyle(tone.foreground)
                 .frame(width: LadleTheme.Control.hitTarget, height: LadleTheme.Control.hitTarget)
-                .background(tone.background, in: Circle())
+                .background(tone.background(accent), in: Circle())
         }
         .buttonStyle(LadlePressButtonStyle())
         .accessibilityLabel(accessibilityLabel)

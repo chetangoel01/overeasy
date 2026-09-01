@@ -2,6 +2,8 @@ import LadleCore
 import SwiftUI
 
 struct RecipeListRow: View {
+    @Environment(\.ladleAccent) private var accent
+
     let recipe: Recipe
     let openRecipe: () -> Void
     let toggleFavorite: () -> Void
@@ -39,7 +41,7 @@ struct RecipeListRow: View {
                 .font(.system(size: LadleTheme.IconSize.medium, weight: .semibold))
                 .foregroundStyle(
                     recipe.isFavorite
-                        ? LadleTheme.Label.accent
+                        ? accent.label
                         : LadleTheme.Label.primary.opacity(0.52)
                 )
                 .frame(width: LadleTheme.Control.hitTarget, height: LadleTheme.Control.hitTarget)
