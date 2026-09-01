@@ -15,7 +15,12 @@ from ladle.contracts.errors import (
     ErrorCode,
     SyncConflictDetails,
 )
-from ladle.contracts.recipes import DiscoverPageDTO, RecipeDTO, SyncPageDTO
+from ladle.contracts.recipes import (
+    DiscoverPageDTO,
+    DiscoverSort,
+    RecipeDTO,
+    SyncPageDTO,
+)
 from ladle.observability.metrics import MetricsRegistry
 from ladle.recipes.limits import GuestRecipeLimitReached
 from ladle.recipes.service import (
@@ -103,7 +108,10 @@ def sync_recipes(
 @router.get("/discover", response_model=DiscoverPageDTO)
 def discover_recipes(
     request: Request,
+    cursor: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[PositiveInt, Query(le=100)] = 30,
+    q: Annotated[str | None, Query(max_length=100)] = None,
+    sort: Annotated[DiscoverSort, Query()] = DiscoverSort.POPULAR,
     authorization: Annotated[str | None, Header()] = None,
 ) -> DiscoverPageDTO:
     claims = access_claims(request, authorization)
@@ -115,6 +123,9 @@ def discover_recipes(
             current_database,
             user_id=claims.user_id,
             limit=limit,
+            cursor=cursor,
+            query=q,
+            sort=sort,
         )
 
 

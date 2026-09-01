@@ -280,6 +280,18 @@ class SourceVideo(Base):
     source_revision: Mapped[str] = mapped_column(
         String(255), nullable=False, server_default="1"
     )
+    # Engagement counts as the source platform last reported them, with the
+    # moment they were taken. A snapshot, never a live figure.
+    like_count: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    view_count: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    comment_count: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    repost_count: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    published_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    counts_refreshed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     source_metadata: Mapped[dict[str, Any]] = mapped_column(
         "metadata_json", JSON, nullable=False, server_default=text("'{}'::json")
     )

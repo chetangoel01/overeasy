@@ -22,6 +22,47 @@ final class DiscoverViewModel {
     private let removesSavedRecipeImmediately: Bool
     private(set) var state: State = .idle
     private(set) var refreshState: RefreshState = .current
+    private(set) var isLoadingMore = false
+    private(set) var hasMore = false
+    private var nextCursor = 0
+    /// Bumped on every query or sort change. A page that finishes after the
+    /// criteria moved on carries a stale generation and is discarded, so a
+    /// slow first page cannot overwrite the results of a later search.
+    private var generation = 0
+
+    private var reloadTask: Task<Void, Never>?
+
+    var query = "" {
+        didSet {
+            guard query != oldValue else { return }
+            criteriaChanged()
+            // Typing is a round trip now, so wait for a pause.
+            scheduleReload(after: .milliseconds(300))
+        }
+    }
+
+    var sort: DiscoverSort = .popular {
+        didSet {
+            guard sort != oldValue else { return }
+            criteriaChanged()
+            scheduleReload(after: .zero)
+        }
+    }
+
+    /// Reloading belongs to the criteria changing, not to the view appearing.
+    /// It used to hang off `.task(id:)`, which SwiftUI also runs every time
+    /// the view comes back — so every switch back to Discover threw the feed
+    /// away and showed a spinner.
+    private func scheduleReload(after delay: Duration) {
+        reloadTask?.cancel()
+        reloadTask = Task { [weak self] in
+            if delay > .zero {
+                try? await Task.sleep(for: delay)
+                guard !Task.isCancelled else { return }
+            }
+            await self?.load()
+        }
+    }
     private(set) var savingSourceIDs: Set<UUID> = []
     private(set) var loadingDetailSourceIDs: Set<UUID> = []
     private(set) var savedSourceIDs: Set<UUID> = []
@@ -36,10 +77,20 @@ final class DiscoverViewModel {
         self.removesSavedRecipeImmediately = removesSavedRecipeImmediately
     }
 
+    private func criteriaChanged() {
+        generation += 1
+        nextCursor = 0
+        hasMore = false
+        state = .loading
+    }
+
+    /// Loads the first page for the current query and sort, replacing
+    /// whatever is on screen. Also the refresh path.
     func load() async {
-        guard state != .loading, refreshState != .refreshing else { return }
+        guard refreshState != .refreshing else { return }
+        let token = generation
         let cachedRecipes: [DiscoverRecipe]?
-        if case let .loaded(recipes) = state {
+        if case let .loaded(recipes) = state, !recipes.isEmpty {
             cachedRecipes = recipes
             refreshState = .refreshing
         } else {
@@ -47,17 +98,23 @@ final class DiscoverViewModel {
             state = .loading
         }
         do {
-            let recipes = try await service.fetchDiscoverRecipes()
+            let page = try await service.fetchDiscoverPage(
+                cursor: 0,
+                query: query,
+                sort: sort
+            )
+            guard token == generation else { return }
             savedSourceIDs = Set(
-                recipes.lazy.compactMap { recipe in
+                page.recipes.lazy.compactMap { recipe in
                     recipe.savedRecipeID == nil ? nil : recipe.sourceID
                 }
             )
-            state = .loaded(
-                recipes.filter { $0.savedRecipeID == nil }
-            )
+            nextCursor = page.nextCursor
+            hasMore = page.hasMore
+            state = .loaded(page.recipes.filter { $0.savedRecipeID == nil })
             refreshState = .current
         } catch is CancellationError {
+            guard token == generation else { return }
             if let cachedRecipes {
                 state = .loaded(cachedRecipes)
                 refreshState = .current
@@ -65,6 +122,7 @@ final class DiscoverViewModel {
                 state = .idle
             }
         } catch {
+            guard token == generation else { return }
             let report = RemoteFailureReport(error)
             if let cachedRecipes {
                 state = .loaded(cachedRecipes)
@@ -73,6 +131,50 @@ final class DiscoverViewModel {
                 state = .failed(report)
             }
         }
+    }
+
+    /// Appends the next page. A failure here leaves the rows already on
+    /// screen alone — the reader keeps what they have and can scroll again.
+    func loadMore() async {
+        guard hasMore, !isLoadingMore, refreshState != .refreshing,
+              case let .loaded(existing) = state
+        else { return }
+        let token = generation
+        isLoadingMore = true
+        defer { isLoadingMore = false }
+        do {
+            let page = try await service.fetchDiscoverPage(
+                cursor: nextCursor,
+                query: query,
+                sort: sort
+            )
+            guard token == generation, case .loaded = state else { return }
+            let seen = Set(existing.map(\.sourceID))
+            let fresh = page.recipes.filter {
+                $0.savedRecipeID == nil
+                    && !seen.contains($0.sourceID)
+                    && !savedSourceIDs.contains($0.sourceID)
+            }
+            nextCursor = page.nextCursor
+            hasMore = page.hasMore
+            state = .loaded(existing + fresh)
+        } catch is CancellationError {
+            return
+        } catch {
+            guard token == generation else { return }
+            // Stop walking rather than retrying the same cursor forever.
+            hasMore = false
+        }
+    }
+
+    /// True once the reader is close enough to the end to start the next page.
+    func shouldLoadMore(after recipe: DiscoverRecipe) -> Bool {
+        guard hasMore, !isLoadingMore, case let .loaded(recipes) = state,
+              let index = recipes.firstIndex(where: {
+                  $0.sourceID == recipe.sourceID
+              })
+        else { return false }
+        return index >= recipes.count - DiscoverPaging.prefetchThreshold
     }
 
     func isSaving(_ recipe: DiscoverRecipe) -> Bool {
@@ -174,12 +276,41 @@ struct DiscoverView: View {
             }
         }
         .background(LadleTheme.Surface.porcelain)
+        .searchable(
+            text: $viewModel.query,
+            placement: .navigationBarDrawer(displayMode: .automatic),
+            prompt: "Search Discover"
+        )
+        .textInputAutocapitalization(.never)
+        .autocorrectionDisabled()
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                sortMenu
+            }
+        }
         .task {
             if viewModel.state == .idle {
                 await viewModel.load()
             }
         }
         .accessibilityIdentifier("library.discover")
+    }
+
+    private var sortMenu: some View {
+        Menu {
+            Picker("Sort Discover", selection: $viewModel.sort) {
+                ForEach(DiscoverSort.allCases) { option in
+                    Label(option.title, systemImage: option.systemImage)
+                        .tag(option)
+                }
+            }
+        } label: {
+            Label(
+                "Sort Discover",
+                systemImage: "line.3.horizontal.decrease"
+            )
+        }
+        .accessibilityIdentifier("discover.sort")
     }
 
     private var loadingContent: some View {
@@ -212,7 +343,18 @@ struct DiscoverView: View {
     private func loadedContent(_ recipes: [DiscoverRecipe]) -> some View {
         Group {
             if recipes.isEmpty {
-                emptyContent
+                // The server already applied the query, so an empty page
+                // under an active search is a no-results state, not an
+                // empty feed.
+                if viewModel.query.trimmingCharacters(
+                    in: .whitespacesAndNewlines
+                ).isEmpty {
+                    emptyContent
+                } else {
+                    ContentUnavailableView.search(text: viewModel.query)
+                        .foregroundStyle(LadleTheme.Label.primary)
+                        .accessibilityIdentifier("discover.no-results")
+                }
             } else {
                 recipeList(recipes)
             }
@@ -258,7 +400,7 @@ struct DiscoverView: View {
                     Text("Saved by cooks")
                         .ladleFont(.section)
                         .foregroundStyle(LadleTheme.Label.primary)
-                    Text("Popular public recipe videos, ranked by saves.")
+                    Text(viewModel.sort.caption)
                         .ladleFont(.metadata)
                         .foregroundStyle(LadleTheme.Label.secondary)
                 }
@@ -267,6 +409,7 @@ struct DiscoverView: View {
                 ForEach(recipes) { recipe in
                     DiscoverRecipeRow(
                         recipe: recipe,
+                        sort: viewModel.sort,
                         isLoadingDetail: viewModel.isLoadingDetail(recipe),
                         isSaving: viewModel.isSaving(recipe),
                         isSaved: viewModel.isSaved(recipe),
@@ -289,8 +432,27 @@ struct DiscoverView: View {
                             }
                         }
                     )
+                    // Rows are lazy, so this fires as the reader approaches
+                    // the end rather than for the whole list at once.
+                    .onAppear {
+                        guard viewModel.shouldLoadMore(after: recipe) else {
+                            return
+                        }
+                        Task { await viewModel.loadMore() }
+                    }
                     Divider()
                         .overlay(LadleTheme.Label.primary.opacity(0.08))
+                }
+
+                if viewModel.isLoadingMore {
+                    HStack {
+                        Spacer()
+                        ProgressView()
+                            .controlSize(.small)
+                        Spacer()
+                    }
+                    .padding(.vertical, LadleTheme.Spacing.medium)
+                    .accessibilityLabel("Loading more recipes")
                 }
             }
             .padding(.horizontal, LadleTheme.Spacing.regular)
@@ -370,6 +532,7 @@ private struct DiscoverRecipeRow: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     let recipe: DiscoverRecipe
+    let sort: DiscoverSort
     let isLoadingDetail: Bool
     let isSaving: Bool
     let isSaved: Bool
@@ -519,8 +682,13 @@ private struct DiscoverRecipeRow: View {
         )
     }
 
+    /// Under Most liked the row shows the number it is ranked by; showing
+    /// saves there would leave the order looking arbitrary.
     private var saveCountText: String {
-        recipe.savedCount == 1
+        if sort == .mostLiked, let likeCount = recipe.likeCount {
+            return "\(likeCount.formatted(.number.notation(.compactName))) likes"
+        }
+        return recipe.savedCount == 1
             ? "Saved by 1 cook"
             : "Saved by \(recipe.savedCount) cooks"
     }
@@ -566,10 +734,18 @@ private struct DiscoverArtwork: View {
     var body: some View {
         RecipeArtworkView(
             owner: .discoverSource(id: recipe.sourceID),
-            image: recipe.imageURL.map {
-                RecipeImage(id: recipe.sourceID, remoteURL: $0)
-            }
+            image: image
         )
+    }
+
+    /// A served Discover row carries a remote thumbnail URL. Demo rows carry
+    /// none — fixture artwork is a bundled asset — so they fall back to the
+    /// fixture, which is why the demo feed showed placeholder pans.
+    private var image: RecipeImage? {
+        if let imageURL = recipe.imageURL {
+            return RecipeImage(id: recipe.sourceID, remoteURL: imageURL)
+        }
+        return PreviewFixtures.discoverArtwork(sourceID: recipe.sourceID)
     }
 }
 

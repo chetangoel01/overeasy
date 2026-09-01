@@ -1,36 +1,34 @@
 """Reject imports that lack enough textual evidence for a faithful recipe."""
 
-from ladle.acquisition.coverage import (
-    has_instructions,
-    has_quantities,
-    quantity_mention_count,
-)
+from ladle.acquisition.coverage import has_instructions
 from ladle.acquisition.models import AcquiredVideoContext
 
 
 class InsufficientTextEvidence(Exception):
-    """No transcript, creator page, or dense caption supports the recipe."""
-
-
-_MINIMUM_CAPTION_QUANTITIES = 3
+    """No transcript, creator page, or caption describes a cooking method."""
 
 
 def require_recipe_evidence(context: AcquiredVideoContext) -> None:
-    """Require recipe-bearing text, excluding titles and sparse promotion."""
+    """Require text that describes cooking, from any source.
 
-    recipe_text = " ".join(
+    This used to also demand at least three quantity mentions in a caption.
+    That rejected a great many real recipes: creators routinely list
+    ingredients with no amounts at all — "chicken breast, olive oil, lemon
+    juice" — and then give a perfectly clear method. Counting quantities was
+    standing in for "is this a recipe", and the two come apart exactly there.
+
+    What is left is the honest question: does anything here describe cooking?
+    A promotional caption that never says how to make the dish still fails.
+    Deciding what to do about missing amounts is the extractor's job, not
+    this gate's — the prompt tells it to assemble what it can and mark what
+    it could not.
+    """
+    evidence = " ".join(
         [
+            context.description,
             *(segment.text for segment in context.transcript),
             *(document.text for document in context.linked_documents),
         ]
     )
-    trusted_recipe = has_quantities(recipe_text) and has_instructions(recipe_text)
-    caption_recipe = quantity_mention_count(
-        context.description
-    ) >= _MINIMUM_CAPTION_QUANTITIES and has_instructions(
-        f"{context.description} {recipe_text}"
-    )
-    if not trusted_recipe and not caption_recipe:
-        raise InsufficientTextEvidence(
-            "text evidence lacks a quantified cooking method"
-        )
+    if not has_instructions(evidence):
+        raise InsufficientTextEvidence("text evidence describes no cooking method")

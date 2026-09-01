@@ -37,6 +37,11 @@ struct FocusModeView: View {
                         timerSection
                         relevantIngredientsSection
                     }
+                    // Fill the width, or the stack shrinks to its widest child
+                    // and the scroll view centres it — so a short instruction
+                    // sat further in from the edge than a long one, and the
+                    // margin visibly jumped from step to step.
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, LadleTheme.Spacing.generous)
                     .padding(.top, 24)
                     .padding(.bottom, LadleTheme.Layout.scrollTail)

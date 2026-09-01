@@ -55,6 +55,9 @@ struct MethodList: View {
                     }
                     .padding(.bottom, 24)
                 }
+                // A scroll target, so a step chosen from the cooking screen's
+                // step menu can be brought into view.
+                .id(step.id)
             }
         }
     }

@@ -4,13 +4,14 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import delete, distinct, func, select
+from sqlalchemy import delete, distinct, func, or_, select
 from sqlalchemy.orm import Session, aliased
 
 from ladle.contracts.recipes import (
     DetectedTimerDTO,
     DiscoverPageDTO,
     DiscoverRecipeDTO,
+    DiscoverSort,
     FieldUncertaintyDTO,
     IngredientDTO,
     NutrientDTO,
@@ -34,6 +35,15 @@ from ladle.db.models import (
     SourceVideo,
     StepIngredient,
 )
+
+
+def _escape_like(value: str) -> str:
+    """Neutralise LIKE wildcards so a search for "100%" is a literal search.
+
+    Without this a user typing % or _ silently matches everything, and a
+    trailing backslash breaks the pattern outright.
+    """
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 class ObjectURLUnavailable(Exception):
@@ -95,37 +105,98 @@ class RecipeRepository:
         *,
         user_id: UUID,
         limit: int,
+        cursor: int = 0,
+        query: str | None = None,
+        sort: DiscoverSort = DiscoverSort.POPULAR,
     ) -> DiscoverPageDTO:
+        """One page of the public feed, ordered and filtered by the server.
+
+        `cursor` is an offset into the ranked list, matching the integer
+        cursor `/v1/recipes/sync` already uses. It counts *ranked rows
+        consumed*, not items returned: a ranked source whose extraction cache
+        has gone stale is dropped from `items` but still advances the cursor,
+        so paging cannot stall on one bad row.
+        """
         saved_recipe = aliased(Recipe)
         saved_source_ids = select(saved_recipe.source_video_id).where(
             saved_recipe.user_id == user_id,
             saved_recipe.source_video_id.is_not(None),
         )
+        conditions = [
+            Recipe.user_id != user_id,
+            Recipe.deleted_at.is_(None),
+            Recipe.review_status == RecipeReviewStatus.READY.value,
+            Recipe.source != RecipeSource.OTHER.value,
+            Recipe.source_video_id.is_not(None),
+            Recipe.source_cache_id.is_not(None),
+            Recipe.source_video_id.not_in(saved_source_ids),
+        ]
+        if query:
+            # Search the saved recipes' own columns rather than the cached
+            # template JSON: those are real indexable columns, and the rows
+            # being ranked are exactly these. A saver who renamed their private
+            # copy can therefore surface a source whose displayed title differs
+            # from what matched, which is an acceptable trade for a searchable
+            # column.
+            pattern = f"%{_escape_like(query.strip())}%"
+            conditions.append(
+                or_(
+                    Recipe.title.ilike(pattern, escape="\\"),
+                    Recipe.creator_name.ilike(pattern, escape="\\"),
+                )
+            )
+
+        saved_count = func.count(distinct(Recipe.user_id)).label("saved_count")
+        latest_save = func.max(Recipe.updated_at).label("latest_save")
+        # min() picks one deterministic title per source for A-to-Z; the
+        # savers' copies of one video agree on it in all but edited cases.
+        sort_title = func.min(Recipe.title).label("sort_title")
+        # SourceVideo joins 1:1 on the group key, but Postgres still needs an
+        # aggregate over a non-grouped column.
+        like_count = func.max(SourceVideo.like_count).label("like_count")
+        if sort == DiscoverSort.ALPHABETICAL:
+            ordering = [sort_title.asc(), Recipe.source_video_id]
+        elif sort == DiscoverSort.MOST_LIKED:
+            # NULLS LAST matters: counts are only captured from the import
+            # that introduced them onward, so most of an existing corpus has
+            # none and would otherwise fill the first page. Save count is the
+            # tiebreak, which degrades this to the popular order while counts
+            # accrue, and source id keeps the total order deterministic —
+            # without it an offset cursor skips and repeats rows across the
+            # ties this ranking is full of.
+            ordering = [
+                like_count.desc().nullslast(),
+                saved_count.desc(),
+                Recipe.source_video_id,
+            ]
+        else:
+            ordering = [
+                saved_count.desc(),
+                latest_save.desc(),
+                Recipe.source_video_id,
+            ]
+
         ranked = database.execute(
             select(
                 Recipe.source_video_id,
-                func.count(distinct(Recipe.user_id)).label("saved_count"),
-                func.max(Recipe.updated_at).label("latest_save"),
+                saved_count,
+                latest_save,
+                sort_title,
+                like_count,
             )
-            .where(
-                Recipe.user_id != user_id,
-                Recipe.deleted_at.is_(None),
-                Recipe.review_status == RecipeReviewStatus.READY.value,
-                Recipe.source != RecipeSource.OTHER.value,
-                Recipe.source_video_id.is_not(None),
-                Recipe.source_cache_id.is_not(None),
-                Recipe.source_video_id.not_in(saved_source_ids),
-            )
+            .join(SourceVideo, SourceVideo.id == Recipe.source_video_id)
+            .where(*conditions)
             .group_by(Recipe.source_video_id)
-            .order_by(
-                func.count(distinct(Recipe.user_id)).desc(),
-                func.max(Recipe.updated_at).desc(),
-                Recipe.source_video_id,
-            )
-            .limit(limit)
+            .order_by(*ordering)
+            .offset(cursor)
+            # One extra row answers has_more without a second count query.
+            .limit(limit + 1)
         ).all()
+
+        has_more = len(ranked) > limit
+        consumed = ranked[:limit]
         items: list[DiscoverRecipeDTO] = []
-        for source_video_id, saved_count, _ in ranked:
+        for source_video_id, count, _latest, _title, likes in consumed:
             source = database.get(SourceVideo, source_video_id)
             if source is None:
                 continue
@@ -153,11 +224,16 @@ class RecipeRepository:
                     source=template["source"],
                     original_url=source.canonical_url,
                     image_url=image_url,
-                    saved_count=saved_count,
+                    saved_count=count,
+                    like_count=likes,
                     saved_recipe_id=None,
                 )
             )
-        return DiscoverPageDTO(items=items)
+        return DiscoverPageDTO(
+            items=items,
+            next_cursor=cursor + len(consumed),
+            has_more=has_more,
+        )
 
     def extraction_thumbnail_url(self, cache: ExtractionCache) -> str | None:
         if cache.thumbnail_remote_url is not None:

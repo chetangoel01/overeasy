@@ -345,10 +345,10 @@ final class LibraryViewModelTests: XCTestCase {
         XCTAssertEqual(shuffleCallCount, 1)
     }
 
-    func testDenseArchiveFactsLeadWithProtein() {
+    func testDenseArchiveFactsLeadWithCalories() {
         XCTAssertEqual(
             PreviewFixtures.recipes[0].libraryFacts,
-            "38 g P · ≈ 680 cal"
+            "680 cal · 38g protein"
         )
     }
 
@@ -366,7 +366,7 @@ final class LibraryViewModelTests: XCTestCase {
             )
         )
 
-        XCTAssertEqual(recipe.libraryFacts, "30 g P · ≈ 300 cal")
+        XCTAssertEqual(recipe.libraryFacts, "300 cal · 30g protein")
     }
 
     func testDenseArchiveFactsRoundRepeatingPerServingValues() {
@@ -383,7 +383,7 @@ final class LibraryViewModelTests: XCTestCase {
             )
         )
 
-        XCTAssertEqual(recipe.libraryFacts, "5 g P · ≈ 57 cal")
+        XCTAssertEqual(recipe.libraryFacts, "57 cal · 5g protein")
         XCTAssertEqual(recipe.ladleYieldText, "11 servings")
     }
 
@@ -420,7 +420,7 @@ final class LibraryViewModelTests: XCTestCase {
             )
         )
 
-        XCTAssertEqual(recipe.libraryFacts, "20 g P · 300 cal")
+        XCTAssertEqual(recipe.libraryFacts, "300 cal · 20g protein")
     }
 
     func testDisplayModePersistsAcrossViewModels() {

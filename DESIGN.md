@@ -70,23 +70,31 @@ its fixed `focusAccent`, and errors use the system destructive role.
 ## Typography
 
 All type uses SF Pro's standard design and width. Text uses a role from
-`LadleTextStyle`, never a size.
+`LadleTextStyle`, never a size — and each role is a system text style, so the
+sizes below are iOS's, not ours. A role names what the text is *for*; the
+platform decides how big that is. This is why the app matches the metrics of
+every other iOS app and tracks the system at every Dynamic Type setting rather
+than only approximating it at the default one.
 
-| Role | Size | Weight | Use |
-| --- | --- | --- | --- |
-| `display` | 38 | bold | Welcome or Focus headline that owns the screen |
-| `title` | 31 | bold | Screen title, cooking instruction |
-| `recipeTitle` | 18 | semibold | A recipe's name as content |
-| `section` | 19 | semibold | Section heading above a group |
-| `body` | 17 | regular | Running text |
-| `bodyStrong` | 17 | semibold | Emphasis, and every button label |
-| `metadata` | 13 | regular | Counts, sources, supporting detail |
-| `eyebrow` | 12 | semibold | Uppercase label above a title, Focus Mode only |
+| Role | Text style | Size at default | Weight | Use |
+| --- | --- | --- | --- | --- |
+| `display` | `.largeTitle` | 34 | bold | Welcome or Focus headline that owns the screen |
+| `title` | `.title` | 28 | bold | Screen title, cooking instruction |
+| `recipeTitle` | `.title3` | 20 | semibold | A recipe's name as content |
+| `section` | `.headline` | 17 | system | Section heading above a group |
+| `body` | `.body` | 17 | system | Running text |
+| `bodyStrong` | `.body` | 17 | semibold | Emphasis, and every button label |
+| `metadata` | `.footnote` | 13 | system | Counts, sources, supporting detail |
+| `eyebrow` | `.caption` | 12 | semibold | Uppercase label above a title, Focus Mode only |
 
-`recipeTitle` and `section` sit one point apart but are not interchangeable:
-`recipeTitle` scales against `.title3` because a recipe name is content, and
-`section` against `.headline` because a section label is chrome. They diverge
-at large Dynamic Type, which is the point.
+"System" weight means the role does not override the text style's own weight.
+`.headline` is already semibold on iOS; restating that here would freeze it if
+the platform ever changed.
+
+`recipeTitle` and `section` are not interchangeable: `recipeTitle` is `.title3`
+because a recipe name is content and should grow with the reader's size, and
+`section` is `.headline` because a section label is chrome and stays closer to
+the surrounding UI. They diverge at large Dynamic Type, which is the point.
 
 `ladleScaledFont(size:)` is for cooking surfaces needing distance legibility
 beyond `display`, and nothing else. Symbol point sizes use `LadleTheme.IconSize`

@@ -10,14 +10,13 @@ private enum WatchFeed: String, CaseIterable, Identifiable {
 }
 
 struct WatchOverlayLayout {
-    static func topPadding(safeAreaTop: CGFloat) -> CGFloat {
-        safeAreaTop + LadleTheme.Spacing.compact
-    }
+    /// Overlay chrome is laid out inside the safe area already, so it only
+    /// needs the compact step below the status bar — adding the inset again
+    /// pushes the controls a full safe-area height down the screen.
+    static let topPadding = LadleTheme.Spacing.compact
 
-    static func refreshTopPadding(safeAreaTop: CGFloat) -> CGFloat {
-        topPadding(safeAreaTop: safeAreaTop)
-            + LadleTheme.Control.hitTarget
-    }
+    static let refreshTopPadding =
+        topPadding + LadleTheme.Control.hitTarget
 
     static func bottomPadding(safeAreaBottom: CGFloat) -> CGFloat {
         safeAreaBottom
@@ -37,11 +36,12 @@ struct WatchView: View {
     let openSavedRecipe: (Recipe) -> Void
     let openDiscoverRecipe: (Recipe) -> Void
     let saveRecipe: (SavedDiscoverRecipe) -> Void
-    let openAccount: () -> Void
 
     @State private var discoverViewModel: DiscoverViewModel
     @State private var cookingViewModel: CookingViewModel?
     @State private var isMuted = false
+    @State private var isPlaybackPaused = false
+    @Environment(\.colorScheme) private var systemColorScheme
     @State private var visibleRecipeID: UUID?
     @State private var feed = WatchFeed.discover
 
@@ -52,14 +52,12 @@ struct WatchView: View {
         openSavedRecipe: @escaping (Recipe) -> Void,
         openDiscoverRecipe: @escaping (Recipe) -> Void,
         saveRecipe: @escaping (SavedDiscoverRecipe) -> Void,
-        openAccount: @escaping () -> Void
     ) {
         self.viewModel = viewModel
         self.refreshVersion = refreshVersion
         self.openSavedRecipe = openSavedRecipe
         self.openDiscoverRecipe = openDiscoverRecipe
         self.saveRecipe = saveRecipe
-        self.openAccount = openAccount
         _discoverViewModel = State(
             initialValue: DiscoverViewModel(
                 service: discoverService,
@@ -84,29 +82,22 @@ struct WatchView: View {
                 }
             }
 
-            feedPicker
-                .padding(.leading, LadleTheme.Spacing.regular)
-                .padding(
-                    .top,
-                    WatchOverlayLayout.topPadding(
-                        safeAreaTop: viewport.safeAreaInsets.top
-                    )
-                )
+            feedControlRow
+                .padding(.horizontal, LadleTheme.Spacing.regular)
+                .padding(.top, WatchOverlayLayout.topPadding)
                 .zIndex(1)
 
             if feed == .discover {
                 discoverRefreshOverlay
                     .padding(.horizontal, LadleTheme.Spacing.regular)
-                    .padding(
-                        .top,
-                        WatchOverlayLayout.refreshTopPadding(
-                            safeAreaTop: viewport.safeAreaInsets.top
-                        )
-                    )
+                    .padding(.top, WatchOverlayLayout.refreshTopPadding)
                     .zIndex(1)
             }
         }
-        .background(LadleTheme.Surface.graphite)
+        // The page ground shows through the loading, empty, and failure
+        // states, so it follows the app's ground rather than staying the
+        // fixed graphite used behind video.
+        .background(LadleTheme.Surface.porcelain)
         .fullScreenCover(item: $cookingViewModel) {
             FullRecipeView(viewModel: $0)
         }
@@ -158,6 +149,7 @@ struct WatchView: View {
                         safeAreaInsets: viewport.safeAreaInsets,
                         isVideoActive: activeRecipeID(in: recipes) == recipe.id,
                         isMuted: $isMuted,
+                        isPlaybackPaused: $isPlaybackPaused,
                         discoverRecipe: discoverRecipe(id: recipe.id),
                         isSaving: discoverRecipe(id: recipe.id).map(
                             discoverViewModel.isSaving
@@ -175,7 +167,6 @@ struct WatchView: View {
                             discoverViewModel.saveFailure
                         ),
                         openRecipe: { open(recipe) },
-                        openAccount: openAccount,
                         save: { save(recipe) },
                         startCooking: {
                             cookingViewModel = CookingViewModel(recipe: recipe)
@@ -253,6 +244,20 @@ struct WatchView: View {
         )
     }
 
+    /// Playback controls only make sense when a video page is on screen.
+    private var hasPlayableVideo: Bool {
+        switch feed {
+        case .discover:
+            if case let .loaded(recipes) = discoverViewModel.state {
+                !recipes.isEmpty
+            } else {
+                false
+            }
+        case .myRecipes:
+            !viewModel.watchRecipes.isEmpty
+        }
+    }
+
     private func activeRecipeID(in recipes: [Recipe]) -> UUID? {
         visibleRecipeID ?? recipes.first?.id
     }
@@ -269,7 +274,6 @@ struct WatchView: View {
                 systemImage: systemImage,
                 description: Text(message)
             )
-            .foregroundStyle(LadleTheme.Label.onAccent)
 
             if let retry {
                 Button("Try again", action: retry)
@@ -328,9 +332,57 @@ struct WatchView: View {
 
     private var loadingState: some View {
         ProgressView("Loading Discover")
-            .tint(LadleTheme.Label.onAccent)
-            .foregroundStyle(LadleTheme.Label.onAccent)
+            .tint(LadleTheme.Label.secondary)
+            .foregroundStyle(LadleTheme.Label.secondary)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// Feed switcher and playback controls share one row so the top of
+    /// the video stays a single band of chrome.
+    private var feedControlRow: some View {
+        HStack(spacing: LadleTheme.Spacing.medium) {
+            feedPicker
+
+            Spacer(minLength: LadleTheme.Spacing.compact)
+
+            if hasPlayableVideo {
+                LadleIconButton(
+                    systemImage: isPlaybackPaused ? "play.fill" : "pause.fill",
+                    accessibilityLabel: isPlaybackPaused
+                        ? "Resume video"
+                        : "Pause video",
+                    tone: .onDark
+                ) {
+                    isPlaybackPaused.toggle()
+                }
+                .background(.black.opacity(0.48), in: Circle())
+
+                LadleIconButton(
+                    systemImage: isMuted
+                        ? "speaker.slash.fill"
+                        : "speaker.wave.2.fill",
+                    accessibilityLabel: isMuted
+                        ? "Unmute video"
+                        : "Mute video",
+                    tone: .onDark
+                ) {
+                    isMuted.toggle()
+                }
+                .background(.black.opacity(0.48), in: Circle())
+            }
+        }
+        // Dark chrome is for sitting on video. The loading, empty, and
+        // failure states show the app's own ground instead, where forcing
+        // dark would leave a heavy pill floating on a light screen.
+        .environment(
+            \.colorScheme,
+            hasPlayableVideo ? .dark : systemColorScheme
+        )
+        .shadow(
+            color: .black.opacity(hasPlayableVideo ? 0.34 : 0),
+            radius: 6,
+            y: 1
+        )
     }
 
     private var feedPicker: some View {
@@ -341,6 +393,13 @@ struct WatchView: View {
         }
         .pickerStyle(.segmented)
         .frame(width: 190)
+        // The segmented track is translucent, so a bright video frame washes
+        // it out. A solid backing keeps the contrast constant - but only
+        // when there is video behind it.
+        .background(
+            .black.opacity(hasPlayableVideo ? 0.42 : 0),
+            in: Capsule()
+        )
         .accessibilityIdentifier("watch.feed")
     }
 }
@@ -366,6 +425,7 @@ private struct WatchRecipePage: View {
     let safeAreaInsets: UIEdgeInsets
     let isVideoActive: Bool
     @Binding var isMuted: Bool
+    @Binding var isPlaybackPaused: Bool
     let discoverRecipe: DiscoverRecipe?
     let isSaving: Bool
     let isSaved: Bool
@@ -373,12 +433,9 @@ private struct WatchRecipePage: View {
     let openFailure: RemoteFailureReport?
     let saveFailure: RemoteFailureReport?
     let openRecipe: () -> Void
-    let openAccount: () -> Void
     let save: () -> Void
     let startCooking: () -> Void
     let toggleFavorite: () -> Void
-
-    @State private var isPlaybackPaused = false
 
     /// Discover pages carry a preview Recipe whose id is the Discover
     /// sourceID, which only the Discover detail endpoint can refresh.
@@ -444,7 +501,6 @@ private struct WatchRecipePage: View {
             playbackScrim
 
             VStack(spacing: 0) {
-                topBar
                 Spacer(minLength: 120)
                 playbackRecipePanel
             }
@@ -455,25 +511,36 @@ private struct WatchRecipePage: View {
         }
     }
 
+    /// Legibility wash only. The top row carries its own control
+    /// backgrounds, so the top stays light; the bottom gets just enough
+    /// to hold the title and metadata over bright video.
     private var playbackScrim: some View {
         LinearGradient(
             stops: [
                 .init(
-                    color: LadleTheme.Label.onFixedPale.opacity(0.98),
+                    color: LadleTheme.Label.onFixedPale.opacity(0.72),
                     location: 0
                 ),
                 .init(
-                    color: LadleTheme.Label.onFixedPale.opacity(0.92),
+                    color: LadleTheme.Label.onFixedPale.opacity(0.44),
+                    location: 0.07
+                ),
+                .init(
+                    color: LadleTheme.Label.onFixedPale.opacity(0.14),
                     location: 0.16
                 ),
-                .init(color: .clear, location: 0.3),
-                .init(color: .clear, location: 0.56),
+                .init(color: .clear, location: 0.26),
+                .init(color: .clear, location: 0.54),
                 .init(
-                    color: LadleTheme.Label.onFixedPale.opacity(0.58),
-                    location: 0.72
+                    color: LadleTheme.Label.onFixedPale.opacity(0.24),
+                    location: 0.7
                 ),
                 .init(
-                    color: LadleTheme.Label.onFixedPale.opacity(0.98),
+                    color: LadleTheme.Label.onFixedPale.opacity(0.56),
+                    location: 0.88
+                ),
+                .init(
+                    color: LadleTheme.Label.onFixedPale.opacity(0.72),
                     location: 1
                 ),
             ],
@@ -520,6 +587,8 @@ private struct WatchRecipePage: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    /// The open-recipe action carries the per-page identifier, so page
+    /// identity stays queryable now that playback controls are shared.
     @ViewBuilder
     private var playbackActions: some View {
         HStack(spacing: LadleTheme.Spacing.compact) {
@@ -548,14 +617,23 @@ private struct WatchRecipePage: View {
                 }
                 .buttonStyle(LadleButtonStyle(role: .secondary))
                 .disabled(isLoadingDetail)
+                    .accessibilityIdentifier(
+                        "watch.\(recipe.librarySlug)"
+                    )
             } else if recipe.canStartCooking {
                 Button("Open recipe", action: openRecipe)
                     .buttonStyle(LadleButtonStyle(role: .secondary))
+                    .accessibilityIdentifier(
+                        "watch.\(recipe.librarySlug)"
+                    )
                 Button("Start cooking", action: startCooking)
                     .buttonStyle(LadleButtonStyle(role: .primary))
             } else {
                 Button("Review recipe", action: openRecipe)
                     .buttonStyle(LadleButtonStyle(role: .primary))
+                    .accessibilityIdentifier(
+                        "watch.\(recipe.librarySlug)"
+                    )
             }
         }
     }
@@ -571,52 +649,6 @@ private struct WatchRecipePage: View {
         .ladleFont(.metadata)
         .foregroundStyle(LadleTheme.Intent.focus)
         .fixedSize(horizontal: false, vertical: true)
-    }
-
-    private var topBar: some View {
-        HStack(spacing: LadleTheme.Spacing.medium) {
-            Spacer()
-
-            LadleIconButton(
-                systemImage: isPlaybackPaused ? "play.fill" : "pause.fill",
-                accessibilityLabel: isPlaybackPaused
-                    ? "Resume video"
-                    : "Pause video",
-                tone: .onDark
-            ) {
-                isPlaybackPaused.toggle()
-            }
-            .accessibilityIdentifier("watch.\(recipe.librarySlug)")
-            .background(.black.opacity(0.48), in: Circle())
-
-            LadleIconButton(
-                systemImage: isMuted
-                    ? "speaker.slash.fill"
-                    : "speaker.wave.2.fill",
-                accessibilityLabel: isMuted
-                    ? "Unmute video"
-                    : "Mute video",
-                tone: .onDark
-            ) {
-                isMuted.toggle()
-            }
-            .background(.black.opacity(0.48), in: Circle())
-
-            LadleIconButton(
-                systemImage: "person.crop.circle",
-                accessibilityLabel: "Account",
-                tone: .onDark,
-                action: openAccount
-            )
-            .background(.black.opacity(0.48), in: Circle())
-        }
-        .padding(.horizontal, LadleTheme.Spacing.regular)
-        .padding(
-            .top,
-            WatchOverlayLayout.topPadding(
-                safeAreaTop: safeAreaInsets.top
-            )
-        )
     }
 
     private var sourceBar: some View {

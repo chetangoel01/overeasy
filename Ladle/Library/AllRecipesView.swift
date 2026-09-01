@@ -14,7 +14,6 @@ struct AllRecipesView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: LadleTheme.Spacing.regular) {
-                searchField
                 if viewModel.recipes.isEmpty {
                     firstRecipeState
                 } else {
@@ -31,6 +30,17 @@ struct AllRecipesView: View {
         }
         .scrollIndicators(.hidden)
         .background(LadleTheme.Surface.porcelain)
+        // The system search field, not a hand-rolled one in the scroll
+        // content: it docks under the large title, collapses on scroll the
+        // way every other iOS app does, and stays out of the push transition
+        // instead of sliding across it as a pale slab.
+        .searchable(
+            text: $viewModel.searchText,
+            placement: .navigationBarDrawer(displayMode: .automatic),
+            prompt: "Search recipes"
+        )
+        .textInputAutocapitalization(.never)
+        .autocorrectionDisabled()
         .sensoryFeedback(
             .selection,
             trigger: viewModel.displayMode
@@ -40,42 +50,6 @@ struct AllRecipesView: View {
             trigger: filterChips.map(\.title)
         )
         .accessibilityIdentifier("library.all-recipes")
-    }
-
-    private var searchField: some View {
-        HStack(spacing: LadleTheme.Layout.iconGap) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(LadleTheme.Label.secondary)
-            TextField("Search recipes", text: $viewModel.searchText)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-            if !viewModel.searchText.isEmpty {
-                Button {
-                    viewModel.searchText = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(LadleTheme.Label.secondary)
-                        .frame(
-                            width: LadleTheme.Control.hitTarget,
-                            height: LadleTheme.Control.hitTarget
-                        )
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Clear search")
-            }
-        }
-        .ladleFont(.body)
-        .foregroundStyle(LadleTheme.Label.primary)
-        .padding(.horizontal, LadleTheme.Layout.cardPadding)
-        .frame(minHeight: LadleTheme.Control.field)
-        .background(
-            LadleTheme.Surface.raised,
-            in: RoundedRectangle(
-                cornerRadius: LadleTheme.Corner.control,
-                style: .continuous
-            )
-        )
-        .accessibilityIdentifier("library.search")
     }
 
     private var firstRecipeState: some View {
