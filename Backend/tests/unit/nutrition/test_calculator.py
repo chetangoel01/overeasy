@@ -674,3 +674,55 @@ def test_the_food_word_may_be_qualified_by_the_record() -> None:
     )
 
     assert recorded == []
+
+
+def test_a_contradicted_state_is_a_weak_match_however_well_the_food_matches() -> None:
+    """ "coriander leaf raw" matched "Spices, coriander leaf, dried".
+
+    The food is right and the form is right; only the state disagrees, and
+    that is the whole difference between 279 kcal and about 23.
+    """
+    dried = food(
+        fdc_id=170921,
+        description="Spices, coriander leaf, dried",
+        data_type="SR Legacy",
+        calories="279",
+        protein="21.93",
+        carbohydrate="52.1",
+        fat="4.78",
+        fibre="10.4",
+        search_rank=0,
+    )
+    source = Foods({"coriander leaf raw": [dried]})
+    recorded: list[WeakFoodMatch] = []
+
+    NutritionCalculator(source).calculate_required(
+        recipe([ingredient(name="coriander", query="coriander leaf raw")]),
+        weak_matches=recorded,
+    )
+
+    assert [match.description for match in recorded] == [
+        "Spices, coriander leaf, dried"
+    ]
+
+
+def test_an_agreeing_state_is_not_a_conflict() -> None:
+    canned = food(
+        fdc_id=170172,
+        description="Nuts, coconut milk, canned",
+        data_type="SR Legacy",
+        calories="197",
+        protein="2.02",
+        carbohydrate="2.81",
+        fat="21.33",
+        search_rank=0,
+    )
+    source = Foods({"coconut milk canned": [canned]})
+    recorded: list[WeakFoodMatch] = []
+
+    NutritionCalculator(source).calculate_required(
+        recipe([ingredient(name="coconut milk", query="coconut milk canned")]),
+        weak_matches=recorded,
+    )
+
+    assert recorded == []

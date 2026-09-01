@@ -193,6 +193,11 @@ one that did not was the only one that mattered. `Carrots, baby, raw` for
 `carrot raw` still passes, because the record is free to qualify the food it
 names.
 
+A contradicted state is a weak match however well the food matches. `coriander
+leaf raw` reaches `Spices, coriander leaf, dried`, where the food and the form
+are both right and only the state disagrees — and that disagreement is the
+whole difference between 279 kcal per 100g and roughly 23.
+
 **Nothing new blocks.** When no candidate is relevant the recipe is still
 costed from the closest row, and a `WeakFoodMatch` is recorded and surfaced as
 an `ingredients[n].nutritionMatch` uncertainty. That is deliberate: blocking
