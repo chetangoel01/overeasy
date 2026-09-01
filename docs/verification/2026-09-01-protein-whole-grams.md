@@ -54,26 +54,32 @@ either way. The gate would only have bought a four-line formatter two different
 tie-break rules depending on its argument, which is the same species of
 inconsistency this issue was filed about.
 
-What it costs: a value that lands exactly on a hundredth-half with an even digit
-before it now rounds up at the tenths sites too (`24.45 g` reads `24.5` rather
-than `24.4`). Half-to-even is a rule for summing a column without accumulating
-bias; a single macro a cook reads once is not that, and the pipeline does not
-emit exact `.x5` hundredths in any case.
+What it costs: at every site that still shows a tenth, a value landing exactly
+on a hundredth-half now rounds up rather than to even — `24.45 g` reads `24.5`
+where it read `24.4`. **These ties will occur**, and the change is not being
+justified as rare: any one-decimal total over an even serving count lands on
+one (48.9 g over 2 servings is 24.45), and USDA rows carry a decimal or two.
+The justification is the rule itself. Half-to-even exists to keep bias out of a
+summed column; every one of these numbers is read once, on its own, by a person
+deciding whether to cook something.
 
 ## Scope: cards only
 
-Only `libraryFacts` moved from tenths to whole grams. Four other sites still
-show a tenth, deliberately:
+Only `libraryFacts` moved from tenths to whole grams. Every other `ladleNumber`
+caller that takes the default precision still shows a tenth, deliberately:
 
-| Site | Why it stays |
-|------|--------------|
-| `Ladle/Nutrition/NutritionView.swift:198` — `macro(name:value:color:)` | The detail panel is where someone goes *for* the numbers, and it already carries the "≈" estimated marker that the card omits. The issue is about cards. |
-| `Ladle/RecipeDetail/RecipeMetadataBand.swift:181` — `grams(_:)` | Same screen, same argument. The band formats through its own helper, so it did not follow the card by accident; checked, and left. |
-| `Ladle/Library/WatchView.swift:687` | Not raised in the issue or the brief. It is the video-feed overlay, not a library card, and composes its own string with an "≈" prefix and the yield. Flagged here so the inconsistency is a choice rather than an oversight. |
-| `Ladle/Health/HealthExportSheet.swift:301` — `decimalText(_:)` | A confirmation sheet for values about to be written to Apple Health. Rounding what gets exported is a different decision from rounding what gets scanned. |
+| Site | Shows | Why it stays |
+|------|-------|--------------|
+| `Ladle/Nutrition/NutritionView.swift:198` — `macro(name:value:color:)` | protein, carbs, fat | The detail panel is where someone goes *for* the numbers, and it already carries the "≈" estimated marker the card omits. The issue is about cards. |
+| `Ladle/Nutrition/NutritionView.swift:227` — `nutrientRow(_:)` | sodium, fibre, sugar and the rest | Same panel, same argument. A tenth of a gram of fibre is the same overstated precision, and it should be decided for the panel as a whole rather than one row at a time. |
+| `Ladle/RecipeDetail/RecipeMetadataBand.swift:181` — `grams(_:)` | protein, carbs, fat | Same screen. The band formats through its own helper, so it did not follow the card by accident; checked, and left. |
+| `Ladle/RecipeDetail/RecipeMetadataBand.swift:192` — `ladleYieldText` | servings | Not nutrition. The editor accepts fractional servings, so the tenth is carrying real information here — "1.5 servings" is a yield someone typed, not an estimate. |
+| `Ladle/Library/WatchView.swift:687` | protein | Not raised in the issue or the brief. It is the video-feed overlay, not a library card, and composes its own string with an "≈" prefix and the yield. Flagged so the inconsistency is a choice rather than an oversight. |
+| `Ladle/Health/HealthExportSheet.swift:301` — `decimalText(_:)` | exported metrics (`:292`) and servings (`:287`) | A confirmation sheet for values about to be written to Apple Health. What gets exported is a different decision from what gets scanned. |
 
-All four now round halves up rather than to even, since they share
-`ladleNumber`.
+All of them now round halves away from zero rather than to even, since they
+share `ladleNumber`. `ladleYieldText` is the one to look at first if that
+proves unwelcome: "About 2.25 servings" now reads `2.3` where it read `2.2`.
 
 ## Files
 
@@ -121,7 +127,7 @@ xcodebuild test -project Ladle.xcodeproj -scheme LadleAllTests \
 363, one more than the 362 the previous change recorded — the new test, and
 nothing else moved.
 
-The four existing `libraryFacts` assertions are unchanged and still pass,
+The five existing `libraryFacts` assertions are unchanged and still pass,
 including `testDenseArchiveFactsRoundRepeatingPerServingValues`, whose
 `625 / 11` and `55 / 11` format identically under either rule.
 
