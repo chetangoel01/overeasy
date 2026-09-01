@@ -47,6 +47,7 @@ def identity_token(
     audience: str = "overeasy-server-client",
     issued_at: datetime | None = None,
     expires_at: datetime | None = None,
+    profile: dict[str, object] | None = None,
 ) -> str:
     return jwt.encode(
         {
@@ -56,6 +57,7 @@ def identity_token(
             "iat": int((issued_at or now).timestamp()),
             "exp": int((expires_at or now + timedelta(minutes=5)).timestamp()),
             "email_verified": True,
+            **(profile or {}),
         },
         private,
         algorithm="RS256",
@@ -119,3 +121,77 @@ def test_identity_token_rejects_invalid_claims(
                 **token_overrides,
             )
         )
+
+
+def _verifier(
+    private_kid_jwk: dict[str, object],
+    now: datetime,
+) -> GoogleIdentityTokenVerifier:
+    return GoogleIdentityTokenVerifier(
+        jwks=RotatingJWKS(responses=[{"keys": [private_kid_jwk]}]),
+        audience="overeasy-server-client",
+        clock=FrozenClock(now),
+        maximum_age=timedelta(minutes=10),
+        clock_skew=timedelta(seconds=30),
+    )
+
+
+def test_profile_claims_are_read_from_the_verified_payload() -> None:
+    now = datetime(2026, 9, 1, 18, 0, tzinfo=UTC)
+    private, jwk = rsa_key("current")
+
+    claims = _verifier(jwk, now).verify(
+        identity_token(
+            private,
+            kid="current",
+            now=now,
+            profile={
+                "name": "  Priya Raman  ",
+                "picture": "https://lh3.example/a/photo.jpg",
+            },
+        )
+    )
+
+    # Trimmed, and taken from the payload whose signature was just checked
+    # rather than from anything the client sent alongside it.
+    assert claims.name == "Priya Raman"
+    assert claims.picture == "https://lh3.example/a/photo.jpg"
+
+
+def test_absent_or_blank_profile_claims_are_none_rather_than_empty() -> None:
+    now = datetime(2026, 9, 1, 18, 0, tzinfo=UTC)
+    private, jwk = rsa_key("current")
+    verifier = _verifier(jwk, now)
+
+    absent = verifier.verify(identity_token(private, kid="current", now=now))
+    assert absent.name is None
+    assert absent.picture is None
+
+    # A blank name must not become a display name of "".
+    blank = verifier.verify(
+        identity_token(
+            private,
+            kid="current",
+            now=now,
+            profile={"name": "   ", "picture": 12345},
+        )
+    )
+    assert blank.name is None
+    assert blank.picture is None
+
+
+def test_an_overlong_name_is_bounded_to_the_column() -> None:
+    now = datetime(2026, 9, 1, 18, 0, tzinfo=UTC)
+    private, jwk = rsa_key("current")
+
+    claims = _verifier(jwk, now).verify(
+        identity_token(
+            private,
+            kid="current",
+            now=now,
+            profile={"name": "n" * 500},
+        )
+    )
+
+    assert claims.name is not None
+    assert len(claims.name) == 64

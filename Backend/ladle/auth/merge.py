@@ -1,4 +1,5 @@
 import hashlib
+from dataclasses import dataclass
 from uuid import UUID
 
 from sqlalchemy import exists, func, select, update
@@ -20,6 +21,19 @@ from ladle.db.models import (
 from ladle.sync.sequence import allocate_sequence
 
 
+@dataclass(frozen=True)
+class SignInProfile:
+    """What a provider told us about the cook, on this sign-in.
+
+    Both fields are optional: Apple supplies a name only on the very first
+    authorization and never an avatar, and Google's claims depend on the
+    scopes granted. A sign-in with neither is ordinary, not an error.
+    """
+
+    display_name: str | None = None
+    avatar_url: str | None = None
+
+
 class AccountMergeInvalid(Exception):
     pass
 
@@ -36,13 +50,14 @@ class AccountMergeService:
         apple_subject: str,
         idempotency_key: str,
         apple_refresh_token_encrypted: bytes | None = None,
+        profile: SignInProfile | None = None,
     ) -> UUID:
         if not apple_subject or not idempotency_key:
             raise AccountMergeInvalid
         self._lock_apple_subject(database, apple_subject)
         identity = database.get(AppleIdentity, apple_subject)
         if identity is None:
-            return self._claim_identity(
+            destination = self._claim_identity(
                 database,
                 guest_user_id=guest_user_id,
                 kind="apple",
@@ -53,15 +68,17 @@ class AccountMergeService:
                     created_at=self._clock.now(),
                 ),
             )
-
-        if apple_refresh_token_encrypted is not None:
-            identity.refresh_token_encrypted = apple_refresh_token_encrypted
-        return self._merge_users(
-            database,
-            source_id=guest_user_id,
-            destination_id=identity.user_id,
-            kind="apple",
-        )
+        else:
+            if apple_refresh_token_encrypted is not None:
+                identity.refresh_token_encrypted = apple_refresh_token_encrypted
+            destination = self._merge_users(
+                database,
+                source_id=guest_user_id,
+                destination_id=identity.user_id,
+                kind="apple",
+            )
+        self._seed_profile(database, destination, profile)
+        return destination
 
     def merge_google(
         self,
@@ -70,13 +87,14 @@ class AccountMergeService:
         guest_user_id: UUID,
         google_subject: str,
         idempotency_key: str,
+        profile: SignInProfile | None = None,
     ) -> UUID:
         if not google_subject or not idempotency_key:
             raise AccountMergeInvalid
         self._lock_google_subject(database, google_subject)
         identity = database.get(GoogleIdentity, google_subject)
         if identity is None:
-            return self._claim_identity(
+            destination = self._claim_identity(
                 database,
                 guest_user_id=guest_user_id,
                 kind="google",
@@ -86,12 +104,40 @@ class AccountMergeService:
                     created_at=self._clock.now(),
                 ),
             )
-        return self._merge_users(
-            database,
-            source_id=guest_user_id,
-            destination_id=identity.user_id,
-            kind="google",
-        )
+        else:
+            destination = self._merge_users(
+                database,
+                source_id=guest_user_id,
+                destination_id=identity.user_id,
+                kind="google",
+            )
+        self._seed_profile(database, destination, profile)
+        return destination
+
+    def _seed_profile(
+        self,
+        database: Session,
+        user_id: UUID,
+        profile: SignInProfile | None,
+    ) -> None:
+        """Fill in what the account does not have yet.
+
+        `display_name` is written only when it is missing. A cook can edit it,
+        and signing in again — on a new device, or after a reinstall — must not
+        quietly replace what they chose with what the provider says.
+
+        `avatar_url` has no local edit to lose, so it refreshes: the provider's
+        copy is the only copy, and a stale one is worse than a new one.
+        """
+        if profile is None:
+            return
+        user = database.get(User, user_id)
+        if user is None:
+            return
+        if user.display_name is None and profile.display_name is not None:
+            user.display_name = profile.display_name
+        if profile.avatar_url is not None:
+            user.avatar_url = profile.avatar_url
 
     def _claim_identity(
         self,

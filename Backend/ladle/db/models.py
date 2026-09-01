@@ -39,6 +39,12 @@ class User(Base):
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    # Seeded from the provider on first sign-in and editable afterwards, so a
+    # later sign-in must never overwrite it. Apple supplies a name exactly
+    # once, which is why it is captured rather than fetched on demand.
+    display_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # The provider's own copy. No local edit to lose, so this may refresh.
+    avatar_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
