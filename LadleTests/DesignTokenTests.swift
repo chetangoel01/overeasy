@@ -128,8 +128,9 @@ final class DesignTokenTests: XCTestCase {
     }
 
     func testRaisedCardBadgesUseTheDistinctBadgeSurface() throws {
+        // AccountSheet is deliberately absent: it is a grouped `Form` now, so
+        // its rows are system `Label`s and it draws no badge of its own.
         let expectedCounts = [
-            "Ladle/Account/AccountSheet.swift": 4,
             "Ladle/Account/GuestLimitView.swift": 1,
             "Ladle/Edit/ReimportSheet.swift": 2,
             "Ladle/Health/HealthExportSheet.swift": 1,
