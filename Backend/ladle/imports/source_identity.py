@@ -36,7 +36,9 @@ _TIKTOK_PATH = re.compile(
 )
 _TIKTOK_SHARE_PATH = re.compile(r"^/t/[A-Za-z0-9_-]{3,64}/?$")
 _TIKTOK_SHORT_HOSTS = {"vm.tiktok.com", "vt.tiktok.com"}
-_INSTAGRAM_PATH = re.compile(r"^/(?P<kind>reel|p)/(?P<video_id>[A-Za-z0-9_-]{3,64})/?$")
+_INSTAGRAM_PATH = re.compile(
+    r"^/(?P<kind>reels?|p)/(?P<video_id>[A-Za-z0-9_-]{3,64})/?$"
+)
 
 
 class SourceIdentityParser:
@@ -77,6 +79,10 @@ class SourceIdentityParser:
                 video_id = parse_qs(parsed.query).get("v", [None])[0]
             elif path.startswith("/shorts/"):
                 video_id = path.removeprefix("/shorts/").strip("/").split("/")[0]
+            elif path.startswith("/live/"):
+                video_id = path.removeprefix("/live/").strip("/").split("/")[0]
+            elif path.startswith("/embed/"):
+                video_id = path.removeprefix("/embed/").strip("/").split("/")[0]
             return self._youtube(video_id)
 
         if hostname == "youtu.be":
@@ -94,13 +100,15 @@ class SourceIdentityParser:
                 canonical_url=f"https://www.tiktok.com/@{username}/video/{video_id}",
             )
 
-        if hostname in {"instagram.com", "www.instagram.com"}:
+        if hostname in {"instagram.com", "m.instagram.com", "www.instagram.com"}:
             if path.startswith("/share/"):
                 path = path.removeprefix("/share")
             match = _INSTAGRAM_PATH.fullmatch(path)
             if match is None:
                 raise InvalidSourceURL("invalid Instagram video path")
-            kind = match.group("kind")
+            # One post is served at both /reel/ and /reels/, so the plural
+            # collapses and a single canonical URL stands for the identity.
+            kind = match.group("kind").removesuffix("s")
             video_id = match.group("video_id")
             return SourceIdentity(
                 platform=SourcePlatform.INSTAGRAM,

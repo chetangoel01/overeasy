@@ -65,6 +65,30 @@ class FakeRedirectResolver:
             "C9_post-ID",
             "https://www.instagram.com/p/C9_post-ID/",
         ),
+        (
+            "https://m.instagram.com/reel/C9_recipe-ID/",
+            SourcePlatform.INSTAGRAM,
+            "C9_recipe-ID",
+            "https://www.instagram.com/reel/C9_recipe-ID/",
+        ),
+        (
+            "https://www.instagram.com/reels/C9_recipe-ID/?igsh=test",
+            SourcePlatform.INSTAGRAM,
+            "C9_recipe-ID",
+            "https://www.instagram.com/reel/C9_recipe-ID/",
+        ),
+        (
+            "https://www.youtube.com/live/abc_DEF-123?feature=share",
+            SourcePlatform.YOUTUBE,
+            "abc_DEF-123",
+            "https://www.youtube.com/watch?v=abc_DEF-123",
+        ),
+        (
+            "https://www.youtube.com/embed/abc_DEF-123?autoplay=1",
+            SourcePlatform.YOUTUBE,
+            "abc_DEF-123",
+            "https://www.youtube.com/watch?v=abc_DEF-123",
+        ),
     ],
 )
 def test_direct_urls_map_to_stable_video_identity(
@@ -129,6 +153,7 @@ def test_tiktok_web_share_link_uses_safe_redirect_resolver() -> None:
         "https://youtube.com.evil.test/watch?v=abc_DEF-123",
         "https://user:password@www.youtube.com/watch?v=abc_DEF-123",
         "https://www.youtube.com:8443/watch?v=abc_DEF-123",
+        "https://www.youtube.com/live/abc",
         "https://manual.ladle.local/abc",
         "not a url",
     ],
