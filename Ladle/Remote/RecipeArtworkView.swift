@@ -79,11 +79,6 @@ struct RecipeArtworkView: View {
     init(owner: RemoteImageOwner, image: RecipeImage?) {
         self.owner = owner
         self.image = image
-        // Seeded here rather than in the task: a value set in .task lands
-        // after the first render, which is one frame of placeholder.
-        let cached = image.flatMap { RecipeArtworkMemoryCache.image(for: $0.id) }
-        _downloadedImage = State(initialValue: cached)
-        _loadState = State(initialValue: cached == nil ? .placeholder : .loaded)
     }
 
     /// Artwork owned by a recipe saved in the caller's own library.
@@ -91,6 +86,13 @@ struct RecipeArtworkView: View {
         self.init(owner: .recipe(id: recipeID), image: image)
     }
 
+    /// The cached image is adopted in `task`, deliberately not seeded into
+    /// `@State` from `init`. Seeding it put a `scaledToFill` image into the
+    /// very first layout pass, where the placeholder `Rectangle` used to be:
+    /// the rectangle accepts whatever size it is offered, a filled image does
+    /// not, and at call sites that constrain only one axis the artwork grew
+    /// to its own aspect ratio and covered the surrounding rows. One frame of
+    /// placeholder is the price of a grid that lays out correctly.
     var body: some View {
         Group {
             if let localName = image?.localName {

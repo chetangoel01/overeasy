@@ -91,17 +91,30 @@ struct RecipeGalleryCard: View {
     let toggleFavorite: () -> Void
 
     var body: some View {
-        RecipeArtworkView(
-            recipeID: recipe.id,
-            image: recipe.images.first
-        )
-        .aspectRatio(1, contentMode: .fill)
-        .clipShape(
-            RoundedRectangle(
-                cornerRadius: LadleTheme.Corner.control,
-                style: .continuous
+        // The square cell is established by a clear box and the artwork is
+        // clipped into it, exactly as the grid card does. Putting
+        // `.aspectRatio(1, contentMode: .fill)` on the artwork itself grew the
+        // view to its own aspect ratio instead: a clipShape only clips what is
+        // drawn, not the space taken, so a portrait photo overflowed its cell
+        // and covered the neighbouring rows. Square fixture images hid this —
+        // for them fill and fit are the same — so it only ever showed with
+        // real artwork.
+        Color.clear
+            .aspectRatio(1, contentMode: .fit)
+            .overlay {
+                RecipeArtworkView(
+                    recipeID: recipe.id,
+                    image: recipe.images.first
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipped()
+            }
+            .clipShape(
+                RoundedRectangle(
+                    cornerRadius: LadleTheme.Corner.control,
+                    style: .continuous
+                )
             )
-        )
         .contentShape(Rectangle())
         .onTapGesture(perform: openRecipe)
         .recipeContextMenu(
