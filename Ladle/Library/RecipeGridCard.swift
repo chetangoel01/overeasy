@@ -36,10 +36,17 @@ struct RecipeGridCard: View {
                 .foregroundStyle(LadleTheme.Label.primary)
                 .lineLimit(2, reservesSpace: true)
 
+            // Two lines allowed, none reserved. The facts fit one line at
+            // every non-accessibility size, so reserving the second left
+            // roughly 18 points of air under every card and inflated the gap
+            // between grid rows well past the 24-point step the grid is set
+            // to. The title above still reserves its space: it genuinely
+            // wraps, and reserving is what keeps two cards in a row sharing a
+            // baseline.
             Text(recipe.libraryFacts.isEmpty ? " " : recipe.libraryFacts)
                 .ladleFont(.metadata)
                 .foregroundStyle(LadleTheme.Label.primary.opacity(0.58))
-                .lineLimit(2, reservesSpace: true)
+                .lineLimit(2)
                 .accessibilityHidden(recipe.libraryFacts.isEmpty)
         }
         .frame(maxWidth: .infinity, alignment: .leading)

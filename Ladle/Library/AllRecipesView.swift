@@ -142,7 +142,23 @@ struct AllRecipesView: View {
             .accessibilityValue(displayModeTitle)
             .buttonStyle(LadlePressButtonStyle())
         }
+        .padding(.trailing, -Self.controlOpticalInset)
     }
+
+    /// How far the control group hangs past the content margin.
+    ///
+    /// `controlIcon` centres a small glyph in a 44-point hit frame, so the
+    /// last glyph's trailing edge landed about 14 points inside the margin
+    /// that the search field, the grid, the collections card and the section
+    /// title all end at — the header read as misaligned by exactly half the
+    /// hit frame. Pulling the group out by that slack aligns the glyphs
+    /// optically while the targets keep their full 44 points and overhang the
+    /// margin, which is what the system's own toolbars do.
+    ///
+    /// Chrome-level patch: item 9 replaces these controls with pickers, and
+    /// this goes with them.
+    private static let controlOpticalInset: CGFloat =
+        (LadleTheme.Control.hitTarget - LadleTheme.IconSize.small) / 2
 
     private var collections: some View {
         VStack(alignment: .leading, spacing: LadleTheme.Layout.rowGap) {
