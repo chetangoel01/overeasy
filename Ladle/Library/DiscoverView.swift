@@ -719,12 +719,29 @@ private struct DiscoverShelfView: View {
 
 private struct DiscoverShelfCard: View {
     @Environment(\.ladleAccent) private var accent
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// Points from the prototype linked on #29. LadleTheme has no card-size
     /// token and one component is not enough to name a step, so they live
     /// here — scaled, so the card grows with the reader's type size instead
     /// of squeezing four lines into two.
-    @ScaledMetric(relativeTo: .body) private var width: CGFloat = 152
-    @ScaledMetric(relativeTo: .body) private var artworkHeight: CGFloat = 114
+    @ScaledMetric(relativeTo: .body) private var scaledWidth: CGFloat = 152
+    @ScaledMetric(relativeTo: .body) private var scaledArtworkHeight: CGFloat = 114
+
+    /// Uncapped, 152 points scales past the width of the phone somewhere
+    /// around AX4 — a "rail" whose one card is wider than the viewport it
+    /// scrolls in. This stops at a width that still leaves the next card
+    /// peeking on the narrowest iPhone; the title takes a third line
+    /// instead, which is what a reader at that size actually needs. The row
+    /// restacks vertically at these sizes; a horizontal rail cannot.
+    private static let maximumWidth: CGFloat = 280
+
+    private var width: CGFloat { min(scaledWidth, Self.maximumWidth) }
+
+    private var artworkHeight: CGFloat {
+        min(scaledArtworkHeight, Self.maximumWidth * 114 / 152)
+    }
+
+    private var titleLines: Int { dynamicTypeSize.isAccessibilitySize ? 3 : 2 }
 
     let shelf: DiscoverShelf.ID
     let recipe: DiscoverRecipe
@@ -740,7 +757,7 @@ private struct DiscoverShelfCard: View {
                 Text(recipe.title)
                     .ladleFont(.bodyStrong)
                     .foregroundStyle(LadleTheme.Label.primary)
-                    .lineLimit(2, reservesSpace: true)
+                    .lineLimit(titleLines, reservesSpace: true)
                     .multilineTextAlignment(.leading)
                 Text(recipe.creatorName ?? recipe.source.libraryTitle)
                     .ladleFont(.metadata)

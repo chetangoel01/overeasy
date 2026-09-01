@@ -116,6 +116,15 @@ token and one component is not enough to justify naming a step, so they live
 on the card as `@ScaledMetric` — scaled, so a large-type reader gets a bigger
 card rather than four lines squeezed into two.
 
+**Scaled, but capped at 280 points.** Unbounded, `@ScaledMetric` takes 152
+past the 402-point width of an iPhone 17 somewhere around AX4 — a "rail" whose
+single card is wider than the viewport it scrolls in. 280 still leaves the
+next card peeking on the narrowest iPhone, and the title takes a third line at
+accessibility sizes instead of a wider one, which is what a reader at that
+size actually needs. `DiscoverRecipeRow` restacks vertically at those sizes; a
+horizontal rail cannot, so this is the equivalent concession. Verified by
+capture at `UICTContentSizeCategoryAccessibilityXXXL`.
+
 The rail is a horizontal `ScrollView` with `.scrollTargetBehavior(.viewAligned)`
 and `.scrollClipDisabled()`. It is drawn inside the list's own horizontal
 margin, so the cards are padded back out to `Layout.screenMargin` and the
@@ -170,8 +179,21 @@ Landing screen, `-ui-testing -onboarding-complete -demo-scenario large-library`:
 | ![All recipes](captures/2026-09-01-discover-shelves/after-discover-all-recipes.png) | ![Search](captures/2026-09-01-discover-shelves/after-discover-search-hides-shelves.png) |
 | The rails scroll away above "All recipes", which keeps the sort caption | A search hides both rails outright |
 
+| |
+|---|
+| ![Accessibility XXXL](captures/2026-09-01-discover-shelves/after-discover-accessibility-xxxl.png) |
+| `UICTContentSizeCategoryAccessibilityXXXL`: the card stops growing at 280 points, the title takes a third line, and the next card still peeks |
+
 `before-discover-standard.png` and `after-discover-standard.png` are the same
 pair under the standard scenario.
+
+**A note on the `large-library` pair.** `DemoDiscoverService` reads
+`PreviewFixtures.recipes` and never `scenario.recipes`, so the demo *Discover*
+feed does not scale with `-demo-scenario large-library` — only the cook's own
+library does. Both capture pairs therefore show the same six sources, and the
+rails are exercised against those six in either scenario. That predates this
+change and is left alone; it is worth knowing before reading the two pairs as
+different depths.
 
 ## Tests
 
@@ -297,7 +319,7 @@ Both responses are `DiscoverPageDTO`. No new shape, no new field.
 | `Backend/docs/integration-reference.md` | route inventory row and the shelf section |
 | `Backend/tests/api/test_discover_paging.py` | `created_at` and `total_minutes` in `_seed`; one test per shelf |
 | `Ladle/Remote/DiscoverService.swift` | `.newest`; `DiscoverShelf`; `DiscoverPaging.shelfSize`; `fetchDiscoverPage` gains `maxTotalMinutes` and `limit` with defaults on a protocol extension; demo service serves both rails |
-| `Ladle/Library/DiscoverView.swift` | `shelves`, `visibleShelves`, `isSearching`, `loadsShelves`, `fetchShelves`; rails above an "All recipes" header; `DiscoverShelfView`, `DiscoverShelfCard`, `discoverContextMenu` |
+| `Ladle/Library/DiscoverView.swift` | `shelves`, `visibleShelves`, `isSearching`, `loadsShelves`, `fetchShelves`; rails above an "All recipes" header; `DiscoverShelfView`, `DiscoverShelfCard` with the 280-point scaling cap, `discoverContextMenu` |
 | `Ladle/Library/WatchView.swift` | `loadsShelves: false` |
 | `LadleTests/DiscoverViewModelTests.swift` | seven shelf tests; `DiscoverTestService` on the new protocol shape |
 | `DESIGN.md` | "Discover and account" — the two shelves and the hide-under-search rule |
