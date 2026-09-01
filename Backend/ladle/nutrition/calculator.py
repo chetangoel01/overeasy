@@ -1,6 +1,7 @@
 """Whole-recipe macro calculation that refuses unsupported conversions."""
 
 import re
+from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
 
 from ladle.nutrition.usda import FoodDataSource, FoodNutrients, FoodPortion
@@ -45,6 +46,20 @@ _UNIT_ALIASES = {
 _QUANTUM = Decimal("0.1")
 
 
+@dataclass(frozen=True)
+class WeakFoodMatch:
+    """An ingredient costed from a food that does not obviously match it.
+
+    Recorded rather than raised. Blocking would lose every other ingredient's
+    calories over one blend USDA has no entry for, and accepting it silently
+    would present a number nobody should trust as though it were measured.
+    """
+
+    ingredient_index: int
+    ingredient_name: str
+    description: str
+
+
 class NutritionCalculationUnavailable(Exception):
     """A deterministic nutrition calculation could not be completed."""
 
@@ -76,7 +91,18 @@ class NutritionCalculator:
         except NutritionCalculationUnavailable:
             return None
 
-    def calculate_required(self, template: RecipeTemplate) -> TemplateNutrition:
+    def calculate_required(
+        self,
+        template: RecipeTemplate,
+        *,
+        weak_matches: list[WeakFoodMatch] | None = None,
+    ) -> TemplateNutrition:
+        """Cost the recipe, appending any doubtful match to `weak_matches`.
+
+        The list is an out-parameter rather than part of the return value
+        because `TemplateNutrition` goes on the wire, and a caller that does
+        not care about match quality should not have to unpack a wrapper.
+        """
         if (
             template.nutrition is not None
             and template.nutrition.basis == "creatorStated"
@@ -99,6 +125,15 @@ class NutritionCalculator:
             raise NutritionCalculationUnavailable("noMaterialIngredients")
         for index, ingredient in material:
             food, grams = self._usable_food(ingredient, index=index)
+            query = ingredient.usda_search_term or ""
+            if weak_matches is not None and not _relevant(query, food.description):
+                weak_matches.append(
+                    WeakFoodMatch(
+                        ingredient_index=index,
+                        ingredient_name=ingredient.name,
+                        description=food.description,
+                    )
+                )
             scale = grams / Decimal(100)
             values = (
                 food.calories_per_100g,
@@ -146,6 +181,13 @@ class NutritionCalculator:
         the ranking believed in.
         """
         candidates = self._ranked_candidates(ingredient, index=index)
+        query = ingredient.usda_search_term or ""
+        # Relevance orders the candidates; it never removes them. A blend USDA
+        # has no entry for still gets costed from its closest row, and the
+        # caller is told the match was weak.
+        candidates = [
+            food for food in candidates if _relevant(query, food.description)
+        ] + [food for food in candidates if not _relevant(query, food.description)]
         first_failure: NutritionCalculationUnavailable | None = None
         for food in candidates:
             if not _consistent(food, query=ingredient.usda_search_term or ""):
@@ -296,6 +338,38 @@ def _consistent(food: FoodNutrients, *, query: str = "") -> bool:
 
 def _tokens(value: str) -> list[str]:
     return re.findall(r"[a-z0-9]+", value.casefold())
+
+
+def _stems(value: str) -> set[str]:
+    """Tokens with a trailing plural folded away.
+
+    "seeds" against "Spices, cumin seed" is what started all of this: one
+    character kept a laboratory record from matching the ingredient it
+    describes.
+    """
+    return {
+        token[:-1] if len(token) > 3 and token.endswith("s") else token
+        for token in _tokens(value)
+    }
+
+
+def _relevant(query: str, description: str) -> bool:
+    """Whether a candidate plausibly describes the ingredient asked for.
+
+    USDA's own ranking answers "cinnamon stick" with APPLEBEE'S mozzarella
+    sticks and "ginger garlic paste" with almond paste, and nothing on the
+    provider-ranked path checked. A candidate qualifies when it carries the
+    query's distinguishing word — every query token for a single-word query,
+    and more than half for a longer one, since USDA writes "Spices, cinnamon,
+    ground" where a cook writes "cinnamon stick".
+    """
+    wanted = _stems(query)
+    if not wanted:
+        return False
+    shared = wanted & _stems(description)
+    if len(wanted) == 1:
+        return bool(shared)
+    return len(shared) * 2 > len(wanted)
 
 
 def _unit(value: str) -> str:

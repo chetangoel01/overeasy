@@ -161,6 +161,39 @@ or reporting it in the wrong unit, keeps working rather than being discarded.
 This would have hit every high-fibre ingredient: cloves, cinnamon, cardamom,
 chilli powder, cocoa, bran. The recipe that exposed it lists nine spices.
 
+## The query layer
+
+Fixing the blocking exposed the next problem: the pipeline was asking USDA the
+wrong questions. `cinnamon stick` returned APPLEBEE'S mozzarella sticks,
+`ginger garlic paste` returned almond paste, `fresh coriander` returned
+coriander seed at 298 kcal where the recipe means the herb at roughly 23.
+
+Two causes, both fixed here.
+
+**The search terms were culinary, not descriptive.** They are written by the
+normalizer, and the whole instruction governing them was one sentence: "Use a
+short generic USDA search term". The prompt now states FoodData Central's
+convention, gives six worked conversions taken from the failures measured
+above, and requires the state that changes the calories — raw, dried, ground,
+canned. The usage ledger key moves to `v2` to keep the two prompt generations
+apart in accounting; nothing caches a normalization, so no invalidation is
+involved.
+
+**The provider-ranked path had no relevance check at all.** It took USDA's
+first result on trust; only the fallback path checked that a candidate had
+anything to do with the query. Relevance now *orders* candidates rather than
+removing them — a candidate qualifies when it carries the query's
+distinguishing word — and singular and plural are folded together, which is
+the "seeds" against `Spices, cumin seed` problem that started all of this.
+
+**Nothing new blocks.** When no candidate is relevant the recipe is still
+costed from the closest row, and a `WeakFoodMatch` is recorded and surfaced as
+an `ingredients[n].nutritionMatch` uncertainty. That is deliberate: blocking
+would lose every other ingredient's calories over one spice blend USDA has no
+entry for, and accepting it silently would present a number nobody should
+trust as though it were measured. It also means this change does not depend on
+the block-versus-drop question below.
+
 ## Still open
 
 When *every* candidate for one ingredient is unusable, the recipe still loses
