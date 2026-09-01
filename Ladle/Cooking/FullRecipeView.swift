@@ -30,6 +30,7 @@ struct FullRecipeView: View {
 
     private var fullRecipeContent: some View {
         NavigationStack {
+            ScrollViewReader { scroll in
             ScrollView {
                 VStack(alignment: .leading, spacing: LadleTheme.Layout.sectionGap) {
                     recipeHeader
@@ -41,6 +42,19 @@ struct FullRecipeView: View {
                 .padding(.bottom, LadleTheme.Layout.scrollTail)
             }
             .scrollIndicators(.hidden)
+            // Picking a step used to change only the pill's own label: this
+            // screen shows every step at once, so nothing moved and the
+            // control looked broken. It now brings the chosen step into view.
+            .onChange(of: viewModel.currentStepIndex) { _, index in
+                guard viewModel.recipe.orderedSteps.indices.contains(index)
+                else { return }
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    scroll.scrollTo(
+                        viewModel.recipe.orderedSteps[index].id,
+                        anchor: .top
+                    )
+                }
+            }
             .background(LadleTheme.Surface.porcelain)
             .accessibilityIdentifier("cooking.full-recipe")
             .navigationBarTitleDisplayMode(.inline)
@@ -49,14 +63,18 @@ struct FullRecipeView: View {
                     Button {
                         dismiss()
                     } label: {
+                        // No hand-drawn circle: the toolbar already gives the
+                        // button its own round glass background, and painting
+                        // a second one inside it made the system shape wrap a
+                        // wider box, which is why the close control read as a
+                        // squashed rounded rectangle instead of a circle.
                         Image(systemName: "xmark")
                             .font(.system(size: LadleTheme.IconSize.small, weight: .bold))
                             .foregroundStyle(LadleTheme.Label.primary)
-                            .frame(width: LadleTheme.Control.hitTarget, height: LadleTheme.Control.hitTarget)
-                            .background(LadleTheme.Surface.steel, in: Circle())
                     }
                     .accessibilityLabel("Close cooking")
                 }
+            }
             }
         }
     }
