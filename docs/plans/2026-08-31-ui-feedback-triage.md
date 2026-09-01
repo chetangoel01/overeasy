@@ -1,9 +1,10 @@
 # UI feedback triage — Discover, Settings, Inbox, accent
 
 Date: August 31, 2026
-Status: **validated, nothing implemented.** This is the running list. Items
-1–11 came from a spoken list on August 31; item 12 was added on September 1
-from a reimport on the phone, after the VPS was brought up to date.
+Status: **validated; 12–13 and 15 done, the rest still open.** This is the
+running list. Items 1–11 came from a spoken list on August 31; 12 and 13 were
+added on September 1 from a reimport on the phone; 14 and 15 came from a
+second pass on the phone the same day.
 
 ## Purpose
 
@@ -33,6 +34,8 @@ should stay clean until this list is agreed.
 | 11 | Pull-to-refresh should show new recipes | Partly | backend `repository.py` |
 | 12 | Reimported recipe had no calorie information | **Fixed and deployed** | `usda.py`, `calculator.py` |
 | 13 | Should we use a different calorie source? | **No — query layer fixed instead** | `normalization.py`, `calculator.py` |
+| 14 | Refresh when the user scrolls all the way up | Recorded — **blocked on 11** | `DiscoverView.swift` + backend |
+| 15 | Spacing on the Recipes screen | Confirmed, measured | `RecipeListRow.swift`, `RecipeGridCard.swift`, `AllRecipesView.swift` |
 
 Items 6 and 10 are one bug. Items 7 and 9 are the same class of problem as the
 filter sheet that was already rewritten: hand-rolled chrome where a system
@@ -739,6 +742,171 @@ uncertainties rather than quietly costed. Curry leaves remain a genuine USDA
 gap, which is Tier 2 and untouched.
 
 Tier 3 was not needed. The source was never the problem.
+
+---
+
+## 14. Refresh when the user scrolls all the way up
+
+> "I want to add refresh on when the user goes all the way up."
+
+**Recorded, not yet buildable — it depends on item 11.**
+
+Two readings, and which one you meant changes the work:
+
+1. *Reaching the top should refresh on its own*, with no gesture.
+2. *Reaching the top should be where the refresh gesture lives* — which is
+   already true; `.refreshable` only arms once the scroll offset is at zero.
+
+Reading (1) is the one worth building, and the honest caveat is that iOS
+deliberately does not do it. Scrolling back to the top is usually how someone
+returns to where they started, so replacing the content at that moment takes
+away the thing they scrolled up to reach. The platform's answer is that hitting
+the top *arms* pull-to-refresh rather than firing it. If you want the automatic
+version anyway, the shapes that don't fight the user are:
+
+- **Refresh on return, not on scroll.** Re-fetch when the tab is re-entered or
+  the app is foregrounded after some interval, so the top of the feed is fresh
+  when you arrive rather than changing while you watch.
+- **Fetch quietly, apply on the next visit.** Load the new page at scroll-top
+  but hold it behind a "New recipes" pill, the way a timeline does. The cook
+  decides when the ground moves.
+
+**The blocker is the same one as item 11**: refresh today re-fetches page one
+and gets back byte-identical rows, because Discover's ranking is fully
+deterministic. Wiring an automatic trigger onto that would spend a network
+request to redraw the same feed. Item 11's seeded shuffle (or a recency mix) has
+to land first, or this is a no-op with a spinner.
+
+Which surface also needs pinning down: Discover is the one that has anything new
+to show. Recipes is the cook's own library, where the content only changes when
+they import something — and the Inbox already tells them that happened.
+
+### Files to change
+
+| File | Change |
+|------|--------|
+| — | **item 11 first**: `repository.py` ordering, `/discover` seed |
+| [`Ladle/Library/DiscoverView.swift:397`](../../Ladle/Library/DiscoverView.swift:397) | observe scroll offset (`onScrollGeometryChange`) on the loaded feed's `ScrollView` |
+| [`Ladle/Library/DiscoverView.swift:462`](../../Ladle/Library/DiscoverView.swift:462) | trigger beside the existing `.refreshable`, with a minimum interval so it cannot fire on every bounce |
+| [`Ladle/Library/DiscoverView.swift:89`](../../Ladle/Library/DiscoverView.swift:89) | `load()` — a quiet variant that does not flash the refresh banner |
+
+**Effort:** small once item 11 exists; **blocked** until then.
+
+---
+
+## 15. Spacing on the Recipes screen — fixed
+
+> "Also want to fix the spacing in the recipes screen."
+
+**Three defects, all measured on device.** Two are visible at a glance; the
+third is an optical misalignment that explains why the header never looked
+settled.
+
+### List rows are lopsided
+
+`RecipeListRow` wraps its content in `.padding(8)`
+([RecipeListRow.swift:54](../../Ladle/Library/RecipeListRow.swift:54)), but the
+trailing element is a favourite button with a 44-point hit frame around a
+16-point glyph. So the padding is 8 on the left and 8 *plus the frame's slack*
+on the right. The row reads as pushed left.
+
+**Fixed** by dropping the trailing padding to zero and letting the hit frame
+supply the trailing inset, and raising the remaining padding to
+`Layout.rowGap` (12). The hit target stays 44.
+
+Measured off the captures at 3×, first card, both builds:
+
+| Card edge to… | Before | After |
+|---|---|---|
+| thumbnail's leading edge | 8.0pt | 12.0pt |
+| heart glyph's trailing edge | 22.0pt | 14.0pt |
+| **asymmetry** | **14.0pt** | **2.0pt** |
+
+| | |
+|---|---|
+| ![List before](../verification/captures/2026-09-01-recipes-spacing/before-list.png) | ![List after](../verification/captures/2026-09-01-recipes-spacing/after-list.png) |
+| Before | After |
+
+One thing this does *not* fix, despite looking like it should: the titles still
+truncate. Removing 8 points of trailing padding and adding 4 to the leading
+nets the text four points, which is nothing — "Brown Butter Miso…" truncates in
+both builds. The 44-point hit frame is what costs the title its width, and
+that is a hit-target decision, not a padding one. Rows are also 8 points taller
+now, which is the honest price of padding three edges to 12 instead of 8.
+
+### Grid cards reserve a metadata line they never use
+
+The facts line under each card is `.lineLimit(2, reservesSpace: true)`
+([RecipeGridCard.swift:42](../../Ladle/Library/RecipeGridCard.swift:42)).
+"210 cal · 3g protein" is one line at every non-accessibility type size, so the
+second line is reserved and left empty on every card — about 18 points of dead
+space, which is why the gap between grid rows reads far larger than the
+24-point step the grid is actually set to.
+
+**Fixed** by dropping `reservesSpace` from the facts only. It stays on the
+title ([RecipeGridCard.swift:37](../../Ladle/Library/RecipeGridCard.swift:37)),
+where it does real work: titles genuinely wrap to two lines, and reserving the
+space is what keeps the facts lines of two cards in a row on the same baseline.
+Nothing else moves — grid items are top-aligned and grid cards have no
+background, so the reserved line was only ever air.
+
+Measured between the first card's facts and the second row's image:
+
+| | Gap |
+|---|---|
+| Before | 43.3pt |
+| After | 25.3pt |
+
+24 points is the step the grid was already set to; the leftover 1.3 is the
+descender space below the ink. The whole 18 points was the empty line.
+
+| | |
+|---|---|
+| ![Grid before](../verification/captures/2026-09-01-recipes-spacing/before-grid.png) | ![Grid after](../verification/captures/2026-09-01-recipes-spacing/after-grid.png) |
+| Before | After |
+
+### The header controls stop short of the content margin
+
+Every other element on the screen ends at the 16-point content margin: the
+search field, the grid, the collections card, the "Recent" title. The three
+header controls do not. `controlIcon` centres a 13-point glyph in a 44-point
+frame ([AllRecipesView.swift:387](../../Ladle/Library/AllRecipesView.swift:387)),
+so the last glyph's trailing edge lands at **~372 points on a 402-point screen —
+14 points shy of the 386 everything else shares.**
+
+Measured at 3×, rightmost header glyph against the content margin the list
+cards establish at 385.7 points:
+
+| | Glyph's trailing edge | Shortfall |
+|---|---|---|
+| Before | 370.3pt | 15.3pt |
+| After | 386.0pt | −0.3pt |
+
+The header was not misaligned by accident; it was misaligned by exactly half
+the hit frame.
+
+**Fixed** with a negative trailing inset on the control group, so the glyphs
+align optically while the hit targets keep their full 44 points and continue to
+overhang the margin — which is what the system's own toolbars do. This is a
+patch on chrome item 9 will rebuild anyway; it is deliberately confined to the
+one modifier.
+
+### Files changed
+
+| File | Change |
+|------|--------|
+| [`Ladle/Library/RecipeListRow.swift:54`](../../Ladle/Library/RecipeListRow.swift:54) | `.padding(8)` → 12 on three edges, 0 trailing |
+| [`Ladle/Library/RecipeGridCard.swift:42`](../../Ladle/Library/RecipeGridCard.swift:42) | facts — drop `reservesSpace` |
+| [`Ladle/Library/AllRecipesView.swift:144`](../../Ladle/Library/AllRecipesView.swift:144) | control group — negative trailing inset for optical alignment |
+
+**Not touched:** the sort and display-mode menus themselves. Their contents are
+item 9 and are still waiting on your go-ahead.
+
+**Verified** on the Overeast UI validation simulator (iPhone 17, iOS 26.5),
+`-ui-testing -onboarding-complete`, before and after captures from separate
+builds. Every number above is read out of the PNGs by pixel, not estimated by
+eye. No test asserts on these modifiers — the UI tests key on accessibility
+identifiers, which are unchanged.
 
 ---
 
