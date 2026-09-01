@@ -238,6 +238,18 @@ buttons a different text origin per button.
   the complete shared extraction as a read-only recipe preview. Saving clones
   that already-resolved extraction into the current account. Neither action
   resubmits the video to the import, transcription, or model pipeline.
+- Two shelves sit above that ranked list, because Discover is the launch screen
+  and a list ordered by saves only turns over when someone saves something.
+  **New to Overeasy** is ordered by when a source arrived here, not when its
+  creator published it. **Quick dinners** keeps the sources a saver timed at
+  thirty minutes or less; a source nobody timed is left out rather than assumed
+  quick. Each rail is one short page of the same feed — no "See all", no
+  destination of its own — and the list beneath it is headed "All recipes".
+- A rail is decoration on top of the feed, so it fails quietly: a shelf that
+  does not load is absent rather than an error, and a shelf with fewer than
+  three cards is dropped instead of drawn short. Searching hides both rails
+  outright, because search replaces the feed and unsearched cards beside the
+  results would read as results.
 - Discover excludes sources already saved by the current account and removes a
   row as soon as its direct save completes.
 - Recipe cards and Discover results use the native long-press context menu as
