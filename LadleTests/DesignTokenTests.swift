@@ -1,3 +1,4 @@
+import LadleCore
 import SwiftUI
 import UIKit
 import XCTest
@@ -694,6 +695,78 @@ final class DesignTokenTests: XCTestCase {
                 reduceMotion: true
             ),
             .zero
+        )
+    }
+
+    /// The Recipes header's sort and view menus are native `Picker`s, the
+    /// shape Discover already uses, so iOS draws the trailing checkmark
+    /// column itself. The hand-rolled version put a *leading* `"checkmark"`
+    /// on the selected row and left the icon gutter empty on every other one.
+    func testRecipesHeaderMenusAreNativePickers() throws {
+        let project = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let source = try String(
+            contentsOf: project.appendingPathComponent(
+                "Ladle/Library/AllRecipesView.swift"
+            ),
+            encoding: .utf8
+        )
+        // Collapsed so the assertions describe the call, not its wrapping.
+        let code = source
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+
+        XCTAssertEqual(
+            source.components(separatedBy: "Picker(").count - 1,
+            2,
+            "One picker per menu, and no third one"
+        )
+        XCTAssertTrue(
+            code.contains("\"Sort recipes\", selection: $viewModel.sort"),
+            "The sort menu's picker binds straight to the view model"
+        )
+        XCTAssertTrue(
+            code.contains("\"Recipe view\", selection: Binding("),
+            "The view menu's picker routes writes through setDisplayMode"
+        )
+        XCTAssertFalse(
+            source.contains("\"checkmark\""),
+            "A Picker draws selection; the view must not hand-roll it"
+        )
+        XCTAssertEqual(
+            source.components(separatedBy: ".menuOrder(.fixed)").count - 1,
+            2,
+            "Both menus keep declaration order wherever they pop from"
+        )
+
+        // The accessibility contract the Recipes UI test drives.
+        XCTAssertTrue(source.contains("accessibilityLabel(\"Sort recipes\")"))
+        XCTAssertTrue(source.contains("accessibilityLabel(\"Recipe view\")"))
+        XCTAssertTrue(source.contains("accessibilityValue(displayModeTitle)"))
+    }
+
+    /// Every row in either picker carries its own symbol, so the icon column
+    /// is never half empty. `RecipeSort` lives in LadleCore and holds no
+    /// presentation, so its icons sit in the app-side extension beside
+    /// `libraryTitle`.
+    func testEveryPickerRowCarriesItsOwnSymbol() {
+        let sortImages = RecipeSort.allCases.map(\.librarySystemImage)
+        XCTAssertEqual(Set(sortImages).count, RecipeSort.allCases.count)
+        XCTAssertFalse(sortImages.contains(where: \.isEmpty))
+        XCTAssertFalse(sortImages.contains("checkmark"))
+
+        let modeImages = LibraryDisplayMode.allCases.map(\.systemImage)
+        XCTAssertEqual(
+            Set(modeImages).count,
+            LibraryDisplayMode.allCases.count
+        )
+        XCTAssertFalse(modeImages.contains(where: \.isEmpty))
+        XCTAssertFalse(modeImages.contains("checkmark"))
+        XCTAssertEqual(
+            LibraryDisplayMode.allCases.map(\.title),
+            ["Grid", "List", "Gallery"]
         )
     }
 
