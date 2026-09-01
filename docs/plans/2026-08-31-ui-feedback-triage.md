@@ -32,7 +32,7 @@ should stay clean until this list is agreed.
 | 10 | Accent doesn't update behind the sheet | Same bug as #6 | see #6 |
 | 11 | Pull-to-refresh should show new recipes | Partly | backend `repository.py` |
 | 12 | Reimported recipe had no calorie information | **Fixed and deployed** | `usda.py`, `calculator.py` |
-| 13 | Should we use a different calorie source? | **Mostly no** — assessment below | `normalization.py:75` |
+| 13 | Should we use a different calorie source? | **No — query layer fixed instead** | `normalization.py`, `calculator.py` |
 
 Items 6 and 10 are one bug. Items 7 and 9 are the same class of problem as the
 filter sheet that was already rewritten: hand-rolled chrome where a system
@@ -717,11 +717,28 @@ rest total up?**
 Tier 1 is not safe to build until that is answered — a guard on top of
 block-the-recipe would send the cards back to empty.
 
-### Meanwhile
+### Outcome
 
-Reimports now produce numbers, but rough ones: the twenty-one-ingredient probe
-in the verification document shows how far off some matches are. Worth knowing
-before trusting a calorie count tonight.
+Tier 1 was built on September 1 and is deployed. Measured on the same
+twenty-one ingredients, asked with descriptor-style terms:
+
+| Before | After |
+|---|---|
+| cinnamon stick → APPLEBEE'S mozzarella sticks (316) | **Spices, cinnamon, ground** (247) |
+| black peppercorns → Salad dressing, peppercorn (564) | **Spices, pepper, black** (251) |
+| ginger garlic paste → Almond paste (458) | **Ginger root, raw** (80) |
+| paneer → Palak Paneer (101) | **Cheese, paneer** (299) |
+| carrot → Carrot, dehydrated (341) | **Carrots, baby, raw** (38) |
+| fresh coriander → Spices, coriander seed (298) | **Coriander (cilantro) leaves, raw** (23) |
+| coconut milk → Beverages, coconut milk, sweetened (31) | **Nuts, coconut milk, canned** (197) |
+
+**Nineteen of twenty-one now resolve correctly.** The two that do not —
+`cumin ground` reaching flaxseed, and `curry leaf` reaching beef curry — are
+recorded as weak matches and surfaced as `ingredients[n].nutritionMatch`
+uncertainties rather than quietly costed. Curry leaves remain a genuine USDA
+gap, which is Tier 2 and untouched.
+
+Tier 3 was not needed. The source was never the problem.
 
 ---
 
