@@ -206,6 +206,30 @@ entry for, and accepting it silently would present a number nobody should
 trust as though it were measured. It also means this change does not depend on
 the block-versus-drop question below.
 
+## Refreshing recipes that already exist
+
+Reimporting a recipe creates a second copy and leaves the original behind —
+confirmed on the live database, where two "Lasagna Soup" rows share one
+`source_video_id`. That makes reimport the wrong tool for "these recipes
+should have calories now": seventeen recipes would have become thirty-four,
+half of them stale.
+
+`Backend/scripts/refresh_recipe_nutrition.py` re-runs only the nutrition step
+against a recipe as it already exists and writes the result onto the same row.
+Titles, steps, ingredients, edits and identifiers are untouched, and it only
+replaces the uncertainty rows it owns — `nutrition` and
+`ingredients[n].nutritionMatch` — so amount estimates and yield rationale from
+the original import survive. Dry run by default.
+
+Applied to all seventeen recipes on the Google account on September 1: every
+one now carries nutrition, none was duplicated. The six that already had
+values moved modestly rather than wildly, which is what better matching should
+look like rather than a different calculation.
+
+One property worth knowing: the normalizer re-estimates unquantified amounts
+on every run, so two runs of this script over the same recipe differ by a few
+percent. These are estimates, and they do not claim otherwise.
+
 ## Still open
 
 When *every* candidate for one ingredient is unusable, the recipe still loses
