@@ -9,7 +9,11 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from alembic import command
-from ladle.auth.merge import AccountMergeInvalid, AccountMergeService
+from ladle.auth.merge import (
+    AccountMergeInvalid,
+    AccountMergeService,
+    SignInProfile,
+)
 from ladle.auth.tokens import RefreshTokenCodec
 from ladle.db.models import (
     AppleIdentity,
@@ -461,5 +465,113 @@ def test_concurrent_claims_of_two_apple_identities_admit_exactly_one(
             )
             == 1
         )
+
+    engine.dispose()
+
+
+@pytest.mark.integration
+def test_sign_in_seeds_a_profile_but_never_overwrites_an_edited_name(
+    clean_postgres_url: str,
+) -> None:
+    """The rule the whole feature rests on.
+
+    Apple hands over a full name exactly once, so it is captured on first
+    sign-in. After that the cook owns it: signing in again on a new device, or
+    after a reinstall, must not quietly replace what they chose with what the
+    provider said. The avatar has no local edit to lose, so it does refresh.
+    """
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    engine = build_engine(clean_postgres_url)
+    clock = FrozenClock(datetime(2026, 9, 1, 21, 0, tzinfo=UTC))
+    merger = AccountMergeService(clock=clock)
+
+    with Session(engine) as database, database.begin():
+        guest_id = seed_user(database, kind="guest", now=clock.now())
+
+    # First sign-in: nothing stored yet, so the provider seeds both fields.
+    with Session(engine) as database, database.begin():
+        merger.merge_google(
+            database,
+            guest_user_id=guest_id,
+            google_subject="google-profile-subject",
+            idempotency_key="first",
+            profile=SignInProfile(
+                display_name="Priya Raman",
+                avatar_url="https://lh3.example/a/first.jpg",
+            ),
+        )
+
+    with Session(engine) as database:
+        user = database.get(User, guest_id)
+        assert user is not None
+        assert user.display_name == "Priya Raman"
+        assert user.avatar_url == "https://lh3.example/a/first.jpg"
+
+    # The cook renames themselves.
+    with Session(engine) as database, database.begin():
+        edited = database.get(User, guest_id)
+        assert edited is not None
+        edited.display_name = "Pri"
+
+    # Signing in again: the name is theirs now, the avatar is still Google's.
+    with Session(engine) as database, database.begin():
+        merger.merge_google(
+            database,
+            guest_user_id=guest_id,
+            google_subject="google-profile-subject",
+            idempotency_key="second",
+            profile=SignInProfile(
+                display_name="Priya Raman",
+                avatar_url="https://lh3.example/a/second.jpg",
+            ),
+        )
+
+    with Session(engine) as database:
+        user = database.get(User, guest_id)
+        assert user is not None
+        assert user.display_name == "Pri", "a later sign-in must not clobber an edit"
+        assert user.avatar_url == "https://lh3.example/a/second.jpg"
+
+    engine.dispose()
+
+
+@pytest.mark.integration
+def test_a_sign_in_carrying_no_profile_leaves_the_account_untouched(
+    clean_postgres_url: str,
+) -> None:
+    """Apple supplies a name only on the first authorization, so every
+    subsequent Apple sign-in arrives with nothing. That is ordinary, and it
+    must not blank out what the first one captured."""
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    engine = build_engine(clean_postgres_url)
+    clock = FrozenClock(datetime(2026, 9, 1, 21, 0, tzinfo=UTC))
+    merger = AccountMergeService(clock=clock)
+
+    with Session(engine) as database, database.begin():
+        guest_id = seed_user(database, kind="guest", now=clock.now())
+
+    with Session(engine) as database, database.begin():
+        merger.merge(
+            database,
+            guest_user_id=guest_id,
+            apple_subject="apple-profile-subject",
+            idempotency_key="first",
+            profile=SignInProfile(display_name="Chetan Goel"),
+        )
+
+    with Session(engine) as database, database.begin():
+        merger.merge(
+            database,
+            guest_user_id=guest_id,
+            apple_subject="apple-profile-subject",
+            idempotency_key="second",
+            profile=SignInProfile(),
+        )
+
+    with Session(engine) as database:
+        user = database.get(User, guest_id)
+        assert user is not None
+        assert user.display_name == "Chetan Goel"
+        assert user.avatar_url is None
 
     engine.dispose()

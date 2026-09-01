@@ -24,7 +24,11 @@ from ladle.auth.google import (
     GoogleIdentityTokenInvalid,
 )
 from ladle.auth.guest import register_guest, release_device_binding
-from ladle.auth.merge import AccountMergeInvalid, AccountMergeService
+from ladle.auth.merge import (
+    AccountMergeInvalid,
+    AccountMergeService,
+    SignInProfile,
+)
 from ladle.auth.sessions import (
     RefreshTokenInvalid,
     SessionService,
@@ -37,7 +41,7 @@ from ladle.auth.tokens import (
 )
 from ladle.contracts.common import WireDateTime, WireModel, WireUUID
 from ladle.crypto.private_text import PrivateTextCipher
-from ladle.db.models import AuthSession, Device
+from ladle.db.models import AuthSession, Device, User
 
 router = APIRouter(prefix="/v1/auth", tags=["auth"])
 
@@ -57,11 +61,26 @@ class AppleAuthRequest(WireModel):
     authorization_code: str = Field(min_length=1, max_length=8_192)
     nonce: str = Field(min_length=1, max_length=512)
     idempotency_key: str = Field(min_length=1, max_length=255)
+    # Apple returns a full name exactly once, in the client's credential on
+    # the first authorization. It is in no token and cannot be fetched later,
+    # so the client forwards it or it is lost. Client-asserted, which is
+    # acceptable because the cook can edit it anyway — but still bounded.
+    full_name: str | None = Field(default=None, max_length=64)
 
 
 class GoogleAuthRequest(WireModel):
     identity_token: str = Field(min_length=1, max_length=16_384)
     idempotency_key: str = Field(min_length=1, max_length=255)
+
+
+class ProfileUpdateRequest(WireModel):
+    display_name: str | None = Field(default=None, max_length=64)
+
+
+class ProfileResponse(WireModel):
+    user_kind: str
+    display_name: str | None = None
+    avatar_url: str | None = None
 
 
 class AccountDeletionRequest(WireModel):
@@ -77,6 +96,10 @@ class AuthTokensResponse(WireModel):
     user_id: WireUUID
     device_id: WireUUID
     user_kind: str
+    # The profile travels with the tokens rather than behind a `/me` call, so
+    # every refresh keeps it current for free.
+    display_name: str | None = None
+    avatar_url: str | None = None
 
     @classmethod
     def from_tokens(cls, value: SessionTokens) -> "AuthTokensResponse":
@@ -87,7 +110,17 @@ class AuthTokensResponse(WireModel):
             user_id=value.user_id,
             device_id=value.device_id,
             user_kind=value.user_kind,
+            display_name=value.display_name,
+            avatar_url=value.avatar_url,
         )
+
+
+def _trimmed(value: str | None) -> str | None:
+    """A forwarded name, or `None` if it is blank once trimmed."""
+    if value is None:
+        return None
+    stripped = value.strip()
+    return stripped or None
 
 
 def _sessions(request: Request) -> SessionService:
@@ -251,6 +284,7 @@ def sign_in_with_apple(
                     if credential.refresh_token is not None
                     else None
                 ),
+                profile=SignInProfile(display_name=_trimmed(body.full_name)),
             )
             tokens = _sessions(request).create(
                 current_database,
@@ -291,6 +325,10 @@ def sign_in_with_google(
                 guest_user_id=claims.user_id,
                 google_subject=credential.subject,
                 idempotency_key=body.idempotency_key,
+                profile=SignInProfile(
+                    display_name=credential.name,
+                    avatar_url=credential.picture,
+                ),
             )
             tokens = _sessions(request).create(
                 current_database,
@@ -326,6 +364,32 @@ def refresh_session(request: Request, body: RefreshRequest) -> AuthTokensRespons
     if authentication_error is not None or tokens is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
     return AuthTokensResponse.from_tokens(tokens)
+
+
+@router.patch("/profile", response_model=ProfileResponse)
+def update_profile(
+    request: Request,
+    body: ProfileUpdateRequest,
+    authorization: Annotated[str | None, Header()] = None,
+) -> ProfileResponse:
+    """Set the cook's display name.
+
+    Blank clears it, which returns the account to showing whatever the
+    provider supplied at sign-in — or nothing, for a guest. There is no
+    separate delete for a field whose empty state is meaningful.
+    """
+    claims = access_claims(request, authorization)
+    name = _trimmed(body.display_name)
+    with database(request) as current_database, current_database.begin():
+        user = current_database.get(User, claims.user_id)
+        if user is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+        user.display_name = name
+        return ProfileResponse(
+            user_kind=user.kind,
+            display_name=user.display_name,
+            avatar_url=user.avatar_url,
+        )
 
 
 @router.delete("/session", status_code=status.HTTP_204_NO_CONTENT)
