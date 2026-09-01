@@ -621,3 +621,56 @@ def test_a_weak_match_is_used_but_recorded_rather_than_blocking() -> None:
             description="SMART SOUP, Indian Bean Masala",
         )
     ]
+
+
+def test_sharing_the_qualifiers_is_not_enough_without_the_food_itself() -> None:
+    """ "coriander leaf raw" matched "Lettuce, leaf, green, raw".
+
+    Two of the three words agreed, which was enough under a plain majority.
+    The one that disagreed was the only one naming the food.
+    """
+    lettuce = food(
+        fdc_id=169247,
+        description="Lettuce, leaf, green, raw",
+        data_type="SR Legacy",
+        calories="18",
+        protein="1.36",
+        carbohydrate="3.29",
+        fat="0.15",
+        fibre="1.3",
+        search_rank=0,
+    )
+    source = Foods({"coriander leaf raw": [lettuce]})
+    recorded: list[WeakFoodMatch] = []
+
+    result = NutritionCalculator(source).calculate_required(
+        recipe([ingredient(name="coriander", query="coriander leaf raw")]),
+        weak_matches=recorded,
+    )
+
+    assert result is not None
+    assert [match.description for match in recorded] == ["Lettuce, leaf, green, raw"]
+
+
+def test_the_food_word_may_be_qualified_by_the_record() -> None:
+    # "Carrots, baby, raw" for "carrot raw" is a good match, not a weak one.
+    carrots = food(
+        fdc_id=170393,
+        description="Carrots, baby, raw",
+        data_type="SR Legacy",
+        calories="35",
+        protein="0.64",
+        carbohydrate="8.24",
+        fat="0.13",
+        fibre="2.9",
+        search_rank=0,
+    )
+    source = Foods({"carrot raw": [carrots]})
+    recorded: list[WeakFoodMatch] = []
+
+    NutritionCalculator(source).calculate_required(
+        recipe([ingredient(name="carrot", query="carrot raw")]),
+        weak_matches=recorded,
+    )
+
+    assert recorded == []
