@@ -74,20 +74,54 @@ def _context(
     "context",
     [
         _context(title="Creamy Garlic Pasta"),
-        _context(
-            description=(
-                "The coziest dinner! Add 2 cups pasta and simmer tonight. "
-                "Full recipe in bio."
-            )
-        ),
         _context(transcript="Chickpeas, garlic, lemon, parsley."),
         _context(platform_text="Add 2 cups pasta, then simmer until tender."),
     ],
-    ids=["title-only", "promotional-caption", "ingredient-names", "platform-text"],
+    ids=["title-only", "ingredient-names", "platform-text"],
 )
-def test_unsupported_sparse_text_is_rejected(context: AcquiredVideoContext) -> None:
+def test_text_without_a_cooking_method_is_rejected(
+    context: AcquiredVideoContext,
+) -> None:
     with pytest.raises(InsufficientTextEvidence):
         require_recipe_evidence(context)
+
+
+def test_caption_without_amounts_is_accepted() -> None:
+    """The case the old three-quantity threshold rejected.
+
+    Every ingredient here is unquantified, which is how a great many TikTok
+    creators write. The method is unmistakable, so the recipe survives to the
+    extractor, which decides what to do about the missing amounts.
+    """
+    context = _context(
+        description=(
+            "lemon pepper chicken skewers. Ingredients: chicken breast, "
+            "olive oil, lemon juice, minced garlic, onion powder, paprika. "
+            "Air fry at 400F for 12 minutes, flip the chicken and air fry "
+            "for another 10 minutes."
+        )
+    )
+
+    require_recipe_evidence(context)
+
+
+def test_a_thin_caption_now_reaches_the_extractor() -> None:
+    """A deliberate consequence of dropping the quantity threshold.
+
+    This caption barely describes cooking and used to be rejected outright.
+    It now passes the gate, because the alternative was throwing away real
+    recipes that simply never stated amounts. The extractor labels a method
+    it had to reconstruct as inferred, and the server routes that to human
+    review rather than presenting it as the creator's own.
+    """
+    context = _context(
+        description=(
+            "The coziest dinner! Add 2 cups pasta and simmer tonight. "
+            "Full recipe in bio."
+        )
+    )
+
+    require_recipe_evidence(context)
 
 
 @pytest.mark.parametrize(
