@@ -382,3 +382,91 @@ def test_missing_mass_exposes_ingredient_diagnostic() -> None:
     assert error.value.code == "missingMass"
     assert error.value.ingredient_index == 0
     assert error.value.ingredient_name == "chickpeas"
+
+
+def test_first_candidate_with_impossible_nutrients_falls_through_to_the_next() -> None:
+    # The real failure: USDA's top hit for "cumin seeds" was a branded grinder
+    # refill claiming zero calories, while the SR Legacy spice record sat one
+    # rank below it. One unusable candidate must not cost the whole recipe.
+    junk = food(
+        fdc_id=2427784,
+        description="CUMIN SEEDS GRINDER REFILL",
+        data_type="Branded",
+        calories="0",
+        protein="0",
+        carbohydrate="133.33",
+        fat="0",
+        search_rank=0,
+    )
+    usable = food(
+        fdc_id=170923,
+        description="Spices, cumin seed",
+        data_type="SR Legacy",
+        calories="375",
+        protein="17.81",
+        carbohydrate="44.24",
+        fat="22.27",
+        search_rank=1,
+    )
+    source = Foods({"chickpeas drained": [junk, usable]})
+
+    result = NutritionCalculator(source).calculate_required(recipe([ingredient()]))
+
+    assert result is not None
+    assert "FDC 170923" in (result.evidence or "")
+    assert "FDC 2427784" not in (result.evidence or "")
+
+
+def test_candidate_without_usable_mass_falls_through_to_the_next() -> None:
+    unmeasurable = food(fdc_id=11, search_rank=0, portions=[])
+    usable = food(fdc_id=12, search_rank=1, portions=[portion("clove", "3")])
+    source = Foods({"garlic": [unmeasurable, usable]})
+
+    result = NutritionCalculator(source).calculate_required(
+        recipe(
+            [
+                ingredient(
+                    name="garlic",
+                    query="garlic",
+                    quantity="2",
+                    unit="clove",
+                    metric_amount=None,
+                    metric_unit=None,
+                )
+            ]
+        )
+    )
+
+    assert result is not None
+    assert "FDC 12" in (result.evidence or "")
+
+
+def test_every_candidate_being_unusable_still_blocks_the_ingredient() -> None:
+    source = Foods(
+        {
+            "chickpeas drained": [
+                food(
+                    fdc_id=21,
+                    calories="900",
+                    protein="1",
+                    carbohydrate="1",
+                    fat="1",
+                    search_rank=0,
+                ),
+                food(
+                    fdc_id=22,
+                    calories="0",
+                    protein="0",
+                    carbohydrate="125",
+                    fat="0",
+                    search_rank=1,
+                ),
+            ]
+        }
+    )
+
+    with pytest.raises(NutritionCalculationUnavailable) as error:
+        NutritionCalculator(source).calculate_required(recipe([ingredient()]))
+
+    assert error.value.code == "inconsistentNutrients"
+    assert error.value.ingredient_index == 0

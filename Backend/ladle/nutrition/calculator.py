@@ -98,20 +98,7 @@ class NutritionCalculator:
         if not material:
             raise NutritionCalculationUnavailable("noMaterialIngredients")
         for index, ingredient in material:
-            food = self._food_required(ingredient, index=index)
-            if not _consistent(food, query=ingredient.usda_search_term or ""):
-                raise NutritionCalculationUnavailable(
-                    "inconsistentNutrients",
-                    ingredient_index=index,
-                    ingredient_name=ingredient.name,
-                )
-            grams = _grams(ingredient, food.portions)
-            if grams is None or grams <= 0:
-                raise NutritionCalculationUnavailable(
-                    "missingMass",
-                    ingredient_index=index,
-                    ingredient_name=ingredient.name,
-                )
+            food, grams = self._usable_food(ingredient, index=index)
             scale = grams / Decimal(100)
             values = (
                 food.calories_per_100g,
@@ -141,12 +128,54 @@ class NutritionCalculator:
             evidence=evidence,
         )
 
-    def _food_required(
+    def _usable_food(
         self,
         ingredient: TemplateIngredient,
         *,
         index: int,
-    ) -> FoodNutrients:
+    ) -> tuple[FoodNutrients, Decimal]:
+        """The best-ranked candidate whose nutrients and mass are both usable.
+
+        USDA's top hit is regularly a branded product with a nonsense
+        per-100g panel — a spice grinder refill declaring zero calories and
+        133g of carbohydrate outranked `Spices, cumin seed` on a literal
+        token match. Taking only the first candidate meant one such record
+        cost the whole recipe its nutrition, so every candidate the search
+        already paid for is tried in rank order before giving up. The failure
+        reported when none work is the first candidate's, which is the one
+        the ranking believed in.
+        """
+        candidates = self._ranked_candidates(ingredient, index=index)
+        first_failure: NutritionCalculationUnavailable | None = None
+        for food in candidates:
+            if not _consistent(food, query=ingredient.usda_search_term or ""):
+                first_failure = first_failure or NutritionCalculationUnavailable(
+                    "inconsistentNutrients",
+                    ingredient_index=index,
+                    ingredient_name=ingredient.name,
+                )
+                continue
+            grams = _grams(ingredient, food.portions)
+            if grams is None or grams <= 0:
+                first_failure = first_failure or NutritionCalculationUnavailable(
+                    "missingMass",
+                    ingredient_index=index,
+                    ingredient_name=ingredient.name,
+                )
+                continue
+            return food, grams
+        raise first_failure or NutritionCalculationUnavailable(
+            "foodNotFound",
+            ingredient_index=index,
+            ingredient_name=ingredient.name,
+        )
+
+    def _ranked_candidates(
+        self,
+        ingredient: TemplateIngredient,
+        *,
+        index: int,
+    ) -> list[FoodNutrients]:
         query = ingredient.usda_search_term
         if query is None:
             raise NutritionCalculationUnavailable(
@@ -172,7 +201,7 @@ class NutritionCalculator:
                     value.fdc_id,
                 )
             )
-            return provider_ranked[0]
+            return provider_ranked
 
         ranked: list[tuple[tuple[int, int, int], FoodNutrients]] = []
         normalized_query = " ".join(_tokens(query))
@@ -200,7 +229,7 @@ class NutritionCalculator:
                 ingredient_index=index,
                 ingredient_name=ingredient.name,
             )
-        return ranked[0][1]
+        return [value for _, value in ranked]
 
 
 def _grams(
