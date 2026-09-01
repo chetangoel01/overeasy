@@ -45,15 +45,17 @@ struct FullRecipeView: View {
             // Picking a step used to change only the pill's own label: this
             // screen shows every step at once, so nothing moved and the
             // control looked broken. It now brings the chosen step into view.
+            // Deliberately not animated. An animated scrollTo keeps driving
+            // the offset for the length of the animation, so a swipe started
+            // in that window fought it and the list sprang back hard before
+            // settling. Landing immediately leaves nothing to fight.
             .onChange(of: viewModel.currentStepIndex) { _, index in
                 guard viewModel.recipe.orderedSteps.indices.contains(index)
                 else { return }
-                withAnimation(.easeInOut(duration: 0.25)) {
-                    scroll.scrollTo(
-                        viewModel.recipe.orderedSteps[index].id,
-                        anchor: .top
-                    )
-                }
+                scroll.scrollTo(
+                    viewModel.recipe.orderedSteps[index].id,
+                    anchor: .top
+                )
             }
             .background(LadleTheme.Surface.porcelain)
             .accessibilityIdentifier("cooking.full-recipe")
@@ -137,11 +139,16 @@ struct FullRecipeView: View {
                 }
             }
         } label: {
-            LadlePill(
-                text: viewModel.progressText,
-                systemImage: "chevron.down"
-            )
-            .frame(minHeight: LadleTheme.Control.hitTarget)
+            // Built like the Focus mode button rather than with LadlePill:
+            // the pill draws its capsule inside its own padding, so a
+            // minHeight around it padded empty space and left a visibly
+            // shorter capsule beside a full-height button.
+            Label(viewModel.progressText, systemImage: "chevron.down")
+                .ladleFont(.metadata)
+                .foregroundStyle(LadleTheme.Label.primary)
+                .padding(.horizontal, 12)
+                .frame(minHeight: LadleTheme.Control.hitTarget)
+                .background(LadleTheme.Surface.raised, in: Capsule())
         }
         .accessibilityLabel("\(viewModel.progressText) cooking progress")
     }
