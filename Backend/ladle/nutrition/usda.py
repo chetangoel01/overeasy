@@ -142,10 +142,13 @@ class USDAClient:
         json: object | None = None,
     ) -> httpx.Response:
         try:
+            # The key goes in a header, not `?api_key=`: httpx logs every
+            # outbound URL at INFO, so a query-string key is a key sitting in
+            # plaintext in the worker logs.
             response = self._http.request(
                 method,
                 f"{self._base_url}{path}",
-                params={"api_key": self._api_key},
+                headers={"X-Api-Key": self._api_key},
                 json=json,
             )
         except httpx.HTTPError as error:
@@ -178,6 +181,15 @@ class USDAClient:
 
     @staticmethod
     def _search_rank(query: str, row: dict[object, object]) -> tuple[object, ...]:
+        """Order candidates by how trustworthy the panel is, then by fit.
+
+        Data type leads. Branded rows are label transcriptions and are
+        routinely unusable — zero-calorie spices, per-100g carbohydrate above
+        100g — while Foundation and SR Legacy are laboratory records. Ranking
+        by token overlap first let `CUMIN SEEDS GRINDER REFILL, CUMIN SEEDS`
+        beat `Spices, cumin seed`, which matches one token fewer only because
+        "seeds" is not "seed".
+        """
         description = _normalize(str(row.get("description", "")))
         query_tokens = set(query.split())
         matches = len(query_tokens & set(description.split()))
@@ -185,7 +197,7 @@ class USDAClient:
         priority = _DATA_TYPE_PRIORITY.get(data_type, len(_DATA_TYPES))
         raw_score = row.get("score")
         score = float(raw_score) if isinstance(raw_score, int | float) else 0.0
-        return (-matches, priority, -score, description)
+        return (priority, -matches, -score, description)
 
     @staticmethod
     def _parse_food(value: dict[str, object]) -> FoodNutrients | None:
@@ -220,6 +232,8 @@ class USDAClient:
 
         energy = next((amounts[key] for key in _ENERGY_IDS if key in amounts), None)
         if energy is None or any(key not in amounts for key in _MACRO_IDS.values()):
+            return None
+        if not _plausible(energy, amounts):
             return None
 
         portions: list[FoodPortion] = []
@@ -265,6 +279,26 @@ class USDAClient:
             modifier=modifier if isinstance(modifier, str) else None,
             description=description if isinstance(description, str) else None,
         )
+
+
+def _plausible(energy: Decimal, amounts: dict[int, Decimal]) -> bool:
+    """Whether a per-100g panel can describe a real food.
+
+    Branded rows are transcribed from labels and are often scaled from a
+    serving size the record does not carry, which produces panels no food can
+    have. These are rejected here rather than in the calculator so they never
+    become the candidate a recipe is costed from: the alternative is an
+    ingredient contributing 133g of carbohydrate per 100g.
+
+    An all-zero panel is left alone: water and salt really do contribute
+    nothing, and rejecting them would block any recipe that lists water. The
+    branded all-zero spice records that used to slip through are handled by
+    ranking instead, which now puts the laboratory record above them.
+    """
+    macros = [amounts[key] for key in _MACRO_IDS.values()]
+    if sum(macros) > Decimal(100):
+        return False
+    return not (energy <= 0 and any(macros))
 
 
 def _normalize(value: str) -> str:

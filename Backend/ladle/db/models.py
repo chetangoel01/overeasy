@@ -259,6 +259,12 @@ class AuthSession(Base):
 class SourceVideo(Base):
     __tablename__ = "source_videos"
     __table_args__ = (
+        # Migration 0019's partial index, restated so autogenerate keeps it.
+        Index(
+            "ix_source_videos_like_count",
+            text("like_count DESC"),
+            postgresql_where=text("like_count IS NOT NULL"),
+        ),
         UniqueConstraint(
             "platform",
             "platform_video_id",
@@ -372,6 +378,19 @@ class NegativeExtractionCache(Base):
 class Recipe(Base):
     __tablename__ = "recipes"
     __table_args__ = (
+        # Declared here as well as in migration 0018 so autogenerate does not
+        # propose dropping them: the Discover feed groups and filters on
+        # exactly these columns.
+        Index("ix_recipes_source_video_id", "source_video_id"),
+        Index(
+            "ix_recipes_discover_ranking",
+            "review_status",
+            "source",
+            "source_video_id",
+            postgresql_where=text(
+                "deleted_at IS NULL AND source_cache_id IS NOT NULL"
+            ),
+        ),
         CheckConstraint(
             "source IN ('tiktok', 'instagram', 'youtube', 'other')",
             name="ck_recipes_source",
