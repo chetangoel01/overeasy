@@ -7,6 +7,7 @@ from ladle.contracts.recipes import RecipeReviewStatus, RecipeSource
 from ladle.nutrition.calculator import (
     NutritionCalculationUnavailable,
     NutritionCalculator,
+    WeakFoodMatch,
 )
 from ladle.nutrition.usda import FoodNutrients, FoodPortion
 from ladle.recipes.template_clone import (
@@ -527,3 +528,96 @@ def test_a_panel_outside_the_fibre_band_is_still_rejected() -> None:
         )
 
     assert error.value.code == "inconsistentNutrients"
+
+
+def test_an_irrelevant_top_result_loses_to_a_relevant_one_further_down() -> None:
+    """USDA's first hit for "cinnamon stick" was APPLEBEE'S mozzarella sticks.
+
+    Nothing checked that a provider-ranked candidate had anything to do with
+    the query, so the recipe was costed from it.
+    """
+    irrelevant = food(
+        fdc_id=169011,
+        description="APPLEBEE'S, mozzarella sticks",
+        data_type="Survey (FNDDS)",
+        calories="316",
+        search_rank=0,
+    )
+    relevant = food(
+        fdc_id=171329,
+        description="Spices, cinnamon, ground",
+        data_type="SR Legacy",
+        calories="247",
+        protein="3.99",
+        carbohydrate="80.59",
+        fat="1.24",
+        fibre="53.1",
+        search_rank=1,
+    )
+    source = Foods({"cinnamon": [irrelevant, relevant]})
+
+    result = NutritionCalculator(source).calculate_required(
+        recipe([ingredient(name="cinnamon", query="cinnamon")])
+    )
+
+    assert result is not None
+    assert "FDC 171329" in (result.evidence or "")
+
+
+def test_plural_and_singular_count_as_the_same_word() -> None:
+    # "seeds" against "Spices, cumin seed" started all of this.
+    match = food(
+        fdc_id=170923,
+        description="Spices, cumin seed",
+        data_type="SR Legacy",
+        calories="375",
+        protein="17.81",
+        carbohydrate="44.24",
+        fat="22.27",
+        fibre="10.5",
+        search_rank=0,
+    )
+    source = Foods({"cumin seeds": [match]})
+    weak: list[WeakFoodMatch] = []
+
+    result = NutritionCalculator(source).calculate_required(
+        recipe([ingredient(name="cumin seeds", query="cumin seeds")]),
+        weak_matches=weak,
+    )
+
+    assert result is not None
+    assert weak == []
+
+
+def test_a_weak_match_is_used_but_recorded_rather_than_blocking() -> None:
+    """Nothing relevant exists for garam masala, so the recipe still costs it.
+
+    Blocking would lose every other ingredient's calories over one blend, and
+    silently accepting it would hide a number nobody should trust.
+    """
+    weak = food(
+        fdc_id=171181,
+        description="SMART SOUP, Indian Bean Masala",
+        data_type="SR Legacy",
+        calories="57",
+        protein="3",
+        carbohydrate="8",
+        fat="1",
+        search_rank=0,
+    )
+    source = Foods({"garam masala": [weak]})
+    recorded: list[WeakFoodMatch] = []
+
+    result = NutritionCalculator(source).calculate_required(
+        recipe([ingredient(name="garam masala", query="garam masala")]),
+        weak_matches=recorded,
+    )
+
+    assert result is not None
+    assert recorded == [
+        WeakFoodMatch(
+            ingredient_index=0,
+            ingredient_name="garam masala",
+            description="SMART SOUP, Indian Bean Masala",
+        )
+    ]
