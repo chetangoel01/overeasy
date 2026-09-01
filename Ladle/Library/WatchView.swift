@@ -61,7 +61,11 @@ struct WatchView: View {
         _discoverViewModel = State(
             initialValue: DiscoverViewModel(
                 service: discoverService,
-                removesSavedRecipeImmediately: false
+                removesSavedRecipeImmediately: false,
+                // Watch is a full-screen video feed with no room for a rail
+                // and nothing that would draw one. Loading shelves here would
+                // be two requests per launch that nothing ever reads.
+                loadsShelves: false
             )
         )
     }

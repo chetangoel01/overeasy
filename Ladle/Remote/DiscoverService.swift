@@ -11,6 +11,7 @@ struct SavedDiscoverRecipe: Equatable, Sendable {
 /// sort that page.
 enum DiscoverSort: String, CaseIterable, Identifiable, Sendable {
     case popular
+    case newest
     case mostLiked
     case alphabetical
 
@@ -19,6 +20,7 @@ enum DiscoverSort: String, CaseIterable, Identifiable, Sendable {
     var title: String {
         switch self {
         case .popular: "Most saved"
+        case .newest: "Newest"
         case .mostLiked: "Most liked"
         case .alphabetical: "A to Z"
         }
@@ -27,6 +29,7 @@ enum DiscoverSort: String, CaseIterable, Identifiable, Sendable {
     var systemImage: String {
         switch self {
         case .popular: "bookmark.fill"
+        case .newest: "clock"
         case .mostLiked: "heart.fill"
         case .alphabetical: "textformat.abc"
         }
@@ -37,6 +40,8 @@ enum DiscoverSort: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .popular:
             "Popular public recipe videos, ranked by saves."
+        case .newest:
+            "Public recipe videos in the order they arrived in Overeasy."
         case .mostLiked:
             "Ranked by likes on the original video, counted when it was saved."
         case .alphabetical:
@@ -45,9 +50,62 @@ enum DiscoverSort: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+/// One rail above the ranked list. A shelf is a first page of the same feed
+/// under a different order or filter, which is why none of them needs a wire
+/// model, an endpoint, or a cursor of its own.
+struct DiscoverShelf: Identifiable, Equatable, Sendable {
+    enum ID: String, CaseIterable, Sendable {
+        case newToOvereasy
+        case quickDinners
+
+        var title: String {
+            switch self {
+            case .newToOvereasy: "New to Overeasy"
+            case .quickDinners: "Quick dinners"
+            }
+        }
+
+        var caption: String {
+            switch self {
+            case .newToOvereasy: "The videos that arrived here most recently."
+            case .quickDinners: "Thirty minutes or less, start to finish."
+            }
+        }
+
+        var sort: DiscoverSort {
+            switch self {
+            case .newToOvereasy: .newest
+            case .quickDinners: .popular
+            }
+        }
+
+        /// Nil keeps every source. A value drops the ones no saver timed —
+        /// an unknown total is not a fast one.
+        var maxTotalMinutes: Int? {
+            switch self {
+            case .newToOvereasy: nil
+            case .quickDinners: 30
+            }
+        }
+    }
+
+    let id: ID
+    let recipes: [DiscoverRecipe]
+
+    var title: String { id.title }
+    var caption: String { id.caption }
+
+    /// Below this a rail reads as an accident rather than a shelf, and the
+    /// full-width list underneath already carries the same rows.
+    static let minimumRecipes = 3
+}
+
 enum DiscoverPaging {
     /// Mirrors the server's default page size.
     static let pageSize = 30
+    /// A rail carries enough to cover its own window and no more: there is
+    /// no "See all", so anything past the end of a swipe is never reached.
+    static let shelfSize = 10
     /// Begin the next page this many rows before the end, so scrolling does
     /// not stop at a spinner.
     static let prefetchThreshold = 8
@@ -78,12 +136,33 @@ protocol DiscoverServing {
     func fetchDiscoverPage(
         cursor: Int,
         query: String,
-        sort: DiscoverSort
+        sort: DiscoverSort,
+        maxTotalMinutes: Int?,
+        limit: Int
     ) async throws -> DiscoverPage
     func fetchDiscoverRecipe(sourceID: UUID) async throws -> Recipe
     func saveDiscoverRecipe(
         sourceID: UUID
     ) async throws -> SavedDiscoverRecipe
+}
+
+extension DiscoverServing {
+    /// The feed's own page: no time filter, the server's page size. Swift
+    /// protocols cannot carry default arguments, so the defaults live here
+    /// and only the shelves pass the two extra values.
+    func fetchDiscoverPage(
+        cursor: Int,
+        query: String,
+        sort: DiscoverSort
+    ) async throws -> DiscoverPage {
+        try await fetchDiscoverPage(
+            cursor: cursor,
+            query: query,
+            sort: sort,
+            maxTotalMinutes: nil,
+            limit: DiscoverPaging.pageSize
+        )
+    }
 }
 
 /// The one Discover-detail path; RemoteImageCache refreshes expired
@@ -100,12 +179,23 @@ struct RemoteDiscoverService: DiscoverServing {
     func fetchDiscoverPage(
         cursor: Int,
         query: String,
-        sort: DiscoverSort
+        sort: DiscoverSort,
+        maxTotalMinutes: Int?,
+        limit: Int
     ) async throws -> DiscoverPage {
         var items = [
             URLQueryItem(name: "cursor", value: String(cursor)),
+            URLQueryItem(name: "limit", value: String(limit)),
             URLQueryItem(name: "sort", value: sort.rawValue),
         ]
+        if let maxTotalMinutes {
+            items.append(
+                URLQueryItem(
+                    name: "max_total_minutes",
+                    value: String(maxTotalMinutes)
+                )
+            )
+        }
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty {
             items.append(URLQueryItem(name: "q", value: trimmed))
@@ -147,16 +237,28 @@ struct RemoteDiscoverService: DiscoverServing {
 struct DemoDiscoverService: DiscoverServing {
     let scenario: DemoLaunchScenario
 
+    /// Fixture order stands in for arrival order, so "newest" has something
+    /// deterministic to rank by without inventing a date on the wire model.
+    private static let arrivalOrder: [UUID: Int] = Dictionary(
+        uniqueKeysWithValues: PreviewFixtures.recipes.enumerated().map {
+            ($0.element.id, $0.offset)
+        }
+    )
+
     init(scenario: DemoLaunchScenario = .standard) {
         self.scenario = scenario
     }
 
     /// Mirrors the server: filters and orders the whole fixture set, then
-    /// returns one page. Without that the demo would not exercise paging.
+    /// returns one page. Without that the demo would not exercise paging —
+    /// or, since #29, the two shelves, which are exactly this call under a
+    /// different order and a time filter.
     func fetchDiscoverPage(
         cursor: Int,
         query: String,
-        sort: DiscoverSort
+        sort: DiscoverSort,
+        maxTotalMinutes: Int?,
+        limit: Int
     ) async throws -> DiscoverPage {
         if scenario == .discoverEmpty {
             return .empty
@@ -164,7 +266,15 @@ struct DemoDiscoverService: DiscoverServing {
         if scenario == .discoverRateLimited {
             throw DemoRemoteError.rateLimited
         }
-        let all = PreviewFixtures.recipes.enumerated().map { index, recipe in
+        // Enumerated before filtering, so a fixture's save and like counts
+        // stay put whatever the time filter removes.
+        let all = PreviewFixtures.recipes.enumerated().filter { _, recipe in
+            guard let maxTotalMinutes else { return true }
+            // Same rule as the server: an untimed recipe is left out rather
+            // than assumed quick.
+            guard let totalMinutes = recipe.totalMinutes else { return false }
+            return totalMinutes <= maxTotalMinutes
+        }.map { index, recipe in
             DiscoverRecipe(
                 sourceID: recipe.id,
                 title: recipe.title,
@@ -190,6 +300,13 @@ struct DemoDiscoverService: DiscoverServing {
         let ordered = switch sort {
         case .popular:
             matched.sorted { $0.savedCount > $1.savedCount }
+        case .newest:
+            // Last fixture first, which is the reverse of the save ranking,
+            // so the "New to Overeasy" rail is visibly not the list below it.
+            matched.sorted { first, second in
+                Self.arrivalOrder[first.sourceID, default: 0]
+                    > Self.arrivalOrder[second.sourceID, default: 0]
+            }
         case .mostLiked:
             // Same rule as the server: counted videos first, then save order.
             matched.sorted { first, second in
@@ -210,7 +327,6 @@ struct DemoDiscoverService: DiscoverServing {
                     == .orderedAscending
             }
         }
-        let limit = DiscoverPaging.pageSize
         let start = min(cursor, ordered.count)
         let end = min(start + limit, ordered.count)
         return DiscoverPage(
