@@ -22,10 +22,6 @@ struct FailedImportSheet: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close", action: close)
                         .disabled(isRetrying || isOwnedImporting)
-                        .padding(
-                            .leading,
-                            LadleTheme.Layout.sheetToolbarInset
-                        )
                 }
             }
         }
