@@ -440,7 +440,9 @@ extension AuthTokens {
     static func fixture(
         accessToken: String,
         refreshToken: String = "refresh-token",
-        userKind: String = "guest"
+        userKind: String = "guest",
+        displayName: String? = nil,
+        avatarURL: URL? = nil
     ) -> AuthTokens {
         AuthTokens(
             accessToken: accessToken,
@@ -452,7 +454,9 @@ extension AuthTokens {
             deviceID: UUID(
                 uuidString: "10000000-0000-4000-8000-000000000002"
             )!,
-            userKind: userKind
+            userKind: userKind,
+            displayName: displayName,
+            avatarURL: avatarURL
         )
     }
 }

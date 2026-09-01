@@ -93,7 +93,7 @@ final class AccountSessionTests: XCTestCase {
 
         // Only a user kind reported by the backend can lift the cap; there
         // is no local action that mints an account.
-        session.applyRemoteUserKind("free")
+        session.applyRemoteAccount(kind: "free")
 
         XCTAssertEqual(session.state, .freeAccount)
         XCTAssertEqual(
@@ -107,7 +107,7 @@ final class AccountSessionTests: XCTestCase {
 
         XCTAssertFalse(session.isRemoteSessionReady)
 
-        session.applyRemoteUserKind("guest")
+        session.applyRemoteAccount(kind: "guest")
 
         XCTAssertTrue(session.isRemoteSessionReady)
 
@@ -116,11 +116,85 @@ final class AccountSessionTests: XCTestCase {
         XCTAssertFalse(session.isRemoteSessionReady)
     }
 
+    func testRemoteProfileIsAppliedWithTheAccountAndClearedOnSignOut() {
+        let session = AccountSession(store: InMemoryPreferenceStore())
+
+        session.applyRemoteAccount(
+            kind: "google",
+            profile: AccountProfile(
+                displayName: "Priya Raman",
+                avatarURL: URL(string: "https://cdn.test/priya.jpg")
+            )
+        )
+
+        XCTAssertEqual(session.state, .signedInWithGoogle)
+        XCTAssertEqual(session.profile?.displayName, "Priya Raman")
+        XCTAssertEqual(
+            session.profile?.avatarURL,
+            URL(string: "https://cdn.test/priya.jpg")
+        )
+
+        session.signOut()
+
+        XCTAssertNil(
+            session.profile,
+            "The next cook on this device must not inherit a name"
+        )
+    }
+
+    /// An account with no profile yet — every Apple cook who signed in before
+    /// the name was captured — is a signed-in account, not a broken one.
+    func testAccountWithoutAProfileStaysSignedIn() {
+        let session = AccountSession(store: InMemoryPreferenceStore())
+
+        session.applyRemoteAccount(kind: "apple", profile: nil)
+
+        XCTAssertEqual(session.state, .signedInWithApple)
+        XCTAssertNil(session.profile)
+    }
+
+    /// Under `-ui-testing` there is no `AuthClient`, so the header has no
+    /// profile to draw unless the launch arguments supply one.
+    func testUITestingLaunchArgumentsPinTheProfile() {
+        let session = AccountSession(
+            store: InMemoryPreferenceStore(),
+            launchArguments: [
+                "-ui-testing",
+                "-account-state", "signedInWithGoogle",
+                "-account-display-name", "Priya Raman",
+                "-account-avatar-url", "https://cdn.test/priya.jpg",
+            ]
+        )
+
+        XCTAssertEqual(session.state, .signedInWithGoogle)
+        XCTAssertEqual(session.profile?.displayName, "Priya Raman")
+        XCTAssertEqual(
+            session.profile?.avatarURL,
+            URL(string: "https://cdn.test/priya.jpg")
+        )
+
+        // The guest registration that still runs must not wipe what was
+        // pinned, exactly as it must not wipe the pinned state.
+        session.applyRemoteAccount(kind: "guest", profile: nil)
+
+        XCTAssertEqual(session.state, .signedInWithGoogle)
+        XCTAssertEqual(session.profile?.displayName, "Priya Raman")
+    }
+
+    func testProfileNameIsIgnoredWithoutTheUITestingArgument() {
+        let session = AccountSession(
+            store: InMemoryPreferenceStore(),
+            launchArguments: ["-account-display-name", "Priya Raman"]
+        )
+
+        XCTAssertNil(session.profile)
+    }
+
     func testGoogleAccountRestoresAsAnUnlimitedSignedInAccount() {
         let store = InMemoryPreferenceStore()
         let session = AccountSession(store: store)
 
-        session.applyRemoteUserKind("google")
+        session.applyRemoteAccount(kind: "google")
         let returningSession = AccountSession(store: store)
 
         XCTAssertTrue(session.isRemoteSessionReady)

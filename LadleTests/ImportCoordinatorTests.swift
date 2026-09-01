@@ -165,7 +165,7 @@ final class ImportCoordinatorTests: XCTestCase {
 
         // The backend confirms the merged account; the sheet then resumes
         // the blocked import.
-        accountSession.applyRemoteUserKind("apple")
+        accountSession.applyRemoteAccount(kind: "apple")
         await coordinator.continueAfterGuestPrompt()
 
         XCTAssertEqual(repository.recipes.count, 11)

@@ -19,6 +19,37 @@ enum AccountState: String, Equatable {
     case signedInWithGoogle
 }
 
+/// What the account knows about the cook: whatever the provider supplied at
+/// sign-in, plus whatever they have since edited. Both parts are optional —
+/// a guest has neither, and an Apple cook has no avatar, ever.
+struct AccountProfile: Equatable, Sendable {
+    /// The bound the server enforces on `display_name`. A formatted Apple
+    /// name can exceed it, and a request that does is rejected outright, so
+    /// every producer of a name clamps to this.
+    static let displayNameLimit = 64
+
+    var displayName: String?
+    var avatarURL: URL?
+
+    var isEmpty: Bool {
+        displayName == nil && avatarURL == nil
+    }
+
+    var nonEmpty: AccountProfile? {
+        isEmpty ? nil : self
+    }
+
+    /// The one or two initials a monogram draws when there is no photo.
+    var monogram: String? {
+        guard let displayName else { return nil }
+        let initials = displayName
+            .split(separator: " ")
+            .compactMap(\.first)
+            .prefix(2)
+        return initials.isEmpty ? nil : String(initials).uppercased()
+    }
+}
+
 @MainActor
 @Observable
 final class AccountSession {
@@ -42,10 +73,17 @@ final class AccountSession {
     /// state said, so no UI test could reach them.
     private let isStatePinned: Bool
 
+    /// Set only by `-account-display-name` / `-account-avatar-url` under
+    /// `-ui-testing`. A UI-test build has no `AuthClient` at all, so without
+    /// this the header has no cook to draw and cannot be captured or
+    /// asserted on.
+    private let isProfilePinned: Bool
+
     private(set) var state: AccountState
     private(set) var shouldPresentWelcome: Bool
     private(set) var shouldPresentWalkthrough: Bool
     private(set) var isRemoteSessionReady = false
+    private(set) var profile: AccountProfile?
 
     init(
         store: PreferenceStoring = UserDefaults.standard,
@@ -53,11 +91,14 @@ final class AccountSession {
     ) {
         self.store = store
 
+        let isUITesting = launchArguments.contains("-ui-testing")
         let pinnedState: AccountState? =
-            launchArguments.contains("-ui-testing")
-            ? Self.pinnedState(in: launchArguments)
-            : nil
+            isUITesting ? Self.pinnedState(in: launchArguments) : nil
         isStatePinned = pinnedState != nil
+        let pinnedProfile: AccountProfile? =
+            isUITesting ? Self.pinnedProfile(in: launchArguments) : nil
+        isProfilePinned = pinnedProfile != nil
+        profile = pinnedProfile
 
         if launchArguments.contains("-reset-onboarding") {
             store.removeObject(forKey: Key.onboardingComplete)
@@ -103,6 +144,30 @@ final class AccountSession {
         return AccountState(rawValue: launchArguments[index + 1])
     }
 
+    /// `-account-display-name <name>` and `-account-avatar-url <url>`,
+    /// honoured only alongside `-ui-testing`.
+    private static func pinnedProfile(
+        in launchArguments: [String]
+    ) -> AccountProfile? {
+        AccountProfile(
+            displayName: value(of: "-account-display-name", in: launchArguments),
+            avatarURL: value(of: "-account-avatar-url", in: launchArguments)
+                .flatMap(URL.init(string:))
+        )
+        .nonEmpty
+    }
+
+    private static func value(
+        of argument: String,
+        in launchArguments: [String]
+    ) -> String? {
+        guard
+            let index = launchArguments.firstIndex(of: argument),
+            launchArguments.indices.contains(index + 1)
+        else { return nil }
+        return launchArguments[index + 1]
+    }
+
     func continueAsGuest() {
         completeWelcome(as: .guest)
     }
@@ -115,13 +180,16 @@ final class AccountSession {
         completeWelcome(as: .signedInWithGoogle)
     }
 
-    func applyRemoteUserKind(_ userKind: String) {
+    /// The backend's answer about this account: its kind, and the profile
+    /// that travels with the tokens.
+    func applyRemoteAccount(kind: String, profile: AccountProfile? = nil) {
         isRemoteSessionReady = true
+        applyProfile(profile)
         // A pinned state still wants the session to come up — the library and
         // Discover need it — it just does not want the guest registration that
         // brings it to reset what was pinned.
         guard !isStatePinned else { return }
-        switch userKind {
+        switch kind {
         case "apple":
             completeWelcome(as: .signedInWithApple)
         case "google":
@@ -131,6 +199,15 @@ final class AccountSession {
         default:
             completeWelcome(as: .freeAccount)
         }
+    }
+
+    /// The server is authoritative about the profile too: it arrives with the
+    /// tokens, is refreshed with them, and is replaced — not merged — by what
+    /// the account currently holds. An edit reaches here the same way, from
+    /// the `PATCH` response rather than from the field the cook typed in.
+    func applyProfile(_ profile: AccountProfile?) {
+        guard !isProfilePinned else { return }
+        self.profile = profile?.nonEmpty
     }
 
     func saveDecision(savedRecipeCount: Int) -> GuestSaveDecision {
@@ -147,6 +224,8 @@ final class AccountSession {
         shouldPresentWelcome = true
         shouldPresentWalkthrough = false
         isRemoteSessionReady = false
+        // Whoever uses this device next is not the cook who just left.
+        profile = nil
         store.removeObject(forKey: Key.accountState)
         store.set(false, forKey: Key.onboardingComplete)
         store.set(false, forKey: Key.walkthroughPending)
