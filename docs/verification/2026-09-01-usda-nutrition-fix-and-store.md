@@ -93,6 +93,14 @@ import's transaction — a cache write has no business extending or failing that
 unit of work. Writes upsert, because workers import concurrently and will race
 for the same staple.
 
+A stored payload that yields no usable candidate is treated as a miss and
+re-fetched, and the fresh response replaces it. This matters more than it
+sounds: the first deploy of this work stored branded-only search results, and
+without that rule those payloads would have kept answering under the corrected
+logic forever — garlic powder would have stayed unresolvable even though the
+laboratory record exists. Validating on read is only worth anything if a
+payload that fails validation can be replaced.
+
 There is no TTL. FoodData Central records are effectively static; `fetched_at`
 is recorded so a refresh policy can be added if that ever stops being true.
 

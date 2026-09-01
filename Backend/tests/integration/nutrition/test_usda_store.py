@@ -96,3 +96,88 @@ def test_an_unknown_query_reports_nothing_stored(clean_postgres_url: str) -> Non
 
     assert store.search("nothing here") is None
     assert store.food(1) is None
+
+
+BRANDED_ONLY_SEARCH = {
+    "foods": [
+        {
+            "fdcId": 2104649,
+            "description": "GARLIC POWDER",
+            "dataType": "Branded",
+            "score": 900.0,
+        }
+    ]
+}
+BRANDED_ALL_ZERO = {
+    "fdcId": 2104649,
+    "description": "GARLIC POWDER",
+    "dataType": "Branded",
+    "foodNutrients": [
+        {"nutrient": {"id": 1008, "unitName": "kcal"}, "amount": 0},
+        {"nutrient": {"id": 1003, "unitName": "g"}, "amount": 0},
+        {"nutrient": {"id": 1004, "unitName": "g"}, "amount": 0},
+        {"nutrient": {"id": 1005, "unitName": "g"}, "amount": 0},
+    ],
+    "foodPortions": [],
+}
+GENERIC_SPICE = {
+    "fdcId": 171325,
+    "description": "Spices, garlic powder",
+    "dataType": "SR Legacy",
+    "foodNutrients": [
+        {"nutrient": {"id": 1008, "unitName": "kcal"}, "amount": 331},
+        {"nutrient": {"id": 1003, "unitName": "g"}, "amount": 16.55},
+        {"nutrient": {"id": 1004, "unitName": "g"}, "amount": 0.73},
+        {"nutrient": {"id": 1005, "unitName": "g"}, "amount": 72.73},
+    ],
+    "foodPortions": [],
+}
+
+
+@pytest.mark.integration
+def test_a_stored_payload_that_yields_nothing_is_researched(
+    clean_postgres_url: str,
+) -> None:
+    """A payload collected under older rules must not pin the mistake.
+
+    The branded-only search this deployment stored before the fix would
+    otherwise keep answering forever, and garlic powder would stay unresolvable
+    even though the laboratory record exists.
+    """
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    sessions = build_session_factory(build_engine(clean_postgres_url))
+    store = DatabaseUSDAPayloadStore(session_factory=sessions)
+    store.save_search("garlic powder", BRANDED_ONLY_SEARCH)
+    store.save_food(2104649, BRANDED_ALL_ZERO)
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/foods/search"):
+            return httpx.Response(
+                200,
+                json={
+                    "foods": [
+                        {
+                            "fdcId": 171325,
+                            "description": "Spices, garlic powder",
+                            "dataType": "SR Legacy",
+                            "score": 700.0,
+                        }
+                    ]
+                },
+            )
+        return httpx.Response(200, json=GENERIC_SPICE)
+
+    usda = USDAClient(
+        http=httpx.Client(transport=httpx.MockTransport(respond)),
+        api_key="usda-test-key",
+        base_url="https://api.nal.usda.gov/fdc/v1",
+        store=store,
+    )
+
+    foods = usda.candidates("garlic powder")
+
+    assert [food.fdc_id for food in foods] == [171325]
+    # The corrected payload replaces the one that answered with nothing.
+    stored = store.search("garlic powder")
+    assert stored is not None
+    assert stored["foods"][0]["fdcId"] == 171325

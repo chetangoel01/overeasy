@@ -106,11 +106,30 @@ class USDAClient:
             self._cache.move_to_end(normalized)
             return list(cached)
 
-        payload = self._store.search(normalized) if self._store else None
-        if payload is None:
+        # A stored payload that yields nothing usable is not an answer. It is
+        # normally a payload collected under older rules — the search that
+        # only asked for branded rows, or a ranking since corrected — and
+        # trusting it would pin the mistake in place forever. Re-asking is the
+        # cost of keeping raw responses and validating them on read.
+        stored = self._store.search(normalized) if self._store else None
+        foods = self._foods_from(stored, normalized) if stored is not None else []
+        if not foods:
             payload = self._search_payload(normalized)
             if self._store is not None:
                 self._store.save_search(normalized, payload)
+            foods = self._foods_from(payload, normalized)
+
+        value = tuple(foods)
+        self._cache[normalized] = value
+        while len(self._cache) > self._maximum_cache_entries:
+            self._cache.popitem(last=False)
+        return list(value)
+
+    def _foods_from(
+        self,
+        payload: dict[str, object],
+        normalized: str,
+    ) -> list[FoodNutrients]:
         rows = payload.get("foods")
         if not isinstance(rows, list):
             raise MalformedProviderResponse("USDA search returned invalid foods")
@@ -136,12 +155,7 @@ class USDAClient:
             parsed = self._parse_food(detail)
             if parsed is not None:
                 foods.append(parsed.model_copy(update={"search_rank": search_rank}))
-
-        value = tuple(foods)
-        self._cache[normalized] = value
-        while len(self._cache) > self._maximum_cache_entries:
-            self._cache.popitem(last=False)
-        return list(value)
+        return foods
 
     def _search_payload(self, normalized: str) -> dict[str, object]:
         """Ask for laboratory records first, and only then for packaging.
