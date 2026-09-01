@@ -109,7 +109,6 @@ struct LibraryView: View {
     var body: some View {
         workspace
             .background(LadleTheme.Surface.porcelain)
-            .tint(LadleTheme.Intent.accent)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("library.root")
             .task(id: notificationNavigation.recipeID) {
@@ -635,6 +634,8 @@ private struct SyncStatusBanner: View {
 }
 
 private struct LibraryReloadErrorBanner: View {
+    @Environment(\.ladleAccent) private var accent
+
     let message: String
     let retry: () -> Void
 
@@ -658,7 +659,7 @@ private struct LibraryReloadErrorBanner: View {
             Spacer(minLength: LadleTheme.Spacing.compact)
             Button("Try Again", action: retry)
                 .ladleFont(.bodyStrong)
-                .foregroundStyle(LadleTheme.Label.accent)
+                .foregroundStyle(accent.label)
                 .buttonStyle(.plain)
         }
         .padding(.horizontal, LadleTheme.Layout.screenMargin)
@@ -674,6 +675,8 @@ private struct LibraryReloadErrorBanner: View {
 }
 
 private struct LibraryLoadStateView: View {
+    @Environment(\.ladleAccent) private var accent
+
     let message: String?
     let retry: () -> Void
 
@@ -682,7 +685,7 @@ private struct LibraryLoadStateView: View {
             if let message {
                 Image(systemName: "fork.knife.circle")
                     .font(.system(size: LadleTheme.IconSize.hero))
-                    .foregroundStyle(LadleTheme.Label.accent)
+                    .foregroundStyle(accent.label)
                 Text("Couldn’t load recipes")
                     .ladleFont(.section)
                     .foregroundStyle(LadleTheme.Label.primary)
@@ -694,7 +697,7 @@ private struct LibraryLoadStateView: View {
                     .buttonStyle(LadleButtonStyle(role: .secondary))
             } else {
                 ProgressView("Loading recipes")
-                    .tint(LadleTheme.Intent.accent)
+                    .tint(accent.intent)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

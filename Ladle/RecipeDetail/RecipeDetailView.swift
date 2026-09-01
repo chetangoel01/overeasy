@@ -31,6 +31,7 @@ private enum RecipeDetailSection: String, CaseIterable, Identifiable {
 struct RecipeDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.ladleAccent) private var accent
 
     let statusText: String
     @Bindable var importCoordinator: ImportCoordinator
@@ -344,7 +345,7 @@ struct RecipeDetailView: View {
     private var estimateNote: some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "info.circle")
-                .foregroundStyle(LadleTheme.Label.accent)
+                .foregroundStyle(accent.label)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 4) {
                 Text("Estimated nutrition")
@@ -448,7 +449,7 @@ struct RecipeDetailView: View {
         } label: {
             Image(systemName: isFavorite ? "heart.fill" : "heart")
                 .foregroundStyle(
-                    isFavorite ? LadleTheme.Label.accent : LadleTheme.Label.primary
+                    isFavorite ? accent.label : LadleTheme.Label.primary
                 )
                 .frame(width: LadleTheme.Control.hitTarget, height: LadleTheme.Control.hitTarget)
         }

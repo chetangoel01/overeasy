@@ -45,6 +45,8 @@ extension View {
 }
 
 private struct RecipeContextPreview: View {
+    @Environment(\.ladleAccent) private var accent
+
     let recipe: Recipe
 
     var body: some View {
@@ -63,7 +65,7 @@ private struct RecipeContextPreview: View {
 
             Text(recipe.creatorAccountLabel)
                 .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.Label.accent)
+                .foregroundStyle(accent.label)
             Text(recipe.title)
                 .ladleFont(.section)
                 .foregroundStyle(LadleTheme.Label.primary)
