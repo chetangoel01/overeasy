@@ -10,8 +10,11 @@ final class DiscoverInteractionUITests: XCTestCase {
         XCTAssertTrue(title.waitForExistence(timeout: 3))
         attachScreenshot(of: app, named: "Discover loaded results")
 
+        // A row's identifier is `discover.<original URL>`, so match the
+        // scheme too: plain `discover.` also catches `discover.sort`, which
+        // now precedes the rows in the hierarchy on a Discover-first launch.
         let row = app.descendants(matching: .any).matching(
-            NSPredicate(format: "identifier BEGINSWITH 'discover.'")
+            NSPredicate(format: "identifier BEGINSWITH 'discover.http'")
         ).firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 2))
         row.coordinate(
@@ -20,9 +23,14 @@ final class DiscoverInteractionUITests: XCTestCase {
         XCTAssertTrue(app.buttons["View Recipe"].waitForExistence(timeout: 2))
         XCTAssertTrue(app.buttons["Save Recipe"].exists)
 
+        // The pushed detail is the read-only Discover one: it carries the
+        // account control but no favourite or options menu. This asserted a
+        // "Discover preview" badge until 46dd921 deliberately removed it and
+        // left the assertion behind.
         app.buttons["View Recipe"].tap()
-        XCTAssertTrue(app.staticTexts["Discover preview"].waitForExistence(timeout: 2))
-        XCTAssertTrue(app.buttons["Account"].exists)
+        let account = app.buttons["Account"]
+        XCTAssertTrue(account.waitForExistence(timeout: 3))
+        XCTAssertFalse(app.buttons["Recipe options"].exists)
     }
 
     @MainActor
@@ -94,7 +102,7 @@ final class DiscoverInteractionUITests: XCTestCase {
 
     @MainActor
     func testSettingsAccentAndRecipeViewPreferencesAreReachable() throws {
-        let app = launchApp()
+        let app = launchApp(startingOn: "Recipes")
 
         let settings = app.buttons["Settings and account"]
         XCTAssertTrue(settings.waitForExistence(timeout: 3))
@@ -146,7 +154,7 @@ final class DiscoverInteractionUITests: XCTestCase {
 
     @MainActor
     func testRecipeProcessingSheetCanBeDismissedWhileImportContinues() throws {
-        let app = launchApp()
+        let app = launchApp(startingOn: "Recipes")
 
         app.buttons["Add recipe"].tap()
         let link = app.textFields["Recipe link"]
@@ -170,7 +178,7 @@ final class DiscoverInteractionUITests: XCTestCase {
 
     @MainActor
     func testFailedImportRecoveryActionsShareLabelOrigin() throws {
-        let app = launchApp()
+        let app = launchApp(startingOn: "Recipes")
 
         app.buttons["Add recipe"].tap()
         let link = app.textFields["Recipe link"]
@@ -204,7 +212,7 @@ final class DiscoverInteractionUITests: XCTestCase {
 
     @MainActor
     func testRecipeOptionsExposeTheDeleteAction() throws {
-        let app = launchApp()
+        let app = launchApp(startingOn: "Recipes")
 
         let recipe = app.buttons.matching(
             NSPredicate(format: "identifier BEGINSWITH 'recipe.grid.'")
@@ -221,8 +229,10 @@ final class DiscoverInteractionUITests: XCTestCase {
         attachScreenshot(of: app, named: "Recipe options destructive action")
     }
 
+    /// A launch lands on Discover, so a test about another tab has to ask
+    /// for it rather than assume the first screen is its own.
     @MainActor
-    private func launchApp() -> XCUIApplication {
+    private func launchApp(startingOn tab: String? = nil) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = [
             "-ui-testing",
@@ -230,6 +240,14 @@ final class DiscoverInteractionUITests: XCTestCase {
             "-reset-library-preferences",
         ]
         app.launch()
+        if let tab {
+            let button = app.tabBars.buttons[tab]
+            XCTAssertTrue(
+                button.waitForExistence(timeout: 5),
+                "Expected the \(tab) tab after launch"
+            )
+            button.tap()
+        }
         return app
     }
 
