@@ -258,7 +258,7 @@ Green, the whole unit suite:
 ```
 xcodebuild test -project Ladle.xcodeproj -scheme LadleAllTests \
   -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:LadleTests
-Executed 390 tests, with 1 test skipped and 0 failures (0 unexpected) in 3.502 seconds
+Executed 390 tests, with 1 test skipped and 0 failures (0 unexpected) in 3.584 seconds
 ```
 
 `DiscoverTestService` records shelf fetches in their own `shelfRequests` array
@@ -273,13 +273,19 @@ landing screen:
 ```
 xcodebuild test -project Ladle.xcodeproj -scheme LadleAllTests \
   -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:LadleUITests
-Executed 25 tests, with 0 failures (0 unexpected) in 324.672 seconds
+Executed 25 tests, with 0 failures (0 unexpected) in 325.424 seconds
 ```
 
-No UI test needed changing. `testDiscoverRecipeSupportsTapAndLongPress` was
-the one at risk — the rails push the first list row down, and a rail card
-carries the same title as a row — and was run alone first to confirm it:
-`Executed 1 test, with 0 failures (0 unexpected) in 16.922 seconds`.
+Run twice: once on the rails as first written (`324.672 seconds`) and again
+after the 280-point cap, since that changes what the landing screen draws.
+Both green, and no UI test needed changing.
+`testDiscoverRecipeSupportsTapAndLongPress` was the one at risk — the rails
+push the first list row down, and a rail card carries the same title as a
+row — and was run alone first to confirm it: `Executed 1 test, with 0
+failures (0 unexpected) in 16.922 seconds`.
+`testLargeLibraryAtXXXLargeUsesOneReadableColumn` and
+`testWelcomeAtAccessibilitySizeRemainsReachable` are the two that already
+render under a raised type size, and both stayed green through the cap.
 
 ### End to end
 
