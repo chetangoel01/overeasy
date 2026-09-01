@@ -36,6 +36,7 @@ should stay clean until this list is agreed.
 | 13 | Should we use a different calorie source? | **No — query layer fixed instead** | `normalization.py`, `calculator.py` |
 | 14 | Refresh when the user scrolls all the way up | Recorded — **blocked on 11** | `DiscoverView.swift` + backend |
 | 15 | Spacing on the Recipes screen | Confirmed, measured | `RecipeListRow.swift`, `RecipeGridCard.swift`, `AllRecipesView.swift` |
+| 16 | Nutrition shown to 0.1 g precision | Observed, no fix | `libraryFacts` |
 
 Items 6 and 10 are one bug. Items 7 and 9 are the same class of problem as the
 filter sheet that was already rewritten: hand-rolled chrome where a system
@@ -931,6 +932,28 @@ item 9 and are still waiting on your go-ahead.
 builds. Every number above is read out of the PNGs by pixel, not estimated by
 eye. No test asserts on these modifiers — the UI tests key on accessibility
 identifiers, which are unchanged.
+
+---
+
+## 16. Nutrition is shown to a tenth of a gram
+
+Not raised, noticed. Recipe cards read "569 cal · 24.5g protein" against real
+data, where the simulator's fixtures round to whole grams and hide it. Every
+one of these numbers is an estimate built from a normalizer's guess at
+unquantified amounts and a USDA row matched by search; two runs of the refresh
+over the same recipe differ by a few percent. A tenth of a gram claims a
+precision the pipeline does not have, and 24.5 reads as *measured* in a way
+that 25 does not.
+
+It is also inconsistent with itself. In the same string, calories are rounded
+explicitly — `ladleNumber($0, maximumFractionDigits: 0)` — and protein is not,
+so one card reads "569 cal · 24.5g protein": one number rounded, the next
+carried to a tenth
+([RecipePresentation.swift:20](../../Ladle/Design/RecipePresentation.swift:20)).
+Passing the same `maximumFractionDigits: 0` to the protein branch is the whole
+change.
+
+No change made; it is a display decision, not a defect.
 
 ---
 
