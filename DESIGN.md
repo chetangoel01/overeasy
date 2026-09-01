@@ -166,8 +166,13 @@ buttons a different text origin per button.
 
 - The root workspace is a native four-tab structure: Recipes, Discover, Watch,
   and Inbox.
-- Recipes is the default tab. Discover, Watch, and Inbox are direct workspace
-  destinations, not cards hidden inside a home feed.
+- Discover is the default tab — a launch lands on something to read rather
+  than on the cook's own shelf — except when its feed fails on a cold launch,
+  which opens Recipes instead, silently and once, so the first screen is never
+  an error. Any Discover failure after that shows Discover's own error state,
+  and a slow feed keeps its skeleton rather than bouncing.
+- Recipes, Watch, and Inbox are direct workspace destinations, not cards
+  hidden inside a home feed.
 - Inbox shows a badge only when imports need attention.
 - Recipes owns the large title, an always-visible search field, compact sort,
   filter, and grid/list controls, an image-led recipe archive, and generated

@@ -18,11 +18,15 @@ enum LibraryToolbarAction: Hashable {
 }
 
 struct LibraryNavigationState: Equatable {
-    var tab: LibraryTab = .recipes
+    /// Discover is where a launch lands: the app is somewhere to spend time
+    /// rather than somewhere to fetch a saved recipe from. `select`,
+    /// `reviewDidComplete` and notification navigation still go to Recipes,
+    /// because those all end in the cook's own library.
+    var tab: LibraryTab = .discover
     private var paths: [LibraryTab: [LibraryNavigationDestination]] = [:]
 
     init(
-        tab: LibraryTab = .recipes,
+        tab: LibraryTab = .discover,
         path: [LibraryNavigationDestination] = []
     ) {
         self.tab = tab
@@ -55,6 +59,48 @@ struct LibraryNavigationState: Equatable {
     mutating func reviewDidComplete(hasActionableImports: Bool) {
         tab = hasActionableImports ? .inbox : .recipes
         paths = [:]
+    }
+}
+
+/// The one silent bounce out of Discover when its feed fails on a cold
+/// launch. Landing on an error screen is the opposite of the reason Discover
+/// is the landing tab, and the saved library is local, so a failed first
+/// feed opens Recipes instead. It fires once per process and only while the
+/// cook has not moved; every later failure belongs to Discover's own error
+/// state, which already offers Try again.
+struct DiscoverLaunchFallback: Equatable {
+    private(set) var didFallBack = false
+    private(set) var didSelectTab = false
+
+    /// Records a tab change unless it is the fallback's own, so a bounce is
+    /// not mistaken for the cook choosing to be on Recipes.
+    mutating func tabDidChange(from oldTab: LibraryTab, to newTab: LibraryTab) {
+        guard !isFallbackChange(from: oldTab, to: newTab) else { return }
+        didSelectTab = true
+    }
+
+    /// The bounce moves the selection itself, so the selection haptic has to
+    /// skip that one change or a failed launch clicks like a tap.
+    func isFallbackChange(
+        from oldTab: LibraryTab,
+        to newTab: LibraryTab
+    ) -> Bool {
+        didFallBack && !didSelectTab
+            && oldTab == .discover && newTab == .recipes
+    }
+
+    /// True when the caller should select Recipes; consumes the one chance
+    /// to do so.
+    mutating func claim(
+        for navigation: LibraryNavigationState
+    ) -> Bool {
+        guard !didFallBack,
+              !didSelectTab,
+              navigation.tab == .discover,
+              navigation.path.isEmpty
+        else { return false }
+        didFallBack = true
+        return true
     }
 }
 
@@ -105,6 +151,7 @@ struct LibraryView: View {
     @State private var failedImportJob: ImportJob?
     @State private var pendingDestination: LibraryRecipeDestination?
     @State private var watchRefreshVersion = 0
+    @State private var discoverFallback = DiscoverLaunchFallback()
 
     var body: some View {
         workspace
@@ -177,13 +224,18 @@ struct LibraryView: View {
                 if newTab == .watch, oldTab != .watch {
                     watchRefreshVersion += 1
                 }
+                discoverFallback.tabDidChange(from: oldTab, to: newTab)
             }
             .libraryOperationAlert(
                 isPresented: operationErrorIsPresented,
                 message: operationErrorText,
                 clear: viewModel.clearOperationError
             )
-            .sensoryFeedback(.selection, trigger: navigation.tab)
+            .sensoryFeedback(
+                .selection,
+                trigger: navigation.tab,
+                condition: isChosenTab
+            )
             .sensoryFeedback(
                 .impact(weight: .light, intensity: 0.65),
                 trigger: navigation,
@@ -257,6 +309,15 @@ struct LibraryView: View {
             }
             SyncStatusBanner(status: syncStatus)
         }
+    }
+
+    /// The cold-launch bounce out of a failed Discover is not a choice, so
+    /// it does not get the selection click a tap would.
+    private func isChosenTab(
+        _ oldTab: LibraryTab,
+        _ newTab: LibraryTab
+    ) -> Bool {
+        !discoverFallback.isFallbackChange(from: oldTab, to: newTab)
     }
 
     /// Per-tab stacks mean the current path count also changes when
@@ -434,8 +495,14 @@ struct LibraryView: View {
                     statusText: "Discover recipe",
                     access: .discover
                 )
-            }
+            },
+            onInitialLoadFailed: fallBackToRecipesIfNeeded
         )
+    }
+
+    private func fallBackToRecipesIfNeeded() {
+        guard discoverFallback.claim(for: navigation) else { return }
+        navigation.select(.recipes)
     }
 
     private var accountButton: some View {

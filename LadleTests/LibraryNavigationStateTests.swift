@@ -4,15 +4,16 @@ import XCTest
 
 @MainActor
 final class LibraryNavigationStateTests: XCTestCase {
-    func testLibraryStartsOnRecipesTab() {
+    func testLibraryStartsOnDiscoverTab() {
         let state = LibraryNavigationState()
 
-        XCTAssertEqual(state.tab, .recipes)
+        XCTAssertEqual(state.tab, .discover)
         XCTAssertTrue(state.path.isEmpty)
     }
 
     func testSelectingDiscoverDoesNotPushNavigation() {
         var state = LibraryNavigationState(
+            tab: .recipes,
             path: [
                 .recipe(
                     LibraryRecipeDestination(
@@ -75,6 +76,77 @@ final class LibraryNavigationStateTests: XCTestCase {
 
         XCTAssertEqual(state.tab, .inbox)
         XCTAssertTrue(state.path.isEmpty)
+    }
+
+    // MARK: - Cold-launch Discover failure
+
+    func testFailedDiscoverLaunchSelectsRecipes() {
+        var fallback = DiscoverLaunchFallback()
+
+        XCTAssertTrue(fallback.claim(for: LibraryNavigationState()))
+    }
+
+    func testDiscoverFallsBackOnlyOncePerProcess() {
+        var fallback = DiscoverLaunchFallback()
+
+        XCTAssertTrue(fallback.claim(for: LibraryNavigationState()))
+        XCTAssertFalse(fallback.claim(for: LibraryNavigationState()))
+    }
+
+    func testDiscoverDoesNotFallBackOnceTheCookPicksATab() {
+        var fallback = DiscoverLaunchFallback()
+
+        fallback.tabDidChange(from: .discover, to: .watch)
+        fallback.tabDidChange(from: .watch, to: .discover)
+
+        XCTAssertFalse(fallback.claim(for: LibraryNavigationState()))
+    }
+
+    func testDiscoverDoesNotFallBackFromAnotherTab() {
+        var fallback = DiscoverLaunchFallback()
+
+        XCTAssertFalse(
+            fallback.claim(for: LibraryNavigationState(tab: .recipes))
+        )
+    }
+
+    func testDiscoverDoesNotFallBackOutOfAnOpenRecipe() {
+        var fallback = DiscoverLaunchFallback()
+        let navigation = LibraryNavigationState(
+            tab: .discover,
+            path: [
+                .recipe(
+                    LibraryRecipeDestination(
+                        recipe: PreviewFixtures.recipes[0],
+                        statusText: "Discover recipe",
+                        access: .discover
+                    )
+                ),
+            ]
+        )
+
+        XCTAssertFalse(fallback.claim(for: navigation))
+    }
+
+    func testTheFallbackBounceIsSilentAndLaterTabTapsAreNot() {
+        var fallback = DiscoverLaunchFallback()
+
+        XCTAssertFalse(
+            fallback.isFallbackChange(from: .discover, to: .recipes),
+            "Nothing has failed yet, so this is the cook tapping Recipes"
+        )
+        XCTAssertTrue(fallback.claim(for: LibraryNavigationState()))
+        XCTAssertTrue(
+            fallback.isFallbackChange(from: .discover, to: .recipes)
+        )
+
+        fallback.tabDidChange(from: .discover, to: .recipes)
+        fallback.tabDidChange(from: .recipes, to: .discover)
+
+        XCTAssertFalse(
+            fallback.isFallbackChange(from: .discover, to: .recipes),
+            "A tab the cook chose still clicks"
+        )
     }
 
     func testEveryWorkspaceTabKeepsAccountInItsToolbar() {
