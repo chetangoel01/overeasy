@@ -37,6 +37,7 @@ should stay clean until this list is agreed.
 | 14 | Refresh when the user scrolls all the way up | Recorded — **blocked on 11** | `DiscoverView.swift` + backend |
 | 15 | Spacing on the Recipes screen | Confirmed, measured | `RecipeListRow.swift`, `RecipeGridCard.swift`, `AllRecipesView.swift` |
 | 16 | Nutrition shown to 0.1 g precision | Observed, no fix | `libraryFacts` |
+| 17 | Ingredient icons on the ingredient list | Recorded — **art is ready, matching is the work** | `IngredientList.swift`, `ingredients` table |
 
 Items 6 and 10 are one bug. Items 7 and 9 are the same class of problem as the
 filter sheet that was already rewritten: hand-rolled chrome where a system
@@ -954,6 +955,123 @@ Passing the same `maximumFractionDigits: 0` to the protein branch is the whole
 change.
 
 No change made; it is a display decision, not a defect.
+
+---
+
+## 17. Ingredient pictures on the ingredient list
+
+> "I want to add the pictures of the ingredients next to them on the ingredient
+> lists. I made a huge list of app icons. It's called cooking-app-icons-complete
+> in the downloads folder. We're going to be using that."
+
+**Recorded, and surveyed rather than guessed at.** The art is genuinely good and
+genuinely ready; the work is almost entirely in matching an ingredient to it.
+
+### What the set is
+
+`~/Downloads/cooking-app-icons-complete` — 469 transparent PNGs at 1024×1024,
+watercolour, in 22 category folders, with a `manifest.json` giving every asset a
+`slug`, `display_name`, `category` and `file`. 223 are illustrated ingredients;
+246 are pantry containers (jar, bottle, bag, box, can, tub) tinted per category.
+The README recommends a 96-point display target and warns against pure black
+backgrounds — which suits this app, whose surfaces are warm white already.
+
+Naming runs noun-first with qualifiers after: `cheese-feta`, `black-pepper-ground`,
+`flour-all-purpose`, `cumin-seed`. That is the same convention USDA uses, and
+the same one the nutrition normalizer was taught in item 13.
+
+### The matching problem, measured
+
+Against the 165 distinct ingredient names in Chetan's own seventeen recipes,
+matching the raw name to a slug (lowercase, drop parentheticals, fold plurals):
+
+| | Count | Share |
+|---|---:|---:|
+| exact slug match | 61 | 37% |
+| slug contained in the ingredient | 22 | 13% |
+| **no match** | **82** | **50%** |
+
+Half. But the misses are not missing art — they are almost all **granularity and
+synonym mismatches**, which is a much better problem to have:
+
+| Recipe says | Set has | Mismatch |
+|---|---|---|
+| `butter` | `butter-salted`, `butter-unsalted` | needs a default variety |
+| `eggs` | `egg-chicken` | default + plural |
+| `black pepper` | `black-pepper-ground`, `black-pepper-whole` | extra qualifier |
+| `cumin` | `cumin-ground`, `cumin-seed` | extra qualifier |
+| `flour` | `flour-all-purpose` | default |
+| `feta` | `cheese-feta` | word order |
+| `green onion` | `scallion` | **synonym** |
+| `fresh coriander` | `cilantro` | **synonym** |
+| `curry leaves` | `curry-leaves` | plural only |
+
+### Would the normalizer's search terms do better?
+
+That was the obvious idea — the nutrition normalizer already rewrites culinary
+names into descriptor style, which is the icon set's own convention. Measured
+against the twenty-one terms from the Madras Curry probe, it does **not**:
+**11 of 21, 52%** — the same as raw names. It trades one class of miss for
+another. `cheese paneer` matches USDA and misses the icons; `carrot raw` needs
+its state dropped; `coriander leaf raw` needs to become `cilantro` either way.
+
+Worth knowing before building on it: `usda_search_term` **is not persisted**.
+It lives on the in-flight `RecipeTemplate` during enrichment only, and the
+`ingredients` table has eight columns, none of them a normalized name. Keying
+icons off it would mean a new column, a migration and a backfill — for no
+measured accuracy gain over the raw name.
+
+So the recommendation is a **synonym and default table**, written once against
+the 469 slugs: fold plurals, drop state words the set does not distinguish,
+map synonyms, and pick a default variety where the set is more specific than a
+recipe ever is. That is a bounded, testable piece of data, and its coverage can
+be measured on the real library exactly as the table above was.
+
+### The genuine gaps
+
+Small and predictable, and the same shape as the USDA holes in item 13: `paneer`
+and `tamarind` are absent outright. The set is thin on South Asian pantry items,
+which is the cuisine most represented in this library. An ingredient with no
+icon must degrade to no icon — not to a wrong one — and the row must still look
+deliberate without art.
+
+### Weight
+
+505 MB as delivered, because every file is 1024×1024. Downscaled to the
+README's own 96-point target:
+
+| Longest edge | Per file | All 469 |
+|---|---:|---:|
+| 96px | 14 KB | 6 MB |
+| 192px (2×) | 50 KB | 23 MB |
+| 288px (3×) | 107 KB | 49 MB |
+
+192px is the honest choice for a 96-point target on a 3× phone, at 23 MB — real
+but shippable. The originals should not go in the repository; a build step that
+downscales from a source directory, or a stripped asset catalogue committed
+once, keeps 505 MB of PNGs out of git history where it cannot be removed later.
+
+### Files to change
+
+| File | Change |
+|------|--------|
+| `Ladle/Resources/` | new asset catalogue, downscaled, plus the slug table |
+| [`Ladle/RecipeDetail/IngredientList.swift`](../../Ladle/RecipeDetail/IngredientList.swift) | leading icon per row, with a no-art fallback |
+| [`Ladle/Design/RecipePresentation.swift`](../../Ladle/Design/RecipePresentation.swift) | ingredient → slug resolution, beside the other presentation helpers |
+| `LadleTests/` | coverage test over the real ingredient names, asserting a floor |
+
+### Open questions
+
+1. Containers or ingredients? The set carries both — a jar for spices, the
+   illustrated thing for produce. Using both is the richer look; using only the
+   223 illustrated ingredients halves the matching work and the weight.
+2. Every row, or only rows with art? A list where half the rows have a picture
+   and half have a gap reads worse than a list with none.
+3. Does this reach the library and Watch ingredient views too, or only the
+   recipe detail list?
+
+**Effort:** medium. The art is done; the matching table and its coverage test
+are the real work, and question 2 is a design decision before any of it.
 
 ---
 
