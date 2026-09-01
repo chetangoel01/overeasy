@@ -31,18 +31,21 @@ struct RecipeGridCard: View {
                 .accessibilityLabel(favoriteAccessibilityLabel)
             }
 
+            // Neither of these reserves space for a line it may not use. The
+            // reserve was there to keep the facts of two cards in a row on
+            // one baseline, but it charges every card the full two lines
+            // whether or not it needs them: a row of short titles carried a
+            // 25-point void between the title and its calories, while a row
+            // of wrapping titles sat correctly. The rhythm changed row to row
+            // for no reason a reader could see. The cost of dropping it is
+            // that a row pairing a one-line title with a two-line one no
+            // longer aligns its facts — which is a far quieter defect than
+            // the hole it replaces.
             Text(recipe.title)
                 .ladleFont(.recipeTitle)
                 .foregroundStyle(LadleTheme.Label.primary)
-                .lineLimit(2, reservesSpace: true)
+                .lineLimit(2)
 
-            // Two lines allowed, none reserved. The facts fit one line at
-            // every non-accessibility size, so reserving the second left
-            // roughly 18 points of air under every card and inflated the gap
-            // between grid rows well past the 24-point step the grid is set
-            // to. The title above still reserves its space: it genuinely
-            // wraps, and reserving is what keeps two cards in a row sharing a
-            // baseline.
             Text(recipe.libraryFacts.isEmpty ? " " : recipe.libraryFacts)
                 .ladleFont(.metadata)
                 .foregroundStyle(LadleTheme.Label.primary.opacity(0.58))

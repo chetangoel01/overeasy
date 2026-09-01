@@ -860,6 +860,30 @@ Measured between the first card's facts and the second row's image:
 24 points is the step the grid was already set to; the leftover 1.3 is the
 descender space below the ink. The whole 18 points was the empty line.
 
+**A second pass, from Chetan's own screenshot.** The first fix left
+`reservesSpace` on the *title*, on the reasoning that titles genuinely wrap and
+reserving keeps two cards in a row sharing a baseline. His library disproved
+that: the demo fixtures all have long titles, so every card in the simulator
+wrapped to two lines and the reserve cost nothing. Real recipes are called
+"Lasagna Soup". A row of short titles carried a **41.7-point void** between the
+title and its calories, while the row below it — two wrapping titles — sat
+correctly at about 17. The rhythm changed from row to row for no reason a
+reader could see.
+
+The reserve is now off the title too. Measured at extra-extra-extra-large type,
+where the single-column layout puts a short title on one line, the same gap is
+**18.3 points** — less than half, at a *larger* type size than the screenshot
+it is being compared against.
+
+The cost, stated so it is not re-reported later as a regression: a row pairing a
+one-line title with a two-line one no longer aligns its two facts lines. That is
+a quieter defect than the hole it replaces.
+
+| | |
+|---|---|
+| ![Void on device](../verification/captures/2026-09-01-recipes-spacing/before-single-line-title-device.png) | ![After](../verification/captures/2026-09-01-recipes-spacing/after-single-line-title.png) |
+| Before, on Chetan's phone | After (xxxLarge, single column) |
+
 | | |
 |---|---|
 | ![Grid before](../verification/captures/2026-09-01-recipes-spacing/before-grid.png) | ![Grid after](../verification/captures/2026-09-01-recipes-spacing/after-grid.png) |
@@ -896,7 +920,7 @@ one modifier.
 | File | Change |
 |------|--------|
 | [`Ladle/Library/RecipeListRow.swift:54`](../../Ladle/Library/RecipeListRow.swift:54) | `.padding(8)` → 12 on three edges, 0 trailing |
-| [`Ladle/Library/RecipeGridCard.swift:42`](../../Ladle/Library/RecipeGridCard.swift:42) | facts — drop `reservesSpace` |
+| [`Ladle/Library/RecipeGridCard.swift:42`](../../Ladle/Library/RecipeGridCard.swift:42) | facts **and title** — drop `reservesSpace` |
 | [`Ladle/Library/AllRecipesView.swift:144`](../../Ladle/Library/AllRecipesView.swift:144) | control group — negative trailing inset for optical alignment |
 
 **Not touched:** the sort and display-mode menus themselves. Their contents are
