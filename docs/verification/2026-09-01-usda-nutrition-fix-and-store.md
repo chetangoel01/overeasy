@@ -230,6 +230,44 @@ One property worth knowing: the normalizer re-estimates unquantified amounts
 on every run, so two runs of this script over the same recipe differ by a few
 percent. These are estimates, and they do not claim otherwise.
 
+### Correct data that no device could see
+
+The claim above — "every one now carries nutrition" — was true of the database
+and false of the product. A screenshot from the phone the next morning showed
+twelve recipes carrying the *old* numbers: Lasagna Soup at 569 where the row
+said 626, The Best Vegan Pizza at 852 where the row said 912.
+
+Sync here is a change log. A client pulls `RecipeChange` rows after its cursor,
+so `RecipeService` does three things on every mutation: sets `updated_at`,
+increments `revision`, and appends a change with the new revision
+([service.py:312](../../Backend/ladle/recipes/service.py:312)). The refresh
+script did none of them. It replaced the nutrition rows and stopped, which
+under a change-log sync means the write is invisible no matter how correct it
+is. `The Best Vegan Pizza!` was the clearest proof: nutrition of 911.5, and
+`revision 1` with an `updated_at` of six days earlier.
+
+The change log held 26 entries covering 13 of the 17 recipes, and exactly one
+of those was written after the refresh — a user edit, not the script. Seventeen
+recipes were updated and nothing was announced.
+
+Two fixes:
+
+- `_announce` mirrors `RecipeService`'s mutation exactly — one timestamp shared
+  by the row and the change, revision incremented first, the change carrying
+  that new revision — and every write now calls it.
+- `--announce-only` re-announces what is already stored without recomputing.
+  That is what was run against the live database, deliberately *not* a second
+  enrichment pass: recomputing would have moved every number again for no
+  reason. All 17 recipes are now in the change log, 43 entries, and the four
+  that had never been announced at all are among them.
+
+The general lesson, and the reason this is written down rather than quietly
+fixed: a script that writes to a synced table is not finished when the data is
+right. Under this architecture, `SELECT` proving the value is correct proves
+nothing about whether anyone will ever receive it. The verification for the
+first pass queried the `nutrition` table and stopped there, which is exactly
+the check that cannot fail on this bug.
+
 ## Still open
 
 When *every* candidate for one ingredient is unusable, the recipe still loses

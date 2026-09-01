@@ -16,6 +16,7 @@ nothing. Pass --apply to write.
 from __future__ import annotations
 
 import argparse
+from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID, uuid4
 
@@ -30,6 +31,7 @@ from ladle.db.models import (
     Nutrition,
     OtherNutrient,
     Recipe,
+    RecipeChange,
     SourceVideo,
 )
 from ladle.db.session import build_engine, build_session_factory
@@ -43,6 +45,7 @@ from ladle.nutrition.store import DatabaseUSDAPayloadStore
 from ladle.nutrition.usda import USDAClient
 from ladle.recipes.repository import RecipeRepository
 from ladle.recipes.template_clone import RecipeTemplate
+from ladle.sync.sequence import allocate_sequence
 
 #: Fields this script owns. Everything else a recipe carries — amount
 #: estimates, yield rationale — belongs to the original import and is left
@@ -99,6 +102,32 @@ def _context(
     )
 
 
+def _announce(database: Session, stored: Recipe) -> None:
+    """Tell every client the recipe changed.
+
+    Sync is a change log: a client pulls `RecipeChange` rows after its cursor,
+    so a write that does not append one is invisible no matter how correct the
+    data is. The first version of this script replaced nutrition without
+    announcing it, and seventeen recipes carried new numbers that no device
+    ever asked for. This mirrors `RecipeService`'s own mutation exactly — one
+    timestamp shared by the row and the change, the revision incremented
+    first, and the change carrying that new revision.
+    """
+    now = datetime.now(UTC)
+    stored.updated_at = now
+    stored.revision += 1
+    database.add(
+        RecipeChange(
+            user_id=stored.user_id,
+            sequence=allocate_sequence(database, stored.user_id),
+            recipe_id=stored.id,
+            kind="upsert",
+            recipe_revision=stored.revision,
+            changed_at=now,
+        )
+    )
+
+
 def _replace_nutrition(
     database: Session,
     recipe_id: UUID,
@@ -148,16 +177,29 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--user-id", required=True)
     parser.add_argument("--apply", action="store_true")
+    parser.add_argument(
+        "--announce-only",
+        action="store_true",
+        help=(
+            "Skip enrichment and only re-announce what is already stored. "
+            "For recipes whose nutrition was written before this script "
+            "recorded change-log rows: it makes them visible to clients "
+            "without recomputing, so the numbers do not move."
+        ),
+    )
     args = parser.parse_args()
 
     settings = Settings()
     engine = build_engine(str(settings.database_url))
     sessions = build_session_factory(engine)
-    service = _service(settings, sessions)
+    # Announcing needs no provider credentials — it recomputes nothing.
+    service = None if args.announce_only else _service(settings, sessions)
     # Thumbnails need a signed object URL that only the API process is set up
     # to mint, and nutrition does not look at images. A placeholder keeps the
     # DTO buildable without dragging object storage into this.
-    repository = RecipeRepository(object_url=lambda key: f"https://placeholder.invalid/{key}")
+    repository = RecipeRepository(
+        object_url=lambda key: f"https://placeholder.invalid/{key}"
+    )
 
     with sessions() as database:
         stored_recipes = database.scalars(
@@ -182,6 +224,16 @@ def main() -> int:
                 continue
             dto = repository.to_dto(database, stored)
             before = dto.nutrition.calories if dto.nutrition else None
+            if args.announce_only:
+                print(
+                    f"{position:2}. {dto.title[:38]:40} "
+                    f"{_calories(before)}, revision {stored.revision}"
+                )
+                if args.apply:
+                    _announce(database, stored)
+                    database.commit()
+                    changed += 1
+                continue
             template = RecipeTemplate.from_recipe(dto)
             if template.nutrition is not None and (
                 template.nutrition.basis == "creatorStated"
@@ -222,6 +274,7 @@ def main() -> int:
 
             if args.apply:
                 _replace_nutrition(database, stored.id, enriched)
+                _announce(database, stored)
                 database.commit()
                 changed += 1
 
