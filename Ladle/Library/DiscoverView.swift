@@ -30,12 +30,38 @@ final class DiscoverViewModel {
     /// slow first page cannot overwrite the results of a later search.
     private var generation = 0
 
+    private var reloadTask: Task<Void, Never>?
+
     var query = "" {
-        didSet { if query != oldValue { criteriaChanged() } }
+        didSet {
+            guard query != oldValue else { return }
+            criteriaChanged()
+            // Typing is a round trip now, so wait for a pause.
+            scheduleReload(after: .milliseconds(300))
+        }
     }
 
     var sort: DiscoverSort = .popular {
-        didSet { if sort != oldValue { criteriaChanged() } }
+        didSet {
+            guard sort != oldValue else { return }
+            criteriaChanged()
+            scheduleReload(after: .zero)
+        }
+    }
+
+    /// Reloading belongs to the criteria changing, not to the view appearing.
+    /// It used to hang off `.task(id:)`, which SwiftUI also runs every time
+    /// the view comes back — so every switch back to Discover threw the feed
+    /// away and showed a spinner.
+    private func scheduleReload(after delay: Duration) {
+        reloadTask?.cancel()
+        reloadTask = Task { [weak self] in
+            if delay > .zero {
+                try? await Task.sleep(for: delay)
+                guard !Task.isCancelled else { return }
+            }
+            await self?.load()
+        }
     }
     private(set) var savingSourceIDs: Set<UUID> = []
     private(set) var loadingDetailSourceIDs: Set<UUID> = []
@@ -266,19 +292,6 @@ struct DiscoverView: View {
             if viewModel.state == .idle {
                 await viewModel.load()
             }
-        }
-        // Debounced: searching is a round trip now, so wait for a pause in
-        // typing rather than firing a request per keystroke. The task is
-        // cancelled and restarted on every change, so only the last one runs.
-        .task(id: viewModel.query) {
-            guard viewModel.state != .idle else { return }
-            try? await Task.sleep(for: .milliseconds(300))
-            guard !Task.isCancelled else { return }
-            await viewModel.load()
-        }
-        .task(id: viewModel.sort) {
-            guard viewModel.state != .idle else { return }
-            await viewModel.load()
         }
         .accessibilityIdentifier("library.discover")
     }

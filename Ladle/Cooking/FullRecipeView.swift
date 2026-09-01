@@ -44,8 +44,6 @@ struct FullRecipeView: View {
             .background(LadleTheme.Surface.porcelain)
             .accessibilityIdentifier("cooking.full-recipe")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(LadleTheme.Surface.porcelain, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button {

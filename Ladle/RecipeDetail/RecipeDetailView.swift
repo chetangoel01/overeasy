@@ -171,8 +171,6 @@ struct RecipeDetailView: View {
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
-        .toolbarBackground(LadleTheme.Surface.porcelain, for: .navigationBar)
-        .toolbarBackground(.visible, for: .navigationBar)
         .toolbar {
             if allowsLibraryEdits {
                 ToolbarItemGroup(placement: .primaryAction) {
@@ -286,12 +284,6 @@ struct RecipeDetailView: View {
             }
             .ladleFont(.metadata)
             .foregroundStyle(LadleTheme.Label.primary.opacity(0.58))
-
-            if !allowsLibraryEdits {
-                Label("Discover preview", systemImage: "sparkles")
-                    .ladleFont(.metadata)
-                    .foregroundStyle(LadleTheme.Label.accent)
-            }
 
             if !displayedRecipe.description.isEmpty {
                 Text(displayedRecipe.description)
