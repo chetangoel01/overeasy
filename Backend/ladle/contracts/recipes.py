@@ -270,6 +270,10 @@ class DiscoverSort(StrEnum):
     """
 
     POPULAR = "popular"
+    # Ordered by when the source arrived in Overeasy, not when its creator
+    # published it: `SourceVideo.published_at` is nullable and absent for
+    # Instagram, so publication order would drop a whole platform.
+    NEWEST = "newest"
     MOST_LIKED = "mostLiked"
     ALPHABETICAL = "alphabetical"
 

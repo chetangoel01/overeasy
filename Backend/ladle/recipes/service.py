@@ -80,6 +80,7 @@ class RecipeService:
         cursor: int = 0,
         query: str | None = None,
         sort: DiscoverSort = DiscoverSort.POPULAR,
+        max_total_minutes: int | None = None,
     ) -> DiscoverPageDTO:
         return self._repository.discover(
             database,
@@ -88,6 +89,7 @@ class RecipeService:
             cursor=cursor,
             query=query,
             sort=sort,
+            max_total_minutes=max_total_minutes,
         )
 
     def discover_detail(

@@ -20,6 +20,9 @@ final class DiscoverViewModel {
 
     private let service: any DiscoverServing
     private let removesSavedRecipeImmediately: Bool
+    private let loadsShelves: Bool
+    /// The rails as last loaded. `visibleShelves` is what the screen draws.
+    private(set) var shelves: [DiscoverShelf] = []
     private(set) var state: State = .idle
     private(set) var refreshState: RefreshState = .current
     private(set) var isLoadingMore = false
@@ -71,10 +74,29 @@ final class DiscoverViewModel {
 
     init(
         service: any DiscoverServing,
-        removesSavedRecipeImmediately: Bool = true
+        removesSavedRecipeImmediately: Bool = true,
+        loadsShelves: Bool = true
     ) {
         self.service = service
         self.removesSavedRecipeImmediately = removesSavedRecipeImmediately
+        self.loadsShelves = loadsShelves
+    }
+
+    /// The server already applied the query, so this is also what makes an
+    /// empty page a no-results state rather than an empty feed.
+    var isSearching: Bool {
+        !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// The rails the screen draws. Hidden entirely under a search, because
+    /// search replaces the feed and a rail of unsearched rows beside the
+    /// results would look like results. A rail with fewer than three cards
+    /// is dropped: it reads as a mistake next to the list below it.
+    var visibleShelves: [DiscoverShelf] {
+        guard !isSearching else { return [] }
+        return shelves.filter {
+            $0.recipes.count >= DiscoverShelf.minimumRecipes
+        }
     }
 
     private func criteriaChanged() {
@@ -97,13 +119,28 @@ final class DiscoverViewModel {
             cachedRecipes = nil
             state = .loading
         }
+        // The rails go out beside page 1 rather than after it, and their
+        // result is taken whatever the page does. A shelf never throws — a
+        // failed rail is simply absent — so the feed cannot fail because a
+        // rail did, and a failed feed does not cost the reader the rails.
+        async let loadedShelves = fetchShelves()
+        let pageResult: Result<DiscoverPage, any Error>
         do {
-            let page = try await service.fetchDiscoverPage(
-                cursor: 0,
-                query: query,
-                sort: sort
+            pageResult = .success(
+                try await service.fetchDiscoverPage(
+                    cursor: 0,
+                    query: query,
+                    sort: sort
+                )
             )
-            guard token == generation else { return }
+        } catch {
+            pageResult = .failure(error)
+        }
+        let shelves = await loadedShelves
+        guard token == generation else { return }
+        self.shelves = shelves
+        switch pageResult {
+        case let .success(page):
             savedSourceIDs = Set(
                 page.recipes.lazy.compactMap { recipe in
                     recipe.savedRecipeID == nil ? nil : recipe.sourceID
@@ -113,16 +150,14 @@ final class DiscoverViewModel {
             hasMore = page.hasMore
             state = .loaded(page.recipes.filter { $0.savedRecipeID == nil })
             refreshState = .current
-        } catch is CancellationError {
-            guard token == generation else { return }
+        case .failure(is CancellationError):
             if let cachedRecipes {
                 state = .loaded(cachedRecipes)
                 refreshState = .current
             } else {
                 state = .idle
             }
-        } catch {
-            guard token == generation else { return }
+        case let .failure(error):
             let report = RemoteFailureReport(error)
             if let cachedRecipes {
                 state = .loaded(cachedRecipes)
@@ -131,6 +166,33 @@ final class DiscoverViewModel {
                 state = .failed(report)
             }
         }
+    }
+
+    /// Both rails, in the order they are drawn. Two `async let`s rather than
+    /// a loop over the cases: the requests are independent and a rail should
+    /// not wait on the one above it.
+    private func fetchShelves() async -> [DiscoverShelf] {
+        guard loadsShelves, !isSearching else { return [] }
+        async let arrivals = fetchShelf(.newToOvereasy)
+        async let quick = fetchShelf(.quickDinners)
+        return await [arrivals, quick].compactMap { $0 }
+    }
+
+    /// Nil when the rail could not be filled. A rail is decoration on top of
+    /// the feed, so its failure is silent — there is no banner, no retry and
+    /// nothing for the reader to act on.
+    private func fetchShelf(_ id: DiscoverShelf.ID) async -> DiscoverShelf? {
+        guard let page = try? await service.fetchDiscoverPage(
+            cursor: 0,
+            query: "",
+            sort: id.sort,
+            maxTotalMinutes: id.maxTotalMinutes,
+            limit: DiscoverPaging.shelfSize
+        ) else { return nil }
+        return DiscoverShelf(
+            id: id,
+            recipes: page.recipes.filter { $0.savedRecipeID == nil }
+        )
     }
 
     /// Appends the next page. A failure here leaves the rows already on
@@ -230,11 +292,24 @@ final class DiscoverViewModel {
                 sourceID: recipe.sourceID
             )
             savedSourceIDs.insert(recipe.sourceID)
-            if removesSavedRecipeImmediately,
-               case let .loaded(recipes) = state {
-                state = .loaded(
-                    recipes.filter { $0.sourceID != recipe.sourceID }
-                )
+            if removesSavedRecipeImmediately {
+                if case let .loaded(recipes) = state {
+                    state = .loaded(
+                        recipes.filter { $0.sourceID != recipe.sourceID }
+                    )
+                }
+                // A rail is the same feed, so a source saved from its context
+                // menu has to leave the rail as well as the list. Dropping to
+                // fewer than three cards hides the rail, which is the right
+                // outcome: it is no longer a shelf.
+                shelves = shelves.map { shelf in
+                    DiscoverShelf(
+                        id: shelf.id,
+                        recipes: shelf.recipes.filter {
+                            $0.sourceID != recipe.sourceID
+                        }
+                    )
+                }
             }
             return saved
         } catch is CancellationError {
@@ -372,9 +447,7 @@ struct DiscoverView: View {
                 // The server already applied the query, so an empty page
                 // under an active search is a no-results state, not an
                 // empty feed.
-                if viewModel.query.trimmingCharacters(
-                    in: .whitespacesAndNewlines
-                ).isEmpty {
+                if !viewModel.isSearching {
                     emptyContent
                 } else {
                     ContentUnavailableView.search(text: viewModel.query)
@@ -419,11 +492,43 @@ struct DiscoverView: View {
         .accessibilityIdentifier("discover.initial-failure")
     }
 
+    /// Opening and saving are the same two actions from a rail card as from
+    /// a list row, so both surfaces call these rather than each closing over
+    /// their own copy of the work.
+    private func open(_ recipe: DiscoverRecipe) {
+        Task {
+            if let detail = await viewModel.detail(for: recipe) {
+                openRecipe(detail)
+            }
+        }
+    }
+
+    private func save(_ recipe: DiscoverRecipe) {
+        Task {
+            if let saved = await viewModel.save(recipe) {
+                saveRecipe(saved)
+            }
+        }
+    }
+
     private func recipeList(_ recipes: [DiscoverRecipe]) -> some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
+                ForEach(viewModel.visibleShelves) { shelf in
+                    DiscoverShelfView(
+                        shelf: shelf,
+                        isLoadingDetail: { viewModel.isLoadingDetail($0) },
+                        isSaved: { viewModel.isSaved($0) },
+                        open: open,
+                        save: save
+                    )
+                    .padding(.top, LadleTheme.Spacing.medium)
+                }
+
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Saved by cooks")
+                    // The rails carry the turnover; this is the whole
+                    // corpus, which is what the reader scrolls into.
+                    Text("All recipes")
                         .ladleFont(.section)
                         .foregroundStyle(LadleTheme.Label.primary)
                     Text(viewModel.sort.caption)
@@ -441,22 +546,8 @@ struct DiscoverView: View {
                         isSaved: viewModel.isSaved(recipe),
                         openFailure: viewModel.detailFailure(for: recipe),
                         saveFailure: viewModel.saveFailure(for: recipe),
-                        open: {
-                            Task {
-                                if let detail = await viewModel.detail(
-                                    for: recipe
-                                ) {
-                                    openRecipe(detail)
-                                }
-                            }
-                        },
-                        save: {
-                            Task {
-                                if let saved = await viewModel.save(recipe) {
-                                    saveRecipe(saved)
-                                }
-                            }
-                        }
+                        open: { open(recipe) },
+                        save: { save(recipe) }
                     )
                     // Rows are lazy, so this fires as the reader approaches
                     // the end rather than for the whole list at once.
@@ -554,6 +645,169 @@ private struct DiscoverRefreshBanner: View {
     }
 }
 
+private extension View {
+    /// One Discover long-press, wherever the recipe is drawn. A rail card
+    /// and a list row have to offer the same actions and the same preview,
+    /// or the gesture means two different things on one screen.
+    func discoverContextMenu(
+        recipe: DiscoverRecipe,
+        isSaved: Bool,
+        open: @escaping () -> Void,
+        save: @escaping () -> Void
+    ) -> some View {
+        contextMenu {
+            Button("View Recipe", systemImage: "book.pages", action: open)
+            if !isSaved {
+                Button("Save Recipe", systemImage: "plus", action: save)
+            }
+        } preview: {
+            DiscoverRecipeContextPreview(recipe: recipe)
+        }
+    }
+}
+
+/// One rail: a title, a caption, and a horizontally scrolling row of cards
+/// that bleed past the screen margin so the next card is visibly cut off
+/// rather than sitting flush with the text above it.
+private struct DiscoverShelfView: View {
+    let shelf: DiscoverShelf
+    let isLoadingDetail: (DiscoverRecipe) -> Bool
+    let isSaved: (DiscoverRecipe) -> Bool
+    let open: (DiscoverRecipe) -> Void
+    let save: (DiscoverRecipe) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: LadleTheme.Spacing.medium) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(shelf.title)
+                    .ladleFont(.section)
+                    .foregroundStyle(LadleTheme.Label.primary)
+                Text(shelf.caption)
+                    .ladleFont(.metadata)
+                    .foregroundStyle(LadleTheme.Label.secondary)
+            }
+
+            ScrollView(.horizontal) {
+                LazyHStack(alignment: .top, spacing: LadleTheme.Spacing.medium) {
+                    ForEach(shelf.recipes) { recipe in
+                        DiscoverShelfCard(
+                            shelf: shelf.id,
+                            recipe: recipe,
+                            isLoadingDetail: isLoadingDetail(recipe),
+                            isSaved: isSaved(recipe),
+                            open: { open(recipe) },
+                            save: { save(recipe) }
+                        )
+                    }
+                }
+                .scrollTargetLayout()
+                // The rail is drawn inside the list's own horizontal margin,
+                // so the cards are inset back to it and the scroll view is
+                // widened past it — that is what lets a card bleed off-screen.
+                .padding(.horizontal, LadleTheme.Layout.screenMargin)
+            }
+            .scrollTargetBehavior(.viewAligned)
+            .scrollIndicators(.hidden)
+            .scrollClipDisabled()
+            .padding(.horizontal, -LadleTheme.Layout.screenMargin)
+        }
+        .padding(.bottom, LadleTheme.Layout.sectionGap)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(shelf.title)
+    }
+}
+
+private struct DiscoverShelfCard: View {
+    @Environment(\.ladleAccent) private var accent
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    /// Points from the prototype linked on #29. LadleTheme has no card-size
+    /// token and one component is not enough to name a step, so they live
+    /// here — scaled, so the card grows with the reader's type size instead
+    /// of squeezing four lines into two.
+    @ScaledMetric(relativeTo: .body) private var scaledWidth: CGFloat = 152
+    @ScaledMetric(relativeTo: .body) private var scaledArtworkHeight: CGFloat = 114
+
+    /// Uncapped, 152 points scales past the width of the phone somewhere
+    /// around AX4 — a "rail" whose one card is wider than the viewport it
+    /// scrolls in. This stops at a width that still leaves the next card
+    /// peeking on the narrowest iPhone; the title takes a third line
+    /// instead, which is what a reader at that size actually needs. The row
+    /// restacks vertically at these sizes; a horizontal rail cannot.
+    private static let maximumWidth: CGFloat = 280
+
+    private var width: CGFloat { min(scaledWidth, Self.maximumWidth) }
+
+    private var artworkHeight: CGFloat {
+        min(scaledArtworkHeight, Self.maximumWidth * 114 / 152)
+    }
+
+    private var titleLines: Int { dynamicTypeSize.isAccessibilitySize ? 3 : 2 }
+
+    let shelf: DiscoverShelf.ID
+    let recipe: DiscoverRecipe
+    let isLoadingDetail: Bool
+    let isSaved: Bool
+    let open: () -> Void
+    let save: () -> Void
+
+    var body: some View {
+        Button(action: open) {
+            VStack(alignment: .leading, spacing: LadleTheme.Spacing.compact) {
+                artwork
+                Text(recipe.title)
+                    .ladleFont(.bodyStrong)
+                    .foregroundStyle(LadleTheme.Label.primary)
+                    .lineLimit(titleLines, reservesSpace: true)
+                    .multilineTextAlignment(.leading)
+                Text(recipe.creatorName ?? recipe.source.libraryTitle)
+                    .ladleFont(.metadata)
+                    .foregroundStyle(accent.label)
+                    .lineLimit(1)
+            }
+            .frame(width: width, alignment: .leading)
+        }
+        .buttonStyle(LadlePressButtonStyle())
+        .disabled(isLoadingDetail)
+        // No Save on the card: the list below carries it, and a 44-point
+        // capsule on a 152-point card would be the loudest thing in the rail.
+        .discoverContextMenu(
+            recipe: recipe,
+            isSaved: isSaved,
+            open: open,
+            save: save
+        )
+        // One target rather than three texts, so a card is a single VoiceOver
+        // stop and its title does not appear a second time in the hierarchy.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            "\(recipe.title), \(recipe.creatorName ?? recipe.source.libraryTitle)"
+        )
+        .accessibilityIdentifier(
+            "discover.card.\(shelf.rawValue).\(recipe.originalURL.absoluteString)"
+        )
+    }
+
+    private var artwork: some View {
+        DiscoverArtwork(recipe: recipe)
+            .frame(width: width, height: artworkHeight)
+            .clipShape(
+                RoundedRectangle(
+                    cornerRadius: LadleTheme.Corner.thumbnail,
+                    style: .continuous
+                )
+            )
+            .overlay {
+                if isLoadingDetail {
+                    ZStack {
+                        Rectangle().fill(.thinMaterial)
+                        ProgressView()
+                            .tint(accent.intent)
+                    }
+                }
+            }
+    }
+}
+
 private struct DiscoverRecipeRow: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.ladleAccent) private var accent
@@ -600,14 +854,12 @@ private struct DiscoverRecipeRow: View {
             }
         }
         .padding(.vertical, LadleTheme.Spacing.medium)
-        .contextMenu {
-            Button("View Recipe", systemImage: "book.pages", action: open)
-            if !isSaved {
-                Button("Save Recipe", systemImage: "plus", action: save)
-            }
-        } preview: {
-            DiscoverRecipeContextPreview(recipe: recipe)
-        }
+        .discoverContextMenu(
+            recipe: recipe,
+            isSaved: isSaved,
+            open: open,
+            save: save
+        )
         .accessibilityElement(children: .contain)
         .accessibilityAction(named: "Open recipe", open)
         .accessibilityIdentifier(

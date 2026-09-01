@@ -16,6 +16,7 @@ from ladle.contracts.errors import (
     SyncConflictDetails,
 )
 from ladle.contracts.recipes import (
+    MAX_RECIPE_MINUTES,
     DiscoverPageDTO,
     DiscoverSort,
     RecipeDTO,
@@ -112,6 +113,18 @@ def discover_recipes(
     limit: Annotated[PositiveInt, Query(le=100)] = 30,
     q: Annotated[str | None, Query(max_length=100)] = None,
     sort: Annotated[DiscoverSort, Query()] = DiscoverSort.POPULAR,
+    max_total_minutes: Annotated[
+        int | None,
+        Query(
+            ge=1,
+            le=MAX_RECIPE_MINUTES,
+            description=(
+                "Keep only sources a saver timed at this many minutes or "
+                "fewer. Sources nobody timed are excluded rather than "
+                "assumed quick."
+            ),
+        ),
+    ] = None,
     authorization: Annotated[str | None, Header()] = None,
 ) -> DiscoverPageDTO:
     claims = access_claims(request, authorization)
@@ -126,6 +139,7 @@ def discover_recipes(
             cursor=cursor,
             query=q,
             sort=sort,
+            max_total_minutes=max_total_minutes,
         )
 
 

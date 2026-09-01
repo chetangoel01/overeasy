@@ -55,6 +55,156 @@ final class DiscoverViewModelTests: XCTestCase {
         }
     }
 
+    // MARK: - Shelves
+
+    func testLoadFillsBothShelvesBesideTheFirstPage() async {
+        let service = DiscoverTestService(
+            result: .success((1...4).map { paged($0) })
+        )
+        let viewModel = DiscoverViewModel(service: service)
+
+        await viewModel.load()
+
+        XCTAssertEqual(
+            viewModel.visibleShelves.map(\.id),
+            [.newToOvereasy, .quickDinners]
+        )
+        XCTAssertEqual(viewModel.visibleShelves.first?.title, "New to Overeasy")
+        XCTAssertEqual(viewModel.visibleShelves.last?.title, "Quick dinners")
+        // Two shelf fetches on top of the feed's own page, and each one is
+        // the feed under a different order or filter rather than a new call.
+        XCTAssertEqual(viewModel.state, .loaded((1...4).map { paged($0) }))
+        XCTAssertEqual(service.requests.count, 1)
+        XCTAssertEqual(
+            Set(service.shelfRequests.map(\.sort)),
+            [.newest, .popular]
+        )
+        XCTAssertEqual(
+            service.shelfRequests.first(where: { $0.sort == .newest })?
+                .maxTotalMinutes,
+            nil
+        )
+        XCTAssertEqual(
+            service.shelfRequests.first(where: { $0.sort == .popular })?
+                .maxTotalMinutes,
+            30
+        )
+        // A rail has no cursor of its own: it asks for one short page and
+        // never pages, because there is no "See all" to page towards.
+        XCTAssertTrue(service.shelfRequests.allSatisfy { $0.cursor == 0 })
+        XCTAssertTrue(service.shelfRequests.allSatisfy { $0.query.isEmpty })
+        XCTAssertTrue(
+            service.shelfRequests.allSatisfy {
+                $0.limit == DiscoverPaging.shelfSize
+            }
+        )
+    }
+
+    func testAFailedShelfHidesItsRailAndLeavesTheFeedAlone() async {
+        let recipes = (1...4).map { paged($0) }
+        let service = DiscoverTestService(result: .success(recipes))
+        service.shelfResult = .failure(TestError.failed)
+        let viewModel = DiscoverViewModel(service: service)
+
+        await viewModel.load()
+
+        XCTAssertTrue(viewModel.visibleShelves.isEmpty)
+        XCTAssertEqual(viewModel.state, .loaded(recipes))
+        XCTAssertEqual(viewModel.refreshState, .current)
+    }
+
+    /// The other direction: the rails are worth showing even when the page
+    /// beneath them did not arrive, so a feed failure must not clear them.
+    func testAFailedFeedStillFillsTheShelves() async {
+        let service = DiscoverTestService(result: .failure(TestError.failed))
+        service.shelfResult = .success((1...4).map { paged($0) })
+        let viewModel = DiscoverViewModel(service: service)
+
+        await viewModel.load()
+
+        XCTAssertEqual(viewModel.visibleShelves.count, 2)
+        guard case .failed = viewModel.state else {
+            return XCTFail("Expected the feed itself to report the failure")
+        }
+    }
+
+    func testARailWithFewerThanThreeCardsIsHidden() async {
+        let service = DiscoverTestService(
+            result: .success((1...4).map { paged($0) })
+        )
+        service.shelfResult = .success([paged(1), paged(2)])
+        let viewModel = DiscoverViewModel(service: service)
+
+        await viewModel.load()
+
+        XCTAssertEqual(viewModel.shelves.count, 2, "Both rails still loaded")
+        XCTAssertTrue(viewModel.visibleShelves.isEmpty)
+    }
+
+    func testSearchHidesTheRailsAndAsksForNoShelves() async {
+        let service = DiscoverTestService(
+            result: .success((1...4).map { paged($0) })
+        )
+        let viewModel = DiscoverViewModel(service: service)
+
+        await viewModel.load()
+        XCTAssertFalse(viewModel.visibleShelves.isEmpty)
+
+        // Typing hides the rails immediately, before the debounced reload
+        // that will empty them has even been scheduled.
+        viewModel.query = "lemon"
+        XCTAssertTrue(viewModel.visibleShelves.isEmpty)
+
+        let shelfRequestsBefore = service.shelfRequests.count
+        await viewModel.load()
+
+        XCTAssertTrue(viewModel.visibleShelves.isEmpty)
+        XCTAssertEqual(
+            service.shelfRequests.count,
+            shelfRequestsBefore,
+            "A search must not spend two requests on rails it will not draw"
+        )
+    }
+
+    /// Watch builds its own view model for the same feed and has nowhere to
+    /// draw a rail, so it must not pay for one.
+    func testAViewModelThatDrawsNoShelvesFetchesNone() async {
+        let service = DiscoverTestService(
+            result: .success((1...4).map { paged($0) })
+        )
+        let viewModel = DiscoverViewModel(service: service, loadsShelves: false)
+
+        await viewModel.load()
+
+        XCTAssertTrue(viewModel.shelves.isEmpty)
+        XCTAssertTrue(viewModel.visibleShelves.isEmpty)
+        XCTAssertTrue(service.shelfRequests.isEmpty)
+        XCTAssertEqual(service.requests.count, 1)
+    }
+
+    func testSavingFromARailRemovesTheCardFromIt() async {
+        let recipes = (1...4).map { paged($0) }
+        let service = DiscoverTestService(
+            result: .success(recipes),
+            savedResult: .success(
+                SavedDiscoverRecipe(recipe: PreviewFixtures.recipes[0], revision: 1)
+            )
+        )
+        let viewModel = DiscoverViewModel(service: service)
+        await viewModel.load()
+
+        _ = await viewModel.save(recipes[0])
+
+        XCTAssertTrue(
+            viewModel.shelves.allSatisfy { shelf in
+                !shelf.recipes.contains(recipes[0])
+            }
+        )
+        // Three of four left, so the rails survive the save rather than
+        // dropping under the minimum.
+        XCTAssertEqual(viewModel.visibleShelves.count, 2)
+    }
+
     // MARK: - Paging
 
     func testLoadMoreAppendsTheNextPage() async {
@@ -397,23 +547,55 @@ private final class DiscoverTestService: DiscoverServing {
         let cursor: Int
         let query: String
         let sort: DiscoverSort
+        var maxTotalMinutes: Int?
+        var limit: Int = DiscoverPaging.pageSize
+
+        /// A shelf asks for a short page; the feed asks for a full one. That
+        /// is the only thing that tells the two apart on the wire.
+        var isShelf: Bool { limit == DiscoverPaging.shelfSize }
     }
 
+    /// Feed pages only. Shelf fetches are recorded separately so that every
+    /// assertion about the feed's cursor walk still means what it did before
+    /// the rails existed.
     private(set) var requests: [FetchRequest] = []
+    private(set) var shelfRequests: [FetchRequest] = []
     /// Forces the next page's contents, to simulate the server's window
     /// shifting between requests.
     var overrideNextPage: [DiscoverRecipe]?
     /// One page by default, so tests that predate paging keep their meaning.
     var pageSize: Int?
+    /// What the shelf fetches return, when they should not simply mirror the
+    /// feed — including a failure, which must not reach the feed.
+    var shelfResult: Result<[DiscoverRecipe], any Error>?
 
     func fetchDiscoverPage(
         cursor: Int,
         query: String,
-        sort: DiscoverSort
+        sort: DiscoverSort,
+        maxTotalMinutes: Int?,
+        limit: Int
     ) async throws -> DiscoverPage {
-        requests.append(
-            FetchRequest(cursor: cursor, query: query, sort: sort)
+        let request = FetchRequest(
+            cursor: cursor,
+            query: query,
+            sort: sort,
+            maxTotalMinutes: maxTotalMinutes,
+            limit: limit
         )
+        if request.isShelf {
+            shelfRequests.append(request)
+            // Shelf fetches never take the pause or the paging overrides:
+            // those belong to the feed, and one shared continuation cannot
+            // serve three concurrent requests.
+            let recipes = try (shelfResult ?? result).get()
+            return DiscoverPage(
+                recipes: recipes,
+                nextCursor: recipes.count,
+                hasMore: false
+            )
+        }
+        requests.append(request)
         if pausesFetch {
             fetchIsSuspended = true
             await withCheckedContinuation { fetchContinuation = $0 }
