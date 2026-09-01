@@ -50,6 +50,7 @@ def food(
     protein: str = "10",
     carbohydrate: str = "20",
     fat: str = "2",
+    fibre: str | None = None,
     portions: list[FoodPortion] | None = None,
     search_rank: int | None = None,
 ) -> FoodNutrients:
@@ -62,6 +63,7 @@ def food(
             "protein_grams_per_100g": Decimal(protein),
             "carbohydrate_grams_per_100g": Decimal(carbohydrate),
             "fat_grams_per_100g": Decimal(fat),
+            "fibre_grams_per_100g": Decimal(fibre) if fibre else None,
             "portions": portions or [],
             "search_rank": search_rank,
         }
@@ -470,3 +472,58 @@ def test_every_candidate_being_unusable_still_blocks_the_ingredient() -> None:
 
     assert error.value.code == "inconsistentNutrients"
     assert error.value.ingredient_index == 0
+
+
+def test_high_fibre_spices_are_not_rejected_for_counting_fibre_as_sugar() -> None:
+    """`Spices, cloves, ground` is a laboratory record, and it used to fail.
+
+    USDA states 274 kcal. Charging its 33.9g of fibre the full 4 kcal/g puts
+    the estimate at 403 — 32% away, past the tolerance — while treating fibre
+    as unavailable puts it at 267. The stated value sits between those two, so
+    the panel is consistent and the recipe should cost it.
+    """
+    cloves = food(
+        fdc_id=171321,
+        description="Spices, cloves, ground",
+        data_type="SR Legacy",
+        calories="274",
+        protein="5.97",
+        carbohydrate="65.53",
+        fat="13.0",
+        fibre="33.9",
+        search_rank=0,
+    )
+    source = Foods({"cloves": [cloves]})
+
+    result = NutritionCalculator(source).calculate_required(
+        recipe([ingredient(name="cloves", query="cloves")])
+    )
+
+    assert result is not None
+    assert "FDC 171321" in (result.evidence or "")
+
+
+def test_a_panel_outside_the_fibre_band_is_still_rejected() -> None:
+    # Fibre widens the plausible range; it does not excuse a nonsense panel.
+    source = Foods(
+        {
+            "cloves": [
+                food(
+                    fdc_id=171321,
+                    calories="10",
+                    protein="5.97",
+                    carbohydrate="65.53",
+                    fat="13.0",
+                    fibre="33.9",
+                    search_rank=0,
+                )
+            ]
+        }
+    )
+
+    with pytest.raises(NutritionCalculationUnavailable) as error:
+        NutritionCalculator(source).calculate_required(
+            recipe([ingredient(name="cloves", query="cloves")])
+        )
+
+    assert error.value.code == "inconsistentNutrients"
