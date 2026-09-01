@@ -143,6 +143,21 @@ final class StateScenarioUITests: XCTestCase {
     }
 
     @MainActor
+    func testInboxEmptyStateStartsAnImport() {
+        let app = launchApp(scenario: "empty")
+
+        app.tabBars.buttons["Inbox"].tap()
+        XCTAssertTrue(app.staticTexts["Inbox clear"].waitForExistence(timeout: 3))
+        attachScreenshot(of: app, named: "Inbox - empty with add recipe")
+
+        app.buttons["inbox.empty.add-recipe"].tap()
+
+        XCTAssertTrue(
+            app.textFields["Recipe link"].waitForExistence(timeout: 3)
+        )
+    }
+
+    @MainActor
     func testPrimaryJourneyCapturesInboxDetailAndCooking() {
         let app = launchApp(scenario: "standard")
 

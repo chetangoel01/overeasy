@@ -389,8 +389,9 @@ struct LibraryView: View {
         tabStack(.inbox, reloadError: reloadError) {
             inboxContent
                 .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
+                    ToolbarItemGroup(placement: .topBarTrailing) {
                         accountButton
+                        addRecipeButton
                     }
                 }
         }
@@ -404,6 +405,7 @@ struct LibraryView: View {
     private var inboxContent: some View {
         ImportInboxView(
             viewModel: viewModel,
+            addRecipe: presentAddRecipe,
             recoverImport: { failedImportJob = $0 },
             openProcessing: presentProcessing,
             cancelImport: { jobID in
@@ -415,7 +417,8 @@ struct LibraryView: View {
             openReview: { recipe, statusText in
                 showRecipe(recipe, statusText: statusText)
             },
-            operationFailure: importCoordinator.failure
+            operationFailure: importCoordinator.failure,
+            canImport: canImport
         )
     }
 
@@ -794,6 +797,8 @@ extension LibraryTab {
     }
 
     var toolbarActions: [LibraryToolbarAction] {
-        self == .recipes ? [.account, .addRecipe] : [.account]
+        [.recipes, .inbox].contains(self)
+            ? [.account, .addRecipe]
+            : [.account]
     }
 }

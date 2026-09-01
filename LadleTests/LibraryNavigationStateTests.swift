@@ -88,9 +88,12 @@ final class LibraryNavigationStateTests: XCTestCase {
             LibraryTab.recipes.toolbarActions,
             [.account, .addRecipe]
         )
+        XCTAssertEqual(
+            LibraryTab.inbox.toolbarActions,
+            [.account, .addRecipe]
+        )
         XCTAssertEqual(LibraryTab.discover.toolbarActions, [.account])
         XCTAssertEqual(LibraryTab.watch.toolbarActions, [.account])
-        XCTAssertEqual(LibraryTab.inbox.toolbarActions, [.account])
     }
 
     func testInitialLoadFailureBlocksEveryWorkspaceTab() {
