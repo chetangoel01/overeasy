@@ -387,6 +387,28 @@ final class LibraryViewModelTests: XCTestCase {
         XCTAssertEqual(recipe.ladleYieldText, "11 servings")
     }
 
+    /// Both facts land exactly on a half: 1137/2 calories and 49/2 grams of
+    /// protein. This pins the rounding rule, not just the digit count —
+    /// Foundation's default is half-to-even, which reads "568 cal · 24g
+    /// protein" and takes both halves down. 1139/2 would not: 569.5 rounds
+    /// to 570 either way.
+    func testDenseArchiveFactsRoundHalvesAwayFromZero() {
+        let recipe = Recipe(
+            title: "Sheet-Pan Chicken Thighs",
+            source: .tiktok,
+            originalURL: URL(string: "https://www.tiktok.com/@cook/video/2")!,
+            servings: 2,
+            nutrition: Nutrition(
+                calories: 1_137,
+                proteinGrams: 49,
+                servingBasis: 2,
+                isEstimated: true
+            )
+        )
+
+        XCTAssertEqual(recipe.libraryFacts, "569 cal · 25g protein")
+    }
+
     func testDenseArchiveFactsOmitNutritionWithInvalidServingBasis() {
         let recipe = Recipe(
             title: "Unknown Batch Soup",
