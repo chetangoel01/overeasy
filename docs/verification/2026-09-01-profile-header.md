@@ -66,9 +66,12 @@ insets, is now the cook:
   than no menu. The choice is per device (`ladle.profile.avatarStyle`); the
   name is what has to survive a reinstall, and that lives on the account.
 - **Editing.** Tapping the name replaces it with a centred field: 64
-  characters, `.submitLabel(.done)`, `PATCH` on submit. A failed save shows an
-  alert and the name is already back, because what is drawn comes from the
-  session that the failed request never touched.
+  characters, `.submitLabel(.done)`, `PATCH` on submit — and on losing focus,
+  because scrolling the form or dragging the sheet ends editing too, and an
+  inline edit that stays open with the change neither saved nor discarded is
+  not what iOS does anywhere else. A failed save shows an alert and the name is
+  already back, because what is drawn comes from the session that the failed
+  request never touched.
 - **Guest.** The word "Guest" and a `Sign in` button, nothing else — no empty
   avatar and no placeholder name, because a guest has neither. The button
   presents a sheet carrying the same Apple and Google buttons the rest of the
@@ -89,6 +92,7 @@ that legitimately differs is the ground they sit on, so that is the parameter
 | `.undecided` is drawn as a guest | It is the pre-sign-in state; there is no account to describe. |
 | The cook's own edit applies even to a launch-argument-pinned profile | The pin exists so the guest registration cannot wipe a UI-test fixture, not to stop the person using the app. Without this the name is uneditable in exactly the builds a reviewer can run. |
 | The avatar diameter is a local constant, not a theme token | `Control` names the three heights a *tappable control* may have. The avatar is artwork; adding a fourth control height would say something false about the scale. |
+| The field commits on blur as well as on Done | Done is not the only way out of a field, and stranding an inline edit open is not iOS behaviour. `submitName` clears `isEditingName` first, so the focus change it causes cannot re-enter. |
 
 ## Verification
 
@@ -102,26 +106,31 @@ xcodebuild test -project Ladle.xcodeproj -scheme LadleAllTests \
 
 - Red first, production changes stashed: `Testing cancelled because the build
   failed`, 20 errors, all of them the new API the tests reach for.
-- Green: `Executed 373 tests, with 1 test skipped and 0 failures (0
-  unexpected)` — 12 new.
+- Green: `Executed 374 tests, with 1 test skipped and 0 failures (0
+  unexpected)` — 13 new.
 
 New coverage: the profile applied with the account and cleared on sign-out; a
 launch-argument profile pinned and an edit still landing on it; the profile
-decoded from a tokens response into both the session and the Keychain; tokens
-without a profile restoring as a profile-less session; `fullName` present in
-the Apple request body when supplied and the key **absent** when not; `PATCH`
-sent, its answer stored, and the avatar not dropped by a name edit; the Apple
+decoded from a tokens response into both the session and the Keychain; the
+Keychain round-trip with a profile in the record — the one path where the
+stored shape changed; tokens without a profile restoring as a profile-less
+session; `fullName` present in the Apple request body when supplied and the key
+**absent** when not; `PATCH` sent, its answer stored, and the avatar not
+dropped by a name edit; a refresh reporting the profile it returns; the Apple
 name formatted and bounded to 64 characters.
 
-UI tests:
+UI tests — the new header test, the accent and recipe-view test it sits beside,
+and the welcome screen at accessibility sizes, since `SignInOptionsView`
+changed that screen too:
 
 ```
 xcodebuild test ... \
   -only-testing:LadleUITests/DiscoverInteractionUITests/testSettingsHeaderShowsTheSignedInCook \
-  -only-testing:LadleUITests/DiscoverInteractionUITests/testSettingsAccentAndRecipeViewPreferencesAreReachable
+  -only-testing:LadleUITests/DiscoverInteractionUITests/testSettingsAccentAndRecipeViewPreferencesAreReachable \
+  -only-testing:LadleUITests/StateScenarioUITests/testWelcomeAtAccessibilitySizeRemainsReachable
 ```
 
-`Executed 2 tests, with 0 failures (0 unexpected)`. The new one launches
+`Executed 3 tests, with 0 failures (0 unexpected)`. The new one launches
 `-ui-testing -onboarding-complete -account-state signedInWithGoogle
 -account-display-name "Priya Raman"`, opens Settings and asserts the header.
 The name is queried by identifier, not as static text: it is a button, because
@@ -136,8 +145,14 @@ one; the monogram state is `-account-state signedInWithApple`, which is the
 real Apple case as well as the fixture.
 
 Also driven by hand on that simulator: the avatar menu switches to initials and
-back, the name field takes focus on the first tap, and the guest sign-in sheet
-presents and dismisses.
+back, the name field takes focus on the first tap, scrolling the form commits
+the edit and closes the field, the guest sign-in sheet presents and dismisses,
+and Welcome still lays out after the `SignInOptionsView` extraction.
+
+`GoogleSignInProvider` was re-read rather than assumed: it calls
+`GIDSignIn.sharedInstance.signIn(withPresenting:)` with no scope restriction,
+so the default `openid email profile` still applies and Google's `name` and
+`picture` claims keep arriving in the verified token.
 
 ## Not verified
 
