@@ -353,6 +353,26 @@ def _stems(value: str) -> set[str]:
     }
 
 
+#: Mutually exclusive states. A record in one of these cannot answer a query
+#: asking for another: dried coriander leaf is 279 kcal per 100g and the fresh
+#: herb is about 23, so agreeing on "coriander" and "leaf" is not enough.
+_STATES: dict[str, str] = {
+    "raw": "raw",
+    "fresh": "raw",
+    "dried": "dried",
+    "dehydrated": "dried",
+    "canned": "canned",
+    "frozen": "frozen",
+    "cooked": "cooked",
+    "boiled": "cooked",
+    "roasted": "cooked",
+}
+
+
+def _states(stems: set[str]) -> set[str]:
+    return {_STATES[stem] for stem in stems if stem in _STATES}
+
+
 def _relevant(query: str, description: str) -> bool:
     """Whether a candidate plausibly describes the ingredient asked for.
 
@@ -377,6 +397,10 @@ def _relevant(query: str, description: str) -> bool:
     if tokens[0] not in described:
         return False
     wanted = set(tokens)
+    asked = _states(wanted)
+    offered = _states(described)
+    if asked and offered and not (asked & offered):
+        return False
     shared = wanted & described
     if len(wanted) == 1:
         return bool(shared)
