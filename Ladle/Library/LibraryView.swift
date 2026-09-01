@@ -125,6 +125,9 @@ struct LibraryView: View {
                     accountSession: accountSession,
                     library: viewModel,
                     syncStatus: syncStatus,
+                    authClient: authClient,
+                    googleSignIn: googleSignIn,
+                    onAuthenticated: onAuthenticated,
                     signOut: onSignOut,
                     deleteAccount: onDeleteAccount
                 )

@@ -179,6 +179,13 @@ final class AccountSessionTests: XCTestCase {
 
         XCTAssertEqual(session.state, .signedInWithGoogle)
         XCTAssertEqual(session.profile?.displayName, "Priya Raman")
+
+        // The cook's own edit is not the guest registration, and must land
+        // even here — otherwise the name is uneditable in exactly the builds
+        // a reviewer can run.
+        session.applyProfile(AccountProfile(displayName: "Priya R."))
+
+        XCTAssertEqual(session.profile?.displayName, "Priya R.")
     }
 
     func testProfileNameIsIgnoredWithoutTheUITestingArgument() {

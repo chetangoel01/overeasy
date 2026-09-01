@@ -273,7 +273,7 @@ final class LadleRuntime {
                 },
                 sessionRefreshed: { tokens in
                     await MainActor.run {
-                        accountSession.applyProfile(tokens.profile)
+                        accountSession.applyRemoteProfile(tokens.profile)
                     }
                 }
             )

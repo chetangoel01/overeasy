@@ -184,7 +184,7 @@ final class AccountSession {
     /// that travels with the tokens.
     func applyRemoteAccount(kind: String, profile: AccountProfile? = nil) {
         isRemoteSessionReady = true
-        applyProfile(profile)
+        applyRemoteProfile(profile)
         // A pinned state still wants the session to come up — the library and
         // Discover need it — it just does not want the guest registration that
         // brings it to reset what was pinned.
@@ -203,10 +203,19 @@ final class AccountSession {
 
     /// The server is authoritative about the profile too: it arrives with the
     /// tokens, is refreshed with them, and is replaced — not merged — by what
-    /// the account currently holds. An edit reaches here the same way, from
-    /// the `PATCH` response rather than from the field the cook typed in.
-    func applyProfile(_ profile: AccountProfile?) {
+    /// the account currently holds.
+    func applyRemoteProfile(_ profile: AccountProfile?) {
         guard !isProfilePinned else { return }
+        self.profile = profile?.nonEmpty
+    }
+
+    /// The cook's own edit, as the server echoed it back.
+    ///
+    /// Unlike a session answer this applies even to a pinned profile: the pin
+    /// stops the guest registration from wiping a fixture, not the person
+    /// using the app — and without this the name is uneditable in exactly the
+    /// builds a reviewer can run.
+    func applyProfile(_ profile: AccountProfile?) {
         self.profile = profile?.nonEmpty
     }
 
