@@ -31,7 +31,7 @@ should stay clean until this list is agreed.
 | 9 | Sort menu looks jarring | Confirmed — the **Recipes** one | `AllRecipesView.swift` |
 | 10 | Accent doesn't update behind the sheet | Same bug as #6 | see #6 |
 | 11 | Pull-to-refresh should show new recipes | Partly | backend `repository.py` |
-| 12 | Reimported recipe had no calorie information | Confirmed — root cause found | `usda.py`, `calculator.py` |
+| 12 | Reimported recipe had no calorie information | **Fixed and deployed** | `usda.py`, `calculator.py` |
 
 Items 6 and 10 are one bug. Items 7 and 9 are the same class of problem as the
 filter sheet that was already rewritten: hand-rolled chrome where a system
@@ -511,7 +511,7 @@ without changing the ranking at all.
 
 ---
 
-## 12. A reimport came back with no calorie information
+## 12. A reimport came back with no calorie information — fixed
 
 > "Look into the latest reimport I just did, no calorie information came with
 > it."
@@ -596,13 +596,26 @@ ingredient.
 | [`Backend/ladle/nutrition/calculator.py:101`](../../Backend/ladle/nutrition/calculator.py:101) | move the consistency and mass checks into the candidate loop so a rejection advances instead of aborting |
 | `Backend/tests/nutrition/` | fixtures for the three real junk records above, and a regression proving one bad candidate no longer voids the dish |
 
-**Open question:** when *every* candidate for one ingredient is unusable,
-should the recipe still lose all nutrition, or should that ingredient be
-excluded with an uncertainty note and the rest be totalled? The second is more
-useful and slightly less accurate.
+**Fixed and deployed** on September 1 — see
+[the companion document](../verification/2026-09-01-usda-nutrition-fix-and-store.md)
+for what changed, including two corrections that only surfaced when the
+deployed code was probed. Raw USDA responses are now stored locally and
+consulted before the network, as requested in the same message.
 
-**Effort:** small — the ranking and fallback are a few lines each; the value is
-in the test fixtures.
+Verified against the deployed API: all three blocking ingredients resolve to
+laboratory records — `Spices, cumin seed` (375 kcal), `Spices, garlic powder`
+(331), `Spices, onion powder` (341) — and a curry-shaped ingredient list
+including all three produces per-serving totals instead of blocking.
+
+**Still open, and separate from this bug:** search-term match quality. A probe
+using the bare term "paneer" matched *Palak Paneer*, a finished dish at
+101 kcal/100g, rather than paneer cheese at roughly 265. The normalizer writes
+better terms than that probe did, so this may not bite in practice — but
+nothing currently stops a prepared dish answering for an ingredient.
+
+**Open question, unanswered:** when *every* candidate for one ingredient is
+unusable, should the recipe still lose all nutrition, or should that ingredient
+be excluded with an uncertainty note and the rest be totalled?
 
 ---
 
