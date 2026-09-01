@@ -126,6 +126,25 @@ _REQUEST_EXAMPLES: dict[tuple[str, str], dict[str, dict[str, object]]] = {
     },
 }
 
+# Operations worth explaining in the console but outside the numbered import
+# pipeline, so they do not renumber it.
+_OPERATION_DESCRIPTIONS = {
+    ("/v1/recipes/discover", "get"): (
+        "The public feed. Discover's two shelves are this same operation "
+        "under a different order or filter rather than resources of their "
+        "own, so a shelf, the ranked list and a search all return "
+        "`DiscoverPageDTO`:\n\n"
+        "- **New to Overeasy** — `?sort=newest&limit=10`. Ordered by when the "
+        "source arrived in Overeasy, not when its creator published it: "
+        "`publishedAt` is absent for Instagram and would drop that platform "
+        "out of the shelf entirely.\n"
+        "- **Quick dinners** — `?sort=popular&max_total_minutes=30&limit=10`. "
+        "Filtered on the shortest total time any saver of the source "
+        "recorded; a source nobody timed is excluded rather than assumed "
+        "quick."
+    ),
+}
+
 _APP_ATTEST_PARAMETERS = [
     {
         "name": "X-App-Attest-Kind",
@@ -242,6 +261,9 @@ def _enrich(schema: OpenAPISchema) -> None:
         operation["summary"] = f"{step}. {operation['summary']}"
         operation["description"] = description
         operation["x-ladle-test-step"] = step
+
+    for (path, method), description in _OPERATION_DESCRIPTIONS.items():
+        _operation(schema, path, method)["description"] = description
 
     for (path, method), examples in _REQUEST_EXAMPLES.items():
         operation = _operation(schema, path, method)

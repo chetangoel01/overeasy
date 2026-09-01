@@ -2,9 +2,10 @@ from collections import defaultdict
 from collections.abc import Callable, Collection, Sequence
 from datetime import datetime
 from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
-from sqlalchemy import delete, distinct, func, or_, select
+from sqlalchemy import SQLColumnExpression, delete, distinct, func, or_, select
 from sqlalchemy.orm import Session, aliased
 
 from ladle.contracts.recipes import (
@@ -108,6 +109,7 @@ class RecipeRepository:
         cursor: int = 0,
         query: str | None = None,
         sort: DiscoverSort = DiscoverSort.POPULAR,
+        max_total_minutes: int | None = None,
     ) -> DiscoverPageDTO:
         """One page of the public feed, ordered and filtered by the server.
 
@@ -116,6 +118,10 @@ class RecipeRepository:
         consumed*, not items returned: a ranked source whose extraction cache
         has gone stale is dropped from `items` but still advances the cursor,
         so paging cannot stall on one bad row.
+
+        Discover's shelves are this same page under a different order or
+        filter — `sort=newest` and `max_total_minutes` — rather than their own
+        endpoint, so a shelf and the list beneath it return one DTO.
         """
         saved_recipe = aliased(Recipe)
         saved_source_ids = select(saved_recipe.source_video_id).where(
@@ -154,8 +160,20 @@ class RecipeRepository:
         # SourceVideo joins 1:1 on the group key, but Postgres still needs an
         # aggregate over a non-grouped column.
         like_count = func.max(SourceVideo.like_count).label("like_count")
+        # Not selected, only ordered by: the shelf needs the ranking, not the
+        # timestamp, and leaving it out keeps the row unpack below unchanged.
+        arrived_at = func.max(SourceVideo.created_at)
+        # Annotated because the branches below produce different expression
+        # types and the first one would otherwise fix the list's element type.
+        ordering: list[SQLColumnExpression[Any]]
         if sort == DiscoverSort.ALPHABETICAL:
             ordering = [sort_title.asc(), Recipe.source_video_id]
+        elif sort == DiscoverSort.NEWEST:
+            # `created_at` is non-null with a server default on every row, so
+            # this needs no NULLS handling — unlike `published_at`, which is
+            # exactly why the shelf is not keyed on it. Source id breaks the
+            # ties that a bulk import creates, so the offset cursor is stable.
+            ordering = [arrived_at.desc(), Recipe.source_video_id]
         elif sort == DiscoverSort.MOST_LIKED:
             # NULLS LAST matters: counts are only captured from the import
             # that introduced them onward, so most of an existing corpus has
@@ -176,7 +194,7 @@ class RecipeRepository:
                 Recipe.source_video_id,
             ]
 
-        ranked = database.execute(
+        ranked_query = (
             select(
                 Recipe.source_video_id,
                 saved_count,
@@ -187,7 +205,17 @@ class RecipeRepository:
             .join(SourceVideo, SourceVideo.id == Recipe.source_video_id)
             .where(*conditions)
             .group_by(Recipe.source_video_id)
-            .order_by(*ordering)
+        )
+        if max_total_minutes is not None:
+            # The savers' own totals, taken at their minimum: one saver's
+            # padded edit must not hide a source the rest call quick. A source
+            # nobody timed aggregates to NULL, fails the comparison, and is
+            # left out — never treated as fast because it is unknown.
+            ranked_query = ranked_query.having(
+                func.min(Recipe.total_minutes) <= max_total_minutes
+            )
+        ranked = database.execute(
+            ranked_query.order_by(*ordering)
             .offset(cursor)
             # One extra row answers has_more without a second count query.
             .limit(limit + 1)

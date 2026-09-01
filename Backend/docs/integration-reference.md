@@ -197,7 +197,7 @@ Canonical recipe payloads are available in:
 | `DELETE /v1/imports/{jobID}` | Bearer | `204` | Cancel an actively parsing import and release its reserved slot |
 | `POST /v1/imports/{jobID}/retry` | Bearer | `202` | Retry with optional correction or pasted text |
 | `GET /v1/recipes/sync?cursor=&limit=` | Bearer | `200` | Read ordered recipe upserts and tombstones |
-| `GET /v1/recipes/discover?limit=` | Bearer | `200` | Rank unsaved public recipe-video sources by aggregate saves |
+| `GET /v1/recipes/discover?limit=&cursor=&q=&sort=&max_total_minutes=` | Bearer | `200` | Rank unsaved public recipe-video sources; `sort` is `popular` (default), `newest`, `mostLiked` or `alphabetical`, and `max_total_minutes` keeps only timed sources at or under that total |
 | `GET /v1/recipes/discover/{sourceVideoID}` | Bearer | `200` | Read the current shared recipe as a non-owned Discover preview |
 | `POST /v1/recipes/discover/{sourceVideoID}/save` | Bearer | `200` | Idempotently clone a ready shared extraction into the account |
 | `GET /v1/recipes/{recipeID}` | Bearer | `200` | Fetch one current recipe |
@@ -220,6 +220,23 @@ shared extraction directly and emits a normal sync upsert. It does not create
 an import job or rerun acquisition, transcription, or extraction. Reading an
 individual Discover source returns the same current shared extraction for a
 read-only detail screen without creating or changing an account recipe.
+
+Discover's two shelves are this same endpoint under a different order or
+filter, not a section resource of their own — so a shelf, the ranked list and
+a search all return `DiscoverPageDTO` and page the same way:
+
+```
+GET /v1/recipes/discover?sort=newest&limit=10
+GET /v1/recipes/discover?sort=popular&max_total_minutes=30&limit=10
+```
+
+`sort=newest` orders by when the source arrived in Overeasy
+(`source_videos.created_at`), not by when its creator published it:
+`published_at` is nullable and absent for Instagram, so publication order
+would drop an entire platform out of the shelf. `max_total_minutes` filters on
+the minimum total time across the savers of a source, so one saver's padded
+edit cannot hide a source the rest call quick; a source no saver timed is
+excluded rather than assumed quick.
 
 ### Authentication payloads
 
