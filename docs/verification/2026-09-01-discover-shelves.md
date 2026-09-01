@@ -251,7 +251,7 @@ landing screen:
 ```
 xcodebuild test -project Ladle.xcodeproj -scheme LadleAllTests \
   -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:LadleUITests
-Executed 24 tests, with 0 failures (0 unexpected) in 320.884 seconds
+Executed 25 tests, with 0 failures (0 unexpected) in 324.672 seconds
 ```
 
 No UI test needed changing. `testDiscoverRecipeSupportsTapAndLongPress` was
@@ -261,12 +261,29 @@ carries the same title as a row — and was run alone first to confirm it:
 
 ### End to end
 
-`docker compose up -d --build api worker` from this branch's `Backend/`,
-against the local Compose Postgres, then both shelf queries with a guest
-token. The local corpus has no public unsaved sources, so both return an
-empty page — which is still the point: `sort=newest` is accepted rather than
-rejected as an invalid enum, `max_total_minutes` is accepted rather than
-ignored, and both return `DiscoverPageDTO` and not a new shape.
+`docker compose up -d --build api worker` from this branch's `Backend/`
+rebuilt the local API against the Compose Postgres; `curl --fail
+http://127.0.0.1:4112/health/ready` returns `{"status":"ready", …}` with all
+seven checks ready, and the stack is left running. Both shelf queries were
+then run with a guest token against the local corpus of nine ranked sources:
+
+| Request | Result |
+|---|---|
+| `?sort=newest&limit=10` | `200`, 8 items, `nextCursor: 9`, `hasMore: false` |
+| `?sort=popular&max_total_minutes=30&limit=10` | `200`, 3 items, `nextCursor: 4`, `hasMore: false` |
+| `?max_total_minutes=0` | `422` `invalidRequest` |
+| `?sort=nonsense` | `422` |
+
+Three things this shows that the integration tests cannot. The time filter
+really removes rows — nine ranked sources down to three, and the three that
+survive are the ones a saver timed. The `newest` order is visibly not the
+popular one: its save counts run 2, 2, 1, 1, 7, 1, 5, 4, which no ranking by
+saves would produce. And `nextCursor` runs one ahead of the items on the
+newest page (9 for 8 items), which is the existing invariant working
+unchanged — a ranked source whose extraction cache has gone stale is dropped
+from `items` but still advances the cursor, so paging cannot stall on it.
+
+Both responses are `DiscoverPageDTO`. No new shape, no new field.
 
 ## Files
 
@@ -296,6 +313,12 @@ shelves, concurrently. All three land in the `sync:user` bucket at 120/min
 (`Backend/ladle/config.py`), so there is still ample headroom, but it is
 three times what #27 costed when it made Discover the landing screen. Watch's
 own view model is exempt for exactly this reason.
+
+**Changing the sort refetches the rails.** They do not depend on `sort` or
+`query`, so the two requests return what they already had. `load()` owns the
+rails because pull-to-refresh has to reload them, and telling a refresh apart
+from a sort change would mean a parameter for two requests a cook makes
+rarely. Left as is, deliberately.
 
 **"Quick dinners" depends on savers filling in a total time.** The column is
 nullable and a source nobody timed never appears. On a young corpus the rail
