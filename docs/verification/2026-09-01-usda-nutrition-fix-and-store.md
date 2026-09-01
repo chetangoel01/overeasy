@@ -42,8 +42,13 @@ Observed on the VPS — every nutrition failure, same check, always a spice:
 
 ## What changed
 
+- The search asks for the laboratory data types first and only falls back to
+  including Branded when nothing generic answers at all. Ranking alone could
+  not fix "garlic powder": **every** row USDA returns for it is Branded, so
+  there was nothing better to promote. Asking the generic types on their own
+  surfaces `Spices, garlic powder`.
 - `_search_rank` orders by data type first, then token overlap, then score, so
-  Foundation and SR Legacy records beat branded label transcriptions.
+  laboratory records beat branded label transcriptions within a result set.
 - `_plausible` drops records that cannot describe a real food before they
   become candidates: macros summing past 100g per 100g, or zero energy
   alongside real macros.
@@ -60,14 +65,19 @@ Observed on the VPS — every nutrition failure, same check, always a spice:
   They were not, so the schema-drift test had been failing on `main` and
   autogenerate wanted to drop all three.
 
-### One deliberate non-change
+### All-zero panels, and a correction made during verification
 
-An **all-zero panel is still accepted**. Water and salt genuinely contribute
-nothing, and rejecting their records would block any recipe listing water. The
-branded all-zero spice records that used to slip through — a garlic powder
-record reporting zero for everything passes the consistency check while
-silently contributing nothing — are handled by ranking instead, which now puts
-the laboratory record above them.
+An all-zero panel is kept for a laboratory record and rejected for a branded
+one. Water and salt genuinely contribute nothing, so a generic zero is a fact;
+a branded zero is a label nobody filled in.
+
+This is not what the first attempt did. It kept every all-zero panel on the
+reasoning that ranking would put the laboratory record above the branded one.
+Probing the deployed code disproved that: cumin resolved correctly, but garlic
+powder still resolved to `fdcId 2104649`, a branded record reporting zero for
+everything — so the recipe would have silently totalled that ingredient as
+nothing instead of blocking. Ranking cannot help when the whole result set is
+branded, which is why the generic-first search exists.
 
 ## The local store
 
@@ -112,7 +122,9 @@ ingredients this deployment has never seen.
 - Store round-trip against the testcontainers Postgres: a second client with a
   cold in-process cache serves from the database and makes **zero** HTTP calls;
   repeat saves refresh rather than conflict.
-- Full backend suite: **811 passed**, 2 skipped. Ruff check and format clean.
+- Deployed-code probe on the VPS for the three ingredients that had been
+  failing, which is what exposed the garlic powder gap above.
+- Full backend suite: **813 passed**, 2 skipped. Ruff check and format clean.
 - The schema-drift and expected-table tests cover migration 0020.
 
 ## Still open

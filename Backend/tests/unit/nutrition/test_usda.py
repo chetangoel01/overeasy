@@ -12,7 +12,7 @@ from ladle.acquisition.errors import (
     ProviderQuotaError,
     ProviderTransientError,
 )
-from ladle.nutrition.usda import USDAClient
+from ladle.nutrition.usda import _DATA_TYPES, USDAClient
 
 FIXTURES = Path(__file__).parents[2] / "fixtures" / "providers" / "usda"
 SEARCH = json.loads((FIXTURES / "search.json").read_text())
@@ -60,7 +60,6 @@ def test_candidates_prefer_generic_foods_and_parse_nutrients_and_portions() -> N
                 "Foundation",
                 "SR Legacy",
                 "Survey (FNDDS)",
-                "Branded",
             ]
             return httpx.Response(200, json=SEARCH)
         fdc_id = int(request.url.path.rsplit("/", 1)[-1])
@@ -194,7 +193,11 @@ def test_the_search_cache_is_bounded_and_evicts_the_oldest_entry() -> None:
     searches: list[str] = []
 
     def respond(request: httpx.Request) -> httpx.Response:
-        searches.append(json.loads(request.content)["query"])
+        payload = json.loads(request.content)
+        # A query with no generic match is searched twice, once per data-type
+        # scope. Count lookups so this stays a test about the cache bound.
+        if "Branded" not in payload["dataType"]:
+            searches.append(payload["query"])
         return httpx.Response(200, json={"foods": []})
 
     usda = client(respond)
@@ -218,7 +221,9 @@ def test_a_cache_hit_refreshes_recency_before_eviction() -> None:
     searches: list[str] = []
 
     def respond(request: httpx.Request) -> httpx.Response:
-        searches.append(json.loads(request.content)["query"])
+        payload = json.loads(request.content)
+        if "Branded" not in payload["dataType"]:
+            searches.append(payload["query"])
         return httpx.Response(200, json={"foods": []})
 
     usda = client(respond, maximum_cache_entries=2)
@@ -343,24 +348,6 @@ def test_structurally_impossible_records_are_never_candidates(
     assert foods == [], label
 
 
-def test_an_all_zero_panel_is_kept_because_water_and_salt_are_real() -> None:
-    # Rejecting these would block any recipe listing water. The branded
-    # all-zero spice records this used to admit are handled by ranking.
-    water = _detail(
-        999124,
-        "Water, bottled, generic",
-        "SR Legacy",
-        calories=0,
-        protein=0,
-        fat=0,
-        carbohydrate=0,
-    )
-
-    foods = client(_serve([_row(water, 500.0)], {999124: water})).candidates("water")
-
-    assert [food.fdc_id for food in foods] == [999124]
-
-
 def test_api_key_travels_in_a_header_not_the_query_string() -> None:
     seen: list[httpx.Request] = []
 
@@ -378,3 +365,89 @@ def test_api_key_travels_in_a_header_not_the_query_string() -> None:
         # a key in the logs.
         assert "api_key" not in str(request.url)
         assert request.headers["X-Api-Key"] == "usda-test-key"
+
+
+_GENERIC_TYPES = ["Foundation", "SR Legacy", "Survey (FNDDS)"]
+_ALL_ZERO_BRANDED = _detail(
+    2104649,
+    "GARLIC POWDER",
+    "Branded",
+    calories=0,
+    protein=0,
+    fat=0,
+    carbohydrate=0,
+)
+_SPICE_GARLIC = _detail(
+    171325,
+    "Spices, garlic powder",
+    "SR Legacy",
+    calories=331,
+    protein=16.55,
+    fat=0.73,
+    carbohydrate=72.73,
+)
+
+
+def test_branded_results_are_only_searched_when_no_generic_record_exists() -> None:
+    # USDA returns nothing but branded jars for "garlic powder", so ranking
+    # cannot rescue it — the laboratory record has to be asked for.
+    searched: list[list[str]] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/foods/search"):
+            payload = json.loads(request.content)
+            searched.append(payload["dataType"])
+            if payload["dataType"] == _GENERIC_TYPES:
+                return httpx.Response(200, json={"foods": [_row(_SPICE_GARLIC, 700.0)]})
+            raise AssertionError("branded search should not have been needed")
+        return httpx.Response(200, json=_SPICE_GARLIC)
+
+    foods = client(respond).candidates("garlic powder")
+
+    assert [food.fdc_id for food in foods] == [171325]
+    assert searched == [_GENERIC_TYPES]
+
+
+def test_a_branded_search_still_runs_when_no_generic_record_matches() -> None:
+    branded = _detail(
+        2375016,
+        "PROTEIN BAR",
+        "Branded",
+        calories=380,
+        protein=20.0,
+        fat=12.0,
+        carbohydrate=45.0,
+    )
+    searched: list[list[str]] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/foods/search"):
+            payload = json.loads(request.content)
+            searched.append(payload["dataType"])
+            if payload["dataType"] == _GENERIC_TYPES:
+                return httpx.Response(200, json={"foods": []})
+            return httpx.Response(200, json={"foods": [_row(branded, 800.0)]})
+        return httpx.Response(200, json=branded)
+
+    foods = client(respond).candidates("protein bar")
+
+    assert [food.fdc_id for food in foods] == [2375016]
+    assert searched == [_GENERIC_TYPES, list(_DATA_TYPES)]
+
+
+def test_a_branded_all_zero_panel_is_rejected_but_a_generic_one_is_kept() -> None:
+    def serve(detail: dict):
+        return _serve([_row(detail, 500.0)], {detail["fdcId"]: detail})
+
+    assert client(serve(_ALL_ZERO_BRANDED)).candidates("garlic powder") == []
+
+    water = _detail(
+        999124,
+        "Water, bottled, generic",
+        "SR Legacy",
+        calories=0,
+        protein=0,
+        fat=0,
+        carbohydrate=0,
+    )
+    assert [f.fdc_id for f in client(serve(water)).candidates("water")] == [999124]

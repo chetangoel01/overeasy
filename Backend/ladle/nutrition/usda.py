@@ -30,6 +30,11 @@ _DATA_TYPES: tuple[FoodDataType, ...] = (
 _DATA_TYPE_PRIORITY: dict[object, int] = {
     value: index for index, value in enumerate(_DATA_TYPES)
 }
+#: Laboratory records. Branded rows are transcribed from packaging and are
+#: regularly unusable for a generic ingredient — five branded jars were all
+#: USDA returned for "garlic powder", four of them nonsense — so they are only
+#: searched when nothing generic answers at all.
+_GENERIC_DATA_TYPES: tuple[FoodDataType, ...] = _DATA_TYPES[:-1]
 _ENERGY_IDS = (2048, 2047, 1008)
 _MACRO_IDS = {"protein": 1003, "fat": 1004, "carbohydrate": 1005}
 
@@ -103,16 +108,7 @@ class USDAClient:
 
         payload = self._store.search(normalized) if self._store else None
         if payload is None:
-            response = self._request(
-                "POST",
-                "/foods/search",
-                json={
-                    "query": normalized,
-                    "dataType": list(_DATA_TYPES),
-                    "pageSize": self._maximum_candidates,
-                },
-            )
-            payload = self._json_object(response, "search")
+            payload = self._search_payload(normalized)
             if self._store is not None:
                 self._store.save_search(normalized, payload)
         rows = payload.get("foods")
@@ -146,6 +142,37 @@ class USDAClient:
         while len(self._cache) > self._maximum_cache_entries:
             self._cache.popitem(last=False)
         return list(value)
+
+    def _search_payload(self, normalized: str) -> dict[str, object]:
+        """Ask for laboratory records first, and only then for packaging.
+
+        Ranking alone could not fix "garlic powder": every row USDA returns
+        for it is Branded, so there was nothing better to promote. Asking the
+        generic data types on their own surfaces `Spices, garlic powder`,
+        and the second search only happens for ingredients that genuinely
+        exist solely as products.
+        """
+        generic = self._search_request(normalized, _GENERIC_DATA_TYPES)
+        rows = generic.get("foods")
+        if isinstance(rows, list) and rows:
+            return generic
+        return self._search_request(normalized, _DATA_TYPES)
+
+    def _search_request(
+        self,
+        normalized: str,
+        data_types: tuple[FoodDataType, ...],
+    ) -> dict[str, object]:
+        response = self._request(
+            "POST",
+            "/foods/search",
+            json={
+                "query": normalized,
+                "dataType": list(data_types),
+                "pageSize": self._maximum_candidates,
+            },
+        )
+        return self._json_object(response, "search")
 
     def _request(
         self,
@@ -246,7 +273,7 @@ class USDAClient:
         energy = next((amounts[key] for key in _ENERGY_IDS if key in amounts), None)
         if energy is None or any(key not in amounts for key in _MACRO_IDS.values()):
             return None
-        if not _plausible(energy, amounts):
+        if not _plausible(energy, amounts, data_type=data_type):
             return None
 
         portions: list[FoodPortion] = []
@@ -294,7 +321,12 @@ class USDAClient:
         )
 
 
-def _plausible(energy: Decimal, amounts: dict[int, Decimal]) -> bool:
+def _plausible(
+    energy: Decimal,
+    amounts: dict[int, Decimal],
+    *,
+    data_type: str,
+) -> bool:
     """Whether a per-100g panel can describe a real food.
 
     Branded rows are transcribed from labels and are often scaled from a
@@ -303,15 +335,17 @@ def _plausible(energy: Decimal, amounts: dict[int, Decimal]) -> bool:
     become the candidate a recipe is costed from: the alternative is an
     ingredient contributing 133g of carbohydrate per 100g.
 
-    An all-zero panel is left alone: water and salt really do contribute
-    nothing, and rejecting them would block any recipe that lists water. The
-    branded all-zero spice records that used to slip through are handled by
-    ranking instead, which now puts the laboratory record above them.
+    An all-zero panel is kept for a laboratory record and rejected for a
+    branded one. Water and salt really do contribute nothing, so a generic
+    zero is a fact worth keeping; a branded zero is a label nobody filled in,
+    and accepting it silently drops that ingredient from the recipe's totals.
     """
     macros = [amounts[key] for key in _MACRO_IDS.values()]
     if sum(macros) > Decimal(100):
         return False
-    return not (energy <= 0 and any(macros))
+    if energy > 0:
+        return True
+    return data_type != "Branded" and not any(macros)
 
 
 def _normalize(value: str) -> str:
