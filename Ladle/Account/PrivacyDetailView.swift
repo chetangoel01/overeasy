@@ -113,8 +113,13 @@ struct PrivacyDetailView: View {
             """,
             """
             An anonymous account identifier. Guests are keyed to this install; \
-            Apple or Google sign-in adds only the account identifier that \
-            provider supplies.
+            Apple or Google sign-in adds the account identifier that provider \
+            supplies.
+            """,
+            """
+            The display name and profile picture link your provider supplies \
+            at sign-in, so Settings can show you your own account. The name \
+            is yours to edit, and both are deleted with your account.
             """,
         ]
 

@@ -114,7 +114,7 @@ names the value instead of the raw number.
 | Role | Value | Use |
 | --- | --- | --- |
 | `Layout.screenMargin` | 16 | Leading and trailing margin on a workspace screen |
-| `Layout.sheetMargin` | 24 | Margin inside a sheet, *including its toolbar control* |
+| `Layout.sheetMargin` | 24 | Margin inside a sheet's content |
 | `Layout.cardPadding` | 16 | Inner padding of a grouped card or field |
 | `Layout.sectionGap` | 24 | Between two sections of a screen |
 | `Layout.rowGap` | 12 | Between sibling rows |
@@ -132,8 +132,9 @@ A divider that separates rows carrying a leading icon is derived with
 `LadleTheme.dividerInset(iconWidth:gap:leadingPadding:)` so it lands on the
 label, and cannot drift when the icon or gap changes. Do not hardcode it.
 
-A sheet's close or cancel control sits on `sheetMargin`, the same margin as the
-content beneath it.
+A sheet's close or cancel control sits where the system puts it, inside its own
+glass capsule. A sheet does not pad its toolbar items: `sheetMargin` is for the
+content beneath them.
 
 ## Buttons
 
@@ -242,9 +243,11 @@ buttons a different text origin per button.
 - Recipe cards and Discover results use the native long-press context menu as
   the modern replacement for 3D Touch. The menu previews the recipe and exposes
   Open plus a non-destructive Save or Favorite action.
-- Settings presents accent color, connected provider, saved-recipe count, and
-  sync state. Internal installation identifiers and provider profile details
-  stay hidden.
+- Settings opens on the cook: a 64-point avatar — the provider's photo or a
+  monogram, whichever they choose — the editable display name, and the account
+  kind beneath it. A guest sees the word "Guest" and a sign-in button, and
+  nothing else. Beneath that header sit accent color, saved-recipe count, and
+  sync state. Internal installation identifiers stay hidden.
 
 ## Accessibility and verification
 

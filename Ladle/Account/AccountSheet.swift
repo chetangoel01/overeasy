@@ -63,6 +63,9 @@ struct AccountSheet: View {
     let accountSession: AccountSession
     let library: LibraryViewModel
     let syncStatus: SyncStatus
+    var authClient: AuthClient?
+    var googleSignIn: (any GoogleSignInProviding)?
+    var onAuthenticated: @MainActor () async -> Void = {}
     let signOut: @MainActor () async -> Void
     let deleteAccount: @MainActor () async throws -> Void
 
@@ -134,19 +137,21 @@ struct AccountSheet: View {
         .presentationDragIndicator(.visible)
     }
 
-    /// The account's own state. The explanation is a footer because that is
-    /// where a grouped list puts prose about the section above it.
+    /// The cook, above their settings. This was a `LabeledContent` row with
+    /// a status pill — the same row for a guest and for a signed-in account,
+    /// saying nothing about who was signed in. The explanation stays a
+    /// footer because that is where a grouped list puts prose about the
+    /// section above it.
     private var accountSection: some View {
         Section {
-            LabeledContent {
-                LadlePill(
-                    text: accountStatus,
-                    systemImage: accountStatusSymbol,
-                    tint: accountStatusTint
-                )
-            } label: {
-                Text(Self.accountTitle(for: accountSession.state))
-            }
+            AccountHeaderView(
+                accountSession: accountSession,
+                authClient: authClient,
+                googleSignIn: googleSignIn,
+                onAuthenticated: onAuthenticated
+            )
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets())
         } footer: {
             Text(Self.accountDetail(for: accountSession.state))
         }
@@ -328,32 +333,6 @@ struct AccountSheet: View {
         case .undecided, .guest: "This device"
         case .freeAccount, .signedInWithApple, .signedInWithGoogle:
             status.shortLabel
-        }
-    }
-
-    private var accountStatus: String {
-        switch accountSession.state {
-        case .undecided: "Not connected"
-        case .guest: "Guest"
-        case .freeAccount, .signedInWithApple, .signedInWithGoogle: "Connected"
-        }
-    }
-
-    private var accountStatusSymbol: String {
-        switch accountSession.state {
-        case .undecided: "exclamationmark.circle"
-        case .guest: "iphone"
-        case .freeAccount, .signedInWithApple, .signedInWithGoogle:
-            "checkmark.circle.fill"
-        }
-    }
-
-    private var accountStatusTint: Color {
-        switch accountSession.state {
-        case .undecided: LadleTheme.Surface.steel
-        case .guest: LadleTheme.Surface.steel
-        case .freeAccount, .signedInWithApple, .signedInWithGoogle:
-            LadleTheme.Intent.success
         }
     }
 

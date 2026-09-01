@@ -100,6 +100,40 @@ final class DiscoverInteractionUITests: XCTestCase {
         )
     }
 
+    /// The header is the reason `-account-state` exists: until it did, no UI
+    /// test could reach a signed-in screen at all. There is no `AuthClient`
+    /// under `-ui-testing`, so the profile comes from the launch arguments.
+    @MainActor
+    func testSettingsHeaderShowsTheSignedInCook() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-ui-testing",
+            "-onboarding-complete",
+            "-account-state",
+            "signedInWithGoogle",
+            "-account-display-name",
+            "Priya Raman",
+        ]
+        app.launch()
+
+        let settings = app.buttons["Settings and account"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 3))
+        settings.tap()
+
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 2))
+        // The name is a button — tapping it edits in place — so it is not a
+        // static text and has to be found by identifier.
+        let name = app.descendants(matching: .any)["account.profile.name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 2))
+        XCTAssertEqual(name.label, "Priya Raman")
+        XCTAssertTrue(app.staticTexts["Signed in with Google"].exists)
+        XCTAssertFalse(
+            app.buttons["account.profile.sign-in"].exists,
+            "A signed-in cook is not offered a sign-in button"
+        )
+        attachScreenshot(of: app, named: "Settings profile header")
+    }
+
     @MainActor
     func testSettingsAccentAndRecipeViewPreferencesAreReachable() throws {
         let app = launchApp(startingOn: "Recipes")

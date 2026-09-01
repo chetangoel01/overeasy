@@ -270,6 +270,11 @@ final class LadleRuntime {
                     await MainActor.run {
                         accountSession.signOut()
                     }
+                },
+                sessionRefreshed: { tokens in
+                    await MainActor.run {
+                        accountSession.applyRemoteProfile(tokens.profile)
+                    }
                 }
             )
             authClient = AuthClient(

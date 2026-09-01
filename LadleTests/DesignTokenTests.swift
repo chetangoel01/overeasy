@@ -129,9 +129,12 @@ final class DesignTokenTests: XCTestCase {
     }
 
     func testRaisedCardBadgesUseTheDistinctBadgeSurface() throws {
-        // AccountSheet is deliberately absent: it is a grouped `Form` now, so
-        // its rows are system `Label`s and it draws no badge of its own.
+        // AccountSheet is deliberately absent: it is a grouped `Form`, so its
+        // rows are system `Label`s and it draws no badge of its own. The one
+        // badge it presents is the profile header's monogram, which lives in
+        // its own view.
         let expectedCounts = [
+            "Ladle/Account/AccountHeaderView.swift": 1,
             "Ladle/Account/GuestLimitView.swift": 1,
             "Ladle/Edit/ReimportSheet.swift": 2,
             "Ladle/Health/HealthExportSheet.swift": 1,

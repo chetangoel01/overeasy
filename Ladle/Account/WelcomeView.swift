@@ -1,4 +1,3 @@
-import AuthenticationServices
 import SwiftUI
 
 struct WelcomeView: View {
@@ -136,32 +135,11 @@ struct WelcomeView: View {
 
     private var accountActions: some View {
         VStack(spacing: 0) {
-            SignInWithAppleButton(.continue) { request in
-                flow.prepareAppleRequest(request)
-            } onCompletion: { result in
-                Task { await flow.handleAppleCompletion(result) }
-            }
-            // Always white. The welcome surface is unconditionally graphite,
-            // so a style chosen from the device appearance is wrong half the
-            // time: `colorScheme` here resolves outside this view's own
-            // `.environment(\.colorScheme, .dark)`, so on a light-mode device
-            // it picked `.black` and painted a black button onto #14181B.
-            .signInWithAppleButtonStyle(.white)
-            .frame(height: LadleTheme.Control.primary)
-            .clipShape(
-                RoundedRectangle(
-                    cornerRadius: LadleTheme.Corner.control
-                )
+            SignInOptionsView(
+                flow: flow,
+                identifierPrefix: "welcome",
+                surface: .graphite
             )
-            .disabled(flow.isAuthenticating)
-
-            GoogleSignInControl(
-                isEnabled: !flow.isAuthenticating,
-                accessibilityIdentifier: "welcome.google-sign-in"
-            ) {
-                Task { await flow.signInWithGoogle() }
-            }
-            .padding(.top, LadleTheme.Spacing.medium)
 
             guestSeparator
                 .padding(.vertical, LadleTheme.Spacing.medium)
