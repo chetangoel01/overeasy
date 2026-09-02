@@ -6,7 +6,10 @@ from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.celery import CeleryInstrumentor
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+from opentelemetry.instrumentation.httpx import (
+    HTTPX2ClientInstrumentor,
+    HTTPXClientInstrumentor,
+)
 from opentelemetry.instrumentation.redis import RedisInstrumentor
 from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 from opentelemetry.sdk.resources import Resource
@@ -37,11 +40,7 @@ def instrument_application(
     )
     if instrument_dependencies:
         _install_global_provider(provider)
-        HTTPXClientInstrumentor().instrument(
-            tracer_provider=provider,
-            request_hook=_redact_httpx_url,
-            async_request_hook=_redact_httpx_url_async,
-        )
+        _instrument_outbound_http(provider)
         RedisInstrumentor().instrument(tracer_provider=provider)
         CeleryInstrumentor().instrument(  # type: ignore[no-untyped-call]
             tracer_provider=provider
@@ -54,16 +53,16 @@ def instrument_application(
     return provider
 
 
-def instrument_worker(settings: Settings) -> TracerProvider | None:
+def instrument_worker(
+    settings: Settings,
+    *,
+    exporter: SpanExporter | None = None,
+) -> TracerProvider | None:
     if not settings.tracing_enabled:
         return None
-    provider = _provider(settings)
+    provider = _provider(settings, exporter=exporter)
     _install_global_provider(provider)
-    HTTPXClientInstrumentor().instrument(
-        tracer_provider=provider,
-        request_hook=_redact_httpx_url,
-        async_request_hook=_redact_httpx_url_async,
-    )
+    _instrument_outbound_http(provider)
     RedisInstrumentor().instrument(tracer_provider=provider)
     CeleryInstrumentor().instrument(  # type: ignore[no-untyped-call]
         tracer_provider=provider
@@ -76,6 +75,21 @@ def instrument_database(engine: Engine, provider: TracerProvider | None) -> None
         SQLAlchemyInstrumentor().instrument(
             engine=engine,
             tracer_provider=provider,
+        )
+
+
+def _instrument_outbound_http(provider: TracerProvider) -> None:
+    # The clients this codebase builds itself use httpx, but the anthropic 1.x
+    # SDK talks through httpx2, a separate package that the httpx patch never
+    # touches: the 0.117 -> 1.2 upgrade dropped every Claude request from the
+    # traces without anything failing. Both packages are patched with the same
+    # hooks, rather than aliasing httpx to httpx2 process-wide as the SDK's
+    # migration guide suggests, so no direct httpx caller changes behaviour.
+    for instrumentor in (HTTPXClientInstrumentor(), HTTPX2ClientInstrumentor()):
+        instrumentor.instrument(
+            tracer_provider=provider,
+            request_hook=_redact_httpx_url,
+            async_request_hook=_redact_httpx_url_async,
         )
 
 
