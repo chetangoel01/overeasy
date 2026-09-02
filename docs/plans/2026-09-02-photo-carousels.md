@@ -28,8 +28,8 @@ hashtags — was reachable only because the hashtags included `#recipe`.
 
 TikTok's own search, profile grids and Explore feed are all login-walled from a
 server-side fetch and from an unauthenticated browser, and `yt-dlp`'s TikTok
-user extractor lists videos only, so there is no unbiased way to sample photo
-posts from this environment. That limitation is worth knowing before the number
+user extractor returned only video items for the two creators sampled, so there
+is no unbiased way to sample photo posts from this environment. That limitation is worth knowing before the number
 is used to justify anything.
 
 ---
@@ -48,6 +48,9 @@ These change the cost of both routes, so they come first.
    `p16/p19-common-sign.tiktokcdn-us.com` through that client with no code
    change**, 290–435 KB each, `content-type: image/jpeg`. Route B needs no
    allowlist edit and no new SSRF review; it needs a size cap and a slide cap.
+   Instagram's slide `display_url`s sit on `scontent-*.cdninstagram.com`, which
+   the same validator admits; those were read out of the embed blob but not
+   downloaded.
 2. **The `/photo/` page carries no item struct at all.** The brief expected the
    same struct with `imagePost.images[]` in place of a video. What is actually
    served at `/@user/photo/<id>` is a page whose rehydration blob has no
@@ -75,7 +78,8 @@ These change the cost of both routes, so they come first.
 `/video/<id>` form. `qty`/`instr` are `coverage.py`'s `has_quantities` /
 `has_instructions` over the caption alone. `gate` is
 `require_recipe_evidence`, which is what decides whether an import survives to
-extraction. Every row: `/photo/` path yielded no struct; `/video/` path did.
+extraction. The `/photo/` path yielded no struct on any of the 13; the `/video/`
+path yielded a full struct on all 12 that were measurable.
 
 | # | Post | Slides | Caption | qty | instr | qty mentions | Stickers | `imagePost.title` | gate | Recipe post? |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -172,10 +176,12 @@ carousels, whose per-child `video_url`s are sitting unread in the same blob.
 Alt text (`accessibility_caption`, provenance `instagram:altText`) was present
 on exactly one of six. It is not a usable slide-text source.
 
-### The two terminal states, traced through the real code
+### The two terminal states
 
-Running `SourceIdentityParser` → `FreeAcquirer` → `assess_coverage` →
-`require_recipe_evidence` unchanged:
+Executed: `SourceIdentityParser` → `FreeAcquirer` → `assess_coverage` →
+`require_recipe_evidence`, all unchanged. `ProviderChain` itself was **not**
+run — everything below about which paid rungs are attempted is read off the
+code, not observed.
 
 * **`DVbn81xjyuP`** — diagnostics `["instagramEmbedUsed",
   "freeCreatorPageUnavailable"]`; coverage `sufficient_for_extraction=false`,
@@ -190,13 +196,18 @@ Running `SourceIdentityParser` → `FreeAcquirer` → `assess_coverage` →
 
 Both reach that state **after the whole paid chain has been offered the job**.
 `assess_coverage(...).sufficient_without_transcription` is false, so
-`provider_chain.py:193` does not short-circuit. Whisper is then called with
-`media_url=None`; `_audio_transcript` catches `TranscriptUnavailable` /
-`ProviderUnavailable` and records `audioTranscriptionUnavailable`, so no audio
-is billed — but Supadata, SoScripted, the server fallback and the OpenRouter
-creator search are all attempted in turn (`provider_chain.py:216–275`). What
-Supadata and SoScripted actually do with a `/p/` sidecar URL is **unmeasured**;
-measuring it costs provider budget for no extra decision value.
+`provider_chain.py:193` does not short-circuit. Whisper is then reached with
+`media_url=None`: `AudioTranscriptProvider.transcript` (`audio.py:529–558`)
+gets `None` back from `MediaAudioSource.audio` and raises
+`TranscriptUnavailable`, which `_audio_transcript` turns into the
+`audioTranscriptionUnavailable` diagnostic. Nothing is downloaded and no ledger
+row is written — `_record_provider` (`provider_chain.py:409`) writes to the
+metrics registry only, and `TranscriptUnavailable` is not a
+`ProviderUnavailable`, so it does not even reach that. **Supadata, SoScripted,
+the server fallback and the OpenRouter creator search are then attempted in
+turn** (`provider_chain.py:216–275`), and those are the calls that cost money.
+What Supadata and SoScripted actually do with a `/p/` sidecar URL is
+**unmeasured**; measuring it costs provider budget for no extra decision value.
 
 TikTok, by contrast, is honest today: `/@user/photo/<id>` is rejected by
 `_TIKTOK_PATH` with `InvalidSourceURL: invalid TikTok video path`, before any
@@ -284,11 +295,20 @@ only when it has quantities **and** instructions.
     `recipe_text` = transcript + linked documents only (`coverage.py:61–78`).
     Making a photo caption count means passing the kind in and widening that one
     expression. This is the load-bearing line for both routes.
+  * `acquisition/free/instagram.py` — read `__typename` and
+    `edge_sidecar_to_children` to set the same kind for a `GraphSidecar`.
+    Without this, Route A is TikTok-only and §5 is unchanged: nothing in the
+    Instagram client can tell a carousel from a reel today.
   * `acquisition/provider_chain.py` — the kind must reach `assess_coverage`, and
-    `_audio_transcript` must not be called for it.
+    the **whole transcript rung set** must be skipped for it, not just Whisper:
+    `_audio_transcript`, Supadata, SoScripted and the server fallback
+    (`provider_chain.py:199–260`) are all searching for audio that a photo post
+    does not have. The brief said "short-circuit both"; the specific rungs are
+    these four.
   * Tests: `tests/unit/imports/test_source_identity.py`,
-    `tests/unit/acquisition/test_coverage.py`, free-acquirer tests, and a new
-    test that a photo post never reaches Whisper.
+    `tests/unit/acquisition/test_coverage.py`, free-acquirer tests, Instagram
+    embed tests for the sidecar shape, and a new test that a photo post reaches
+    none of the four transcript rungs.
 * **Canonical-URL fork — pick one, the costs differ**
   * **(a) canonicalise to `/video/<id>`** — `TikTokPageClient` and yt-dlp both
     work unchanged, and no fetch logic moves. But `original_url` on the saved
@@ -298,8 +318,11 @@ only when it has quantities **and** instructions.
   * **(b) canonicalise to `/photo/<id>`** — honest `original_url`, and yt-dlp
     refuses the URL outright so the audio trap closes by itself. Costs a
     translation inside `TikTokPageClient` (fetch the `/video/` form for the same
-    id) and breaks `FreeAcquirer.counts` for the kind, which goes through
-    `self._ytdlp.metadata(source.canonical_url)`.
+    id). It also makes `FreeAcquirer.counts` **silently return empty
+    `SourceCounts()`** for the kind — it calls
+    `self._ytdlp.metadata(source.canonical_url)` and swallows
+    `ProviderUnavailable` — so likes and views would quietly stop refreshing
+    unless counts are routed through the page client too.
 * **Media kind — persisted or derived**
   * **Derived** (from the URL path, or from `imagePost` being present in the
     struct): no migration, no `expected_revision` bump, no fixtures. `SourceVideo`
@@ -310,17 +333,22 @@ only when it has quantities **and** instructions.
     `Contracts/Fixtures/*.json`, `Backend/tests/contracts/` and
     `RemoteContractTests.swift` per the working agreement. Roughly doubles the
     change.
-* **New dependencies:** none. **Egress changes:** none. **Provider cost:** none
-  added; it *removes* the wasted paid chain on carousels that the caption already
-  covers, by letting `sufficient_without_transcription` fire.
-* **Risk:** moderate and mostly on the coverage line — widening
+* **New dependencies:** none. **Egress changes:** none. **Provider cost:**
+  **negative, but only if the transcript rung gate above is part of the change.**
+  A covered caption stops the chain at `sufficient_without_transcription`; an
+  uncovered one (the jessielyncooks shape) would otherwise still walk Supadata,
+  SoScripted, the server fallback and the creator search before the gate kills
+  it — paying transcript providers to look for audio that cannot exist. With the
+  gate, a carousel import costs one extraction call or nothing at all.
+* **Risk:** moderate, and concentrated in two places. Widening
   `has_recipe_evidence` is the rule the whole ladder rests on, and getting the
   kind gating wrong lets a caption stand in for narration on ordinary videos.
-  The audio trap in §6 is the other one; it is a test, not a mystery.
-* **What it does not fix:** the jessielyncooks case, and every Instagram
-  carousel in §5. Route A alone would let those through the parser and then land
-  them in the same `insufficientTextEvidence` / junk-`needsReview` states, only
-  now on TikTok too.
+  The audio trap in §6 is the other; it is a test, not a mystery.
+* **What it does not fix:** the jessielyncooks case, and any carousel whose
+  recipe is only in the slides. For those, Route A's honest outcome is a fast,
+  cheap `insufficientTextEvidence` instead of today's slow, paid one — better,
+  but still not an import. Instagram improves only if the
+  `free/instagram.py` bullet is included; without it, §5 is unchanged.
 
 ### Route B — vision over the slides
 
@@ -395,11 +423,13 @@ pipeline can already read for free, and when that text is handed to the existing
 extractor it produces a `ready`, cookable recipe with no prompt or contract
 change (§7). That is a real feature for a change whose sharp edges are two
 known, testable gates — the audio trap in §6 and the coverage line in §8 — and
-whose provider cost is negative, because a covered caption stops the paid chain
-that a carousel import burns today. Route A also converts the Instagram
-behaviour in §5 from an accident into a decision: the same coverage rule that
-admits a good caption will keep sending promo captions to review, which is where
-they belong.
+whose provider cost comes out negative, provided the transcript-rung gate is
+part of the same change: a covered caption stops the paid chain that a carousel
+import burns today, and an uncovered one fails before reaching it. Taken with
+its `free/instagram.py` bullet, Route A also converts the Instagram behaviour in
+§5 from an accident into a decision: a sidecar is recognised as a carousel, the
+transcript rungs stop being asked for audio that does not exist, and a promo
+caption fails fast instead of after the bill.
 
 The reason I would not start Route B is that this probe cannot tell you how
 often it is needed. The one post that requires it (§3, #5) is genuinely
