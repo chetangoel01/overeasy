@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 
 from alembic import command
 from ladle.admin.backfill_times import (
+    EstimateOutcome,
     RecipeTimeEvidence,
     TimeBackfillService,
     TimeEstimate,
@@ -49,7 +50,8 @@ class FrozenClock:
 class FakeEstimator:
     """Stands in for the configured extraction provider."""
 
-    minutes: int | None
+    minutes: int | None = None
+    failure: str | None = None
     calls: list[RecipeTimeEvidence] = field(default_factory=list)
 
     def estimate(
@@ -58,12 +60,14 @@ class FakeEstimator:
         model: str,
         max_tokens: int,
         evidence: RecipeTimeEvidence,
-    ) -> TimeEstimate | None:
+    ) -> EstimateOutcome:
         del model, max_tokens
         self.calls.append(evidence)
         if self.minutes is None:
-            return None
-        return TimeEstimate(total_minutes=self.minutes)
+            return EstimateOutcome(
+                failure=self.failure or "no estimate in reply",
+            )
+        return EstimateOutcome(estimate=TimeEstimate(total_minutes=self.minutes))
 
 
 def untimed_recipe(recipe_id: UUID, *, title: str = "Lemon Orzo") -> RecipeDTO:
@@ -115,7 +119,11 @@ def seed_user(database: Session) -> UUID:
     return user_id
 
 
-def backfill(estimator: FakeEstimator) -> TimeBackfillService:
+def backfill(
+    estimator: FakeEstimator,
+    *,
+    pauses: list[float] | None = None,
+) -> TimeBackfillService:
     repository = RecipeRepository(object_url=lambda key: f"https://signed.test/{key}")
     return TimeBackfillService(
         client=estimator,
@@ -123,6 +131,9 @@ def backfill(estimator: FakeEstimator) -> TimeBackfillService:
         max_tokens=1024,
         recipes=RecipeService(clock=FrozenClock(NOW), repository=repository),
         repository=repository,
+        # Real runs pace themselves against the provider's rate limiter; the
+        # tests record the pauses instead of sitting through them.
+        sleep=(pauses if pauses is not None else []).append,
     )
 
 
@@ -235,7 +246,7 @@ def test_an_estimate_under_the_step_timers_is_refused(
         rows = backfill(estimator).run(database, limit=None, dry_run=False)
 
     assert rows[0].proposed_minutes == 5
-    assert rows[0].action == "skipped: under the 10 min floor"
+    assert rows[0].action == "skipped: below timer sum (10 min)"
 
     with Session(engine) as database:
         stored = database.get(Recipe, recipe_id)
@@ -324,5 +335,69 @@ def test_limit_stops_the_run_and_timed_recipes_are_never_asked(
         assert stored is not None
         assert stored.total_minutes == 40
         assert stored.revision == 1
+
+    engine.dispose()
+
+
+@pytest.mark.integration
+def test_a_provider_failure_is_named_in_the_table_not_blamed_on_the_model(
+    clean_postgres_url: str,
+) -> None:
+    """The production symptom, from the operator's side.
+
+    A rate limit two thirds of the way through a run used to read exactly
+    like a model that declined to answer. The reason the client gives back
+    is what reaches the table.
+    """
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    engine = build_engine(clean_postgres_url)
+    recipe_id = uuid4()
+    seed(engine, recipe=untimed_recipe(recipe_id))
+
+    with Session(engine) as database, database.begin():
+        rows = backfill(FakeEstimator(failure="provider 429 after 3 attempts")).run(
+            database, limit=None, dry_run=False
+        )
+
+    assert [row.action for row in rows] == ["skipped: provider 429 after 3 attempts"]
+    assert rows[0].proposed_minutes is None
+
+    with Session(engine) as database:
+        stored = database.get(Recipe, recipe_id)
+        assert stored is not None
+        assert stored.total_minutes is None
+        assert stored.revision == 1
+
+    engine.dispose()
+
+
+@pytest.mark.integration
+def test_the_run_pauses_between_recipes_but_not_before_the_first(
+    clean_postgres_url: str,
+) -> None:
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    engine = build_engine(clean_postgres_url)
+
+    with Session(engine) as database, database.begin():
+        user_id = seed_user(database)
+        service = RecipeService(clock=FrozenClock(NOW))
+        for index in range(3):
+            service.upsert(
+                database,
+                user_id=user_id,
+                recipe=untimed_recipe(uuid4(), title=f"Untimed {index}"),
+                base_revision=0,
+            )
+
+    pauses: list[float] = []
+    with Session(engine) as database:
+        rows = backfill(FakeEstimator(minutes=25), pauses=pauses).run(
+            database, limit=None, dry_run=True
+        )
+        database.rollback()
+
+    assert len(rows) == 3
+    # Two gaps for three recipes: the run does not open with a wait.
+    assert pauses == [1.0, 1.0]
 
     engine.dispose()

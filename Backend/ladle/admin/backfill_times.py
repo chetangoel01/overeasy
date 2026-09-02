@@ -18,6 +18,8 @@ updated in place would never arrive.
 
 import argparse
 import json
+import logging
+import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import timedelta
@@ -41,10 +43,19 @@ from ladle.contracts.recipes import (
 )
 from ladle.db.models import Recipe
 from ladle.db.session import build_engine, build_session_factory
+from ladle.extraction.openrouter import retry_after_seconds
 from ladle.extraction.review import ESTIMATED_TOTAL_REASON
 from ladle.recipes.repository import RecipeRepository
 from ladle.recipes.service import RecipeService, SyncConflict
 from ladle.worker.runtime import runtime_object_storage
+
+LOGGER = logging.getLogger(__name__)
+
+#: The first production run estimated 13 recipes and was rate limited for
+#: the remaining 9. Three attempts and a pause between recipes is what it
+#: takes for a library-sized run to finish in one pass.
+_MAX_ATTEMPTS = 3
+_PAUSE_SECONDS = 1.0
 
 SYSTEM_PROMPT = (
     "You estimate how long one recipe takes, and answer nothing else.\n"
@@ -93,6 +104,20 @@ class RecipeTimeEvidence(WireModel):
     steps: list[EvidenceStep] = Field(default_factory=list)
 
 
+@dataclass(frozen=True)
+class EstimateOutcome:
+    """An estimate, or the reason there is none.
+
+    A single None told the operator nothing: a rate limit, a dead socket and
+    a model that declined all arrived as "no estimate returned", and the
+    difference between them is the difference between re-running the command
+    and investigating the recipe.
+    """
+
+    estimate: TimeEstimate | None = None
+    failure: str | None = None
+
+
 class TimeEstimateClient(Protocol):
     def estimate(
         self,
@@ -100,16 +125,24 @@ class TimeEstimateClient(Protocol):
         model: str,
         max_tokens: int,
         evidence: RecipeTimeEvidence,
-    ) -> TimeEstimate | None: ...
+    ) -> EstimateOutcome: ...
 
 
 class OpenRouterTimeEstimateClient:
     """Strict structured-output client, the shape verification already uses."""
 
-    def __init__(self, *, http: httpx.Client, api_key: str, base_url: str) -> None:
+    def __init__(
+        self,
+        *,
+        http: httpx.Client,
+        api_key: str,
+        base_url: str,
+        sleep: Callable[[float], None] = time.sleep,
+    ) -> None:
         self._http = http
         self._api_key = api_key
         self._base_url = base_url.rstrip("/")
+        self._sleep = sleep
 
     def estimate(
         self,
@@ -117,7 +150,7 @@ class OpenRouterTimeEstimateClient:
         model: str,
         max_tokens: int,
         evidence: RecipeTimeEvidence,
-    ) -> TimeEstimate | None:
+    ) -> EstimateOutcome:
         schema = TimeEstimate.model_json_schema()
         payload = {
             "model": model,
@@ -143,33 +176,84 @@ class OpenRouterTimeEstimateClient:
                 },
             },
         }
-        try:
-            response = self._http.post(
-                f"{self._base_url}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {self._api_key}",
-                    "X-Title": "Overeasy",
-                },
-                json=payload,
-            )
-        except httpx.HTTPError:
-            return None
-        if response.status_code >= 400:
-            return None
-        try:
-            choice = response.json()["choices"][0]
-            if choice.get("finish_reason") == "length":
-                return None
-            return TimeEstimate.model_validate_json(
-                _unfenced(choice["message"]["content"])
-            )
-        except (json.JSONDecodeError, LookupError, TypeError, ValidationError):
-            return None
+        for attempt in range(1, _MAX_ATTEMPTS + 1):
+            last = attempt == _MAX_ATTEMPTS
+            try:
+                response = self._http.post(
+                    f"{self._base_url}/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {self._api_key}",
+                        "X-Title": "Overeasy",
+                    },
+                    json=payload,
+                )
+            except httpx.HTTPError as error:
+                name = type(error).__name__
+                if last:
+                    return EstimateOutcome(failure=f"request failed ({name})")
+                LOGGER.warning("Time estimate attempt %d failed (%s)", attempt, name)
+                self._sleep(2**attempt)
+                continue
+            status = response.status_code
+            if status == 429 or status >= 500:
+                if last:
+                    return EstimateOutcome(
+                        failure=(
+                            f"provider 429 after {_MAX_ATTEMPTS} attempts"
+                            if status == 429
+                            else f"provider {status}"
+                        )
+                    )
+                LOGGER.warning("Time estimate attempt %d saw HTTP %d", attempt, status)
+                self._sleep(
+                    retry_after_seconds(
+                        response.headers.get("Retry-After"),
+                        default=2**attempt,
+                    )
+                )
+                continue
+            if status >= 400:
+                # A request this provider rejects outright will be rejected
+                # the next two times as well.
+                return EstimateOutcome(failure=f"provider {status}")
+            return _read(response)
+        raise AssertionError("unreachable: the loop returns on its last attempt")
+
+
+def _anthropic_backoff(error: anthropic.APIStatusError, attempt: int) -> float:
+    """The provider's own Retry-After where it sent one."""
+
+    header = error.response.headers.get("Retry-After")
+    return retry_after_seconds(header, default=2**attempt)
+
+
+def _read(response: httpx.Response) -> EstimateOutcome:
+    """Turn a 2xx body into an estimate, or say it held none."""
+
+    try:
+        choice = response.json()["choices"][0]
+        content = (choice.get("message") or {}).get("content")
+        # A content filter answers 200 with a null body. Reaching _unfenced
+        # with that raises AttributeError, which is outside the tuple below
+        # and would abort the run, rolling back every estimate before it.
+        if choice.get("finish_reason") == "length" or not isinstance(content, str):
+            return EstimateOutcome(failure="no estimate in reply")
+        return EstimateOutcome(
+            estimate=TimeEstimate.model_validate_json(_unfenced(content))
+        )
+    except (json.JSONDecodeError, LookupError, TypeError, ValidationError):
+        return EstimateOutcome(failure="no estimate in reply")
 
 
 class AnthropicTimeEstimateClient:
-    def __init__(self, client: anthropic.Anthropic) -> None:
+    def __init__(
+        self,
+        client: anthropic.Anthropic,
+        *,
+        sleep: Callable[[float], None] = time.sleep,
+    ) -> None:
         self._client = client
+        self._sleep = sleep
 
     def estimate(
         self,
@@ -177,35 +261,63 @@ class AnthropicTimeEstimateClient:
         model: str,
         max_tokens: int,
         evidence: RecipeTimeEvidence,
-    ) -> TimeEstimate | None:
-        try:
-            # anthropic 1.x dropped the sampling controls from the Messages
-            # API, so there is no temperature to pin here.
-            message = self._client.messages.parse(
-                model=model,
-                max_tokens=max_tokens,
-                system=SYSTEM_PROMPT,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": json.dumps(
-                            evidence.model_dump(mode="json", by_alias=True),
-                            separators=(",", ":"),
-                        ),
-                    }
-                ],
-                output_format=TimeEstimate,
-            )
-        except (
-            anthropic.APITimeoutError,
-            anthropic.APIConnectionError,
-            anthropic.RateLimitError,
-            TimeoutError,
-        ):
-            return None
-        if message.stop_reason in {"refusal", "max_tokens"}:
-            return None
-        return message.parsed_output
+    ) -> EstimateOutcome:
+        for attempt in range(1, _MAX_ATTEMPTS + 1):
+            last = attempt == _MAX_ATTEMPTS
+            try:
+                # anthropic 1.x dropped the sampling controls from the Messages
+                # API, so there is no temperature to pin here.
+                message = self._client.messages.parse(
+                    model=model,
+                    max_tokens=max_tokens,
+                    system=SYSTEM_PROMPT,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": json.dumps(
+                                evidence.model_dump(mode="json", by_alias=True),
+                                separators=(",", ":"),
+                            ),
+                        }
+                    ],
+                    output_format=TimeEstimate,
+                )
+            except anthropic.RateLimitError as error:
+                if last:
+                    return EstimateOutcome(
+                        failure=f"provider 429 after {_MAX_ATTEMPTS} attempts"
+                    )
+                LOGGER.warning("Time estimate attempt %d was rate limited", attempt)
+                self._sleep(_anthropic_backoff(error, attempt))
+                continue
+            except anthropic.APIStatusError as error:
+                if error.status_code < 500 or last:
+                    return EstimateOutcome(failure=f"provider {error.status_code}")
+                LOGGER.warning(
+                    "Time estimate attempt %d saw HTTP %d",
+                    attempt,
+                    error.status_code,
+                )
+                self._sleep(_anthropic_backoff(error, attempt))
+                continue
+            except (
+                anthropic.APITimeoutError,
+                anthropic.APIConnectionError,
+                TimeoutError,
+            ) as error:
+                name = type(error).__name__
+                if last:
+                    return EstimateOutcome(failure=f"request failed ({name})")
+                LOGGER.warning("Time estimate attempt %d failed (%s)", attempt, name)
+                self._sleep(2**attempt)
+                continue
+            if (
+                message.stop_reason in {"refusal", "max_tokens"}
+                or message.parsed_output is None
+            ):
+                return EstimateOutcome(failure="no estimate in reply")
+            return EstimateOutcome(estimate=message.parsed_output)
+        raise AssertionError("unreachable: the loop returns on its last attempt")
 
 
 def _unfenced(content: str) -> str:
@@ -245,12 +357,16 @@ class TimeBackfillService:
         max_tokens: int,
         recipes: RecipeService,
         repository: RecipeRepository,
+        pause_seconds: float = _PAUSE_SECONDS,
+        sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         self._client = client
         self._model_id = model_id
         self._max_tokens = max_tokens
         self._recipes = recipes
         self._repository = repository
+        self._pause_seconds = pause_seconds
+        self._sleep = sleep
 
     def run(
         self,
@@ -266,10 +382,15 @@ class TimeBackfillService:
         )
         if limit is not None:
             query = query.limit(limit)
-        return [
-            self._one(database, stored, dry_run=dry_run)
-            for stored in database.scalars(query).all()
-        ]
+        rows: list[BackfillRow] = []
+        for index, stored in enumerate(database.scalars(query).all()):
+            if index and self._pause_seconds > 0:
+                # A library-sized run fired as fast as the loop could go was
+                # rate limited two thirds of the way through. A second between
+                # recipes costs half a minute and keeps the run in one pass.
+                self._sleep(self._pause_seconds)
+            rows.append(self._one(database, stored, dry_run=dry_run))
+        return rows
 
     def _one(
         self,
@@ -297,21 +418,24 @@ class TimeBackfillService:
                 action=action,
             )
 
-        estimate = self._client.estimate(
+        outcome = self._client.estimate(
             model=self._model_id,
             max_tokens=self._max_tokens,
             evidence=_evidence(recipe),
         )
+        estimate = outcome.estimate
         if estimate is None:
-            return row(None, "skipped: no estimate returned")
+            return row(None, f"skipped: {outcome.failure or 'no estimate in reply'}")
         if estimate.total_minutes < floor:
             # A total under the recipe's own timers is not conservative, it
             # is wrong. Better an empty field than a figure the cook would
             # plan an evening around.
-            return row(
-                estimate.total_minutes,
-                f"skipped: under the {floor} min floor",
+            bound = (
+                f"timer sum ({floor} min)"
+                if floor == timer_minutes
+                else f"stated prep + cook ({floor} min)"
             )
+            return row(estimate.total_minutes, f"skipped: below {bound}")
         if dry_run:
             return row(
                 estimate.total_minutes, f"would set {estimate.total_minutes} min"
@@ -453,6 +577,10 @@ def build_service(settings: Settings) -> TimeBackfillService:
                 api_key=settings.anthropic_api_key.get_secret_value(),
                 base_url=str(settings.anthropic_base_url),
                 timeout=settings.anthropic_timeout_seconds,
+                # The SDK retries twice on its own by default, which under the
+                # loop above would spend nine requests on a persistent 429.
+                # The outer loop is the single retry policy.
+                max_retries=0,
             )
         )
         model_id = settings.anthropic_model_id
