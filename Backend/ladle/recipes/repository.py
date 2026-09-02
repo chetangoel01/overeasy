@@ -260,8 +260,21 @@ class RecipeRepository:
             # padded edit must not hide a source the rest call quick. A source
             # nobody timed aggregates to NULL, fails the comparison, and is
             # left out — never treated as fast because it is unknown.
+            #
+            # Most recipes carry no total at all, so the shelf derives one the
+            # way the recipe screen does rather than reading the column alone;
+            # NULL + x is NULL in SQL, so each fallback only applies once the
+            # one above it has nothing to offer.
             ranked_query = ranked_query.having(
-                func.min(Recipe.total_minutes) <= max_total_minutes
+                func.min(
+                    func.coalesce(
+                        Recipe.total_minutes,
+                        Recipe.preparation_minutes + Recipe.cooking_minutes,
+                        Recipe.cooking_minutes,
+                        Recipe.preparation_minutes,
+                    )
+                )
+                <= max_total_minutes
             )
         ranked = database.execute(
             ranked_query.order_by(*ordering)
