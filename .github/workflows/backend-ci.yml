@@ -18,10 +18,9 @@ permissions:
   contents: read
 
 env:
-  # The pytest steps run the same suite as `uv run pytest` does locally. They
-  # need nothing but a Docker daemon: every fixture that wants PostgreSQL,
-  # Redis or object storage starts its own throwaway container through
-  # testcontainers, the same way the restore drill in this job already does.
+  # The pytest step runs exactly what `uv run pytest` runs locally. It needs
+  # nothing but a Docker daemon: every fixture that wants PostgreSQL, Redis or
+  # object storage starts its own throwaway container through testcontainers.
   RUN_BACKEND_TESTS: "true"
 
 jobs:
@@ -47,14 +46,13 @@ jobs:
         run: uv run ruff check .
       - name: Strict mypy
         run: uv run mypy --strict ladle
-      - name: Migration metadata consistency
-        if: env.RUN_BACKEND_TESTS == 'true'
-        run: uv run pytest -q tests/integration/test_migrations.py
+      # One pytest run, because `addopts` already selects every tier except
+      # the live-provider and chaos ones. It contains the migration metadata
+      # check and the real pg_dump restore drill, which used to run again as
+      # steps of their own.
       - name: Non-live tests
         if: env.RUN_BACKEND_TESTS == 'true'
-        run: uv run pytest -q -m "not live_provider and not chaos"
-      - name: Real PostgreSQL restore drill
-        run: uv run python scripts/restore_drill.py
+        run: uv run pytest -q
       - name: Dependency audit
         run: |
           uv export --frozen --all-groups --no-emit-project --no-hashes \
@@ -223,7 +221,7 @@ jobs:
         if: env.RUN_BACKEND_TESTS == 'true'
         env:
           LADLE_RUN_CHAOS: "1"
-        run: uv run pytest -q -m chaos
+        run: uv run pytest -q -m chaos -n0
       - name: Capacity and graph limits
         run: |
           trap 'docker compose down --volumes --remove-orphans' EXIT

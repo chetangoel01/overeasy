@@ -1,3 +1,13 @@
+"""Hold the server's DTOs to the fixtures the app decodes.
+
+`Contracts/Fixtures/` is checked into the repository root and read by the iOS
+tests (LadleCoreTests, RemoteImportServiceTests, RecipeSyncServiceTests) as the
+shape the client expects. Parsing them here with the server's own DTOs is what
+stops a rename landing on one side only: `test_golden_fixture_round_trips_
+canonically` re-emits every fixture and compares it byte for byte, so a key the
+client reads and the server would no longer send fails here first.
+"""
+
 import json
 from datetime import UTC, datetime
 from pathlib import Path

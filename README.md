@@ -172,10 +172,25 @@ xcodebuild test \
   -destination 'platform=iOS Simulator,name=iPhone 17'
 ```
 
-Add `-only-testing:LadleTests` for just the fast unit suite (the UI tests take
-a few minutes). Backend tests are likewise skipped in CI behind the
-`RUN_BACKEND_TESTS` flag in `.github/workflows/backend-ci.yml`; they still run
-locally with `uv run pytest` from `Backend/`.
+Add `-only-testing:LadleTests` for just the unit suite: 404 tests in under four
+seconds, against a few minutes for the 20 UI tests, each of which pays for
+its own app launch.
+
+Run the backend suite from `Backend/`:
+
+```bash
+uv run pytest
+```
+
+That is the same selection CI gates on: every tier except `live_provider` (needs
+a real provider key) and `chaos` (kills real workers, so it needs a host to
+itself). Both are configured in `addopts`, along with `-n auto`, which splits the
+run across cores — each worker starts its own throwaway PostgreSQL through
+testcontainers, so a Docker daemon is the only prerequisite. Override on the
+command line: `-m chaos` or `-m live_provider` to select a held-back tier, `-n0`
+to run serially when a failure is easier to read that way. CI can skip the whole
+suite through the `RUN_BACKEND_TESTS` flag in
+`.github/workflows/backend-ci.yml`.
 
 ## Deterministic demo and test imports
 

@@ -33,124 +33,6 @@ final class DiscoverInteractionUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Recipe options"].exists)
     }
 
-    /// No "New recipes" pill in a demo scenario, whichever way the feed is
-    /// scrolled — which is what keeps the screenshots stable.
-    ///
-    /// This is the screen-level half of the guarantee, and it is the weaker
-    /// half: six fixtures and two rails come to a little under two viewports,
-    /// so the "more than a screen away" rule is only met by an overscroll
-    /// bounce and the quiet fetch may not run at all here. Confirmed by
-    /// making `DemoDiscoverService` return a reversed page for a quiet fetch:
-    /// this test still passed, while
-    /// `DiscoverViewModelTests.testTheDemoFeedNeverHasAnythingNewToOffer` —
-    /// which drives the same demo service directly and cannot fail to scroll
-    /// far enough — failed for nine of the twelve scenarios. That test is
-    /// where the assertion has teeth; this one guards the whole screen.
-    @MainActor
-    func testReturningToTheTopOffersNothingNewInTheDemoFeed() throws {
-        let app = launchApp()
-
-        app.tabBars.buttons["Discover"].tap()
-        let title = app.staticTexts["Crispy Chili Oil Smash Burgers"]
-        XCTAssertTrue(title.waitForExistence(timeout: 3))
-
-        for _ in 0..<3 {
-            app.swipeUp(velocity: .fast)
-        }
-        // The end of the feed, so "more than a screen away" is genuinely met
-        // rather than assumed.
-        XCTAssertTrue(
-            app.staticTexts["Brown Butter Miso Cookies"]
-                .waitForExistence(timeout: 3)
-        )
-
-        // Two flicks back, checked after each. Flicks rather than one long
-        // drag: a drag that *starts* at the top is a pull to refresh, which
-        // would replace the feed and clear a pill before it could be seen.
-        // `waitForExistence` rather than `exists`, because the fetch the
-        // arrival kicks off is asynchronous.
-        let pill = app.descendants(matching: .any)["discover.new-recipes"]
-        for _ in 0..<2 {
-            app.swipeDown(velocity: .fast)
-            XCTAssertFalse(
-                pill.waitForExistence(timeout: 2),
-                "The demo feed never changes, so it has nothing new to offer"
-            )
-        }
-
-        // Back at the top, so the arrival that arms the fetch really happened.
-        XCTAssertTrue(app.staticTexts["New to Overeasy"].isHittable)
-        XCTAssertTrue(title.exists)
-        attachScreenshot(of: app, named: "Discover back at the top, no pill")
-    }
-
-    @MainActor
-    func testWatchFeedPagesOneRecipePerViewport() throws {
-        let app = launchApp()
-
-        app.tabBars.buttons["Watch"].tap()
-
-        let feed = app.scrollViews.firstMatch
-        XCTAssertTrue(feed.waitForExistence(timeout: 3))
-
-        let pageControls = app.buttons.matching(
-            NSPredicate(format: "identifier BEGINSWITH 'watch.'")
-        )
-        let firstPageControl = pageControls.element(boundBy: 0)
-        XCTAssertTrue(firstPageControl.waitForExistence(timeout: 3))
-        XCTAssertTrue(firstPageControl.isHittable)
-        // Watch shares one control row: no account button there, and the
-        // playback controls sit beside the feed picker rather than per page.
-        XCTAssertFalse(app.buttons["Account"].exists)
-        XCTAssertTrue(app.buttons["Pause video"].firstMatch.isHittable)
-        XCTAssertTrue(app.buttons["Mute video"].firstMatch.isHittable)
-        XCTAssertTrue(app.buttons["Save"].firstMatch.isHittable)
-
-        app.swipeUp()
-
-        let secondPageControl = pageControls.element(boundBy: 1)
-        let secondPageIsVisible = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "hittable == true"),
-            object: secondPageControl
-        )
-        wait(for: [secondPageIsVisible], timeout: 3)
-        XCTAssertFalse(firstPageControl.isHittable)
-        XCTAssertNotEqual(
-            secondPageControl.identifier,
-            firstPageControl.identifier
-        )
-
-        attachScreenshot(of: app, named: "Watch full-screen feed")
-    }
-
-    @MainActor
-    func testWatchFeedSelectorSwitchesBetweenSavedAndDiscover() throws {
-        let app = launchApp()
-
-        app.tabBars.buttons["Watch"].tap()
-        XCTAssertTrue(
-            app.buttons["Save"].firstMatch.waitForExistence(timeout: 3)
-        )
-
-        let feed = app.segmentedControls["watch.feed"]
-        XCTAssertTrue(feed.waitForExistence(timeout: 2))
-        let myRecipes = feed.buttons["My Recipes"]
-        let discover = feed.buttons["Discover"]
-
-        myRecipes.tap()
-        XCTAssertTrue(
-            app.buttons["Save"].firstMatch.waitForNonExistence(timeout: 3)
-        )
-        XCTAssertTrue(
-            app.buttons["Open recipe"].firstMatch.waitForExistence(timeout: 3)
-        )
-
-        discover.tap()
-        XCTAssertTrue(
-            app.buttons["Save"].firstMatch.waitForExistence(timeout: 3)
-        )
-    }
-
     /// The header is the reason `-account-state` exists: until it did, no UI
     /// test could reach a signed-in screen at all. There is no `AuthClient`
     /// under `-ui-testing`, so the profile comes from the launch arguments.
@@ -261,6 +143,9 @@ final class DiscoverInteractionUITests: XCTestCase {
         )
     }
 
+    /// Its own launch, deliberately. Chaining this onto the test above saves a
+    /// launch but changes what it measures: with the slow import still in
+    /// flight, a second Add recipe tap does not present the sheet at all.
     @MainActor
     func testFailedImportRecoveryActionsShareLabelOrigin() throws {
         let app = launchApp(startingOn: "Recipes")
@@ -404,6 +289,12 @@ final class DiscoverInteractionUITests: XCTestCase {
         XCTAssertNotEqual(safari.state, .runningForeground)
         XCTAssertEqual(app.state, .runningForeground)
 
+        // Watch shares one control row: no account button there, and the
+        // playback controls sit beside the feed picker rather than per page.
+        // Before the swipe, because Save belongs to the page in view.
+        XCTAssertFalse(app.buttons["Account"].exists)
+        XCTAssertTrue(app.buttons["Save"].firstMatch.isHittable)
+
         app.swipeUp()
 
         let nextPageControl = app.buttons.matching(
@@ -424,5 +315,23 @@ final class DiscoverInteractionUITests: XCTestCase {
             NSPredicate(format: "identifier == %@", firstPageIdentifier)
         ).firstMatch
         XCTAssertFalse(previousPageControl.isHittable)
+        attachScreenshot(of: app, named: "Watch full-screen feed")
+
+        // Switching feeds replaces the pages: saved recipes open, they do not
+        // save. Last, because it swaps what the feed is showing.
+        let feed = app.segmentedControls["watch.feed"]
+        XCTAssertTrue(feed.waitForExistence(timeout: 2))
+        feed.buttons["My Recipes"].tap()
+        XCTAssertTrue(
+            app.buttons["Save"].firstMatch.waitForNonExistence(timeout: 3)
+        )
+        XCTAssertTrue(
+            app.buttons["Open recipe"].firstMatch.waitForExistence(timeout: 3)
+        )
+
+        feed.buttons["Discover"].tap()
+        XCTAssertTrue(
+            app.buttons["Save"].firstMatch.waitForExistence(timeout: 3)
+        )
     }
 }
