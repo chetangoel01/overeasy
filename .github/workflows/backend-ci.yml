@@ -23,13 +23,6 @@ env:
   # Redis or object storage starts its own throwaway container through
   # testcontainers, the same way the restore drill in this job already does.
   RUN_BACKEND_TESTS: "true"
-  # The chaos tests bring up the whole Compose stack and kill parts of it. On a
-  # hosted runner the API never answers /health/ready inside the test's own
-  # two-minute budget: it failed that way on every scheduled run while these
-  # steps were unconditional (most recently 2026-08-31) and again on a
-  # workflow_dispatch of this branch. The test's own skip reason asks for an
-  # isolated Docker environment; set this to "true" on a runner that is one.
-  RUN_CHAOS_TESTS: "false"
 
 jobs:
   quality:
@@ -227,7 +220,7 @@ jobs:
           python -m pip install uv==0.8.22
           uv sync --frozen
       - name: Worker-kill and broker-outage recovery
-        if: env.RUN_CHAOS_TESTS == 'true'
+        if: env.RUN_BACKEND_TESTS == 'true'
         env:
           LADLE_RUN_CHAOS: "1"
         run: uv run pytest -q -m chaos
