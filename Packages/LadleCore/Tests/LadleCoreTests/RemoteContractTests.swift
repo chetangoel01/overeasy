@@ -31,6 +31,22 @@ struct RemoteContractTests {
     }
 
     @Test
+    func estimatedTimeFixtureArrivesAsAReadyRecipeWithACaveat() throws {
+        // The estimate travels as an uncertainty on total_minutes rather
+        // than a new wire field, so nothing here is a migration and the
+        // recipe still arrives ready to cook from.
+        let dto: RemoteRecipeDTO = try decodeFixture("recipe-estimated-time")
+        let recipe = try dto.recipe()
+
+        #expect(recipe.totalMinutes == 25)
+        #expect(recipe.preparationMinutes == nil)
+        #expect(recipe.cookingMinutes == nil)
+        #expect(recipe.reviewStatus == .ready)
+        #expect(recipe.uncertainties.map(\.field) == ["total_minutes"])
+        #expect(recipe.uncertainties.first?.confidence == nil)
+    }
+
+    @Test
     func cancelledImportDecodesAndReportsItselfAsCancelled() throws {
         // An idempotent re-submission can match a job the user already
         // cancelled, so the wire status has to decode rather than fail.

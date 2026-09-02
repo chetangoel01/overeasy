@@ -129,8 +129,11 @@ def test_vps_operations_stay_small_and_cover_the_real_recovery_contract() -> Non
 
     assert {script.name for script in scripts} == {"manage.sh", "push.sh"}
     assert script_lines < 500
-    for command in ("deploy", "health", "status", "logs", "backup"):
+    for command in ("deploy", "health", "status", "logs", "backup", "backfill-times"):
         assert command in manage
+    # The backfill asks the extraction provider a question, so it has to run
+    # in a container that carries the provider keys.
+    assert "api /app/.venv/bin/python -m ladle.admin.backfill_times" in manage
     assert "pg_dump" in manage
     assert "sha256sum" in manage
     assert "archive --format=tar.gz" in push

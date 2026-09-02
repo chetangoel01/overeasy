@@ -757,6 +757,41 @@ Sequence allocation locks the user's `user_sync_state` row. This makes
 changes monotonic for one user even when multiple API transactions commit
 concurrently.
 
+## Admin commands
+
+One-off maintenance runs as a module inside the application image, so it uses
+the same settings, database URL and provider keys as the service.
+
+| Command | What it does |
+| --- | --- |
+| `python -m ladle.admin.cache_cli invalidate --platform tiktok --video-id 123` | Marks a source's extraction cache stale so the next import re-extracts it |
+| `python -m ladle.admin.cache_cli backfill-thumbnails` | Copies legacy provider thumbnails into private object storage |
+| `python -m ladle.admin.backfill_times [--dry-run] [--limit N]` | Estimates a total cooking time for live recipes that carry none |
+
+`backfill_times` selects `deleted_at IS NULL AND total_minutes IS NULL`, and
+asks the configured extraction provider (`LADLE_EXTRACTION_PROVIDER`) the
+timing question alone against the stored recipe — title, the creator's
+caption in `recipes.description`, ingredients, ordered steps with their
+timers, any stated preparation and cooking time. There is no re-extraction
+and no transcript.
+
+- `--dry-run` asks the provider and prints the table without writing.
+- An estimate below the recipe's own step timers, or below stated prep plus
+  cook, is refused rather than written.
+- A write goes through the recipe edit path, so `revision` bumps, a
+  `recipe_changes` row is emitted and the estimate reaches the next sync page.
+  It adds a `total_minutes` uncertainty carrying the reason the cook is shown
+  and never changes `review_status`.
+- Recipes that already carry a total are skipped, so re-running is safe.
+
+On the VPS the command runs through `manage.sh`, which supplies the `api`
+service's environment:
+
+```bash
+sudo /opt/ladle/app/Backend/deploy/vps/manage.sh backfill-times --dry-run
+sudo /opt/ladle/app/Backend/deploy/vps/manage.sh backfill-times
+```
+
 ## Migrations and schema inspection
 
 The current migration chain is:

@@ -17,6 +17,12 @@ from ladle.recipes.template_clone import (
     TemplateTimer,
 )
 
+#: Shown beside the total on the recipe, and reused verbatim by the
+#: backfill command so a backfilled estimate reads the same as an
+#: extracted one.
+ESTIMATED_TOTAL_REASON = (
+    "Total time was estimated from the method; the creator did not state one."
+)
 _CONFIDENCE_THRESHOLD = 0.7
 _MISSING_QUANTITY_THRESHOLD = 0.75
 # Review is a claim that the cook should check something before trusting the
@@ -105,6 +111,17 @@ def build_reviewed_template(
             FieldUncertaintyDTO(
                 field="servings",
                 reason="Serving count was estimated from the recipe yield.",
+            )
+        )
+
+    if extraction.time_basis == "estimated":
+        # Labelled, never blocking: an estimate the cook can see is an
+        # estimate is worth more to them than an empty field, and it says
+        # nothing about whether the rest of the recipe is trustworthy.
+        uncertainties.append(
+            FieldUncertaintyDTO(
+                field="total_minutes",
+                reason=ESTIMATED_TOTAL_REASON,
             )
         )
 

@@ -341,6 +341,26 @@ def deterministic_issues(
             )
         )
 
+    timer_minutes = _timer_minutes(template)
+    if (
+        template.total_minutes is not None
+        and timer_minutes > template.total_minutes
+        and any(value.field == "total_minutes" for value in template.uncertainties)
+    ):
+        # Only an estimate we made is held to this floor. A creator's own
+        # total may sit under the sum of their timers because steps overlap;
+        # a conservative estimate that does cannot be conservative.
+        issues.append(
+            VerificationIssue(
+                field_path="total_minutes",
+                reason=(
+                    "The estimated total time is shorter than the recipe's own "
+                    "step timers."
+                ),
+                supporting_evidence=_time_text(evidence),
+            )
+        )
+
     nutrition = template.nutrition
     if (
         nutrition is not None
@@ -500,6 +520,18 @@ def _matching_text(
     pattern: re.Pattern[str],
 ) -> list[str]:
     return [span.text for span in evidence if pattern.search(span.text)]
+
+
+def _timer_minutes(template: RecipeTemplate) -> int:
+    """Minutes the recipe's own step timers already account for.
+
+    Rounded up, so a 90-second timer is never treated as costing nothing.
+    """
+
+    seconds = sum(
+        timer.duration_seconds for step in template.steps for timer in step.timers
+    )
+    return -(-seconds // 60)
 
 
 def _time_text(evidence: list[VerificationEvidence]) -> list[str]:

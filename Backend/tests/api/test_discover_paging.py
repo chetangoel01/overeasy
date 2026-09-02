@@ -54,6 +54,13 @@ FIRST_SAVER_MINUTES = {
     "Lemon Chicken": 90,
 }
 
+# One source whose savers state a cooking time and no total. It is timed —
+# the shelf has to derive the total the way the recipe screen does rather
+# than read the column and call the source unknown.
+FIRST_SAVER_COOKING_MINUTES = {
+    "Smash Burgers": 25,
+}
+
 
 def _template(recipe: dict, title: str, source_url: str) -> dict:
     return {
@@ -139,6 +146,7 @@ def _seed(engine, recipe: dict, savers: list[dict]) -> None:
             )
             for rank, saver in enumerate(savers[: len(TITLES) - index]):
                 first_saver_minutes = FIRST_SAVER_MINUTES.get(title)
+                first_saver_cooking = FIRST_SAVER_COOKING_MINUTES.get(title)
                 database.add(
                     Recipe(
                         id=uuid4(),
@@ -156,6 +164,11 @@ def _seed(engine, recipe: dict, savers: list[dict]) -> None:
                             None
                             if first_saver_minutes is None
                             else first_saver_minutes + rank * 30
+                        ),
+                        cooking_minutes=(
+                            None
+                            if first_saver_cooking is None
+                            else first_saver_cooking + rank * 30
                         ),
                         servings=Decimal(4),
                         favorite=False,
@@ -771,11 +784,17 @@ def test_discover_max_total_minutes_excludes_slow_and_untimed_sources(
 
         # Lemon Orzo's first saver says 20 minutes and its later savers say
         # 50 and up, so the source qualifies on the minimum across savers.
-        assert _titles(quick) == ["Lemon Orzo", "Garlic Butter Udon"]
-        # Lemon Chicken is timed but slow; the other two carry no total at
-        # all and are absent rather than assumed quick.
+        # Smash Burgers states 25 minutes of cooking and no total,
+        # and is quick on the derived figure.
+        assert _titles(quick) == [
+            "Lemon Orzo",
+            "Garlic Butter Udon",
+            "Smash Burgers",
+        ]
+        # Lemon Chicken is timed but slow; Preserved Lemon Salad carries no
+        # time of any kind and is absent rather than assumed quick.
         assert "Lemon Chicken" not in _titles(quick)
-        assert "Smash Burgers" not in _titles(quick)
+        assert "Preserved Lemon Salad" not in _titles(quick)
         assert quick["hasMore"] is False
 
         # The filter composes with the other criteria rather than replacing
@@ -796,14 +815,26 @@ def test_discover_max_total_minutes_excludes_slow_and_untimed_sources(
             headers=headers,
         ).json()
         assert _titles(second) == ["Garlic Butter Udon"]
-        assert second["hasMore"] is False
+        assert second["hasMore"] is True
+        third = client.get(
+            "/v1/recipes/discover?max_total_minutes=30&limit=1"
+            f"&cursor={second['nextCursor']}",
+            headers=headers,
+        ).json()
+        assert _titles(third) == ["Smash Burgers"]
+        assert third["hasMore"] is False
 
         # A wider window admits the slow source and still drops the untimed
         # ones — NULL is never quick, however generous the bound.
         wide = client.get(
             "/v1/recipes/discover?max_total_minutes=120", headers=headers
         ).json()
-        assert _titles(wide) == ["Lemon Orzo", "Lemon Chicken", "Garlic Butter Udon"]
+        assert _titles(wide) == [
+            "Lemon Orzo",
+            "Lemon Chicken",
+            "Garlic Butter Udon",
+            "Smash Burgers",
+        ]
 
         # Zero minutes is not a recipe, and the upper bound is the one the
         # recipe contract already uses for a stored total.
