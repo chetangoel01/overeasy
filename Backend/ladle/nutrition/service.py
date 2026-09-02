@@ -47,7 +47,14 @@ class RecipeNutritionService:
         *,
         context: AcquiredVideoContext,
         job_id: UUID,
+        uncounted: list[UncountedIngredient] | None = None,
     ) -> RecipeTemplate:
+        """Normalize the recipe and cost it, recording what it could not cost.
+
+        `uncounted` is filled on both paths — the recipe that keeps partial
+        totals and the one blocked for coverage — because the tuning script
+        has to weigh the same ingredients either way.
+        """
         if (
             template.nutrition is not None
             and template.nutrition.basis == "creatorStated"
@@ -63,7 +70,8 @@ class RecipeNutritionService:
         except NutritionNormalizationUnavailable as error:
             return _blocked(template, f"normalizationUnavailable ({error})")
 
-        uncounted: list[UncountedIngredient] = []
+        if uncounted is None:
+            uncounted = []
         try:
             nutrition = self._calculator.calculate_required(
                 normalized.template,

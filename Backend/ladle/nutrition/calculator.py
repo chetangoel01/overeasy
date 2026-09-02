@@ -162,7 +162,7 @@ class NutritionCalculator:
                         index=index,
                         name=ingredient.name,
                         code=error.code,
-                        estimated_grams=_estimated_grams(ingredient),
+                        estimated_grams=estimated_grams(ingredient),
                     )
                 )
                 continue
@@ -378,8 +378,12 @@ def material_ingredients(
     ]
 
 
-def _estimated_grams(ingredient: TemplateIngredient) -> Decimal:
+def estimated_grams(ingredient: TemplateIngredient) -> Decimal:
     """The normalizer's own mass estimate, in grams.
+
+    Public because the coverage floor is a tuning decision: the refresh
+    script weighs the same quantity over the real library to report what a
+    given share would block.
 
     The coverage floor weighs ingredients nothing matched, so it cannot use
     `_grams`: that needs a food's portion table, which an unmatched

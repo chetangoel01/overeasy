@@ -28,6 +28,7 @@ from ladle.acquisition.models import AcquiredVideoContext, SourceVideoDescriptor
 from ladle.config import Settings
 from ladle.db.models import (
     FieldUncertainty,
+    Ingredient,
     Nutrition,
     OtherNutrient,
     Recipe,
@@ -35,7 +36,12 @@ from ladle.db.models import (
     SourceVideo,
 )
 from ladle.db.session import build_engine, build_session_factory
-from ladle.nutrition.calculator import NutritionCalculator
+from ladle.nutrition.calculator import (
+    NutritionCalculator,
+    UncountedIngredient,
+    estimated_grams,
+    material_ingredients,
+)
 from ladle.nutrition.normalization import (
     OpenRouterNutritionNormalizationClient,
     RecipeNutritionNormalizer,
@@ -49,9 +55,14 @@ from ladle.sync.sequence import allocate_sequence
 
 #: Fields this script owns. Everything else a recipe carries — amount
 #: estimates, yield rationale — belongs to the original import and is left
-#: alone.
+#: alone. `.nutritionMatch` is the retired weak-match note, kept here so a
+#: refresh clears the ones already stored.
 _OWNED_FIELDS = ("nutrition",)
-_OWNED_SUFFIX = ".nutritionMatch"
+_OWNED_SUFFIXES = (".nutrition", ".nutritionMatch")
+
+
+def _owned(field: str) -> bool:
+    return field in _OWNED_FIELDS or field.endswith(_OWNED_SUFFIXES)
 
 
 def _service(settings: Settings, sessions) -> RecipeNutritionService:
@@ -78,7 +89,9 @@ def _service(settings: Settings, sessions) -> RecipeNutritionService:
                 base_url=str(settings.usda_base_url),
                 maximum_candidates=settings.usda_maximum_candidates,
                 store=DatabaseUSDAPayloadStore(session_factory=sessions),
-            )
+            ),
+            fallback=None,
+            uncounted_mass_share_limit=(settings.nutrition_uncounted_mass_share_limit),
         ),
     )
 
@@ -140,7 +153,7 @@ def _replace_nutrition(
     for row in database.scalars(
         select(FieldUncertainty).where(FieldUncertainty.recipe_id == recipe_id)
     ).all():
-        if row.field in _OWNED_FIELDS or row.field.endswith(_OWNED_SUFFIX):
+        if _owned(row.field):
             database.delete(row)
 
     value = template.nutrition
@@ -160,17 +173,32 @@ def _replace_nutrition(
                 is_estimated=value.is_estimated,
             )
         )
+    # A note about one ingredient is stored against that ingredient's row,
+    # which is what puts it under the row in the app. The template addresses
+    # ingredients by position, so the stored ids are read back in the same
+    # order the template holds them.
+    ingredient_ids = list(
+        database.scalars(
+            select(Ingredient.id)
+            .where(Ingredient.recipe_id == recipe_id)
+            .order_by(Ingredient.order_index)
+        )
+    )
+    positions = {
+        f"ingredients[{index}]": value for index, value in enumerate(ingredient_ids)
+    }
     for uncertainty in template.uncertainties:
-        if uncertainty.field in _OWNED_FIELDS or uncertainty.field.endswith(
-            _OWNED_SUFFIX
-        ):
-            database.add(
-                FieldUncertainty(
-                    recipe_id=recipe_id,
-                    field=uncertainty.field,
-                    reason=uncertainty.reason,
-                )
+        if not _owned(uncertainty.field):
+            continue
+        prefix, _, _ = uncertainty.field.rpartition(".")
+        database.add(
+            FieldUncertainty(
+                recipe_id=recipe_id,
+                ingredient_id=positions.get(prefix),
+                field=uncertainty.field,
+                reason=uncertainty.reason,
             )
+        )
 
 
 def main() -> int:
@@ -243,34 +271,41 @@ def main() -> int:
             # Clear it so a stale value cannot survive as the answer.
             template = template.model_copy(update={"nutrition": None})
 
+            uncounted: list[UncountedIngredient] = []
             try:
                 enriched = service.enrich(
-                    template, context=_context(template, source), job_id=uuid4()
+                    template,
+                    context=_context(template, source),
+                    job_id=uuid4(),
+                    uncounted=uncounted,
                 )
             except Exception as error:
                 print(f"{position:2}. {dto.title[:38]:40} FAILED {error}")
                 continue
 
             after = enriched.nutrition.calories if enriched.nutrition else None
-            weak = [
-                value.reason
-                for value in enriched.uncertainties
-                if value.field.endswith(_OWNED_SUFFIX)
-            ]
-            blocked = next(
-                (
-                    value.reason
-                    for value in enriched.uncertainties
-                    if value.field == "nutrition"
-                ),
-                None,
+            blocked = (
+                next(
+                    (
+                        value.reason
+                        for value in enriched.uncertainties
+                        if value.field == "nutrition"
+                    ),
+                    None,
+                )
+                if enriched.nutrition is None
+                else None
             )
             arrow = f"{_calories(before)} -> {_calories(after)}"
-            print(f"{position:2}. {dto.title[:38]:40} {arrow}")
+            coverage = _coverage(enriched, uncounted)
+            print(f"{position:2}. {dto.title[:38]:40} {arrow}  {coverage}")
             if blocked:
                 print(f"    {blocked}")
-            for reason in weak:
-                print(f"    weak: {reason}")
+            for value in uncounted:
+                print(
+                    f"    uncounted: {value.name} "
+                    f"({value.code}, {value.estimated_grams:.0f} g)"
+                )
 
             if args.apply:
                 _replace_nutrition(database, stored.id, enriched)
@@ -286,6 +321,32 @@ def main() -> int:
 
 def _calories(value: Decimal | None) -> str:
     return "none" if value is None else f"{value:.0f} kcal"
+
+
+def _coverage(
+    template: RecipeTemplate,
+    uncounted: list[UncountedIngredient],
+) -> str:
+    """Counted against uncounted mass, and the share that decides the block.
+
+    This is what tunes `nutrition_uncounted_mass_share_limit`: run the dry
+    run over a real library and read the share column. Dropping weak matches
+    enlarges the uncounted set, so a recipe that has calories today can lose
+    them under a strict floor, and this is where that shows up.
+    """
+    skipped = {value.index for value in uncounted}
+    counted = sum(
+        (
+            estimated_grams(value)
+            for index, value in material_ingredients(template)
+            if index not in skipped
+        ),
+        Decimal(0),
+    )
+    missing = sum((value.estimated_grams for value in uncounted), Decimal(0))
+    total = counted + missing
+    share = missing / total if total > 0 else Decimal(0)
+    return f"counted {counted:.0f} g, uncounted {missing:.0f} g, share {share:.2f}"
 
 
 if __name__ == "__main__":
