@@ -18,10 +18,11 @@ permissions:
   contents: read
 
 env:
-  # Backend tests are temporarily disabled. Nothing was deleted - the suite
-  # under Backend/tests still exists and runs locally with `uv run pytest`.
-  # Flip this to "true" to put the pytest steps back in CI.
-  RUN_BACKEND_TESTS: "false"
+  # The pytest steps run the same suite as `uv run pytest` does locally. They
+  # need nothing but a Docker daemon: every fixture that wants PostgreSQL,
+  # Redis or object storage starts its own throwaway container through
+  # testcontainers, the same way the restore drill in this job already does.
+  RUN_BACKEND_TESTS: "true"
 
 jobs:
   quality:
