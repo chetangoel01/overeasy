@@ -53,6 +53,14 @@ provider spending under competing workers.
 The runner is k6 1.7.1, selected for its 2026 gRPC security update and pinned by
 container digest.
 
+The workflow starts that stack with `docker compose up -d --build` and then
+polls `http://127.0.0.1:4112/health/ready` for up to 300 s before k6 runs;
+`up -d` alone returns when the containers exist, and k6's `setup()` then
+reached a cold API. Compose's own `--wait` is not used because the runner's
+Compose 2.38.2 rejects `beat`'s disabled healthcheck. On a non-zero exit the
+step prints `docker compose ps -a` and the `api` and `worker` logs before
+tearing the stack down.
+
 `tests/chaos/test_worker_and_broker_recovery.py` runs against its own named
 Compose project and isolated port 42112, without altering a developer's normal
 stack. One scenario sends SIGKILL while a fake import is actively
@@ -60,6 +68,14 @@ acquiring, replaces the worker, and requires the job to terminate successfully.
 The other removes Redis during active work, restores the broker, replaces
 worker/Beat, and requires deterministic terminal state. The fake delay exists
 only to create a reliable failure window.
+
+`deploy/chaos/docker-compose.chaos.yml` pins every provider timeout that
+`Settings.validate_worker_timing` orders below its 12 s soft task limit, and
+`tests/unit/deploy/test_local_stack_policy.py` builds `Settings` from those
+pins, so a new timeout cannot reach the drill unpinned and crash the stack at
+startup. When `/health/ready` never answers, the test prints the last answer
+it received, `docker compose ps -a` and the `api`, `worker` and `beat` logs
+before failing.
 
 ## Staging gate
 
