@@ -127,8 +127,11 @@ number of launches, not the number of assertions.
 - `Backend/tests/integration/test_migrations.py`
 - `Backend/pyproject.toml`
 - `.github/workflows/backend-ci.yml`
+- `Backend/tests/unit/deploy/` (three files merged into
+  `test_local_stack_policy.py`)
+- `Backend/tests/unit/test_frontend_contract.py` (removed)
 - `LadleTests/`, `LadleUITests/`
-- `README.md`
+- `README.md`, `AGENTS.md`
 
 ## Verification
 
@@ -162,6 +165,9 @@ The backend numbers are also what CI runs: `Backend production gate` is the only
 workflow in the repository, and its `paths` filter is `Backend/**`. There is no
 iOS workflow, so the two iOS rows are local, from an iPhone 17 simulator.
 
-Two merges were made, measured and undone because they changed what was being
-asserted rather than only how it was launched; both are recorded above under
-"Kept, though they were candidates".
+Two UI merges failed on the first full run and were caught by running the suite
+rather than by reasoning about it. One was a sequencing mistake — `Save` belongs
+to the page in view, so asserting it after the swipe rather than before is a
+different claim — and was fixed. The other changed what was being asserted, and
+was reverted; it is recorded above under "Kept, though they were candidates".
+The 20 passing tests above are after both.
