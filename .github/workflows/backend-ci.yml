@@ -223,9 +223,23 @@ jobs:
           LADLE_RUN_CHAOS: "1"
         run: uv run pytest -q -m chaos -n0
       - name: Capacity and graph limits
+        # `up -d` returns once the containers exist, not once the API answers,
+        # so k6's setup() used to reach a cold API and fail on a null body.
+        # `--wait` blocks until every healthcheck passes and migrate and
+        # minio-init have completed; the timeout turns a stack that never
+        # comes up into a named failure with the containers' state in the log
+        # instead of a k6 threshold report.
         run: |
-          trap 'docker compose down --volumes --remove-orphans' EXIT
-          docker compose up -d --build
+          finish() {
+            status=$?
+            if [ "$status" -ne 0 ]; then
+              docker compose ps -a
+              docker compose logs --no-color --tail 100 api worker
+            fi
+            docker compose down --volumes --remove-orphans
+          }
+          trap finish EXIT
+          docker compose up --build --wait --wait-timeout 300
           docker run --rm --network host -e BASE_URL=http://127.0.0.1:4112 \
             -v "$PWD/load:/load:ro" \
             grafana/k6@sha256:4fd3a694926b064d3491d9b02b01cde886583c4931f1223816e3d9a7bdfa7e0f \
