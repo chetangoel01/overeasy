@@ -33,6 +33,37 @@ final class DiscoverInteractionUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Recipe options"].exists)
     }
 
+    /// Scrolling a screen down and back up runs the quiet refresh for real:
+    /// the demo feed is taller than a viewport and the first load is a cold
+    /// one, so nothing gates the fetch. What it gets back is the page
+    /// already on screen — the demo service keeps no reading position — so
+    /// there is nothing new to offer and no pill to show for it.
+    @MainActor
+    func testReturningToTheTopOffersNothingNewInTheDemoFeed() throws {
+        let app = launchApp()
+
+        app.tabBars.buttons["Discover"].tap()
+        let title = app.staticTexts["Crispy Chili Oil Smash Burgers"]
+        XCTAssertTrue(title.waitForExistence(timeout: 3))
+
+        // Matched counts, so the last flick arrives at the top rather than
+        // dragging down from it — that would be a pull to refresh, which is
+        // a different feature and would clear a pill before it was seen.
+        for _ in 0..<4 {
+            app.swipeUp(velocity: .fast)
+        }
+        for _ in 0..<4 {
+            app.swipeDown(velocity: .fast)
+        }
+
+        // `waitForExistence` rather than `exists`: the fetch is asynchronous,
+        // so the assertion has to outlast it to mean anything.
+        let pill = app.descendants(matching: .any)["discover.new-recipes"]
+        XCTAssertFalse(pill.waitForExistence(timeout: 3))
+        XCTAssertTrue(title.exists)
+        attachScreenshot(of: app, named: "Discover back at the top, no pill")
+    }
+
     @MainActor
     func testWatchFeedPagesOneRecipePerViewport() throws {
         let app = launchApp()

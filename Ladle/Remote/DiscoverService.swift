@@ -139,7 +139,8 @@ protocol DiscoverServing {
         sort: DiscoverSort,
         maxTotalMinutes: Int?,
         limit: Int,
-        seenBefore: Date?
+        seenBefore: Date?,
+        recordsImpressions: Bool
     ) async throws -> DiscoverPage
     func fetchDiscoverRecipe(sourceID: UUID) async throws -> Recipe
     func saveDiscoverRecipe(
@@ -156,11 +157,17 @@ extension DiscoverServing {
     /// the server to sort what the cook has recently seen to the back and to
     /// record this page as seen; leaving it nil asks for neither, which is
     /// what the rails want — a rail is a ranking, not a reading position.
+    ///
+    /// `recordsImpressions: false` takes the first of those without the
+    /// second, for the page Discover fetches quietly at the top and holds
+    /// behind its pill. It is ranked against what the cook has read, but a
+    /// page they have not looked at yet cannot count as read.
     func fetchDiscoverPage(
         cursor: Int,
         query: String,
         sort: DiscoverSort,
-        seenBefore: Date? = nil
+        seenBefore: Date? = nil,
+        recordsImpressions: Bool = true
     ) async throws -> DiscoverPage {
         try await fetchDiscoverPage(
             cursor: cursor,
@@ -168,7 +175,8 @@ extension DiscoverServing {
             sort: sort,
             maxTotalMinutes: nil,
             limit: DiscoverPaging.pageSize,
-            seenBefore: seenBefore
+            seenBefore: seenBefore,
+            recordsImpressions: recordsImpressions
         )
     }
 }
@@ -200,7 +208,8 @@ struct RemoteDiscoverService: DiscoverServing {
         sort: DiscoverSort,
         maxTotalMinutes: Int?,
         limit: Int,
-        seenBefore: Date?
+        seenBefore: Date?,
+        recordsImpressions: Bool
     ) async throws -> DiscoverPage {
         var items = [
             URLQueryItem(name: "cursor", value: String(cursor)),
@@ -221,6 +230,14 @@ struct RemoteDiscoverService: DiscoverServing {
                     name: "seen_before",
                     value: Self.seenBeforeFormatter.string(from: seenBefore)
                 )
+            )
+        }
+        // Only where it means something: the server records nothing without
+        // a pin and defaults to recording with one, so the shelves and the
+        // ordinary page keep the request shape they already had.
+        if seenBefore != nil, !recordsImpressions {
+            items.append(
+                URLQueryItem(name: "record_impressions", value: "false")
             )
         }
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -281,16 +298,20 @@ struct DemoDiscoverService: DiscoverServing {
     /// or, since #29, the two shelves, which are exactly this call under a
     /// different order and a time filter.
     ///
-    /// `seenBefore` is accepted and ignored. The demo keeps no per-cook state
-    /// and the UI tests need the same rows on every launch, which is exactly
-    /// what a feed that reorders itself between sessions would destroy.
+    /// `seenBefore` and `recordsImpressions` are accepted and ignored. The
+    /// demo keeps no per-cook state and the UI tests need the same rows on
+    /// every launch, which is exactly what a feed that reorders itself
+    /// between sessions would destroy — and the reason the "New recipes"
+    /// pill never appears in a demo scenario: a quiet refresh here always
+    /// hands back the page already on screen.
     func fetchDiscoverPage(
         cursor: Int,
         query: String,
         sort: DiscoverSort,
         maxTotalMinutes: Int?,
         limit: Int,
-        seenBefore: Date?
+        seenBefore: Date?,
+        recordsImpressions: Bool
     ) async throws -> DiscoverPage {
         if scenario == .discoverEmpty {
             return .empty
