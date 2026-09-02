@@ -136,20 +136,20 @@ jobs:
           severity: CRITICAL,HIGH
           vuln-type: os,library
       - name: Generate candidate SBOM
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
         with:
           image: ladle-backend:${{ github.sha }}
           format: spdx-json
           output-file: ladle-backend-${{ github.sha }}.spdx.json
       - name: Generate Mac worker egress SBOM
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
         with:
           image: ladle-worker-egress:${{ github.sha }}
           format: spdx-json
           output-file: ladle-worker-egress-${{ github.sha }}.spdx.json
           upload-artifact: false
       - name: Generate Mac ingress edge SBOM
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
         with:
           image: ladle-mac-edge:${{ github.sha }}
           format: spdx-json
