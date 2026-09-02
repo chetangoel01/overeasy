@@ -261,6 +261,34 @@ public struct Recipe: Codable, Hashable, Identifiable, Sendable {
         }
     }
 
+    /// The one time worth showing, with the label that is true of it.
+    ///
+    /// Creators state a cook time far more often than a total, so reading
+    /// `totalMinutes` alone leaves a recipe that has an honest number
+    /// showing nothing. Falling back keeps the band, the time filter, the
+    /// time sort and the Discover shelf on the same rule.
+    public var displayedTime: (minutes: Int, label: String)? {
+        if let totalMinutes {
+            return (totalMinutes, "Total time")
+        }
+        switch (preparationMinutes, cookingMinutes) {
+        case let (preparation?, cooking?):
+            return (preparation + cooking, "Total time")
+        case (nil, let cooking?):
+            return (cooking, "Cook time")
+        case (let preparation?, nil):
+            return (preparation, "Prep time")
+        case (nil, nil):
+            return nil
+        }
+    }
+
+    /// True when the total was read off the method rather than stated by the
+    /// creator, so a cook is told the number is approximate.
+    public var isTimeEstimated: Bool {
+        uncertainties.contains { $0.field == "total_minutes" }
+    }
+
     public var cookingReadiness: RecipeCookingReadiness {
         if reviewStatus == .needsReview {
             return .needsReview
