@@ -1,17 +1,19 @@
 import json
-from datetime import UTC, datetime
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session, sessionmaker
 
 from alembic import command
 from ladle.api.app import create_app
 from ladle.auth.attestation import AttestationService
-from ladle.db.models import ExtractionCache, Recipe, SourceVideo
+from ladle.db.models import DiscoverImpression, ExtractionCache, Recipe, SourceVideo
 from ladle.db.session import build_engine
 from tests.integration.test_migrations import alembic_config
 
@@ -167,6 +169,273 @@ def _seed(engine, recipe: dict, savers: list[dict]) -> None:
 
 def _titles(payload: dict) -> list[str]:
     return [item["title"] for item in payload["items"]]
+
+
+@dataclass
+class FrozenClock:
+    """Mutable so a test can move between paging sessions.
+
+    The seen bucket is a comparison between three moments — the impression,
+    the session pin and now — and a real clock makes two of them unknowable.
+    """
+
+    value: datetime
+
+    def now(self) -> datetime:
+        return self.value
+
+
+def _stamp(moment: datetime) -> str:
+    """The wire form of `seen_before`, matching what the app sends.
+
+    `isoformat()` alone ends in `+00:00`, whose `+` is a space once it is in a
+    query string; the client sends a `Z`, so the tests do too.
+    """
+    return moment.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
+def _impressions(engine) -> dict[UUID, datetime]:
+    with Session(engine) as database:
+        return {
+            row.source_video_id: row.seen_at
+            for row in database.scalars(select(DiscoverImpression))
+        }
+
+
+@pytest.mark.integration
+def test_discover_demotes_what_an_earlier_session_served(
+    clean_postgres_url: str,
+) -> None:
+    """Seen sources are pushed down, never removed.
+
+    Excluding them would eventually empty the feed for a heavy cook, and would
+    need a floor to stop it. Demotion is that floor for free: once everything
+    is seen the ranking simply returns to its plain order.
+    """
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    engine = build_engine(clean_postgres_url)
+    started = datetime(2026, 8, 24, 9, 0, tzinfo=UTC)
+    clock = FrozenClock(started)
+    app = create_app(
+        session_factory=sessionmaker(engine, expire_on_commit=False),
+        attestation=AttestationService(enforced=False),
+        clock=clock,
+    )
+    recipe = json.loads(FIXTURE.read_text())
+
+    with TestClient(app) as client:
+        users = [
+            client.post(
+                "/v1/auth/guest",
+                json={"installationID": f"discover-seen-{index}", "attestation": None},
+            ).json()
+            for index in range(6)
+        ]
+        headers = {"Authorization": f"Bearer {users[0]['accessToken']}"}
+        _seed(engine, recipe, users[1:])
+
+        # --- a request without the parameter records nothing ---
+        plain = client.get("/v1/recipes/discover", headers=headers).json()
+        assert _titles(plain) == TITLES
+        assert _impressions(engine) == {}
+
+        # --- the served page is recorded, at the moment it was served ---
+        first_session = client.get(
+            f"/v1/recipes/discover?limit=2&seen_before={_stamp(started)}",
+            headers=headers,
+        ).json()
+        assert _titles(first_session) == ["Lemon Orzo", "Lemon Chicken"]
+        recorded = _impressions(engine)
+        assert set(recorded) == {
+            UUID(item["sourceID"]) for item in first_session["items"]
+        }
+        assert set(recorded.values()) == {started}
+
+        # --- a later session demotes them, in their own rank ---
+        clock.value = started + timedelta(minutes=10)
+        second_session = client.get(
+            f"/v1/recipes/discover?seen_before={_stamp(clock.value)}",
+            headers=headers,
+        ).json()
+        assert _titles(second_session) == [
+            "Garlic Butter Udon",
+            "Preserved Lemon Salad",
+            "Smash Burgers",
+            "Lemon Orzo",
+            "Lemon Chicken",
+        ]
+        # Demoted, not dropped: the whole corpus is still on the page.
+        assert len(second_session["items"]) == len(TITLES)
+
+        # --- a request without the parameter demotes nothing ---
+        unpinned = client.get("/v1/recipes/discover", headers=headers).json()
+        assert _titles(unpinned) == TITLES
+        # The second session served the whole corpus, so every row is now one
+        # impression stamped at that session — an update, not a second row.
+        refreshed = _impressions(engine)
+        assert len(refreshed) == len(TITLES)
+        assert set(refreshed.values()) == {started + timedelta(minutes=10)}
+
+        # --- and the suppression decays, so nobody exhausts the feed ---
+        # The rows are aged rather than the clock advanced: the session this
+        # client is holding was issued against the same clock and would
+        # simply expire a day out.
+        with Session(engine) as database, database.begin():
+            database.execute(
+                update(DiscoverImpression).values(seen_at=started - timedelta(hours=25))
+            )
+        # Still inside the access token's own lifetime, which this frozen
+        # clock also governs.
+        clock.value = started + timedelta(minutes=12)
+        aged = client.get(
+            f"/v1/recipes/discover?seen_before={_stamp(clock.value)}",
+            headers=headers,
+        ).json()
+        assert _titles(aged) == TITLES
+
+    engine.dispose()
+
+
+@pytest.mark.integration
+def test_discover_paging_is_pinned_to_the_session_that_started_it(
+    clean_postgres_url: str,
+) -> None:
+    """Page 2 must not be re-ranked by what page 1 just recorded.
+
+    `seen_before` is the moment the cook started this walk, and demotion only
+    considers impressions older than it — so the rows written during the walk
+    cannot move the rows still to come.
+    """
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    engine = build_engine(clean_postgres_url)
+    started = datetime(2026, 8, 24, 9, 0, tzinfo=UTC)
+    clock = FrozenClock(started)
+    app = create_app(
+        session_factory=sessionmaker(engine, expire_on_commit=False),
+        attestation=AttestationService(enforced=False),
+        clock=clock,
+    )
+    recipe = json.loads(FIXTURE.read_text())
+
+    with TestClient(app) as client:
+        # Seven guests: five savers build the ranking and two read it, so the
+        # pinned walk and the contrast below start from the same feed with
+        # nothing recorded against either reader.
+        users = [
+            client.post(
+                "/v1/auth/guest",
+                json={"installationID": f"discover-pin-{index}", "attestation": None},
+            ).json()
+            for index in range(7)
+        ]
+        headers = {"Authorization": f"Bearer {users[0]['accessToken']}"}
+        _seed(engine, recipe, users[1:])
+
+        pin = _stamp(started)
+        walked: list[str] = []
+        cursor = 0
+        for _ in range(3):
+            page = client.get(
+                f"/v1/recipes/discover?limit=2&cursor={cursor}&seen_before={pin}",
+                headers=headers,
+            ).json()
+            walked += _titles(page)
+            cursor = page["nextCursor"]
+            # Every page of the walk is written back before the next one is
+            # asked for, which is exactly the condition the pin defends.
+            clock.value += timedelta(seconds=5)
+
+        assert walked == TITLES
+        assert len(set(walked)) == len(walked)
+        assert len(_impressions(engine)) == len(TITLES)
+
+        # Once the whole corpus is seen there is nothing left to prefer, and
+        # the plain ranking comes back rather than a short page.
+        exhausted = client.get(
+            f"/v1/recipes/discover?limit=2&seen_before={_stamp(clock.value)}",
+            headers=headers,
+        ).json()
+        assert _titles(exhausted) == TITLES[:2]
+
+        # What the pin is for. The same two-page walk, with the pin renewed
+        # between the pages, re-ranks against what page 1 just wrote: page 2
+        # hands back a row the cook already saw and skips two they never did.
+        clock.value = started
+        second_reader = {"Authorization": f"Bearer {users[6]['accessToken']}"}
+        opening = client.get(
+            f"/v1/recipes/discover?limit=2&seen_before={_stamp(clock.value)}",
+            headers=second_reader,
+        ).json()
+        assert _titles(opening) == ["Lemon Orzo", "Lemon Chicken"]
+        clock.value = started + timedelta(seconds=5)
+        unpinned = client.get(
+            f"/v1/recipes/discover?limit=2&cursor={opening['nextCursor']}"
+            f"&seen_before={_stamp(clock.value)}",
+            headers=second_reader,
+        ).json()
+        assert _titles(unpinned) == ["Smash Burgers", "Lemon Orzo"]
+
+    engine.dispose()
+
+
+@pytest.mark.integration
+def test_discover_demotion_leads_every_ordering_branch(
+    clean_postgres_url: str,
+) -> None:
+    """The bucket sorts before the rank, in all four sorts.
+
+    A seen source keeps its place among the other seen ones, so each ordering
+    survives intact underneath — the feed is reordered, not replaced.
+    """
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    engine = build_engine(clean_postgres_url)
+    started = datetime(2026, 8, 24, 9, 0, tzinfo=UTC)
+    clock = FrozenClock(started)
+    app = create_app(
+        session_factory=sessionmaker(engine, expire_on_commit=False),
+        attestation=AttestationService(enforced=False),
+        clock=clock,
+    )
+    recipe = json.loads(FIXTURE.read_text())
+
+    with TestClient(app) as client:
+        users = [
+            client.post(
+                "/v1/auth/guest",
+                json={"installationID": f"discover-sorts-{index}", "attestation": None},
+            ).json()
+            for index in range(6)
+        ]
+        headers = {"Authorization": f"Bearer {users[0]['accessToken']}"}
+        _seed(engine, recipe, users[1:])
+
+        for sort in ("popular", "newest", "mostLiked", "alphabetical"):
+            with Session(engine) as database, database.begin():
+                database.execute(delete(DiscoverImpression))
+            clock.value = started
+            ranked = _titles(
+                client.get(f"/v1/recipes/discover?sort={sort}", headers=headers).json()
+            )
+            served = _titles(
+                client.get(
+                    f"/v1/recipes/discover?sort={sort}&limit=2"
+                    f"&seen_before={_stamp(started)}",
+                    headers=headers,
+                ).json()
+            )
+            assert served == ranked[:2]
+
+            clock.value = started + timedelta(minutes=10)
+            demoted = _titles(
+                client.get(
+                    f"/v1/recipes/discover?sort={sort}"
+                    f"&seen_before={_stamp(clock.value)}",
+                    headers=headers,
+                ).json()
+            )
+            assert demoted == ranked[2:] + served, sort
+
+    engine.dispose()
 
 
 @pytest.mark.integration

@@ -2,7 +2,8 @@ import hashlib
 from dataclasses import dataclass
 from uuid import UUID
 
-from sqlalchemy import exists, func, select, update
+from sqlalchemy import delete, exists, func, select, update
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from ladle.clock import Clock
@@ -10,6 +11,7 @@ from ladle.db.models import (
     AppleIdentity,
     AuthSession,
     Device,
+    DiscoverImpression,
     GoogleIdentity,
     ImportJob,
     ImportQuotaEvent,
@@ -238,6 +240,7 @@ class AccountMergeService:
             .where(Device.user_id == source.id)
             .values(user_id=destination.id)
         )
+        self._merge_discover_impressions(database, source.id, destination.id)
         self._revoke_sessions(database, source.id)
         for recipe in visible_recipes:
             database.add(
@@ -253,6 +256,55 @@ class AccountMergeService:
         source.merged_into_user_id = destination.id
         database.flush()
         return destination.id
+
+    def _merge_discover_impressions(
+        self,
+        database: Session,
+        source_id: UUID,
+        destination_id: UUID,
+    ) -> None:
+        """Carry the guest's Discover feed onto the account they signed into.
+
+        Not a re-point like the tables above: `(user_id, source_video_id)` is
+        the primary key, and both accounts may already hold a row for the same
+        source, so a bare UPDATE would collide. The later `seen_at` wins —
+        signing in must neither resurrect a source the cook already scrolled
+        past nor lose the position they were reading from.
+        """
+        carried = database.execute(
+            select(DiscoverImpression.source_video_id, DiscoverImpression.seen_at)
+            .where(DiscoverImpression.user_id == source_id)
+            .order_by(DiscoverImpression.source_video_id)
+        ).all()
+        if not carried:
+            return
+        statement = insert(DiscoverImpression).values(
+            [
+                {
+                    "user_id": destination_id,
+                    "source_video_id": source_video_id,
+                    "seen_at": seen_at,
+                }
+                for source_video_id, seen_at in carried
+            ]
+        )
+        database.execute(
+            statement.on_conflict_do_update(
+                index_elements=[
+                    DiscoverImpression.user_id,
+                    DiscoverImpression.source_video_id,
+                ],
+                set_={
+                    "seen_at": func.greatest(
+                        DiscoverImpression.seen_at,
+                        statement.excluded.seen_at,
+                    )
+                },
+            )
+        )
+        database.execute(
+            delete(DiscoverImpression).where(DiscoverImpression.user_id == source_id)
+        )
 
     def _lock_apple_subject(self, database: Session, apple_subject: str) -> None:
         digest = hashlib.sha256(apple_subject.encode("utf-8")).digest()

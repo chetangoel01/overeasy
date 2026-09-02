@@ -14,6 +14,7 @@ from ladle.db.models import (
     AccountDeletionAudit,
     AppAttestChallenge,
     AuthSession,
+    DiscoverImpression,
     ExtractionCache,
     ImportJob,
     ImportQuotaEvent,
@@ -41,6 +42,7 @@ class RetentionPolicy:
     sync_history_days: int
     invalid_cache_days: int
     deletion_audit_days: int
+    discover_impression_days: int
 
 
 @dataclass(frozen=True)
@@ -56,6 +58,7 @@ class RetentionOutcome:
     sync_changes: int = 0
     recipe_tombstones: int = 0
     deletion_audits: int = 0
+    discover_impressions: int = 0
 
 
 class RetentionService:
@@ -147,6 +150,18 @@ class RetentionService:
                 <= now - timedelta(days=self._policy.deletion_audit_days)
             ),
         )
+        # The decay rule behind Discover's seen bucket: a source seen an hour
+        # ago is demoted, one seen last month is not. The demotion window is
+        # far shorter than this, so these rows stop affecting the feed long
+        # before they are swept — the sweep is what stops the record itself
+        # outliving its purpose.
+        discover_impressions = _delete_count(
+            database,
+            delete(DiscoverImpression).where(
+                DiscoverImpression.seen_at
+                <= now - timedelta(days=self._policy.discover_impression_days)
+            ),
+        )
         return RetentionOutcome(
             expired_sessions=expired_sessions,
             terminal_import_jobs=terminal_import_jobs,
@@ -159,6 +174,7 @@ class RetentionService:
             sync_changes=sync_changes,
             recipe_tombstones=recipe_tombstones,
             deletion_audits=deletion_audits,
+            discover_impressions=discover_impressions,
         )
 
     def _purge_invalid_caches(self, database: Session) -> int:
