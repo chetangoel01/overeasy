@@ -250,6 +250,10 @@ buttons a different text origin per button.
   three cards is dropped instead of drawn short. Searching hides both rails
   outright, because search replaces the feed and unsearched cards beside the
   results would read as results.
+- Scrolling back to the top of Discover fetches a fresh page 1 quietly and, if
+  it differs from what is on screen, offers it as a "New recipes" pill in the
+  same bar the refresh banner uses — the list only moves when the cook taps it,
+  because scrolling up is how someone returns to a row they meant to keep.
 - Discover excludes sources already saved by the current account and removes a
   row as soon as its direct save completes.
 - Recipe cards and Discover results use the native long-press context menu as
