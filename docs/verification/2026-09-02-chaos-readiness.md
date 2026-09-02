@@ -61,8 +61,9 @@ construct `Settings()` under it. `git bisect run` over `ec5b97a..93e8236`:
 commit and no other.
 
 Both ends were then run as the real stack — the chaos test's own Compose
-files, project name and environment, on Docker Desktop 29.6.2 with Compose
-v5.3.1, polling `/health/ready` for 150 s:
+files, project name and environment, with `LADLE_INSTALL_MEDIA_TOOLS=false`
+to skip the ffmpeg apt layer that fake-mode readiness never touches — on
+Docker Desktop 29.6.2 with Compose v5.3.1, polling `/health/ready` for 150 s:
 
 | Commit | `/health/ready` | Containers |
 | --- | --- | --- |
@@ -112,7 +113,7 @@ v5.3.1, polling `/health/ready` for 150 s:
 ## Verification
 
 Apple Silicon Mac, Docker Desktop 29.6.2, Compose v5.3.1, on
-`fix/chaos-readiness` at `b894ff2`.
+`fix/chaos-readiness` over `dff9680`–`edcdc15`.
 
 | Check | Result |
 | --- | --- |
