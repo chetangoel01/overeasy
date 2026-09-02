@@ -8,6 +8,8 @@ struct NutritionView: View {
 
     let nutrition: Nutrition
     let recipeTitle: String
+    /// What the totals leave out, when they leave anything out.
+    let uncountedNote: String?
     let healthService: any HealthService
 
     @State private var isHealthExportPresented = false
@@ -15,10 +17,12 @@ struct NutritionView: View {
     init(
         nutrition: Nutrition,
         recipeTitle: String,
+        uncountedNote: String? = nil,
         healthService: any HealthService = HealthKitService()
     ) {
         self.nutrition = nutrition
         self.recipeTitle = recipeTitle
+        self.uncountedNote = uncountedNote
         self.healthService = healthService
     }
 
@@ -161,6 +165,15 @@ struct NutritionView: View {
                 )
                 .ladleFont(.metadata)
                 .foregroundStyle(LadleTheme.Label.primary.opacity(0.64))
+            }
+
+            // A total that leaves an ingredient out has to say so where the
+            // total is read, not only beside the ingredient it skipped.
+            if hasValidServingBasis, let uncountedNote {
+                Label(uncountedNote, systemImage: "exclamationmark.circle")
+                    .ladleFont(.metadata)
+                    .foregroundStyle(LadleTheme.Label.primary.opacity(0.64))
+                    .accessibilityIdentifier("nutrition.uncounted")
             }
         }
         .padding(16)

@@ -190,6 +190,13 @@ class Settings(BaseSettings):
     usda_timeout_seconds: float = Field(default=15, gt=0)
     usda_api_key: SecretStr | None = None
     usda_maximum_candidates: int = Field(default=5, ge=1, le=10)
+    #: How much of a recipe's estimated mass may go uncounted before the
+    #: total stops describing the plate. An ingredient no food record
+    #: answers is skipped and named rather than voiding the recipe; past
+    #: this share of the mass, the number is blocked instead.
+    nutrition_uncounted_mass_share_limit: Decimal = Field(
+        default=Decimal("0.25"), gt=0, le=1
+    )
 
     # Whisper on the raw audio. Cheap enough to precede the transcript
     # providers, and it reuses the OpenRouter key rather than adding a secret.

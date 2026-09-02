@@ -193,7 +193,8 @@ struct RecipeDetailView: View {
             if let nutrition = displayedRecipe.nutrition {
                 NutritionView(
                     nutrition: nutrition,
-                    recipeTitle: displayedRecipe.title
+                    recipeTitle: displayedRecipe.title,
+                    uncountedNote: NutritionNote.uncounted(in: displayedRecipe)
                 )
             }
         }

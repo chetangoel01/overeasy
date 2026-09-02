@@ -11,7 +11,8 @@ from ladle.contracts.recipes import FieldUncertaintyDTO, RecipeReviewStatus
 from ladle.nutrition.calculator import (
     NutritionCalculationUnavailable,
     NutritionCalculator,
-    WeakFoodMatch,
+    UncountedIngredient,
+    material_ingredients,
 )
 from ladle.nutrition.normalization import (
     NormalizedRecipe,
@@ -46,7 +47,14 @@ class RecipeNutritionService:
         *,
         context: AcquiredVideoContext,
         job_id: UUID,
+        uncounted: list[UncountedIngredient] | None = None,
     ) -> RecipeTemplate:
+        """Normalize the recipe and cost it, recording what it could not cost.
+
+        `uncounted` is filled on both paths — the recipe that keeps partial
+        totals and the one blocked for coverage — because the tuning script
+        has to weigh the same ingredients either way.
+        """
         if (
             template.nutrition is not None
             and template.nutrition.basis == "creatorStated"
@@ -62,16 +70,20 @@ class RecipeNutritionService:
         except NutritionNormalizationUnavailable as error:
             return _blocked(template, f"normalizationUnavailable ({error})")
 
-        weak_matches: list[WeakFoodMatch] = []
+        if uncounted is None:
+            uncounted = []
         try:
             nutrition = self._calculator.calculate_required(
                 normalized.template,
-                weak_matches=weak_matches,
+                uncounted=uncounted,
             )
         except ProviderUnavailable:
             return _blocked(normalized.template, "usdaUnavailable")
         except NutritionCalculationUnavailable as error:
             reason = error.code
+            if error.code == "insufficientCoverage" and uncounted:
+                names = ", ".join(value.name for value in uncounted)
+                reason += f" (not counted: {names})"
             if error.ingredient_index is not None:
                 reason += f" at ingredient {error.ingredient_index}"
             if error.ingredient_name is not None:
@@ -80,23 +92,49 @@ class RecipeNutritionService:
 
         evidence = _evidence(nutrition, normalized)
         enriched = nutrition.model_copy(update={"evidence": evidence})
-        return _with_nutrition(normalized.template, enriched, weak_matches)
+        return _with_nutrition(normalized.template, enriched, uncounted)
+
+
+def _owned(field: str) -> bool:
+    """Whether nutrition enrichment is the author of this uncertainty.
+
+    Re-enrichment reads a stored recipe back into a template, last run's
+    notes included, so anything this module writes has to be cleared before
+    it writes again or a recipe accumulates contradictory advice. The
+    normalizer's own `ingredients[i].nutritionAmount` is deliberately not
+    matched: it belongs to the amount estimate, not to the lookup.
+    """
+    return field == "nutrition" or field.endswith((".nutrition", ".nutritionMatch"))
+
+
+def _cleared(template: RecipeTemplate) -> RecipeTemplate:
+    return template.model_copy(
+        update={
+            "uncertainties": [
+                value for value in template.uncertainties if not _owned(value.field)
+            ],
+            "ingredients": [
+                value.model_copy(update={"uncertainty": None})
+                if value.uncertainty is not None and _owned(value.uncertainty.field)
+                else value
+                for value in template.ingredients
+            ],
+        }
+    )
 
 
 def _blocked(template: RecipeTemplate, reason: str) -> RecipeTemplate:
-    uncertainties = [
-        value for value in template.uncertainties if value.field != "nutrition"
-    ]
-    uncertainties.append(
-        FieldUncertaintyDTO(
-            field="nutrition",
-            reason=f"Nutrition enrichment blocked: {reason}.",
-        )
-    )
-    return template.model_copy(
+    cleared = _cleared(template)
+    return cleared.model_copy(
         update={
             "nutrition": None,
-            "uncertainties": uncertainties,
+            "uncertainties": [
+                *cleared.uncertainties,
+                FieldUncertaintyDTO(
+                    field="nutrition",
+                    reason=f"Nutrition enrichment blocked: {reason}.",
+                ),
+            ],
         }
     )
 
@@ -104,27 +142,43 @@ def _blocked(template: RecipeTemplate, reason: str) -> RecipeTemplate:
 def _with_nutrition(
     template: RecipeTemplate,
     nutrition: TemplateNutrition,
-    weak_matches: list[WeakFoodMatch] | None = None,
+    uncounted: list[UncountedIngredient] | None = None,
 ) -> RecipeTemplate:
-    uncertainties = [
-        value for value in template.uncertainties if value.field != "nutrition"
-    ]
-    # A doubtful match is surfaced rather than hidden. The totals are still
-    # worth showing — one unmatched blend should not cost the dish its
-    # calories — but the reader is told which ingredient they rest on.
-    for match in weak_matches or []:
+    records = uncounted or []
+    cleared = _cleared(template)
+    uncertainties = list(cleared.uncertainties)
+    ingredients = list(cleared.ingredients)
+    # An ingredient nothing could cost is left out of the totals rather than
+    # voiding them, so the reader has to be told which one and where. The
+    # note goes on the row a cook is reading and into the recipe's list,
+    # which is the channel the nutrition panel reads.
+    for record in records:
+        note = FieldUncertaintyDTO(
+            field=f"ingredients[{record.index}].nutrition",
+            reason=f"Not counted: no nutrition record found for {record.name}.",
+        )
+        uncertainties.append(note)
+        # An ingredient carries one note, shared with extraction's own doubt
+        # about the row. The newer note wins: someone reading a total that
+        # leaves this ingredient out needs that before a confidence score.
+        ingredients[record.index] = ingredients[record.index].model_copy(
+            update={"uncertainty": note}
+        )
+    if records:
+        names = ", ".join(record.name for record in records)
         uncertainties.append(
             FieldUncertaintyDTO(
-                field=f"ingredients[{match.ingredient_index}].nutritionMatch",
+                field="nutrition",
                 reason=(
-                    f"Closest USDA record for {match.ingredient_name} was "
-                    f"{match.description}, which may not describe it."
+                    f"{len(records)} of {len(material_ingredients(template))} "
+                    f"ingredients not counted: {names}."
                 ),
             )
         )
-    return template.model_copy(
+    return cleared.model_copy(
         update={
             "nutrition": nutrition,
+            "ingredients": ingredients,
             "review_status": (
                 RecipeReviewStatus.READY
                 if not uncertainties

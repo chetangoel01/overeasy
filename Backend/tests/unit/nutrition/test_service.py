@@ -25,6 +25,8 @@ from ladle.recipes.template_clone import (
 
 
 class Foods:
+    name = "USDA FDC"
+
     def candidates(self, query: str) -> list[FoodNutrients]:
         if query != "egg noodles dry":
             return []
@@ -45,6 +47,8 @@ class Foods:
 
 
 class NoFoods:
+    name = "USDA FDC"
+
     def candidates(self, _query: str) -> list[FoodNutrients]:
         return []
 
@@ -62,19 +66,22 @@ class Normalizer:
         self.calls += 1
         if self.failure is not None:
             raise self.failure
-        ingredient = template.ingredients[0].model_copy(
-            update={
-                "metric_amount": Decimal("400"),
-                "metric_unit": "g",
-                "usda_search_term": "egg noodles dry",
-            }
-        )
+        ingredients = [
+            value.model_copy(
+                update={
+                    "metric_amount": value.metric_amount or Decimal("400"),
+                    "metric_unit": "g",
+                    "usda_search_term": (value.usda_search_term or "egg noodles dry"),
+                }
+            )
+            for value in template.ingredients
+        ]
         return NormalizedRecipe(
             template=template.model_copy(
                 update={
                     "servings": Decimal(4),
                     "servings_basis": "estimatedFromYield",
-                    "ingredients": [ingredient],
+                    "ingredients": ingredients,
                 }
             ),
             servings_confidence=Decimal("0.85"),
@@ -97,10 +104,27 @@ def context() -> AcquiredVideoContext:
     )
 
 
+def uncounted_ingredient(
+    *,
+    name: str,
+    query: str,
+    grams: str,
+    order_index: int,
+) -> TemplateIngredient:
+    return TemplateIngredient(
+        name=name,
+        metric_amount=Decimal(grams),
+        metric_unit="g",
+        usda_search_term=query,
+        order_index=order_index,
+    )
+
+
 def template(
     *,
     nutrition: TemplateNutrition | None = None,
     query: str | None = None,
+    extra: list[TemplateIngredient] | None = None,
 ) -> RecipeTemplate:
     return RecipeTemplate(
         title="Garlic Noodles",
@@ -116,7 +140,8 @@ def template(
                 metric_unit="g" if query else None,
                 usda_search_term=query,
                 order_index=0,
-            )
+            ),
+            *(extra or []),
         ],
         steps=[],
         nutrition=nutrition,
@@ -196,6 +221,11 @@ def test_normalization_failure_becomes_a_visible_inline_uncertainty() -> None:
 
 
 def test_usda_failure_names_the_unavailable_ingredient() -> None:
+    """Nothing is left to total when the only ingredient goes uncounted.
+
+    The recipe is blocked for coverage rather than for the lookup, and the
+    blocker still says which ingredient could not be costed.
+    """
     service = RecipeNutritionService(
         normalizer=Normalizer(),
         calculator=NutritionCalculator(NoFoods()),
@@ -206,6 +236,104 @@ def test_usda_failure_names_the_unavailable_ingredient() -> None:
     assert result.nutrition is None
     assert result.review_status == RecipeReviewStatus.READY
     blocker = next(item for item in result.uncertainties if item.field == "nutrition")
-    assert "foodNotFound" in blocker.reason
-    assert "ingredient 0" in blocker.reason
+    assert "insufficientCoverage" in blocker.reason
     assert "noodles" in blocker.reason
+
+
+def test_an_uncounted_ingredient_keeps_the_totals_and_marks_the_row() -> None:
+    """The recipe keeps its calories and says what is missing from them.
+
+    The row note is what a cook reads beside the ingredient; the recipe-level
+    note is what the nutrition panel reads above the numbers.
+    """
+    service = RecipeNutritionService(
+        normalizer=Normalizer(),
+        calculator=NutritionCalculator(Foods()),
+    )
+
+    result = service.enrich(
+        template(
+            extra=[
+                uncounted_ingredient(
+                    name="garam masala",
+                    query="garam masala",
+                    grams="20",
+                    order_index=1,
+                )
+            ]
+        ),
+        context=context(),
+        job_id=uuid4(),
+    )
+
+    assert result.nutrition is not None
+    assert result.nutrition.calories == Decimal("350.0")
+
+    row = result.ingredients[1].uncertainty
+    assert row is not None
+    assert row.field == "ingredients[1].nutrition"
+    assert row.reason == ("Not counted: no nutrition record found for garam masala.")
+    assert row in result.uncertainties
+
+    summary = next(item for item in result.uncertainties if item.field == "nutrition")
+    assert summary.reason == "1 of 2 ingredients not counted: garam masala."
+
+
+def test_uncounted_mass_over_the_share_blocks_and_names_the_ingredients() -> None:
+    service = RecipeNutritionService(
+        normalizer=Normalizer(),
+        calculator=NutritionCalculator(Foods()),
+    )
+
+    result = service.enrich(
+        template(
+            extra=[
+                uncounted_ingredient(
+                    name="garam masala",
+                    query="garam masala",
+                    grams="200",
+                    order_index=1,
+                )
+            ]
+        ),
+        context=context(),
+        job_id=uuid4(),
+    )
+
+    assert result.nutrition is None
+    blocker = next(item for item in result.uncertainties if item.field == "nutrition")
+    assert "insufficientCoverage" in blocker.reason
+    assert "garam masala" in blocker.reason
+    assert not any(item.field.endswith(".nutrition") for item in result.uncertainties)
+
+
+def test_last_runs_notes_do_not_survive_a_clean_recalculation() -> None:
+    """Re-enrichment feeds the stored uncertainties back in.
+
+    A recipe refreshed after a provider improves must not keep telling the
+    cook an ingredient was skipped once it has been counted.
+    """
+    stale = FieldUncertaintyDTO(
+        field="ingredients[0].nutrition",
+        reason="Not counted: no nutrition record found for noodles.",
+    )
+    service = RecipeNutritionService(
+        normalizer=Normalizer(),
+        calculator=NutritionCalculator(Foods()),
+    )
+    value = template()
+    value = value.model_copy(
+        update={
+            "uncertainties": [*value.uncertainties, stale],
+            "ingredients": [
+                value.ingredients[0].model_copy(update={"uncertainty": stale})
+            ],
+        }
+    )
+
+    result = service.enrich(value, context=context(), job_id=uuid4())
+
+    assert result.nutrition is not None
+    assert result.uncertainties == []
+    assert result.ingredients[0].uncertainty is None
+    assert result.review_status == RecipeReviewStatus.READY
