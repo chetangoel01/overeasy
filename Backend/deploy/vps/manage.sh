@@ -107,7 +107,13 @@ case "$command" in
     backup)
         backup
         ;;
+    backfill-times)
+        # Runs against the extraction provider, so it needs the api service's
+        # environment; --no-deps keeps it off the running API and worker.
+        shift
+        compose run --rm --no-deps api /app/.venv/bin/python -m ladle.admin.backfill_times "$@"
+        ;;
     *)
-        die "Usage: manage.sh {deploy|health|status|logs [LINES]|backup}"
+        die "Usage: manage.sh {deploy|health|status|logs [LINES]|backup|backfill-times [--dry-run] [--limit N]}"
         ;;
 esac

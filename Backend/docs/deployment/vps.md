@@ -168,7 +168,15 @@ sudo /opt/ladle/app/Backend/deploy/vps/manage.sh status
 sudo /opt/ladle/app/Backend/deploy/vps/manage.sh health
 sudo /opt/ladle/app/Backend/deploy/vps/manage.sh logs 200
 sudo /opt/ladle/app/Backend/deploy/vps/manage.sh backup
+sudo /opt/ladle/app/Backend/deploy/vps/manage.sh backfill-times --dry-run
 ```
+
+`backfill-times` is the one-off that gives recipes imported before the
+estimating prompt a total cooking time. It runs in a throwaway `api`
+container, so it carries the provider keys, and writes through the recipe
+edit path so the estimate reaches devices on their next sync. Always run
+`--dry-run` first and read the table; `--limit N` bounds a first pass.
+`Backend/docs/integration-reference.md` documents the rules it applies.
 
 ## Backups
 
