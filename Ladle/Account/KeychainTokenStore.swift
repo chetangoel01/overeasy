@@ -19,6 +19,10 @@ struct AuthTokens: Codable, Equatable, Sendable {
     /// trailing `Url` to `URL`, the same shape as `userID` above.
     var displayName: String?
     var avatarURL: URL?
+    /// When the account was created. Optional for the same reason the two
+    /// above are: a Keychain record written before the field existed decodes
+    /// as nil rather than failing the session. The server always sends it.
+    var createdAt: Date?
 
     init(
         accessToken: String,
@@ -28,7 +32,8 @@ struct AuthTokens: Codable, Equatable, Sendable {
         deviceID: UUID,
         userKind: String,
         displayName: String? = nil,
-        avatarURL: URL? = nil
+        avatarURL: URL? = nil,
+        createdAt: Date? = nil
     ) {
         self.accessToken = accessToken
         self.accessTokenExpiresAt = accessTokenExpiresAt
@@ -38,13 +43,18 @@ struct AuthTokens: Codable, Equatable, Sendable {
         self.userKind = userKind
         self.displayName = displayName
         self.avatarURL = avatarURL
+        self.createdAt = createdAt
     }
 
-    /// Nil when the account has neither a name nor an avatar — a guest, or
-    /// an Apple cook who signed in before the name was captured.
+    /// Nil only when the account has nothing to say about itself at all —
+    /// tokens from a build that predates these fields.
     var profile: AccountProfile? {
-        AccountProfile(displayName: displayName, avatarURL: avatarURL)
-            .nonEmpty
+        AccountProfile(
+            displayName: displayName,
+            avatarURL: avatarURL,
+            createdAt: createdAt
+        )
+        .nonEmpty
     }
 }
 

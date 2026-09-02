@@ -133,6 +133,43 @@ struct RemoteContractTests {
         #expect(page.hasMore)
     }
 
+    /// The auth responses are decoded in the app, not here — `AuthTokens`
+    /// is a Keychain record and belongs beside the Keychain. What this holds
+    /// is the wire shape itself: the field names and the timestamp format
+    /// the app's own type has to match, checked against the same fixtures
+    /// the backend re-emits byte for byte.
+    @Test
+    func authFixturesCarryTheProfileAndTheAccountsCreationDate() throws {
+        struct Tokens: Decodable {
+            let userID: UUID
+            let deviceID: UUID
+            let userKind: String
+            let refreshToken: String?
+            let accessTokenExpiresAt: Date
+            let displayName: String?
+            let avatarURL: URL?
+            let createdAt: Date
+        }
+        struct Profile: Decodable {
+            let userKind: String
+            let displayName: String?
+            let avatarURL: URL?
+            let createdAt: Date
+        }
+
+        let tokens: Tokens = try decodeFixture("auth-tokens")
+        let profile: Profile = try decodeFixture("auth-profile")
+        let august = Date(timeIntervalSince1970: 1_786_708_800)
+
+        #expect(tokens.userKind == "google")
+        #expect(tokens.displayName == "Priya Raman")
+        #expect(tokens.avatarURL?.host == "images.ladle.example")
+        #expect(tokens.createdAt == august)
+        #expect(profile.userKind == "apple")
+        #expect(profile.avatarURL == nil)
+        #expect(profile.createdAt == august)
+    }
+
     @Test
     func errorFixtureDecodesCodeSpecificDetails() throws {
         let envelopes: [RemoteErrorEnvelope] = try decodeFixture("errors")

@@ -30,9 +30,14 @@ struct AccountProfile: Equatable, Sendable {
 
     var displayName: String?
     var avatarURL: URL?
+    /// When the account was created, as the server reported it. Server-owned
+    /// and never edited here; it is what "cooking since August 2026" reads.
+    /// Optional because a guest session predating the field, or a Keychain
+    /// record written by an older build, simply has no date to show.
+    var createdAt: Date?
 
     var isEmpty: Bool {
-        displayName == nil && avatarURL == nil
+        displayName == nil && avatarURL == nil && createdAt == nil
     }
 
     var nonEmpty: AccountProfile? {
@@ -57,6 +62,8 @@ final class AccountSession {
         static let onboardingComplete = "ladle.onboarding.complete"
         static let walkthroughComplete = "ladle.walkthrough.complete"
         static let walkthroughPending = "ladle.walkthrough.pending"
+        static let nameStepComplete = "ladle.nameStep.complete"
+        static let nameStepPending = "ladle.nameStep.pending"
         static let accountState = "ladle.account.state"
     }
 
@@ -81,6 +88,14 @@ final class AccountSession {
 
     private(set) var state: AccountState
     private(set) var shouldPresentWelcome: Bool
+    /// Whether the new cook is still owed the question about their name.
+    ///
+    /// Derived the way `shouldPresentWalkthrough` is — a pending flag that
+    /// survives a relaunch, and a completion flag that ends it for good — so
+    /// a cook who quits mid-step is asked again and one who answered or
+    /// skipped never is. Only an Apple or Google sign-up is asked: a guest
+    /// has no account to put a name on.
+    private(set) var shouldPresentNameStep: Bool
     private(set) var shouldPresentWalkthrough: Bool
     private(set) var isRemoteSessionReady = false
     private(set) var profile: AccountProfile?
@@ -104,13 +119,21 @@ final class AccountSession {
             store.removeObject(forKey: Key.onboardingComplete)
             store.removeObject(forKey: Key.walkthroughComplete)
             store.removeObject(forKey: Key.walkthroughPending)
+            store.removeObject(forKey: Key.nameStepComplete)
+            store.removeObject(forKey: Key.nameStepPending)
             store.removeObject(forKey: Key.accountState)
         }
 
+        // The name step is part of onboarding, so `-onboarding-complete`
+        // finishes it along with the walkthrough. Without that, one test
+        // that left the step pending would strand every later test in the
+        // run behind it — a UI-test container keeps its defaults.
         if launchArguments.contains("-onboarding-complete") {
             store.set(true, forKey: Key.onboardingComplete)
             store.set(true, forKey: Key.walkthroughComplete)
             store.set(false, forKey: Key.walkthroughPending)
+            store.set(true, forKey: Key.nameStepComplete)
+            store.set(false, forKey: Key.nameStepPending)
             if store.string(forKey: Key.accountState) == nil {
                 store.set(
                     AccountState.guest.rawValue,
@@ -119,18 +142,46 @@ final class AccountSession {
             }
         }
 
+        // `-name-step-complete` skips the step on its own, for a capture or
+        // a test that wants the library without the rest of onboarding.
+        // `-name-step-pending` forces it, and is read last so it wins.
+        if launchArguments.contains("-name-step-complete") {
+            store.set(true, forKey: Key.nameStepComplete)
+            store.set(false, forKey: Key.nameStepPending)
+        }
+        if launchArguments.contains("-name-step-pending") {
+            store.set(false, forKey: Key.nameStepComplete)
+            store.set(true, forKey: Key.nameStepPending)
+        }
+
         if let pinnedState {
             store.set(pinnedState.rawValue, forKey: Key.accountState)
         }
         let storedState = store.string(forKey: Key.accountState)
             .flatMap(AccountState.init(rawValue:))
-        state = pinnedState ?? storedState ?? .undecided
+        let resolvedState = pinnedState ?? storedState ?? .undecided
+        state = resolvedState
         shouldPresentWelcome = !store.bool(
             forKey: Key.onboardingComplete
         )
         shouldPresentWalkthrough =
             store.bool(forKey: Key.walkthroughPending)
             && !store.bool(forKey: Key.walkthroughComplete)
+        shouldPresentNameStep =
+            Self.asksForName(resolvedState)
+            && store.bool(forKey: Key.nameStepPending)
+            && !store.bool(forKey: Key.nameStepComplete)
+    }
+
+    /// Only a real account is asked for a name. A guest has nothing to put
+    /// one on, and `undecided` has not chosen yet.
+    private static func asksForName(_ state: AccountState) -> Bool {
+        switch state {
+        case .undecided, .guest, .freeAccount:
+            false
+        case .signedInWithApple, .signedInWithGoogle:
+            true
+        }
     }
 
     /// `-account-state <value>`, honoured only alongside `-ui-testing`.
@@ -144,15 +195,20 @@ final class AccountSession {
         return AccountState(rawValue: launchArguments[index + 1])
     }
 
-    /// `-account-display-name <name>` and `-account-avatar-url <url>`,
-    /// honoured only alongside `-ui-testing`.
+    /// `-account-display-name <name>`, `-account-avatar-url <url>` and
+    /// `-account-created-at <ISO 8601>`, honoured only alongside
+    /// `-ui-testing`. The date is read without fractional seconds — the form
+    /// a person types on a command line, `2026-08-14T12:00:00Z` — rather than
+    /// the wire's `.000Z`, which nothing here has to round-trip.
     private static func pinnedProfile(
         in launchArguments: [String]
     ) -> AccountProfile? {
         AccountProfile(
             displayName: value(of: "-account-display-name", in: launchArguments),
             avatarURL: value(of: "-account-avatar-url", in: launchArguments)
-                .flatMap(URL.init(string:))
+                .flatMap(URL.init(string:)),
+            createdAt: value(of: "-account-created-at", in: launchArguments)
+                .flatMap(ISO8601DateFormatter().date(from:))
         )
         .nonEmpty
     }
@@ -232,12 +288,26 @@ final class AccountSession {
         state = .undecided
         shouldPresentWelcome = true
         shouldPresentWalkthrough = false
+        shouldPresentNameStep = false
         isRemoteSessionReady = false
         // Whoever uses this device next is not the cook who just left.
         profile = nil
         store.removeObject(forKey: Key.accountState)
         store.set(false, forKey: Key.onboardingComplete)
         store.set(false, forKey: Key.walkthroughPending)
+        // Unlike the walkthrough, which teaches the device the app once,
+        // the name belongs to the account. Whoever signs in next is a new
+        // cook and gets asked their own.
+        store.set(false, forKey: Key.nameStepComplete)
+        store.set(false, forKey: Key.nameStepPending)
+    }
+
+    /// Answered or skipped — both end the step for good, because a cook
+    /// who declined to give a name has answered the question.
+    func completeNameStep() {
+        shouldPresentNameStep = false
+        store.set(true, forKey: Key.nameStepComplete)
+        store.set(false, forKey: Key.nameStepPending)
     }
 
     func completeWalkthrough() {
@@ -247,13 +317,28 @@ final class AccountSession {
     }
 
     private func completeWelcome(as state: AccountState) {
+        // A sign-in, not a session being restored. `restoreSession` runs
+        // this on every cold launch, re-asserting the account the app is
+        // already in — so a cook signed in before the step existed must not
+        // be stopped on their way into the app by a question about their
+        // name. What separates the two is that a sign-in *changes* the
+        // account: undecided or guest becomes Apple or Google. A restore
+        // hands back the kind it was given.
+        let isNewSignIn = self.state != state
         self.state = state
         shouldPresentWelcome = false
+        shouldPresentNameStep =
+            Self.asksForName(state)
+            && !store.bool(forKey: Key.nameStepComplete)
+            // ...but a relaunch part-way through the step resumes it, and
+            // that relaunch is a restore rather than a sign-in.
+            && (isNewSignIn || store.bool(forKey: Key.nameStepPending))
         shouldPresentWalkthrough = !store.bool(
             forKey: Key.walkthroughComplete
         )
         store.set(state.rawValue, forKey: Key.accountState)
         store.set(true, forKey: Key.onboardingComplete)
+        store.set(shouldPresentNameStep, forKey: Key.nameStepPending)
         store.set(
             shouldPresentWalkthrough,
             forKey: Key.walkthroughPending

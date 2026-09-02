@@ -66,7 +66,7 @@ final class DiscoverInteractionUITests: XCTestCase {
     /// test could reach a signed-in screen at all. There is no `AuthClient`
     /// under `-ui-testing`, so the profile comes from the launch arguments.
     @MainActor
-    func testSettingsHeaderShowsTheSignedInCook() throws {
+    func testProfileHeaderShowsTheSignedInCook() throws {
         let app = XCUIApplication()
         app.launchArguments = [
             "-ui-testing",
@@ -78,33 +78,37 @@ final class DiscoverInteractionUITests: XCTestCase {
         ]
         app.launch()
 
-        let settings = app.buttons["Settings and account"]
-        XCTAssertTrue(settings.waitForExistence(timeout: 3))
-        settings.tap()
+        let profile = app.buttons["Profile"]
+        XCTAssertTrue(profile.waitForExistence(timeout: 3))
+        profile.tap()
 
-        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.navigationBars["Profile"].waitForExistence(timeout: 2))
         // The name is a button — tapping it edits in place — so it is not a
         // static text and has to be found by identifier.
         let name = app.descendants(matching: .any)["account.profile.name"]
         XCTAssertTrue(name.waitForExistence(timeout: 2))
         XCTAssertEqual(name.label, "Priya Raman")
         XCTAssertTrue(app.staticTexts["Signed in with Google"].exists)
+        XCTAssertTrue(
+            app.descendants(matching: .any)["account.profile.facts"].exists,
+            "The header carries the facts line under the provider"
+        )
         XCTAssertFalse(
             app.buttons["account.profile.sign-in"].exists,
             "A signed-in cook is not offered a sign-in button"
         )
-        attachScreenshot(of: app, named: "Settings profile header")
+        attachScreenshot(of: app, named: "Profile header")
     }
 
     @MainActor
-    func testSettingsAccentAndRecipeViewPreferencesAreReachable() throws {
+    func testProfileAccentAndRecipeViewPreferencesAreReachable() throws {
         let app = launchApp(startingOn: "Recipes")
 
-        let settings = app.buttons["Settings and account"]
-        XCTAssertTrue(settings.waitForExistence(timeout: 3))
-        settings.tap()
+        let profile = app.buttons["Profile"]
+        XCTAssertTrue(profile.waitForExistence(timeout: 3))
+        profile.tap()
 
-        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.navigationBars["Profile"].waitForExistence(timeout: 2))
         let blue = app.buttons["Blue"]
         XCTAssertTrue(blue.waitForExistence(timeout: 2))
         blue.tap()

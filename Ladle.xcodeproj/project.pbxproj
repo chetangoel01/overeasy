@@ -20,6 +20,7 @@
 		1028AD29B58A5FD4AE029900 /* GuestLimitView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 480030F07BD940462128F4AE /* GuestLimitView.swift */; };
 		111AB9F91CF8DA219B560D2A /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA427F9A68EAFE92CBFCB53E /* LibraryView.swift */; };
 		13A8E77CA71DE564C79A291E /* ShareURLExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A93A16FCFB7610C2A4F09D4 /* ShareURLExtractor.swift */; };
+		167E47656F17DA4FE694A5F7 /* AuthContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB627A1D91FF0563DECF55EA /* AuthContractTests.swift */; };
 		19817C767CFBCAA88DFC31C5 /* HealthExportSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 673D9EEE813C58368B614A0F /* HealthExportSheet.swift */; };
 		1D7AE199157D84F1562E6C95 /* ReimportSafetyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2461B3FDEC6CF3119C4548A /* ReimportSafetyTests.swift */; };
 		1E030826FAE0A2B854964CA7 /* AppBootstrap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EC3E6A7C19F7CCCF1033B3A /* AppBootstrap.swift */; };
@@ -72,6 +73,7 @@
 		72DB888843AD8B0F3C06AA55 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = DD8157BECA8D206CD8B984BB /* PrivacyInfo.xcprivacy */; };
 		75E34BC4C3ECC1FF8580FBDB /* SharedQueueReconciler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46580B3879F912E78BF1629C /* SharedQueueReconciler.swift */; };
 		7735E4254A1CC43579B1C7AD /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CAD674446D07BDCDBFD2F66 /* RootView.swift */; };
+		77C130A4633743EDDF9F8CBD /* ProfileFactsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BD89C4AE80A625C8E70B3AD /* ProfileFactsTests.swift */; };
 		7903D591A395E0DD678CC58F /* RecipeTimer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AE99C267EF3E47EF936C777 /* RecipeTimer.swift */; };
 		7B03E111FA24728DE96CDE04 /* RecipePresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B2EA3F560B531E7D745E2BC /* RecipePresentation.swift */; };
 		7E5995BF6D80F212D89A3B16 /* IngredientIcons.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2B65D84D7321ED2C89BEEBD9 /* IngredientIcons.xcassets */; };
@@ -221,6 +223,7 @@
 		595643DC966138C3BC7DA2FC /* InstallationIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallationIdentity.swift; sourceTree = "<group>"; };
 		5AEC401E351C241A01EA933D /* RecipesFilterMenuUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipesFilterMenuUITests.swift; sourceTree = "<group>"; };
 		5BB8A28AE010B51E06742584 /* IngredientList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngredientList.swift; sourceTree = "<group>"; };
+		5BD89C4AE80A625C8E70B3AD /* ProfileFactsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileFactsTests.swift; sourceTree = "<group>"; };
 		5BDEAB572C83A392AED5C622 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		610D0835A1815DB23436E411 /* SyncStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncStatus.swift; sourceTree = "<group>"; };
 		614CB64D3827AB1339095FC2 /* ScreenAwakeController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenAwakeController.swift; sourceTree = "<group>"; };
@@ -313,6 +316,7 @@
 		F7CCBA4794A638FF56EBDD1A /* ReimportSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReimportSheet.swift; sourceTree = "<group>"; };
 		FA36568911CF179D67D23CA8 /* SyncConflictReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncConflictReviewView.swift; sourceTree = "<group>"; };
 		FA758C400CD14A086E39D48D /* KeychainTokenStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainTokenStore.swift; sourceTree = "<group>"; };
+		FB627A1D91FF0563DECF55EA /* AuthContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthContractTests.swift; sourceTree = "<group>"; };
 		FCE40C1144201ECA9A36E8BC /* ImportCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportCoordinator.swift; sourceTree = "<group>"; };
 		FD556EA28CCDB3071B569D0C /* RecipeArtworkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeArtworkView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -515,6 +519,7 @@
 				30A84A5F8B238E1FDC631926 /* AppAttestClientTests.swift */,
 				168A0A47134E3312FBAD080E /* AppBootstrapTests.swift */,
 				2256E64AD0B3ACFDB22A837E /* AuthClientTests.swift */,
+				FB627A1D91FF0563DECF55EA /* AuthContractTests.swift */,
 				96B58AC391122DA6ADD686C9 /* CookingViewModelTests.swift */,
 				ADCDE2C252635C3E9076C6DD /* DemoImportServiceTests.swift */,
 				67C86D55253AAE6A00C44D36 /* DemoLaunchScenarioTests.swift */,
@@ -529,6 +534,7 @@
 				6E75C97A3440E521A8A01510 /* LibraryViewModelTests.swift */,
 				2027095EF76748A9CC4DE10F /* NotificationServiceTests.swift */,
 				DAE1A079A91563D4B4A47FA0 /* NutritionNoteTests.swift */,
+				5BD89C4AE80A625C8E70B3AD /* ProfileFactsTests.swift */,
 				9209E28951C4CAA3BC8E7629 /* ProjectSmokeTests.swift */,
 				703E2046735779150499C97A /* RecipeEditorViewModelTests.swift */,
 				99E1C2581DC55DA301481A34 /* RecipeSyncServiceTests.swift */,
@@ -949,6 +955,7 @@
 				8E8D469AEBAD18304870D64B /* AppAttestClientTests.swift in Sources */,
 				40E9F40421BC4A40D32746A3 /* AppBootstrapTests.swift in Sources */,
 				4CE9B8C981FF6E36E6152685 /* AuthClientTests.swift in Sources */,
+				167E47656F17DA4FE694A5F7 /* AuthContractTests.swift in Sources */,
 				582D38A667F6429C2DAD53C9 /* CookingViewModelTests.swift in Sources */,
 				39BB9D3C3EC14FFDCE622491 /* DemoImportServiceTests.swift in Sources */,
 				55B20589986DDCB050444066 /* DemoLaunchScenarioTests.swift in Sources */,
@@ -963,6 +970,7 @@
 				94CBE2FD5CDC33A263424029 /* LibraryViewModelTests.swift in Sources */,
 				2AED269B9C6BFDDBB4DFE5B9 /* NotificationServiceTests.swift in Sources */,
 				B33417F9D7F9DD7E7DDBEFD3 /* NutritionNoteTests.swift in Sources */,
+				77C130A4633743EDDF9F8CBD /* ProfileFactsTests.swift in Sources */,
 				D78BB07879939E3FC2D9E071 /* ProjectSmokeTests.swift in Sources */,
 				FA4BA8A760D9DDCB30729AB7 /* RecipeEditorViewModelTests.swift in Sources */,
 				5042FC333DCDB3F45C5DFEC3 /* RecipeSyncServiceTests.swift in Sources */,

@@ -196,10 +196,6 @@ final class ProjectSmokeTests: XCTestCase {
             "Signed in with Google"
         )
         XCTAssertEqual(
-            AccountSheet.accountDetail(for: .signedInWithGoogle),
-            "Your recipes stay synced across your devices."
-        )
-        XCTAssertEqual(
             AccountSheet.syncValue(
                 for: .signedInWithGoogle,
                 status: syncStatus.state
