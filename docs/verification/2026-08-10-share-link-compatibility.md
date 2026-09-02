@@ -186,3 +186,58 @@ Verification on 2026-08-21:
   Extension signature verification. It contains the expected Personal Team
   shared Keychain group, guarded VPS route, matched tunnel key, and the
   explicitly disabled App Attest setting required by this development server.
+
+## Mobile host and alternate path shapes
+
+Four more share-sheet URL shapes import instead of failing with an unsupported
+link message. Each resolves to the same source identity as its clean
+equivalent, so a link shared from mobile Safari and the same video copied from
+the desktop site remain one source video, one extraction, and one recipe.
+
+| Submitted | Canonical |
+|---|---|
+| `https://m.instagram.com/reel/<shortcode>/` | `https://www.instagram.com/reel/<shortcode>/` |
+| `https://www.instagram.com/reels/<shortcode>/` | `https://www.instagram.com/reel/<shortcode>/` |
+| `https://www.youtube.com/live/<id>` | `https://www.youtube.com/watch?v=<id>` |
+| `https://www.youtube.com/embed/<id>` | `https://www.youtube.com/watch?v=<id>` |
+
+## Decisions for the added shapes
+
+- `/reels/` collapses to `/reel/` before the canonical URL is built. Instagram
+  serves one post at both spellings and `platform_video_id` is the shortcode
+  either way, so dedupe was already safe; a single canonical shape keeps one
+  post from being stored under two URLs, and keeps inline playback working.
+  `Ladle/Library/VideoEmbedSheet.swift` looks for a `reel` or `p` path
+  component and would find neither in a `/reels/` canonical URL.
+- YouTube `/live/` and `/embed/` take the first path segment after the prefix,
+  exactly as `/shorts/` already does, and canonicalize to `watch?v=`.
+  Acquisition, the stored identity, and the in-app player are unchanged.
+- `m.instagram.com` joins `ALLOWED_SOCIAL_HOSTS` for symmetry with
+  `m.tiktok.com` and `m.youtube.com`, not because a fetch needs it. The only
+  fetch of a submitted URL is `PinnedRedirectResolver.resolve`, which the
+  parser calls solely for TikTok short and `/t/` links; every Instagram fetch
+  is rebuilt on `www.instagram.com` from the shortcode, and the submitted URL
+  is otherwise only persisted on the import-job row.
+- TikTok `/photo/` carousels stay out of scope. A slideshow post has no audio
+  track, so accepting the URL would replace a clear rejection with an import
+  that produces nothing.
+- No client change. `ImportCoordinator` already forwards these hosts to the
+  server, and the player only ever sees the canonical URL the server stores.
+
+## Verification on 2026-09-01
+
+- The four new parser cases failed first, and for the reasons the shapes
+  predicted: `m.instagram.com` as `UnsupportedSource`, `/reels/` as an invalid
+  Instagram video path, and `/live/` and `/embed/` as an invalid YouTube video
+  ID. All four passed after the host and path additions.
+- A `/live/` URL carrying too short an identifier still raises
+  `InvalidSourceURL`, so the wider path list did not weaken identifier
+  validation.
+- `uv run pytest tests/unit/imports -q` passed with 57 tests, and the complete
+  unit suite passed with 658.
+- The changed files pass Ruff formatting and Ruff lint, and `git diff --check`
+  passed. Repository-wide Ruff and strict mypy report exactly the same
+  pre-existing failures on this branch as on `main`: one unformatted and one
+  unsorted Alembic migration, and nine strict-mypy errors in
+  `recipes/repository.py`, `acquisition/provider_chain.py`, and
+  `worker/runtime.py`. None of those files are touched here.

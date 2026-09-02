@@ -2,6 +2,8 @@ import LadleCore
 import SwiftUI
 
 struct MethodList: View {
+    @Environment(\.ladleAccent) private var accent
+
     let steps: [RecipeStep]
 
     var body: some View {
@@ -20,7 +22,7 @@ struct MethodList: View {
                         .ladleFont(.metadata)
                         .foregroundStyle(LadleTheme.Label.onAccent)
                         .frame(width: 30, height: 30)
-                        .background(LadleTheme.Intent.accent, in: Circle())
+                        .background(accent.intent, in: Circle())
                         .accessibilityHidden(true)
 
                     VStack(alignment: .leading, spacing: LadleTheme.Layout.rowGap) {
@@ -47,7 +49,7 @@ struct MethodList: View {
                                 systemImage: "exclamationmark.circle"
                             )
                             .ladleFont(.metadata)
-                            .foregroundStyle(LadleTheme.Label.accent)
+                            .foregroundStyle(accent.label)
                             .accessibilityLabel(
                                 "Uncertain step: \(uncertainty.reason)"
                             )
@@ -55,6 +57,9 @@ struct MethodList: View {
                     }
                     .padding(.bottom, 24)
                 }
+                // A scroll target, so a step chosen from the cooking screen's
+                // step menu can be brought into view.
+                .id(step.id)
             }
         }
     }

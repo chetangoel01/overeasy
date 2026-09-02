@@ -197,6 +197,8 @@ struct RecipeTimer: Equatable, Identifiable {
 }
 
 struct RecipeTimerButton: View {
+    @Environment(\.ladleAccent) private var accent
+
     @Bindable var viewModel: CookingViewModel
     let detectedTimer: DetectedTimer
     var onDark = false
@@ -245,7 +247,7 @@ struct RecipeTimerButton: View {
                             .foregroundStyle(
                                 onDark
                                     ? LadleTheme.Label.onAccent
-                                    : LadleTheme.Label.accent
+                                    : accent.label
                             )
                             .frame(
                                 width: LadleTheme.Control.field,
@@ -336,7 +338,7 @@ struct RecipeTimerButton: View {
                 .stroke(
                     phase == .finished
                         ? cardForeground
-                        : LadleTheme.Intent.accent,
+                        : accent.intent,
                     style: StrokeStyle(lineWidth: 3, lineCap: .round)
                 )
                 .rotationEffect(.degrees(-90))

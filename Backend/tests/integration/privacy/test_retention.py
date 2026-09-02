@@ -13,6 +13,7 @@ from ladle.db.models import (
     AppAttestChallenge,
     AuthSession,
     Device,
+    DiscoverImpression,
     ExtractionCache,
     ImportJob,
     NegativeExtractionCache,
@@ -60,6 +61,7 @@ def test_retention_removes_expired_private_operational_data_and_queues_objects(
     recent = now - timedelta(days=1)
     user_id = uuid4()
     source_id = uuid4()
+    seen_source_id = uuid4()
     old_cache_id = uuid4()
     retained_cache_id = uuid4()
     old_job_id = uuid4()
@@ -116,6 +118,32 @@ def test_retention_removes_expired_private_operational_data_and_queues_objects(
                     source_revision="1",
                     source_metadata={},
                     created_at=old,
+                ),
+                SourceVideo(
+                    id=seen_source_id,
+                    platform="youtube",
+                    platform_video_id="retention-seen-source",
+                    canonical_url="https://www.youtube.com/watch?v=seen",
+                    source_revision="1",
+                    source_metadata={},
+                    created_at=old,
+                ),
+            ]
+        )
+        database.flush()
+        database.add_all(
+            [
+                # A Discover impression the cook can no longer be affected by
+                # — its window closed long ago — and one still inside it.
+                DiscoverImpression(
+                    user_id=user_id,
+                    source_video_id=source_id,
+                    seen_at=old,
+                ),
+                DiscoverImpression(
+                    user_id=user_id,
+                    source_video_id=seen_source_id,
+                    seen_at=recent,
                 ),
             ]
         )
@@ -289,6 +317,7 @@ def test_retention_removes_expired_private_operational_data_and_queues_objects(
         sync_history_days=365,
         invalid_cache_days=30,
         deletion_audit_days=365,
+        discover_impression_days=30,
     )
     with Session(engine) as database, database.begin():
         outcome = RetentionService(clock=FrozenClock(now), policy=policy).sweep(
@@ -305,6 +334,7 @@ def test_retention_removes_expired_private_operational_data_and_queues_objects(
     assert outcome.sync_changes == 3
     assert outcome.recipe_tombstones == 1
     assert outcome.deletion_audits == 1
+    assert outcome.discover_impressions == 1
 
     with Session(engine) as database:
         assert database.get(ImportJob, old_job_id) is None
@@ -321,6 +351,8 @@ def test_retention_removes_expired_private_operational_data_and_queues_objects(
         assert sync_state is not None and sync_state.minimum_retained_sequence == 4
         queued = database.get(ObjectDeletionQueue, "thumbnails/old.webp")
         assert queued is not None and queued.reason == "invalidCache"
+        assert database.get(DiscoverImpression, (user_id, source_id)) is None
+        assert database.get(DiscoverImpression, (user_id, seen_source_id)) is not None
 
     storage = RecordingStorage()
     with Session(engine) as database, database.begin():

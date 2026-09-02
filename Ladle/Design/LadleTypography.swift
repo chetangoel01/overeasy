@@ -1,88 +1,61 @@
 import SwiftUI
 
-/// The app's type roles. All of them use SF Pro at standard width and design;
-/// the system is carried by size and weight, not by a second typeface.
+/// The app's type roles, each mapped onto a system text style.
+///
+/// Sizes are iOS's, not ours: a role names *what the text is for* and the
+/// platform decides how big that is. This is why the app tracks the system
+/// at every Dynamic Type setting instead of only approximating it at the
+/// default one, and why headings match the metrics of every other iOS app.
 ///
 /// Use a role, not a size. `ladleScaledFont(size:)` exists for the rare case
 /// where a cooking surface needs distance legibility beyond `display`, and for
 /// nothing else. Symbol sizes live in `LadleTheme.IconSize`.
 enum LadleTextStyle {
-    /// A welcome or Focus Mode headline that owns the screen. 38pt, bold.
+    /// A welcome or Focus Mode headline that owns the screen.
     case display
-    /// A screen title, or a cooking instruction. 31pt, bold.
+    /// A screen title, or a cooking instruction.
     case title
-    /// A recipe's name wherever it appears as content. 18pt, semibold.
+    /// A recipe's name wherever it appears as content.
     ///
-    /// Deliberately distinct from `section` despite being one point apart:
-    /// this scales against `.title3` because a recipe name is content and
-    /// should grow with the user's reading size, while `section` scales
-    /// against `.headline` because a section label is chrome and should stay
-    /// closer to the surrounding UI. They diverge at large Dynamic Type.
+    /// Content, so it scales on `title3` and grows with the reader's size.
+    /// `section` is chrome and stays on `headline`, closer to the surrounding
+    /// UI; the two diverge at large Dynamic Type, which is intended.
     case recipeTitle
-    /// A section heading above a group of rows. 19pt, semibold.
+    /// A section heading above a group of rows.
     case section
-    /// Running text. 17pt, regular.
+    /// Running text.
     case body
-    /// Running text carrying emphasis, and every button label. 17pt, semibold.
+    /// Running text carrying emphasis, and every button label.
     case bodyStrong
-    /// Counts, timestamps, source names, supporting detail. 13pt, regular,
-    /// and always paired with `LadleTheme.Label.secondary`.
+    /// Counts, timestamps, source names, supporting detail. Always paired
+    /// with `LadleTheme.Label.secondary`.
     case metadata
     /// A short uppercase label above a title, used only in Focus Mode.
     case eyebrow
 
-    var baseSize: CGFloat {
+    var textStyle: Font.TextStyle {
         switch self {
-        case .display:
-            38
-        case .title:
-            31
-        case .recipeTitle:
-            18
-        case .section:
-            19
-        case .body, .bodyStrong:
-            17
-        case .metadata:
-            13
-        case .eyebrow:
-            12
+        case .display: .largeTitle
+        case .title: .title
+        case .recipeTitle: .title3
+        case .section: .headline
+        case .body, .bodyStrong: .body
+        case .metadata: .footnote
+        case .eyebrow: .caption
         }
     }
 
-    var relativeTextStyle: Font.TextStyle {
+    /// `nil` keeps the text style's own weight, which matters for `headline`:
+    /// iOS already sets it semibold, and restating that here would freeze it
+    /// if the platform ever changes.
+    var weight: Font.Weight? {
         switch self {
-        case .display:
-            .largeTitle
-        case .title:
-            .title
-        case .recipeTitle:
-            .title3
-        case .section:
-            .headline
-        case .body, .bodyStrong:
-            .body
-        case .metadata:
-            .footnote
-        case .eyebrow:
-            .caption
-        }
-    }
-
-    var weight: Font.Weight {
-        switch self {
-        case .display, .title:
-            .bold
-        case .recipeTitle, .section:
-            .semibold
-        case .bodyStrong:
-            .semibold
-        case .body:
-            .regular
-        case .metadata:
-            .regular
-        case .eyebrow:
-            .semibold
+        case .display, .title: .bold
+        case .recipeTitle: .semibold
+        case .section: nil
+        case .bodyStrong: .semibold
+        case .body, .metadata: nil
+        case .eyebrow: .semibold
         }
     }
 
@@ -95,7 +68,7 @@ enum LadleTextStyle {
     }
 }
 
-private struct LadleFontModifier: ViewModifier {
+private struct LadleScaledFontModifier: ViewModifier {
     @ScaledMetric private var scaledSize: CGFloat
 
     private let weight: Font.Weight
@@ -133,15 +106,14 @@ private struct LadleFontModifier: ViewModifier {
 
 extension View {
     func ladleFont(_ style: LadleTextStyle) -> some View {
-        modifier(
-            LadleFontModifier(
-                size: style.baseSize,
-                relativeTo: style.relativeTextStyle,
-                weight: style.weight,
-                width: style.width,
-                design: style.design
+        font(
+            .system(
+                style.textStyle,
+                design: style.design,
+                weight: style.weight
             )
         )
+        .fontWidth(style.width)
     }
 
     func ladleScaledFont(
@@ -152,7 +124,7 @@ extension View {
         design: Font.Design = .default
     ) -> some View {
         modifier(
-            LadleFontModifier(
+            LadleScaledFontModifier(
                 size: size,
                 relativeTo: textStyle,
                 weight: weight,

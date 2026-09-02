@@ -6,6 +6,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from ladle.acquisition.models import SourceCounts, apply_source_counts
 from ladle.cache.claims import (
     ClaimLease,
     ClaimLost,
@@ -194,6 +195,7 @@ class ExtractionCacheService:
         model_id: str,
         thumbnail_object_key: str | None = None,
         thumbnail_remote_url: str | None = None,
+        counts: SourceCounts | None = None,
     ) -> CacheCompletion:
         if thumbnail_object_key is not None and thumbnail_remote_url is not None:
             raise ValueError("a thumbnail must have exactly one location")
@@ -201,6 +203,8 @@ class ExtractionCacheService:
         source = database.get(SourceVideo, claim.source_video_id)
         if source is None:
             raise ImportJobUnavailable
+        if counts is not None:
+            apply_source_counts(source, counts, now=self._clock.now())
 
         entry = database.scalar(
             select(ExtractionCache).where(

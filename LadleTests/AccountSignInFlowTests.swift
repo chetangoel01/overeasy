@@ -277,6 +277,93 @@ final class AccountSignInFlowTests: XCTestCase {
         XCTAssertEqual(fixture.onAuthenticatedCount(), 1)
     }
 
+    /// Apple hands over a full name only on the very first authorization for
+    /// an Apple ID. If this attempt does not carry it, no later one will.
+    func testAppleSignInForwardsTheNameFromTheCredential() async throws {
+        let requests = Locked<[URLRequest]>([])
+        URLProtocolStub.install { request in
+            requests.withValue { $0.append(request) }
+            return (
+                Self.response(request, status: 200),
+                Self.tokensJSON(
+                    accessToken: "apple-access",
+                    userKind: "apple"
+                )
+            )
+        }
+        let fixture = makeFixture()
+
+        await fixture.flow.signInWithApple(
+            identityToken: "identity-token",
+            authorizationCode: "authorization-code",
+            nonce: "raw-nonce",
+            fullName: "Priya Raman"
+        )
+
+        let body = try JSONSerialization.jsonObject(
+            with: URLProtocolStub.bodyData(for: requests.snapshot[0])
+        ) as? [String: Any]
+        XCTAssertEqual(body?["fullName"] as? String, "Priya Raman")
+        XCTAssertEqual(fixture.accountSession.state, .signedInWithApple)
+    }
+
+    func testAppleSignInOmitsTheNameWhenTheCredentialHasNone() async throws {
+        let requests = Locked<[URLRequest]>([])
+        URLProtocolStub.install { request in
+            requests.withValue { $0.append(request) }
+            return (
+                Self.response(request, status: 200),
+                Self.tokensJSON(
+                    accessToken: "apple-access",
+                    userKind: "apple"
+                )
+            )
+        }
+        let fixture = makeFixture()
+
+        await fixture.flow.signInWithApple(
+            identityToken: "identity-token",
+            authorizationCode: "authorization-code",
+            nonce: "raw-nonce",
+            fullName: nil
+        )
+
+        let body = try JSONSerialization.jsonObject(
+            with: URLProtocolStub.bodyData(for: requests.snapshot[0])
+        ) as? [String: Any]
+        XCTAssertNil(
+            body?["fullName"],
+            "A second sign-in must not send an empty name over a stored one"
+        )
+    }
+
+    /// `credential.fullName` is components, not a string, and the server
+    /// bounds the field at 64 characters — a name formatted past that would
+    /// fail the whole sign-in rather than arriving trimmed.
+    func testAppleNameIsFormattedAndBoundedToWhatTheServerAccepts() {
+        var components = PersonNameComponents()
+        components.givenName = "Priya"
+        components.familyName = "Raman"
+
+        XCTAssertEqual(
+            AccountSignInFlow.displayName(from: components),
+            "Priya Raman"
+        )
+
+        var long = PersonNameComponents()
+        long.givenName = String(repeating: "a", count: 40)
+        long.familyName = String(repeating: "b", count: 40)
+        let bounded = AccountSignInFlow.displayName(from: long)
+
+        XCTAssertEqual(bounded?.count, AccountProfile.displayNameLimit)
+
+        XCTAssertNil(AccountSignInFlow.displayName(from: nil))
+        XCTAssertNil(
+            AccountSignInFlow.displayName(from: PersonNameComponents()),
+            "Apple returns empty components on every sign-in after the first"
+        )
+    }
+
     func testDemoConfigurationWithoutBackendStillUnlocksAfterSignIn() async {
         // Demo and UI-test builds have no AuthClient; the sheet falls back
         // to the local flip the welcome screen has always used there.

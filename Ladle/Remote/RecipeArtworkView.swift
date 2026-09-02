@@ -44,8 +44,32 @@ enum RecipeArtworkLoadState: Equatable {
     }
 }
 
+/// Decoded artwork held in memory, keyed by image id.
+///
+/// Without it every reappearance re-read the file and re-decoded it: a row
+/// recycled by a LazyVStack, or a tab the reader came back to, blanked to a
+/// placeholder and then faded the same picture back in. NSCache is
+/// thread-safe on its own and evicts under memory pressure, so this needs no
+/// isolation and no eviction policy of its own.
+enum RecipeArtworkMemoryCache {
+    nonisolated(unsafe) private static let images: NSCache<NSUUID, UIImage> = {
+        let cache = NSCache<NSUUID, UIImage>()
+        cache.countLimit = 150
+        return cache
+    }()
+
+    static func image(for id: UUID) -> UIImage? {
+        images.object(forKey: id as NSUUID)
+    }
+
+    static func store(_ image: UIImage, for id: UUID) {
+        images.setObject(image, forKey: id as NSUUID)
+    }
+}
+
 struct RecipeArtworkView: View {
     @Environment(\.remoteImageCache) private var imageCache
+    @Environment(\.ladleAccent) private var accent
 
     let owner: RemoteImageOwner
     let image: RecipeImage?
@@ -63,6 +87,13 @@ struct RecipeArtworkView: View {
         self.init(owner: .recipe(id: recipeID), image: image)
     }
 
+    /// The cached image is adopted in `task`, deliberately not seeded into
+    /// `@State` from `init`. Seeding it put a `scaledToFill` image into the
+    /// very first layout pass, where the placeholder `Rectangle` used to be:
+    /// the rectangle accepts whatever size it is offered, a filled image does
+    /// not, and at call sites that constrain only one axis the artwork grew
+    /// to its own aspect ratio and covered the surrounding rows. One frame of
+    /// placeholder is the price of a grid that lays out correctly.
     var body: some View {
         Group {
             if let localName = image?.localName {
@@ -82,15 +113,22 @@ struct RecipeArtworkView: View {
             }
         }
         .task(id: image?.id) {
-            downloadedImage = nil
             guard
                 let image,
                 let remoteURL = image.remoteURL,
                 let imageCache
             else {
+                downloadedImage = nil
                 loadState = .placeholder
                 return
             }
+            if let cached = RecipeArtworkMemoryCache.image(for: image.id) {
+                downloadedImage = cached
+                loadState = .loaded
+                return
+            }
+            // Whatever is on screen stays until the replacement is ready.
+            // Clearing first is what made a revisit flash to a placeholder.
             loadState = .loading
             do {
                 let localURL = try await imageCache.localURL(
@@ -106,6 +144,7 @@ struct RecipeArtworkView: View {
                     loadState = .failed
                     return
                 }
+                RecipeArtworkMemoryCache.store(loaded, for: image.id)
                 downloadedImage = loaded
                 loadState = .loaded
             } catch is CancellationError {
@@ -121,11 +160,11 @@ struct RecipeArtworkView: View {
     private var artworkPlaceholder: some View {
         if loadState == .loading {
             ProgressView()
-                .tint(LadleTheme.Intent.accent)
+                .tint(accent.intent)
                 .accessibilityLabel(loadState.accessibilityLabel)
         } else {
             Image(systemName: loadState.systemImage)
-                .foregroundStyle(LadleTheme.Label.accent)
+                .foregroundStyle(accent.label)
                 .accessibilityLabel(loadState.accessibilityLabel)
         }
     }

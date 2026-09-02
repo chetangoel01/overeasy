@@ -126,6 +126,57 @@ _REQUEST_EXAMPLES: dict[tuple[str, str], dict[str, dict[str, object]]] = {
     },
 }
 
+# Operations worth explaining in the console but outside the numbered import
+# pipeline, so they do not renumber it.
+_OPERATION_DESCRIPTIONS = {
+    ("/v1/recipes/discover", "get"): (
+        "The public feed. Discover's two shelves are this same operation "
+        "under a different order or filter rather than resources of their "
+        "own, so a shelf, the ranked list and a search all return "
+        "`DiscoverPageDTO`:\n\n"
+        "- **New to Overeasy** — `?sort=newest&limit=10`. Ordered by when the "
+        "source arrived in Overeasy, not when its creator published it: "
+        "`publishedAt` is absent for Instagram and would drop that platform "
+        "out of the shelf entirely.\n"
+        "- **Quick dinners** — `?sort=popular&max_total_minutes=30&limit=10`. "
+        "Filtered on the shortest total time any saver of the source "
+        "recorded; a source nobody timed is excluded rather than assumed "
+        "quick.\n\n"
+        "`seen_before` is the moment the client began this paging session, "
+        "and it governs both halves of the recently-seen behaviour. Sources "
+        "last shown to this account before that moment, and within the seen "
+        "window, sort after everything unseen — demoted, never removed, so a "
+        "cook who has seen the whole corpus gets the plain ranking back "
+        "rather than a short page. The page served is recorded as seen in "
+        "the same transaction. Because impressions are stamped at request "
+        "time, they are newer than the pin and cannot re-rank the pages this "
+        "session has not fetched yet:\n\n"
+        "```\n"
+        "GET /v1/recipes/discover?cursor=0&limit=30"
+        "&seen_before=2026-09-01T09:00:00.000Z\n"
+        "GET /v1/recipes/discover?cursor=30&limit=30"
+        "&seen_before=2026-09-01T09:00:00.000Z\n"
+        "```\n\n"
+        "Omit it — as both shelves do — to rank purely on the sort and "
+        "record nothing.\n\n"
+        "`record_impressions=false` keeps the ranking and drops the write. "
+        "Discover's refresh-at-the-top uses it: reaching the top fetches "
+        "page 1 quietly under a fresh pin and holds it behind a "
+        "“New recipes” pill, and a page nobody has looked at yet "
+        "must not be recorded as read. Taking the pill re-fetches the page "
+        "under the same pin with recording on, which is deterministic and so "
+        "returns the same rows:\n\n"
+        "```\n"
+        "GET /v1/recipes/discover?cursor=0&limit=30"
+        "&seen_before=2026-09-01T09:31:00.000Z&record_impressions=false\n"
+        "GET /v1/recipes/discover?cursor=0&limit=30"
+        "&seen_before=2026-09-01T09:31:00.000Z\n"
+        "```\n\n"
+        "It is ignored when `seen_before` is absent, which records nothing "
+        "either way."
+    ),
+}
+
 _APP_ATTEST_PARAMETERS = [
     {
         "name": "X-App-Attest-Kind",
@@ -242,6 +293,9 @@ def _enrich(schema: OpenAPISchema) -> None:
         operation["summary"] = f"{step}. {operation['summary']}"
         operation["description"] = description
         operation["x-ladle-test-step"] = step
+
+    for (path, method), description in _OPERATION_DESCRIPTIONS.items():
+        _operation(schema, path, method)["description"] = description
 
     for (path, method), examples in _REQUEST_EXAMPLES.items():
         operation = _operation(schema, path, method)

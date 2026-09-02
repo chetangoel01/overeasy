@@ -18,6 +18,7 @@ from ladle.acquisition.models import (
     AcquiredVideoContext,
     LinkedDocument,
     MediaMetadata,
+    SourceCounts,
     SourceVideoDescriptor,
     TranscriptResult,
     VisualEvidence,
@@ -65,6 +66,22 @@ class AudioTranscriber(Protocol):
 
 
 class ContextFallback(Protocol):
+    def refresh_counts(
+        self,
+        source: SourceVideoDescriptor,
+        *,
+        job_id: UUID,
+    ) -> SourceCounts:
+        """Free path only: the counts come from yt-dlp, and a refresh is not
+        worth spending paid provider budget on."""
+        if self._free is None:
+            return SourceCounts()
+        try:
+            return self._free.counts(source)
+        except Exception:
+            LOGGER.info("Count refresh failed for %s", source.canonical_url)
+            return SourceCounts()
+
     def acquire(
         self,
         source: SourceVideoDescriptor,
@@ -409,6 +426,7 @@ class ProviderChain:
             description=metadata.description,
             creator_name=metadata.creator_name,
             thumbnail_url=metadata.thumbnail_url,
+            counts=metadata.counts,
             language=transcript.language if transcript is not None else None,
             transcript=transcript.segments if transcript is not None else [],
             visual_observations=observations,

@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct OnboardingWalkthroughView: View {
+    @Environment(\.ladleAccent) private var accent
+
     private enum Step: Int, CaseIterable {
         case share
         case review
@@ -156,7 +158,7 @@ struct OnboardingWalkthroughView: View {
 
                     Image(systemName: "square.and.arrow.up")
                         .font(.system(size: LadleTheme.IconSize.large, weight: .semibold))
-                        .foregroundStyle(LadleTheme.Label.accent)
+                        .foregroundStyle(accent.label)
                         .frame(width: LadleTheme.Control.hitTarget, height: LadleTheme.Control.hitTarget)
                 }
                 .padding(LadleTheme.Spacing.regular)
@@ -170,7 +172,7 @@ struct OnboardingWalkthroughView: View {
 
                 Image(systemName: "arrow.down")
                     .font(.system(size: LadleTheme.IconSize.medium, weight: .bold))
-                    .foregroundStyle(LadleTheme.Label.accent)
+                    .foregroundStyle(accent.label)
                     .accessibilityHidden(true)
 
                 HStack(spacing: LadleTheme.Spacing.medium) {
@@ -307,7 +309,7 @@ struct OnboardingWalkthroughView: View {
                 Spacer()
 
                 Image(systemName: "flame.fill")
-                    .foregroundStyle(LadleTheme.Label.accent)
+                    .foregroundStyle(accent.label)
             }
 
             Text("Simmer the orzo")
@@ -373,7 +375,7 @@ struct OnboardingWalkthroughView: View {
                     Capsule()
                         .fill(
                             item == step
-                                ? LadleTheme.Intent.accent
+                                ? accent.intent
                                 : LadleTheme.Label.primary.opacity(0.14)
                         )
                         .frame(

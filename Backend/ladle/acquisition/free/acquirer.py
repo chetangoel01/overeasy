@@ -27,6 +27,7 @@ from ladle.acquisition.free.ytdlp import YtDlpClient
 from ladle.acquisition.models import (
     LinkedDocument,
     MediaMetadata,
+    SourceCounts,
     SourceVideoDescriptor,
     TextEvidence,
     VisualEvidence,
@@ -147,6 +148,29 @@ class FreeAcquirer:
                 diagnostics=context.diagnostics,
             )
         return context
+
+    def counts(self, source: SourceVideoDescriptor) -> SourceCounts:
+        """Engagement counts alone, without downloading any media.
+
+        This is the refresh path: it runs when someone imports a video that is
+        already cached, so it must stay a single metadata call. Platform
+        routing mirrors `acquire`, because the counts come from whichever
+        source can actually read that platform.
+        """
+        if source.platform == "instagram":
+            if self._instagram is None:
+                return SourceCounts()
+            try:
+                media = self._instagram.metadata(source)
+            except Exception:
+                return SourceCounts()
+            return media.metadata.counts if media is not None else SourceCounts()
+        if not self._ytdlp.available:
+            return SourceCounts()
+        try:
+            return self._ytdlp.metadata(source.canonical_url).metadata.counts
+        except (PrivateOrDeleted, ProviderUnavailable):
+            return SourceCounts()
 
     def _apply_ytdlp(
         self,

@@ -72,8 +72,24 @@ _SYSTEM_PROMPT = """You normalize recipes for a deterministic USDA calculation.
 Use only the supplied creator evidence and reviewed recipe. Preserve creator-stated
 servings and raw quantities. When yield or an amount is missing, make a conservative
 culinary estimate and expose it. Convert every energy-bearing ingredient to grams,
-including liquids by applying a reasonable density. Use a short generic USDA search
-term. Exclude only water and genuinely nutritionally immaterial to-taste ingredients.
+including liquids by applying a reasonable density.
+
+Write usdaSearchTerm the way FoodData Central names foods, not the way a cook
+does: the plain food first, then its form or state, lowercase, no packaging or
+brand words. FoodData Central files cinnamon as "Spices, cinnamon, ground" and
+black pepper as "Spices, pepper, black", so a term that repeats the cook's
+phrasing finds a product with the same words in it instead of the food.
+  cinnamon stick -> cinnamon ground
+  black peppercorns -> pepper black
+  paneer -> cheese paneer
+  1 carrot -> carrot raw
+  fresh coriander -> coriander leaf raw
+  canned coconut milk -> coconut milk canned
+Always say the state that changes the calories: raw, dried, ground, canned,
+cooked. For a spice blend or a compound paste with no single entry, name its
+main component.
+
+Exclude only water and genuinely nutritionally immaterial to-taste ingredients.
 Return no nutrient totals. Never hide an assumption."""
 
 
@@ -212,7 +228,7 @@ class RecipeNutritionNormalizer:
         context: AcquiredVideoContext,
         job_id: UUID,
     ) -> NormalizedRecipe:
-        key = f"{self._provider}:nutrition-normalize:v1:{self._model_id}"
+        key = f"{self._provider}:nutrition-normalize:v2:{self._model_id}"
         self._usage.started(
             job_id=job_id,
             provider=self._provider,

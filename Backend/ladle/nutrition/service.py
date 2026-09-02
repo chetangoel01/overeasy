@@ -11,6 +11,7 @@ from ladle.contracts.recipes import FieldUncertaintyDTO, RecipeReviewStatus
 from ladle.nutrition.calculator import (
     NutritionCalculationUnavailable,
     NutritionCalculator,
+    WeakFoodMatch,
 )
 from ladle.nutrition.normalization import (
     NormalizedRecipe,
@@ -61,8 +62,12 @@ class RecipeNutritionService:
         except NutritionNormalizationUnavailable as error:
             return _blocked(template, f"normalizationUnavailable ({error})")
 
+        weak_matches: list[WeakFoodMatch] = []
         try:
-            nutrition = self._calculator.calculate_required(normalized.template)
+            nutrition = self._calculator.calculate_required(
+                normalized.template,
+                weak_matches=weak_matches,
+            )
         except ProviderUnavailable:
             return _blocked(normalized.template, "usdaUnavailable")
         except NutritionCalculationUnavailable as error:
@@ -75,7 +80,7 @@ class RecipeNutritionService:
 
         evidence = _evidence(nutrition, normalized)
         enriched = nutrition.model_copy(update={"evidence": evidence})
-        return _with_nutrition(normalized.template, enriched)
+        return _with_nutrition(normalized.template, enriched, weak_matches)
 
 
 def _blocked(template: RecipeTemplate, reason: str) -> RecipeTemplate:
@@ -99,10 +104,24 @@ def _blocked(template: RecipeTemplate, reason: str) -> RecipeTemplate:
 def _with_nutrition(
     template: RecipeTemplate,
     nutrition: TemplateNutrition,
+    weak_matches: list[WeakFoodMatch] | None = None,
 ) -> RecipeTemplate:
     uncertainties = [
         value for value in template.uncertainties if value.field != "nutrition"
     ]
+    # A doubtful match is surfaced rather than hidden. The totals are still
+    # worth showing — one unmatched blend should not cost the dish its
+    # calories — but the reader is told which ingredient they rest on.
+    for match in weak_matches or []:
+        uncertainties.append(
+            FieldUncertaintyDTO(
+                field=f"ingredients[{match.ingredient_index}].nutritionMatch",
+                reason=(
+                    f"Closest USDA record for {match.ingredient_name} was "
+                    f"{match.description}, which may not describe it."
+                ),
+            )
+        )
     return template.model_copy(
         update={
             "nutrition": nutrition,
