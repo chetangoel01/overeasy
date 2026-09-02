@@ -34,6 +34,8 @@ class SessionTokens:
     user_id: UUID
     device_id: UUID
     user_kind: str
+    display_name: str | None = None
+    avatar_url: str | None = None
 
 
 class SessionService:
@@ -77,7 +79,7 @@ class SessionService:
         database.add(stored)
         return self._tokens(
             stored=stored,
-            user_kind=user.kind,
+            user=user,
             refresh_token=refresh.value,
             now=now,
         )
@@ -136,7 +138,7 @@ class SessionService:
             stored.rotated_at = now
             return self._tokens(
                 stored=stored,
-                user_kind=user.kind,
+                user=user,
                 refresh_token=rotated.value,
                 now=now,
             )
@@ -150,7 +152,7 @@ class SessionService:
         if inside_grace:
             return self._tokens(
                 stored=stored,
-                user_kind=user.kind,
+                user=user,
                 refresh_token=None,
                 now=now,
             )
@@ -226,7 +228,7 @@ class SessionService:
         self,
         *,
         stored: AuthSession,
-        user_kind: str,
+        user: User,
         refresh_token: str | None,
         now: datetime,
     ) -> SessionTokens:
@@ -234,7 +236,7 @@ class SessionService:
             user_id=stored.user_id,
             session_id=stored.id,
             device_id=stored.device_id,
-            user_kind=user_kind,
+            user_kind=user.kind,
             now=now,
         )
         return SessionTokens(
@@ -243,5 +245,7 @@ class SessionService:
             refresh_token=refresh_token,
             user_id=stored.user_id,
             device_id=stored.device_id,
-            user_kind=user_kind,
+            user_kind=user.kind,
+            display_name=user.display_name,
+            avatar_url=user.avatar_url,
         )

@@ -184,15 +184,15 @@ private enum ShareTheme {
     // its call sites until the palette can move into a shared module.
     enum Surface {
         static let porcelain = adaptive(
-            light: (0.949, 0.957, 0.965),
+            light: (0.969, 0.957, 0.937),
             dark: (0.063, 0.071, 0.078)
         )
         static let raised = adaptive(
-            light: (0.890, 0.906, 0.918),
+            light: (0.925, 0.906, 0.882),
             dark: (0.110, 0.125, 0.141)
         )
         static let steel = adaptive(
-            light: (0.843, 0.867, 0.886),
+            light: (0.890, 0.867, 0.839),
             dark: (0.145, 0.165, 0.184)
         )
     }

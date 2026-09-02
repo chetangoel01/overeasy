@@ -52,6 +52,7 @@
 		55B20589986DDCB050444066 /* DemoLaunchScenarioTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67C86D55253AAE6A00C44D36 /* DemoLaunchScenarioTests.swift */; };
 		576B0A57DEFAF69091D82D8C /* HealthKitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49EB0A8621F79A4E7F769532 /* HealthKitService.swift */; };
 		582D38A667F6429C2DAD53C9 /* CookingViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96B58AC391122DA6ADD686C9 /* CookingViewModelTests.swift */; };
+		5A5DB679690A5B3BD9193F1C /* AccountHeaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA818A2F41C226B07147DE3D /* AccountHeaderView.swift */; };
 		5AB882C9AB6EB4BF73B1F7DC /* PreviewFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = A987BC7D76A464A74050A64B /* PreviewFixtures.swift */; };
 		5C05C3DF388966D02FA7F11F /* LadleTypography.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D060807D3AFDD5F858FA2FD /* LadleTypography.swift */; };
 		6004155F8B4E42FACDDED7E5 /* HealthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 739B606520A158CF7F843006 /* HealthService.swift */; };
@@ -88,7 +89,6 @@
 		9BA7286999B0D8E9E8B73822 /* ReimportPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0944ED2DF428DE0518FF8422 /* ReimportPresentation.swift */; };
 		9C16EF897125A7B0B4CBF604 /* AccountSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B38BC487172BD4E150410E78 /* AccountSessionTests.swift */; };
 		9E6908D535A27DA7429230D5 /* AuthClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9C01DA218666D762AB16E8A /* AuthClient.swift */; };
-		9EA61B78797A9FB6B166408C /* RecipeOptionsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D071E3D400501F481FB31EEE /* RecipeOptionsSheet.swift */; };
 		A4AB27B7287BE0F0CFD3B690 /* HealthExportViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09B260DA499835E89F84D468 /* HealthExportViewModelTests.swift */; };
 		A52F5EA121F20FC690F20742 /* SyncStatusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65C5AAF5AD8FED1D8EAD6FE9 /* SyncStatusTests.swift */; };
 		A8723B3DB23725605D7D4B61 /* FocusModeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B9102B1B2F7CE3AAB88544A /* FocusModeView.swift */; };
@@ -100,6 +100,7 @@
 		B8C07A83B04420D104948A91 /* ImportCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCE40C1144201ECA9A36E8BC /* ImportCoordinator.swift */; };
 		BCE8D4284DDADFE5A4E61200 /* RemoteImageCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2364871665B549A371E8011 /* RemoteImageCache.swift */; };
 		BD4975AF606D7BFA55B03340 /* RemoteImageCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E70BCF12B0F114BF77D3F95E /* RemoteImageCacheTests.swift */; };
+		BE1CBC1D0BA910DEE35ACE9A /* RecipeOption.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23538C17B8C5A0B1666D3494 /* RecipeOption.swift */; };
 		C32F195CAF0A21AC0E5F82CD /* HealthExportViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8177765BDFA262D5329D99BF /* HealthExportViewModel.swift */; };
 		C6A344C082E1B3B06F007BDC /* RecipeListRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79C69755A0FE0CB8CFD2F500 /* RecipeListRow.swift */; };
 		C778F0E894F241CB780B47F5 /* DemoLaunchScenario.swift in Sources */ = {isa = PBXBuildFile; fileRef = 060BEF2EA921CEE51CAA24B6 /* DemoLaunchScenario.swift */; };
@@ -110,6 +111,7 @@
 		D06DB754A8B3119973B909FF /* RemoteImportServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95EAF34BC77BC1BC1B427BAC /* RemoteImportServiceTests.swift */; };
 		D099721222903333754D2511 /* LadleCore in Frameworks */ = {isa = PBXBuildFile; productRef = 5B405345B796769819500445 /* LadleCore */; };
 		D2AE2661212614060C337885 /* UserNotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73F97C3F8A386730B6CB7BC2 /* UserNotificationService.swift */; };
+		D4476D01CF372486E18012CC /* SignInOptionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F000720581D01DB27C9E2960 /* SignInOptionsView.swift */; };
 		D6281B6C04FDA0C60A91165C /* SyncConflictReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA36568911CF179D67D23CA8 /* SyncConflictReviewView.swift */; };
 		D7103457BFF15D8530BDA4B2 /* DesignTokenTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F3C25E4F342D1FEEB15A965 /* DesignTokenTests.swift */; };
 		D78BB07879939E3FC2D9E071 /* ProjectSmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9209E28951C4CAA3BC8E7629 /* ProjectSmokeTests.swift */; };
@@ -183,6 +185,7 @@
 		1AE99C267EF3E47EF936C777 /* RecipeTimer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeTimer.swift; sourceTree = "<group>"; };
 		2027095EF76748A9CC4DE10F /* NotificationServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationServiceTests.swift; sourceTree = "<group>"; };
 		2256E64AD0B3ACFDB22A837E /* AuthClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthClientTests.swift; sourceTree = "<group>"; };
+		23538C17B8C5A0B1666D3494 /* RecipeOption.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeOption.swift; sourceTree = "<group>"; };
 		2460B2541E823AB098F4BAFA /* FullRecipeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullRecipeView.swift; sourceTree = "<group>"; };
 		27E622AAB3FB89F99BAD6CAE /* StoredRecipe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoredRecipe.swift; sourceTree = "<group>"; };
 		2A229BB67821612265D01BD7 /* GoogleSignInProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleSignInProvider.swift; sourceTree = "<group>"; };
@@ -267,12 +270,12 @@
 		C657544261EA36028D1ADD38 /* WatchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchView.swift; sourceTree = "<group>"; };
 		CA9412596DCD6FFCA28EC55D /* NutritionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionView.swift; sourceTree = "<group>"; };
 		D0370D3E55CB7D0FD1314AF8 /* OnboardingWalkthroughView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingWalkthroughView.swift; sourceTree = "<group>"; };
-		D071E3D400501F481FB31EEE /* RecipeOptionsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeOptionsSheet.swift; sourceTree = "<group>"; };
 		D170AF6E8F4C1086A15B0546 /* LibraryNavigationStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryNavigationStateTests.swift; sourceTree = "<group>"; };
 		D4507355A7CFAE19690B7D70 /* RemoteImportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteImportService.swift; sourceTree = "<group>"; };
 		D5811E544D3F145804508A12 /* DemoImportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoImportService.swift; sourceTree = "<group>"; };
 		D7B73A4D628A16E2ED7ADBB5 /* CorrectionNotesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CorrectionNotesView.swift; sourceTree = "<group>"; };
 		D975A502CE6CABFF17DE770D /* LadleShare.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = LadleShare.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		DA818A2F41C226B07147DE3D /* AccountHeaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountHeaderView.swift; sourceTree = "<group>"; };
 		DB9237724B9663AD4AFC1232 /* AccountSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSession.swift; sourceTree = "<group>"; };
 		DC8EEB0F6CE2D7F25FAF7308 /* RecipeGridCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeGridCard.swift; sourceTree = "<group>"; };
 		DD8157BECA8D206CD8B984BB /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
@@ -285,6 +288,7 @@
 		E9C01DA218666D762AB16E8A /* AuthClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthClient.swift; sourceTree = "<group>"; };
 		ED3A0E550E090DA7C5FCA73D /* AccountSignInFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSignInFlowTests.swift; sourceTree = "<group>"; };
 		ED6E479FC67096188CF3D983 /* RemoteFailureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteFailureTests.swift; sourceTree = "<group>"; };
+		F000720581D01DB27C9E2960 /* SignInOptionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignInOptionsView.swift; sourceTree = "<group>"; };
 		F165E4B6E30D83BFDFE33A13 /* ImportRecoveryActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportRecoveryActions.swift; sourceTree = "<group>"; };
 		F27EE9D08B4AD704ED77330A /* PrivacyDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivacyDetailView.swift; sourceTree = "<group>"; };
 		F2DDA4DA24D19A4B049A9968 /* ShareConfirmationViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareConfirmationViewTests.swift; sourceTree = "<group>"; };
@@ -405,6 +409,7 @@
 		51F7BED990A63A44D87A4E36 /* Account */ = {
 			isa = PBXGroup;
 			children = (
+				DA818A2F41C226B07147DE3D /* AccountHeaderView.swift */,
 				DB9237724B9663AD4AFC1232 /* AccountSession.swift */,
 				35EFCC50D17300CF2E3C284E /* AccountSheet.swift */,
 				6F46203690760437829A0317 /* AccountSignInFlow.swift */,
@@ -416,6 +421,7 @@
 				FA758C400CD14A086E39D48D /* KeychainTokenStore.swift */,
 				D0370D3E55CB7D0FD1314AF8 /* OnboardingWalkthroughView.swift */,
 				F27EE9D08B4AD704ED77330A /* PrivacyDetailView.swift */,
+				F000720581D01DB27C9E2960 /* SignInOptionsView.swift */,
 				860D5C02610981E7F4B9FC0C /* WelcomeView.swift */,
 			);
 			path = Account;
@@ -444,7 +450,7 @@
 				C3035470E3D4E011D3DDB328 /* MethodList.swift */,
 				41B1A4DD4FEB2DE4274795C2 /* RecipeDetailView.swift */,
 				9B5D35390C608C2FB9D0C0C9 /* RecipeMetadataBand.swift */,
-				D071E3D400501F481FB31EEE /* RecipeOptionsSheet.swift */,
+				23538C17B8C5A0B1666D3494 /* RecipeOption.swift */,
 			);
 			path = RecipeDetail;
 			sourceTree = "<group>";
@@ -792,6 +798,7 @@
 			files = (
 				9623A5A3F2476BF1D217B6C1 /* APIClient.swift in Sources */,
 				7F7F801ED46BB5D88AB81AA1 /* APIError.swift in Sources */,
+				5A5DB679690A5B3BD9193F1C /* AccountHeaderView.swift in Sources */,
 				69743766694999A4F7022D3F /* AccountSession.swift in Sources */,
 				E25710AC24E77B43AD6B6631 /* AccountSheet.swift in Sources */,
 				8AC160A441C4ED585178A621 /* AccountSignInFlow.swift in Sources */,
@@ -846,7 +853,7 @@
 				8D177239F1A086FA834C85C6 /* RecipeGridCard.swift in Sources */,
 				C6A344C082E1B3B06F007BDC /* RecipeListRow.swift in Sources */,
 				E86042D71EA8C713F03F2B53 /* RecipeMetadataBand.swift in Sources */,
-				9EA61B78797A9FB6B166408C /* RecipeOptionsSheet.swift in Sources */,
+				BE1CBC1D0BA910DEE35ACE9A /* RecipeOption.swift in Sources */,
 				7B03E111FA24728DE96CDE04 /* RecipePresentation.swift in Sources */,
 				B6F2C50D9C1E3327A6A59F33 /* RecipeRepository.swift in Sources */,
 				0C08C50CC1819995B222FA03 /* RecipeSyncService.swift in Sources */,
@@ -859,6 +866,7 @@
 				7735E4254A1CC43579B1C7AD /* RootView.swift in Sources */,
 				4CE3214444DC464505688E43 /* ScreenAwakeController.swift in Sources */,
 				75E34BC4C3ECC1FF8580FBDB /* SharedQueueReconciler.swift in Sources */,
+				D4476D01CF372486E18012CC /* SignInOptionsView.swift in Sources */,
 				87248E2F1716A999204DEB21 /* StoredImportJob.swift in Sources */,
 				292CA6391C0A45751E5542C2 /* StoredRecipe.swift in Sources */,
 				0DC711210058792227742BE8 /* SwiftDataRecipeRepository.swift in Sources */,
@@ -997,7 +1005,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 20260825.2;
+				CURRENT_PROJECT_VERSION = 20260831.1;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = P48VDW72LU;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -1117,7 +1125,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 20260825.2;
+				CURRENT_PROJECT_VERSION = 20260831.1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = P48VDW72LU;
 				ENABLE_NS_ASSERTIONS = NO;

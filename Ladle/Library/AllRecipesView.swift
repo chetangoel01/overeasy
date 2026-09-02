@@ -4,6 +4,7 @@ import SwiftUI
 struct AllRecipesView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.ladleAccent) private var accent
 
     @Bindable var viewModel: LibraryViewModel
     let addRecipe: () -> Void
@@ -14,7 +15,6 @@ struct AllRecipesView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: LadleTheme.Spacing.regular) {
-                searchField
                 if viewModel.recipes.isEmpty {
                     firstRecipeState
                 } else {
@@ -31,6 +31,17 @@ struct AllRecipesView: View {
         }
         .scrollIndicators(.hidden)
         .background(LadleTheme.Surface.porcelain)
+        // The system search field, not a hand-rolled one in the scroll
+        // content: it docks under the large title, collapses on scroll the
+        // way every other iOS app does, and stays out of the push transition
+        // instead of sliding across it as a pale slab.
+        .searchable(
+            text: $viewModel.searchText,
+            placement: .navigationBarDrawer(displayMode: .automatic),
+            prompt: "Search recipes"
+        )
+        .textInputAutocapitalization(.never)
+        .autocorrectionDisabled()
         .sensoryFeedback(
             .selection,
             trigger: viewModel.displayMode
@@ -40,42 +51,6 @@ struct AllRecipesView: View {
             trigger: filterChips.map(\.title)
         )
         .accessibilityIdentifier("library.all-recipes")
-    }
-
-    private var searchField: some View {
-        HStack(spacing: LadleTheme.Layout.iconGap) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(LadleTheme.Label.secondary)
-            TextField("Search recipes", text: $viewModel.searchText)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-            if !viewModel.searchText.isEmpty {
-                Button {
-                    viewModel.searchText = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(LadleTheme.Label.secondary)
-                        .frame(
-                            width: LadleTheme.Control.hitTarget,
-                            height: LadleTheme.Control.hitTarget
-                        )
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Clear search")
-            }
-        }
-        .ladleFont(.body)
-        .foregroundStyle(LadleTheme.Label.primary)
-        .padding(.horizontal, LadleTheme.Layout.cardPadding)
-        .frame(minHeight: LadleTheme.Control.field)
-        .background(
-            LadleTheme.Surface.raised,
-            in: RoundedRectangle(
-                cornerRadius: LadleTheme.Corner.control,
-                style: .continuous
-            )
-        )
-        .accessibilityIdentifier("library.search")
     }
 
     private var firstRecipeState: some View {
@@ -103,20 +78,22 @@ struct AllRecipesView: View {
             Spacer()
 
             Menu {
-                ForEach(RecipeSort.allCases, id: \.self) { sort in
-                    Button {
-                        viewModel.sort = sort
-                    } label: {
-                        if viewModel.sort == sort {
-                            Label(sort.libraryTitle, systemImage: "checkmark")
-                        } else {
-                            Text(sort.libraryTitle)
-                        }
+                Picker(
+                    "Sort recipes",
+                    selection: $viewModel.sort
+                ) {
+                    ForEach(RecipeSort.allCases, id: \.self) { sort in
+                        Label(
+                            sort.libraryTitle,
+                            systemImage: sort.librarySystemImage
+                        )
+                        .tag(sort)
                     }
                 }
             } label: {
                 controlIcon("arrow.up.arrow.down")
             }
+            .menuOrder(.fixed)
             .accessibilityLabel("Sort recipes")
             .buttonStyle(LadlePressButtonStyle())
 
@@ -131,44 +108,52 @@ struct AllRecipesView: View {
             .buttonStyle(LadlePressButtonStyle())
 
             Menu {
-                Button {
-                    setDisplayMode(.grid)
-                } label: {
-                    Label(
-                        "Grid",
-                        systemImage: viewModel.displayMode == .grid
-                            ? "checkmark"
-                            : "square.grid.2x2"
+                // A binding rather than `$viewModel.displayMode`, so the
+                // picker still routes through `setDisplayMode` and the grid
+                // keeps its Reduce Motion-aware transition. The setter is
+                // wrapped in a closure on purpose: passing the method
+                // reference bare crashes swift-frontend 6.3.3 in IRGen while
+                // it emits the reabstraction thunk.
+                Picker(
+                    "Recipe view",
+                    selection: Binding(
+                        get: { viewModel.displayMode },
+                        set: { setDisplayMode($0) }
                     )
-                }
-                Button {
-                    setDisplayMode(.list)
-                } label: {
-                    Label(
-                        "List",
-                        systemImage: viewModel.displayMode == .list
-                            ? "checkmark"
-                            : "list.bullet"
-                    )
-                }
-                Button {
-                    setDisplayMode(.gallery)
-                } label: {
-                    Label(
-                        "Gallery",
-                        systemImage: viewModel.displayMode == .gallery
-                            ? "checkmark"
-                            : "photo.on.rectangle.angled"
-                    )
+                ) {
+                    ForEach(LibraryDisplayMode.allCases, id: \.self) { mode in
+                        Label(mode.title, systemImage: mode.systemImage)
+                            .tag(mode)
+                    }
                 }
             } label: {
                 controlIcon(displayModeSystemImage)
             }
+            .menuOrder(.fixed)
             .accessibilityLabel("Recipe view")
             .accessibilityValue(displayModeTitle)
             .buttonStyle(LadlePressButtonStyle())
         }
+        .padding(.trailing, -Self.controlOpticalInset)
     }
+
+    /// How far the control group hangs past the content margin.
+    ///
+    /// `controlIcon` centres a small glyph in a 44-point hit frame, so the
+    /// last glyph's trailing edge landed about 14 points inside the margin
+    /// that the search field, the grid, the collections card and the section
+    /// title all end at — the header read as misaligned by exactly half the
+    /// hit frame. Pulling the group out by that slack aligns the glyphs
+    /// optically while the targets keep their full 44 points and overhang the
+    /// margin, which is what the system's own toolbars do.
+    ///
+    /// The picker rebuild does not retire it: that changed what the menus
+    /// contain, while this corrects the hit frames of the *labels* beneath
+    /// them, which are untouched. It would only go away if the three controls
+    /// moved into the navigation bar as `ToolbarItem`s, which is a different
+    /// header from the one DESIGN.md specifies.
+    private static let controlOpticalInset: CGFloat =
+        (LadleTheme.Control.hitTarget - LadleTheme.IconSize.small) / 2
 
     private var collections: some View {
         VStack(alignment: .leading, spacing: LadleTheme.Layout.rowGap) {
@@ -184,7 +169,7 @@ struct AllRecipesView: View {
                         HStack(spacing: 12) {
                             Image(systemName: row.systemImage)
                                 .font(.system(size: LadleTheme.IconSize.small, weight: .semibold))
-                                .foregroundStyle(LadleTheme.Label.accent)
+                                .foregroundStyle(accent.label)
                                 .frame(width: Self.collectionIconWidth)
                             Text(row.title)
                                 .ladleFont(.body)
@@ -309,7 +294,7 @@ struct AllRecipesView: View {
         VStack(spacing: LadleTheme.Spacing.medium) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: LadleTheme.IconSize.feature))
-                .foregroundStyle(LadleTheme.Label.accent)
+                .foregroundStyle(accent.label)
             Text("No recipes found")
                 .ladleFont(.section)
                 .foregroundStyle(LadleTheme.Label.primary)
@@ -431,19 +416,11 @@ struct AllRecipesView: View {
     }
 
     private var displayModeSystemImage: String {
-        switch viewModel.displayMode {
-        case .grid: "square.grid.2x2"
-        case .list: "list.bullet"
-        case .gallery: "photo.on.rectangle.angled"
-        }
+        viewModel.displayMode.systemImage
     }
 
     private var displayModeTitle: String {
-        switch viewModel.displayMode {
-        case .grid: "Grid"
-        case .list: "List"
-        case .gallery: "Gallery"
-        }
+        viewModel.displayMode.title
     }
 
     private var filterButtonTitle: String {
@@ -490,6 +467,9 @@ extension LibraryRecipeCollection {
     }
 }
 
+/// `RecipeSort` is a LadleCore query value and carries no presentation, so
+/// how the library names and draws each order lives here, beside its only
+/// call site.
 extension RecipeSort {
     var libraryTitle: String {
         switch self {
@@ -498,6 +478,34 @@ extension RecipeSort {
         case .highestProtein: "Highest protein"
         case .calories: "Lowest calories"
         case .alphabetical: "Recipe name"
+        }
+    }
+
+    var librarySystemImage: String {
+        switch self {
+        case .recentlyAdded: "clock"
+        case .cookingTime: "timer"
+        case .highestProtein: "bolt"
+        case .calories: "flame"
+        case .alphabetical: "textformat.abc"
+        }
+    }
+}
+
+extension LibraryDisplayMode {
+    var title: String {
+        switch self {
+        case .grid: "Grid"
+        case .list: "List"
+        case .gallery: "Gallery"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .grid: "square.grid.2x2"
+        case .list: "list.bullet"
+        case .gallery: "photo.on.rectangle.angled"
         }
     }
 }

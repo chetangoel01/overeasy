@@ -18,8 +18,34 @@ enum LibraryToolbarAction: Hashable {
 }
 
 struct LibraryNavigationState: Equatable {
-    var tab: LibraryTab = .recipes
-    var path: [LibraryNavigationDestination] = []
+    /// Discover is where a launch lands: the app is somewhere to spend time
+    /// rather than somewhere to fetch a saved recipe from. `select`,
+    /// `reviewDidComplete` and notification navigation still go to Recipes,
+    /// because those all end in the cook's own library.
+    var tab: LibraryTab = .discover
+    private var paths: [LibraryTab: [LibraryNavigationDestination]] = [:]
+
+    init(
+        tab: LibraryTab = .discover,
+        path: [LibraryNavigationDestination] = []
+    ) {
+        self.tab = tab
+        if !path.isEmpty {
+            paths[tab] = path
+        }
+    }
+
+    /// Each tab keeps its own stack so switching tabs never re-binds a
+    /// shared navigation bar to a different tab's scroll view.
+    subscript(pathFor tab: LibraryTab) -> [LibraryNavigationDestination] {
+        get { paths[tab] ?? [] }
+        set { paths[tab] = newValue }
+    }
+
+    var path: [LibraryNavigationDestination] {
+        get { self[pathFor: tab] }
+        set { self[pathFor: tab] = newValue }
+    }
 
     mutating func open(_ destination: LibraryNavigationDestination) {
         path.append(destination)
@@ -27,12 +53,54 @@ struct LibraryNavigationState: Equatable {
 
     mutating func select(_ tab: LibraryTab) {
         self.tab = tab
-        path = []
+        paths[tab] = []
     }
 
     mutating func reviewDidComplete(hasActionableImports: Bool) {
         tab = hasActionableImports ? .inbox : .recipes
-        path = []
+        paths = [:]
+    }
+}
+
+/// The one silent bounce out of Discover when its feed fails on a cold
+/// launch. Landing on an error screen is the opposite of the reason Discover
+/// is the landing tab, and the saved library is local, so a failed first
+/// feed opens Recipes instead. It fires once per process and only while the
+/// cook has not moved; every later failure belongs to Discover's own error
+/// state, which already offers Try again.
+struct DiscoverLaunchFallback: Equatable {
+    private(set) var didFallBack = false
+    private(set) var didSelectTab = false
+
+    /// Records a tab change unless it is the fallback's own, so a bounce is
+    /// not mistaken for the cook choosing to be on Recipes.
+    mutating func tabDidChange(from oldTab: LibraryTab, to newTab: LibraryTab) {
+        guard !isFallbackChange(from: oldTab, to: newTab) else { return }
+        didSelectTab = true
+    }
+
+    /// The bounce moves the selection itself, so the selection haptic has to
+    /// skip that one change or a failed launch clicks like a tap.
+    func isFallbackChange(
+        from oldTab: LibraryTab,
+        to newTab: LibraryTab
+    ) -> Bool {
+        didFallBack && !didSelectTab
+            && oldTab == .discover && newTab == .recipes
+    }
+
+    /// True when the caller should select Recipes; consumes the one chance
+    /// to do so.
+    mutating func claim(
+        for navigation: LibraryNavigationState
+    ) -> Bool {
+        guard !didFallBack,
+              !didSelectTab,
+              navigation.tab == .discover,
+              navigation.path.isEmpty
+        else { return false }
+        didFallBack = true
+        return true
     }
 }
 
@@ -83,29 +151,11 @@ struct LibraryView: View {
     @State private var failedImportJob: ImportJob?
     @State private var pendingDestination: LibraryRecipeDestination?
     @State private var watchRefreshVersion = 0
+    @State private var discoverFallback = DiscoverLaunchFallback()
 
     var body: some View {
-        NavigationStack(path: $navigation.path) {
-            workspace
+        workspace
             .background(LadleTheme.Surface.porcelain)
-            .tint(LadleTheme.Intent.accent)
-            .navigationTitle(navigation.tab.title)
-            .navigationBarTitleDisplayMode(.large)
-            .toolbar(
-                navigation.tab == .watch
-                    ? .hidden
-                    : .visible,
-                for: .navigationBar
-            )
-            .toolbar {
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    accountButton
-                    if workspacePresentation.displaysTabs,
-                       navigation.tab == .recipes {
-                        addRecipeButton
-                    }
-                }
-            }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("library.root")
             .task(id: notificationNavigation.recipeID) {
@@ -122,6 +172,9 @@ struct LibraryView: View {
                     accountSession: accountSession,
                     library: viewModel,
                     syncStatus: syncStatus,
+                    authClient: authClient,
+                    googleSignIn: googleSignIn,
+                    onAuthenticated: onAuthenticated,
                     signOut: onSignOut,
                     deleteAccount: onDeleteAccount
                 )
@@ -165,13 +218,6 @@ struct LibraryView: View {
                     }
                 )
             }
-            .navigationDestination(for: LibraryNavigationDestination.self) {
-                destination in
-                switch destination {
-                case let .recipe(destination):
-                    recipeDetail(destination)
-                }
-            }
             .onChange(of: importCoordinator.state) { _, state in
                 if state.refreshesLibrary {
                     viewModel.load()
@@ -181,40 +227,53 @@ struct LibraryView: View {
                 if newTab == .watch, oldTab != .watch {
                     watchRefreshVersion += 1
                 }
+                discoverFallback.tabDidChange(from: oldTab, to: newTab)
             }
             .libraryOperationAlert(
                 isPresented: operationErrorIsPresented,
                 message: operationErrorText,
                 clear: viewModel.clearOperationError
             )
-        }
-        .sensoryFeedback(.selection, trigger: navigation.tab)
-        .sensoryFeedback(
-            .impact(weight: .light, intensity: 0.65),
-            trigger: navigation.path.count
-        ) { oldCount, newCount in
-            LadleFeedbackPolicy.didPush(
-                from: oldCount,
-                to: newCount
+            .sensoryFeedback(
+                .selection,
+                trigger: navigation.tab,
+                condition: isChosenTab
             )
-        }
-        .sensoryFeedback(
-            .error,
-            trigger: viewModel.operationErrorMessage
-        ) { oldMessage, newMessage in
-            newMessage != nil && newMessage != oldMessage
-        }
+            .sensoryFeedback(
+                .impact(weight: .light, intensity: 0.65),
+                trigger: navigation,
+                condition: isPushWithinTab
+            )
+            .sensoryFeedback(
+                .error,
+                trigger: viewModel.operationErrorMessage
+            ) { oldMessage, newMessage in
+                newMessage != nil && newMessage != oldMessage
+            }
     }
 
     @ViewBuilder
     private var workspace: some View {
         switch workspacePresentation {
         case .loading:
-            LibraryLoadStateView(message: nil, retry: viewModel.load)
+            loadState(message: nil)
         case let .blockingFailure(message):
-            LibraryLoadStateView(message: message, retry: viewModel.load)
+            loadState(message: message)
         case let .content(reloadError):
             workspaceTabs(reloadError: reloadError)
+        }
+    }
+
+    private func loadState(message: String?) -> some View {
+        NavigationStack {
+            LibraryLoadStateView(message: message, retry: viewModel.load)
+                .navigationTitle(LibraryTab.recipes.title)
+                .navigationBarTitleDisplayMode(.large)
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        accountButton
+                    }
+                }
         }
     }
 
@@ -227,28 +286,63 @@ struct LibraryView: View {
 
     private func workspaceTabs(reloadError: String?) -> some View {
         TabView(selection: $navigation.tab) {
-            recipesTab
-            discoverTab
+            recipesTab(reloadError: reloadError)
+            discoverTab(reloadError: reloadError)
             watchTab
-            inboxTab
+            inboxTab(reloadError: reloadError)
         }
-        .safeAreaInset(edge: .top, spacing: 0) {
-            VStack(spacing: 0) {
-                if let reloadError {
-                    LibraryReloadErrorBanner(
-                        message: reloadError,
-                        retry: viewModel.load
-                    )
-                }
-                if !viewModel.syncConflicts.isEmpty {
-                    SyncConflictBanner(
-                        count: viewModel.syncConflicts.count,
-                        review: { isConflictReviewPresented = true }
-                    )
-                }
-                SyncStatusBanner(status: syncStatus)
+    }
+
+    /// Banners sit inside each tab's own stack so they render below that
+    /// tab's navigation bar rather than above every bar at once.
+    @ViewBuilder
+    private func banners(reloadError: String?) -> some View {
+        VStack(spacing: 0) {
+            if let reloadError {
+                LibraryReloadErrorBanner(
+                    message: reloadError,
+                    retry: viewModel.load
+                )
             }
+            if !viewModel.syncConflicts.isEmpty {
+                SyncConflictBanner(
+                    count: viewModel.syncConflicts.count,
+                    review: { isConflictReviewPresented = true }
+                )
+            }
+            SyncStatusBanner(status: syncStatus)
         }
+    }
+
+    /// The cold-launch bounce out of a failed Discover is not a choice, so
+    /// it does not get the selection click a tap would.
+    private func isChosenTab(
+        _ oldTab: LibraryTab,
+        _ newTab: LibraryTab
+    ) -> Bool {
+        !discoverFallback.isFallbackChange(from: oldTab, to: newTab)
+    }
+
+    /// Per-tab stacks mean the current path count also changes when
+    /// switching tabs; only a push inside one tab should feel like a push.
+    private func isPushWithinTab(
+        _ oldValue: LibraryNavigationState,
+        _ newValue: LibraryNavigationState
+    ) -> Bool {
+        guard oldValue.tab == newValue.tab else { return false }
+        return LadleFeedbackPolicy.didPush(
+            from: oldValue.path.count,
+            to: newValue.path.count
+        )
+    }
+
+    private func pathBinding(
+        for tab: LibraryTab
+    ) -> Binding<[LibraryNavigationDestination]> {
+        Binding(
+            get: { navigation[pathFor: tab] },
+            set: { navigation[pathFor: tab] = $0 }
+        )
     }
 
     private var recipes: some View {
@@ -261,23 +355,82 @@ struct LibraryView: View {
         )
     }
 
-    private var recipesTab: some View {
-        recipes
-            .tabItem {
-                Label("Recipes", systemImage: "book.closed")
-            }
-            .tag(LibraryTab.recipes)
+    private func recipesTab(reloadError: String?) -> some View {
+        tabStack(.recipes, reloadError: reloadError) {
+            recipes
+                .toolbar {
+                    ToolbarItemGroup(placement: .topBarTrailing) {
+                        accountButton
+                        addRecipeButton
+                    }
+                }
+        }
+        .tabItem {
+            Label("Recipes", systemImage: "book.closed")
+        }
+        .tag(LibraryTab.recipes)
     }
 
-    private var discoverTab: some View {
-        discover
-            .tabItem {
-                Label("Discover", systemImage: "fork.knife")
-            }
-            .tag(LibraryTab.discover)
+    private func discoverTab(reloadError: String?) -> some View {
+        tabStack(.discover, reloadError: reloadError) {
+            discover
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        accountButton
+                    }
+                }
+        }
+        .tabItem {
+            Label("Discover", systemImage: "fork.knife")
+        }
+        .tag(LibraryTab.discover)
+    }
+
+    /// One navigation stack per tab: each tab owns its bar, so the large
+    /// title is already in place when the tab appears.
+    private func tabStack<Content: View>(
+        _ tab: LibraryTab,
+        reloadError: String?,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        NavigationStack(path: pathBinding(for: tab)) {
+            content()
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    banners(reloadError: reloadError)
+                }
+                .navigationTitle(tab.title)
+                .navigationBarTitleDisplayMode(.large)
+                .navigationDestination(
+                    for: LibraryNavigationDestination.self
+                ) { destination in
+                    switch destination {
+                    case let .recipe(destination):
+                        recipeDetail(destination)
+                    }
+                }
+        }
     }
 
     private var watchTab: some View {
+        NavigationStack(path: pathBinding(for: .watch)) {
+            watchContent
+                .toolbar(.hidden, for: .navigationBar)
+                .navigationDestination(
+                    for: LibraryNavigationDestination.self
+                ) { destination in
+                    switch destination {
+                    case let .recipe(destination):
+                        recipeDetail(destination)
+                    }
+                }
+        }
+        .tabItem {
+            Label("Watch", systemImage: "play.rectangle")
+        }
+        .tag(LibraryTab.watch)
+    }
+
+    private var watchContent: some View {
         WatchView(
             viewModel: viewModel,
             discoverService: discoverService,
@@ -292,18 +445,31 @@ struct LibraryView: View {
             },
             saveRecipe: { saved in
                 viewModel.storeDiscoveredRecipe(saved)
-            },
-            openAccount: { isAccountPresented = true }
+            }
         )
-        .tabItem {
-            Label("Watch", systemImage: "play.rectangle")
-        }
-        .tag(LibraryTab.watch)
     }
 
-    private var inboxTab: some View {
+    private func inboxTab(reloadError: String?) -> some View {
+        tabStack(.inbox, reloadError: reloadError) {
+            inboxContent
+                .toolbar {
+                    ToolbarItemGroup(placement: .topBarTrailing) {
+                        accountButton
+                        addRecipeButton
+                    }
+                }
+        }
+        .tabItem {
+            Label("Inbox", systemImage: "tray")
+        }
+        .badge(viewModel.importAttentionCount)
+        .tag(LibraryTab.inbox)
+    }
+
+    private var inboxContent: some View {
         ImportInboxView(
             viewModel: viewModel,
+            addRecipe: presentAddRecipe,
             recoverImport: { failedImportJob = $0 },
             openProcessing: presentProcessing,
             cancelImport: { jobID in
@@ -315,13 +481,9 @@ struct LibraryView: View {
             openReview: { recipe, statusText in
                 showRecipe(recipe, statusText: statusText)
             },
-            operationFailure: importCoordinator.failure
+            operationFailure: importCoordinator.failure,
+            canImport: canImport
         )
-        .tabItem {
-            Label("Inbox", systemImage: "tray")
-        }
-        .badge(viewModel.importAttentionCount)
-        .tag(LibraryTab.inbox)
     }
 
     private var discover: some View {
@@ -336,8 +498,14 @@ struct LibraryView: View {
                     statusText: "Discover recipe",
                     access: .discover
                 )
-            }
+            },
+            onInitialLoadFailed: fallBackToRecipesIfNeeded
         )
+    }
+
+    private func fallBackToRecipesIfNeeded() {
+        guard discoverFallback.claim(for: navigation) else { return }
+        navigation.select(.recipes)
     }
 
     private var accountButton: some View {
@@ -539,6 +707,8 @@ private struct SyncStatusBanner: View {
 }
 
 private struct LibraryReloadErrorBanner: View {
+    @Environment(\.ladleAccent) private var accent
+
     let message: String
     let retry: () -> Void
 
@@ -562,7 +732,7 @@ private struct LibraryReloadErrorBanner: View {
             Spacer(minLength: LadleTheme.Spacing.compact)
             Button("Try Again", action: retry)
                 .ladleFont(.bodyStrong)
-                .foregroundStyle(LadleTheme.Label.accent)
+                .foregroundStyle(accent.label)
                 .buttonStyle(.plain)
         }
         .padding(.horizontal, LadleTheme.Layout.screenMargin)
@@ -578,6 +748,8 @@ private struct LibraryReloadErrorBanner: View {
 }
 
 private struct LibraryLoadStateView: View {
+    @Environment(\.ladleAccent) private var accent
+
     let message: String?
     let retry: () -> Void
 
@@ -586,7 +758,7 @@ private struct LibraryLoadStateView: View {
             if let message {
                 Image(systemName: "fork.knife.circle")
                     .font(.system(size: LadleTheme.IconSize.hero))
-                    .foregroundStyle(LadleTheme.Label.accent)
+                    .foregroundStyle(accent.label)
                 Text("Couldn’t load recipes")
                     .ladleFont(.section)
                     .foregroundStyle(LadleTheme.Label.primary)
@@ -598,7 +770,7 @@ private struct LibraryLoadStateView: View {
                     .buttonStyle(LadleButtonStyle(role: .secondary))
             } else {
                 ProgressView("Loading recipes")
-                    .tint(LadleTheme.Intent.accent)
+                    .tint(accent.intent)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -695,6 +867,8 @@ extension LibraryTab {
     }
 
     var toolbarActions: [LibraryToolbarAction] {
-        self == .recipes ? [.account, .addRecipe] : [.account]
+        [.recipes, .inbox].contains(self)
+            ? [.account, .addRecipe]
+            : [.account]
     }
 }

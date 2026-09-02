@@ -345,10 +345,10 @@ final class LibraryViewModelTests: XCTestCase {
         XCTAssertEqual(shuffleCallCount, 1)
     }
 
-    func testDenseArchiveFactsLeadWithProtein() {
+    func testDenseArchiveFactsLeadWithCalories() {
         XCTAssertEqual(
             PreviewFixtures.recipes[0].libraryFacts,
-            "38 g P · ≈ 680 cal"
+            "680 cal · 38g protein"
         )
     }
 
@@ -366,7 +366,7 @@ final class LibraryViewModelTests: XCTestCase {
             )
         )
 
-        XCTAssertEqual(recipe.libraryFacts, "30 g P · ≈ 300 cal")
+        XCTAssertEqual(recipe.libraryFacts, "300 cal · 30g protein")
     }
 
     func testDenseArchiveFactsRoundRepeatingPerServingValues() {
@@ -383,8 +383,30 @@ final class LibraryViewModelTests: XCTestCase {
             )
         )
 
-        XCTAssertEqual(recipe.libraryFacts, "5 g P · ≈ 57 cal")
+        XCTAssertEqual(recipe.libraryFacts, "57 cal · 5g protein")
         XCTAssertEqual(recipe.ladleYieldText, "11 servings")
+    }
+
+    /// Both facts land exactly on a half: 1137/2 calories and 49/2 grams of
+    /// protein. This pins the rounding rule, not just the digit count —
+    /// Foundation's default is half-to-even, which reads "568 cal · 24g
+    /// protein" and takes both halves down. 1139/2 would not: 569.5 rounds
+    /// to 570 either way.
+    func testDenseArchiveFactsRoundHalvesAwayFromZero() {
+        let recipe = Recipe(
+            title: "Sheet-Pan Chicken Thighs",
+            source: .tiktok,
+            originalURL: URL(string: "https://www.tiktok.com/@cook/video/2")!,
+            servings: 2,
+            nutrition: Nutrition(
+                calories: 1_137,
+                proteinGrams: 49,
+                servingBasis: 2,
+                isEstimated: true
+            )
+        )
+
+        XCTAssertEqual(recipe.libraryFacts, "569 cal · 25g protein")
     }
 
     func testDenseArchiveFactsOmitNutritionWithInvalidServingBasis() {
@@ -420,7 +442,7 @@ final class LibraryViewModelTests: XCTestCase {
             )
         )
 
-        XCTAssertEqual(recipe.libraryFacts, "20 g P · 300 cal")
+        XCTAssertEqual(recipe.libraryFacts, "300 cal · 20g protein")
     }
 
     func testDisplayModePersistsAcrossViewModels() {

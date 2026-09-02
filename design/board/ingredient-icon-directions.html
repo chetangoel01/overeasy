@@ -1,0 +1,713 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Overeasy Ingredient Art Directions</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f2f4f6;
+      --raised: #e3e7ea;
+      --steel: #d7dde2;
+      --ink: #14181b;
+      --muted: #64707a;
+      --accent: #c73924;
+      --white: #fafbfc;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body { min-height: 100%; }
+
+    body {
+      margin: 0;
+      background: #d9dee2;
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    button, a { -webkit-tap-highlight-color: transparent; }
+
+    #stage { min-height: 100vh; }
+
+    .lab {
+      display: grid;
+      grid-template-columns: minmax(340px, 402px) minmax(300px, 480px);
+      justify-content: center;
+      align-items: center;
+      gap: 48px;
+      min-height: 100vh;
+      padding: 44px 32px 92px;
+    }
+
+    .phone {
+      width: 100%;
+      max-width: 402px;
+      min-height: 818px;
+      overflow: hidden;
+      border: 8px solid #0e1012;
+      border-radius: 48px;
+      background: var(--paper);
+      box-shadow: 0 26px 70px rgba(20, 24, 27, 0.22);
+    }
+
+    .status-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      height: 46px;
+      padding: 9px 23px 0;
+      font-size: 14px;
+      font-weight: 650;
+    }
+
+    .status-icons {
+      letter-spacing: 2px;
+      font-size: 12px;
+    }
+
+    .nav-bar {
+      display: grid;
+      grid-template-columns: 44px 1fr 44px;
+      align-items: center;
+      min-height: 48px;
+      padding: 0 14px;
+    }
+
+    .nav-glyph {
+      display: grid;
+      place-items: center;
+      width: 44px;
+      height: 44px;
+      color: var(--accent);
+      font-size: 29px;
+      line-height: 1;
+    }
+
+    .nav-title {
+      text-align: center;
+      font-size: 17px;
+      font-weight: 650;
+    }
+
+    .recipe-head {
+      padding: 10px 22px 0;
+    }
+
+    .eyebrow {
+      margin: 0 0 6px;
+      color: var(--accent);
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    h1 {
+      max-width: 330px;
+      margin: 0;
+      font-size: 31px;
+      line-height: 1.04;
+      letter-spacing: -0.9px;
+    }
+
+    .summary {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.35;
+    }
+
+    .macro-strip {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      margin: 17px 0 16px;
+      padding: 11px 8px;
+      border-radius: 16px;
+      background: var(--raised);
+    }
+
+    .macro {
+      min-width: 0;
+      text-align: center;
+    }
+
+    .macro strong {
+      display: block;
+      font-size: 14px;
+      line-height: 1.15;
+    }
+
+    .macro span {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 10px;
+      line-height: 1.1;
+    }
+
+    .section-switch {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      padding: 4px;
+      border-radius: 13px;
+      background: var(--raised);
+    }
+
+    .section-switch span {
+      min-height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 10px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .section-switch .selected {
+      background: var(--white);
+      color: var(--ink);
+      box-shadow: 0 1px 4px rgba(20, 24, 27, 0.09);
+    }
+
+    .ingredients {
+      padding: 18px 22px 28px;
+    }
+
+    .ingredients-title {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 7px;
+    }
+
+    .ingredients-title h2 {
+      margin: 0;
+      font-size: 22px;
+      letter-spacing: -0.35px;
+    }
+
+    .ingredients-title span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .ingredient-row {
+      display: grid;
+      grid-template-columns: 54px 1fr;
+      align-items: center;
+      gap: 13px;
+      min-height: 67px;
+      border-bottom: 1px solid rgba(20, 24, 27, 0.08);
+    }
+
+    .ingredient-row:last-child { border-bottom: 0; }
+
+    .food-icon {
+      display: block;
+      width: 50px;
+      height: 50px;
+      object-fit: contain;
+    }
+
+    .sticker .food-icon {
+      width: 48px;
+      height: 48px;
+    }
+
+    .pencil-sticker .food-icon,
+    .watercolor .food-icon,
+    .painted .food-icon {
+      border-radius: 13px;
+      background-repeat: no-repeat;
+    }
+
+    .pencil-sticker .food-icon {
+      background-color: #f0f2d5;
+      background-image: url("https://i.pinimg.com/736x/02/45/90/02459043cf984ca0af5cb71dc07a6512.jpg");
+      background-size: 184px 184px;
+    }
+
+    .pencil-sticker .tomato { background-position: -85px -120px; }
+    .pencil-sticker .corn {
+      background-size: 260px 260px;
+      background-position: -26px -40px;
+    }
+    .pencil-sticker .carrot {
+      background-size: 213px 213px;
+      background-position: -117px -71px;
+    }
+    .pencil-sticker .garlic {
+      background-size: 265px 265px;
+      background-position: -199px -145px;
+    }
+    .pencil-sticker .paprika {
+      background-size: 236px 236px;
+      background-position: -58px -1px;
+    }
+
+    .watercolor .food-icon {
+      background-color: #fff;
+      background-image: url("https://fbcd.co/images/products/vM2A3O5QH1u69E.jpg");
+      background-size: 291px 193px;
+      box-shadow: inset 0 0 0 1px rgba(20, 24, 27, 0.04);
+    }
+
+    .watercolor .tomato { background-position: -10px -31px; }
+    .watercolor .corn { background-position: -30px -125px; }
+    .watercolor .carrot { background-position: -35px -68px; }
+    .watercolor .garlic { background-position: -155px -80px; }
+    .watercolor .paprika { background-position: -100px -3px; }
+
+    .painted .food-icon {
+      background-color: #fff;
+      background-image: url("https://img.itch.zone/aW1hZ2UvMTc0Mjg3Ni8xMDI1NjU2My5qcGc%3D/original/ZZqZQZ.jpg");
+      background-size: 644px 429px;
+      filter: saturate(0.92);
+    }
+
+    .painted .tomato { background-position: -473px -288px; }
+    .painted .corn { background-position: 1px -157px; }
+    .painted .carrot { background-position: -158px -25px; }
+    .painted .garlic { background-position: -322px -91px; }
+    .painted .paprika { background-position: -470px -26px; }
+
+    .soft-3d .food-icon {
+      width: 50px;
+      height: 50px;
+      filter: drop-shadow(0 4px 4px rgba(20, 24, 27, 0.08));
+    }
+
+    .ingredient-copy strong {
+      display: block;
+      font-size: 15px;
+      line-height: 1.25;
+    }
+
+    .ingredient-copy span {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.2;
+    }
+
+    .fallback-icon {
+      display: grid;
+      place-items: center;
+      width: 50px;
+      height: 50px;
+      border: 1px dashed rgba(20, 24, 27, 0.18);
+      border-radius: 14px;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 650;
+      text-align: center;
+    }
+
+    .direction {
+      max-width: 460px;
+    }
+
+    .direction-kicker {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 0 11px;
+      border-radius: 999px;
+      background: rgba(250, 251, 252, 0.76);
+      color: #4e5962;
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    .direction h2 {
+      margin: 14px 0 8px;
+      font-size: clamp(34px, 4vw, 52px);
+      line-height: 0.98;
+      letter-spacing: -1.8px;
+    }
+
+    .direction > p {
+      max-width: 440px;
+      margin: 0;
+      color: #4e5962;
+      font-size: 17px;
+      line-height: 1.48;
+    }
+
+    .decision-card {
+      margin-top: 24px;
+      overflow: hidden;
+      border: 1px solid rgba(20, 24, 27, 0.09);
+      border-radius: 20px;
+      background: rgba(250, 251, 252, 0.72);
+    }
+
+    .decision-row {
+      display: grid;
+      grid-template-columns: 106px 1fr;
+      gap: 16px;
+      padding: 14px 16px;
+      border-bottom: 1px solid rgba(20, 24, 27, 0.08);
+    }
+
+    .decision-row:last-child { border-bottom: 0; }
+
+    .decision-row dt {
+      color: #69747c;
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    .decision-row dd {
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .source-link {
+      display: inline-flex;
+      align-items: center;
+      min-height: 44px;
+      margin-top: 18px;
+      color: #8f2d1f;
+      font-size: 14px;
+      font-weight: 650;
+      text-decoration: none;
+    }
+
+    .source-link:hover { text-decoration: underline; }
+
+    .research-note {
+      margin-top: 12px;
+      color: #69747c;
+      font-size: 11px;
+      line-height: 1.4;
+    }
+
+    @media (max-width: 820px) {
+      .lab {
+        grid-template-columns: minmax(320px, 402px);
+        align-items: start;
+        gap: 28px;
+        padding: 24px 16px 104px;
+      }
+
+      .direction { padding: 0 8px; }
+      .direction h2 { font-size: 38px; }
+    }
+
+    @media (max-width: 390px) {
+      .lab { padding-inline: 0; }
+      .phone {
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+      }
+      .direction { padding-inline: 20px; }
+    }
+
+    .proto-picker {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 2147483647;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      padding: 4px;
+      border-radius: 999px;
+      background: rgba(10, 10, 10, 0.82);
+      -webkit-backdrop-filter: blur(12px) saturate(1.4);
+      backdrop-filter: blur(12px) saturate(1.4);
+      box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.08) inset,
+        0 8px 24px rgba(0, 0, 0, 0.24),
+        0 2px 6px rgba(0, 0, 0, 0.12);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 13px;
+      line-height: 1;
+      -webkit-font-smoothing: antialiased;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .proto-picker-highlight {
+      position: absolute;
+      top: 4px;
+      left: 0;
+      height: 28px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.12);
+      will-change: transform;
+    }
+
+    .proto-picker[data-ready] .proto-picker-highlight {
+      transition:
+        transform 250ms cubic-bezier(0.23, 1, 0.32, 1),
+        width 250ms cubic-bezier(0.23, 1, 0.32, 1);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .proto-picker[data-ready] .proto-picker-highlight { transition: none; }
+    }
+
+    .proto-picker-item {
+      position: relative;
+      display: flex;
+      align-items: center;
+      height: 28px;
+      padding: 0 12px;
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
+      color: rgba(255, 255, 255, 0.55);
+      font: inherit;
+      cursor: pointer;
+      transition: color 150ms ease-out;
+    }
+
+    .proto-picker-item:hover { color: rgba(255, 255, 255, 0.85); }
+    .proto-picker-item:active { transform: scale(0.97); }
+
+    .proto-picker-item:focus-visible {
+      outline: 2px solid rgba(255, 255, 255, 0.4);
+      outline-offset: 2px;
+    }
+
+    .proto-picker-item[data-active] { color: #fff; }
+
+    .proto-picker-divider {
+      width: 1px;
+      height: 16px;
+      margin: 0 4px;
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    .proto-picker-replay {
+      padding: 0 10px;
+      font-size: 14px;
+    }
+
+    .proto-picker[data-position="top"] {
+      bottom: auto;
+      top: 24px;
+    }
+  </style>
+</head>
+<body>
+  <main id="stage" aria-live="polite"></main>
+
+  <nav class="proto-picker" aria-label="Prototype variants">
+    <span class="proto-picker-highlight" aria-hidden="true"></span>
+    <button class="proto-picker-item" data-active aria-current="true">Sticker</button>
+    <button class="proto-picker-item">Pencil</button>
+    <button class="proto-picker-item">Watercolor</button>
+    <button class="proto-picker-item">Painted</button>
+    <button class="proto-picker-item">Soft 3D</button>
+  </nav>
+
+  <script>
+    const ingredients = [
+      ["1½ cups", "cherry tomatoes", "halved"],
+      ["2 ears", "sweet corn", "kernels removed"],
+      ["1 large", "carrot", "thinly sliced"],
+      ["3 cloves", "garlic", "finely chopped"],
+      ["1 large", "red bell pepper", "diced"],
+    ];
+
+    function ingredientRows(kind, sources) {
+      const classes = ["tomato", "corn", "carrot", "garlic", "paprika"];
+      return ingredients.map((item, index) => {
+        const icon = sources.length
+          ? `<img class="food-icon" src="${sources[index]}" alt="" aria-hidden="true">`
+          : `<span class="food-icon ${classes[index]}" aria-hidden="true"></span>`;
+        return `
+          <div class="ingredient-row">
+            ${icon}
+            <div class="ingredient-copy">
+              <strong>${item[0]} ${item[1]}</strong>
+              <span>${item[2]}</span>
+            </div>
+          </div>`;
+      }).join("");
+    }
+
+    function phone(kind, sources) {
+      return `
+        <section class="phone ${kind}" aria-label="Overeasy recipe ingredient preview">
+          <div class="status-bar"><span>9:41</span><span class="status-icons">▮▮▮ ))) ▰</span></div>
+          <div class="nav-bar">
+            <span class="nav-glyph" aria-hidden="true">‹</span>
+            <span class="nav-title">Recipe</span>
+            <span class="nav-glyph" aria-hidden="true">•••</span>
+          </div>
+          <header class="recipe-head">
+            <p class="eyebrow">YouTube · @weeknighttable</p>
+            <h1>Roasted Vegetable Orzo</h1>
+            <p class="summary">6 ingredients · 30 min · 4 servings</p>
+            <div class="macro-strip" aria-label="Estimated macros per serving">
+              <div class="macro"><strong>438</strong><span>Calories</span></div>
+              <div class="macro"><strong>17 g</strong><span>Protein</span></div>
+              <div class="macro"><strong>62 g</strong><span>Carbs</span></div>
+              <div class="macro"><strong>14 g</strong><span>Fat</span></div>
+            </div>
+            <div class="section-switch" aria-hidden="true">
+              <span class="selected">Ingredients</span><span>Method</span>
+            </div>
+          </header>
+          <section class="ingredients">
+            <div class="ingredients-title"><h2>Ingredients</h2><span>4 servings</span></div>
+            ${ingredientRows(kind, sources)}
+            <div class="ingredient-row">
+              <span class="fallback-icon" aria-hidden="true">NO<br>GUESS</span>
+              <div class="ingredient-copy">
+                <strong>1 tbsp Grandma Rosa’s seasoning</strong>
+                <span>Text-only when no honest match exists</span>
+              </div>
+            </div>
+          </section>
+        </section>`;
+    }
+
+    function info(name, description, axis, coverage, cost, sourceName, sourceURL, note) {
+      return `
+        <aside class="direction">
+          <span class="direction-kicker">Ingredient art direction</span>
+          <h2>${name}</h2>
+          <p>${description}</p>
+          <dl class="decision-card">
+            <div class="decision-row"><dt>Axis</dt><dd>${axis}</dd></div>
+            <div class="decision-row"><dt>Coverage</dt><dd>${coverage}</dd></div>
+            <div class="decision-row"><dt>Cost</dt><dd>${cost}</dd></div>
+          </dl>
+          <a class="source-link" href="${sourceURL}" target="_blank" rel="noreferrer">View ${sourceName} source ↗</a>
+          <p class="research-note">${note} Artwork is linked from its catalog for evaluation only; production use requires the applicable license.</p>
+        </aside>`;
+    }
+
+    const stickerSources = [
+      "https://img.icons8.com/stickers/100/tomato.png",
+      "https://img.icons8.com/stickers/100/corn.png",
+      "https://img.icons8.com/stickers/100/carrot.png",
+      "https://img.icons8.com/stickers/100/garlic.png",
+      "https://img.icons8.com/stickers/100/paprika.png",
+    ];
+
+    const soft3dSources = [
+      "https://img.icons8.com/3d-fluency/94/tomato.png",
+      "https://img.icons8.com/3d-fluency/94/corn.png",
+      "https://img.icons8.com/3d-fluency/94/carrot.png",
+      "https://img.icons8.com/3d-fluency/94/garlic.png",
+      "https://img.icons8.com/3d-fluency/94/paprika.png",
+    ];
+
+    const variants = [
+      () => `<div class="lab">${phone("sticker", stickerSources)}${info(
+        "Sticker Pantry",
+        "Crisp outlined illustrations stay cute and immediately recognizable without adding realistic depth.",
+        "Playful clarity with flat, isolated shapes",
+        "Broad commodity coverage is available, but branded ingredients and unusual cuts still need a fallback.",
+        "More casual than the rest of Overeasy; free Icons8 use requires attribution and paid use requires the proper license.",
+        "Icons8 Stickers",
+        "https://icons8.com/icons/set/food--style-stickers",
+        "Sample PNGs are served directly by Icons8."
+      )}</div>`,
+      () => `<div class="lab">${phone("pencil-sticker", [])}${info(
+        "Pencil Sticker",
+        "Colored-pencil texture and a true die-cut edge keep the friendliness of a sticker while making the produce feel more natural.",
+        "More realistic texture, still unmistakably a sticker",
+        "The source collection covers familiar produce well; a complete ingredient vocabulary would need adjacent packs or commissioned matches.",
+        "Premium Rawpixel artwork requires the appropriate business license, and cross-pack consistency needs validation before production.",
+        "Rawpixel organic vegetable stickers",
+        "https://www.rawpixel.com/image/2456411/premium-illustration-psd-organic-vegetable-sticker-outline-corn",
+        "The crops shown here come from Rawpixel’s published collection preview."
+      )}</div>`,
+      () => `<div class="lab">${phone("watercolor", [])}${info(
+        "Watercolor Cutout",
+        "Natural proportions, pigment variation, and paper texture make each ingredient feel illustrated from life rather than iconized.",
+        "Most organic and cookbook-like",
+        "The referenced pack covers common produce; pantry items, proteins, and branded ingredients would require matching companion artwork.",
+        "Paid marketplace license; delicate edges can lose clarity on busy imagery or at very small sizes.",
+        "Design Bundles watercolor vegetables",
+        "https://designbundles.net/clipart-shop/16415-vegetables-clipart-watercolor",
+        "The crops shown here come from the seller’s published product preview."
+      )}</div>`,
+      () => `<div class="lab">${phone("painted", [])}${info(
+        "Painted Pantry",
+        "Detailed lighting and hand-painted form land between a sticker and a miniature food portrait.",
+        "Richest detail without becoming photographic",
+        "The pack contains 96 individual transparent PNGs, but still cannot cover arbitrary ingredient text on its own.",
+        "A $12 asset license permits use and modification in commercial projects; the game-art flavor is the strongest stylistic departure.",
+        "David Baumgart food icons",
+        "https://dgbaumgart.itch.io/icons-food-spices-drinks",
+        "The crops shown here come from the artist’s published catalog sheet."
+      )}</div>`,
+      () => `<div class="lab">${phone("soft-3d", soft3dSources)}${info(
+        "Soft 3D",
+        "Rounded dimensional ingredients feel polished and tactile while preserving a clean silhouette at list size.",
+        "Most premium, dimensional, and object-like",
+        "Icons8 lists more than 400 food-related 3D Fluency assets, though not every result is a raw ingredient.",
+        "Heavier visual presence and the largest raster footprint; free use requires attribution or a paid license.",
+        "Icons8 3D Fluency",
+        "https://icons8.com/icons/set/food-clipart--style-3d-fluency",
+        "Sample PNGs are served directly by Icons8."
+      )}</div>`,
+    ];
+
+    const stage = document.getElementById('stage');
+    const picker = document.querySelector('.proto-picker');
+    const highlight = picker.querySelector('.proto-picker-highlight');
+    const items = [...picker.querySelectorAll('.proto-picker-item:not(.proto-picker-replay)')];
+    const replay = picker.querySelector('.proto-picker-replay');
+    let current = 0;
+
+    function moveHighlight() {
+      const el = items[current];
+      highlight.style.width = el.offsetWidth + 'px';
+      highlight.style.transform = `translateX(${el.offsetLeft}px)`;
+    }
+
+    function mount(i) {
+      stage.innerHTML = '';
+      requestAnimationFrame(() => { stage.innerHTML = variants[i](); });
+    }
+
+    function setActive(i) {
+      if (i < 0 || i >= variants.length) return;
+      current = i;
+      items.forEach((el, j) => {
+        el.toggleAttribute('data-active', j === i);
+        if (j === i) el.setAttribute('aria-current', 'true');
+        else el.removeAttribute('aria-current');
+      });
+      moveHighlight();
+      const url = new URL(location);
+      url.searchParams.set('v', i + 1);
+      history.replaceState(null, '', url);
+      mount(i);
+    }
+
+    items.forEach((el, i) => el.addEventListener('click', () => setActive(i)));
+    replay?.addEventListener('click', () => mount(current));
+    window.addEventListener('resize', moveHighlight);
+
+    document.addEventListener('keydown', (e) => {
+      if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const num = parseInt(e.key, 10);
+      if (num >= 1 && num <= variants.length) setActive(num - 1);
+      else if (e.key === 'ArrowRight') setActive((current + 1) % variants.length);
+      else if (e.key === 'ArrowLeft') setActive((current - 1 + variants.length) % variants.length);
+      else if (e.key === 'r' || e.key === 'R') mount(current);
+    });
+
+    setActive((parseInt(new URLSearchParams(location.search).get('v'), 10) || 1) - 1);
+    requestAnimationFrame(() => requestAnimationFrame(() => picker.setAttribute('data-ready', '')));
+  </script>
+</body>
+</html>

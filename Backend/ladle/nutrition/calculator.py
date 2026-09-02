@@ -1,6 +1,7 @@
 """Whole-recipe macro calculation that refuses unsupported conversions."""
 
 import re
+from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
 
 from ladle.nutrition.usda import FoodDataSource, FoodNutrients, FoodPortion
@@ -45,6 +46,20 @@ _UNIT_ALIASES = {
 _QUANTUM = Decimal("0.1")
 
 
+@dataclass(frozen=True)
+class WeakFoodMatch:
+    """An ingredient costed from a food that does not obviously match it.
+
+    Recorded rather than raised. Blocking would lose every other ingredient's
+    calories over one blend USDA has no entry for, and accepting it silently
+    would present a number nobody should trust as though it were measured.
+    """
+
+    ingredient_index: int
+    ingredient_name: str
+    description: str
+
+
 class NutritionCalculationUnavailable(Exception):
     """A deterministic nutrition calculation could not be completed."""
 
@@ -76,7 +91,18 @@ class NutritionCalculator:
         except NutritionCalculationUnavailable:
             return None
 
-    def calculate_required(self, template: RecipeTemplate) -> TemplateNutrition:
+    def calculate_required(
+        self,
+        template: RecipeTemplate,
+        *,
+        weak_matches: list[WeakFoodMatch] | None = None,
+    ) -> TemplateNutrition:
+        """Cost the recipe, appending any doubtful match to `weak_matches`.
+
+        The list is an out-parameter rather than part of the return value
+        because `TemplateNutrition` goes on the wire, and a caller that does
+        not care about match quality should not have to unpack a wrapper.
+        """
         if (
             template.nutrition is not None
             and template.nutrition.basis == "creatorStated"
@@ -98,19 +124,15 @@ class NutritionCalculator:
         if not material:
             raise NutritionCalculationUnavailable("noMaterialIngredients")
         for index, ingredient in material:
-            food = self._food_required(ingredient, index=index)
-            if not _consistent(food, query=ingredient.usda_search_term or ""):
-                raise NutritionCalculationUnavailable(
-                    "inconsistentNutrients",
-                    ingredient_index=index,
-                    ingredient_name=ingredient.name,
-                )
-            grams = _grams(ingredient, food.portions)
-            if grams is None or grams <= 0:
-                raise NutritionCalculationUnavailable(
-                    "missingMass",
-                    ingredient_index=index,
-                    ingredient_name=ingredient.name,
+            food, grams = self._usable_food(ingredient, index=index)
+            query = ingredient.usda_search_term or ""
+            if weak_matches is not None and not _relevant(query, food.description):
+                weak_matches.append(
+                    WeakFoodMatch(
+                        ingredient_index=index,
+                        ingredient_name=ingredient.name,
+                        description=food.description,
+                    )
                 )
             scale = grams / Decimal(100)
             values = (
@@ -141,12 +163,61 @@ class NutritionCalculator:
             evidence=evidence,
         )
 
-    def _food_required(
+    def _usable_food(
         self,
         ingredient: TemplateIngredient,
         *,
         index: int,
-    ) -> FoodNutrients:
+    ) -> tuple[FoodNutrients, Decimal]:
+        """The best-ranked candidate whose nutrients and mass are both usable.
+
+        USDA's top hit is regularly a branded product with a nonsense
+        per-100g panel — a spice grinder refill declaring zero calories and
+        133g of carbohydrate outranked `Spices, cumin seed` on a literal
+        token match. Taking only the first candidate meant one such record
+        cost the whole recipe its nutrition, so every candidate the search
+        already paid for is tried in rank order before giving up. The failure
+        reported when none work is the first candidate's, which is the one
+        the ranking believed in.
+        """
+        candidates = self._ranked_candidates(ingredient, index=index)
+        query = ingredient.usda_search_term or ""
+        # Relevance orders the candidates; it never removes them. A blend USDA
+        # has no entry for still gets costed from its closest row, and the
+        # caller is told the match was weak.
+        candidates = [
+            food for food in candidates if _relevant(query, food.description)
+        ] + [food for food in candidates if not _relevant(query, food.description)]
+        first_failure: NutritionCalculationUnavailable | None = None
+        for food in candidates:
+            if not _consistent(food, query=ingredient.usda_search_term or ""):
+                first_failure = first_failure or NutritionCalculationUnavailable(
+                    "inconsistentNutrients",
+                    ingredient_index=index,
+                    ingredient_name=ingredient.name,
+                )
+                continue
+            grams = _grams(ingredient, food.portions)
+            if grams is None or grams <= 0:
+                first_failure = first_failure or NutritionCalculationUnavailable(
+                    "missingMass",
+                    ingredient_index=index,
+                    ingredient_name=ingredient.name,
+                )
+                continue
+            return food, grams
+        raise first_failure or NutritionCalculationUnavailable(
+            "foodNotFound",
+            ingredient_index=index,
+            ingredient_name=ingredient.name,
+        )
+
+    def _ranked_candidates(
+        self,
+        ingredient: TemplateIngredient,
+        *,
+        index: int,
+    ) -> list[FoodNutrients]:
         query = ingredient.usda_search_term
         if query is None:
             raise NutritionCalculationUnavailable(
@@ -172,7 +243,7 @@ class NutritionCalculator:
                     value.fdc_id,
                 )
             )
-            return provider_ranked[0]
+            return provider_ranked
 
         ranked: list[tuple[tuple[int, int, int], FoodNutrients]] = []
         normalized_query = " ".join(_tokens(query))
@@ -200,7 +271,7 @@ class NutritionCalculator:
                 ingredient_index=index,
                 ingredient_name=ingredient.name,
             )
-        return ranked[0][1]
+        return [value for _, value in ranked]
 
 
 def _grams(
@@ -233,19 +304,107 @@ def _portion_grams(
 
 
 def _consistent(food: FoodNutrients, *, query: str = "") -> bool:
+    """Whether stated calories agree with the macronutrients beside them.
+
+    Fibre is why this is a band rather than a single number. Atwater charges
+    every gram of carbohydrate 4 kcal, but fibre is largely unavailable and
+    USDA's stated calories reflect that, so a high-fibre food looks wildly
+    inconsistent under the naive sum: `Spices, cloves, ground` states 274 kcal
+    against a naive 403, and was rejected for 32% disagreement despite being a
+    laboratory record. Treating fibre as free gives 267.
+
+    A panel is consistent when its stated energy lies between those two, or
+    within the tolerance of the nearer edge. Where fibre is unreported the
+    band collapses to the naive sum, which is the behaviour this replaces.
+    """
     if set(_tokens(query)) & {"alcohol", "beer", "liquor", "vinegar", "wine"}:
         return True
-    macro_calories = (
+    upper = (
         food.protein_grams_per_100g * 4
         + food.carbohydrate_grams_per_100g * 4
         + food.fat_grams_per_100g * 9
     )
-    denominator = max(food.calories_per_100g, macro_calories, Decimal(1))
-    return abs(food.calories_per_100g - macro_calories) / denominator <= Decimal("0.25")
+    fibre = min(
+        food.fibre_grams_per_100g or Decimal(0), food.carbohydrate_grams_per_100g
+    )
+    lower = upper - fibre * 4
+    energy = food.calories_per_100g
+    if lower <= energy <= upper:
+        return True
+    nearest = lower if energy < lower else upper
+    denominator = max(energy, nearest, Decimal(1))
+    return abs(energy - nearest) / denominator <= Decimal("0.25")
 
 
 def _tokens(value: str) -> list[str]:
     return re.findall(r"[a-z0-9]+", value.casefold())
+
+
+def _stems(value: str) -> set[str]:
+    """Tokens with a trailing plural folded away.
+
+    "seeds" against "Spices, cumin seed" is what started all of this: one
+    character kept a laboratory record from matching the ingredient it
+    describes.
+    """
+    return {
+        token[:-1] if len(token) > 3 and token.endswith("s") else token
+        for token in _tokens(value)
+    }
+
+
+#: Mutually exclusive states. A record in one of these cannot answer a query
+#: asking for another: dried coriander leaf is 279 kcal per 100g and the fresh
+#: herb is about 23, so agreeing on "coriander" and "leaf" is not enough.
+_STATES: dict[str, str] = {
+    "raw": "raw",
+    "fresh": "raw",
+    "dried": "dried",
+    "dehydrated": "dried",
+    "canned": "canned",
+    "frozen": "frozen",
+    "cooked": "cooked",
+    "boiled": "cooked",
+    "roasted": "cooked",
+}
+
+
+def _states(stems: set[str]) -> set[str]:
+    return {_STATES[stem] for stem in stems if stem in _STATES}
+
+
+def _relevant(query: str, description: str) -> bool:
+    """Whether a candidate plausibly describes the ingredient asked for.
+
+    USDA's own ranking answers "cinnamon stick" with APPLEBEE'S mozzarella
+    sticks and "ginger garlic paste" with almond paste, and nothing on the
+    provider-ranked path checked. A candidate qualifies when it carries the
+    query's distinguishing word — every query token for a single-word query,
+    and more than half for a longer one, since USDA writes "Spices, cinnamon,
+    ground" where a cook writes "cinnamon stick".
+    """
+    tokens = [
+        token[:-1] if len(token) > 3 and token.endswith("s") else token
+        for token in _tokens(query)
+    ]
+    if not tokens:
+        return False
+    described = _stems(description)
+    # The first word names the food; the rest qualify it. Sharing only the
+    # qualifiers is how "coriander leaf raw" matched "Lettuce, leaf, green,
+    # raw" — two words of three agreed, and the one that did not was the only
+    # one that mattered.
+    if tokens[0] not in described:
+        return False
+    wanted = set(tokens)
+    asked = _states(wanted)
+    offered = _states(described)
+    if asked and offered and not (asked & offered):
+        return False
+    shared = wanted & described
+    if len(wanted) == 1:
+        return bool(shared)
+    return len(shared) * 2 > len(wanted)
 
 
 def _unit(value: str) -> str:

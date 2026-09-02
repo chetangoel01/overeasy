@@ -4,6 +4,7 @@ import SwiftUI
 struct RecipeEditorView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.ladleAccent) private var accent
 
     @Bindable var viewModel: RecipeEditorViewModel
     let didSave: (Recipe) -> Void
@@ -39,10 +40,6 @@ struct RecipeEditorView: View {
                         viewModel.discardChanges()
                         dismiss()
                     }
-                    .padding(
-                        .leading,
-                        LadleTheme.Layout.sheetToolbarInset
-                    )
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save recipe") {
@@ -57,10 +54,6 @@ struct RecipeEditorView: View {
                         }
                     }
                     .fontWeight(.semibold)
-                    .padding(
-                        .trailing,
-                        LadleTheme.Layout.sheetToolbarInset
-                    )
                 }
             }
         }
@@ -88,7 +81,7 @@ struct RecipeEditorView: View {
                 }
                 Spacer(minLength: 0)
             }
-            .foregroundStyle(LadleTheme.Label.accent)
+            .foregroundStyle(accent.label)
             .padding(.horizontal, LadleTheme.Layout.sheetMargin)
             .padding(.vertical, LadleTheme.Spacing.medium)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -116,7 +109,7 @@ struct RecipeEditorView: View {
                             .frame(minHeight: LadleTheme.Control.hitTarget)
                             .background(
                                 selectedSection == section
-                                    ? LadleTheme.Intent.accent
+                                    ? accent.intent
                                     : LadleTheme.Surface.raised,
                                 in: Capsule()
                             )
@@ -229,7 +222,7 @@ struct RecipeEditorView: View {
                     .textSelection(.enabled)
                 Text(viewModel.draft.source.libraryTitle)
                     .ladleFont(.metadata)
-                    .foregroundStyle(LadleTheme.Label.accent)
+                    .foregroundStyle(accent.label)
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -347,7 +340,7 @@ struct RecipeEditorView: View {
                 isOn: $viewModel.draft.nutrition.isIncluded
             )
             .ladleFont(.bodyStrong)
-            .tint(LadleTheme.Intent.accent)
+            .tint(accent.intent)
 
             if viewModel.draft.nutrition.isIncluded {
                 nutritionField(
@@ -392,7 +385,7 @@ struct RecipeEditorView: View {
                     isOn: $viewModel.draft.nutrition.isEstimated
                 )
                 .ladleFont(.bodyStrong)
-                .tint(LadleTheme.Intent.accent)
+                .tint(accent.intent)
 
                 let nutritionIssues = viewModel.validationIssues.filter {
                     if case .nutritionValueInvalid = $0 {
@@ -649,7 +642,7 @@ struct RecipeEditorView: View {
                 }
             }
         }
-        .foregroundStyle(LadleTheme.Label.accent)
+        .foregroundStyle(accent.label)
     }
 
     private func itemTitle(_ title: String) -> some View {
@@ -707,7 +700,7 @@ struct RecipeEditorView: View {
     private func validationText(_ message: String) -> some View {
         Label(message, systemImage: "exclamationmark.circle")
             .ladleFont(.metadata)
-            .foregroundStyle(LadleTheme.Label.accent)
+            .foregroundStyle(accent.label)
     }
 }
 

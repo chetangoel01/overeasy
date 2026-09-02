@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from time import sleep
 from typing import Any, Literal, Never
@@ -19,6 +20,7 @@ from ladle.acquisition.errors import (
 )
 from ladle.acquisition.models import (
     MediaMetadata,
+    SourceCounts,
     SourceVideoDescriptor,
     TextEvidence,
     TranscriptResult,
@@ -45,6 +47,36 @@ class SupadataClient:
         self._sleep = sleeper
         self._request_attempts = request_attempts
         self._usage = usage or NullProviderUsageSink()
+
+    @staticmethod
+    def _whole(value: object) -> int | None:
+        if isinstance(value, bool) or not isinstance(value, int):
+            return None
+        return value if value >= 0 else None
+
+    def _counts(self, payload: dict[str, object]) -> SourceCounts:
+        """Engagement counts from the same /metadata call the title comes from.
+
+        This is the only count source that works for TikTok on server
+        infrastructure: TikTok rejects yt-dlp from datacenter addresses, so the
+        free path returns nothing there however current the binary is.
+        """
+        stats = payload.get("stats")
+        stats = stats if isinstance(stats, dict) else {}
+        published = self._optional_string(payload.get("createdAt"))
+        published_at: datetime | None = None
+        if published:
+            try:
+                published_at = datetime.fromisoformat(published.replace("Z", "+00:00"))
+            except ValueError:
+                published_at = None
+        return SourceCounts(
+            like_count=self._whole(stats.get("likes")),
+            view_count=self._whole(stats.get("views")),
+            comment_count=self._whole(stats.get("comments")),
+            repost_count=self._whole(stats.get("shares")),
+            published_at=published_at,
+        )
 
     def metadata(
         self,
@@ -85,6 +117,7 @@ class SupadataClient:
                     if isinstance(media, dict)
                     else None
                 ),
+                counts=self._counts(payload),
                 billed_units=self._billed_units(response),
             )
         except AcquisitionError as error:

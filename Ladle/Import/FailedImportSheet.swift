@@ -3,6 +3,7 @@ import SwiftUI
 
 struct FailedImportSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.ladleAccent) private var accent
 
     let job: ImportJob
     let currentRecipe: Recipe?
@@ -21,10 +22,6 @@ struct FailedImportSheet: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close", action: close)
                         .disabled(isRetrying || isOwnedImporting)
-                        .padding(
-                            .leading,
-                            LadleTheme.Layout.sheetToolbarInset
-                        )
                 }
             }
         }
@@ -94,7 +91,7 @@ struct FailedImportSheet: View {
                     ?? "exclamationmark.triangle.fill"
             )
                 .font(.system(size: LadleTheme.IconSize.large))
-                .foregroundStyle(LadleTheme.Label.accent)
+                .foregroundStyle(accent.label)
                 .frame(width: 52, height: 52)
                 .background(LadleTheme.Surface.badge, in: Circle())
 

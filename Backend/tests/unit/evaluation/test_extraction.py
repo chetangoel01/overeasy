@@ -295,8 +295,19 @@ def test_sparse_safety_corpus_is_locked_and_expects_safe_refusal() -> None:
     assert all(case.license == "synthetic" for case in held.safety_cases)
 
 
+#: The one safety case the gate no longer refuses, kept explicit rather than
+#: quietly dropped. "No measurements, I cook with my heart." carries no
+#: ingredients and no method, but the word "cook" satisfies has_instructions.
+#: It survived only because the old three-quantity threshold caught it, and
+#: that threshold was rejecting far more real recipes than junk like this.
+#: It now reaches the extractor, which has nothing to build from and marks
+#: the result for human review instead of publishing it.
+_GATE_ADMITS_DESPITE_BEING_SPARSE = {"safety-no-match-013"}
+
+
 def test_sparse_safety_corpus_is_refused_by_the_production_evidence_gate() -> None:
     _, held = _fixture("text-only-held-out.json")
+    admitted: list[str] = []
 
     for index, case in enumerate(held.safety_cases):
         context = AcquiredVideoContext(
@@ -329,5 +340,13 @@ def test_sparse_safety_corpus_is_refused_by_the_production_evidence_gate() -> No
             visualObservations=[],
         )
 
-        with pytest.raises(InsufficientTextEvidence):
+        try:
             require_recipe_evidence(context)
+        except InsufficientTextEvidence:
+            continue
+        admitted.append(case.id)
+
+    assert admitted == sorted(_GATE_ADMITS_DESPITE_BEING_SPARSE), (
+        "the sparse safety corpus changed which cases the gate lets through; "
+        "every admission has to be a deliberate, recorded decision"
+    )
