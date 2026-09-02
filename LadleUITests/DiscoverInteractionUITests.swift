@@ -13,13 +13,42 @@ final class DiscoverInteractionUITests: XCTestCase {
         // A row's identifier is `discover.<original URL>`, so match the
         // scheme too: plain `discover.` also catches `discover.sort`, which
         // now precedes the rows in the hierarchy on a Discover-first launch.
+        // The scheme is also what keeps this on an "All recipes" row rather
+        // than a shelf card, whose identifier is
+        // `discover.card.<shelf>.<original URL>`.
         let row = app.descendants(matching: .any).matching(
             NSPredicate(format: "identifier BEGINSWITH 'discover.http'")
         ).firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 2))
-        row.coordinate(
+
+        // 15% across, 50% down is over the row's artwork: inside the button
+        // that opens the recipe, and the furthest the row gets from the Save
+        // control on its trailing edge, so the long press cannot be read as
+        // a press on Save.
+        let pressPoint = row.coordinate(
             withNormalizedOffset: CGVector(dx: 0.15, dy: 0.5)
-        ).press(forDuration: 1)
+        )
+        // A row exists long before it is on screen, so `waitForExistence`
+        // above proves nothing about where the press will land. On #65 the
+        // first row's frame was {{16, 829.7}, {370, 111.3}} on this
+        // 402x874-point phone, so 50% down computed y = 885.3 — eleven points
+        // past the bottom edge — and that run ended on a recipe detail rather
+        // than on the menu. Scroll the row up until the point this test
+        // presses is genuinely on screen.
+        var scrolls = 0
+        while scrolls < 4,
+              !row.isHittable || !app.frame.contains(pressPoint.screenPoint) {
+            app.swipeUp(velocity: .slow)
+            scrolls += 1
+        }
+        XCTAssertTrue(
+            row.isHittable && app.frame.contains(pressPoint.screenPoint),
+            """
+            The first All recipes row has to be on screen before it is
+            pressed. Row \(row.frame) in an app of \(app.frame).
+            """
+        )
+        pressPoint.press(forDuration: 1)
         XCTAssertTrue(app.buttons["View Recipe"].waitForExistence(timeout: 2))
         XCTAssertTrue(app.buttons["Save Recipe"].exists)
 
