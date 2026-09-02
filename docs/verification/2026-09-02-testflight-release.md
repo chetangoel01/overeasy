@@ -1,8 +1,9 @@
 # Overeasy goes to TestFlight
 
 Date: September 2, 2026
-Status: **archive built and inspected; the upload is blocked on an App Store
-Connect API key, which only Chetan can create.**
+Status: **a distribution-signed `.ipa` was built and verified; the first
+upload is being made by hand from Xcode's Organizer, so the scripted upload
+path is written but not yet exercised.**
 
 The app has only ever been installed over a cable, one device at a time. This
 records what a TestFlight build needs, and leaves the whole run behind one
@@ -83,9 +84,15 @@ rejects an upload rather than a build:
 - The app icon is 1024×1024 with no alpha channel.
 - `Ladle/Resources/PrivacyInfo.xcprivacy` is present.
 
-Still unverified, and only provable by running it: the export step re-signs
-with a distribution certificate that does not currently exist in the keychain.
-Store provisioning profiles for both bundle identifiers were created on
-August 23 and are still valid, so either the certificate is cloud-managed and
-the export creates it, or one is registered to the team with its private key
-on another machine. The export error will say which.
+`xcodebuild -exportArchive` then succeeded, and the question of the missing
+distribution certificate answered itself: there is no distribution identity in
+the login keychain, and there does not need to be. Xcode signed with a
+**cloud-managed** certificate, `Apple Distribution: Chetan Goel
+(P48VDW72LU)`. The exported `.ipa` was unpacked and read back — the
+distribution authority, `get-task-allow` false, and `beta-reports-active`
+true, which is the entitlement that lets a build appear in TestFlight.
+
+Not exercised: `altool --validate-app` and `--upload-app`. The first upload
+goes through Organizer's Distribute App instead, which authenticates with the
+Xcode account already signed in and needs no API key. The script's upload path
+therefore stays unproven until someone runs it with a key.
