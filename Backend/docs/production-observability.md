@@ -31,8 +31,15 @@ putting private recipe or authentication data in telemetry.
   ID, job ID, orchestration/acquisition/extraction/thumbnail stage,
   provider/retry context, duration, and terminal result are structured fields.
 - OpenTelemetry emits W3C trace context through FastAPI, Celery, Redis,
-  SQLAlchemy, HTTPX provider calls, and the worker. The production OTLP endpoint
-  must use HTTPS.
+  SQLAlchemy, outbound provider calls, and the worker. Provider calls are
+  traced by patching the HTTP library: `httpx` for the clients this codebase
+  builds itself (OpenRouter, USDA, acquisition, audio, search) and `httpx2`
+  for the anthropic 1.x SDK, which moved off `httpx` in 1.x and is invisible
+  to the `httpx` instrumentor on its own. The SDK's migration guide offers
+  `httpx2.alias_httpx()` instead; that rebinds `import httpx` process-wide
+  for every direct caller, so both packages are instrumented separately and
+  a unit test drives the real SDK client through the extraction call site to
+  keep it that way. The production OTLP endpoint must use HTTPS.
 
 The OpenTelemetry Python SDK and FastAPI instrumentation are pinned to the
 current compatible 1.44.0/0.65b0 release family documented by the
