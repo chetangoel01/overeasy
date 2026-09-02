@@ -590,6 +590,76 @@ final class LibraryViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.maximumCalories, 700)
     }
 
+    /// A creator who stated only a cook time still said how long the dish
+    /// takes, so the library has to treat that number as the recipe's time —
+    /// both when narrowing to "30 min or less" and when ordering by time.
+    func testCookOnlyRecipeIsFilteredAndSortedOnItsCookTime() {
+        let viewModel = LibraryViewModel(
+            repository: LibraryTestRepository(
+                recipes: [
+                    timedRecipe(title: "Slow braise", cooking: 90),
+                    timedRecipe(title: "Quick stir-fry", cooking: 20),
+                    timedRecipe(title: "Faster omelette", cooking: 8),
+                ]
+            ),
+            preferenceStore: LibraryTestPreferenceStore()
+        )
+        viewModel.load()
+        viewModel.sort = .cookingTime
+        viewModel.maximumTotalMinutes = 30
+
+        XCTAssertEqual(
+            viewModel.visibleRecipes.map(\.title),
+            ["Faster omelette", "Quick stir-fry"]
+        )
+    }
+
+    func testMetadataBandNamesWhicheverTimeTheRecipeStates() {
+        XCTAssertEqual(
+            timedRecipe(title: "Cook only", cooking: 35).ladleTimeItem.value,
+            "35 min"
+        )
+        XCTAssertEqual(
+            timedRecipe(title: "Cook only", cooking: 35).ladleTimeItem.label,
+            "Cook time"
+        )
+
+        let untimed = timedRecipe(title: "Untimed", cooking: nil)
+        XCTAssertEqual(untimed.ladleTimeItem.value, "—")
+        XCTAssertEqual(untimed.ladleTimeItem.label, "Total time")
+        XCTAssertNil(untimed.ladleTimeNote)
+    }
+
+    /// The servings rule, reused: an estimate says "About" and offers the
+    /// reason, so a cook can see the number came from the method.
+    func testMetadataBandMarksAnEstimatedTimeAndCarriesItsReason() {
+        var recipe = timedRecipe(title: "Estimated", cooking: nil)
+        recipe.totalMinutes = 25
+        recipe.uncertainties = [
+            FieldUncertainty(
+                field: "total_minutes",
+                reason: "Estimated from the method."
+            ),
+        ]
+
+        XCTAssertEqual(recipe.ladleTimeItem.value, "About 25 min")
+        XCTAssertEqual(recipe.ladleTimeItem.label, "Total time")
+        XCTAssertEqual(recipe.ladleTimeNote, "Estimated from the method.")
+    }
+
+    /// A recipe stating only how long it cooks, the live library's
+    /// commonest shape.
+    private func timedRecipe(title: String, cooking: Int?) -> Recipe {
+        Recipe(
+            id: UUID(),
+            title: title,
+            source: .tiktok,
+            originalURL: URL(string: "https://example.com/timed")!,
+            cookingMinutes: cooking,
+            servings: 2
+        )
+    }
+
     func testRepositoryFailureBecomesRecoverableLoadError() {
         let repository = LibraryTestRepository()
         repository.fetchError = LibraryTestError.unavailable

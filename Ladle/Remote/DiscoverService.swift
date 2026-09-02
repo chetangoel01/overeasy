@@ -323,10 +323,11 @@ struct DemoDiscoverService: DiscoverServing {
         // stay put whatever the time filter removes.
         let all = PreviewFixtures.recipes.enumerated().filter { _, recipe in
             guard let maxTotalMinutes else { return true }
-            // Same rule as the server: an untimed recipe is left out rather
-            // than assumed quick.
-            guard let totalMinutes = recipe.totalMinutes else { return false }
-            return totalMinutes <= maxTotalMinutes
+            // Same rule as the server: a recipe with no stated time at all is
+            // left out rather than assumed quick, but one that states only a
+            // cook time is judged on that.
+            guard let time = recipe.displayedTime else { return false }
+            return time.minutes <= maxTotalMinutes
         }.map { index, recipe in
             DiscoverRecipe(
                 sourceID: recipe.id,
