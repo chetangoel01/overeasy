@@ -48,9 +48,7 @@ def upgrade() -> None:
     )
     op.add_column(
         "source_videos",
-        sa.Column(
-            "counts_refreshed_at", sa.DateTime(timezone=True), nullable=True
-        ),
+        sa.Column("counts_refreshed_at", sa.DateTime(timezone=True), nullable=True),
     )
     # Partial: rows without counts never win a "most liked" page, so they do
     # not belong in the index that serves it.
