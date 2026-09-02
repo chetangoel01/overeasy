@@ -58,7 +58,8 @@ all on the "Overeast UI validation" simulator (iOS 26.5):
   preview shows the thumbnail. This is the symptom from the phone, fixed.
 
 No automated test can exercise UIKit's preview hosting, so the captures are
-the evidence. `LadleTests` and the long-press UI test
-(`DiscoverInteractionUITests/testDiscoverRecipeSupportsTapAndLongPress`) run
-green on the fix: see the PR for the counts. The phone gets the Release build
-against the VPS once the PR merges.
+the evidence. `LadleTests` (417 tests) run green on the fix. The long-press
+UI test (`DiscoverInteractionUITests/testDiscoverRecipeSupportsTapAndLongPress`)
+fails on `main` with and without the fix, for a reason of its own (#65); the
+six other tests in that file pass. The phone gets the Release build against
+the VPS once the PR merges.
