@@ -2,9 +2,10 @@ import Foundation
 
 /// What the Recipes filter menu offers, and the words for every value.
 ///
-/// The menu rows and the active-filter pills both read these titles, so a
-/// value can never be named one thing on the checked row and another on the
-/// pill that removes it — which is exactly how the old sheet drifted from the
+/// The menu rows and the active-filter pills are both worded from here, off
+/// one option list — a submenu row by `optionTitle`, a pill by `pillTitle`,
+/// which adds the noun a pill needs to stand alone. Neither can name a value
+/// the other does not, which is exactly how the old sheet drifted from the
 /// header around it.
 enum LibraryFilter: CaseIterable {
     case time
@@ -37,12 +38,29 @@ enum LibraryFilter: CaseIterable {
         }
     }
 
+    /// How a value reads inside its own submenu, where the dimension is
+    /// already named by the submenu's label above it.
     func optionTitle(_ value: Int) -> String {
         switch self {
         case .time: "\(value) min or less"
         case .calories: "\(value) or fewer"
         case .protein: "\(value) g or more"
         case .carbohydrates, .fat: "Under \(value) g"
+        }
+    }
+
+    /// How the same value reads on a pill, which stands alone under the
+    /// header with nothing to say what it counts — so it carries the noun.
+    /// Carbs and fat are the case that forces this: without it a row holding
+    /// both reads "Under 50 g" and "Under 25 g", and neither says which is
+    /// which. Time needs no noun; "30 min or less" already reads as time.
+    func pillTitle(_ value: Int) -> String {
+        switch self {
+        case .time: "\(value) min or less"
+        case .calories: "\(value) cal or fewer"
+        case .protein: "\(value) g protein or more"
+        case .carbohydrates: "Under \(value) g carbs"
+        case .fat: "Under \(value) g fat"
         }
     }
 
@@ -86,7 +104,7 @@ struct LibraryFilterChip: Identifiable {
             guard let value else { continue }
             chips.append(
                 LibraryFilterChip(
-                    title: filter.optionTitle(value),
+                    title: filter.pillTitle(value),
                     remove: remove
                 )
             )

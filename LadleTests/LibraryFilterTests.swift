@@ -82,8 +82,52 @@ final class LibraryFilterTests: XCTestCase {
         XCTAssertEqual(LibraryFilter.anyTitle, "Any")
     }
 
-    /// The whole point of the shared source: a value cannot be named one
-    /// thing on the checked menu row and another on the pill that removes it.
+    /// A pill stands alone under the header, so it carries the noun its
+    /// submenu label would otherwise supply.
+    func testEveryOptionIsWordedForAPillThatStandsAlone() {
+        XCTAssertEqual(
+            LibraryFilter.time.options.map(LibraryFilter.time.pillTitle),
+            [
+                "15 min or less",
+                "30 min or less",
+                "45 min or less",
+                "60 min or less",
+            ]
+        )
+        XCTAssertEqual(
+            LibraryFilter.calories.options
+                .map(LibraryFilter.calories.pillTitle),
+            ["400 cal or fewer", "600 cal or fewer", "800 cal or fewer"]
+        )
+        XCTAssertEqual(
+            LibraryFilter.protein.options.map(LibraryFilter.protein.pillTitle),
+            [
+                "20 g protein or more",
+                "30 g protein or more",
+                "40 g protein or more",
+            ]
+        )
+        XCTAssertEqual(
+            LibraryFilter.carbohydrates.options
+                .map(LibraryFilter.carbohydrates.pillTitle),
+            ["Under 30 g carbs", "Under 50 g carbs"]
+        )
+        XCTAssertEqual(
+            LibraryFilter.fat.options.map(LibraryFilter.fat.pillTitle),
+            ["Under 15 g fat", "Under 25 g fat"]
+        )
+
+        // Carbs and fat are why the noun is there: without it a pills row
+        // holding both says "Under 50 g" twice over and names neither.
+        let grams = LibraryFilter.carbohydrates.options
+            .map(LibraryFilter.carbohydrates.pillTitle)
+            + LibraryFilter.fat.options.map(LibraryFilter.fat.pillTitle)
+        XCTAssertEqual(Set(grams).count, grams.count)
+    }
+
+    /// The whole point of the shared source: a pill and its submenu row are
+    /// worded off one option list, so neither can name a value the other
+    /// does not.
     func testPillTitleMatchesThePickerRowForTheSameValue() {
         let viewModel = makeViewModel()
         viewModel.maximumTotalMinutes = 30
@@ -95,13 +139,26 @@ final class LibraryFilterTests: XCTestCase {
         XCTAssertEqual(
             LibraryFilterChip.chips(for: viewModel).map(\.title),
             [
-                LibraryFilter.time.optionTitle(30),
-                LibraryFilter.calories.optionTitle(600),
-                LibraryFilter.protein.optionTitle(20),
-                LibraryFilter.carbohydrates.optionTitle(50),
-                LibraryFilter.fat.optionTitle(25),
+                LibraryFilter.time.pillTitle(30),
+                LibraryFilter.calories.pillTitle(600),
+                LibraryFilter.protein.pillTitle(20),
+                LibraryFilter.carbohydrates.pillTitle(50),
+                LibraryFilter.fat.pillTitle(25),
             ]
         )
+
+        for filter in LibraryFilter.allCases {
+            for option in filter.options {
+                XCTAssertTrue(
+                    filter.pillTitle(option).contains("\(option)"),
+                    "\(filter) pill must carry the value its row shows"
+                )
+                XCTAssertTrue(
+                    filter.optionTitle(option).contains("\(option)"),
+                    "\(filter) row must carry the value its pill shows"
+                )
+            }
+        }
     }
 
     func testPillsCoverFavoritesAndTheSelectedCollection() {

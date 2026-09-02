@@ -58,14 +58,17 @@ so the three header controls are the same control.
   words for every value, and both the picker rows and the pills read it, so a
   value cannot be named one thing on the checked row and another on the pill
   that removes it. `LibraryFilterChip.chips(for:)` moved out of the view for
-  the same reason — it is the only way the equality is testable.
-- **Accepted cost: the pills lost their dimension word.** They used to read
-  "Up to 600 cal" and "Under 50 g carbs"; they now read "600 or fewer" and
-  "Under 50 g", because those are the words the menu row uses and the whole
-  point is that the two agree. Time and the gram filters stay clear on their
-  own; "600 or fewer" is the one pill that does not say what it counts. The
-  cheap fix would be to word calories "600 cal or fewer" in both places, which
-  is a one-line change to `LibraryFilter.optionTitle` if it reads wrong in use.
+  the same reason — it is the only way the tie is testable.
+- **A pill carries the noun; a submenu row does not.** `optionTitle` words a
+  value inside its own submenu, where the label above it already says
+  "Carbohydrates"; `pillTitle` words the same value for a pill that stands
+  alone under the header, so the pills keep the nouns they always had — "600
+  cal or fewer", "20 g protein or more", "Under 50 g carbs", "Under 25 g fat".
+  Carbs and fat are what force it: with both on, pills worded only "Under 50
+  g" and "Under 25 g" name neither. Time is the one dimension worded
+  identically in both places, because "30 min or less" already reads as time.
+  Both come off the one option list, and the tests assert every pill carries
+  the number its row shows — so the two phrasings still cannot drift apart.
 - **`Decimal` filters bridge to `Int` rather than tagging five times.** The
   brief asked for the sheet's `decimalPicker` idea — one shared optional
   tagging helper — to survive. It survives as `wholeNumber(_:)`, a
@@ -81,7 +84,7 @@ so the three header controls are the same control.
 
 | File | Change |
 |------|--------|
-| `Ladle/Library/LibraryFilter.swift` | new: the option lists, the wording, `menuTitle(for:)`, and `LibraryFilterChip` with `chips(for:)` |
+| `Ladle/Library/LibraryFilter.swift` | new: the option lists, `optionTitle`/`pillTitle`/`menuTitle(for:)`, and `LibraryFilterChip` with `chips(for:)` |
 | `Ladle/Library/AllRecipesView.swift` | Filters `Button` → `filterMenu`; `filterSubmenu(_:selection:)` and `wholeNumber(_:)`; `filterChips` forwards to the shared source; `appendNumericFilters` and the private chip type deleted; `presentFilters` parameter dropped |
 | `Ladle/Library/LibraryViewModel.swift` | `hasActiveFilters` and `resetFilters()` added; `showCollection` delegates to the latter |
 | `Ladle/Library/LibraryView.swift` | `isFilterSheetPresented`, its `.sheet`, and the `presentFilters:` argument removed |
@@ -100,8 +103,8 @@ xcodebuild test -project Ladle.xcodeproj -scheme LadleAllTests \
   -only-testing:LadleTests -only-testing:LadleUITests/RecipesFilterMenuUITests
 ```
 
-- LadleTests: `Executed 423 tests, with 1 test skipped and 0 failures (0 unexpected) in 4.340 (4.500) seconds`
-- LadleUITests/RecipesFilterMenuUITests: `Executed 1 test, with 0 failures (0 unexpected) in 18.552 (18.554) seconds`
+- LadleTests: `Executed 424 tests, with 1 test skipped and 0 failures (0 unexpected) in 4.221 (4.365) seconds`
+- LadleUITests/RecipesFilterMenuUITests: `Executed 1 test, with 0 failures (0 unexpected) in 18.288 (18.290) seconds`
 
 Run in the background with the `Executed …` lines read from the log, because
 `xcodebuild test` has hung after printing its results on this machine before.
@@ -116,11 +119,12 @@ Written first. `LibraryFilterTests` did not compile, because `LibraryFilter`,
 `LibraryFilterChip.chips(for:)`, `hasActiveFilters` and `resetFilters()` did
 not exist yet.
 
-- `LibraryFilterTests` pins every option and every option's wording, the
+- `LibraryFilterTests` pins every option and both of its wordings, the
   "Time · Any" submenu title, and — the one that matters — that the pill for
-  an active filter is titled with `LibraryFilter.optionTitle` for the same
-  value. It also asserts a pill removes only its own filter and that Reset
-  spares the selected collection.
+  an active filter is titled with `LibraryFilter.pillTitle` for the same
+  value, and that every pill and every row carry the same number off the same
+  option list. It also asserts the carb and fat pills stay distinguishable, a
+  pill removes only its own filter, and Reset spares the selected collection.
 - `RecipesFilterMenuUITests` drives the real menu on the demo library: open
   Filters, open Time, choose "30 min or less", and the header count goes from
   "6 recipes" to "3 recipes" (the six demo recipes run 25/35/15/45/10/40
