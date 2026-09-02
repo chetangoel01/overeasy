@@ -84,15 +84,37 @@ def _submit(client: httpx.Client, suffix: str) -> tuple[str, str]:
 
 
 def _wait_ready() -> None:
+    last_answer = "no answer"
     with httpx.Client(timeout=3) as client:
         for _ in range(120):
             try:
-                if client.get(f"{BASE_URL}/health/ready").status_code == 200:
+                response = client.get(f"{BASE_URL}/health/ready")
+            except httpx.HTTPError as error:
+                last_answer = f"{type(error).__name__}: {error}"
+            else:
+                if response.status_code == 200:
                     return
-            except httpx.HTTPError:
-                pass
+                last_answer = f"{response.status_code} {response.text[:400]}"
             time.sleep(1)
-    raise AssertionError("Compose stack did not become ready")
+    _report_stack()
+    raise AssertionError(f"Compose stack did not become ready; last {last_answer}")
+
+
+def _report_stack() -> None:
+    # `up -d` reports a container as Started even when it is crash-looping
+    # under `restart: unless-stopped`, so a readiness timeout on its own says
+    # nothing about which service never came up. Best effort: this must not
+    # hide the assertion behind a Compose error of its own.
+    files = [item for path in COMPOSE_FILES for item in ("-f", path)]
+    for arguments in (
+        ("ps", "-a"),
+        ("logs", "--no-color", "--tail", "40", "api", "worker", "beat"),
+    ):
+        subprocess.run(
+            ["docker", "compose", *files, "-p", PROJECT, *arguments],
+            check=False,
+            env=CHAOS_ENVIRONMENT,
+        )
 
 
 def _wait_stage(job_id: str, stage: str) -> None:

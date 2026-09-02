@@ -223,9 +223,34 @@ jobs:
           LADLE_RUN_CHAOS: "1"
         run: uv run pytest -q -m chaos -n0
       - name: Capacity and graph limits
+        # `up -d` returns once the containers exist, not once the API answers,
+        # so k6's setup() used to reach a cold API and fail on a null body.
+        # Compose's own --wait is out: the runner's 2.38.2 rejects beat's
+        # disabled healthcheck ("has no healthcheck configured"). The API's
+        # readiness covers the migrations, the broker, the worker's ping and
+        # object storage, so k6 starts once that answers 200; a stack that
+        # never gets there fails by name with the containers' state in the log
+        # instead of a k6 threshold report.
         run: |
-          trap 'docker compose down --volumes --remove-orphans' EXIT
+          finish() {
+            status=$?
+            if [ "$status" -ne 0 ]; then
+              docker compose ps -a
+              docker compose logs --no-color --tail 100 api worker
+            fi
+            docker compose down --volumes --remove-orphans
+          }
+          trap finish EXIT
           docker compose up -d --build
+          for _ in $(seq 60); do
+            code=$(curl -s -o /tmp/ready.json -w '%{http_code}' http://127.0.0.1:4112/health/ready || true)
+            [ "$code" = 200 ] && break
+            sleep 5
+          done
+          if [ "$code" != 200 ]; then
+            echo "API not ready after 300 s; last answer: $code $(cat /tmp/ready.json 2>/dev/null)"
+            exit 1
+          fi
           docker run --rm --network host -e BASE_URL=http://127.0.0.1:4112 \
             -v "$PWD/load:/load:ro" \
             grafana/k6@sha256:4fd3a694926b064d3491d9b02b01cde886583c4931f1223816e3d9a7bdfa7e0f \

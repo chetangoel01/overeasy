@@ -8,9 +8,12 @@ still runs here; they are grouped by the file they are about instead.
 
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import yaml
+from pydantic import ValidationError
+
+from ladle.config import Settings
 
 BACKEND = Path(__file__).parents[3]
 
@@ -132,3 +135,62 @@ def test_local_data_services_and_account_providers_are_configured() -> None:
     assert (
         "${LADLE_APPLE_PRIVATE_KEY_FILE:-/dev/null}:/run/secrets/apple_private_key:ro"
     ) in services["api"]["volumes"]
+
+
+def chaos_overlay() -> dict[str, Any]:
+    """Read `deploy/chaos/docker-compose.chaos.yml` the way Compose merges it.
+
+    The overlay uses Compose's `!override` tag, which only changes how a value
+    merges over the base file; PyYAML's safe loader rejects unknown tags, so
+    it is read here as the plain value it wraps.
+    """
+
+    class OverlayLoader(yaml.SafeLoader):
+        pass
+
+    def plain_value(loader: yaml.SafeLoader, node: yaml.Node) -> Any:
+        if isinstance(node, yaml.SequenceNode):
+            return loader.construct_sequence(node)
+        if isinstance(node, yaml.MappingNode):
+            return loader.construct_mapping(node)
+        return loader.construct_scalar(cast(yaml.ScalarNode, node))
+
+    OverlayLoader.add_constructor("!override", plain_value)
+    overlay = (BACKEND / "deploy" / "chaos" / "docker-compose.chaos.yml").read_text()
+    return cast(dict[str, Any], yaml.load(overlay, Loader=OverlayLoader))
+
+
+def test_chaos_overlay_pins_keep_the_worker_timing_valid() -> None:
+    """Every timing the chaos overlay shrinks must still satisfy Settings.
+
+    `Settings.validate_worker_timing` orders the longest provider timeout below
+    the soft task limit, and the overlay pins that limit at 12 s so a broker
+    outage resolves inside the drill. A provider timeout that joins the
+    validator without a pin here keeps its default, api, worker and beat then
+    crash at startup, and `/health/ready` never exists — the scheduled chaos
+    job was red from 2026-08-31 because `usda_timeout_seconds` (default 15 s)
+    arrived that way.
+
+    The base Compose environment sets no timing variable and the autouse
+    fixture clears `LADLE_*`, so the pins over the defaults are exactly what
+    the containers validate.
+    """
+    overlay = chaos_overlay()
+    timing = overlay["x-chaos-timing"]
+    for service_name in ("api", "worker", "beat"):
+        assert overlay["services"][service_name]["environment"] == timing
+
+    pins = {
+        name.removeprefix("LADLE_").lower(): value for name, value in timing.items()
+    }
+    try:
+        settings = Settings(_env_file=None, **pins)
+    except ValidationError as error:
+        raise AssertionError(
+            "deploy/chaos/docker-compose.chaos.yml leaves a timing at a default "
+            "that Settings rejects; pin every provider timeout the validator "
+            f"orders below LADLE_CELERY_TASK_SOFT_TIME_LIMIT_SECONDS: {error}"
+        ) from error
+    assert settings.usda_timeout_seconds < settings.celery_task_soft_time_limit_seconds
+    assert overlay["services"]["api"]["ports"] == ["127.0.0.1:42112:4111"]
+    assert overlay["services"]["minio"]["ports"] == []
