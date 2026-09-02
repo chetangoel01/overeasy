@@ -1,0 +1,760 @@
+{
+  "source": "ladle_nutrition_scratch.ingredients (copy of the live table), exported 2026-09-02",
+  "description": "Distinct lowercased ingredient names with occurrence counts. Names and counts only; no recipe, user, quantity or nutrition data.",
+  "distinctNames": 188,
+  "totalOccurrences": 382,
+  "names": [
+    {
+      "name": "olive oil",
+      "count": 12
+    },
+    {
+      "name": "garlic",
+      "count": 11
+    },
+    {
+      "name": "garlic powder",
+      "count": 8
+    },
+    {
+      "name": "salt",
+      "count": 8
+    },
+    {
+      "name": "sugar",
+      "count": 8
+    },
+    {
+      "name": "black pepper",
+      "count": 7
+    },
+    {
+      "name": "paprika",
+      "count": 7
+    },
+    {
+      "name": "bell peppers",
+      "count": 6
+    },
+    {
+      "name": "water",
+      "count": 6
+    },
+    {
+      "name": "onion",
+      "count": 5
+    },
+    {
+      "name": "onion powder",
+      "count": 5
+    },
+    {
+      "name": "soy sauce",
+      "count": 5
+    },
+    {
+      "name": "tomato paste",
+      "count": 5
+    },
+    {
+      "name": "chili flakes",
+      "count": 4
+    },
+    {
+      "name": "crushed fennel",
+      "count": 4
+    },
+    {
+      "name": "eggs",
+      "count": 4
+    },
+    {
+      "name": "garlic cloves",
+      "count": 4
+    },
+    {
+      "name": "ginger",
+      "count": 4
+    },
+    {
+      "name": "heavy cream",
+      "count": 4
+    },
+    {
+      "name": "italian seasoning",
+      "count": 4
+    },
+    {
+      "name": "red chili flakes",
+      "count": 4
+    },
+    {
+      "name": "beans",
+      "count": 3
+    },
+    {
+      "name": "beefsteak tomato",
+      "count": 3
+    },
+    {
+      "name": "cheese",
+      "count": 3
+    },
+    {
+      "name": "chicken stock",
+      "count": 3
+    },
+    {
+      "name": "fresh coriander",
+      "count": 3
+    },
+    {
+      "name": "fresh parsley",
+      "count": 3
+    },
+    {
+      "name": "garam masala",
+      "count": 3
+    },
+    {
+      "name": "lentils",
+      "count": 3
+    },
+    {
+      "name": "oil",
+      "count": 3
+    },
+    {
+      "name": "paneer",
+      "count": 3
+    },
+    {
+      "name": "red pepper flakes",
+      "count": 3
+    },
+    {
+      "name": "rice seasoning",
+      "count": 3
+    },
+    {
+      "name": "salt & pepper",
+      "count": 3
+    },
+    {
+      "name": "scallions",
+      "count": 3
+    },
+    {
+      "name": "sesame seeds",
+      "count": 3
+    },
+    {
+      "name": "thyme",
+      "count": 3
+    },
+    {
+      "name": "96% ground beef",
+      "count": 2
+    },
+    {
+      "name": "baking soda",
+      "count": 2
+    },
+    {
+      "name": "black vinegar",
+      "count": 2
+    },
+    {
+      "name": "butter",
+      "count": 2
+    },
+    {
+      "name": "carrot",
+      "count": 2
+    },
+    {
+      "name": "cinnamon stick",
+      "count": 2
+    },
+    {
+      "name": "cloves",
+      "count": 2
+    },
+    {
+      "name": "coconut milk",
+      "count": 2
+    },
+    {
+      "name": "cooked rice",
+      "count": 2
+    },
+    {
+      "name": "coriander powder",
+      "count": 2
+    },
+    {
+      "name": "cottage cheese",
+      "count": 2
+    },
+    {
+      "name": "cucumber",
+      "count": 2
+    },
+    {
+      "name": "cumin seeds",
+      "count": 2
+    },
+    {
+      "name": "curry leaves",
+      "count": 2
+    },
+    {
+      "name": "fat free evaporated milk",
+      "count": 2
+    },
+    {
+      "name": "feta",
+      "count": 2
+    },
+    {
+      "name": "fontina cheese",
+      "count": 2
+    },
+    {
+      "name": "fresh basil",
+      "count": 2
+    },
+    {
+      "name": "fresh cilantro",
+      "count": 2
+    },
+    {
+      "name": "garlic powder (for ricotta topping)",
+      "count": 2
+    },
+    {
+      "name": "ghost pepper cheese",
+      "count": 2
+    },
+    {
+      "name": "ginger-garlic paste",
+      "count": 2
+    },
+    {
+      "name": "green beans",
+      "count": 2
+    },
+    {
+      "name": "green cardamoms",
+      "count": 2
+    },
+    {
+      "name": "green onion",
+      "count": 2
+    },
+    {
+      "name": "ground pork",
+      "count": 2
+    },
+    {
+      "name": "ground turkey",
+      "count": 2
+    },
+    {
+      "name": "lasagna noodles",
+      "count": 2
+    },
+    {
+      "name": "lime juice",
+      "count": 2
+    },
+    {
+      "name": "marinara sauce",
+      "count": 2
+    },
+    {
+      "name": "mild italian sausage",
+      "count": 2
+    },
+    {
+      "name": "morton's kosher salt",
+      "count": 2
+    },
+    {
+      "name": "mozzarella cheese",
+      "count": 2
+    },
+    {
+      "name": "mozzarella cheese (for ricotta topping)",
+      "count": 2
+    },
+    {
+      "name": "neutral oil",
+      "count": 2
+    },
+    {
+      "name": "noodles",
+      "count": 2
+    },
+    {
+      "name": "onion powder (for ricotta topping)",
+      "count": 2
+    },
+    {
+      "name": "onions",
+      "count": 2
+    },
+    {
+      "name": "oregano",
+      "count": 2
+    },
+    {
+      "name": "orzo",
+      "count": 2
+    },
+    {
+      "name": "parmesan cheese",
+      "count": 2
+    },
+    {
+      "name": "parmesan rind",
+      "count": 2
+    },
+    {
+      "name": "parmigiano reggiano",
+      "count": 2
+    },
+    {
+      "name": "parsley and chives",
+      "count": 2
+    },
+    {
+      "name": "pecorino cheese",
+      "count": 2
+    },
+    {
+      "name": "pecorino romano",
+      "count": 2
+    },
+    {
+      "name": "peppercorns",
+      "count": 2
+    },
+    {
+      "name": "red chilli powder",
+      "count": 2
+    },
+    {
+      "name": "red onion",
+      "count": 2
+    },
+    {
+      "name": "ricotta cheese",
+      "count": 2
+    },
+    {
+      "name": "rigatoni pasta",
+      "count": 2
+    },
+    {
+      "name": "sourdough or toast",
+      "count": 2
+    },
+    {
+      "name": "spices",
+      "count": 2
+    },
+    {
+      "name": "tamarind water",
+      "count": 2
+    },
+    {
+      "name": "tomato bouillon",
+      "count": 2
+    },
+    {
+      "name": "tomato pur\u00e9e",
+      "count": 2
+    },
+    {
+      "name": "tomatoes",
+      "count": 2
+    },
+    {
+      "name": "yellow onions",
+      "count": 2
+    },
+    {
+      "name": "all-purpose flour",
+      "count": 1
+    },
+    {
+      "name": "basil (for ricotta topping)",
+      "count": 1
+    },
+    {
+      "name": "beef broth",
+      "count": 1
+    },
+    {
+      "name": "black olives",
+      "count": 1
+    },
+    {
+      "name": "canned corn",
+      "count": 1
+    },
+    {
+      "name": "cauliflower",
+      "count": 1
+    },
+    {
+      "name": "cayenne pepper",
+      "count": 1
+    },
+    {
+      "name": "chicken mince",
+      "count": 1
+    },
+    {
+      "name": "chili powder",
+      "count": 1
+    },
+    {
+      "name": "chives",
+      "count": 1
+    },
+    {
+      "name": "cilantro",
+      "count": 1
+    },
+    {
+      "name": "cooked white rice",
+      "count": 1
+    },
+    {
+      "name": "corn",
+      "count": 1
+    },
+    {
+      "name": "cornstarch",
+      "count": 1
+    },
+    {
+      "name": "cumin",
+      "count": 1
+    },
+    {
+      "name": "cumin seeds (jeera)",
+      "count": 1
+    },
+    {
+      "name": "day-old cooked rice",
+      "count": 1
+    },
+    {
+      "name": "day-old rice",
+      "count": 1
+    },
+    {
+      "name": "feta cheese",
+      "count": 1
+    },
+    {
+      "name": "firm tofu",
+      "count": 1
+    },
+    {
+      "name": "flour",
+      "count": 1
+    },
+    {
+      "name": "fresh basil (for ricotta topping)",
+      "count": 1
+    },
+    {
+      "name": "fresh green herbs",
+      "count": 1
+    },
+    {
+      "name": "fresh gruy\u00e8re",
+      "count": 1
+    },
+    {
+      "name": "fresh herbs (cilantro)",
+      "count": 1
+    },
+    {
+      "name": "fresh herbs (such as cilantro)",
+      "count": 1
+    },
+    {
+      "name": "fresh parmigiano reggiano",
+      "count": 1
+    },
+    {
+      "name": "fresh parsley (for garnish)",
+      "count": 1
+    },
+    {
+      "name": "fresh parsley (for ricotta topping and garnish)",
+      "count": 1
+    },
+    {
+      "name": "fresh rosemary",
+      "count": 1
+    },
+    {
+      "name": "frozen udon noodles",
+      "count": 1
+    },
+    {
+      "name": "garlic clove",
+      "count": 1
+    },
+    {
+      "name": "garlic yogurt sauce",
+      "count": 1
+    },
+    {
+      "name": "ghee",
+      "count": 1
+    },
+    {
+      "name": "ginger garlic paste",
+      "count": 1
+    },
+    {
+      "name": "ginger paste",
+      "count": 1
+    },
+    {
+      "name": "gochugaru",
+      "count": 1
+    },
+    {
+      "name": "gochujang",
+      "count": 1
+    },
+    {
+      "name": "gram flour (besan)",
+      "count": 1
+    },
+    {
+      "name": "green chili",
+      "count": 1
+    },
+    {
+      "name": "green chilies",
+      "count": 1
+    },
+    {
+      "name": "green garnish (herbs or scallions)",
+      "count": 1
+    },
+    {
+      "name": "honey",
+      "count": 1
+    },
+    {
+      "name": "italian herb mix (basil, marjoram, oregano, rosemary, and thyme)",
+      "count": 1
+    },
+    {
+      "name": "kashmiri red chili powder",
+      "count": 1
+    },
+    {
+      "name": "ketchup",
+      "count": 1
+    },
+    {
+      "name": "kosher salt",
+      "count": 1
+    },
+    {
+      "name": "large yellow onions",
+      "count": 1
+    },
+    {
+      "name": "lemon",
+      "count": 1
+    },
+    {
+      "name": "lettuce",
+      "count": 1
+    },
+    {
+      "name": "lime",
+      "count": 1
+    },
+    {
+      "name": "low-sodium soy sauce",
+      "count": 1
+    },
+    {
+      "name": "lukewarm water",
+      "count": 1
+    },
+    {
+      "name": "mirin",
+      "count": 1
+    },
+    {
+      "name": "miso",
+      "count": 1
+    },
+    {
+      "name": "mushrooms",
+      "count": 1
+    },
+    {
+      "name": "nutmeg",
+      "count": 1
+    },
+    {
+      "name": "oats",
+      "count": 1
+    },
+    {
+      "name": "oyster sauce",
+      "count": 1
+    },
+    {
+      "name": "pancetta",
+      "count": 1
+    },
+    {
+      "name": "parsley (for ricotta topping)",
+      "count": 1
+    },
+    {
+      "name": "pasta",
+      "count": 1
+    },
+    {
+      "name": "peppers",
+      "count": 1
+    },
+    {
+      "name": "pickled turnips",
+      "count": 1
+    },
+    {
+      "name": "pita or wrap bread",
+      "count": 1
+    },
+    {
+      "name": "rice vinegar",
+      "count": 1
+    },
+    {
+      "name": "rosemary",
+      "count": 1
+    },
+    {
+      "name": "rucola / arugula / rocket",
+      "count": 1
+    },
+    {
+      "name": "salt and pepper",
+      "count": 1
+    },
+    {
+      "name": "salt or pepper",
+      "count": 1
+    },
+    {
+      "name": "shredded cheddar gruy\u00e8re cheese",
+      "count": 1
+    },
+    {
+      "name": "silken tofu",
+      "count": 1
+    },
+    {
+      "name": "small onion",
+      "count": 1
+    },
+    {
+      "name": "smoked paprika",
+      "count": 1
+    },
+    {
+      "name": "sourdough toast",
+      "count": 1
+    },
+    {
+      "name": "soy sauce (for chicken)",
+      "count": 1
+    },
+    {
+      "name": "soy sauce (for tofu sauce)",
+      "count": 1
+    },
+    {
+      "name": "spices and seasonings (including tarragon)",
+      "count": 1
+    },
+    {
+      "name": "spring onions",
+      "count": 1
+    },
+    {
+      "name": "sriracha",
+      "count": 1
+    },
+    {
+      "name": "tahini",
+      "count": 1
+    },
+    {
+      "name": "tarragon",
+      "count": 1
+    },
+    {
+      "name": "tomato",
+      "count": 1
+    },
+    {
+      "name": "tomato puree",
+      "count": 1
+    },
+    {
+      "name": "turmeric",
+      "count": 1
+    },
+    {
+      "name": "unknown ingredient",
+      "count": 1
+    },
+    {
+      "name": "vegan pizza cheese",
+      "count": 1
+    },
+    {
+      "name": "vegetable oil",
+      "count": 1
+    },
+    {
+      "name": "white wine",
+      "count": 1
+    },
+    {
+      "name": "whole canned tomatoes",
+      "count": 1
+    },
+    {
+      "name": "yeast",
+      "count": 1
+    },
+    {
+      "name": "yogurt",
+      "count": 1
+    },
+    {
+      "name": "yukon gold potatoes",
+      "count": 1
+    }
+  ]
+}
