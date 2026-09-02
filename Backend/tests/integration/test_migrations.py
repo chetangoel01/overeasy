@@ -1,15 +1,15 @@
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from uuid import uuid4
 
 import pytest
-from alembic.config import Config
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.exc import IntegrityError
 
 from alembic import command
+from tests.conftest import alembic_config
 
-BACKEND_ROOT = Path(__file__).parents[2]
+__all__ = ["alembic_config"]
+
 EXPECTED_TABLES = {
     "account_deletion_audits",
     "alembic_version",
@@ -49,18 +49,12 @@ EXPECTED_TABLES = {
 }
 
 
-def alembic_config(database_url: str) -> Config:
-    config = Config(str(BACKEND_ROOT / "alembic.ini"))
-    config.set_main_option("sqlalchemy.url", database_url)
-    return config
-
-
 @pytest.mark.integration
 def test_upgrade_from_empty_database_creates_complete_schema(
-    clean_postgres_url: str,
+    empty_postgres_url: str,
 ) -> None:
-    command.upgrade(alembic_config(clean_postgres_url), "head")
-    engine = create_engine(clean_postgres_url)
+    command.upgrade(alembic_config(empty_postgres_url), "head")
+    engine = create_engine(empty_postgres_url)
 
     assert set(inspect(engine).get_table_names()) == EXPECTED_TABLES
 
@@ -68,8 +62,8 @@ def test_upgrade_from_empty_database_creates_complete_schema(
 
 
 @pytest.mark.integration
-def test_migrated_schema_matches_model_metadata(clean_postgres_url: str) -> None:
-    config = alembic_config(clean_postgres_url)
+def test_migrated_schema_matches_model_metadata(empty_postgres_url: str) -> None:
+    config = alembic_config(empty_postgres_url)
     command.upgrade(config, "head")
 
     command.check(config)
@@ -77,11 +71,11 @@ def test_migrated_schema_matches_model_metadata(clean_postgres_url: str) -> None
 
 @pytest.mark.integration
 def test_provider_cost_migration_upgrades_and_downgrades(
-    clean_postgres_url: str,
+    empty_postgres_url: str,
 ) -> None:
-    config = alembic_config(clean_postgres_url)
+    config = alembic_config(empty_postgres_url)
     command.upgrade(config, "head")
-    engine = create_engine(clean_postgres_url)
+    engine = create_engine(empty_postgres_url)
 
     columns = {
         value["name"]: value
@@ -92,7 +86,7 @@ def test_provider_cost_migration_upgrades_and_downgrades(
 
     engine.dispose()
     command.downgrade(config, "0012")
-    engine = create_engine(clean_postgres_url)
+    engine = create_engine(empty_postgres_url)
     names = {
         value["name"] for value in inspect(engine).get_columns("provider_attempts")
     }
@@ -102,10 +96,10 @@ def test_provider_cost_migration_upgrades_and_downgrades(
 
 @pytest.mark.integration
 def test_unique_and_foreign_key_constraints_are_enforced(
-    clean_postgres_url: str,
+    empty_postgres_url: str,
 ) -> None:
-    command.upgrade(alembic_config(clean_postgres_url), "head")
-    engine = create_engine(clean_postgres_url)
+    command.upgrade(alembic_config(empty_postgres_url), "head")
+    engine = create_engine(empty_postgres_url)
     user_id = uuid4()
     now = datetime.now(UTC)
 
@@ -168,10 +162,10 @@ def test_unique_and_foreign_key_constraints_are_enforced(
 
 @pytest.mark.integration
 def test_step_ingredient_references_must_belong_to_the_same_recipe(
-    clean_postgres_url: str,
+    empty_postgres_url: str,
 ) -> None:
-    command.upgrade(alembic_config(clean_postgres_url), "head")
-    engine = create_engine(clean_postgres_url)
+    command.upgrade(alembic_config(empty_postgres_url), "head")
+    engine = create_engine(empty_postgres_url)
     user_id = uuid4()
     first_recipe_id = uuid4()
     second_recipe_id = uuid4()
@@ -253,7 +247,7 @@ def test_step_ingredient_references_must_belong_to_the_same_recipe(
 
 @pytest.mark.integration
 def test_cancelled_import_downgrade_preserves_jobs_and_their_quota_events(
-    clean_postgres_url: str,
+    empty_postgres_url: str,
 ) -> None:
     """Downgrading past 0014 must not destroy the audit and quota trail.
 
@@ -261,9 +255,9 @@ def test_cancelled_import_downgrade_preserves_jobs_and_their_quota_events(
     silently refunds the user's monthly import quota and takes the billing
     trail with it.
     """
-    config = alembic_config(clean_postgres_url)
+    config = alembic_config(empty_postgres_url)
     command.upgrade(config, "head")
-    engine = create_engine(clean_postgres_url)
+    engine = create_engine(empty_postgres_url)
     user_id = uuid4()
     job_id = uuid4()
     now = datetime.now(UTC)
@@ -322,7 +316,7 @@ def test_cancelled_import_downgrade_preserves_jobs_and_their_quota_events(
 
     engine.dispose()
     command.downgrade(config, "0013")
-    engine = create_engine(clean_postgres_url)
+    engine = create_engine(empty_postgres_url)
 
     with engine.begin() as connection:
         job = connection.execute(
@@ -349,14 +343,14 @@ def test_cancelled_import_downgrade_preserves_jobs_and_their_quota_events(
 
 @pytest.mark.integration
 def test_identity_uniqueness_migration_dedupes_and_enforces_one_per_user(
-    clean_postgres_url: str,
+    empty_postgres_url: str,
 ) -> None:
     """0015 must collapse duplicate provider identities deterministically
     (oldest row per user, ties broken by subject), leave single identities
     untouched, and enforce uniqueness afterwards — reversibly."""
-    config = alembic_config(clean_postgres_url)
+    config = alembic_config(empty_postgres_url)
     command.upgrade(config, "0014")
-    engine = create_engine(clean_postgres_url)
+    engine = create_engine(empty_postgres_url)
     duplicated_user = uuid4()
     single_user = uuid4()
     now = datetime.now(UTC)
@@ -443,7 +437,7 @@ def test_identity_uniqueness_migration_dedupes_and_enforces_one_per_user(
 
 @pytest.mark.integration
 def test_recipe_child_foreign_key_indexes_upgrade_and_downgrade(
-    clean_postgres_url: str,
+    empty_postgres_url: str,
 ) -> None:
     """The three recipe child tables filtered on every fetch and delete —
     detected_timers, field_uncertainties, other_nutrients — must index the
@@ -455,16 +449,16 @@ def test_recipe_child_foreign_key_indexes_upgrade_and_downgrade(
         "field_uncertainties": "ix_field_uncertainties_recipe_id",
         "other_nutrients": "ix_other_nutrients_nutrition_recipe_id",
     }
-    config = alembic_config(clean_postgres_url)
+    config = alembic_config(empty_postgres_url)
     command.upgrade(config, "head")
-    engine = create_engine(clean_postgres_url)
+    engine = create_engine(empty_postgres_url)
     for table, index in expected.items():
         names = {value["name"] for value in inspect(engine).get_indexes(table)}
         assert index in names, f"{table} has no index on its foreign key: {names}"
     engine.dispose()
 
     command.downgrade(config, "0015")
-    engine = create_engine(clean_postgres_url)
+    engine = create_engine(empty_postgres_url)
     for table, index in expected.items():
         names = {value["name"] for value in inspect(engine).get_indexes(table)}
         assert index not in names
@@ -473,7 +467,7 @@ def test_recipe_child_foreign_key_indexes_upgrade_and_downgrade(
 
 @pytest.mark.integration
 def test_discover_impressions_upgrade_cascades_and_downgrades(
-    clean_postgres_url: str,
+    empty_postgres_url: str,
 ) -> None:
     """0022 must key one row per (cook, source), index the sweep's lookup,
     and take its rows with the account they belong to.
@@ -481,9 +475,9 @@ def test_discover_impressions_upgrade_cascades_and_downgrades(
     Without the cascade a deleted account would leave a behavioural record
     behind, which is exactly what the privacy policy promises it does not.
     Reversibly."""
-    config = alembic_config(clean_postgres_url)
+    config = alembic_config(empty_postgres_url)
     command.upgrade(config, "head")
-    engine = create_engine(clean_postgres_url)
+    engine = create_engine(empty_postgres_url)
     user_id = uuid4()
     source_id = uuid4()
     now = datetime.now(UTC)
@@ -558,6 +552,6 @@ def test_discover_impressions_upgrade_cascades_and_downgrades(
 
     engine.dispose()
     command.downgrade(config, "0021")
-    engine = create_engine(clean_postgres_url)
+    engine = create_engine(empty_postgres_url)
     assert "discover_impressions" not in inspect(engine).get_table_names()
     engine.dispose()
