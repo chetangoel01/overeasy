@@ -394,6 +394,9 @@ struct LadleStateView: View {
     var tone: Tone = .neutral
     var primaryTitle: String?
     var primaryAction: (() -> Void)?
+    /// Lets a screen name its primary button for UI tests without reaching
+    /// into the state view's layout.
+    var primaryIdentifier: String?
     var secondaryTitle: String?
     var secondaryAction: (() -> Void)?
 
@@ -422,6 +425,7 @@ struct LadleStateView: View {
             if let primaryTitle, let primaryAction {
                 Button(primaryTitle, action: primaryAction)
                     .buttonStyle(LadleButtonStyle(role: .primary))
+                    .accessibilityIdentifier(primaryIdentifier ?? "")
             }
 
             if let secondaryTitle, let secondaryAction {

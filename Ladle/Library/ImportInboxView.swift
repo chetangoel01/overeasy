@@ -50,17 +50,20 @@ struct ImportInboxView: View {
     @ViewBuilder
     private var jobs: some View {
         if viewModel.actionableImportJobs.isEmpty {
-            ContentUnavailableView {
-                Label("Inbox clear", systemImage: "checkmark.circle")
-            } description: {
-                Text("Paste a link to start one.")
-            } actions: {
-                Button("Add recipe", action: addRecipe)
-                    .buttonStyle(LadleButtonStyle(role: .secondary))
-                    .disabled(!canImport)
-                    .accessibilityIdentifier("inbox.empty.add-recipe")
-            }
-            .foregroundStyle(LadleTheme.Label.primary)
+            // The same state view the Recipes tab uses for "No recipes yet",
+            // so the two empty states share one shape and one filled primary
+            // button. A system placeholder put the secondary role in a small
+            // grey lozenge that read as disabled.
+            LadleStateView(
+                systemImage: "checkmark.circle",
+                title: "Inbox clear",
+                message: "Paste a link to import a recipe.",
+                primaryTitle: "Add recipe",
+                primaryAction: addRecipe,
+                primaryIdentifier: "inbox.empty.add-recipe"
+            )
+            .disabled(!canImport)
+            .listRowInsets(EdgeInsets())
             .listRowBackground(LadleTheme.Surface.porcelain)
             .listRowSeparator(.hidden)
         } else {
