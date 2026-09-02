@@ -239,10 +239,11 @@ class AnthropicVerificationClient:
             ],
         }
         try:
+            # anthropic 1.x dropped the sampling controls from the Messages
+            # API, so there is no temperature to pin here any more.
             message = self._client.messages.parse(
                 model=model,
                 max_tokens=max_tokens,
-                temperature=0,
                 system=(
                     "Verify only disputed recipe fields against the supplied text. "
                     "Patch only a listed fieldPath and cite exact supplied text. "
