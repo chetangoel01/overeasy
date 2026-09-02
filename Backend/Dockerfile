@@ -4,9 +4,15 @@ COPY --from=ghcr.io/astral-sh/uv:0.8.22@sha256:9874eb7afe5ca16c363fe80b294fe700e
 
 # yt-dlp reads public metadata and captions; ffmpeg downsamples audio before
 # it is sent for transcription, which is most of what keeps that call cheap.
-ARG DEBIAN_SNAPSHOT=20260713T000000Z
+ARG DEBIAN_SNAPSHOT=20260901T000000Z
 ARG CA_CERTIFICATES_VERSION=20230311+deb12u1
 ARG FFMPEG_VERSION=7:5.1.9-0+deb12u1
+# libexpat1 only enters this image as an ffmpeg dependency, and bookworm ships
+# it at 2.5.0-1+deb12u2, which carries CVE-2026-56408 (integer overflow in
+# copyString). The fix reached bookworm-security on 2026-08-31, which is what
+# the snapshot above moved forward for; pinned explicitly so the version is
+# chosen here rather than by whatever apt happens to resolve.
+ARG LIBEXPAT1_VERSION=2.5.0-1+deb12u3
 ARG INSTALL_MEDIA_TOOLS=true
 RUN sed -i \
         -e "s|http://deb.debian.org/debian$|https://snapshot.debian.org/archive/debian/${DEBIAN_SNAPSHOT}|" \
@@ -17,7 +23,9 @@ RUN sed -i \
     && apt-get install --no-install-recommends -y \
         ca-certificates=${CA_CERTIFICATES_VERSION} \
     && if [ "$INSTALL_MEDIA_TOOLS" = "true" ]; then \
-        apt-get install --no-install-recommends -y ffmpeg=${FFMPEG_VERSION}; \
+        apt-get install --no-install-recommends -y \
+            ffmpeg=${FFMPEG_VERSION} \
+            libexpat1=${LIBEXPAT1_VERSION}; \
     fi \
     && rm -rf /var/lib/apt/lists/*
 
