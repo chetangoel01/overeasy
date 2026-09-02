@@ -121,6 +121,12 @@ struct PrivacyDetailView: View {
             at sign-in, so Settings can show you your own account. The name \
             is yours to edit, and both are deleted with your account.
             """,
+            """
+            Which Discover recipes were shown to you, and when, so the feed \
+            stops repeating itself — something you saw today sorts below \
+            what you haven't seen. Nothing is hidden for good, the record is \
+            erased after 30 days, and it goes with your account.
+            """,
         ]
 
         static let notTrackedItems = [
