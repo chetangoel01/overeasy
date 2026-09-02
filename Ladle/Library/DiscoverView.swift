@@ -233,6 +233,10 @@ final class DiscoverViewModel {
         isRefreshingQuietly = true
         defer { isRefreshingQuietly = false }
         let token = generation
+        // The session this page would be an answer to. A pull that lands
+        // while the quiet fetch is out starts a new one without touching
+        // the generation, and the older page must not surface behind it.
+        let session = sessionStartedAt
         // A fresh pin, or the server ranks this exactly as the session the
         // cook is already reading and hands back the same rows. Recording
         // off: this page may never be looked at, and marking it seen would
@@ -245,9 +249,9 @@ final class DiscoverViewModel {
             recordsImpressions: false
         ) else { return }
         // Nobody asked for this, so nobody is told it failed.
-        guard token == generation, case let .loaded(current) = state else {
-            return
-        }
+        guard token == generation, sessionStartedAt == session,
+              case let .loaded(current) = state
+        else { return }
         let recipes = page.recipes.filter {
             $0.savedRecipeID == nil && !savedSourceIDs.contains($0.sourceID)
         }

@@ -490,6 +490,55 @@ final class DiscoverViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.pending)
     }
 
+    /// A pull that lands while the quiet fetch is still out wins. The page
+    /// in flight was ranked against the session the pull just replaced, so
+    /// surfacing it afterwards would offer rows from a walk that is over.
+    func testAPullDuringAQuietRefreshDiscardsTheQuietPage() async {
+        let onScreen = (1...3).map { paged($0) }
+        let service = DiscoverTestService(result: .success(onScreen))
+        let clock = TestClock()
+        let viewModel = DiscoverViewModel(service: service, now: clock.now)
+        await viewModel.load()
+
+        clock.advance(by: DiscoverViewModel.quietRefreshInterval)
+        service.pausesFetch = true
+        let quiet = Task { await viewModel.refreshQuietly() }
+        while !service.fetchIsSuspended { await Task.yield() }
+
+        // The pull, start to finish, while the quiet page is still out.
+        service.pausesFetch = false
+        await viewModel.load()
+        // Set after the pull, so the pull does not consume it: this is what
+        // the quiet fetch will hand back when it is let go.
+        service.overrideNextPage = [paged(4), paged(5)]
+        service.resumeFetch()
+        await quiet.value
+
+        XCTAssertNil(viewModel.pending)
+        XCTAssertEqual(viewModel.state, .loaded(onScreen))
+    }
+
+    /// The demo feed is what the UI tests and the screenshots are taken
+    /// against, and it keeps no reading position: every fetch returns the
+    /// same rows. So the quiet refresh finds nothing, and no scenario can
+    /// ever grow a pill. Asserted here as well as in the UI test, because
+    /// this one cannot pass by failing to scroll far enough.
+    func testTheDemoFeedNeverHasAnythingNewToOffer() async {
+        for scenario in DemoLaunchScenario.allCases {
+            let clock = TestClock()
+            let viewModel = DiscoverViewModel(
+                service: DemoDiscoverService(scenario: scenario),
+                now: clock.now
+            )
+            await viewModel.load()
+
+            clock.advance(by: DiscoverViewModel.quietRefreshInterval)
+            await viewModel.refreshQuietly()
+
+            XCTAssertNil(viewModel.pending, "\(scenario.rawValue)")
+        }
+    }
+
     /// A sort change, a search or a pull each start a session of their own,
     /// and the page held for the last one is no longer an answer to it.
     func testANewSessionDropsTheHeldPage() async {
