@@ -61,10 +61,12 @@ class AnthropicStructuredClient:
         system: str,
         user_prompt: str,
     ) -> ClaudeStructuredResponse:
+        # anthropic 1.x dropped the sampling controls from the Messages API, so
+        # there is no temperature to pin here any more; the schema in
+        # output_format is what holds the response steady.
         message = self._client.messages.parse(
             model=model,
             max_tokens=max_tokens,
-            temperature=0,
             system=system,
             messages=[{"role": "user", "content": user_prompt}],
             output_format=RecipeExtraction,
