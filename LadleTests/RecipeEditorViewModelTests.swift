@@ -12,8 +12,10 @@ final class RecipeEditorViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.draft.id, recipe.id)
         XCTAssertEqual(viewModel.draft.title, recipe.title)
         XCTAssertEqual(viewModel.draft.creatorName, recipe.creatorName ?? "")
-        XCTAssertEqual(viewModel.draft.preparationMinutes, "10")
-        XCTAssertEqual(viewModel.draft.cookingMinutes, "25")
+        // The demo orzo states only how long it cooks, so the editor shows an
+        // empty prep field rather than inventing one to fill it.
+        XCTAssertEqual(viewModel.draft.preparationMinutes, "")
+        XCTAssertEqual(viewModel.draft.cookingMinutes, "35")
         XCTAssertEqual(viewModel.draft.servings, "4")
         XCTAssertEqual(
             viewModel.draft.ingredients.map(\.id),

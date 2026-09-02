@@ -9,35 +9,47 @@ struct RecipeMetadataBand: View {
     let recipe: Recipe
 
     var body: some View {
-        Group {
-            if usesVerticalLayout {
-                VStack(spacing: 0) {
-                    totalTimeItem
-                    horizontalDivider
-                    yieldItem
-                }
-            } else {
-                HStack(spacing: 0) {
-                    totalTimeItem
-                    verticalDivider
-                    yieldItem
+        VStack(alignment: .leading, spacing: LadleTheme.Spacing.compact) {
+            Group {
+                if usesVerticalLayout {
+                    VStack(spacing: 0) {
+                        timeItem
+                        horizontalDivider
+                        yieldItem
+                    }
+                } else {
+                    HStack(spacing: 0) {
+                        timeItem
+                        verticalDivider
+                        yieldItem
+                    }
                 }
             }
-        }
-        .padding(.vertical, 16)
-        .background(
-            LadleTheme.Surface.raised,
-            in: RoundedRectangle(
-                cornerRadius: LadleTheme.Corner.card,
-                style: .continuous
+            .padding(.vertical, 16)
+            .background(
+                LadleTheme.Surface.raised,
+                in: RoundedRectangle(
+                    cornerRadius: LadleTheme.Corner.card,
+                    style: .continuous
+                )
             )
-        )
+
+            // Why the number says "About", in the voice ingredient and step
+            // notes already use.
+            if let note = recipe.ladleTimeNote {
+                Label(note, systemImage: "exclamationmark.circle")
+                    .ladleFont(.metadata)
+                    .foregroundStyle(accent.label)
+                    .accessibilityLabel("Estimated time: \(note)")
+            }
+        }
     }
 
-    private var totalTimeItem: some View {
-        metadataItem(
-            value: recipe.totalMinutes.map { "\($0) min" } ?? "—",
-            label: "Total time",
+    private var timeItem: some View {
+        let time = recipe.ladleTimeItem
+        return metadataItem(
+            value: time.value,
+            label: time.label,
             systemImage: "clock"
         )
     }
@@ -188,6 +200,22 @@ struct RecipeNutritionSummary: View {
 }
 
 extension Recipe {
+    /// The band's time, under the label that is true of it. A recipe that
+    /// states only a cook time shows that rather than an em dash, and an
+    /// estimated total says "About" the way an estimated yield does.
+    var ladleTimeItem: (value: String, label: String) {
+        guard let time = displayedTime else { return ("—", "Total time") }
+        let value = "\(time.minutes) min"
+        return (isTimeEstimated ? "About \(value)" : value, time.label)
+    }
+
+    /// The reason an estimated time is an estimate, when there is a number
+    /// for it to explain.
+    var ladleTimeNote: String? {
+        guard displayedTime != nil else { return nil }
+        return uncertainties.first { $0.field == "total_minutes" }?.reason
+    }
+
     var ladleYieldText: String {
         let value = ladleNumber(servings)
         let noun = servings == 1 ? "serving" : "servings"

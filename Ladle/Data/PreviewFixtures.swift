@@ -34,7 +34,10 @@ enum PreviewFixtures {
             source: .instagram,
             slug: "lemon-orzo",
             imageName: "RecipeOrzo",
-            minutes: 35
+            minutes: 35,
+            // The live library's commonest shape: a creator who said how
+            // long it cooks and nothing else.
+            timing: .cookOnly
         ),
         makeRecipe(
             id: "B54D0E5B-8B10-410F-ADE7-7B0F12F94E03",
@@ -57,7 +60,10 @@ enum PreviewFixtures {
             source: .youtube,
             slug: "gochujang-chicken",
             imageName: "RecipeChicken",
-            minutes: 45
+            minutes: 45,
+            // A total the extractor read off the method, so the band has a
+            // labelled estimate to render.
+            timing: .estimatedTotal
         ),
         makeRecipe(
             id: "B54D0E5B-8B10-410F-ADE7-7B0F12F94E05",
@@ -100,7 +106,7 @@ enum PreviewFixtures {
                 source: template.source,
                 slug: slugs[(index - 1) % slugs.count],
                 imageName: template.images.first?.localName ?? "RecipeBurger",
-                minutes: template.totalMinutes ?? 30,
+                minutes: template.displayedTime?.minutes ?? 30,
                 favorite: index.isMultiple(of: 7)
             )
         }
@@ -135,6 +141,16 @@ enum PreviewFixtures {
         let nutrition: Nutrition
     }
 
+    /// How a demo recipe came by its minutes. The live library is mostly not
+    /// the tidy case, so the demo library carries all three: a creator who
+    /// stated a total, one who stated only how long it cooks, and a total the
+    /// extractor read off the method.
+    private enum DemoTiming {
+        case statedTotal
+        case cookOnly
+        case estimatedTotal
+    }
+
     private static func makeRecipe(
         id: String,
         title: String,
@@ -143,6 +159,7 @@ enum PreviewFixtures {
         slug: String,
         imageName: String,
         minutes: Int,
+        timing: DemoTiming = .statedTotal,
         favorite: Bool = false,
         uncountedIngredient: Int? = nil
     ) -> Recipe {
@@ -152,6 +169,22 @@ enum PreviewFixtures {
             in: content.ingredients,
             at: uncountedIngredient
         )
+        let (preparation, cooking, total): (Int?, Int?, Int?) =
+            timing == .cookOnly
+                ? (nil, minutes, nil)
+                : (min(10, minutes), max(minutes - 10, 0), minutes)
+        let timeNotes =
+            timing == .estimatedTotal
+                ? [
+                    FieldUncertainty(
+                        field: "total_minutes",
+                        reason: """
+                            Total time was estimated from the method; the \
+                            creator did not state one.
+                            """
+                    ),
+                ]
+                : []
         return Recipe(
             id: recipeID,
             title: title,
@@ -160,15 +193,15 @@ enum PreviewFixtures {
             source: source,
             originalURL: previewVideoURL(for: slug),
             images: [RecipeImage(localName: imageName)],
-            preparationMinutes: min(10, minutes),
-            cookingMinutes: max(minutes - 10, 0),
-            totalMinutes: minutes,
+            preparationMinutes: preparation,
+            cookingMinutes: cooking,
+            totalMinutes: total,
             servings: 4,
             ingredients: ingredients,
             steps: content.steps,
             nutrition: content.nutrition,
             isFavorite: favorite,
-            uncertainties: uncertainties,
+            uncertainties: uncertainties + timeNotes,
             createdAt: baseDate.addingTimeInterval(
                 TimeInterval(recipesOrderOffset(for: recipeID))
             ),

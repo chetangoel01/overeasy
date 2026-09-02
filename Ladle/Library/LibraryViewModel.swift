@@ -549,7 +549,7 @@ final class LibraryViewModel {
         case .all:
             true
         case .quick:
-            recipe.totalMinutes.map { $0 <= 30 } ?? false
+            recipe.displayedTime.map { $0.minutes <= 30 } ?? false
         case .favorites:
             recipe.isFavorite
         case .uncooked:

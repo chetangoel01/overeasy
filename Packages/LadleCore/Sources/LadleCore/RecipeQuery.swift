@@ -57,7 +57,8 @@ public struct RecipeQuery: Equatable, Sendable {
 
         let matchesTime: Bool
         if let maximumTotalMinutes {
-            matchesTime = recipe.totalMinutes.map { $0 <= maximumTotalMinutes } ?? false
+            matchesTime = recipe.displayedTime
+                .map { $0.minutes <= maximumTotalMinutes } ?? false
         } else {
             matchesTime = true
         }
@@ -92,8 +93,8 @@ public struct RecipeQuery: Equatable, Sendable {
                 return lhs.createdAt > rhs.createdAt
             }
         case .cookingTime:
-            let left = lhs.totalMinutes ?? .max
-            let right = rhs.totalMinutes ?? .max
+            let left = lhs.displayedTime?.minutes ?? .max
+            let right = rhs.displayedTime?.minutes ?? .max
             if left != right {
                 return left < right
             }
