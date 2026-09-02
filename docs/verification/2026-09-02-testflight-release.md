@@ -1,9 +1,9 @@
 # Overeasy goes to TestFlight
 
 Date: September 2, 2026
-Status: **a distribution-signed `.ipa` was built and verified; the first
-upload is being made by hand from Xcode's Organizer, so the scripted upload
-path is written but not yet exercised.**
+Status: **uploaded. Build 1.0 (20260902.1) reached App Store Connect on
+September 2 through Xcode's Organizer. The scripted upload path is written but
+not yet exercised.**
 
 The app has only ever been installed over a cable, one device at a time. This
 records what a TestFlight build needs, and leaves the whole run behind one
@@ -93,6 +93,36 @@ distribution authority, `get-task-allow` false, and `beta-reports-active`
 true, which is the entitlement that lets a build appear in TestFlight.
 
 Not exercised: `altool --validate-app` and `--upload-app`. The first upload
-goes through Organizer's Distribute App instead, which authenticates with the
+went through Organizer's Distribute App instead, which authenticates with the
 Xcode account already signed in and needs no API key. The script's upload path
 therefore stays unproven until someone runs it with a key.
+
+## The first upload
+
+Organizer was driven through **Custom → App Store Connect → Upload** rather
+than the one-click App Store Connect path, for one reason: only the custom
+route exposes the options page, and the recommended settings leave **Manage
+version and build number** on. That checkbox would let Xcode renumber the
+build, which is exactly what `manageAppVersionAndBuildNumber = false` in the
+export options exists to prevent. It was unchecked.
+
+**TestFlight internal testing only** was left off deliberately. It is a
+permanent mark on the build: one carrying it can never be promoted to external
+testers or the store, so a build worth shipping would have to be uploaded
+again. Restricting who can install is a property of the tester group, not of
+the build, and is set in App Store Connect where it can be changed.
+
+Two questions were still open when the run started, and it answered both.
+The app record for `com.ladle.ios` already existed — Organizer's "Fetching app
+record" step found it rather than offering to create one. And the review page
+named the signing identity as **Cloud Managed Apple Distribution**, which is
+why the login keychain holds no distribution certificate and does not need to.
+
+The review page agreed with the `.ipa` inspected earlier on every point that
+matters: team `P48VDW72LU`, the store provisioning profile, symbols included,
+`arm64`, version 1.0 (20260902.1), and `appattest-environment` of
+`production`. Upload finished with `Ladle 1.0 (20260902.1) uploaded`.
+
+What remains is Apple's: processing, then an internal tester group with the
+build enabled. Internal testers are App Store Connect users on the team, so
+none of that needs Beta App Review.
