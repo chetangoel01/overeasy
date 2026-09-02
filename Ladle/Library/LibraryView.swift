@@ -509,7 +509,7 @@ struct LibraryView: View {
         } label: {
             Image(systemName: "person.crop.circle")
         }
-        .accessibilityLabel("Settings and account")
+        .accessibilityLabel("Profile")
     }
 
     private var addRecipeButton: some View {

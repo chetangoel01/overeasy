@@ -1,0 +1,11 @@
+{
+  "accessToken": "eyJhbGciOiJIUzI1NiJ9.ZmFrZS1hY2Nlc3MtdG9rZW4.c2lnbmF0dXJl",
+  "accessTokenExpiresAt": "2026-09-02T09:56:00.000Z",
+  "avatarURL": "https://images.ladle.example/avatars/priya.jpg",
+  "createdAt": "2026-08-14T12:00:00.000Z",
+  "deviceID": "50000000-0000-4000-8000-000000000001",
+  "displayName": "Priya Raman",
+  "refreshToken": "cmVmcmVzaC10b2tlbi1mb3ItdGhlLWZpeHR1cmU",
+  "userID": "40000000-0000-4000-8000-000000000001",
+  "userKind": "google"
+}

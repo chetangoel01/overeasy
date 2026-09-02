@@ -81,6 +81,9 @@ class ProfileResponse(WireModel):
     user_kind: str
     display_name: str | None = None
     avatar_url: str | None = None
+    # Server-owned, and absent from `ProfileUpdateRequest` on purpose: an
+    # account's start date is not something its owner gets to assert.
+    created_at: WireDateTime
 
 
 class AccountDeletionRequest(WireModel):
@@ -97,7 +100,10 @@ class AuthTokensResponse(WireModel):
     device_id: WireUUID
     user_kind: str
     # The profile travels with the tokens rather than behind a `/me` call, so
-    # every refresh keeps it current for free.
+    # every refresh keeps it current for free. The creation date rides along
+    # for the same reason, and because it never changes it costs nothing to
+    # repeat.
+    created_at: WireDateTime
     display_name: str | None = None
     avatar_url: str | None = None
 
@@ -110,6 +116,7 @@ class AuthTokensResponse(WireModel):
             user_id=value.user_id,
             device_id=value.device_id,
             user_kind=value.user_kind,
+            created_at=value.created_at,
             display_name=value.display_name,
             avatar_url=value.avatar_url,
         )
@@ -389,6 +396,7 @@ def update_profile(
             user_kind=user.kind,
             display_name=user.display_name,
             avatar_url=user.avatar_url,
+            created_at=user.created_at,
         )
 
 

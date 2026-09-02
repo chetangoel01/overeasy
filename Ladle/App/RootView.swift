@@ -52,6 +52,18 @@ struct RootView: View {
                     onAuthenticated: onAuthenticated
                 )
                 .transition(.opacity)
+            } else if accountSession.shouldPresentNameStep {
+                // Between the welcome and the walkthrough: the account
+                // exists by now — the backend confirmed it — so there is
+                // something to put a name on, and the walkthrough that
+                // follows is about the app rather than the cook.
+                NameStepView(
+                    accountSession: accountSession,
+                    authClient: authClient
+                ) {
+                    accountSession.completeNameStep()
+                }
+                .transition(.opacity)
             } else if accountSession.shouldPresentWalkthrough {
                 OnboardingWalkthroughView {
                     accountSession.completeWalkthrough()
@@ -81,6 +93,10 @@ struct RootView: View {
         .animation(
             reduceMotion ? nil : .easeOut(duration: 0.2),
             value: accountSession.shouldPresentWelcome
+        )
+        .animation(
+            reduceMotion ? nil : .easeOut(duration: 0.2),
+            value: accountSession.shouldPresentNameStep
         )
         .animation(
             reduceMotion ? nil : .easeOut(duration: 0.2),

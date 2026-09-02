@@ -17,6 +17,7 @@ from uuid import UUID
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
+from ladle.api.routes.auth import AuthTokensResponse, ProfileResponse
 from ladle.contracts.errors import (
     DuplicateRecipeDetails,
     ErrorCode,
@@ -54,6 +55,8 @@ def canonical_json(value: Any) -> str:
         ("recipe-estimated-time.json", TypeAdapter(RecipeDTO)),
         ("sync-page.json", TypeAdapter(SyncPageDTO)),
         ("errors.json", TypeAdapter(list[ErrorEnvelope])),
+        ("auth-tokens.json", TypeAdapter(AuthTokensResponse)),
+        ("auth-profile.json", TypeAdapter(ProfileResponse)),
     ],
 )
 def test_golden_fixture_round_trips_canonically(

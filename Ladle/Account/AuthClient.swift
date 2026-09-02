@@ -27,6 +27,10 @@ final class AuthClient {
         let userKind: String
         let displayName: String?
         let avatarURL: URL?
+        /// Optional here, though the server always sends it: a build talking
+        /// to an API that predates the field would otherwise fail every name
+        /// edit on a decode rather than losing one line of the facts.
+        let createdAt: Date?
     }
 
     private struct GoogleRequest: Encodable, Sendable {
@@ -209,11 +213,14 @@ final class AuthClient {
         )
         let profile = AccountProfile(
             displayName: response.displayName,
-            avatarURL: response.avatarURL
+            avatarURL: response.avatarURL,
+            createdAt: response.createdAt
+                ?? accountSession.profile?.createdAt
         )
         if var tokens = try? tokenStore.load() {
             tokens.displayName = profile.displayName
             tokens.avatarURL = profile.avatarURL
+            tokens.createdAt = profile.createdAt ?? tokens.createdAt
             try? tokenStore.save(tokens)
         }
         accountSession.applyProfile(profile)

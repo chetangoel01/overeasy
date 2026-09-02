@@ -44,7 +44,7 @@ struct AccountDeletionFailure: Equatable {
     }
 }
 
-/// Settings as a standard grouped form.
+/// Profile: the cook, then their settings, as a standard grouped form.
 ///
 /// This was a `ScrollView` of hand-built cards: custom section headers in
 /// large bold primary text where a grouped list uses small secondary ones,
@@ -54,6 +54,13 @@ struct AccountDeletionFailure: Equatable {
 ///
 /// Notably it does not override the list background either: a grouped form
 /// on the system's own ground is what a settings screen looks like on iOS.
+///
+/// Rows and headers only: every section's explanatory footer is gone. They
+/// narrated what a cook could already read — "Tints buttons, favorites, and
+/// the selected tab." under five colored circles — and five paragraphs of it
+/// buried the person the screen is now led by. The copy that has to be read
+/// before something irreversible happens still exists, in the confirmation
+/// dialog and the alert where it is actually load-bearing.
 struct AccountSheet: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage(LadleAccentColor.preferenceKey)
@@ -85,8 +92,14 @@ struct AccountSheet: View {
             }
             .listRowBackground(LadleTheme.Surface.raised)
             .scrollContentBackground(.hidden)
+            // The form's own first-section inset, replaced by the system's
+            // ordinary one. Left alone it opened the sheet on a band of
+            // nothing between the bar and the cook's face; the header
+            // contributes no top padding of its own, so this is the whole
+            // gap.
+            .contentMargins(.top, Self.firstSectionInset, for: .scrollContent)
             .background(LadleTheme.Surface.porcelain)
-            .navigationTitle("Settings")
+            .navigationTitle("Profile")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -136,23 +149,28 @@ struct AccountSheet: View {
         .presentationDragIndicator(.visible)
     }
 
+    /// The gap between the navigation bar and the cook's face.
+    ///
+    /// A grouped form's own first-section inset runs to about 35 points, and
+    /// the header used to add 24 of its own on top of it. The system's
+    /// ordinary first-section spacing is what a settings screen opens on, so
+    /// that is what this is.
+    private static let firstSectionInset = LadleTheme.Spacing.generous
+
     /// The cook, above their settings. This was a `LabeledContent` row with
     /// a status pill — the same row for a guest and for a signed-in account,
-    /// saying nothing about who was signed in. The explanation stays a
-    /// footer because that is where a grouped list puts prose about the
-    /// section above it.
+    /// saying nothing about who was signed in.
     private var accountSection: some View {
         Section {
             AccountHeaderView(
                 accountSession: accountSession,
+                library: library,
                 authClient: authClient,
                 googleSignIn: googleSignIn,
                 onAuthenticated: onAuthenticated
             )
             .listRowBackground(Color.clear)
             .listRowInsets(EdgeInsets())
-        } footer: {
-            Text(Self.accountDetail(for: accountSession.state))
         }
     }
 
@@ -172,9 +190,6 @@ struct AccountSheet: View {
         }
     }
 
-    /// "Accent color" used to hang off the right of the header as a detail.
-    /// iOS has no such affordance: what a section does is explained in its
-    /// footer, so that is where it went.
     private var appearanceSection: some View {
         Section {
             HStack(spacing: LadleTheme.Spacing.compact) {
@@ -213,8 +228,6 @@ struct AccountSheet: View {
             .padding(.vertical, LadleTheme.Spacing.tight)
         } header: {
             Text("Appearance")
-        } footer: {
-            Text("Tints buttons, favorites, and the selected tab.")
         }
         .sensoryFeedback(.selection, trigger: accentColor)
     }
@@ -227,8 +240,6 @@ struct AccountSheet: View {
                 Label("Privacy & data", systemImage: "hand.raised")
             }
             .accessibilityIdentifier("account.privacy")
-        } footer: {
-            Text("What Overeasy stores, and what it never does.")
         }
     }
 
@@ -250,11 +261,7 @@ struct AccountSheet: View {
             .disabled(isDeletingAccount || isSigningOut)
             .accessibilityIdentifier("account.delete")
         } header: {
-            Text("Account actions")
-        } footer: {
-            Text(
-                "Signing out keeps your synced library in Overeasy. Deleting removes it permanently."
-            )
+            Text("Account")
         }
     }
 
@@ -310,17 +317,6 @@ struct AccountSheet: View {
         case .freeAccount: "Signed in to Overeasy"
         case .signedInWithApple: "Signed in with Apple"
         case .signedInWithGoogle: "Signed in with Google"
-        }
-    }
-
-    static func accountDetail(for state: AccountState) -> String {
-        switch state {
-        case .undecided:
-            "Sign in to keep your recipes synced."
-        case .guest:
-            "Recipes stay on this device until you sign in."
-        case .freeAccount, .signedInWithApple, .signedInWithGoogle:
-            "Your recipes stay synced across your devices."
         }
     }
 

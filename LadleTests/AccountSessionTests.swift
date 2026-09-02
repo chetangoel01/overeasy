@@ -61,6 +61,176 @@ final class AccountSessionTests: XCTestCase {
         XCTAssertFalse(session.shouldPresentWalkthrough)
     }
 
+    // MARK: - The name step
+
+    func testSigningUpAsksForANameOnceAndNeverAgain() {
+        let store = InMemoryPreferenceStore()
+        let session = AccountSession(store: store)
+
+        session.signInWithGoogle()
+        XCTAssertTrue(session.shouldPresentNameStep)
+
+        session.completeNameStep()
+        XCTAssertFalse(session.shouldPresentNameStep)
+
+        let returningSession = AccountSession(store: store)
+        XCTAssertFalse(returningSession.shouldPresentNameStep)
+    }
+
+    /// Quitting mid-step is not answering it. The pending flag is persisted
+    /// before the screen appears, so the next launch asks again.
+    func testAnUnfinishedNameStepResumesAfterRelaunch() {
+        let store = InMemoryPreferenceStore()
+        let session = AccountSession(store: store)
+
+        session.signInWithApple()
+
+        XCTAssertTrue(AccountSession(store: store).shouldPresentNameStep)
+        XCTAssertTrue(session.shouldPresentNameStep)
+    }
+
+    /// Restoring a session is not signing up. Every cold launch runs the
+    /// backend's answer back through the same path a sign-in takes, so
+    /// without a transition check every cook already signed in when this
+    /// shipped would have been asked their name once on upgrade.
+    func testARestoredSessionIsNotAskedForANameAgain() {
+        let store = InMemoryPreferenceStore()
+        let session = AccountSession(store: store)
+        session.signInWithGoogle()
+        session.completeNameStep()
+        session.completeWalkthrough()
+
+        let relaunched = AccountSession(store: store)
+        relaunched.applyRemoteAccount(kind: "google")
+
+        XCTAssertFalse(relaunched.shouldPresentNameStep)
+    }
+
+    /// The same restore, part-way through the step: this one has to resume.
+    func testARestoredSessionResumesAnUnfinishedNameStep() {
+        let store = InMemoryPreferenceStore()
+        AccountSession(store: store).signInWithGoogle()
+
+        let relaunched = AccountSession(store: store)
+        XCTAssertTrue(relaunched.shouldPresentNameStep)
+        relaunched.applyRemoteAccount(kind: "google")
+
+        XCTAssertTrue(relaunched.shouldPresentNameStep)
+    }
+
+    /// The case that caught this on the simulator: a device whose stored
+    /// account kind outlived its onboarding flags reached the welcome screen
+    /// with `state` already Apple, so a gate that asked "was the previous
+    /// state not an account?" said no and skipped the step. What separates a
+    /// sign-in from a restore is that the sign-in *changes* the account.
+    func testSigningInOverAStaleAccountStateStillAsks() {
+        let store = InMemoryPreferenceStore()
+        store.set(AccountState.signedInWithApple.rawValue, forKey: "ladle.account.state")
+        let session = AccountSession(store: store)
+        XCTAssertTrue(session.shouldPresentWelcome)
+
+        session.signInWithGoogle()
+
+        XCTAssertTrue(session.shouldPresentNameStep)
+    }
+
+    func testGuestsAreNeverAskedForAName() {
+        let store = InMemoryPreferenceStore()
+        let session = AccountSession(store: store)
+
+        session.continueAsGuest()
+
+        XCTAssertFalse(session.shouldPresentNameStep)
+        XCTAssertFalse(AccountSession(store: store).shouldPresentNameStep)
+    }
+
+    /// A guest who signs in later reaches the step through the same path a
+    /// new account does — `completeWelcome`, once the backend has confirmed.
+    func testAGuestWhoSignsInLaterIsAsked() {
+        let store = InMemoryPreferenceStore()
+        let session = AccountSession(store: store)
+        session.continueAsGuest()
+        session.completeWalkthrough()
+
+        session.applyRemoteAccount(kind: "google")
+
+        XCTAssertTrue(session.shouldPresentNameStep)
+        XCTAssertFalse(session.shouldPresentWalkthrough)
+    }
+
+    /// The name belongs to the account, not the device — unlike the
+    /// walkthrough, which the device only has to be taught once.
+    func testSigningOutAsksTheNextCookForTheirOwnName() {
+        let store = InMemoryPreferenceStore()
+        let session = AccountSession(store: store)
+        session.signInWithApple()
+        session.completeNameStep()
+
+        session.signOut()
+        XCTAssertFalse(session.shouldPresentNameStep)
+        session.signInWithApple()
+
+        XCTAssertTrue(session.shouldPresentNameStep)
+    }
+
+    func testOnboardingCompleteArgumentSkipsTheNameStep() {
+        let store = InMemoryPreferenceStore()
+
+        let session = AccountSession(
+            store: store,
+            launchArguments: [
+                "-ui-testing",
+                "-onboarding-complete",
+                "-account-state",
+                "signedInWithGoogle",
+            ]
+        )
+
+        XCTAssertFalse(session.shouldPresentNameStep)
+        XCTAssertFalse(session.shouldPresentWalkthrough)
+    }
+
+    func testNameStepArgumentsSkipAndForceTheStep() {
+        let store = InMemoryPreferenceStore()
+        let signedIn = AccountSession(store: store)
+        signedIn.signInWithGoogle()
+        XCTAssertTrue(signedIn.shouldPresentNameStep)
+
+        let skipped = AccountSession(
+            store: store,
+            launchArguments: ["-name-step-complete"]
+        )
+        XCTAssertFalse(skipped.shouldPresentNameStep)
+
+        // The force is read last, so it wins over both the skip and
+        // `-onboarding-complete`.
+        let forced = AccountSession(
+            store: InMemoryPreferenceStore(),
+            launchArguments: [
+                "-ui-testing",
+                "-onboarding-complete",
+                "-name-step-pending",
+                "-account-state",
+                "signedInWithApple",
+            ]
+        )
+        XCTAssertTrue(forced.shouldPresentNameStep)
+
+        // Forcing it for a guest still shows nothing: there is no account
+        // to put a name on.
+        let guest = AccountSession(
+            store: InMemoryPreferenceStore(),
+            launchArguments: [
+                "-ui-testing",
+                "-onboarding-complete",
+                "-name-step-pending",
+                "-account-state",
+                "guest",
+            ]
+        )
+        XCTAssertFalse(guest.shouldPresentNameStep)
+    }
+
     func testGuestSaveDecisionWarnsBeforeTenthRecipe() {
         let session = AccountSession(store: InMemoryPreferenceStore())
         session.continueAsGuest()
@@ -186,6 +356,44 @@ final class AccountSessionTests: XCTestCase {
         session.applyProfile(AccountProfile(displayName: "Priya R."))
 
         XCTAssertEqual(session.profile?.displayName, "Priya R.")
+    }
+
+    /// `-account-created-at` completes the `-account-*` set: a UI-test build
+    /// has no `AuthClient`, so without it the facts line has no month and
+    /// "cooking since" cannot be captured or asserted on. Written the way a
+    /// person types it on a command line, without the wire's `.000`.
+    func testPinnedCreationDateReachesTheProfile() {
+        let session = AccountSession(
+            store: InMemoryPreferenceStore(),
+            launchArguments: [
+                "-ui-testing",
+                "-account-display-name",
+                "Priya Raman",
+                "-account-created-at",
+                "2026-08-14T12:00:00Z",
+            ]
+        )
+
+        XCTAssertEqual(
+            session.profile?.createdAt,
+            ISO8601DateFormatter().date(from: "2026-08-14T12:00:00Z")
+        )
+    }
+
+    /// A date on its own is a profile: a guest has no name and no avatar,
+    /// and the guest facts line still has a device count to print beside it.
+    func testACreationDateAloneIsEnoughOfAProfile() {
+        let session = AccountSession(
+            store: InMemoryPreferenceStore(),
+            launchArguments: [
+                "-ui-testing",
+                "-account-created-at",
+                "2026-08-14T12:00:00Z",
+            ]
+        )
+
+        XCTAssertNotNil(session.profile)
+        XCTAssertNil(session.profile?.displayName)
     }
 
     func testProfileNameIsIgnoredWithoutTheUITestingArgument() {

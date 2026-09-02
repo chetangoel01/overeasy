@@ -1,16 +1,77 @@
 import SwiftUI
 
-/// The cook, at the top of Settings.
+/// One line of facts under the name: what a cook would recognise as theirs.
+///
+/// The counts come from the library on the device; the month comes from the
+/// account's creation date, which is why that date is on the wire at all.
+/// Pure, and deliberately free of `LibraryViewModel`, so the wording is a
+/// unit test rather than a screenshot.
+///
+/// American spelling, like every other string in the app — "favorites" —
+/// even though the documents around it are written in British.
+enum ProfileFacts {
+    static func line(
+        for state: AccountState,
+        recipes: Int,
+        favorites: Int,
+        createdAt: Date?
+    ) -> String {
+        switch state {
+        case .undecided, .guest:
+            return "\(count(recipes, "recipe")) on this device"
+        case .freeAccount, .signedInWithApple, .signedInWithGoogle:
+            var parts = [count(recipes, "recipe"), count(favorites, "favorite")]
+            if let createdAt {
+                // Omitted rather than guessed when the account predates the
+                // field: an invented month is worse than a shorter line.
+                parts.append("cooking since \(month(createdAt))")
+            }
+            return parts.joined(separator: " · ")
+        }
+    }
+
+    static func count(_ value: Int, _ noun: String) -> String {
+        "\(value) \(noun)\(value == 1 ? "" : "s")"
+    }
+
+    static func month(_ date: Date) -> String {
+        date.formatted(.dateTime.month(.wide).year())
+    }
+}
+
+/// What a cook is told when the name did not save. Shared, because the
+/// header and the sign-up name step submit through the same `updateProfile`
+/// and a failure there means the same thing on both.
+enum ProfileNameFailure {
+    static func message(_ error: any Error) -> String {
+        let unchanged = "Your name is unchanged."
+        switch RemoteFailure(error) {
+        case .offline:
+            return "\(unchanged) Reconnect and try again."
+        case .serviceUnavailable:
+            return "\(unchanged) Overeasy is temporarily unavailable."
+        case let .rateLimited(retryAt):
+            return "\(unchanged) Try again after \(retryAt.formatted(date: .omitted, time: .shortened))."
+        case .authenticationExpired:
+            return "\(unchanged) Sign in again before changing it."
+        case .quotaExceeded, .invalidResponse, .unknown:
+            return "\(unchanged) Please try again."
+        }
+    }
+}
+
+/// The cook, at the top of Profile.
 ///
 /// iOS puts the person first — the Apple ID row is the first thing in
 /// Settings.app — and Overeasy showed a cook nothing about themselves at
 /// all: a signed-in account and a guest saw the same screen with one string
 /// changed.
 ///
-/// Signed in: a photo or a monogram, the display name edited in place, and
-/// the account kind beneath it. A guest sees the word "Guest" and a way to
-/// stop being one — no empty avatar and no placeholder name, because a
-/// guest has neither and inventing them would only look broken.
+/// Signed in: a photo or a monogram at 96 points, the display name edited in
+/// place, the account kind, and the facts line. A guest sees the word
+/// "Guest", their own count, and a way to stop being one — no empty avatar
+/// and no placeholder name, because a guest has neither and inventing them
+/// would only look broken.
 struct AccountHeaderView: View {
     /// Whether the avatar draws the provider's photo or the cook's initials.
     /// Offered only when there is a photo to choose. Per device on purpose:
@@ -25,12 +86,17 @@ struct AccountHeaderView: View {
     /// The avatar's diameter. Larger than any control height because it is
     /// artwork, not a control — `Control` names the three heights a tappable
     /// thing may have, and this is not one of them.
-    private static let avatarDiameter: CGFloat = 64
+    ///
+    /// 96, not the 64 this grew out of: at 64 the avatar was a row that
+    /// happened to come first, and the screen was still Settings. At 96 the
+    /// cook is the subject of it, which is the whole point of Profile.
+    static let avatarDiameter: CGFloat = 96
 
     @AppStorage(AvatarStyle.preferenceKey)
     private var avatarStyle = AvatarStyle.photo.rawValue
 
     let accountSession: AccountSession
+    let library: LibraryViewModel
     var authClient: AuthClient?
 
     @State private var flow: AccountSignInFlow
@@ -43,11 +109,13 @@ struct AccountHeaderView: View {
 
     init(
         accountSession: AccountSession,
+        library: LibraryViewModel,
         authClient: AuthClient?,
         googleSignIn: (any GoogleSignInProviding)?,
         onAuthenticated: @escaping @MainActor () async -> Void
     ) {
         self.accountSession = accountSession
+        self.library = library
         self.authClient = authClient
         _flow = State(
             initialValue: AccountSignInFlow(
@@ -65,9 +133,7 @@ struct AccountHeaderView: View {
                 avatarControl
                 signedInIdentity
             } else {
-                Text("Guest")
-                    .ladleFont(.recipeTitle)
-                    .foregroundStyle(LadleTheme.Label.primary)
+                guestIdentity
 
                 Button("Sign in") { isSignInPresented = true }
                     .buttonStyle(LadleButtonStyle(role: .secondary))
@@ -76,7 +142,11 @@ struct AccountHeaderView: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, LadleTheme.Layout.sectionGap)
+        // No top padding. The gap above the avatar is the form's own first
+        // section inset, trimmed in `AccountSheet` to the system's ordinary
+        // one; adding 24 of ours on top of it is what left the sheet opening
+        // on a band of nothing.
+        .padding(.bottom, LadleTheme.Layout.sectionGap)
         .sheet(isPresented: $isSignInPresented) {
             signInSheet
         }
@@ -108,14 +178,49 @@ struct AccountHeaderView: View {
             Text(AccountSheet.accountTitle(for: accountSession.state))
                 .ladleFont(.metadata)
                 .foregroundStyle(LadleTheme.Label.secondary)
+
+            factsLine
+                .padding(.top, LadleTheme.Spacing.tight)
         }
+        .padding(.horizontal, LadleTheme.Layout.sheetMargin)
+    }
+
+    /// A guest has no photo and no name, and inventing either would only look
+    /// broken — but "Guest" sits in the face the name would, so the header
+    /// reads as one design in both states, and the count is theirs too.
+    private var guestIdentity: some View {
+        VStack(spacing: LadleTheme.Spacing.tight) {
+            Text("Guest")
+                .ladleFont(.title)
+                .foregroundStyle(LadleTheme.Label.primary)
+
+            factsLine
+                .padding(.top, LadleTheme.Spacing.tight)
+        }
+        .padding(.horizontal, LadleTheme.Layout.sheetMargin)
+    }
+
+    private var factsLine: some View {
+        Text(
+            ProfileFacts.line(
+                for: accountSession.state,
+                recipes: library.recipes.count,
+                favorites: library.recipes.filter(\.isFavorite).count,
+                createdAt: accountSession.profile?.createdAt
+            )
+        )
+        .ladleFont(.metadata)
+        .foregroundStyle(LadleTheme.Label.secondary)
+        .multilineTextAlignment(.center)
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityIdentifier("account.profile.facts")
     }
 
     @ViewBuilder
     private var nameControl: some View {
         if isEditingName {
             TextField("Your name", text: $draftName)
-                .ladleFont(.recipeTitle)
+                .ladleFont(.title)
                 .foregroundStyle(LadleTheme.Label.primary)
                 .multilineTextAlignment(.center)
                 .textInputAutocapitalization(.words)
@@ -149,7 +254,7 @@ struct AccountHeaderView: View {
             Button(action: beginEditingName) {
                 HStack(spacing: LadleTheme.Spacing.compact) {
                     Text(displayedName)
-                        .ladleFont(.recipeTitle)
+                        .ladleFont(.title)
                         .foregroundStyle(
                             accountSession.profile?.displayName == nil
                                 ? LadleTheme.Label.secondary
@@ -215,7 +320,7 @@ struct AccountHeaderView: View {
         Group {
             if let initials = accountSession.profile?.monogram {
                 Text(initials)
-                    .ladleFont(.recipeTitle)
+                    .ladleFont(.title)
                     .foregroundStyle(LadleTheme.Label.primary)
             } else {
                 // No name yet — every Apple cook who signed in before the
@@ -223,7 +328,7 @@ struct AccountHeaderView: View {
                 Image(systemName: "person.fill")
                     .font(
                         .system(
-                            size: LadleTheme.IconSize.feature,
+                            size: LadleTheme.IconSize.hero,
                             weight: .semibold
                         )
                     )
@@ -319,7 +424,8 @@ struct AccountHeaderView: View {
             accountSession.applyProfile(
                 AccountProfile(
                     displayName: trimmed.isEmpty ? nil : trimmed,
-                    avatarURL: photoURL
+                    avatarURL: photoURL,
+                    createdAt: accountSession.profile?.createdAt
                 )
             )
             return
@@ -332,24 +438,8 @@ struct AccountHeaderView: View {
             } catch {
                 // The name shown comes from the session, which the failed
                 // request never touched, so it has already reverted.
-                nameFailure = Self.failureMessage(error)
+                nameFailure = ProfileNameFailure.message(error)
             }
-        }
-    }
-
-    private static func failureMessage(_ error: any Error) -> String {
-        let unchanged = "Your name is unchanged."
-        switch RemoteFailure(error) {
-        case .offline:
-            return "\(unchanged) Reconnect and try again."
-        case .serviceUnavailable:
-            return "\(unchanged) Overeasy is temporarily unavailable."
-        case let .rateLimited(retryAt):
-            return "\(unchanged) Try again after \(retryAt.formatted(date: .omitted, time: .shortened))."
-        case .authenticationExpired:
-            return "\(unchanged) Sign in again before changing it."
-        case .quotaExceeded, .invalidResponse, .unknown:
-            return "\(unchanged) Please try again."
         }
     }
 }

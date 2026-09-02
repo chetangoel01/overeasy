@@ -34,6 +34,10 @@ class SessionTokens:
     user_id: UUID
     device_id: UUID
     user_kind: str
+    # When the account started. Required rather than optional: every user row
+    # has one, and the Profile screen's "cooking since" is the only fact on
+    # that screen the client cannot work out for itself.
+    created_at: datetime
     display_name: str | None = None
     avatar_url: str | None = None
 
@@ -246,6 +250,7 @@ class SessionService:
             user_id=stored.user_id,
             device_id=stored.device_id,
             user_kind=user.kind,
+            created_at=user.created_at,
             display_name=user.display_name,
             avatar_url=user.avatar_url,
         )

@@ -596,6 +596,11 @@ final class AuthClientTests: XCTestCase {
             URL(string: "https://cdn.test/priya.jpg"),
             "Editing the name must not drop the avatar"
         )
+        XCTAssertEqual(
+            try tokenStore.load()?.createdAt,
+            ISO8601DateFormatter().date(from: "2026-08-14T12:00:00Z"),
+            "The creation date comes back with the edit and is stored"
+        )
     }
 
     private static func makeAuthClient(
@@ -670,6 +675,10 @@ final class AuthClientTests: XCTestCase {
             "userKind": "google",
             "displayName": displayName,
             "avatarURL": "https://cdn.test/priya.jpg",
+            // Server-owned and always present. The client rewrites its
+            // stored tokens from this answer, so a missing date here would
+            // silently drop "cooking since" until the next refresh.
+            "createdAt": "2026-08-14T12:00:00.000Z",
         ])
     }
 
