@@ -930,7 +930,7 @@ private extension View {
         open: @escaping () -> Void,
         save: @escaping () -> Void
     ) -> some View {
-        contextMenu {
+        ladleContextMenu {
             Button("View Recipe", systemImage: "book.pages", action: open)
             if !isSaved {
                 Button("Save Recipe", systemImage: "plus", action: save)

@@ -27,7 +27,7 @@ extension View {
         toggleFavorite: @escaping () -> Void
     ) -> some View {
         let presentation = RecipeContextMenuPresentation(recipe: recipe)
-        return contextMenu {
+        return ladleContextMenu {
             Button(
                 presentation.openTitle,
                 systemImage: "book.pages",
@@ -40,6 +40,46 @@ extension View {
             )
         } preview: {
             RecipeContextPreview(recipe: recipe)
+        }
+    }
+
+    /// A context menu whose preview can see the app's environment.
+    ///
+    /// UIKit hosts the preview in a hierarchy of its own, and custom SwiftUI
+    /// environment values do not follow it there: `remoteImageCache` arrived
+    /// as `nil` and `ladleAccent` as its default, so every preview drew a
+    /// placeholder pan in tomato whatever the row beneath it showed. The two
+    /// values are read where the menu is attached and handed over
+    /// explicitly. Every recipe preview goes through here so the next one
+    /// cannot forget to.
+    func ladleContextMenu<MenuItems: View, Preview: View>(
+        @ViewBuilder menuItems: @escaping () -> MenuItems,
+        @ViewBuilder preview: @escaping () -> Preview
+    ) -> some View {
+        modifier(
+            PreviewEnvironmentContextMenu(
+                menuItems: menuItems,
+                preview: preview
+            )
+        )
+    }
+}
+
+private struct PreviewEnvironmentContextMenu<
+    MenuItems: View,
+    Preview: View
+>: ViewModifier {
+    @Environment(\.remoteImageCache) private var imageCache
+    @Environment(\.ladleAccent) private var accent
+
+    let menuItems: () -> MenuItems
+    let preview: () -> Preview
+
+    func body(content: Content) -> some View {
+        content.contextMenu(menuItems: menuItems) {
+            preview()
+                .environment(\.remoteImageCache, imageCache)
+                .environment(\.ladleAccent, accent)
         }
     }
 }

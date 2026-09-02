@@ -465,7 +465,7 @@ private struct WatchRecipePage: View {
     private var contextualVideoLayout: some View {
         if discoverRecipe != nil {
             videoLayout
-                .contextMenu {
+                .ladleContextMenu {
                     Button("View Recipe", systemImage: "book.pages", action: openRecipe)
                         .disabled(isLoadingDetail)
                     if !isSaved {
