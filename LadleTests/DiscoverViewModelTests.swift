@@ -280,6 +280,283 @@ final class DiscoverViewModelTests: XCTestCase {
         XCTAssertTrue(service.shelfRequests.isEmpty)
     }
 
+    // MARK: - Refresh at the top
+
+    /// The whole promise of the quiet path: the cook scrolling back to the
+    /// top must not see the feed announce anything. No banner while it runs,
+    /// nothing replaced when it lands — only a page held to one side.
+    func testAQuietRefreshNeverShowsTheRefreshingBanner() async {
+        let onScreen = (1...3).map { paged($0) }
+        let service = DiscoverTestService(result: .success(onScreen))
+        let clock = TestClock()
+        let viewModel = DiscoverViewModel(service: service, now: clock.now)
+        await viewModel.load()
+
+        clock.advance(by: DiscoverViewModel.quietRefreshInterval)
+        service.overrideNextPage = [paged(4), paged(5)]
+        service.pausesFetch = true
+        let quiet = Task { await viewModel.refreshQuietly() }
+        while !service.fetchIsSuspended { await Task.yield() }
+
+        XCTAssertEqual(viewModel.refreshState, .current)
+        XCTAssertEqual(viewModel.state, .loaded(onScreen))
+
+        service.resumeFetch()
+        await quiet.value
+
+        XCTAssertEqual(viewModel.refreshState, .current)
+        // Still the rows the cook was reading. The new ones are waiting.
+        XCTAssertEqual(viewModel.state, .loaded(onScreen))
+        XCTAssertEqual(viewModel.pending?.recipes, [paged(4), paged(5)])
+        // A fresh pin, or the server hands back the session's own rows; and
+        // recording off, because nobody has looked at this page.
+        XCTAssertEqual(service.requests.count, 2)
+        XCTAssertEqual(service.requests.last?.recordsImpressions, false)
+        XCTAssertNotEqual(
+            service.requests.last?.seenBefore,
+            service.requests.first?.seenBefore
+        )
+    }
+
+    /// A feed that has not moved must not sprout a pill offering the rows
+    /// already on screen — which is also why the demo scenarios never show
+    /// one.
+    func testAQuietRefreshMatchingTheFeedIsDiscarded() async {
+        let onScreen = (1...3).map { paged($0) }
+        let service = DiscoverTestService(result: .success(onScreen))
+        let clock = TestClock()
+        let viewModel = DiscoverViewModel(service: service, now: clock.now)
+        await viewModel.load()
+
+        clock.advance(by: DiscoverViewModel.quietRefreshInterval)
+        await viewModel.refreshQuietly()
+
+        XCTAssertEqual(service.requests.count, 2)
+        XCTAssertNil(viewModel.pending)
+        XCTAssertEqual(viewModel.state, .loaded(onScreen))
+    }
+
+    /// Page 1 against the first page's worth of what is on screen. After
+    /// paging the list is longer than a page, and comparing the whole of it
+    /// would call every feed new.
+    func testAQuietRefreshComparesAgainstTheFirstPageOnScreen() async {
+        let all = (1...4).map { paged($0) }
+        let service = DiscoverTestService(result: .success(all))
+        service.pageSize = 2
+        let clock = TestClock()
+        let viewModel = DiscoverViewModel(service: service, now: clock.now)
+        await viewModel.load()
+        await viewModel.loadMore()
+        XCTAssertEqual(viewModel.state, .loaded(all))
+
+        clock.advance(by: DiscoverViewModel.quietRefreshInterval)
+        await viewModel.refreshQuietly()
+
+        XCTAssertNil(viewModel.pending)
+    }
+
+    /// Taking the page is the moment it becomes read, so it is re-fetched
+    /// under the same pin with recording on — and what comes back is what
+    /// the screen shows, because that is what the server just marked.
+    func testTakingTheHeldPageAdoptsItsPinAndRecordsIt() async {
+        let onScreen = (1...3).map { paged($0) }
+        let service = DiscoverTestService(result: .success(onScreen))
+        let clock = TestClock()
+        let viewModel = DiscoverViewModel(service: service, now: clock.now)
+        await viewModel.load()
+
+        clock.advance(by: DiscoverViewModel.quietRefreshInterval)
+        service.overrideNextPage = [paged(4), paged(5)]
+        await viewModel.refreshQuietly()
+        let pin = viewModel.pending?.pin
+        XCTAssertNotNil(pin)
+
+        // What the recording re-fetch finds under that pin: the same first
+        // page, with a second one behind it to walk into.
+        service.result = .success([paged(4), paged(5), paged(6)])
+        service.pageSize = 2
+        await viewModel.applyPending()
+
+        XCTAssertEqual(viewModel.state, .loaded([paged(4), paged(5)]))
+        XCTAssertNil(viewModel.pending)
+        XCTAssertEqual(viewModel.refreshState, .current)
+        XCTAssertEqual(service.requests.count, 3)
+        XCTAssertEqual(service.requests.last?.recordsImpressions, true)
+        XCTAssertEqual(service.requests.last?.seenBefore, pin)
+        // The rails are the same feed under another order, so they turn over
+        // with it rather than keeping cards the list no longer has.
+        XCTAssertEqual(service.shelfRequests.count, 4)
+
+        // And the walk carries on from the pin it adopted, not a new one.
+        await viewModel.loadMore()
+        XCTAssertEqual(viewModel.state, .loaded([paged(4), paged(5), paged(6)]))
+        XCTAssertEqual(service.requests.count, 4)
+        XCTAssertEqual(service.requests.last?.seenBefore, pin)
+    }
+
+    /// The held page is a guess; the recorded one is the fact. If the two
+    /// differ the cook is shown what the server wrote down, never rows it
+    /// did not record.
+    func testTakingTheHeldPageShowsWhatTheServerRecorded() async {
+        let service = DiscoverTestService(result: .success((1...3).map { paged($0) }))
+        let clock = TestClock()
+        let viewModel = DiscoverViewModel(service: service, now: clock.now)
+        await viewModel.load()
+
+        clock.advance(by: DiscoverViewModel.quietRefreshInterval)
+        service.overrideNextPage = [paged(4), paged(5)]
+        await viewModel.refreshQuietly()
+        XCTAssertEqual(viewModel.pending?.recipes, [paged(4), paged(5)])
+
+        service.overrideNextPage = [paged(5), paged(6)]
+        await viewModel.applyPending()
+
+        XCTAssertEqual(viewModel.state, .loaded([paged(5), paged(6)]))
+    }
+
+    func testAQuietRefreshRunsAtMostOnceAMinute() async {
+        let service = DiscoverTestService(result: .success((1...3).map { paged($0) }))
+        let clock = TestClock()
+        let viewModel = DiscoverViewModel(service: service, now: clock.now)
+        await viewModel.load()
+        XCTAssertEqual(service.requests.count, 1)
+
+        // A cold first load is the feed, not a refresh of it, so returning
+        // to the top of a freshly opened Discover may still look for rows.
+        await viewModel.refreshQuietly()
+        XCTAssertEqual(service.requests.count, 2)
+
+        clock.advance(by: DiscoverViewModel.quietRefreshInterval - 1)
+        await viewModel.refreshQuietly()
+        XCTAssertEqual(service.requests.count, 2)
+
+        clock.advance(by: 1)
+        await viewModel.refreshQuietly()
+        XCTAssertEqual(service.requests.count, 3)
+    }
+
+    /// A pull is a refresh, so it starts the minute over — and it has just
+    /// handed the cook the newest page there is.
+    func testPullingToRefreshStartsTheQuietIntervalOver() async {
+        let service = DiscoverTestService(result: .success((1...3).map { paged($0) }))
+        let clock = TestClock()
+        let viewModel = DiscoverViewModel(service: service, now: clock.now)
+        await viewModel.load()
+
+        clock.advance(by: DiscoverViewModel.quietRefreshInterval)
+        await viewModel.load()
+        await viewModel.refreshQuietly()
+
+        XCTAssertEqual(service.requests.count, 2)
+    }
+
+    /// Search replaces the feed with results the cook typed for. Swapping
+    /// those out from underneath them, or offering to, is not a refresh.
+    func testNoQuietRefreshUnderASearch() async {
+        let service = DiscoverTestService(result: .success((1...3).map { paged($0) }))
+        let clock = TestClock()
+        let viewModel = DiscoverViewModel(service: service, now: clock.now)
+        await viewModel.load()
+        viewModel.query = "lemon"
+        await viewModel.load()
+
+        clock.advance(by: DiscoverViewModel.quietRefreshInterval)
+        service.overrideNextPage = [paged(4)]
+        await viewModel.refreshQuietly()
+
+        XCTAssertEqual(service.requests.count, 2)
+        XCTAssertNil(viewModel.pending)
+    }
+
+    /// Watch has no pill and no quiet fetch: it is a video feed, not a list
+    /// with a top to come back to.
+    func testWatchNeverRefreshesQuietly() async {
+        let service = DiscoverTestService(result: .success((1...3).map { paged($0) }))
+        let clock = TestClock()
+        let viewModel = DiscoverViewModel(
+            service: service,
+            removesSavedRecipeImmediately: false,
+            loadsShelves: false,
+            recordsSeenSources: false,
+            now: clock.now
+        )
+        await viewModel.load()
+
+        clock.advance(by: DiscoverViewModel.quietRefreshInterval)
+        service.overrideNextPage = [paged(4)]
+        await viewModel.refreshQuietly()
+
+        XCTAssertEqual(service.requests.count, 1)
+        XCTAssertNil(viewModel.pending)
+    }
+
+    /// A pull that lands while the quiet fetch is still out wins. The page
+    /// in flight was ranked against the session the pull just replaced, so
+    /// surfacing it afterwards would offer rows from a walk that is over.
+    func testAPullDuringAQuietRefreshDiscardsTheQuietPage() async {
+        let onScreen = (1...3).map { paged($0) }
+        let service = DiscoverTestService(result: .success(onScreen))
+        let clock = TestClock()
+        let viewModel = DiscoverViewModel(service: service, now: clock.now)
+        await viewModel.load()
+
+        clock.advance(by: DiscoverViewModel.quietRefreshInterval)
+        service.pausesFetch = true
+        let quiet = Task { await viewModel.refreshQuietly() }
+        while !service.fetchIsSuspended { await Task.yield() }
+
+        // The pull, start to finish, while the quiet page is still out.
+        service.pausesFetch = false
+        await viewModel.load()
+        // Set after the pull, so the pull does not consume it: this is what
+        // the quiet fetch will hand back when it is let go.
+        service.overrideNextPage = [paged(4), paged(5)]
+        service.resumeFetch()
+        await quiet.value
+
+        XCTAssertNil(viewModel.pending)
+        XCTAssertEqual(viewModel.state, .loaded(onScreen))
+    }
+
+    /// The demo feed is what the UI tests and the screenshots are taken
+    /// against, and it keeps no reading position: every fetch returns the
+    /// same rows. So the quiet refresh finds nothing, and no scenario can
+    /// ever grow a pill. Asserted here as well as in the UI test, because
+    /// this one cannot pass by failing to scroll far enough.
+    func testTheDemoFeedNeverHasAnythingNewToOffer() async {
+        for scenario in DemoLaunchScenario.allCases {
+            let clock = TestClock()
+            let viewModel = DiscoverViewModel(
+                service: DemoDiscoverService(scenario: scenario),
+                now: clock.now
+            )
+            await viewModel.load()
+
+            clock.advance(by: DiscoverViewModel.quietRefreshInterval)
+            await viewModel.refreshQuietly()
+
+            XCTAssertNil(viewModel.pending, "\(scenario.rawValue)")
+        }
+    }
+
+    /// A sort change, a search or a pull each start a session of their own,
+    /// and the page held for the last one is no longer an answer to it.
+    func testANewSessionDropsTheHeldPage() async {
+        let service = DiscoverTestService(result: .success((1...3).map { paged($0) }))
+        let clock = TestClock()
+        let viewModel = DiscoverViewModel(service: service, now: clock.now)
+        await viewModel.load()
+
+        clock.advance(by: DiscoverViewModel.quietRefreshInterval)
+        service.overrideNextPage = [paged(4), paged(5)]
+        await viewModel.refreshQuietly()
+        XCTAssertNotNil(viewModel.pending)
+
+        await viewModel.load()
+
+        XCTAssertNil(viewModel.pending)
+    }
+
     // MARK: - Paging
 
     func testLoadMoreAppendsTheNextPage() async {
@@ -625,6 +902,7 @@ private final class DiscoverTestService: DiscoverServing {
         var maxTotalMinutes: Int?
         var limit: Int = DiscoverPaging.pageSize
         var seenBefore: Date?
+        var recordsImpressions = true
 
         /// A shelf asks for a short page; the feed asks for a full one. That
         /// is the only thing that tells the two apart on the wire.
@@ -651,7 +929,8 @@ private final class DiscoverTestService: DiscoverServing {
         sort: DiscoverSort,
         maxTotalMinutes: Int?,
         limit: Int,
-        seenBefore: Date?
+        seenBefore: Date?,
+        recordsImpressions: Bool
     ) async throws -> DiscoverPage {
         let request = FetchRequest(
             cursor: cursor,
@@ -659,7 +938,8 @@ private final class DiscoverTestService: DiscoverServing {
             sort: sort,
             maxTotalMinutes: maxTotalMinutes,
             limit: limit,
-            seenBefore: seenBefore
+            seenBefore: seenBefore,
+            recordsImpressions: recordsImpressions
         )
         if request.isShelf {
             shelfRequests.append(request)
@@ -740,6 +1020,20 @@ private final class DiscoverTestService: DiscoverServing {
 
 private enum TestError: Error {
     case failed
+}
+
+/// A hand-wound clock. The quiet refresh is the one Discover behaviour that
+/// turns on elapsed time, and a real clock makes its gate either untestable
+/// or a minute slow.
+@MainActor
+private final class TestClock {
+    private var value = Date(timeIntervalSinceReferenceDate: 0)
+
+    func now() -> Date { value }
+
+    func advance(by interval: TimeInterval) {
+        value += interval
+    }
 }
 
 private func discoveredRecipe(

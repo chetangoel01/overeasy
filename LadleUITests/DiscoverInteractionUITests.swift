@@ -33,6 +33,57 @@ final class DiscoverInteractionUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Recipe options"].exists)
     }
 
+    /// No "New recipes" pill in a demo scenario, whichever way the feed is
+    /// scrolled — which is what keeps the screenshots stable.
+    ///
+    /// This is the screen-level half of the guarantee, and it is the weaker
+    /// half: six fixtures and two rails come to a little under two viewports,
+    /// so the "more than a screen away" rule is only met by an overscroll
+    /// bounce and the quiet fetch may not run at all here. Confirmed by
+    /// making `DemoDiscoverService` return a reversed page for a quiet fetch:
+    /// this test still passed, while
+    /// `DiscoverViewModelTests.testTheDemoFeedNeverHasAnythingNewToOffer` —
+    /// which drives the same demo service directly and cannot fail to scroll
+    /// far enough — failed for nine of the twelve scenarios. That test is
+    /// where the assertion has teeth; this one guards the whole screen.
+    @MainActor
+    func testReturningToTheTopOffersNothingNewInTheDemoFeed() throws {
+        let app = launchApp()
+
+        app.tabBars.buttons["Discover"].tap()
+        let title = app.staticTexts["Crispy Chili Oil Smash Burgers"]
+        XCTAssertTrue(title.waitForExistence(timeout: 3))
+
+        for _ in 0..<3 {
+            app.swipeUp(velocity: .fast)
+        }
+        // The end of the feed, so "more than a screen away" is genuinely met
+        // rather than assumed.
+        XCTAssertTrue(
+            app.staticTexts["Brown Butter Miso Cookies"]
+                .waitForExistence(timeout: 3)
+        )
+
+        // Two flicks back, checked after each. Flicks rather than one long
+        // drag: a drag that *starts* at the top is a pull to refresh, which
+        // would replace the feed and clear a pill before it could be seen.
+        // `waitForExistence` rather than `exists`, because the fetch the
+        // arrival kicks off is asynchronous.
+        let pill = app.descendants(matching: .any)["discover.new-recipes"]
+        for _ in 0..<2 {
+            app.swipeDown(velocity: .fast)
+            XCTAssertFalse(
+                pill.waitForExistence(timeout: 2),
+                "The demo feed never changes, so it has nothing new to offer"
+            )
+        }
+
+        // Back at the top, so the arrival that arms the fetch really happened.
+        XCTAssertTrue(app.staticTexts["New to Overeasy"].isHittable)
+        XCTAssertTrue(title.exists)
+        attachScreenshot(of: app, named: "Discover back at the top, no pill")
+    }
+
     @MainActor
     func testWatchFeedPagesOneRecipePerViewport() throws {
         let app = launchApp()

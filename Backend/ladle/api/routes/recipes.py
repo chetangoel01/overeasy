@@ -138,6 +138,19 @@ def discover_recipes(
             ),
         ),
     ] = None,
+    record_impressions: Annotated[
+        bool,
+        Query(
+            description=(
+                "Set false to rank the page as a session without recording "
+                "it. For a page fetched behind the reader's back and held "
+                "until they ask for it: it has to be ranked against what "
+                "they have already read, but marking it seen would hide rows "
+                "nobody looked at. Ignored when `seen_before` is absent, "
+                "which already records nothing."
+            ),
+        ),
+    ] = True,
     authorization: Annotated[str | None, Header()] = None,
 ) -> DiscoverPageDTO:
     claims = access_claims(request, authorization)
@@ -162,6 +175,7 @@ def discover_recipes(
             sort=sort,
             max_total_minutes=max_total_minutes,
             seen_before=seen_before,
+            record_impressions=record_impressions,
         )
 
 

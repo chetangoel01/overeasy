@@ -158,7 +158,22 @@ _OPERATION_DESCRIPTIONS = {
         "&seen_before=2026-09-01T09:00:00.000Z\n"
         "```\n\n"
         "Omit it — as both shelves do — to rank purely on the sort and "
-        "record nothing."
+        "record nothing.\n\n"
+        "`record_impressions=false` keeps the ranking and drops the write. "
+        "Discover's refresh-at-the-top uses it: reaching the top fetches "
+        "page 1 quietly under a fresh pin and holds it behind a "
+        "“New recipes” pill, and a page nobody has looked at yet "
+        "must not be recorded as read. Taking the pill re-fetches the page "
+        "under the same pin with recording on, which is deterministic and so "
+        "returns the same rows:\n\n"
+        "```\n"
+        "GET /v1/recipes/discover?cursor=0&limit=30"
+        "&seen_before=2026-09-01T09:31:00.000Z&record_impressions=false\n"
+        "GET /v1/recipes/discover?cursor=0&limit=30"
+        "&seen_before=2026-09-01T09:31:00.000Z\n"
+        "```\n\n"
+        "It is ignored when `seen_before` is absent, which records nothing "
+        "either way."
     ),
 }
 

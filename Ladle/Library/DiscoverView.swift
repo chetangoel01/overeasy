@@ -18,10 +18,33 @@ final class DiscoverViewModel {
         case failed(RemoteFailureReport)
     }
 
+    /// Page 1 as it now stands, fetched without disturbing the feed and held
+    /// until the cook asks for it. Nothing about it is on screen except the
+    /// pill that offers it.
+    struct PendingPage: Equatable {
+        let recipes: [DiscoverRecipe]
+        let nextCursor: Int
+        let hasMore: Bool
+        /// The pin it was ranked under. Applying the page adopts this as the
+        /// paging session, so the pages walked after it line up with it.
+        let pin: Date
+    }
+
+    /// Discover spends at most one quiet request a minute, however often the
+    /// cook travels back to the top.
+    static let quietRefreshInterval: TimeInterval = 60
+
     private let service: any DiscoverServing
+    private let now: @MainActor () -> Date
     private let removesSavedRecipeImmediately: Bool
     private let loadsShelves: Bool
     private let recordsSeenSources: Bool
+    /// The last time a fetch replaced a feed the cook was already reading —
+    /// a pull, a quiet refresh, or taking one. The first load is not one of
+    /// those: it is the feed, not a refresh of it.
+    private var lastRefreshedAt = Date.distantPast
+    private var isRefreshingQuietly = false
+    private(set) var pending: PendingPage?
     /// The moment this paging session began, sent with every page of it. The
     /// server demotes only what was seen *before* it, so the rows this walk
     /// records cannot re-rank the pages it has not fetched yet.
@@ -81,12 +104,14 @@ final class DiscoverViewModel {
         service: any DiscoverServing,
         removesSavedRecipeImmediately: Bool = true,
         loadsShelves: Bool = true,
-        recordsSeenSources: Bool = true
+        recordsSeenSources: Bool = true,
+        now: @escaping @MainActor () -> Date = { Date() }
     ) {
         self.service = service
         self.removesSavedRecipeImmediately = removesSavedRecipeImmediately
         self.loadsShelves = loadsShelves
         self.recordsSeenSources = recordsSeenSources
+        self.now = now
     }
 
     /// The server already applied the query, so this is also what makes an
@@ -110,6 +135,8 @@ final class DiscoverViewModel {
         generation += 1
         nextCursor = 0
         hasMore = false
+        // A held page belongs to the query and sort it was fetched under.
+        pending = nil
         state = .loading
     }
 
@@ -121,11 +148,17 @@ final class DiscoverViewModel {
     /// already read is exactly when they are asking for different rows.
     func load() async {
         guard refreshState != .refreshing else { return }
-        sessionStartedAt = recordsSeenSources ? Date() : nil
+        // Whatever was waiting was ranked against the session this replaces.
+        pending = nil
+        sessionStartedAt = recordsSeenSources ? now() : nil
         let token = generation
         let cachedRecipes: [DiscoverRecipe]?
         if case let .loaded(recipes) = state, !recipes.isEmpty {
             cachedRecipes = recipes
+            // A pull over a feed already on screen is a refresh; a cold first
+            // load is not, so returning to the top of a freshly opened feed
+            // is still allowed to look for something new.
+            lastRefreshedAt = now()
             refreshState = .refreshing
         } else {
             cachedRecipes = nil
@@ -181,6 +214,108 @@ final class DiscoverViewModel {
         }
     }
 
+    /// Fetches page 1 behind the reader's back and holds it. Nothing on
+    /// screen moves: the refresh banner stays out of this, and a page that
+    /// turns out to match what is already there is dropped without a word.
+    ///
+    /// Scrolling back to the top is how someone returns to a row they meant
+    /// to keep, so the feed cannot be replaced at that moment. It can only
+    /// be offered.
+    func refreshQuietly() async {
+        let startedAt = now()
+        guard recordsSeenSources, !isSearching, pending == nil,
+              !isRefreshingQuietly, refreshState != .refreshing,
+              case let .loaded(onScreen) = state, !onScreen.isEmpty,
+              startedAt.timeIntervalSince(lastRefreshedAt)
+                  >= Self.quietRefreshInterval
+        else { return }
+        lastRefreshedAt = startedAt
+        isRefreshingQuietly = true
+        defer { isRefreshingQuietly = false }
+        let token = generation
+        // The session this page would be an answer to. A pull that lands
+        // while the quiet fetch is out starts a new one without touching
+        // the generation, and the older page must not surface behind it.
+        let session = sessionStartedAt
+        // A fresh pin, or the server ranks this exactly as the session the
+        // cook is already reading and hands back the same rows. Recording
+        // off: this page may never be looked at, and marking it seen would
+        // bury rows nobody was shown.
+        guard let page = try? await service.fetchDiscoverPage(
+            cursor: 0,
+            query: query,
+            sort: sort,
+            seenBefore: startedAt,
+            recordsImpressions: false
+        ) else { return }
+        // Nobody asked for this, so nobody is told it failed.
+        guard token == generation, sessionStartedAt == session,
+              case let .loaded(current) = state
+        else { return }
+        let recipes = page.recipes.filter {
+            $0.savedRecipeID == nil && !savedSourceIDs.contains($0.sourceID)
+        }
+        // Page 1 against the first page's worth of what is on screen: after
+        // paging the list is longer than a page, and comparing the whole of
+        // it would call every feed new.
+        guard !recipes.isEmpty,
+              recipes.map(\.sourceID)
+                  != current.prefix(recipes.count).map(\.sourceID)
+        else { return }
+        pending = PendingPage(
+            recipes: recipes,
+            nextCursor: page.nextCursor,
+            hasMore: page.hasMore,
+            pin: startedAt
+        )
+    }
+
+    /// Swaps the held page in. The rows are already in hand, so the list
+    /// moves at once rather than behind a spinner; the same page is then
+    /// re-fetched under the same pin with recording on, because the quiet
+    /// fetch deliberately recorded nothing. What the cook is shown has to be
+    /// what the server marked as read, so the recorded page wins if the two
+    /// ever disagree.
+    func applyPending() async {
+        guard let applied = pending else { return }
+        pending = nil
+        // Anything still in flight was ranked against the session this
+        // replaces.
+        generation += 1
+        let token = generation
+        sessionStartedAt = applied.pin
+        lastRefreshedAt = now()
+        refreshState = .current
+        nextCursor = applied.nextCursor
+        hasMore = applied.hasMore
+        state = .loaded(
+            applied.recipes.filter { !savedSourceIDs.contains($0.sourceID) }
+        )
+        // The rails are the same feed under another order, so they turn over
+        // with it rather than keeping cards the list no longer has.
+        async let loadedShelves = fetchShelves()
+        let recorded = try? await service.fetchDiscoverPage(
+            cursor: 0,
+            query: query,
+            sort: sort,
+            seenBefore: applied.pin,
+            recordsImpressions: true
+        )
+        let shelves = await loadedShelves
+        guard token == generation else { return }
+        self.shelves = shelves
+        // A failed recording leaves the rows the cook took: they are the
+        // right rows, they simply are not written down yet.
+        guard let recorded else { return }
+        nextCursor = recorded.nextCursor
+        hasMore = recorded.hasMore
+        state = .loaded(
+            recorded.recipes.filter {
+                $0.savedRecipeID == nil && !savedSourceIDs.contains($0.sourceID)
+            }
+        )
+    }
+
     /// Both rails, in the order they are drawn. Two `async let`s rather than
     /// a loop over the cases: the requests are independent and a rail should
     /// not wait on the one above it.
@@ -205,7 +340,8 @@ final class DiscoverViewModel {
             sort: id.sort,
             maxTotalMinutes: id.maxTotalMinutes,
             limit: DiscoverPaging.shelfSize,
-            seenBefore: nil
+            seenBefore: nil,
+            recordsImpressions: false
         ) else { return nil }
         return DiscoverShelf(
             id: id,
@@ -353,6 +489,15 @@ struct DiscoverView: View {
     /// arrived, and there is nothing cached to show instead.
     let onInitialLoadFailed: () -> Void
     @State private var initialLoadSettled = false
+    /// Set when the cook scrolls more than a screen down, cleared when the
+    /// return to the top is spent. Reaching the top only asks for a fresh
+    /// page if they had genuinely left it — a bounce is not a journey.
+    @State private var hasScrolledAScreenAway = false
+    /// Bumped to send the list back to the top; the scroll proxy that can do
+    /// it lives inside the feed, and the pill that asks for it does not.
+    @State private var scrollToTopRequests = 0
+
+    private static let topAnchor = "discover.top"
 
     init(
         service: any DiscoverServing,
@@ -481,11 +626,29 @@ struct DiscoverView: View {
             }
         }
         .safeAreaInset(edge: .top, spacing: 0) {
-            DiscoverRefreshBanner(
-                state: viewModel.refreshState,
-                retry: { Task { await viewModel.load() } }
-            )
+            // One bar, never two. A page waiting to be taken supersedes a
+            // banner about the page that failed to arrive: it is the newer
+            // news, and stacking the two would read as a pile-up.
+            if viewModel.pending == nil {
+                DiscoverRefreshBanner(
+                    state: viewModel.refreshState,
+                    retry: { Task { await viewModel.load() } }
+                )
+            } else {
+                DiscoverNewRecipesPill(take: takePendingPage)
+            }
         }
+    }
+
+    /// The pill's whole job. The rows are already in hand, so the swap is
+    /// immediate; the scroll is what makes it a beginning rather than a
+    /// reshuffle around wherever the cook happened to be.
+    private func takePendingPage() {
+        // The scroll below crosses the top edge on its way in. Without this
+        // the arrival would arm another quiet fetch at once.
+        hasScrolledAScreenAway = false
+        scrollToTopRequests += 1
+        Task { await viewModel.applyPending() }
     }
 
     private func failedContent(_ report: RemoteFailureReport) -> some View {
@@ -534,8 +697,23 @@ struct DiscoverView: View {
     }
 
     private func recipeList(_ recipes: [DiscoverRecipe]) -> some View {
+        ScrollViewReader { scroll in
+            feed(recipes)
+                .onChange(of: scrollToTopRequests) {
+                    withAnimation {
+                        scroll.scrollTo(Self.topAnchor, anchor: .top)
+                    }
+                }
+        }
+    }
+
+    private func feed(_ recipes: [DiscoverRecipe]) -> some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
+                Color.clear
+                    .frame(height: 0)
+                    .id(Self.topAnchor)
+
                 ForEach(viewModel.visibleShelves) { shelf in
                     DiscoverShelfView(
                         shelf: shelf,
@@ -598,7 +776,70 @@ struct DiscoverView: View {
             .padding(.bottom, LadleTheme.Layout.scrollTail)
         }
         .scrollIndicators(.hidden)
+        .onScrollGeometryChange(for: DiscoverScrollSignal.self) {
+            DiscoverScrollSignal($0)
+        } action: { previous, current in
+            reachedTop(from: previous, to: current)
+        }
         .refreshable { await viewModel.load() }
+    }
+
+    /// The false→true edge of arriving at the top, and only if the cook had
+    /// left it. Reaching the top is the one moment Discover has a reason to
+    /// look for something new: the reader is between rows rather than in the
+    /// middle of one.
+    private func reachedTop(
+        from previous: DiscoverScrollSignal,
+        to current: DiscoverScrollSignal
+    ) {
+        if current.isAScreenDown {
+            hasScrolledAScreenAway = true
+        }
+        guard !previous.isAtTop, current.isAtTop, hasScrolledAScreenAway
+        else { return }
+        // Spent whether or not the fetch happens, so a cook bouncing on the
+        // top edge cannot keep asking.
+        hasScrolledAScreenAway = false
+        Task { await viewModel.refreshQuietly() }
+    }
+}
+
+/// Two coarse facts rather than the offset itself, so the observation fires
+/// when the scroll crosses a threshold instead of on every frame.
+private struct DiscoverScrollSignal: Equatable {
+    var isAtTop: Bool
+    var isAScreenDown: Bool
+
+    init(_ geometry: ScrollGeometry) {
+        // Measured from the top of the content, not from `contentOffset.y`
+        // alone: under the large title and the search drawer the resting
+        // offset at the top is minus the inset, so the raw value stays at or
+        // below zero well into the first screenful.
+        let distance = geometry.contentOffset.y + geometry.contentInsets.top
+        isAtTop = distance <= 0
+        // One viewport, so a row or two of travel never counts as leaving.
+        isAScreenDown = distance > geometry.containerSize.height
+    }
+}
+
+/// The other thing that can sit under the navigation bar. Deliberately the
+/// same strip of steel as the refresh banner: a second announcement language
+/// on one screen would make the feed look like it is talking to itself.
+private struct DiscoverNewRecipesPill: View {
+    let take: () -> Void
+
+    var body: some View {
+        Button(action: take) {
+            DiscoverTopBar(
+                systemImage: "arrow.up.circle.fill",
+                identifier: "discover.new-recipes"
+            ) {
+                Text("New recipes")
+                    .ladleFont(.bodyStrong)
+                Spacer(minLength: LadleTheme.Spacing.compact)
+            }
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -612,13 +853,16 @@ private struct DiscoverRefreshBanner: View {
         case .current:
             EmptyView()
         case .refreshing:
-            content(systemImage: nil) {
+            DiscoverTopBar(systemImage: nil, identifier: Self.identifier) {
                 ProgressView().controlSize(.small)
                 Text("Refreshing Discover…")
                     .ladleFont(.bodyStrong)
             }
         case let .failed(report):
-            content(systemImage: report.failure.systemImage) {
+            DiscoverTopBar(
+                systemImage: report.failure.systemImage,
+                identifier: Self.identifier
+            ) {
                 VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
                     Text("Showing earlier Discover results")
                         .ladleFont(.bodyStrong)
@@ -639,10 +883,18 @@ private struct DiscoverRefreshBanner: View {
         }
     }
 
-    private func content<Content: View>(
-        systemImage: String?,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
+    private static let identifier = "discover.refresh-status"
+}
+
+/// The one bar Discover puts under the navigation bar, whatever it has to
+/// say. Shared so the refresh banner and the "New recipes" pill cannot drift
+/// into two different pieces of furniture.
+private struct DiscoverTopBar<Content: View>: View {
+    let systemImage: String?
+    let identifier: String
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
         HStack(alignment: .top, spacing: LadleTheme.Layout.iconGap) {
             if let systemImage {
                 Image(systemName: systemImage)
@@ -662,8 +914,9 @@ private struct DiscoverRefreshBanner: View {
         .overlay(alignment: .bottom) {
             Divider().overlay(LadleTheme.Stroke.separator)
         }
+        .contentShape(.rect)
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("discover.refresh-status")
+        .accessibilityIdentifier(identifier)
     }
 }
 
