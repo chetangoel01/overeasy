@@ -3,6 +3,9 @@ import SwiftUI
 
 enum LibraryNavigationDestination: Hashable {
     case recipe(LibraryRecipeDestination)
+    /// Variant B of issue #62 only: the profile pushed into the current
+    /// tab's stack instead of presented as a sheet.
+    case profile
 }
 
 enum LibraryTab: Hashable, CaseIterable {
@@ -138,6 +141,8 @@ struct LibraryView: View {
     var discoverService: any DiscoverServing = DemoDiscoverService()
     var syncStatus: SyncStatus = SyncStatus()
     var notificationNavigation: NotificationNavigation = .shared
+    /// Throwaway prototype switch for issue #62; nil in every shipping launch.
+    var profilePrototype: ProfilePrototype?
     var canImport = true
     var onAuthenticated: @MainActor () async -> Void = {}
     var onSignOut: @MainActor () async -> Void = {}
@@ -172,7 +177,8 @@ struct LibraryView: View {
                     googleSignIn: googleSignIn,
                     onAuthenticated: onAuthenticated,
                     signOut: onSignOut,
-                    deleteAccount: onDeleteAccount
+                    deleteAccount: onDeleteAccount,
+                    prototypeIdentity: profilePrototype == .a
                 )
             }
             .sheet(isPresented: $isConflictReviewPresented) {
@@ -401,6 +407,8 @@ struct LibraryView: View {
                     switch destination {
                     case let .recipe(destination):
                         recipeDetail(destination)
+                    case .profile:
+                        profilePage
                     }
                 }
         }
@@ -416,6 +424,8 @@ struct LibraryView: View {
                     switch destination {
                     case let .recipe(destination):
                         recipeDetail(destination)
+                    case .profile:
+                        profilePage
                     }
                 }
         }
@@ -505,11 +515,30 @@ struct LibraryView: View {
 
     private var accountButton: some View {
         Button {
-            isAccountPresented = true
+            if profilePrototype == .b {
+                navigation.open(.profile)
+            } else {
+                isAccountPresented = true
+            }
         } label: {
             Image(systemName: "person.crop.circle")
         }
-        .accessibilityLabel("Settings and account")
+        .accessibilityLabel(
+            profilePrototype == nil ? "Settings and account" : "Profile"
+        )
+    }
+
+    /// Variant B of issue #62 only.
+    private var profilePage: some View {
+        ProfilePagePrototype(
+            accountSession: accountSession,
+            library: viewModel,
+            authClient: authClient,
+            googleSignIn: googleSignIn,
+            onAuthenticated: onAuthenticated,
+            signOut: onSignOut,
+            deleteAccount: onDeleteAccount
+        )
     }
 
     private var addRecipeButton: some View {

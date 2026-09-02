@@ -67,6 +67,10 @@ struct AccountSheet: View {
     var onAuthenticated: @MainActor () async -> Void = {}
     let signOut: @MainActor () async -> Void
     let deleteAccount: @MainActor () async throws -> Void
+    /// Variant A of issue #62 only: retitles the sheet "Profile" and leads it
+    /// with the larger identity header. Every other section is untouched,
+    /// which is the point of the variant. False in every shipping launch.
+    var prototypeIdentity = false
 
     @State private var isSignOutConfirmationPresented = false
     @State private var isDeleteConfirmationPresented = false
@@ -86,7 +90,7 @@ struct AccountSheet: View {
             .listRowBackground(LadleTheme.Surface.raised)
             .scrollContentBackground(.hidden)
             .background(LadleTheme.Surface.porcelain)
-            .navigationTitle("Settings")
+            .navigationTitle(prototypeIdentity ? "Profile" : "Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -143,12 +147,25 @@ struct AccountSheet: View {
     /// section above it.
     private var accountSection: some View {
         Section {
-            AccountHeaderView(
-                accountSession: accountSession,
-                authClient: authClient,
-                googleSignIn: googleSignIn,
-                onAuthenticated: onAuthenticated
-            )
+            Group {
+                if prototypeIdentity {
+                    ProfileIdentityView(
+                        accountSession: accountSession,
+                        library: library,
+                        diameter: 96,
+                        authClient: authClient,
+                        googleSignIn: googleSignIn,
+                        onAuthenticated: onAuthenticated
+                    )
+                } else {
+                    AccountHeaderView(
+                        accountSession: accountSession,
+                        authClient: authClient,
+                        googleSignIn: googleSignIn,
+                        onAuthenticated: onAuthenticated
+                    )
+                }
+            }
             .listRowBackground(Color.clear)
             .listRowInsets(EdgeInsets())
         } footer: {

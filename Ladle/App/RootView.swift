@@ -11,9 +11,15 @@ struct RootView: View {
     let discoverService: any DiscoverServing
     let syncStatus: SyncStatus
     let notificationNavigation: NotificationNavigation
+    /// Throwaway prototype switch for issue #62; nil in every shipping launch.
+    let profilePrototype: ProfilePrototype?
     let onAuthenticated: @MainActor () async -> Void
     let onSignOut: @MainActor () async -> Void
     let onDeleteAccount: @MainActor () async throws -> Void
+
+    /// The prototype's stand-in for the persisted "name step done" flag: it
+    /// only has to survive until the library appears.
+    @State private var isNameStepComplete = false
 
     init(
         accountSession: AccountSession,
@@ -24,6 +30,7 @@ struct RootView: View {
         discoverService: any DiscoverServing = DemoDiscoverService(),
         syncStatus: SyncStatus = SyncStatus(),
         notificationNavigation: NotificationNavigation = .shared,
+        profilePrototype: ProfilePrototype? = nil,
         onAuthenticated: @escaping @MainActor () async -> Void = {},
         onSignOut: @escaping @MainActor () async -> Void = {},
         onDeleteAccount:
@@ -37,6 +44,7 @@ struct RootView: View {
         self.discoverService = discoverService
         self.syncStatus = syncStatus
         self.notificationNavigation = notificationNavigation
+        self.profilePrototype = profilePrototype
         self.onAuthenticated = onAuthenticated
         self.onSignOut = onSignOut
         self.onDeleteAccount = onDeleteAccount
@@ -57,6 +65,11 @@ struct RootView: View {
                     accountSession.completeWalkthrough()
                 }
                 .transition(.opacity)
+            } else if profilePrototype == .name, !isNameStepComplete {
+                NameStepPrototypeView(accountSession: accountSession) {
+                    isNameStepComplete = true
+                }
+                .transition(.opacity)
             } else {
                 LibraryView(
                     viewModel: libraryViewModel,
@@ -67,6 +80,7 @@ struct RootView: View {
                     discoverService: discoverService,
                     syncStatus: syncStatus,
                     notificationNavigation: notificationNavigation,
+                    profilePrototype: profilePrototype,
                     canImport:
                         authClient == nil
                         || accountSession.isRemoteSessionReady,

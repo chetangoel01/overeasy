@@ -43,6 +43,7 @@
 		3D9722FAFEB6B970AAB73DAF /* DiscoverService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9795563629F29EFC955E4CEE /* DiscoverService.swift */; };
 		3EAD52B961E44399FA89F41E /* RecipeEditorViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EA2657D0BA391951AC9AB8A /* RecipeEditorViewModel.swift */; };
 		40E9F40421BC4A40D32746A3 /* AppBootstrapTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 168A0A47134E3312FBAD080E /* AppBootstrapTests.swift */; };
+		4232210F7430A19E9A2EBE4A /* ProfilePagePrototype.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A54835E729AC21AC5897E6E /* ProfilePagePrototype.swift */; };
 		45201DD73B8C12A6374535FF /* StateScenarioUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A2AFD3E334A2FC149C2186A /* StateScenarioUITests.swift */; };
 		45E74A311BE405D4B399A2B5 /* IngredientIconResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB066027446B7B833B07673C /* IngredientIconResolver.swift */; };
 		48D0EBCF569C98CD7A92CD0E /* ShareURLExtractorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E19326D8562639EDF5FA97E /* ShareURLExtractorTests.swift */; };
@@ -94,6 +95,7 @@
 		9AE69ACA22E7BEE2CE2D625C /* ImportCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3801D743E5C7CE52681E7C04 /* ImportCoordinatorTests.swift */; };
 		9BA7286999B0D8E9E8B73822 /* ReimportPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0944ED2DF428DE0518FF8422 /* ReimportPresentation.swift */; };
 		9C16EF897125A7B0B4CBF604 /* AccountSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B38BC487172BD4E150410E78 /* AccountSessionTests.swift */; };
+		9E1A3E6C05AF5D5542713766 /* ProfilePrototype.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBD4EBC1E7EDCA13596F3A20 /* ProfilePrototype.swift */; };
 		9E6908D535A27DA7429230D5 /* AuthClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9C01DA218666D762AB16E8A /* AuthClient.swift */; };
 		A4AB27B7287BE0F0CFD3B690 /* HealthExportViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09B260DA499835E89F84D468 /* HealthExportViewModelTests.swift */; };
 		A52F5EA121F20FC690F20742 /* SyncStatusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65C5AAF5AD8FED1D8EAD6FE9 /* SyncStatusTests.swift */; };
@@ -139,6 +141,7 @@
 		EF0148FC094665EF210ACCB5 /* IngredientList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BB8A28AE010B51E06742584 /* IngredientList.swift */; };
 		FA4BA8A760D9DDCB30729AB7 /* RecipeEditorViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 703E2046735779150499C97A /* RecipeEditorViewModelTests.swift */; };
 		FBE657A54D9B4A76364BC5C3 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5BDEAB572C83A392AED5C622 /* Assets.xcassets */; };
+		FE08719DECC81F8E4093EFDF /* NameStepPrototypeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B5CB97DD2B3CB3EEF7DC5B3 /* NameStepPrototypeView.swift */; };
 		FED8F6252BF9482B0F17209C /* AddRecipeSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE36346682BDD2B5E7976D13 /* AddRecipeSheet.swift */; };
 /* End PBXBuildFile section */
 
@@ -193,12 +196,14 @@
 		0EC3E6A7C19F7CCCF1033B3A /* AppBootstrap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppBootstrap.swift; sourceTree = "<group>"; };
 		168A0A47134E3312FBAD080E /* AppBootstrapTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppBootstrapTests.swift; sourceTree = "<group>"; };
 		1AE99C267EF3E47EF936C777 /* RecipeTimer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeTimer.swift; sourceTree = "<group>"; };
+		1B5CB97DD2B3CB3EEF7DC5B3 /* NameStepPrototypeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NameStepPrototypeView.swift; sourceTree = "<group>"; };
 		2027095EF76748A9CC4DE10F /* NotificationServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationServiceTests.swift; sourceTree = "<group>"; };
 		2256E64AD0B3ACFDB22A837E /* AuthClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthClientTests.swift; sourceTree = "<group>"; };
 		23538C17B8C5A0B1666D3494 /* RecipeOption.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeOption.swift; sourceTree = "<group>"; };
 		2460B2541E823AB098F4BAFA /* FullRecipeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullRecipeView.swift; sourceTree = "<group>"; };
 		27E622AAB3FB89F99BAD6CAE /* StoredRecipe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoredRecipe.swift; sourceTree = "<group>"; };
 		2A229BB67821612265D01BD7 /* GoogleSignInProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleSignInProvider.swift; sourceTree = "<group>"; };
+		2A54835E729AC21AC5897E6E /* ProfilePagePrototype.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfilePagePrototype.swift; sourceTree = "<group>"; };
 		2B65D84D7321ED2C89BEEBD9 /* IngredientIcons.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = IngredientIcons.xcassets; sourceTree = "<group>"; };
 		2D060807D3AFDD5F858FA2FD /* LadleTypography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LadleTypography.swift; sourceTree = "<group>"; };
 		2EF08F8F0D0C043AE9DB28AB /* RemoteFailure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteFailure.swift; sourceTree = "<group>"; };
@@ -302,6 +307,7 @@
 		E773EEC85D6B10B47798F46E /* FailedImportSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FailedImportSheet.swift; sourceTree = "<group>"; };
 		E8D8492C25EEFD85B7E7240C /* SwiftDataRecipeRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftDataRecipeRepository.swift; sourceTree = "<group>"; };
 		E9C01DA218666D762AB16E8A /* AuthClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthClient.swift; sourceTree = "<group>"; };
+		EBD4EBC1E7EDCA13596F3A20 /* ProfilePrototype.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfilePrototype.swift; sourceTree = "<group>"; };
 		ED3A0E550E090DA7C5FCA73D /* AccountSignInFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSignInFlowTests.swift; sourceTree = "<group>"; };
 		ED5A2404583300FE955A8774 /* NutritionNote.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionNote.swift; sourceTree = "<group>"; };
 		ED6E479FC67096188CF3D983 /* RemoteFailureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteFailureTests.swift; sourceTree = "<group>"; };
@@ -438,8 +444,11 @@
 				480030F07BD940462128F4AE /* GuestLimitView.swift */,
 				595643DC966138C3BC7DA2FC /* InstallationIdentity.swift */,
 				FA758C400CD14A086E39D48D /* KeychainTokenStore.swift */,
+				1B5CB97DD2B3CB3EEF7DC5B3 /* NameStepPrototypeView.swift */,
 				D0370D3E55CB7D0FD1314AF8 /* OnboardingWalkthroughView.swift */,
 				F27EE9D08B4AD704ED77330A /* PrivacyDetailView.swift */,
+				2A54835E729AC21AC5897E6E /* ProfilePagePrototype.swift */,
+				EBD4EBC1E7EDCA13596F3A20 /* ProfilePrototype.swift */,
 				F000720581D01DB27C9E2960 /* SignInOptionsView.swift */,
 				860D5C02610981E7F4B9FC0C /* WelcomeView.swift */,
 			);
@@ -886,6 +895,7 @@
 				111AB9F91CF8DA219B560D2A /* LibraryView.swift in Sources */,
 				E5D62027E211EFC50B38F37C /* LibraryViewModel.swift in Sources */,
 				910528C2827351A23281CE62 /* MethodList.swift in Sources */,
+				FE08719DECC81F8E4093EFDF /* NameStepPrototypeView.swift in Sources */,
 				60F294395D35AC79B907E3B0 /* NotificationService.swift in Sources */,
 				B7DF0B5B2E120DA67F5F747D /* NutritionNote.swift in Sources */,
 				ADFA32D4AFDD16210863F59F /* NutritionView.swift in Sources */,
@@ -893,6 +903,8 @@
 				3B24B8FC354FB569DA827D92 /* PendingImportCard.swift in Sources */,
 				5AB882C9AB6EB4BF73B1F7DC /* PreviewFixtures.swift in Sources */,
 				24197E5B542EB0789077028F /* PrivacyDetailView.swift in Sources */,
+				4232210F7430A19E9A2EBE4A /* ProfilePagePrototype.swift in Sources */,
+				9E1A3E6C05AF5D5542713766 /* ProfilePrototype.swift in Sources */,
 				5368CFB524D69182278FAED5 /* RecipeArtworkView.swift in Sources */,
 				00CBE25ACB8C502FDB3DB85B /* RecipeContextMenu.swift in Sources */,
 				CCDAC2330A4A8A54849C8D02 /* RecipeDetailView.swift in Sources */,

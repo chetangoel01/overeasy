@@ -34,6 +34,12 @@ struct LadleRuntimeConfiguration {
         usesInMemoryStore && demoScenario.seedsRecipes
     }
 
+    /// `-profile-prototype a|b|name`, honoured only alongside `-ui-testing`.
+    /// Throwaway; see `ProfilePrototype`.
+    var profilePrototype: ProfilePrototype? {
+        ProfilePrototype(launchArguments: launchArguments)
+    }
+
     var usesAppAttest: Bool {
         guard
             let value = infoDictionary["LadleAppAttestEnabled"] as? String
@@ -163,6 +169,7 @@ private struct LadleRuntimeView: View {
             discoverService: runtime.discoverService,
             syncStatus: runtime.syncStatus,
             notificationNavigation: .shared,
+            profilePrototype: runtime.profilePrototype,
             onAuthenticated: runtime.didAuthenticate,
             onSignOut: runtime.signOut,
             onDeleteAccount: runtime.deleteAccount

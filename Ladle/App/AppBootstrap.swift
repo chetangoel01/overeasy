@@ -172,6 +172,8 @@ final class LadleRuntime {
     let remoteImageCache: RemoteImageCache?
     let discoverService: any DiscoverServing
     let installationIdentity: InstallationIdentity
+    /// Throwaway prototype switch for issue #62; nil in every shipping launch.
+    let profilePrototype: ProfilePrototype?
 
     private let sharedQueueReconciler: SharedQueueReconciler?
     private let sessionWriters: [any SessionWriter]
@@ -356,6 +358,7 @@ final class LadleRuntime {
         self.discoverService = discoverService
         self.installationIdentity = installationIdentity
         self.sharedQueueReconciler = sharedQueueReconciler
+        self.profilePrototype = configuration.profilePrototype
     }
 
     func restoreAndLoad() async {
