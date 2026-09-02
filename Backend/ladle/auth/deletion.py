@@ -5,7 +5,6 @@ from uuid import UUID, uuid4
 
 from cryptography.exceptions import InvalidTag
 from sqlalchemy import delete, select
-from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, sessionmaker
 
 from ladle.auth.apple import AppleCredentials, AppleTokenRevocationFailed
@@ -16,11 +15,11 @@ from ladle.crypto.private_text import PrivateTextCipher
 from ladle.db.models import (
     AccountDeletionAudit,
     AppleIdentity,
-    ObjectDeletionQueue,
     Recipe,
     RecipeImage,
     User,
 )
+from ladle.privacy.object_deletion import queue_object_deletion
 
 
 class AccountDeletionUnavailable(Exception):
@@ -195,19 +194,23 @@ class AccountDeletionService:
         )
         now = self._clock.now()
         for key in keys:
-            if key is not None:
-                database.execute(
-                    insert(ObjectDeletionQueue)
-                    .values(
-                        object_key=key,
-                        reason="accountDeletion",
-                        available_at=now,
-                        created_at=now,
-                    )
-                    .on_conflict_do_nothing(
-                        index_elements=[ObjectDeletionQueue.object_key]
-                    )
-                )
+            queue_object_deletion(
+                database,
+                key,
+                reason="accountDeletion",
+                now=now,
+            )
+        # The cook's profile photo, which belongs to the account rather than to
+        # any recipe. The privacy policy says the picture goes with the
+        # account; this is where it does.
+        user = database.get(User, user_id)
+        if user is not None:
+            queue_object_deletion(
+                database,
+                user.avatar_object_key,
+                reason="accountDeletion",
+                now=now,
+            )
 
     def _idempotency_digest(self, user_id: UUID, idempotency_key: str) -> bytes:
         return self._digest(f"{user_id}:{idempotency_key}")

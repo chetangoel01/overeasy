@@ -425,3 +425,57 @@ def test_a_photo_needs_somewhere_to_put_it(clean_postgres_url: str) -> None:
 
     assert response.status_code == 503
     engine.dispose()
+
+
+@pytest.mark.integration
+def test_deleting_the_account_queues_the_cooks_photo(
+    clean_postgres_url: str,
+) -> None:
+    """The privacy policy says the picture goes with the account."""
+    app, storage, _ = _build(clean_postgres_url)
+
+    with TestClient(app) as client:
+        tokens = _sign_in(client)
+        _upload(client, tokens)
+        deleted = client.request(
+            "DELETE",
+            "/v1/auth/account",
+            headers={"Authorization": f"Bearer {tokens['accessToken']}"},
+            json={
+                "confirmation": "DELETE",
+                "refreshToken": tokens["refreshToken"],
+                "idempotencyKey": f"delete-{tokens['userID']}",
+            },
+        )
+
+    assert deleted.status_code == 204
+    assert _queued(clean_postgres_url) == {
+        next(iter(storage.objects)): "accountDeletion"
+    }
+
+
+@pytest.mark.integration
+def test_a_guests_photo_is_queued_when_they_sign_into_an_existing_account(
+    clean_postgres_url: str,
+) -> None:
+    """A guest can choose a photo, then sign into an account that has its own.
+
+    The destination keeps its picture — merging is not a way to overwrite one —
+    and the guest's object is queued rather than left in the bucket with every
+    row that named it gone.
+    """
+    app, storage, _ = _build(clean_postgres_url)
+
+    with TestClient(app) as client:
+        account = _sign_in(client, "first-device")
+        kept = _upload(client, account)
+
+        guest = _guest(client, "second-device")
+        _upload(client, guest)
+        merged = _sign_in(client, "second-device", guest=guest)
+
+    assert merged["userID"] == account["userID"]
+    assert merged["avatarURL"] == kept["avatarURL"]
+    assert merged["avatarIsCustom"] is True
+    orphan = next(key for key in storage.objects if key not in str(kept["avatarURL"]))
+    assert _queued(clean_postgres_url) == {orphan: "accountMerge"}
