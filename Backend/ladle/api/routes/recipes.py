@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from typing import Annotated, cast
 from uuid import UUID
 
@@ -15,7 +16,13 @@ from ladle.contracts.errors import (
     ErrorCode,
     SyncConflictDetails,
 )
-from ladle.contracts.recipes import DiscoverPageDTO, RecipeDTO, SyncPageDTO
+from ladle.contracts.recipes import (
+    MAX_RECIPE_MINUTES,
+    DiscoverPageDTO,
+    DiscoverSort,
+    RecipeDTO,
+    SyncPageDTO,
+)
 from ladle.observability.metrics import MetricsRegistry
 from ladle.recipes.limits import GuestRecipeLimitReached
 from ladle.recipes.service import (
@@ -103,18 +110,72 @@ def sync_recipes(
 @router.get("/discover", response_model=DiscoverPageDTO)
 def discover_recipes(
     request: Request,
+    cursor: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[PositiveInt, Query(le=100)] = 30,
+    q: Annotated[str | None, Query(max_length=100)] = None,
+    sort: Annotated[DiscoverSort, Query()] = DiscoverSort.POPULAR,
+    max_total_minutes: Annotated[
+        int | None,
+        Query(
+            ge=1,
+            le=MAX_RECIPE_MINUTES,
+            description=(
+                "Keep only sources a saver timed at this many minutes or "
+                "fewer. Sources nobody timed are excluded rather than "
+                "assumed quick."
+            ),
+        ),
+    ] = None,
+    seen_before: Annotated[
+        datetime | None,
+        Query(
+            description=(
+                "The moment this paging session started. Sources last shown "
+                "to you before it, and recently enough to still count, sort "
+                "after everything unseen; the page served is recorded as "
+                "seen. Omit it — as the shelves do — to rank purely on the "
+                "sort and record nothing."
+            ),
+        ),
+    ] = None,
+    record_impressions: Annotated[
+        bool,
+        Query(
+            description=(
+                "Set false to rank the page as a session without recording "
+                "it. For a page fetched behind the reader's back and held "
+                "until they ask for it: it has to be ranked against what "
+                "they have already read, but marking it seen would hide rows "
+                "nobody looked at. Ignored when `seen_before` is absent, "
+                "which already records nothing."
+            ),
+        ),
+    ] = True,
     authorization: Annotated[str | None, Header()] = None,
 ) -> DiscoverPageDTO:
     claims = access_claims(request, authorization)
     _rate_limits(request).enforce(
         _rate_limit_policies(request).sync_poll(str(claims.user_id))
     )
-    with database(request) as current_database:
+    if seen_before is not None and seen_before.tzinfo is None:
+        # `seen_at` is timestamptz. A client that dropped the offset would
+        # otherwise have its pin read in the database session's zone, which
+        # silently shifts the window by hours.
+        seen_before = seen_before.replace(tzinfo=UTC)
+    # The read and the impression write are one step: a page that was served
+    # but not recorded would be served again, and a page recorded but not
+    # served would demote rows the cook never saw.
+    with database(request) as current_database, current_database.begin():
         return _recipes(request).discover(
             current_database,
             user_id=claims.user_id,
             limit=limit,
+            cursor=cursor,
+            query=q,
+            sort=sort,
+            max_total_minutes=max_total_minutes,
+            seen_before=seen_before,
+            record_impressions=record_impressions,
         )
 
 

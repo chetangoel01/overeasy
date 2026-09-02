@@ -7,6 +7,7 @@ from ladle.contracts.recipes import RecipeReviewStatus, RecipeSource
 from ladle.nutrition.calculator import (
     NutritionCalculationUnavailable,
     NutritionCalculator,
+    WeakFoodMatch,
 )
 from ladle.nutrition.usda import FoodNutrients, FoodPortion
 from ladle.recipes.template_clone import (
@@ -50,6 +51,7 @@ def food(
     protein: str = "10",
     carbohydrate: str = "20",
     fat: str = "2",
+    fibre: str | None = None,
     portions: list[FoodPortion] | None = None,
     search_rank: int | None = None,
 ) -> FoodNutrients:
@@ -62,6 +64,7 @@ def food(
             "protein_grams_per_100g": Decimal(protein),
             "carbohydrate_grams_per_100g": Decimal(carbohydrate),
             "fat_grams_per_100g": Decimal(fat),
+            "fibre_grams_per_100g": Decimal(fibre) if fibre else None,
             "portions": portions or [],
             "search_rank": search_rank,
         }
@@ -382,3 +385,344 @@ def test_missing_mass_exposes_ingredient_diagnostic() -> None:
     assert error.value.code == "missingMass"
     assert error.value.ingredient_index == 0
     assert error.value.ingredient_name == "chickpeas"
+
+
+def test_first_candidate_with_impossible_nutrients_falls_through_to_the_next() -> None:
+    # The real failure: USDA's top hit for "cumin seeds" was a branded grinder
+    # refill claiming zero calories, while the SR Legacy spice record sat one
+    # rank below it. One unusable candidate must not cost the whole recipe.
+    junk = food(
+        fdc_id=2427784,
+        description="CUMIN SEEDS GRINDER REFILL",
+        data_type="Branded",
+        calories="0",
+        protein="0",
+        carbohydrate="133.33",
+        fat="0",
+        search_rank=0,
+    )
+    usable = food(
+        fdc_id=170923,
+        description="Spices, cumin seed",
+        data_type="SR Legacy",
+        calories="375",
+        protein="17.81",
+        carbohydrate="44.24",
+        fat="22.27",
+        search_rank=1,
+    )
+    source = Foods({"chickpeas drained": [junk, usable]})
+
+    result = NutritionCalculator(source).calculate_required(recipe([ingredient()]))
+
+    assert result is not None
+    assert "FDC 170923" in (result.evidence or "")
+    assert "FDC 2427784" not in (result.evidence or "")
+
+
+def test_candidate_without_usable_mass_falls_through_to_the_next() -> None:
+    unmeasurable = food(fdc_id=11, search_rank=0, portions=[])
+    usable = food(fdc_id=12, search_rank=1, portions=[portion("clove", "3")])
+    source = Foods({"garlic": [unmeasurable, usable]})
+
+    result = NutritionCalculator(source).calculate_required(
+        recipe(
+            [
+                ingredient(
+                    name="garlic",
+                    query="garlic",
+                    quantity="2",
+                    unit="clove",
+                    metric_amount=None,
+                    metric_unit=None,
+                )
+            ]
+        )
+    )
+
+    assert result is not None
+    assert "FDC 12" in (result.evidence or "")
+
+
+def test_every_candidate_being_unusable_still_blocks_the_ingredient() -> None:
+    source = Foods(
+        {
+            "chickpeas drained": [
+                food(
+                    fdc_id=21,
+                    calories="900",
+                    protein="1",
+                    carbohydrate="1",
+                    fat="1",
+                    search_rank=0,
+                ),
+                food(
+                    fdc_id=22,
+                    calories="0",
+                    protein="0",
+                    carbohydrate="125",
+                    fat="0",
+                    search_rank=1,
+                ),
+            ]
+        }
+    )
+
+    with pytest.raises(NutritionCalculationUnavailable) as error:
+        NutritionCalculator(source).calculate_required(recipe([ingredient()]))
+
+    assert error.value.code == "inconsistentNutrients"
+    assert error.value.ingredient_index == 0
+
+
+def test_high_fibre_spices_are_not_rejected_for_counting_fibre_as_sugar() -> None:
+    """`Spices, cloves, ground` is a laboratory record, and it used to fail.
+
+    USDA states 274 kcal. Charging its 33.9g of fibre the full 4 kcal/g puts
+    the estimate at 403 — 32% away, past the tolerance — while treating fibre
+    as unavailable puts it at 267. The stated value sits between those two, so
+    the panel is consistent and the recipe should cost it.
+    """
+    cloves = food(
+        fdc_id=171321,
+        description="Spices, cloves, ground",
+        data_type="SR Legacy",
+        calories="274",
+        protein="5.97",
+        carbohydrate="65.53",
+        fat="13.0",
+        fibre="33.9",
+        search_rank=0,
+    )
+    source = Foods({"cloves": [cloves]})
+
+    result = NutritionCalculator(source).calculate_required(
+        recipe([ingredient(name="cloves", query="cloves")])
+    )
+
+    assert result is not None
+    assert "FDC 171321" in (result.evidence or "")
+
+
+def test_a_panel_outside_the_fibre_band_is_still_rejected() -> None:
+    # Fibre widens the plausible range; it does not excuse a nonsense panel.
+    source = Foods(
+        {
+            "cloves": [
+                food(
+                    fdc_id=171321,
+                    calories="10",
+                    protein="5.97",
+                    carbohydrate="65.53",
+                    fat="13.0",
+                    fibre="33.9",
+                    search_rank=0,
+                )
+            ]
+        }
+    )
+
+    with pytest.raises(NutritionCalculationUnavailable) as error:
+        NutritionCalculator(source).calculate_required(
+            recipe([ingredient(name="cloves", query="cloves")])
+        )
+
+    assert error.value.code == "inconsistentNutrients"
+
+
+def test_an_irrelevant_top_result_loses_to_a_relevant_one_further_down() -> None:
+    """USDA's first hit for "cinnamon stick" was APPLEBEE'S mozzarella sticks.
+
+    Nothing checked that a provider-ranked candidate had anything to do with
+    the query, so the recipe was costed from it.
+    """
+    irrelevant = food(
+        fdc_id=169011,
+        description="APPLEBEE'S, mozzarella sticks",
+        data_type="Survey (FNDDS)",
+        calories="316",
+        search_rank=0,
+    )
+    relevant = food(
+        fdc_id=171329,
+        description="Spices, cinnamon, ground",
+        data_type="SR Legacy",
+        calories="247",
+        protein="3.99",
+        carbohydrate="80.59",
+        fat="1.24",
+        fibre="53.1",
+        search_rank=1,
+    )
+    source = Foods({"cinnamon": [irrelevant, relevant]})
+
+    result = NutritionCalculator(source).calculate_required(
+        recipe([ingredient(name="cinnamon", query="cinnamon")])
+    )
+
+    assert result is not None
+    assert "FDC 171329" in (result.evidence or "")
+
+
+def test_plural_and_singular_count_as_the_same_word() -> None:
+    # "seeds" against "Spices, cumin seed" started all of this.
+    match = food(
+        fdc_id=170923,
+        description="Spices, cumin seed",
+        data_type="SR Legacy",
+        calories="375",
+        protein="17.81",
+        carbohydrate="44.24",
+        fat="22.27",
+        fibre="10.5",
+        search_rank=0,
+    )
+    source = Foods({"cumin seeds": [match]})
+    weak: list[WeakFoodMatch] = []
+
+    result = NutritionCalculator(source).calculate_required(
+        recipe([ingredient(name="cumin seeds", query="cumin seeds")]),
+        weak_matches=weak,
+    )
+
+    assert result is not None
+    assert weak == []
+
+
+def test_a_weak_match_is_used_but_recorded_rather_than_blocking() -> None:
+    """Nothing relevant exists for garam masala, so the recipe still costs it.
+
+    Blocking would lose every other ingredient's calories over one blend, and
+    silently accepting it would hide a number nobody should trust.
+    """
+    weak = food(
+        fdc_id=171181,
+        description="SMART SOUP, Indian Bean Masala",
+        data_type="SR Legacy",
+        calories="57",
+        protein="3",
+        carbohydrate="8",
+        fat="1",
+        search_rank=0,
+    )
+    source = Foods({"garam masala": [weak]})
+    recorded: list[WeakFoodMatch] = []
+
+    result = NutritionCalculator(source).calculate_required(
+        recipe([ingredient(name="garam masala", query="garam masala")]),
+        weak_matches=recorded,
+    )
+
+    assert result is not None
+    assert recorded == [
+        WeakFoodMatch(
+            ingredient_index=0,
+            ingredient_name="garam masala",
+            description="SMART SOUP, Indian Bean Masala",
+        )
+    ]
+
+
+def test_sharing_the_qualifiers_is_not_enough_without_the_food_itself() -> None:
+    """ "coriander leaf raw" matched "Lettuce, leaf, green, raw".
+
+    Two of the three words agreed, which was enough under a plain majority.
+    The one that disagreed was the only one naming the food.
+    """
+    lettuce = food(
+        fdc_id=169247,
+        description="Lettuce, leaf, green, raw",
+        data_type="SR Legacy",
+        calories="18",
+        protein="1.36",
+        carbohydrate="3.29",
+        fat="0.15",
+        fibre="1.3",
+        search_rank=0,
+    )
+    source = Foods({"coriander leaf raw": [lettuce]})
+    recorded: list[WeakFoodMatch] = []
+
+    result = NutritionCalculator(source).calculate_required(
+        recipe([ingredient(name="coriander", query="coriander leaf raw")]),
+        weak_matches=recorded,
+    )
+
+    assert result is not None
+    assert [match.description for match in recorded] == ["Lettuce, leaf, green, raw"]
+
+
+def test_the_food_word_may_be_qualified_by_the_record() -> None:
+    # "Carrots, baby, raw" for "carrot raw" is a good match, not a weak one.
+    carrots = food(
+        fdc_id=170393,
+        description="Carrots, baby, raw",
+        data_type="SR Legacy",
+        calories="35",
+        protein="0.64",
+        carbohydrate="8.24",
+        fat="0.13",
+        fibre="2.9",
+        search_rank=0,
+    )
+    source = Foods({"carrot raw": [carrots]})
+    recorded: list[WeakFoodMatch] = []
+
+    NutritionCalculator(source).calculate_required(
+        recipe([ingredient(name="carrot", query="carrot raw")]),
+        weak_matches=recorded,
+    )
+
+    assert recorded == []
+
+
+def test_a_contradicted_state_is_a_weak_match_however_well_the_food_matches() -> None:
+    """ "coriander leaf raw" matched "Spices, coriander leaf, dried".
+
+    The food is right and the form is right; only the state disagrees, and
+    that is the whole difference between 279 kcal and about 23.
+    """
+    dried = food(
+        fdc_id=170921,
+        description="Spices, coriander leaf, dried",
+        data_type="SR Legacy",
+        calories="279",
+        protein="21.93",
+        carbohydrate="52.1",
+        fat="4.78",
+        fibre="10.4",
+        search_rank=0,
+    )
+    source = Foods({"coriander leaf raw": [dried]})
+    recorded: list[WeakFoodMatch] = []
+
+    NutritionCalculator(source).calculate_required(
+        recipe([ingredient(name="coriander", query="coriander leaf raw")]),
+        weak_matches=recorded,
+    )
+
+    assert [match.description for match in recorded] == [
+        "Spices, coriander leaf, dried"
+    ]
+
+
+def test_an_agreeing_state_is_not_a_conflict() -> None:
+    canned = food(
+        fdc_id=170172,
+        description="Nuts, coconut milk, canned",
+        data_type="SR Legacy",
+        calories="197",
+        protein="2.02",
+        carbohydrate="2.81",
+        fat="21.33",
+        search_rank=0,
+    )
+    source = Foods({"coconut milk canned": [canned]})
+    recorded: list[WeakFoodMatch] = []
+
+    NutritionCalculator(source).calculate_required(
+        recipe([ingredient(name="coconut milk", query="coconut milk canned")]),
+        weak_matches=recorded,
+    )
+
+    assert recorded == []

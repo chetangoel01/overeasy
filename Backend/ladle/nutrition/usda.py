@@ -4,7 +4,7 @@ import json
 import re
 from collections import OrderedDict
 from decimal import Decimal, InvalidOperation
-from typing import Literal, Protocol
+from typing import TYPE_CHECKING, Literal, Protocol
 
 import httpx
 from pydantic import Field
@@ -17,6 +17,9 @@ from ladle.acquisition.errors import (
 )
 from ladle.contracts.common import WireDecimal, WireModel
 
+if TYPE_CHECKING:
+    from ladle.nutrition.store import USDAPayloadStore
+
 FoodDataType = Literal["Foundation", "SR Legacy", "Survey (FNDDS)", "Branded"]
 _DATA_TYPES: tuple[FoodDataType, ...] = (
     "Foundation",
@@ -27,8 +30,17 @@ _DATA_TYPES: tuple[FoodDataType, ...] = (
 _DATA_TYPE_PRIORITY: dict[object, int] = {
     value: index for index, value in enumerate(_DATA_TYPES)
 }
+#: Laboratory records. Branded rows are transcribed from packaging and are
+#: regularly unusable for a generic ingredient — five branded jars were all
+#: USDA returned for "garlic powder", four of them nonsense — so they are only
+#: searched when nothing generic answers at all.
+_GENERIC_DATA_TYPES: tuple[FoodDataType, ...] = _DATA_TYPES[:-1]
 _ENERGY_IDS = (2048, 2047, 1008)
 _MACRO_IDS = {"protein": 1003, "fat": 1004, "carbohydrate": 1005}
+#: Dietary fibre. Optional, and deliberately not part of `_MACRO_IDS`: a
+#: record without it is still usable, and a record reporting it in the wrong
+#: unit should lose the fibre rather than be thrown away.
+_FIBRE_ID = 1079
 
 
 class _FoodDetailNotFound(Exception):
@@ -51,6 +63,8 @@ class FoodNutrients(WireModel):
     protein_grams_per_100g: WireDecimal = Field(ge=0)
     carbohydrate_grams_per_100g: WireDecimal = Field(ge=0)
     fat_grams_per_100g: WireDecimal = Field(ge=0)
+    #: `None` when USDA did not report it, which is not the same as zero.
+    fibre_grams_per_100g: WireDecimal | None = Field(default=None, ge=0)
     portions: list[FoodPortion] = Field(default_factory=list)
     search_rank: int | None = Field(default=None, ge=0)
 
@@ -70,6 +84,7 @@ class USDAClient:
         base_url: str,
         maximum_candidates: int = 5,
         maximum_cache_entries: int = 512,
+        store: "USDAPayloadStore | None" = None,
     ) -> None:
         if not api_key.strip():
             raise ValueError("USDA API key must not be blank")
@@ -82,6 +97,7 @@ class USDAClient:
         self._base_url = base_url.rstrip("/")
         self._maximum_candidates = maximum_candidates
         self._maximum_cache_entries = maximum_cache_entries
+        self._store = store
         # Keys are model-generated ingredient phrasings — an effectively
         # unbounded space — and the client lives as long as the worker
         # process, so the cache is LRU-bounded rather than a bare dict.
@@ -96,16 +112,30 @@ class USDAClient:
             self._cache.move_to_end(normalized)
             return list(cached)
 
-        response = self._request(
-            "POST",
-            "/foods/search",
-            json={
-                "query": normalized,
-                "dataType": list(_DATA_TYPES),
-                "pageSize": self._maximum_candidates,
-            },
-        )
-        payload = self._json_object(response, "search")
+        # A stored payload that yields nothing usable is not an answer. It is
+        # normally a payload collected under older rules — the search that
+        # only asked for branded rows, or a ranking since corrected — and
+        # trusting it would pin the mistake in place forever. Re-asking is the
+        # cost of keeping raw responses and validating them on read.
+        stored = self._store.search(normalized) if self._store else None
+        foods = self._foods_from(stored, normalized) if stored is not None else []
+        if not foods:
+            payload = self._search_payload(normalized)
+            if self._store is not None:
+                self._store.save_search(normalized, payload)
+            foods = self._foods_from(payload, normalized)
+
+        value = tuple(foods)
+        self._cache[normalized] = value
+        while len(self._cache) > self._maximum_cache_entries:
+            self._cache.popitem(last=False)
+        return list(value)
+
+    def _foods_from(
+        self,
+        payload: dict[str, object],
+        normalized: str,
+    ) -> list[FoodNutrients]:
         rows = payload.get("foods")
         if not isinstance(rows, list):
             raise MalformedProviderResponse("USDA search returned invalid foods")
@@ -119,20 +149,50 @@ class USDAClient:
             fdc_id = row.get("fdcId")
             if not isinstance(fdc_id, int) or fdc_id <= 0:
                 continue
-            try:
-                detail_response = self._request("GET", f"/food/{fdc_id}")
-            except _FoodDetailNotFound:
-                continue
-            detail = self._json_object(detail_response, "food detail")
+            detail = self._store.food(fdc_id) if self._store else None
+            if detail is None:
+                try:
+                    detail_response = self._request("GET", f"/food/{fdc_id}")
+                except _FoodDetailNotFound:
+                    continue
+                detail = self._json_object(detail_response, "food detail")
+                if self._store is not None:
+                    self._store.save_food(fdc_id, detail)
             parsed = self._parse_food(detail)
             if parsed is not None:
                 foods.append(parsed.model_copy(update={"search_rank": search_rank}))
+        return foods
 
-        value = tuple(foods)
-        self._cache[normalized] = value
-        while len(self._cache) > self._maximum_cache_entries:
-            self._cache.popitem(last=False)
-        return list(value)
+    def _search_payload(self, normalized: str) -> dict[str, object]:
+        """Ask for laboratory records first, and only then for packaging.
+
+        Ranking alone could not fix "garlic powder": every row USDA returns
+        for it is Branded, so there was nothing better to promote. Asking the
+        generic data types on their own surfaces `Spices, garlic powder`,
+        and the second search only happens for ingredients that genuinely
+        exist solely as products.
+        """
+        generic = self._search_request(normalized, _GENERIC_DATA_TYPES)
+        rows = generic.get("foods")
+        if isinstance(rows, list) and rows:
+            return generic
+        return self._search_request(normalized, _DATA_TYPES)
+
+    def _search_request(
+        self,
+        normalized: str,
+        data_types: tuple[FoodDataType, ...],
+    ) -> dict[str, object]:
+        response = self._request(
+            "POST",
+            "/foods/search",
+            json={
+                "query": normalized,
+                "dataType": list(data_types),
+                "pageSize": self._maximum_candidates,
+            },
+        )
+        return self._json_object(response, "search")
 
     def _request(
         self,
@@ -142,10 +202,13 @@ class USDAClient:
         json: object | None = None,
     ) -> httpx.Response:
         try:
+            # The key goes in a header, not `?api_key=`: httpx logs every
+            # outbound URL at INFO, so a query-string key is a key sitting in
+            # plaintext in the worker logs.
             response = self._http.request(
                 method,
                 f"{self._base_url}{path}",
-                params={"api_key": self._api_key},
+                headers={"X-Api-Key": self._api_key},
                 json=json,
             )
         except httpx.HTTPError as error:
@@ -178,6 +241,15 @@ class USDAClient:
 
     @staticmethod
     def _search_rank(query: str, row: dict[object, object]) -> tuple[object, ...]:
+        """Order candidates by how trustworthy the panel is, then by fit.
+
+        Data type leads. Branded rows are label transcriptions and are
+        routinely unusable — zero-calorie spices, per-100g carbohydrate above
+        100g — while Foundation and SR Legacy are laboratory records. Ranking
+        by token overlap first let `CUMIN SEEDS GRINDER REFILL, CUMIN SEEDS`
+        beat `Spices, cumin seed`, which matches one token fewer only because
+        "seeds" is not "seed".
+        """
         description = _normalize(str(row.get("description", "")))
         query_tokens = set(query.split())
         matches = len(query_tokens & set(description.split()))
@@ -185,7 +257,7 @@ class USDAClient:
         priority = _DATA_TYPE_PRIORITY.get(data_type, len(_DATA_TYPES))
         raw_score = row.get("score")
         score = float(raw_score) if isinstance(raw_score, int | float) else 0.0
-        return (-matches, priority, -score, description)
+        return (priority, -matches, -score, description)
 
     @staticmethod
     def _parse_food(value: dict[str, object]) -> FoodNutrients | None:
@@ -210,6 +282,12 @@ class USDAClient:
                 continue
             nutrient_id = nutrient.get("id")
             expected_unit = "kcal" if nutrient_id in _ENERGY_IDS else "g"
+            if nutrient_id == _FIBRE_ID:
+                if str(nutrient.get("unitName", "")).casefold() == "g":
+                    fibre = _decimal(row.get("amount"))
+                    if fibre is not None and fibre >= 0:
+                        amounts[_FIBRE_ID] = fibre
+                continue
             if nutrient_id not in {*_ENERGY_IDS, *_MACRO_IDS.values()}:
                 continue
             if str(nutrient.get("unitName", "")).casefold() != expected_unit.casefold():
@@ -220,6 +298,8 @@ class USDAClient:
 
         energy = next((amounts[key] for key in _ENERGY_IDS if key in amounts), None)
         if energy is None or any(key not in amounts for key in _MACRO_IDS.values()):
+            return None
+        if not _plausible(energy, amounts, data_type=data_type):
             return None
 
         portions: list[FoodPortion] = []
@@ -238,6 +318,7 @@ class USDAClient:
             protein_grams_per_100g=amounts[_MACRO_IDS["protein"]],
             carbohydrate_grams_per_100g=amounts[_MACRO_IDS["carbohydrate"]],
             fat_grams_per_100g=amounts[_MACRO_IDS["fat"]],
+            fibre_grams_per_100g=amounts.get(_FIBRE_ID),
             portions=portions,
         )
 
@@ -265,6 +346,33 @@ class USDAClient:
             modifier=modifier if isinstance(modifier, str) else None,
             description=description if isinstance(description, str) else None,
         )
+
+
+def _plausible(
+    energy: Decimal,
+    amounts: dict[int, Decimal],
+    *,
+    data_type: str,
+) -> bool:
+    """Whether a per-100g panel can describe a real food.
+
+    Branded rows are transcribed from labels and are often scaled from a
+    serving size the record does not carry, which produces panels no food can
+    have. These are rejected here rather than in the calculator so they never
+    become the candidate a recipe is costed from: the alternative is an
+    ingredient contributing 133g of carbohydrate per 100g.
+
+    An all-zero panel is kept for a laboratory record and rejected for a
+    branded one. Water and salt really do contribute nothing, so a generic
+    zero is a fact worth keeping; a branded zero is a label nobody filled in,
+    and accepting it silently drops that ingredient from the recipe's totals.
+    """
+    macros = [amounts[key] for key in _MACRO_IDS.values()]
+    if sum(macros) > Decimal(100):
+        return False
+    if energy > 0:
+        return True
+    return data_type != "Branded" and not any(macros)
 
 
 def _normalize(value: str) -> str:

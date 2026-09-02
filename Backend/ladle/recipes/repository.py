@@ -2,15 +2,27 @@ from collections import defaultdict
 from collections.abc import Callable, Collection, Sequence
 from datetime import datetime
 from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
-from sqlalchemy import delete, distinct, func, select
+from sqlalchemy import (
+    SQLColumnExpression,
+    and_,
+    case,
+    delete,
+    distinct,
+    func,
+    or_,
+    select,
+)
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, aliased
 
 from ladle.contracts.recipes import (
     DetectedTimerDTO,
     DiscoverPageDTO,
     DiscoverRecipeDTO,
+    DiscoverSort,
     FieldUncertaintyDTO,
     IngredientDTO,
     NutrientDTO,
@@ -23,6 +35,7 @@ from ladle.contracts.recipes import (
 )
 from ladle.db.models import (
     DetectedTimer,
+    DiscoverImpression,
     ExtractionCache,
     FieldUncertainty,
     Ingredient,
@@ -34,6 +47,15 @@ from ladle.db.models import (
     SourceVideo,
     StepIngredient,
 )
+
+
+def _escape_like(value: str) -> str:
+    """Neutralise LIKE wildcards so a search for "100%" is a literal search.
+
+    Without this a user typing % or _ silently matches everything, and a
+    trailing backslash breaks the pattern outright.
+    """
+    return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 class ObjectURLUnavailable(Exception):
@@ -95,37 +117,163 @@ class RecipeRepository:
         *,
         user_id: UUID,
         limit: int,
+        cursor: int = 0,
+        query: str | None = None,
+        sort: DiscoverSort = DiscoverSort.POPULAR,
+        max_total_minutes: int | None = None,
+        seen_before: datetime | None = None,
+        seen_since: datetime | None = None,
     ) -> DiscoverPageDTO:
+        """One page of the public feed, ordered and filtered by the server.
+
+        `cursor` is an offset into the ranked list, matching the integer
+        cursor `/v1/recipes/sync` already uses. It counts *ranked rows
+        consumed*, not items returned: a ranked source whose extraction cache
+        has gone stale is dropped from `items` but still advances the cursor,
+        so paging cannot stall on one bad row.
+
+        Discover's shelves are this same page under a different order or
+        filter — `sort=newest` and `max_total_minutes` — rather than their own
+        endpoint, so a shelf and the list beneath it return one DTO.
+
+        `seen_before` is the moment the caller started this paging session.
+        Sources this cook was last shown between `seen_since` and that moment
+        sort *after* everything unseen, each group keeping the ranking it
+        would otherwise have had. Impressions written during the session are
+        newer than the pin, so they cannot re-rank the pages still to come —
+        which is what stops page 2 repeating or skipping page 1's rows. Both
+        arguments are absent for the shelves and for Watch, which leaves the
+        ranking exactly as it was before any of this existed.
+        """
         saved_recipe = aliased(Recipe)
         saved_source_ids = select(saved_recipe.source_video_id).where(
             saved_recipe.user_id == user_id,
             saved_recipe.source_video_id.is_not(None),
         )
-        ranked = database.execute(
+        conditions = [
+            Recipe.user_id != user_id,
+            Recipe.deleted_at.is_(None),
+            Recipe.review_status == RecipeReviewStatus.READY.value,
+            Recipe.source != RecipeSource.OTHER.value,
+            Recipe.source_video_id.is_not(None),
+            Recipe.source_cache_id.is_not(None),
+            Recipe.source_video_id.not_in(saved_source_ids),
+        ]
+        if query:
+            # Search the saved recipes' own columns rather than the cached
+            # template JSON: those are real indexable columns, and the rows
+            # being ranked are exactly these. A saver who renamed their private
+            # copy can therefore surface a source whose displayed title differs
+            # from what matched, which is an acceptable trade for a searchable
+            # column.
+            pattern = f"%{_escape_like(query.strip())}%"
+            conditions.append(
+                or_(
+                    Recipe.title.ilike(pattern, escape="\\"),
+                    Recipe.creator_name.ilike(pattern, escape="\\"),
+                )
+            )
+
+        saved_count = func.count(distinct(Recipe.user_id)).label("saved_count")
+        latest_save = func.max(Recipe.updated_at).label("latest_save")
+        # min() picks one deterministic title per source for A-to-Z; the
+        # savers' copies of one video agree on it in all but edited cases.
+        sort_title = func.min(Recipe.title).label("sort_title")
+        # SourceVideo joins 1:1 on the group key, but Postgres still needs an
+        # aggregate over a non-grouped column.
+        like_count = func.max(SourceVideo.like_count).label("like_count")
+        # Not selected, only ordered by: the shelf needs the ranking, not the
+        # timestamp, and leaving it out keeps the row unpack below unchanged.
+        arrived_at = func.max(SourceVideo.created_at)
+        # Annotated because the branches below produce different expression
+        # types and the first one would otherwise fix the list's element type.
+        ordering: list[SQLColumnExpression[Any]]
+        if sort == DiscoverSort.ALPHABETICAL:
+            ordering = [sort_title.asc(), Recipe.source_video_id]
+        elif sort == DiscoverSort.NEWEST:
+            # `created_at` is non-null with a server default on every row, so
+            # this needs no NULLS handling — unlike `published_at`, which is
+            # exactly why the shelf is not keyed on it. Source id breaks the
+            # ties that a bulk import creates, so the offset cursor is stable.
+            ordering = [arrived_at.desc(), Recipe.source_video_id]
+        elif sort == DiscoverSort.MOST_LIKED:
+            # NULLS LAST matters: counts are only captured from the import
+            # that introduced them onward, so most of an existing corpus has
+            # none and would otherwise fill the first page. Save count is the
+            # tiebreak, which degrades this to the popular order while counts
+            # accrue, and source id keeps the total order deterministic —
+            # without it an offset cursor skips and repeats rows across the
+            # ties this ranking is full of.
+            ordering = [
+                like_count.desc().nullslast(),
+                saved_count.desc(),
+                Recipe.source_video_id,
+            ]
+        else:
+            ordering = [
+                saved_count.desc(),
+                latest_save.desc(),
+                Recipe.source_video_id,
+            ]
+
+        demoting = seen_before is not None and seen_since is not None
+        if demoting:
+            # An aggregate, because the query groups by source and one cook
+            # has at most one impression row per source: max() of a one-row
+            # group is that row, and NULL for a source never served. NULL
+            # falls through the CASE to 0, which is the unseen bucket, so
+            # every ordering keeps its own rank inside each bucket.
+            last_seen = func.max(DiscoverImpression.seen_at)
+            ordering.insert(
+                0,
+                case(
+                    (and_(last_seen < seen_before, last_seen > seen_since), 1),
+                    else_=0,
+                ),
+            )
+
+        ranked_query = (
             select(
                 Recipe.source_video_id,
-                func.count(distinct(Recipe.user_id)).label("saved_count"),
-                func.max(Recipe.updated_at).label("latest_save"),
+                saved_count,
+                latest_save,
+                sort_title,
+                like_count,
             )
-            .where(
-                Recipe.user_id != user_id,
-                Recipe.deleted_at.is_(None),
-                Recipe.review_status == RecipeReviewStatus.READY.value,
-                Recipe.source != RecipeSource.OTHER.value,
-                Recipe.source_video_id.is_not(None),
-                Recipe.source_cache_id.is_not(None),
-                Recipe.source_video_id.not_in(saved_source_ids),
-            )
+            .join(SourceVideo, SourceVideo.id == Recipe.source_video_id)
+            .where(*conditions)
             .group_by(Recipe.source_video_id)
-            .order_by(
-                func.count(distinct(Recipe.user_id)).desc(),
-                func.max(Recipe.updated_at).desc(),
-                Recipe.source_video_id,
+        )
+        if demoting:
+            # The cook goes in the ON clause, not the WHERE: in the WHERE it
+            # degrades to an inner join and the feed loses every source they
+            # have not seen — the exact opposite of the intent.
+            ranked_query = ranked_query.outerjoin(
+                DiscoverImpression,
+                and_(
+                    DiscoverImpression.source_video_id == Recipe.source_video_id,
+                    DiscoverImpression.user_id == user_id,
+                ),
             )
-            .limit(limit)
+        if max_total_minutes is not None:
+            # The savers' own totals, taken at their minimum: one saver's
+            # padded edit must not hide a source the rest call quick. A source
+            # nobody timed aggregates to NULL, fails the comparison, and is
+            # left out — never treated as fast because it is unknown.
+            ranked_query = ranked_query.having(
+                func.min(Recipe.total_minutes) <= max_total_minutes
+            )
+        ranked = database.execute(
+            ranked_query.order_by(*ordering)
+            .offset(cursor)
+            # One extra row answers has_more without a second count query.
+            .limit(limit + 1)
         ).all()
+
+        has_more = len(ranked) > limit
+        consumed = ranked[:limit]
         items: list[DiscoverRecipeDTO] = []
-        for source_video_id, saved_count, _ in ranked:
+        for source_video_id, count, _latest, _title, likes in consumed:
             source = database.get(SourceVideo, source_video_id)
             if source is None:
                 continue
@@ -153,11 +301,52 @@ class RecipeRepository:
                     source=template["source"],
                     original_url=source.canonical_url,
                     image_url=image_url,
-                    saved_count=saved_count,
+                    saved_count=count,
+                    like_count=likes,
                     saved_recipe_id=None,
                 )
             )
-        return DiscoverPageDTO(items=items)
+        return DiscoverPageDTO(
+            items=items,
+            next_cursor=cursor + len(consumed),
+            has_more=has_more,
+        )
+
+    def record_discover_impressions(
+        self,
+        database: Session,
+        *,
+        user_id: UUID,
+        source_video_ids: Collection[UUID],
+        seen_at: datetime,
+    ) -> None:
+        """Mark the page just served as seen by this cook.
+
+        One statement for the whole page, and an update rather than an insert
+        when the source comes round again: the table is meant to be bounded by
+        corpus size per cook, not by how often they scroll.
+        """
+        if not source_video_ids:
+            return
+        statement = insert(DiscoverImpression).values(
+            [
+                {
+                    "user_id": user_id,
+                    "source_video_id": source_video_id,
+                    "seen_at": seen_at,
+                }
+                for source_video_id in source_video_ids
+            ]
+        )
+        database.execute(
+            statement.on_conflict_do_update(
+                index_elements=[
+                    DiscoverImpression.user_id,
+                    DiscoverImpression.source_video_id,
+                ],
+                set_={"seen_at": statement.excluded.seen_at},
+            )
+        )
 
     def extraction_thumbnail_url(self, cache: ExtractionCache) -> str | None:
         if cache.thumbnail_remote_url is not None:

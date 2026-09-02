@@ -9,18 +9,24 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from alembic import command
-from ladle.auth.merge import AccountMergeInvalid, AccountMergeService
+from ladle.auth.merge import (
+    AccountMergeInvalid,
+    AccountMergeService,
+    SignInProfile,
+)
 from ladle.auth.tokens import RefreshTokenCodec
 from ladle.db.models import (
     AppleIdentity,
     AuthSession,
     Device,
+    DiscoverImpression,
     GoogleIdentity,
     ImportJob,
     ImportQuotaEvent,
     Recipe,
     RecipeChange,
     RecipeSlotReservation,
+    SourceVideo,
     User,
     UserSyncState,
 )
@@ -460,6 +466,227 @@ def test_concurrent_claims_of_two_apple_identities_admit_exactly_one(
                 .where(AppleIdentity.user_id == user_id)
             )
             == 1
+        )
+
+    engine.dispose()
+
+
+@pytest.mark.integration
+def test_sign_in_seeds_a_profile_but_never_overwrites_an_edited_name(
+    clean_postgres_url: str,
+) -> None:
+    """The rule the whole feature rests on.
+
+    Apple hands over a full name exactly once, so it is captured on first
+    sign-in. After that the cook owns it: signing in again on a new device, or
+    after a reinstall, must not quietly replace what they chose with what the
+    provider said. The avatar has no local edit to lose, so it does refresh.
+    """
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    engine = build_engine(clean_postgres_url)
+    clock = FrozenClock(datetime(2026, 9, 1, 21, 0, tzinfo=UTC))
+    merger = AccountMergeService(clock=clock)
+
+    with Session(engine) as database, database.begin():
+        guest_id = seed_user(database, kind="guest", now=clock.now())
+
+    # First sign-in: nothing stored yet, so the provider seeds both fields.
+    with Session(engine) as database, database.begin():
+        merger.merge_google(
+            database,
+            guest_user_id=guest_id,
+            google_subject="google-profile-subject",
+            idempotency_key="first",
+            profile=SignInProfile(
+                display_name="Priya Raman",
+                avatar_url="https://lh3.example/a/first.jpg",
+            ),
+        )
+
+    with Session(engine) as database:
+        user = database.get(User, guest_id)
+        assert user is not None
+        assert user.display_name == "Priya Raman"
+        assert user.avatar_url == "https://lh3.example/a/first.jpg"
+
+    # The cook renames themselves.
+    with Session(engine) as database, database.begin():
+        edited = database.get(User, guest_id)
+        assert edited is not None
+        edited.display_name = "Pri"
+
+    # Signing in again: the name is theirs now, the avatar is still Google's.
+    with Session(engine) as database, database.begin():
+        merger.merge_google(
+            database,
+            guest_user_id=guest_id,
+            google_subject="google-profile-subject",
+            idempotency_key="second",
+            profile=SignInProfile(
+                display_name="Priya Raman",
+                avatar_url="https://lh3.example/a/second.jpg",
+            ),
+        )
+
+    with Session(engine) as database:
+        user = database.get(User, guest_id)
+        assert user is not None
+        assert user.display_name == "Pri", "a later sign-in must not clobber an edit"
+        assert user.avatar_url == "https://lh3.example/a/second.jpg"
+
+    engine.dispose()
+
+
+@pytest.mark.integration
+def test_a_sign_in_carrying_no_profile_leaves_the_account_untouched(
+    clean_postgres_url: str,
+) -> None:
+    """Apple supplies a name only on the first authorization, so every
+    subsequent Apple sign-in arrives with nothing. That is ordinary, and it
+    must not blank out what the first one captured."""
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    engine = build_engine(clean_postgres_url)
+    clock = FrozenClock(datetime(2026, 9, 1, 21, 0, tzinfo=UTC))
+    merger = AccountMergeService(clock=clock)
+
+    with Session(engine) as database, database.begin():
+        guest_id = seed_user(database, kind="guest", now=clock.now())
+
+    with Session(engine) as database, database.begin():
+        merger.merge(
+            database,
+            guest_user_id=guest_id,
+            apple_subject="apple-profile-subject",
+            idempotency_key="first",
+            profile=SignInProfile(display_name="Chetan Goel"),
+        )
+
+    with Session(engine) as database, database.begin():
+        merger.merge(
+            database,
+            guest_user_id=guest_id,
+            apple_subject="apple-profile-subject",
+            idempotency_key="second",
+            profile=SignInProfile(),
+        )
+
+    with Session(engine) as database:
+        user = database.get(User, guest_id)
+        assert user is not None
+        assert user.display_name == "Chetan Goel"
+        assert user.avatar_url is None
+
+    engine.dispose()
+
+
+@pytest.mark.integration
+def test_merge_carries_the_guest_discover_impressions_and_keeps_the_later_one(
+    clean_postgres_url: str,
+) -> None:
+    """A cook who signs in keeps the feed they were reading.
+
+    Impressions cannot simply be re-pointed the way recipes and devices are:
+    both accounts may already hold a row for the same source, and the pair is
+    the primary key. So they are upserted, the later `seen_at` winning, and
+    the guest's copies removed — otherwise signing in would resurrect a feed
+    the cook has already scrolled past, or lose the one they were on.
+    """
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    engine = build_engine(clean_postgres_url)
+    clock = FrozenClock(datetime(2026, 7, 23, 21, 0, tzinfo=UTC))
+    merger = AccountMergeService(clock=clock)
+    guest_seen = clock.now() - timedelta(hours=1)
+    account_seen = clock.now() - timedelta(hours=3)
+    sources = [uuid4() for _ in range(3)]
+
+    with Session(engine) as database, database.begin():
+        guest_id = seed_user(database, kind="guest", now=clock.now())
+        destination_id = seed_user(database, kind="apple", now=clock.now())
+        database.add(
+            AppleIdentity(
+                apple_sub="impression-apple-subject",
+                user_id=destination_id,
+                created_at=clock.now(),
+            )
+        )
+        for index, source_id in enumerate(sources):
+            database.add(
+                SourceVideo(
+                    id=source_id,
+                    platform="tiktok",
+                    platform_video_id=f"merge-impression-{index}",
+                    canonical_url=(
+                        f"https://www.tiktok.com/@cook/video/{2000 + index}"
+                    ),
+                    source_revision="1",
+                    source_metadata={},
+                    created_at=clock.now(),
+                )
+            )
+        database.flush()
+        database.add_all(
+            [
+                # Seen on both, more recently as a guest.
+                DiscoverImpression(
+                    user_id=guest_id,
+                    source_video_id=sources[0],
+                    seen_at=guest_seen,
+                ),
+                DiscoverImpression(
+                    user_id=destination_id,
+                    source_video_id=sources[0],
+                    seen_at=account_seen,
+                ),
+                # Seen on both, more recently on the account.
+                DiscoverImpression(
+                    user_id=guest_id,
+                    source_video_id=sources[1],
+                    seen_at=account_seen,
+                ),
+                DiscoverImpression(
+                    user_id=destination_id,
+                    source_video_id=sources[1],
+                    seen_at=guest_seen,
+                ),
+                # Seen only as a guest.
+                DiscoverImpression(
+                    user_id=guest_id,
+                    source_video_id=sources[2],
+                    seen_at=guest_seen,
+                ),
+            ]
+        )
+
+    with Session(engine) as database, database.begin():
+        merged = merger.merge(
+            database,
+            guest_user_id=guest_id,
+            apple_subject="impression-apple-subject",
+            idempotency_key="impression-merge",
+        )
+
+    assert merged == destination_id
+    with Session(engine) as database:
+        carried = {
+            row.source_video_id: row.seen_at
+            for row in database.scalars(
+                select(DiscoverImpression).where(
+                    DiscoverImpression.user_id == destination_id
+                )
+            )
+        }
+        assert carried == {
+            sources[0]: guest_seen,
+            sources[1]: guest_seen,
+            sources[2]: guest_seen,
+        }
+        assert (
+            database.scalar(
+                select(func.count())
+                .select_from(DiscoverImpression)
+                .where(DiscoverImpression.user_id == guest_id)
+            )
+            == 0
         )
 
     engine.dispose()

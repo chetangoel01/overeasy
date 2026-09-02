@@ -12,6 +12,21 @@ final class AuthClient {
         let authorizationCode: String
         let nonce: String
         let idempotencyKey: String
+        /// Apple supplies a full name only on the first authorization for an
+        /// Apple ID, in the credential and in no token. Nil encodes as an
+        /// absent key, so a later sign-in says nothing about the name rather
+        /// than saying it is empty.
+        let fullName: String?
+    }
+
+    private struct ProfileRequest: Encodable, Sendable {
+        let displayName: String
+    }
+
+    private struct ProfileResponse: Decodable, Sendable {
+        let userKind: String
+        let displayName: String?
+        let avatarURL: URL?
     }
 
     private struct GoogleRequest: Encodable, Sendable {
@@ -65,7 +80,10 @@ final class AuthClient {
         )
         try tokenStore.save(tokens)
         if applyAccountState {
-            accountSession.applyRemoteUserKind(tokens.userKind)
+            accountSession.applyRemoteAccount(
+                kind: tokens.userKind,
+                profile: tokens.profile
+            )
         }
         return tokens
     }
@@ -73,7 +91,10 @@ final class AuthClient {
     func restoreSession() throws -> AuthTokens? {
         let tokens = try tokenStore.load()
         if let tokens {
-            accountSession.applyRemoteUserKind(tokens.userKind)
+            accountSession.applyRemoteAccount(
+                kind: tokens.userKind,
+                profile: tokens.profile
+            )
         }
         return tokens
     }
@@ -124,7 +145,8 @@ final class AuthClient {
         identityToken: String,
         authorizationCode: String,
         nonce: String,
-        idempotencyKey: String
+        idempotencyKey: String,
+        fullName: String? = nil
     ) async throws -> AuthTokens {
         let tokens: AuthTokens = try await api.request(
             path: "/v1/auth/apple",
@@ -133,12 +155,16 @@ final class AuthClient {
                 identityToken: identityToken,
                 authorizationCode: authorizationCode,
                 nonce: nonce,
-                idempotencyKey: idempotencyKey
+                idempotencyKey: idempotencyKey,
+                fullName: fullName
             ),
             authenticated: true
         )
         try tokenStore.save(tokens)
-        accountSession.applyRemoteUserKind(tokens.userKind)
+        accountSession.applyRemoteAccount(
+            kind: tokens.userKind,
+            profile: tokens.profile
+        )
         return tokens
     }
 
@@ -156,7 +182,40 @@ final class AuthClient {
             authenticated: true
         )
         try tokenStore.save(tokens)
-        accountSession.applyRemoteUserKind(tokens.userKind)
+        accountSession.applyRemoteAccount(
+            kind: tokens.userKind,
+            profile: tokens.profile
+        )
         return tokens
+    }
+
+    /// Set the cook's display name. A blank name clears it back to whatever
+    /// the provider supplied, which is why it is sent as typed rather than
+    /// refused here.
+    ///
+    /// The stored tokens carry the profile, so they are rewritten with the
+    /// server's answer: a relaunch reads the Keychain, not the server, and
+    /// would otherwise show the old name until the next refresh.
+    func updateProfile(displayName: String) async throws {
+        let response: ProfileResponse = try await api.request(
+            path: "/v1/auth/profile",
+            method: .patch,
+            body: ProfileRequest(
+                displayName: String(
+                    displayName.prefix(AccountProfile.displayNameLimit)
+                )
+            ),
+            authenticated: true
+        )
+        let profile = AccountProfile(
+            displayName: response.displayName,
+            avatarURL: response.avatarURL
+        )
+        if var tokens = try? tokenStore.load() {
+            tokens.displayName = profile.displayName
+            tokens.avatarURL = profile.avatarURL
+            try? tokenStore.save(tokens)
+        }
+        accountSession.applyProfile(profile)
     }
 }

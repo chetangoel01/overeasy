@@ -16,7 +16,11 @@ final class AuthClientTests: XCTestCase {
             account: "tokens",
             secureStore: secureStore
         )
-        let tokens = AuthTokens.fixture(accessToken: "stored-access")
+        let tokens = AuthTokens.fixture(
+            accessToken: "stored-access",
+            displayName: "Priya Raman",
+            avatarURL: URL(string: "https://cdn.test/priya.jpg")
+        )
 
         try tokenStore.save(tokens)
 
@@ -274,7 +278,7 @@ final class AuthClientTests: XCTestCase {
         let tokens = AuthTokens.fixture(accessToken: "delete-access")
         let tokenStore = InMemoryAuthTokenStore(tokens: tokens)
         let account = AccountSession(store: InMemoryAuthPreferenceStore())
-        account.applyRemoteUserKind("google")
+        account.applyRemoteAccount(kind: "google")
         let auth = AuthClient(
             api: APIClient(
                 baseURL: URL(string: "https://api.ladle.test")!,
@@ -374,6 +378,226 @@ final class AuthClientTests: XCTestCase {
         XCTAssertFalse(didReset)
     }
 
+    func testTokensCarryTheProfileIntoTheSessionAndKeychain() async throws {
+        URLProtocolStub.install { request in
+            (
+                Self.response(request, status: 201),
+                Self.tokensJSON(
+                    accessToken: "guest-access",
+                    userKind: "google",
+                    profile: [
+                        "displayName": "Priya Raman",
+                        "avatarURL": "https://cdn.test/priya.jpg",
+                    ]
+                )
+            )
+        }
+        let tokenStore = InMemoryAuthTokenStore()
+        let account = AccountSession(store: InMemoryAuthPreferenceStore())
+        let auth = AuthClient(
+            api: APIClient(
+                baseURL: URL(string: "https://api.ladle.test")!,
+                session: URLProtocolStub.session(),
+                tokenStore: tokenStore
+            ),
+            tokenStore: tokenStore,
+            accountSession: account,
+            installationIdentity: InstallationIdentity(
+                store: InMemoryAuthPreferenceStore()
+            )
+        )
+
+        let tokens = try await auth.bootstrapGuest(attestation: nil)
+
+        XCTAssertEqual(tokens.displayName, "Priya Raman")
+        XCTAssertEqual(
+            tokens.avatarURL,
+            URL(string: "https://cdn.test/priya.jpg")
+        )
+        XCTAssertEqual(account.profile?.displayName, "Priya Raman")
+        XCTAssertEqual(
+            try tokenStore.load()?.avatarURL,
+            URL(string: "https://cdn.test/priya.jpg")
+        )
+    }
+
+    /// Tokens written by a build that predates the profile — and any response
+    /// from an account that has none — restore as a profile-less session
+    /// rather than failing to decode.
+    func testTokensWithoutAProfileRestoreWithoutOne() throws {
+        let tokenStore = InMemoryAuthTokenStore(
+            tokens: .fixture(accessToken: "restored", userKind: "apple")
+        )
+        let account = AccountSession(store: InMemoryAuthPreferenceStore())
+        let auth = AuthClient(
+            api: APIClient(
+                baseURL: URL(string: "https://api.ladle.test")!,
+                session: URLProtocolStub.session(),
+                tokenStore: tokenStore
+            ),
+            tokenStore: tokenStore,
+            accountSession: account,
+            installationIdentity: InstallationIdentity(
+                store: InMemoryAuthPreferenceStore()
+            )
+        )
+
+        _ = try auth.restoreSession()
+
+        XCTAssertEqual(account.state, .signedInWithApple)
+        XCTAssertNil(account.profile)
+    }
+
+    /// Apple returns a full name exactly once, in the credential on the first
+    /// authorization. A client that does not forward it loses it for good.
+    func testAppleSignInForwardsTheNameAppleSuppliesOnce() async throws {
+        let requests = Locked<[URLRequest]>([])
+        URLProtocolStub.install { request in
+            requests.withValue { $0.append(request) }
+            return (
+                Self.response(request, status: 200),
+                Self.tokensJSON(
+                    accessToken: "apple-access",
+                    userKind: "apple",
+                    profile: ["displayName": "Priya Raman"]
+                )
+            )
+        }
+        let tokenStore = InMemoryAuthTokenStore(
+            tokens: .fixture(accessToken: "guest-access")
+        )
+        let account = AccountSession(store: InMemoryAuthPreferenceStore())
+        let auth = AuthClient(
+            api: APIClient(
+                baseURL: URL(string: "https://api.ladle.test")!,
+                session: URLProtocolStub.session(),
+                tokenStore: tokenStore
+            ),
+            tokenStore: tokenStore,
+            accountSession: account,
+            installationIdentity: InstallationIdentity(
+                store: InMemoryAuthPreferenceStore()
+            )
+        )
+
+        _ = try await auth.signInWithApple(
+            identityToken: "identity-token",
+            authorizationCode: "authorization-code",
+            nonce: "raw-nonce",
+            idempotencyKey: "apple-attempt",
+            fullName: "Priya Raman"
+        )
+
+        let body = try JSONSerialization.jsonObject(
+            with: URLProtocolStub.bodyData(for: requests.snapshot[0])
+        ) as? [String: Any]
+        XCTAssertEqual(body?["fullName"] as? String, "Priya Raman")
+        XCTAssertEqual(account.profile?.displayName, "Priya Raman")
+    }
+
+    /// Every Apple sign-in after the first carries no name. The key must be
+    /// absent rather than empty, so the server never seeds a blank name.
+    func testAppleSignInOmitsAnAbsentName() async throws {
+        let requests = Locked<[URLRequest]>([])
+        URLProtocolStub.install { request in
+            requests.withValue { $0.append(request) }
+            return (
+                Self.response(request, status: 200),
+                Self.tokensJSON(
+                    accessToken: "apple-access",
+                    userKind: "apple"
+                )
+            )
+        }
+        let tokenStore = InMemoryAuthTokenStore(
+            tokens: .fixture(accessToken: "guest-access")
+        )
+        let auth = AuthClient(
+            api: APIClient(
+                baseURL: URL(string: "https://api.ladle.test")!,
+                session: URLProtocolStub.session(),
+                tokenStore: tokenStore
+            ),
+            tokenStore: tokenStore,
+            accountSession: AccountSession(
+                store: InMemoryAuthPreferenceStore()
+            ),
+            installationIdentity: InstallationIdentity(
+                store: InMemoryAuthPreferenceStore()
+            )
+        )
+
+        _ = try await auth.signInWithApple(
+            identityToken: "identity-token",
+            authorizationCode: "authorization-code",
+            nonce: "raw-nonce",
+            idempotencyKey: "apple-attempt"
+        )
+
+        let body = try JSONSerialization.jsonObject(
+            with: URLProtocolStub.bodyData(for: requests.snapshot[0])
+        ) as? [String: Any]
+        XCTAssertNil(body?["fullName"])
+    }
+
+    func testEditingTheNameSendsAPatchAndUpdatesTheStoredSession() async throws {
+        let requests = Locked<[URLRequest]>([])
+        URLProtocolStub.install { request in
+            requests.withValue { $0.append(request) }
+            return (
+                Self.response(request, status: 200),
+                Self.profileJSON(displayName: "Priya R.")
+            )
+        }
+        let tokenStore = InMemoryAuthTokenStore(
+            tokens: .fixture(
+                accessToken: "google-access",
+                userKind: "google",
+                displayName: "Priya Raman",
+                avatarURL: URL(string: "https://cdn.test/priya.jpg")
+            )
+        )
+        let account = AccountSession(store: InMemoryAuthPreferenceStore())
+        account.applyRemoteAccount(
+            kind: "google",
+            profile: AccountProfile(
+                displayName: "Priya Raman",
+                avatarURL: URL(string: "https://cdn.test/priya.jpg")
+            )
+        )
+        let auth = AuthClient(
+            api: APIClient(
+                baseURL: URL(string: "https://api.ladle.test")!,
+                session: URLProtocolStub.session(),
+                tokenStore: tokenStore
+            ),
+            tokenStore: tokenStore,
+            accountSession: account,
+            installationIdentity: InstallationIdentity(
+                store: InMemoryAuthPreferenceStore()
+            )
+        )
+
+        try await auth.updateProfile(displayName: "Priya R.")
+
+        XCTAssertEqual(requests.snapshot.count, 1)
+        XCTAssertEqual(requests.snapshot[0].url?.path, "/v1/auth/profile")
+        XCTAssertEqual(requests.snapshot[0].httpMethod, "PATCH")
+        let body = try JSONSerialization.jsonObject(
+            with: URLProtocolStub.bodyData(for: requests.snapshot[0])
+        ) as? [String: Any]
+        XCTAssertEqual(body?["displayName"] as? String, "Priya R.")
+        XCTAssertEqual(account.profile?.displayName, "Priya R.")
+        // A relaunch reads the Keychain, not the server, so the edit has to
+        // land there too or the old name comes back.
+        XCTAssertEqual(try tokenStore.load()?.displayName, "Priya R.")
+        XCTAssertEqual(
+            try tokenStore.load()?.avatarURL,
+            URL(string: "https://cdn.test/priya.jpg"),
+            "Editing the name must not drop the avatar"
+        )
+    }
+
     private static func makeAuthClient(
         installationIdentity: InstallationIdentity,
         appAttester: (any AppAttesting)? = nil
@@ -424,15 +648,28 @@ final class AuthClientTests: XCTestCase {
 
     nonisolated private static func tokensJSON(
         accessToken: String,
-        userKind: String
+        userKind: String,
+        profile: [String: String] = [:]
     ) -> Data {
-        try! JSONSerialization.data(withJSONObject: [
+        var payload: [String: Any] = [
             "accessToken": accessToken,
             "accessTokenExpiresAt": "2026-07-23T21:15:00.000Z",
             "refreshToken": "\(accessToken)-refresh",
             "userID": "10000000-0000-4000-8000-000000000001",
             "deviceID": "10000000-0000-4000-8000-000000000002",
             "userKind": userKind,
+        ]
+        payload.merge(profile) { _, updated in updated }
+        return try! JSONSerialization.data(withJSONObject: payload)
+    }
+
+    nonisolated private static func profileJSON(
+        displayName: String
+    ) -> Data {
+        try! JSONSerialization.data(withJSONObject: [
+            "userKind": "google",
+            "displayName": displayName,
+            "avatarURL": "https://cdn.test/priya.jpg",
         ])
     }
 

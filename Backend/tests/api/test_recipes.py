@@ -233,6 +233,9 @@ def test_discover_returns_aggregated_public_source_data(
             "originalURL": source_url,
             "imageURL": recipe["images"][0]["remoteURL"],
             "savedCount": 2,
+            # No counts: this source was seeded directly, never imported, so
+            # nothing ever read the platform's numbers for it.
+            "likeCount": None,
             "savedRecipeID": None,
         }
     ]

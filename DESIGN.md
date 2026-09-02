@@ -70,23 +70,31 @@ its fixed `focusAccent`, and errors use the system destructive role.
 ## Typography
 
 All type uses SF Pro's standard design and width. Text uses a role from
-`LadleTextStyle`, never a size.
+`LadleTextStyle`, never a size — and each role is a system text style, so the
+sizes below are iOS's, not ours. A role names what the text is *for*; the
+platform decides how big that is. This is why the app matches the metrics of
+every other iOS app and tracks the system at every Dynamic Type setting rather
+than only approximating it at the default one.
 
-| Role | Size | Weight | Use |
-| --- | --- | --- | --- |
-| `display` | 38 | bold | Welcome or Focus headline that owns the screen |
-| `title` | 31 | bold | Screen title, cooking instruction |
-| `recipeTitle` | 18 | semibold | A recipe's name as content |
-| `section` | 19 | semibold | Section heading above a group |
-| `body` | 17 | regular | Running text |
-| `bodyStrong` | 17 | semibold | Emphasis, and every button label |
-| `metadata` | 13 | regular | Counts, sources, supporting detail |
-| `eyebrow` | 12 | semibold | Uppercase label above a title, Focus Mode only |
+| Role | Text style | Size at default | Weight | Use |
+| --- | --- | --- | --- | --- |
+| `display` | `.largeTitle` | 34 | bold | Welcome or Focus headline that owns the screen |
+| `title` | `.title` | 28 | bold | Screen title, cooking instruction |
+| `recipeTitle` | `.title3` | 20 | semibold | A recipe's name as content |
+| `section` | `.headline` | 17 | system | Section heading above a group |
+| `body` | `.body` | 17 | system | Running text |
+| `bodyStrong` | `.body` | 17 | semibold | Emphasis, and every button label |
+| `metadata` | `.footnote` | 13 | system | Counts, sources, supporting detail |
+| `eyebrow` | `.caption` | 12 | semibold | Uppercase label above a title, Focus Mode only |
 
-`recipeTitle` and `section` sit one point apart but are not interchangeable:
-`recipeTitle` scales against `.title3` because a recipe name is content, and
-`section` against `.headline` because a section label is chrome. They diverge
-at large Dynamic Type, which is the point.
+"System" weight means the role does not override the text style's own weight.
+`.headline` is already semibold on iOS; restating that here would freeze it if
+the platform ever changed.
+
+`recipeTitle` and `section` are not interchangeable: `recipeTitle` is `.title3`
+because a recipe name is content and should grow with the reader's size, and
+`section` is `.headline` because a section label is chrome and stays closer to
+the surrounding UI. They diverge at large Dynamic Type, which is the point.
 
 `ladleScaledFont(size:)` is for cooking surfaces needing distance legibility
 beyond `display`, and nothing else. Symbol point sizes use `LadleTheme.IconSize`
@@ -106,7 +114,7 @@ names the value instead of the raw number.
 | Role | Value | Use |
 | --- | --- | --- |
 | `Layout.screenMargin` | 16 | Leading and trailing margin on a workspace screen |
-| `Layout.sheetMargin` | 24 | Margin inside a sheet, *including its toolbar control* |
+| `Layout.sheetMargin` | 24 | Margin inside a sheet's content |
 | `Layout.cardPadding` | 16 | Inner padding of a grouped card or field |
 | `Layout.sectionGap` | 24 | Between two sections of a screen |
 | `Layout.rowGap` | 12 | Between sibling rows |
@@ -124,8 +132,9 @@ A divider that separates rows carrying a leading icon is derived with
 `LadleTheme.dividerInset(iconWidth:gap:leadingPadding:)` so it lands on the
 label, and cannot drift when the icon or gap changes. Do not hardcode it.
 
-A sheet's close or cancel control sits on `sheetMargin`, the same margin as the
-content beneath it.
+A sheet's close or cancel control sits where the system puts it, inside its own
+glass capsule. A sheet does not pad its toolbar items: `sheetMargin` is for the
+content beneath them.
 
 ## Buttons
 
@@ -158,8 +167,13 @@ buttons a different text origin per button.
 
 - The root workspace is a native four-tab structure: Recipes, Discover, Watch,
   and Inbox.
-- Recipes is the default tab. Discover, Watch, and Inbox are direct workspace
-  destinations, not cards hidden inside a home feed.
+- Discover is the default tab — a launch lands on something to read rather
+  than on the cook's own shelf — except when its feed fails on a cold launch,
+  which opens Recipes instead, silently and once, so the first screen is never
+  an error. Any Discover failure after that shows Discover's own error state,
+  and a slow feed keeps its skeleton rather than bouncing.
+- Recipes, Watch, and Inbox are direct workspace destinations, not cards
+  hidden inside a home feed.
 - Inbox shows a badge only when imports need attention.
 - Recipes owns the large title, an always-visible search field, compact sort,
   filter, and grid/list controls, an image-led recipe archive, and generated
@@ -171,7 +185,9 @@ buttons a different text origin per button.
 - Recipe detail remains a pushed destination. Import and account flows remain
   native sheets.
 - Account management stays in the top-right toolbar on Recipes, Discover,
-  Watch, and Inbox. Add Recipe remains specific to Recipes.
+  Watch, and Inbox. Add Recipe sits beside it on Recipes and Inbox, the two
+  tabs where a link arrives; Discover and Watch are consumption surfaces and
+  carry no import affordance.
 
 ## Watch and Inbox
 
@@ -222,14 +238,32 @@ buttons a different text origin per button.
   the complete shared extraction as a read-only recipe preview. Saving clones
   that already-resolved extraction into the current account. Neither action
   resubmits the video to the import, transcription, or model pipeline.
+- Two shelves sit above that ranked list, because Discover is the launch screen
+  and a list ordered by saves only turns over when someone saves something.
+  **New to Overeasy** is ordered by when a source arrived here, not when its
+  creator published it. **Quick dinners** keeps the sources a saver timed at
+  thirty minutes or less; a source nobody timed is left out rather than assumed
+  quick. Each rail is one short page of the same feed — no "See all", no
+  destination of its own — and the list beneath it is headed "All recipes".
+- A rail is decoration on top of the feed, so it fails quietly: a shelf that
+  does not load is absent rather than an error, and a shelf with fewer than
+  three cards is dropped instead of drawn short. Searching hides both rails
+  outright, because search replaces the feed and unsearched cards beside the
+  results would read as results.
+- Scrolling back to the top of Discover fetches a fresh page 1 quietly and, if
+  it differs from what is on screen, offers it as a "New recipes" pill in the
+  same bar the refresh banner uses — the list only moves when the cook taps it,
+  because scrolling up is how someone returns to a row they meant to keep.
 - Discover excludes sources already saved by the current account and removes a
   row as soon as its direct save completes.
 - Recipe cards and Discover results use the native long-press context menu as
   the modern replacement for 3D Touch. The menu previews the recipe and exposes
   Open plus a non-destructive Save or Favorite action.
-- Settings presents accent color, connected provider, saved-recipe count, and
-  sync state. Internal installation identifiers and provider profile details
-  stay hidden.
+- Settings opens on the cook: a 64-point avatar — the provider's photo or a
+  monogram, whichever they choose — the editable display name, and the account
+  kind beneath it. A guest sees the word "Guest" and a sign-in button, and
+  nothing else. Beneath that header sit accent color, saved-recipe count, and
+  sync state. Internal installation identifiers stay hidden.
 
 ## Accessibility and verification
 

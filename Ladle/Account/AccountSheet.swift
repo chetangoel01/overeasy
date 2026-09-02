@@ -44,15 +44,28 @@ struct AccountDeletionFailure: Equatable {
     }
 }
 
+/// Settings as a standard grouped form.
+///
+/// This was a `ScrollView` of hand-built cards: custom section headers in
+/// large bold primary text where a grouped list uses small secondary ones,
+/// 64-point rows where the system uses 44, hand-drawn dividers with a derived
+/// inset, and circular icon badges. All of it re-implemented what `Form`
+/// already does, and none of it matched the platform.
+///
+/// `FilterSheet` made the same move for the same reason. Notably it does not
+/// override the list background either: a grouped form on the system's own
+/// ground is what a settings screen looks like on iOS.
 struct AccountSheet: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @AppStorage(LadleAccentColor.preferenceKey)
     private var accentColor = LadleAccentColor.tomato.rawValue
 
     let accountSession: AccountSession
     let library: LibraryViewModel
     let syncStatus: SyncStatus
+    var authClient: AuthClient?
+    var googleSignIn: (any GoogleSignInProviding)?
+    var onAuthenticated: @MainActor () async -> Void = {}
     let signOut: @MainActor () async -> Void
     let deleteAccount: @MainActor () async throws -> Void
 
@@ -64,267 +77,201 @@ struct AccountSheet: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(
-                    alignment: .leading,
-                    spacing: LadleTheme.Spacing.cooking
-                ) {
-                    accountSummary
-                    librarySection
-                    appearanceSection
-                    privacySection
-                    accountActionsSection
-                }
-                .padding(.horizontal, LadleTheme.Spacing.generous)
-                .padding(.top, LadleTheme.Spacing.regular)
-                .padding(.bottom, LadleTheme.Spacing.cooking)
+            Form {
+                accountSection
+                librarySection
+                appearanceSection
+                privacySection
+                accountActionsSection
             }
-            .scrollIndicators(.hidden)
+            .listRowBackground(LadleTheme.Surface.raised)
+            .scrollContentBackground(.hidden)
             .background(LadleTheme.Surface.porcelain)
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close", action: dismiss.callAsFunction)
-                        .padding(
-                            .leading,
-                            LadleTheme.Layout.sheetToolbarInset
-                        )
                 }
+            }
+            .confirmationDialog(
+                "Sign out of Overeasy?",
+                isPresented: $isSignOutConfirmationPresented,
+                titleVisibility: .visible
+            ) {
+                Button("Sign Out", role: .destructive) {
+                    performSignOut()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text(
+                    "Recipes are removed from this device but stay in your synced library."
+                )
+            }
+            .alert(
+                "Delete your Overeasy account?",
+                isPresented: $isDeleteConfirmationPresented
+            ) {
+                Button("Delete Account", role: .destructive) {
+                    performAccountDeletion()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text(
+                    "Your synced recipes and account data will be permanently deleted. This can\u{2019}t be undone."
+                )
+            }
+            .alert(
+                "Account could not be deleted",
+                isPresented: Binding(
+                    get: { deletionFailure != nil },
+                    set: { if !$0 { deletionFailure = nil } }
+                )
+            ) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(deletionFailure?.message ?? "Please try again.")
             }
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
-        .presentationBackground(LadleTheme.Surface.porcelain)
     }
 
-    private var accountSummary: some View {
-        HStack(alignment: .top, spacing: LadleTheme.Spacing.regular) {
-            Image(systemName: "person.crop.circle.badge.checkmark")
-                .font(.system(size: LadleTheme.IconSize.feature, weight: .semibold))
-                .foregroundStyle(LadleTheme.Label.accent)
-                .frame(width: 52, height: 52)
-                .background(LadleTheme.Surface.badge, in: Circle())
-                .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: LadleTheme.Spacing.compact) {
-                Text(Self.accountTitle(for: accountSession.state))
-                    .ladleFont(.section)
-                    .foregroundStyle(LadleTheme.Label.primary)
-
-                Text(Self.accountDetail(for: accountSession.state))
-                    .ladleFont(.body)
-                    .foregroundStyle(LadleTheme.Label.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                LadlePill(
-                    text: accountStatus,
-                    systemImage: accountStatusSymbol,
-                    tint: accountStatusTint
-                )
-            }
-
-            Spacer(minLength: 0)
+    /// The cook, above their settings. This was a `LabeledContent` row with
+    /// a status pill — the same row for a guest and for a signed-in account,
+    /// saying nothing about who was signed in. The explanation stays a
+    /// footer because that is where a grouped list puts prose about the
+    /// section above it.
+    private var accountSection: some View {
+        Section {
+            AccountHeaderView(
+                accountSession: accountSession,
+                authClient: authClient,
+                googleSignIn: googleSignIn,
+                onAuthenticated: onAuthenticated
+            )
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets())
+        } footer: {
+            Text(Self.accountDetail(for: accountSession.state))
         }
-        .padding(LadleTheme.Spacing.regular)
-        .background(LadleTheme.Surface.raised, in: accountShape)
-        .overlay {
-            accountShape
-                .stroke(LadleTheme.Label.primary.opacity(0.08), lineWidth: 1)
-        }
-        .accessibilityElement(children: .combine)
     }
 
     private var librarySection: some View {
-        VStack(alignment: .leading, spacing: LadleTheme.Spacing.medium) {
-            LadleSectionHeader(title: "Library")
-
-            VStack(spacing: 0) {
-                infoRow(
-                    icon: "book.closed",
-                    title: "Saved recipes",
-                    value: "\(library.recipes.count)"
-                )
-                accountDivider
-                infoRow(
-                    icon: "arrow.triangle.2.circlepath",
-                    title: "Sync",
-                    value: Self.syncValue(
-                        for: accountSession.state,
-                        status: syncStatus.state
-                    )
-                )
-            }
-            .background(LadleTheme.Surface.raised, in: accountShape)
-            .overlay {
-                accountShape
-                    .stroke(LadleTheme.Label.primary.opacity(0.08), lineWidth: 1)
-            }
-        }
-    }
-
-    private var privacySection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            LadleSectionHeader(title: "Privacy")
-
-            NavigationLink {
-                PrivacyDetailView()
-            } label: {
-                HStack(spacing: LadleTheme.Layout.iconGap) {
-                    Image(systemName: "hand.raised")
-                        .font(.system(size: LadleTheme.IconSize.medium, weight: .semibold))
-                        .foregroundStyle(LadleTheme.Label.accent)
-                        .frame(width: Self.rowIconWidth, height: Self.rowIconWidth)
-                        .background(LadleTheme.Surface.badge, in: Circle())
-                    VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
-                        Text("Privacy & data")
-                            .ladleFont(.body)
-                            .foregroundStyle(LadleTheme.Label.primary)
-                        Text("What Overeasy stores, and what it never does")
-                            .ladleFont(.metadata)
-                            .foregroundStyle(LadleTheme.Label.secondary)
-                    }
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: LadleTheme.IconSize.small, weight: .semibold))
-                        .foregroundStyle(LadleTheme.Label.secondary)
-                }
-                .padding(.horizontal, LadleTheme.Layout.cardPadding)
-                .padding(.vertical, LadleTheme.Spacing.medium)
-                .frame(minHeight: LadleTheme.Control.primary)
-                .background(LadleTheme.Surface.raised, in: accountShape)
-                .overlay {
-                    accountShape
-                        .stroke(LadleTheme.Label.primary.opacity(0.08), lineWidth: 1)
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("account.privacy")
-        }
-    }
-
-    private var appearanceSection: some View {
-        VStack(alignment: .leading, spacing: LadleTheme.Spacing.medium) {
-            LadleSectionHeader(
-                title: "Appearance",
-                detail: "Accent color"
+        Section("Library") {
+            LabeledContent(
+                "Saved recipes",
+                value: "\(library.recipes.count)"
             )
+            LabeledContent(
+                "Sync",
+                value: Self.syncValue(
+                    for: accountSession.state,
+                    status: syncStatus.state
+                )
+            )
+        }
+    }
 
+    /// "Accent color" used to hang off the right of the header as a detail.
+    /// iOS has no such affordance: what a section does is explained in its
+    /// footer, so that is where it went.
+    private var appearanceSection: some View {
+        Section {
             HStack(spacing: LadleTheme.Spacing.compact) {
-                ForEach(LadleAccentColor.allCases) { accent in
+                ForEach(LadleAccentColor.allCases) { option in
                     Button {
-                        accentColor = accent.rawValue
+                        accentColor = option.rawValue
                     } label: {
                         ZStack {
                             Circle()
-                                .fill(accent.actionColor)
-                            if selectedAccent == accent {
+                                .fill(option.actionColor)
+                            if selectedAccent == option {
                                 Image(systemName: "checkmark")
-                                    .font(.system(size: LadleTheme.IconSize.small, weight: .bold))
+                                    .font(
+                                        .system(
+                                            size: LadleTheme.IconSize.small,
+                                            weight: .bold
+                                        )
+                                    )
                                     .foregroundStyle(LadleTheme.Label.onAccent)
                             }
                         }
-                        .frame(width: LadleTheme.Control.hitTarget, height: LadleTheme.Control.hitTarget)
+                        .frame(
+                            width: LadleTheme.Control.hitTarget,
+                            height: LadleTheme.Control.hitTarget
+                        )
                         .frame(maxWidth: .infinity)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(LadlePressButtonStyle())
-                    .accessibilityLabel(accent.title)
+                    .accessibilityLabel(option.title)
                     .accessibilityValue(
-                        selectedAccent == accent ? "Selected" : ""
+                        selectedAccent == option ? "Selected" : ""
                     )
                 }
             }
-            .padding(LadleTheme.Spacing.medium)
-            .background(LadleTheme.Surface.raised, in: accountShape)
-            .overlay {
-                accountShape
-                    .stroke(LadleTheme.Label.primary.opacity(0.08), lineWidth: 1)
-            }
+            .padding(.vertical, LadleTheme.Spacing.tight)
+        } header: {
+            Text("Appearance")
+        } footer: {
+            Text("Tints buttons, favorites, and the selected tab.")
         }
         .sensoryFeedback(.selection, trigger: accentColor)
     }
 
+    private var privacySection: some View {
+        Section {
+            NavigationLink {
+                PrivacyDetailView()
+            } label: {
+                Label("Privacy & data", systemImage: "hand.raised")
+            }
+            .accessibilityIdentifier("account.privacy")
+        } footer: {
+            Text("What Overeasy stores, and what it never does.")
+        }
+    }
+
     private var accountActionsSection: some View {
-        VStack(alignment: .leading, spacing: LadleTheme.Spacing.medium) {
-            LadleSectionHeader(title: "Account actions")
-
-            VStack(spacing: 0) {
-                Button {
-                    isSignOutConfirmationPresented = true
-                } label: {
-                    accountActionRow(
-                        icon: "rectangle.portrait.and.arrow.right",
-                        title: "Sign out",
-                        detail: "Keep your synced library in Overeasy.",
-                        isLoading: isSigningOut
-                    )
-                }
-                .buttonStyle(.plain)
-                .disabled(isSigningOut || isDeletingAccount)
-                .accessibilityIdentifier("account.sign-out")
-
-                accountDivider
-
-                Button(role: .destructive) {
-                    isDeleteConfirmationPresented = true
-                } label: {
-                    accountActionRow(
-                        icon: "trash",
-                        title: "Delete account",
-                        detail: "Permanently remove account data and recipes.",
-                        isDestructive: true,
-                        isLoading: isDeletingAccount
-                    )
-                }
-                .buttonStyle(.plain)
-                .disabled(isDeletingAccount || isSigningOut)
-                .accessibilityIdentifier("account.delete")
+        Section {
+            Button {
+                isSignOutConfirmationPresented = true
+            } label: {
+                actionLabel("Sign out", isLoading: isSigningOut)
             }
-            .background(LadleTheme.Surface.raised, in: accountShape)
-            .overlay {
-                accountShape
-                    .stroke(LadleTheme.Label.primary.opacity(0.08), lineWidth: 1)
+            .disabled(isSigningOut || isDeletingAccount)
+            .accessibilityIdentifier("account.sign-out")
+
+            Button(role: .destructive) {
+                isDeleteConfirmationPresented = true
+            } label: {
+                actionLabel("Delete account", isLoading: isDeletingAccount)
             }
-        }
-        .confirmationDialog(
-            "Sign out of Overeasy?",
-            isPresented: $isSignOutConfirmationPresented,
-            titleVisibility: .visible
-        ) {
-            Button("Sign Out", role: .destructive) {
-                performSignOut()
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
+            .disabled(isDeletingAccount || isSigningOut)
+            .accessibilityIdentifier("account.delete")
+        } header: {
+            Text("Account actions")
+        } footer: {
             Text(
-                "Recipes are removed from this device but stay in your synced library."
+                "Signing out keeps your synced library in Overeasy. Deleting removes it permanently."
             )
         }
-        .alert(
-            "Delete your Overeasy account?",
-            isPresented: $isDeleteConfirmationPresented
-        ) {
-            Button("Delete Account", role: .destructive) {
-                performAccountDeletion()
+    }
+
+    /// Text only, no leading symbol. iOS puts destructive and account
+    /// actions in plain rows, and a symbol here inherits the accent tint —
+    /// which put a green trash can beside red "Delete account" text.
+    private func actionLabel(
+        _ title: String,
+        isLoading: Bool
+    ) -> some View {
+        HStack {
+            Text(title)
+            if isLoading {
+                Spacer()
+                ProgressView()
             }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text(
-                "Your synced recipes and account data will be permanently deleted. This can’t be undone."
-            )
-        }
-        .alert(
-            "Account could not be deleted",
-            isPresented: Binding(
-                get: { deletionFailure != nil },
-                set: { if !$0 { deletionFailure = nil } }
-            )
-        ) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(deletionFailure?.message ?? "Please try again.")
         }
     }
 
@@ -389,148 +336,7 @@ struct AccountSheet: View {
         }
     }
 
-    private var accountStatus: String {
-        switch accountSession.state {
-        case .undecided: "Not connected"
-        case .guest: "Guest"
-        case .freeAccount, .signedInWithApple, .signedInWithGoogle: "Connected"
-        }
-    }
-
-    private var accountStatusSymbol: String {
-        switch accountSession.state {
-        case .undecided: "exclamationmark.circle"
-        case .guest: "iphone"
-        case .freeAccount, .signedInWithApple, .signedInWithGoogle:
-            "checkmark.circle.fill"
-        }
-    }
-
-    private var accountStatusTint: Color {
-        switch accountSession.state {
-        case .undecided: LadleTheme.Surface.steel
-        case .guest: LadleTheme.Surface.steel
-        case .freeAccount, .signedInWithApple, .signedInWithGoogle:
-            LadleTheme.Intent.success
-        }
-    }
-
-    private var accountDivider: some View {
-        Divider()
-            .overlay(LadleTheme.Label.primary.opacity(0.08))
-            .padding(
-                .leading,
-                LadleTheme.dividerInset(
-                    iconWidth: Self.rowIconWidth,
-                    leadingPadding: LadleTheme.Layout.cardPadding
-                )
-            )
-    }
-
-    private func infoRow(
-        icon: String,
-        title: String,
-        value: String
-    ) -> some View {
-        HStack(
-            alignment: dynamicTypeSize.isAccessibilitySize ? .top : .center,
-            spacing: LadleTheme.Layout.iconGap
-        ) {
-            Image(systemName: icon)
-                .font(.system(size: LadleTheme.IconSize.medium, weight: .semibold))
-                .foregroundStyle(LadleTheme.Label.accent)
-                .frame(width: Self.rowIconWidth, height: Self.rowIconWidth)
-                .background(LadleTheme.Surface.badge, in: Circle())
-
-            if dynamicTypeSize.isAccessibilitySize {
-                VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
-                    infoTitle(title)
-                    infoValue(value)
-                }
-            } else {
-                infoTitle(title)
-                Spacer(minLength: LadleTheme.Spacing.compact)
-                infoValue(value)
-            }
-        }
-        .padding(.horizontal, LadleTheme.Layout.cardPadding)
-        .padding(.vertical, LadleTheme.Spacing.medium)
-        .frame(minHeight: LadleTheme.Control.primary)
-        .accessibilityElement(children: .combine)
-    }
-
-    private func infoTitle(_ title: String) -> some View {
-        Text(title)
-            .ladleFont(.body)
-            .foregroundStyle(LadleTheme.Label.primary)
-    }
-
-    private func infoValue(_ value: String) -> some View {
-        Text(value)
-            .ladleFont(.bodyStrong)
-            .foregroundStyle(LadleTheme.Label.primary.opacity(0.75))
-    }
-
-    private func accountActionRow(
-        icon: String,
-        title: String,
-        detail: String,
-        isDestructive: Bool = false,
-        isLoading: Bool
-    ) -> some View {
-        HStack(spacing: LadleTheme.Layout.iconGap) {
-            Image(systemName: icon)
-                .font(.system(size: LadleTheme.IconSize.medium, weight: .semibold))
-                .foregroundStyle(
-                    isDestructive ? Color.red : LadleTheme.Label.primary
-                )
-                .frame(width: Self.rowIconWidth, height: Self.rowIconWidth)
-                .background(LadleTheme.Surface.badge, in: Circle())
-                .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
-                Text(title)
-                    .ladleFont(.bodyStrong)
-                    .foregroundStyle(
-                        isDestructive ? Color.red : LadleTheme.Label.primary
-                    )
-                Text(detail)
-                    .ladleFont(.metadata)
-                    .foregroundStyle(LadleTheme.Label.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: LadleTheme.Spacing.compact)
-
-            if isLoading {
-                ProgressView()
-            } else {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: LadleTheme.IconSize.small, weight: .semibold))
-                    .foregroundStyle(LadleTheme.Label.secondary)
-                    .accessibilityHidden(true)
-            }
-        }
-        .padding(.horizontal, LadleTheme.Layout.cardPadding)
-        .padding(.vertical, LadleTheme.Spacing.medium)
-        .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
-        .contentShape(Rectangle())
-    }
-
-    /// Width of a row's leading icon badge. `accountDivider` derives its
-    /// inset from this so the divider tracks the label origin instead of
-    /// restating it as a literal that nothing keeps in step.
-    private static let rowIconWidth: CGFloat = 34
-
-    private var accountShape: RoundedRectangle {
-        RoundedRectangle(
-            cornerRadius: LadleTheme.Corner.control,
-            style: .continuous
-        )
-    }
-
     private var selectedAccent: LadleAccentColor {
         LadleAccentColor.resolve(storedValue: accentColor)
     }
-
 }

@@ -10,8 +10,11 @@ final class DiscoverInteractionUITests: XCTestCase {
         XCTAssertTrue(title.waitForExistence(timeout: 3))
         attachScreenshot(of: app, named: "Discover loaded results")
 
+        // A row's identifier is `discover.<original URL>`, so match the
+        // scheme too: plain `discover.` also catches `discover.sort`, which
+        // now precedes the rows in the hierarchy on a Discover-first launch.
         let row = app.descendants(matching: .any).matching(
-            NSPredicate(format: "identifier BEGINSWITH 'discover.'")
+            NSPredicate(format: "identifier BEGINSWITH 'discover.http'")
         ).firstMatch
         XCTAssertTrue(row.waitForExistence(timeout: 2))
         row.coordinate(
@@ -20,9 +23,65 @@ final class DiscoverInteractionUITests: XCTestCase {
         XCTAssertTrue(app.buttons["View Recipe"].waitForExistence(timeout: 2))
         XCTAssertTrue(app.buttons["Save Recipe"].exists)
 
+        // The pushed detail is the read-only Discover one: it carries the
+        // account control but no favourite or options menu. This asserted a
+        // "Discover preview" badge until 46dd921 deliberately removed it and
+        // left the assertion behind.
         app.buttons["View Recipe"].tap()
-        XCTAssertTrue(app.staticTexts["Discover preview"].waitForExistence(timeout: 2))
-        XCTAssertTrue(app.buttons["Account"].exists)
+        let account = app.buttons["Account"]
+        XCTAssertTrue(account.waitForExistence(timeout: 3))
+        XCTAssertFalse(app.buttons["Recipe options"].exists)
+    }
+
+    /// No "New recipes" pill in a demo scenario, whichever way the feed is
+    /// scrolled — which is what keeps the screenshots stable.
+    ///
+    /// This is the screen-level half of the guarantee, and it is the weaker
+    /// half: six fixtures and two rails come to a little under two viewports,
+    /// so the "more than a screen away" rule is only met by an overscroll
+    /// bounce and the quiet fetch may not run at all here. Confirmed by
+    /// making `DemoDiscoverService` return a reversed page for a quiet fetch:
+    /// this test still passed, while
+    /// `DiscoverViewModelTests.testTheDemoFeedNeverHasAnythingNewToOffer` —
+    /// which drives the same demo service directly and cannot fail to scroll
+    /// far enough — failed for nine of the twelve scenarios. That test is
+    /// where the assertion has teeth; this one guards the whole screen.
+    @MainActor
+    func testReturningToTheTopOffersNothingNewInTheDemoFeed() throws {
+        let app = launchApp()
+
+        app.tabBars.buttons["Discover"].tap()
+        let title = app.staticTexts["Crispy Chili Oil Smash Burgers"]
+        XCTAssertTrue(title.waitForExistence(timeout: 3))
+
+        for _ in 0..<3 {
+            app.swipeUp(velocity: .fast)
+        }
+        // The end of the feed, so "more than a screen away" is genuinely met
+        // rather than assumed.
+        XCTAssertTrue(
+            app.staticTexts["Brown Butter Miso Cookies"]
+                .waitForExistence(timeout: 3)
+        )
+
+        // Two flicks back, checked after each. Flicks rather than one long
+        // drag: a drag that *starts* at the top is a pull to refresh, which
+        // would replace the feed and clear a pill before it could be seen.
+        // `waitForExistence` rather than `exists`, because the fetch the
+        // arrival kicks off is asynchronous.
+        let pill = app.descendants(matching: .any)["discover.new-recipes"]
+        for _ in 0..<2 {
+            app.swipeDown(velocity: .fast)
+            XCTAssertFalse(
+                pill.waitForExistence(timeout: 2),
+                "The demo feed never changes, so it has nothing new to offer"
+            )
+        }
+
+        // Back at the top, so the arrival that arms the fetch really happened.
+        XCTAssertTrue(app.staticTexts["New to Overeasy"].isHittable)
+        XCTAssertTrue(title.exists)
+        attachScreenshot(of: app, named: "Discover back at the top, no pill")
     }
 
     @MainActor
@@ -40,7 +99,11 @@ final class DiscoverInteractionUITests: XCTestCase {
         let firstPageControl = pageControls.element(boundBy: 0)
         XCTAssertTrue(firstPageControl.waitForExistence(timeout: 3))
         XCTAssertTrue(firstPageControl.isHittable)
-        XCTAssertTrue(app.buttons["Account"].firstMatch.isHittable)
+        // Watch shares one control row: no account button there, and the
+        // playback controls sit beside the feed picker rather than per page.
+        XCTAssertFalse(app.buttons["Account"].exists)
+        XCTAssertTrue(app.buttons["Pause video"].firstMatch.isHittable)
+        XCTAssertTrue(app.buttons["Mute video"].firstMatch.isHittable)
         XCTAssertTrue(app.buttons["Save"].firstMatch.isHittable)
 
         app.swipeUp()
@@ -88,9 +151,43 @@ final class DiscoverInteractionUITests: XCTestCase {
         )
     }
 
+    /// The header is the reason `-account-state` exists: until it did, no UI
+    /// test could reach a signed-in screen at all. There is no `AuthClient`
+    /// under `-ui-testing`, so the profile comes from the launch arguments.
+    @MainActor
+    func testSettingsHeaderShowsTheSignedInCook() throws {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-ui-testing",
+            "-onboarding-complete",
+            "-account-state",
+            "signedInWithGoogle",
+            "-account-display-name",
+            "Priya Raman",
+        ]
+        app.launch()
+
+        let settings = app.buttons["Settings and account"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 3))
+        settings.tap()
+
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 2))
+        // The name is a button — tapping it edits in place — so it is not a
+        // static text and has to be found by identifier.
+        let name = app.descendants(matching: .any)["account.profile.name"]
+        XCTAssertTrue(name.waitForExistence(timeout: 2))
+        XCTAssertEqual(name.label, "Priya Raman")
+        XCTAssertTrue(app.staticTexts["Signed in with Google"].exists)
+        XCTAssertFalse(
+            app.buttons["account.profile.sign-in"].exists,
+            "A signed-in cook is not offered a sign-in button"
+        )
+        attachScreenshot(of: app, named: "Settings profile header")
+    }
+
     @MainActor
     func testSettingsAccentAndRecipeViewPreferencesAreReachable() throws {
-        let app = launchApp()
+        let app = launchApp(startingOn: "Recipes")
 
         let settings = app.buttons["Settings and account"]
         XCTAssertTrue(settings.waitForExistence(timeout: 3))
@@ -142,7 +239,7 @@ final class DiscoverInteractionUITests: XCTestCase {
 
     @MainActor
     func testRecipeProcessingSheetCanBeDismissedWhileImportContinues() throws {
-        let app = launchApp()
+        let app = launchApp(startingOn: "Recipes")
 
         app.buttons["Add recipe"].tap()
         let link = app.textFields["Recipe link"]
@@ -166,7 +263,7 @@ final class DiscoverInteractionUITests: XCTestCase {
 
     @MainActor
     func testFailedImportRecoveryActionsShareLabelOrigin() throws {
-        let app = launchApp()
+        let app = launchApp(startingOn: "Recipes")
 
         app.buttons["Add recipe"].tap()
         let link = app.textFields["Recipe link"]
@@ -200,7 +297,7 @@ final class DiscoverInteractionUITests: XCTestCase {
 
     @MainActor
     func testRecipeOptionsExposeTheDeleteAction() throws {
-        let app = launchApp()
+        let app = launchApp(startingOn: "Recipes")
 
         let recipe = app.buttons.matching(
             NSPredicate(format: "identifier BEGINSWITH 'recipe.grid.'")
@@ -217,8 +314,10 @@ final class DiscoverInteractionUITests: XCTestCase {
         attachScreenshot(of: app, named: "Recipe options destructive action")
     }
 
+    /// A launch lands on Discover, so a test about another tab has to ask
+    /// for it rather than assume the first screen is its own.
     @MainActor
-    private func launchApp() -> XCUIApplication {
+    private func launchApp(startingOn tab: String? = nil) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = [
             "-ui-testing",
@@ -226,6 +325,14 @@ final class DiscoverInteractionUITests: XCTestCase {
             "-reset-library-preferences",
         ]
         app.launch()
+        if let tab {
+            let button = app.tabBars.buttons[tab]
+            XCTAssertTrue(
+                button.waitForExistence(timeout: 5),
+                "Expected the \(tab) tab after launch"
+            )
+            button.tap()
+        }
         return app
     }
 
@@ -266,7 +373,13 @@ final class DiscoverInteractionUITests: XCTestCase {
         let mute = app.buttons["Mute video"].firstMatch
         XCTAssertTrue(pause.waitForExistence(timeout: 2))
         XCTAssertTrue(mute.isHittable)
-        let firstPageIdentifier = pause.identifier
+        // Playback controls are shared across pages, so page identity comes
+        // from the per-page action row rather than from the pause button.
+        let firstPageControl = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'watch.'")
+        ).firstMatch
+        XCTAssertTrue(firstPageControl.waitForExistence(timeout: 2))
+        let firstPageIdentifier = firstPageControl.identifier
 
         pause.tap()
         let resume = app.buttons["Resume video"].firstMatch
@@ -300,7 +413,13 @@ final class DiscoverInteractionUITests: XCTestCase {
             )
         ).firstMatch
         XCTAssertTrue(nextPageControl.waitForExistence(timeout: 3))
-        XCTAssertTrue(nextPageControl.isHittable)
+        // The page identifier rides the action row, which settles last
+        // after a scroll, so wait for it rather than asserting instantly.
+        let nextPageIsVisible = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "hittable == true"),
+            object: nextPageControl
+        )
+        wait(for: [nextPageIsVisible], timeout: 3)
         let previousPageControl = app.buttons.matching(
             NSPredicate(format: "identifier == %@", firstPageIdentifier)
         ).firstMatch

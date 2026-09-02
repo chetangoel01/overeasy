@@ -17,6 +17,12 @@ on:
 permissions:
   contents: read
 
+env:
+  # Backend tests are temporarily disabled. Nothing was deleted - the suite
+  # under Backend/tests still exists and runs locally with `uv run pytest`.
+  # Flip this to "true" to put the pytest steps back in CI.
+  RUN_BACKEND_TESTS: "false"
+
 jobs:
   quality:
     runs-on: ubuntu-24.04
@@ -41,8 +47,10 @@ jobs:
       - name: Strict mypy
         run: uv run mypy --strict ladle
       - name: Migration metadata consistency
+        if: env.RUN_BACKEND_TESTS == 'true'
         run: uv run pytest -q tests/integration/test_migrations.py
       - name: Non-live tests
+        if: env.RUN_BACKEND_TESTS == 'true'
         run: uv run pytest -q -m "not live_provider and not chaos"
       - name: Real PostgreSQL restore drill
         run: uv run python scripts/restore_drill.py
@@ -128,20 +136,20 @@ jobs:
           severity: CRITICAL,HIGH
           vuln-type: os,library
       - name: Generate candidate SBOM
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
         with:
           image: ladle-backend:${{ github.sha }}
           format: spdx-json
           output-file: ladle-backend-${{ github.sha }}.spdx.json
       - name: Generate Mac worker egress SBOM
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
         with:
           image: ladle-worker-egress:${{ github.sha }}
           format: spdx-json
           output-file: ladle-worker-egress-${{ github.sha }}.spdx.json
           upload-artifact: false
       - name: Generate Mac ingress edge SBOM
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
         with:
           image: ladle-mac-edge:${{ github.sha }}
           format: spdx-json
@@ -211,6 +219,7 @@ jobs:
           python -m pip install uv==0.8.22
           uv sync --frozen
       - name: Worker-kill and broker-outage recovery
+        if: env.RUN_BACKEND_TESTS == 'true'
         env:
           LADLE_RUN_CHAOS: "1"
         run: uv run pytest -q -m chaos

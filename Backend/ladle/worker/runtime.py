@@ -68,6 +68,7 @@ from ladle.nutrition.normalization import (
     RecipeNutritionNormalizer,
 )
 from ladle.nutrition.service import RecipeNutritionService
+from ladle.nutrition.store import DatabaseUSDAPayloadStore
 from ladle.nutrition.usda import USDAClient
 from ladle.observability.metrics import MetricsRegistry, RedisMetricsBackend
 from ladle.observability.operations import OperationalMetricsCollector
@@ -280,6 +281,10 @@ def _nutrition_calculator(settings: Settings) -> NutritionCalculator | None:
             api_key=settings.usda_api_key.get_secret_value(),
             base_url=str(settings.usda_base_url),
             maximum_candidates=settings.usda_maximum_candidates,
+            # Food records are reference data shared by every import, so they
+            # are kept locally and USDA is only asked about ingredients this
+            # deployment has never seen.
+            store=DatabaseUSDAPayloadStore(session_factory=runtime_sessions()),
         )
     )
 
@@ -441,6 +446,7 @@ def runtime_retention() -> RetentionService:
             sync_history_days=settings.retention_sync_history_days,
             invalid_cache_days=settings.retention_invalid_cache_days,
             deletion_audit_days=settings.retention_deletion_audit_days,
+            discover_impression_days=settings.retention_discover_impression_days,
         ),
     )
 

@@ -255,11 +255,33 @@ class DiscoverRecipeDTO(WireModel):
     original_url: AnyHttpUrl = Field(max_length=2_048)
     image_url: AnyHttpUrl | None = Field(default=None, max_length=2_048)
     saved_count: int = Field(gt=0)
+    #: The source platform's like count when it was last read. Absent for
+    #: videos imported before counts were captured, and for providers that
+    #: withhold them — Instagram among them.
+    like_count: int | None = Field(default=None, ge=0)
     saved_recipe_id: WireUUID | None = None
+
+
+class DiscoverSort(StrEnum):
+    """How the Discover feed is ordered.
+
+    Ordering is the server's job now that the feed is paged: sorting one page
+    on the client would only sort that page, which is worse than not sorting.
+    """
+
+    POPULAR = "popular"
+    # Ordered by when the source arrived in Overeasy, not when its creator
+    # published it: `SourceVideo.published_at` is nullable and absent for
+    # Instagram, so publication order would drop a whole platform.
+    NEWEST = "newest"
+    MOST_LIKED = "mostLiked"
+    ALPHABETICAL = "alphabetical"
 
 
 class DiscoverPageDTO(WireModel):
     items: list[DiscoverRecipeDTO] = Field(max_length=100)
+    next_cursor: int = Field(ge=0)
+    has_more: bool
 
 
 class SyncChangeKind(StrEnum):

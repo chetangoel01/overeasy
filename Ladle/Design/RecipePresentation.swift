@@ -12,12 +12,24 @@ extension Recipe {
         nutrition?.perServing
     }
 
+    /// The one-line summary under a recipe wherever it appears as a card or
+    /// row. Calories lead because they are the number people scan for, and
+    /// protein is spelled out: "680 cal · 38g protein". The estimated marker
+    /// lives on the detail screen's nutrition panel, not here — a "≈" on a
+    /// card is noise at this size.
+    ///
+    /// Both numbers are whole. They come from a normalizer's guess at
+    /// unquantified amounts and a USDA row matched by search, and two
+    /// refreshes of the same recipe differ by a few percent. A tenth of a
+    /// gram claims a precision the pipeline does not have, and reads as
+    /// measured in a way that a whole gram does not.
     var libraryFacts: String {
         [
-            libraryNutrition?.proteinGrams.map { "\(ladleNumber($0)) g P" },
             libraryNutrition?.calories.map {
-                let prefix = libraryNutrition?.isEstimated == true ? "≈ " : ""
-                return "\(prefix)\(ladleNumber($0, maximumFractionDigits: 0)) cal"
+                "\(ladleNumber($0, maximumFractionDigits: 0)) cal"
+            },
+            libraryNutrition?.proteinGrams.map {
+                "\(ladleNumber($0, maximumFractionDigits: 0))g protein"
             },
         ]
         .compactMap(\.self)
@@ -42,14 +54,17 @@ extension Recipe {
     }
 }
 
+/// Halves round away from zero, not to even. Foundation's default would read
+/// 24.5 g as 24 and 25.5 g as 26 — the right rule for summing a column
+/// without accumulating bias, the wrong one for a single number read once.
 func ladleNumber(
     _ value: Decimal,
     maximumFractionDigits: Int = 1
 ) -> String {
     value.formatted(
-        .number.precision(
-            .fractionLength(0...maximumFractionDigits)
-        )
+        .number
+            .precision(.fractionLength(0...maximumFractionDigits))
+            .rounded(rule: .toNearestOrAwayFromZero)
     )
 }
 

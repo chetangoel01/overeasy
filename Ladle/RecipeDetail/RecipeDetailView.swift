@@ -31,6 +31,7 @@ private enum RecipeDetailSection: String, CaseIterable, Identifiable {
 struct RecipeDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.ladleAccent) private var accent
 
     let statusText: String
     @Bindable var importCoordinator: ImportCoordinator
@@ -48,11 +49,9 @@ struct RecipeDetailView: View {
     @State private var isNutritionPresented = false
     @State private var isReimportPresented = false
     @State private var isVideoPresented = false
-    @State private var isOptionsPresented = false
     @State private var editorViewModel: RecipeEditorViewModel?
     @State private var cookingViewModel: CookingViewModel?
     @State private var section: RecipeDetailSection = .ingredients
-    @State private var pendingOption: RecipeOption?
     @State private var isDeleteConfirmationPresented = false
     @State private var reviewIsPending: Bool
     @State private var reviewPresentation =
@@ -173,21 +172,11 @@ struct RecipeDetailView: View {
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
-        .toolbarBackground(LadleTheme.Surface.porcelain, for: .navigationBar)
-        .toolbarBackground(.visible, for: .navigationBar)
         .toolbar {
             if allowsLibraryEdits {
                 ToolbarItemGroup(placement: .primaryAction) {
                     favoriteButton
-                    Button {
-                        isOptionsPresented = true
-                    } label: {
-                        Image(systemName: "ellipsis")
-                            .frame(width: LadleTheme.Control.hitTarget, height: LadleTheme.Control.hitTarget)
-                    }
-                    .foregroundStyle(LadleTheme.Label.primary)
-                    .buttonStyle(LadlePressButtonStyle())
-                    .accessibilityLabel("Recipe options")
+                    optionsMenu
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {
@@ -199,15 +188,6 @@ struct RecipeDetailView: View {
                 .buttonStyle(LadlePressButtonStyle())
                 .accessibilityLabel("Account")
             }
-        }
-        .sheet(
-            isPresented: $isOptionsPresented,
-            onDismiss: performPendingOption
-        ) {
-            RecipeOptionsSheet(
-                options: recipeOptions,
-                select: { pendingOption = $0 }
-            )
         }
         .sheet(isPresented: $isNutritionPresented) {
             if let nutrition = displayedRecipe.nutrition {
@@ -306,12 +286,6 @@ struct RecipeDetailView: View {
             .ladleFont(.metadata)
             .foregroundStyle(LadleTheme.Label.primary.opacity(0.58))
 
-            if !allowsLibraryEdits {
-                Label("Discover preview", systemImage: "sparkles")
-                    .ladleFont(.metadata)
-                    .foregroundStyle(LadleTheme.Label.accent)
-            }
-
             if !displayedRecipe.description.isEmpty {
                 Text(displayedRecipe.description)
                     .ladleFont(.body)
@@ -371,7 +345,7 @@ struct RecipeDetailView: View {
     private var estimateNote: some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: "info.circle")
-                .foregroundStyle(LadleTheme.Label.accent)
+                .foregroundStyle(accent.label)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 4) {
                 Text("Estimated nutrition")
@@ -475,7 +449,7 @@ struct RecipeDetailView: View {
         } label: {
             Image(systemName: isFavorite ? "heart.fill" : "heart")
                 .foregroundStyle(
-                    isFavorite ? LadleTheme.Label.accent : LadleTheme.Label.primary
+                    isFavorite ? accent.label : LadleTheme.Label.primary
                 )
                 .frame(width: LadleTheme.Control.hitTarget, height: LadleTheme.Control.hitTarget)
         }
@@ -554,6 +528,46 @@ struct RecipeDetailView: View {
         needsReview ? .needsReview : displayedRecipe.cookingReadiness
     }
 
+    private var optionsMenu: some View {
+        Menu {
+            ForEach(recipeOptions.filter { !$0.isDestructive }) { option in
+                Button {
+                    perform(option)
+                } label: {
+                    Label(option.title, systemImage: option.systemImage)
+                }
+            }
+
+            if let destructive = recipeOptions.first(where: \.isDestructive) {
+                Section {
+                    Button(role: .destructive) {
+                        perform(destructive)
+                    } label: {
+                        Label(
+                            destructive.title,
+                            systemImage: destructive.systemImage
+                        )
+                    }
+                    // The menu-wide label tint would otherwise leave the
+                    // glyph dark while only the title turned red.
+                    .tint(LadleTheme.Intent.destructive)
+                }
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .frame(
+                    width: LadleTheme.Control.hitTarget,
+                    height: LadleTheme.Control.hitTarget
+                )
+        }
+        // The app-wide accent tint would paint every menu glyph red, which
+        // competes with the genuinely destructive item. Menu glyphs follow
+        // the label colour, and the destructive role keeps its own red.
+        .tint(LadleTheme.Label.primary)
+        .foregroundStyle(LadleTheme.Label.primary)
+        .accessibilityLabel("Recipe options")
+    }
+
     private var recipeOptions: [RecipeOption] {
         var options: [RecipeOption] = [.edit, .reimport]
         if displayedRecipe.nutrition != nil {
@@ -564,11 +578,9 @@ struct RecipeDetailView: View {
         return options
     }
 
-    private func performPendingOption() {
-        guard let option = pendingOption else {
-            return
-        }
-        pendingOption = nil
+    /// A menu dismisses itself before its action runs, so each option can
+    /// present its own sheet directly - no deferred-until-dismiss dance.
+    private func perform(_ option: RecipeOption) {
         switch option {
         case .edit:
             editorViewModel = makeEditorViewModel(displayedRecipe)
