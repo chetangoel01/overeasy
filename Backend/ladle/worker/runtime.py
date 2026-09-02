@@ -24,6 +24,7 @@ from ladle.acquisition.free import (
 )
 from ladle.acquisition.models import (
     AcquiredVideoContext,
+    SourceCounts,
     SourceVideoDescriptor,
     TextEvidence,
 )
@@ -104,6 +105,15 @@ class FakeRuntimeAcquirer:
     ) -> bool:
         del source, job_id
         return True
+
+    def refresh_counts(
+        self,
+        source: SourceVideoDescriptor,
+        *,
+        job_id: UUID,
+    ) -> SourceCounts:
+        del source, job_id
+        return SourceCounts()
 
     def acquire(
         self,
