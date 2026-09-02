@@ -46,18 +46,29 @@ _UNIT_ALIASES = {
 _QUANTUM = Decimal("0.1")
 
 
-@dataclass(frozen=True)
-class WeakFoodMatch:
-    """An ingredient costed from a food that does not obviously match it.
+#: Failures that belong to one ingredient rather than to the recipe. Each
+#: one leaves the rest of the dish costable, so the loop records it and
+#: carries on instead of throwing the whole calculation away.
+_INGREDIENT_CODES = frozenset(
+    {"foodNotFound", "ambiguousFoodMatch", "inconsistentNutrients", "missingMass"}
+)
 
-    Recorded rather than raised. Blocking would lose every other ingredient's
-    calories over one blend USDA has no entry for, and accepting it silently
-    would present a number nobody should trust as though it were measured.
+
+@dataclass(frozen=True)
+class UncountedIngredient:
+    """An ingredient left out of the totals because nothing could cost it.
+
+    Dropping one ingredient beats dropping the recipe: a cook told that the
+    curry leaves were not counted still learns what the rest of the dish
+    costs. `estimated_grams` is the normalizer's own figure and is what the
+    coverage floor weighs, because an uncounted pinch of spice and an
+    uncounted chicken are not the same omission.
     """
 
-    ingredient_index: int
-    ingredient_name: str
-    description: str
+    index: int
+    name: str
+    code: str
+    estimated_grams: Decimal
 
 
 class NutritionCalculationUnavailable(Exception):
@@ -82,8 +93,25 @@ class NutritionCalculationUnavailable(Exception):
 
 
 class NutritionCalculator:
-    def __init__(self, source: FoodDataSource) -> None:
+    """Cost a recipe from food records, skipping what no record describes.
+
+    `fallback` is the second rung of the ladder: a provider asked only about
+    the ingredients the primary source could not answer, so the common case
+    still costs one search per ingredient. PR A leaves it unset in
+    production; the seam exists so adding a provider is a composition change
+    rather than a calculator change.
+    """
+
+    def __init__(
+        self,
+        source: FoodDataSource,
+        fallback: FoodDataSource | None = None,
+        *,
+        uncounted_mass_share_limit: Decimal = Decimal("0.25"),
+    ) -> None:
         self._source = source
+        self._fallback = fallback
+        self._share_limit = uncounted_mass_share_limit
 
     def calculate(self, template: RecipeTemplate) -> TemplateNutrition | None:
         try:
@@ -95,13 +123,15 @@ class NutritionCalculator:
         self,
         template: RecipeTemplate,
         *,
-        weak_matches: list[WeakFoodMatch] | None = None,
+        uncounted: list[UncountedIngredient] | None = None,
     ) -> TemplateNutrition:
-        """Cost the recipe, appending any doubtful match to `weak_matches`.
+        """Cost the recipe, appending what it could not cost to `uncounted`.
 
         The list is an out-parameter rather than part of the return value
         because `TemplateNutrition` goes on the wire, and a caller that does
-        not care about match quality should not have to unpack a wrapper.
+        not care which ingredients were skipped should not have to unpack a
+        wrapper. It is filled before `insufficientCoverage` is raised, so the
+        blocked path can name the ingredients too.
         """
         if (
             template.nutrition is not None
@@ -114,26 +144,29 @@ class NutritionCalculator:
         ):
             raise NutritionCalculationUnavailable("invalidYield")
 
+        records = uncounted if uncounted is not None else []
         totals = [Decimal(0), Decimal(0), Decimal(0), Decimal(0)]
-        food_ids: list[int] = []
-        material = [
-            (index, value)
-            for index, value in enumerate(template.ingredients)
-            if not value.is_to_taste and not value.exclude_from_nutrition
-        ]
+        foods: list[tuple[str, int]] = []
+        counted_grams = Decimal(0)
+        material = material_ingredients(template)
         if not material:
             raise NutritionCalculationUnavailable("noMaterialIngredients")
         for index, ingredient in material:
-            food, grams = self._usable_food(ingredient, index=index)
-            query = ingredient.usda_search_term or ""
-            if weak_matches is not None and not _relevant(query, food.description):
-                weak_matches.append(
-                    WeakFoodMatch(
-                        ingredient_index=index,
-                        ingredient_name=ingredient.name,
-                        description=food.description,
+            try:
+                source_name, food, grams = self._matched(ingredient, index=index)
+            except NutritionCalculationUnavailable as error:
+                if error.code not in _INGREDIENT_CODES:
+                    raise
+                records.append(
+                    UncountedIngredient(
+                        index=index,
+                        name=ingredient.name,
+                        code=error.code,
+                        estimated_grams=_estimated_grams(ingredient),
                     )
                 )
+                continue
+            counted_grams += grams
             scale = grams / Decimal(100)
             values = (
                 food.calories_per_100g,
@@ -145,13 +178,16 @@ class NutritionCalculator:
                 total + value * scale
                 for total, value in zip(totals, values, strict=True)
             ]
-            food_ids.append(food.fdc_id)
+            foods.append((source_name, food.fdc_id))
 
+        self._require_coverage(records, counted_grams=counted_grams)
         per_serving = [
             (value / template.servings).quantize(_QUANTUM, rounding=ROUND_HALF_UP)
             for value in totals
         ]
-        evidence = ", ".join(f"USDA FDC {value}" for value in dict.fromkeys(food_ids))
+        evidence = ", ".join(
+            f"{name} {fdc_id}" for name, fdc_id in dict.fromkeys(foods)
+        )
         return TemplateNutrition(
             calories=per_serving[0],
             protein_grams=per_serving[1],
@@ -163,8 +199,53 @@ class NutritionCalculator:
             evidence=evidence,
         )
 
+    def _require_coverage(
+        self,
+        records: list[UncountedIngredient],
+        *,
+        counted_grams: Decimal,
+    ) -> None:
+        """Refuse a total that too little of the dish stands behind.
+
+        The measure is mass rather than a count of ingredients because a
+        pinch of curry leaves and half a chicken are not equally missing.
+        Nothing counted at all is refused outright: a recipe whose every
+        ingredient was skipped would otherwise present zero calories as a
+        finding.
+        """
+        uncounted_grams = sum((value.estimated_grams for value in records), Decimal(0))
+        total_grams = counted_grams + uncounted_grams
+        if counted_grams <= 0 or (
+            total_grams > 0 and uncounted_grams / total_grams > self._share_limit
+        ):
+            raise NutritionCalculationUnavailable("insufficientCoverage")
+
+    def _matched(
+        self,
+        ingredient: TemplateIngredient,
+        *,
+        index: int,
+    ) -> tuple[str, FoodNutrients, Decimal]:
+        """The first source that can cost this ingredient, and its answer.
+
+        The primary source is asked first and answers almost everything. A
+        fallback, where one is configured, only sees the ingredients that
+        came back with nothing usable — including the ones whose closest
+        record does not describe them, since costing a vegetarian curry from
+        `Beef curry` is not an imprecise number but a wrong one.
+        """
+        try:
+            food, grams = self._usable_food(self._source, ingredient, index=index)
+        except NutritionCalculationUnavailable as error:
+            if self._fallback is None or error.code not in _INGREDIENT_CODES:
+                raise
+            food, grams = self._usable_food(self._fallback, ingredient, index=index)
+            return self._fallback.name, food, grams
+        return self._source.name, food, grams
+
     def _usable_food(
         self,
+        source: FoodDataSource,
         ingredient: TemplateIngredient,
         *,
         index: int,
@@ -180,11 +261,10 @@ class NutritionCalculator:
         reported when none work is the first candidate's, which is the one
         the ranking believed in.
         """
-        candidates = self._ranked_candidates(ingredient, index=index)
+        candidates = self._ranked_candidates(source, ingredient, index=index)
         query = ingredient.usda_search_term or ""
-        # Relevance orders the candidates; it never removes them. A blend USDA
-        # has no entry for still gets costed from its closest row, and the
-        # caller is told the match was weak.
+        # Relevance orders the candidates before it rejects any, so reaching
+        # an irrelevant one means every relevant candidate was unusable.
         candidates = [
             food for food in candidates if _relevant(query, food.description)
         ] + [food for food in candidates if not _relevant(query, food.description)]
@@ -205,6 +285,13 @@ class NutritionCalculator:
                     ingredient_name=ingredient.name,
                 )
                 continue
+            if not _relevant(query, food.description):
+                first_failure = first_failure or NutritionCalculationUnavailable(
+                    "foodNotFound",
+                    ingredient_index=index,
+                    ingredient_name=ingredient.name,
+                )
+                continue
             return food, grams
         raise first_failure or NutritionCalculationUnavailable(
             "foodNotFound",
@@ -214,6 +301,7 @@ class NutritionCalculator:
 
     def _ranked_candidates(
         self,
+        source: FoodDataSource,
         ingredient: TemplateIngredient,
         *,
         index: int,
@@ -232,7 +320,7 @@ class NutritionCalculator:
                 ingredient_index=index,
                 ingredient_name=ingredient.name,
             )
-        candidates = self._source.candidates(query)
+        candidates = source.candidates(query)
         provider_ranked = [
             value for value in candidates if value.search_rank is not None
         ]
@@ -272,6 +360,36 @@ class NutritionCalculator:
                 ingredient_name=ingredient.name,
             )
         return [value for _, value in ranked]
+
+
+def material_ingredients(
+    template: RecipeTemplate,
+) -> list[tuple[int, TemplateIngredient]]:
+    """The ingredients a calorie total is built from, with their positions.
+
+    Salt to taste and water carry no calories worth chasing and are excluded
+    upstream; a note saying "1 of 12 not counted" has to be measured against
+    the same set the calculator worked on, so both sides read it from here.
+    """
+    return [
+        (index, value)
+        for index, value in enumerate(template.ingredients)
+        if not value.is_to_taste and not value.exclude_from_nutrition
+    ]
+
+
+def _estimated_grams(ingredient: TemplateIngredient) -> Decimal:
+    """The normalizer's own mass estimate, in grams.
+
+    The coverage floor weighs ingredients nothing matched, so it cannot use
+    `_grams`: that needs a food's portion table, which an unmatched
+    ingredient has not got. Normalization writes grams for every ingredient
+    it keeps, and where it did not the ingredient weighs nothing rather than
+    guessing at it.
+    """
+    if ingredient.metric_amount is not None and ingredient.metric_unit == "g":
+        return ingredient.metric_amount
+    return Decimal(0)
 
 
 def _grams(

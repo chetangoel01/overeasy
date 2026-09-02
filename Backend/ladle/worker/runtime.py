@@ -295,7 +295,12 @@ def _nutrition_calculator(settings: Settings) -> NutritionCalculator | None:
             # are kept locally and USDA is only asked about ingredients this
             # deployment has never seen.
             store=DatabaseUSDAPayloadStore(session_factory=runtime_sessions()),
-        )
+        ),
+        # The second provider of the fallback ladder is not chosen yet, so
+        # an ingredient USDA cannot answer is skipped and named rather than
+        # asked about again.
+        fallback=None,
+        uncounted_mass_share_limit=settings.nutrition_uncounted_mass_share_limit,
     )
 
 

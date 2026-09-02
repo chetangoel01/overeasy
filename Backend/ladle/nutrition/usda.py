@@ -70,11 +70,18 @@ class FoodNutrients(WireModel):
 
 
 class FoodDataSource(Protocol):
+    #: Names this provider in a recipe's evidence line. Once more than one
+    #: source can answer, "USDA FDC 170923" has to say which rows came from
+    #: where, or the panel stops being checkable.
+    name: str
+
     def candidates(self, query: str) -> list[FoodNutrients]: ...
 
 
 class USDAClient:
     """Fetch and cache complete generic-food records from FoodData Central."""
+
+    name: str = "USDA FDC"
 
     def __init__(
         self,
