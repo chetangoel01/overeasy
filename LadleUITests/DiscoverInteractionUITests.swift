@@ -33,11 +33,19 @@ final class DiscoverInteractionUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Recipe options"].exists)
     }
 
-    /// Scrolling a screen down and back up runs the quiet refresh for real:
-    /// the demo feed is taller than a viewport and the first load is a cold
-    /// one, so nothing gates the fetch. What it gets back is the page
-    /// already on screen — the demo service keeps no reading position — so
-    /// there is nothing new to offer and no pill to show for it.
+    /// No "New recipes" pill in a demo scenario, whichever way the feed is
+    /// scrolled — which is what keeps the screenshots stable.
+    ///
+    /// This is the screen-level half of the guarantee, and it is the weaker
+    /// half: six fixtures and two rails come to a little under two viewports,
+    /// so the "more than a screen away" rule is only met by an overscroll
+    /// bounce and the quiet fetch may not run at all here. Confirmed by
+    /// making `DemoDiscoverService` return a reversed page for a quiet fetch:
+    /// this test still passed, while
+    /// `DiscoverViewModelTests.testTheDemoFeedNeverHasAnythingNewToOffer` —
+    /// which drives the same demo service directly and cannot fail to scroll
+    /// far enough — failed for nine of the twelve scenarios. That test is
+    /// where the assertion has teeth; this one guards the whole screen.
     @MainActor
     func testReturningToTheTopOffersNothingNewInTheDemoFeed() throws {
         let app = launchApp()
@@ -46,20 +54,32 @@ final class DiscoverInteractionUITests: XCTestCase {
         let title = app.staticTexts["Crispy Chili Oil Smash Burgers"]
         XCTAssertTrue(title.waitForExistence(timeout: 3))
 
-        // Matched counts, so the last flick arrives at the top rather than
-        // dragging down from it — that would be a pull to refresh, which is
-        // a different feature and would clear a pill before it was seen.
-        for _ in 0..<4 {
+        for _ in 0..<3 {
             app.swipeUp(velocity: .fast)
         }
-        for _ in 0..<4 {
+        // The end of the feed, so "more than a screen away" is genuinely met
+        // rather than assumed.
+        XCTAssertTrue(
+            app.staticTexts["Brown Butter Miso Cookies"]
+                .waitForExistence(timeout: 3)
+        )
+
+        // Two flicks back, checked after each. Flicks rather than one long
+        // drag: a drag that *starts* at the top is a pull to refresh, which
+        // would replace the feed and clear a pill before it could be seen.
+        // `waitForExistence` rather than `exists`, because the fetch the
+        // arrival kicks off is asynchronous.
+        let pill = app.descendants(matching: .any)["discover.new-recipes"]
+        for _ in 0..<2 {
             app.swipeDown(velocity: .fast)
+            XCTAssertFalse(
+                pill.waitForExistence(timeout: 2),
+                "The demo feed never changes, so it has nothing new to offer"
+            )
         }
 
-        // `waitForExistence` rather than `exists`: the fetch is asynchronous,
-        // so the assertion has to outlast it to mean anything.
-        let pill = app.descendants(matching: .any)["discover.new-recipes"]
-        XCTAssertFalse(pill.waitForExistence(timeout: 3))
+        // Back at the top, so the arrival that arms the fetch really happened.
+        XCTAssertTrue(app.staticTexts["New to Overeasy"].isHittable)
         XCTAssertTrue(title.exists)
         attachScreenshot(of: app, named: "Discover back at the top, no pill")
     }
