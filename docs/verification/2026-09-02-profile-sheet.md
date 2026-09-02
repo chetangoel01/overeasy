@@ -226,6 +226,15 @@ No migration: `users.created_at` already exists.
 
 ## Verification
 
+Tests were written before the behaviour they cover, but only two of them
+were watched fail first (the LadleCore fixture's epoch constant and the
+`AuthClient` profile stub, both caught by the suite rather than authored
+red). The rest were verified green after the fact rather than red-then-green.
+The commits were also not built in isolation: the split is sound by
+construction — the second compiles without the root wiring, and the third
+adds the view, the wiring and the UI tests together — but the run below
+covers the final tree only.
+
 Backend, from `Backend/`:
 
 - `uv run ruff format --check .` — 331 files already formatted
@@ -268,7 +277,8 @@ before and on the clean run above; nothing about it was changed.
 
 New tests: `LadleTests/ProfileFactsTests.swift` (the facts-line wording),
 `LadleTests/AuthContractTests.swift` (the fixtures, the Keychain round trip,
-the guest profile), six name-step cases in `AccountSessionTests`, and
+the guest profile), ten name-step cases in `AccountSessionTests` and two
+for `-account-created-at`, and
 `LadleUITests/ProfileSheetUITests.swift` (the gap, the footers, the guest
 header, and both name-step cases).
 
