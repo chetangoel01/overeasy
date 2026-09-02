@@ -161,9 +161,27 @@ xcodebuild test -project Ladle.xcodeproj -scheme LadleAllTests \
   -only-testing:LadleUITests      # 20 tests, 0 failures
 ```
 
-The backend numbers are also what CI runs: `Backend production gate` is the only
-workflow in the repository, and its `paths` filter is `Backend/**`. There is no
-iOS workflow, so the two iOS rows are local, from an iPhone 17 simulator.
+### On CI
+
+`Backend production gate` is the only workflow in the repository and its `paths`
+filter is `Backend/**`, so it is the backend rows above that CI confirms; there
+is no iOS workflow, and the two iOS rows are local, from an iPhone 17 simulator.
+
+The runner has 4 vCPUs, where `-n auto` resolves to four workers and four
+throwaway PostgreSQL containers.
+
+| Step | `main` (run 33591110076) | This branch (run 33593583307) |
+| --- | --- | --- |
+| Migration metadata consistency | 9 passed in 13.5 s | removed |
+| Non-live tests | 841 passed in 92.3 s | **827 passed in 53.7 s** |
+| Real PostgreSQL restore drill | 3 s | removed |
+| `quality` job, end to end | 2 min 36 s | **1 min 49 s** |
+
+Nothing flaked under `-n auto`, including the three timing-sensitive tests that
+led the baseline durations
+(`test_a_slow_import_submission_does_not_stall_other_requests`,
+`test_sweep_does_not_deadlock_with_a_concurrent_cancellation`,
+`test_later_sequence_waits_for_earlier_transaction_commit`).
 
 Two UI merges failed on the first full run and were caught by running the suite
 rather than by reasoning about it. One was a sequencing mistake — `Save` belongs
