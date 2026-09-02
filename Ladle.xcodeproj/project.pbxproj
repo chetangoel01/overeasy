@@ -37,6 +37,7 @@
 		30267813D7EFF356A6505425 /* IngredientIconCatalogue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D2BC62DCD9B6DCA4534D1F4 /* IngredientIconCatalogue.swift */; };
 		33629426F5BA656274D0914A /* ProfileSheetUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDFAAA84DD1A4CAE657E8869 /* ProfileSheetUITests.swift */; };
 		340B320117B3068AF76171CE /* NameStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A652BA975C67995F34462E7 /* NameStepView.swift */; };
+		36D53ADE622A17B3BFA72894 /* ProfilePhotoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F13FC152287DC3F5F533D2C /* ProfilePhotoTests.swift */; };
 		38670B3279A15C8147795E43 /* LadleShare.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D975A502CE6CABFF17DE770D /* LadleShare.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		38677AB549840DF26397BE92 /* RemoteFailure.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EF08F8F0D0C043AE9DB28AB /* RemoteFailure.swift */; };
 		39BB9D3C3EC14FFDCE622491 /* DemoImportServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADCDE2C252635C3E9076C6DD /* DemoImportServiceTests.swift */; };
@@ -62,6 +63,7 @@
 		5A5DB679690A5B3BD9193F1C /* AccountHeaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA818A2F41C226B07147DE3D /* AccountHeaderView.swift */; };
 		5AB882C9AB6EB4BF73B1F7DC /* PreviewFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = A987BC7D76A464A74050A64B /* PreviewFixtures.swift */; };
 		5C05C3DF388966D02FA7F11F /* LadleTypography.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D060807D3AFDD5F858FA2FD /* LadleTypography.swift */; };
+		5EA77680885BEEC61FD3901A /* ProfilePhoto.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68F408C312C906E11D475E7A /* ProfilePhoto.swift */; };
 		6004155F8B4E42FACDDED7E5 /* HealthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 739B606520A158CF7F843006 /* HealthService.swift */; };
 		60F294395D35AC79B907E3B0 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FD8652C5A7875BD43D823FC /* NotificationService.swift */; };
 		63AD334E56D71D43FB7A1EC6 /* ImportInboxView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8ECA1AA3280738489BF150D2 /* ImportInboxView.swift */; };
@@ -140,6 +142,7 @@
 		E5D62027E211EFC50B38F37C /* LibraryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6638D8D4EFDAA359DD3B8348 /* LibraryViewModel.swift */; };
 		E86042D71EA8C713F03F2B53 /* RecipeMetadataBand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B5D35390C608C2FB9D0C0C9 /* RecipeMetadataBand.swift */; };
 		E9A5AB80751C1695EB9A83A9 /* RecipeDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = 810506FC4F93017B923482AD /* RecipeDraft.swift */; };
+		ED436F436F190D3C0191AE87 /* CameraPhotoPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4BC7C474D9E81005F9EBFC2 /* CameraPhotoPicker.swift */; };
 		EF0148FC094665EF210ACCB5 /* IngredientList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BB8A28AE010B51E06742584 /* IngredientList.swift */; };
 		FA4BA8A760D9DDCB30729AB7 /* RecipeEditorViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 703E2046735779150499C97A /* RecipeEditorViewModelTests.swift */; };
 		FBE657A54D9B4A76364BC5C3 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5BDEAB572C83A392AED5C622 /* Assets.xcassets */; };
@@ -195,6 +198,7 @@
 		0D2BC62DCD9B6DCA4534D1F4 /* IngredientIconCatalogue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngredientIconCatalogue.swift; sourceTree = "<group>"; };
 		0E19326D8562639EDF5FA97E /* ShareURLExtractorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareURLExtractorTests.swift; sourceTree = "<group>"; };
 		0EC3E6A7C19F7CCCF1033B3A /* AppBootstrap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppBootstrap.swift; sourceTree = "<group>"; };
+		0F13FC152287DC3F5F533D2C /* ProfilePhotoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfilePhotoTests.swift; sourceTree = "<group>"; };
 		168A0A47134E3312FBAD080E /* AppBootstrapTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppBootstrapTests.swift; sourceTree = "<group>"; };
 		1AE99C267EF3E47EF936C777 /* RecipeTimer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeTimer.swift; sourceTree = "<group>"; };
 		2027095EF76748A9CC4DE10F /* NotificationServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationServiceTests.swift; sourceTree = "<group>"; };
@@ -236,6 +240,7 @@
 		6638D8D4EFDAA359DD3B8348 /* LibraryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryViewModel.swift; sourceTree = "<group>"; };
 		673D9EEE813C58368B614A0F /* HealthExportSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthExportSheet.swift; sourceTree = "<group>"; };
 		67C86D55253AAE6A00C44D36 /* DemoLaunchScenarioTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoLaunchScenarioTests.swift; sourceTree = "<group>"; };
+		68F408C312C906E11D475E7A /* ProfilePhoto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfilePhoto.swift; sourceTree = "<group>"; };
 		6E75C97A3440E521A8A01510 /* LibraryViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryViewModelTests.swift; sourceTree = "<group>"; };
 		6F46203690760437829A0317 /* AccountSignInFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSignInFlow.swift; sourceTree = "<group>"; };
 		703E2046735779150499C97A /* RecipeEditorViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeEditorViewModelTests.swift; sourceTree = "<group>"; };
@@ -269,6 +274,7 @@
 		9D9C04B171A73400411DE730 /* ingredient-names.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "ingredient-names.json"; sourceTree = "<group>"; };
 		9EA2657D0BA391951AC9AB8A /* RecipeEditorViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeEditorViewModel.swift; sourceTree = "<group>"; };
 		9F3C25E4F342D1FEEB15A965 /* DesignTokenTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignTokenTests.swift; sourceTree = "<group>"; };
+		A4BC7C474D9E81005F9EBFC2 /* CameraPhotoPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPhotoPicker.swift; sourceTree = "<group>"; };
 		A987BC7D76A464A74050A64B /* PreviewFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewFixtures.swift; sourceTree = "<group>"; };
 		AA427F9A68EAFE92CBFCB53E /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
 		AB7758A009F552E1ADAB5A3B /* LadleTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = LadleTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -442,6 +448,7 @@
 				6F46203690760437829A0317 /* AccountSignInFlow.swift */,
 				015AA36229E912578D0E22A5 /* AppAttestClient.swift */,
 				E9C01DA218666D762AB16E8A /* AuthClient.swift */,
+				A4BC7C474D9E81005F9EBFC2 /* CameraPhotoPicker.swift */,
 				2A229BB67821612265D01BD7 /* GoogleSignInProvider.swift */,
 				480030F07BD940462128F4AE /* GuestLimitView.swift */,
 				595643DC966138C3BC7DA2FC /* InstallationIdentity.swift */,
@@ -449,6 +456,7 @@
 				2A652BA975C67995F34462E7 /* NameStepView.swift */,
 				D0370D3E55CB7D0FD1314AF8 /* OnboardingWalkthroughView.swift */,
 				F27EE9D08B4AD704ED77330A /* PrivacyDetailView.swift */,
+				68F408C312C906E11D475E7A /* ProfilePhoto.swift */,
 				F000720581D01DB27C9E2960 /* SignInOptionsView.swift */,
 				860D5C02610981E7F4B9FC0C /* WelcomeView.swift */,
 			);
@@ -540,6 +548,7 @@
 				2027095EF76748A9CC4DE10F /* NotificationServiceTests.swift */,
 				DAE1A079A91563D4B4A47FA0 /* NutritionNoteTests.swift */,
 				5BD89C4AE80A625C8E70B3AD /* ProfileFactsTests.swift */,
+				0F13FC152287DC3F5F533D2C /* ProfilePhotoTests.swift */,
 				9209E28951C4CAA3BC8E7629 /* ProjectSmokeTests.swift */,
 				703E2046735779150499C97A /* RecipeEditorViewModelTests.swift */,
 				99E1C2581DC55DA301481A34 /* RecipeSyncServiceTests.swift */,
@@ -867,6 +876,7 @@
 				1E030826FAE0A2B854964CA7 /* AppBootstrap.swift in Sources */,
 				93A83D9AD673751E50FE0D16 /* AppEnvironment.swift in Sources */,
 				9E6908D535A27DA7429230D5 /* AuthClient.swift in Sources */,
+				ED436F436F190D3C0191AE87 /* CameraPhotoPicker.swift in Sources */,
 				04F10BBF44F7962FD24A6ADD /* CookingViewModel.swift in Sources */,
 				8779DD58D535D2F86D02A7CB /* CorrectionNotesView.swift in Sources */,
 				51C94E20F9D10C5C3A6EC671 /* DemoImportService.swift in Sources */,
@@ -907,6 +917,7 @@
 				3B24B8FC354FB569DA827D92 /* PendingImportCard.swift in Sources */,
 				5AB882C9AB6EB4BF73B1F7DC /* PreviewFixtures.swift in Sources */,
 				24197E5B542EB0789077028F /* PrivacyDetailView.swift in Sources */,
+				5EA77680885BEEC61FD3901A /* ProfilePhoto.swift in Sources */,
 				5368CFB524D69182278FAED5 /* RecipeArtworkView.swift in Sources */,
 				00CBE25ACB8C502FDB3DB85B /* RecipeContextMenu.swift in Sources */,
 				CCDAC2330A4A8A54849C8D02 /* RecipeDetailView.swift in Sources */,
@@ -979,6 +990,7 @@
 				2AED269B9C6BFDDBB4DFE5B9 /* NotificationServiceTests.swift in Sources */,
 				B33417F9D7F9DD7E7DDBEFD3 /* NutritionNoteTests.swift in Sources */,
 				77C130A4633743EDDF9F8CBD /* ProfileFactsTests.swift in Sources */,
+				36D53ADE622A17B3BFA72894 /* ProfilePhotoTests.swift in Sources */,
 				D78BB07879939E3FC2D9E071 /* ProjectSmokeTests.swift in Sources */,
 				FA4BA8A760D9DDCB30729AB7 /* RecipeEditorViewModelTests.swift in Sources */,
 				5042FC333DCDB3F45C5DFEC3 /* RecipeSyncServiceTests.swift in Sources */,

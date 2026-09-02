@@ -43,8 +43,14 @@ class User(Base):
     # later sign-in must never overwrite it. Apple supplies a name exactly
     # once, which is why it is captured rather than fetched on demand.
     display_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    # The provider's own copy. No local edit to lose, so this may refresh.
+    # The provider's own copy. Nothing of the cook's to lose, so this may
+    # refresh on every sign-in — but it is only served when the column below
+    # is empty.
     avatar_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # The photo the cook chose, as a key in the private bucket. Served as a
+    # signed read URL and never overwritten by a provider, so a later sign-in
+    # cannot take back a picture somebody picked for themselves.
+    avatar_object_key: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

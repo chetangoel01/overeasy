@@ -27,6 +27,17 @@ struct APIConfiguration: Sendable {
 actor APIClient {
     private struct EmptyBody: Encodable, Sendable {}
 
+    /// What a request carries. JSON is nearly all of it; `raw` exists for the
+    /// profile photo, which is already a JPEG and would cost a third more
+    /// bytes wrapped in base64 inside an envelope. Both arrive here encoded,
+    /// so everything downstream — the retry after a refresh included — is one
+    /// path rather than two.
+    private enum Payload {
+        case empty
+        case json(Data)
+        case raw(Data, contentType: String)
+    }
+
     private struct RefreshRequest: Encodable, Sendable {
         let refreshToken: String
         let deviceID: UUID
@@ -71,7 +82,7 @@ actor APIClient {
         try await request(
             path: path,
             method: method,
-            body: Optional<EmptyBody>.none,
+            payload: .empty,
             authenticated: authenticated,
             appAttestPurpose: appAttestPurpose
         )
@@ -91,9 +102,27 @@ actor APIClient {
         try await request(
             path: path,
             method: method,
-            body: Optional(body),
+            payload: .json(try encoded(body)),
             authenticated: authenticated,
             appAttestPurpose: appAttestPurpose
+        )
+    }
+
+    /// A request whose body is bytes rather than JSON.
+    func request<Response>(
+        path: String,
+        method: HTTPMethod,
+        rawBody: Data,
+        contentType: String,
+        authenticated: Bool = true
+    ) async throws -> Response
+    where Response: Decodable & Sendable {
+        try await request(
+            path: path,
+            method: method,
+            payload: .raw(rawBody, contentType: contentType),
+            authenticated: authenticated,
+            appAttestPurpose: nil
         )
     }
 
@@ -125,17 +154,14 @@ actor APIClient {
         )
     }
 
-    private func request<Response, Body>(
+    private func request<Response>(
         path: String,
         method: HTTPMethod,
-        body: Body?,
+        payload: Payload,
         authenticated: Bool,
         appAttestPurpose: AppAttestPurpose?
     ) async throws -> Response
-    where
-        Response: Decodable & Sendable,
-        Body: Encodable & Sendable
-    {
+    where Response: Decodable & Sendable {
         let tokens = authenticated ? try tokenStore.load() : nil
         if authenticated, tokens == nil {
             throw APIError.missingAuthentication
@@ -143,7 +169,7 @@ actor APIClient {
         let request = try await authorizedRequest(
             path: path,
             method: method,
-            body: body,
+            payload: payload,
             accessToken: tokens?.accessToken,
             appAttestPurpose: appAttestPurpose
         )
@@ -155,7 +181,7 @@ actor APIClient {
             let replay = try await authorizedRequest(
                 path: path,
                 method: method,
-                body: body,
+                payload: payload,
                 accessToken: refreshed.accessToken,
                 appAttestPurpose: appAttestPurpose
             )
@@ -184,10 +210,14 @@ actor APIClient {
         if authenticated, tokens == nil {
             throw APIError.missingAuthentication
         }
+        var payload = Payload.empty
+        if let body {
+            payload = .json(try encoded(body))
+        }
         let request = try makeRequest(
             path: path,
             method: method,
-            body: body,
+            payload: payload,
             accessToken: tokens?.accessToken
         )
         let (data, response) = try await perform(request)
@@ -198,7 +228,7 @@ actor APIClient {
             let replay = try makeRequest(
                 path: path,
                 method: method,
-                body: body,
+                payload: payload,
                 accessToken: refreshed.accessToken
             )
             let (replayData, replayResponse) = try await perform(replay)
@@ -237,9 +267,13 @@ actor APIClient {
         let request = try makeRequest(
             path: "/v1/auth/refresh",
             method: .post,
-            body: RefreshRequest(
-                refreshToken: refreshToken,
-                deviceID: current.deviceID
+            payload: .json(
+                try encoded(
+                    RefreshRequest(
+                        refreshToken: refreshToken,
+                        deviceID: current.deviceID
+                    )
+                )
             ),
             accessToken: nil
         )
@@ -278,13 +312,21 @@ actor APIClient {
         await authenticationExpired()
     }
 
-    private func makeRequest<Body>(
+    private func encoded<Body>(_ body: Body) throws -> Data
+    where Body: Encodable {
+        do {
+            return try RemoteContractJSON.encode(body)
+        } catch {
+            throw APIError.encoding
+        }
+    }
+
+    private func makeRequest(
         path: String,
         method: HTTPMethod,
-        body: Body?,
+        payload: Payload,
         accessToken: String?
-    ) throws -> URLRequest
-    where Body: Encodable {
+    ) throws -> URLRequest {
         guard let url = URL(string: path, relativeTo: baseURL)?.absoluteURL else {
             throw APIError.invalidBaseURL
         }
@@ -311,32 +353,33 @@ actor APIClient {
                 forHTTPHeaderField: "Authorization"
             )
         }
-        if let body {
-            do {
-                request.httpBody = try RemoteContractJSON.encode(body)
-            } catch {
-                throw APIError.encoding
-            }
+        switch payload {
+        case .empty:
+            break
+        case let .json(data):
+            request.httpBody = data
             request.setValue(
                 "application/json",
                 forHTTPHeaderField: "Content-Type"
             )
+        case let .raw(data, contentType):
+            request.httpBody = data
+            request.setValue(contentType, forHTTPHeaderField: "Content-Type")
         }
         return request
     }
 
-    private func authorizedRequest<Body>(
+    private func authorizedRequest(
         path: String,
         method: HTTPMethod,
-        body: Body?,
+        payload: Payload,
         accessToken: String?,
         appAttestPurpose: AppAttestPurpose?
-    ) async throws -> URLRequest
-    where Body: Encodable {
+    ) async throws -> URLRequest {
         let request = try makeRequest(
             path: path,
             method: method,
-            body: body,
+            payload: payload,
             accessToken: accessToken
         )
         guard let appAttestPurpose, let appAttester else {

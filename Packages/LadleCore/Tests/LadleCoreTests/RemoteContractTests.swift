@@ -148,12 +148,14 @@ struct RemoteContractTests {
             let accessTokenExpiresAt: Date
             let displayName: String?
             let avatarURL: URL?
+            let avatarIsCustom: Bool
             let createdAt: Date
         }
         struct Profile: Decodable {
             let userKind: String
             let displayName: String?
             let avatarURL: URL?
+            let avatarIsCustom: Bool
             let createdAt: Date
         }
 
@@ -168,6 +170,13 @@ struct RemoteContractTests {
         #expect(profile.userKind == "apple")
         #expect(profile.avatarURL == nil)
         #expect(profile.createdAt == august)
+
+        // The cook chose that one; the Apple account below has no photo at
+        // all. Nothing in the URL says which — only this flag does, and the
+        // avatar menu offers "Remove Photo" on the strength of it.
+        #expect(tokens.avatarIsCustom)
+        #expect(tokens.avatarURL?.query?.contains("signature") == true)
+        #expect(profile.avatarIsCustom == false)
     }
 
     @Test

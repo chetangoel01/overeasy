@@ -20,6 +20,7 @@ from ladle.db.models import (
     RecipeSlotReservation,
     User,
 )
+from ladle.privacy.object_deletion import queue_object_deletion
 from ladle.sync.sequence import allocate_sequence
 
 
@@ -128,8 +129,11 @@ class AccountMergeService:
         and signing in again — on a new device, or after a reinstall — must not
         quietly replace what they chose with what the provider says.
 
-        `avatar_url` has no local edit to lose, so it refreshes: the provider's
-        copy is the only copy, and a stale one is worse than a new one.
+        `avatar_url` still refreshes, because it is the provider's own copy and
+        a stale link is worse than a new one. What it no longer does is decide
+        what the cook sees: `avatar_object_key` — the photo they chose
+        themselves — is never touched here, and wins in what is served. That is
+        the whole of the rule; nothing in this method needs to know about it.
         """
         if profile is None:
             return
@@ -241,6 +245,17 @@ class AccountMergeService:
             .values(user_id=destination.id)
         )
         self._merge_discover_impressions(database, source.id, destination.id)
+        # A guest can choose a photo too, and the account they sign into keeps
+        # its own. Without this the guest's object would outlive every row that
+        # names it: the source user row is deleted with the destination account
+        # and nothing would ever have queued its key.
+        queue_object_deletion(
+            database,
+            source.avatar_object_key,
+            reason="accountMerge",
+            now=now,
+        )
+        source.avatar_object_key = None
         self._revoke_sessions(database, source.id)
         for recipe in visible_recipes:
             database.add(

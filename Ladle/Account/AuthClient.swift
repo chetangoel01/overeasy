@@ -27,9 +27,11 @@ final class AuthClient {
         let userKind: String
         let displayName: String?
         let avatarURL: URL?
-        /// Optional here, though the server always sends it: a build talking
-        /// to an API that predates the field would otherwise fail every name
-        /// edit on a decode rather than losing one line of the facts.
+        /// Both optional here, though the server always sends them: a build
+        /// talking to an API that predates a field would otherwise fail every
+        /// edit on a decode rather than losing one line of the facts, or the
+        /// offer to remove a photo.
+        let avatarIsCustom: Bool?
         let createdAt: Date?
     }
 
@@ -196,10 +198,6 @@ final class AuthClient {
     /// Set the cook's display name. A blank name clears it back to whatever
     /// the provider supplied, which is why it is sent as typed rather than
     /// refused here.
-    ///
-    /// The stored tokens carry the profile, so they are rewritten with the
-    /// server's answer: a relaunch reads the Keychain, not the server, and
-    /// would otherwise show the old name until the next refresh.
     func updateProfile(displayName: String) async throws {
         let response: ProfileResponse = try await api.request(
             path: "/v1/auth/profile",
@@ -211,15 +209,49 @@ final class AuthClient {
             ),
             authenticated: true
         )
+        apply(response)
+    }
+
+    /// Send the photo the cook chose. Already a JPEG, already cropped and
+    /// downscaled by `ProfilePhoto`, so it goes up as the body itself.
+    func uploadAvatar(_ jpeg: Data) async throws {
+        let response: ProfileResponse = try await api.request(
+            path: "/v1/auth/avatar",
+            method: .put,
+            rawBody: jpeg,
+            contentType: ProfilePhoto.contentType,
+            authenticated: true
+        )
+        apply(response)
+    }
+
+    /// Take the cook's photo away. What comes back is whatever the provider
+    /// supplied, which is why the answer is applied rather than assumed.
+    func removeAvatar() async throws {
+        let response: ProfileResponse = try await api.request(
+            path: "/v1/auth/avatar",
+            method: .delete,
+            authenticated: true
+        )
+        apply(response)
+    }
+
+    /// The profile the server just echoed back, into both places that hold
+    /// one. The stored tokens carry it too, so they are rewritten: a relaunch
+    /// reads the Keychain, not the server, and would otherwise show the old
+    /// profile until the next refresh.
+    private func apply(_ response: ProfileResponse) {
         let profile = AccountProfile(
             displayName: response.displayName,
             avatarURL: response.avatarURL,
+            avatarIsCustom: response.avatarIsCustom ?? false,
             createdAt: response.createdAt
                 ?? accountSession.profile?.createdAt
         )
         if var tokens = try? tokenStore.load() {
             tokens.displayName = profile.displayName
             tokens.avatarURL = profile.avatarURL
+            tokens.avatarIsCustom = profile.avatarIsCustom
             tokens.createdAt = profile.createdAt ?? tokens.createdAt
             try? tokenStore.save(tokens)
         }

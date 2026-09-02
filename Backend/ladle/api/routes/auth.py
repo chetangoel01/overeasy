@@ -1,8 +1,8 @@
 from collections.abc import Callable
 from typing import Annotated, Literal, cast
-from uuid import UUID
+from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Header, HTTPException, Request, Response, status
+from fastapi import APIRouter, Body, Header, HTTPException, Request, Response, status
 from pydantic import Field
 
 from ladle.api.dependencies import clock as request_clock
@@ -42,8 +42,20 @@ from ladle.auth.tokens import (
 from ladle.contracts.common import WireDateTime, WireModel, WireUUID
 from ladle.crypto.private_text import PrivateTextCipher
 from ladle.db.models import AuthSession, Device, User
+from ladle.infrastructure.object_storage import ObjectStorage
+from ladle.privacy.object_deletion import queue_object_deletion
 
 router = APIRouter(prefix="/v1/auth", tags=["auth"])
+
+#: What the device is allowed to send for a profile photo. The app crops to a
+#: 512-point square and steps the JPEG quality down until it fits, so this is
+#: a bound on a mistake rather than on ordinary use.
+AVATAR_MAXIMUM_BYTES = 512 * 1024
+AVATAR_CONTENT_TYPE = "image/jpeg"
+#: SOI plus the first byte of the next marker. Enough to tell a JPEG from a
+#: PNG, a HEIC or a JSON body, which is all this needs to do: the bytes are
+#: never decoded here, only handed back to the cook who sent them.
+_JPEG_MAGIC = b"\xff\xd8\xff"
 
 
 class GuestAuthRequest(WireModel):
@@ -81,6 +93,10 @@ class ProfileResponse(WireModel):
     user_kind: str
     display_name: str | None = None
     avatar_url: str | None = None
+    # Whether that URL is the photo the cook chose or the provider's own copy.
+    # The app cannot tell from the URL — both are just links — and it has to,
+    # because "Remove Photo" is offered for one and meaningless for the other.
+    avatar_is_custom: bool = False
     # Server-owned, and absent from `ProfileUpdateRequest` on purpose: an
     # account's start date is not something its owner gets to assert.
     created_at: WireDateTime
@@ -106,9 +122,20 @@ class AuthTokensResponse(WireModel):
     created_at: WireDateTime
     display_name: str | None = None
     avatar_url: str | None = None
+    avatar_is_custom: bool = False
 
     @classmethod
-    def from_tokens(cls, value: SessionTokens) -> "AuthTokensResponse":
+    def from_tokens(
+        cls,
+        value: SessionTokens,
+        *,
+        object_url: Callable[[str], str] | None = None,
+    ) -> "AuthTokensResponse":
+        served, is_custom = _served_avatar(
+            avatar_url=value.avatar_url,
+            avatar_object_key=value.avatar_object_key,
+            object_url=object_url,
+        )
         return cls(
             access_token=value.access_token,
             access_token_expires_at=value.access_expires_at,
@@ -118,8 +145,49 @@ class AuthTokensResponse(WireModel):
             user_kind=value.user_kind,
             created_at=value.created_at,
             display_name=value.display_name,
-            avatar_url=value.avatar_url,
+            avatar_url=served,
+            avatar_is_custom=is_custom,
         )
+
+
+def _served_avatar(
+    *,
+    avatar_url: str | None,
+    avatar_object_key: str | None,
+    object_url: Callable[[str], str] | None,
+) -> tuple[str | None, bool]:
+    """What the app is shown for an avatar, and whose picture it is.
+
+    The cook's own photo lives in the private bucket, so it is served as a
+    signed read URL minted for this response; the provider's is a link to
+    their servers and is served as it stands. The cook's wins whenever there
+    is one — that rule, and not anything in the sign-in path, is what stops a
+    later sign-in taking back a picture somebody chose.
+
+    The signed URL expires, which is why nothing caches it: the profile is
+    re-sent with every token refresh, and that is the refresh mechanism.
+    """
+    if avatar_object_key is not None and object_url is not None:
+        return object_url(avatar_object_key), True
+    return avatar_url, False
+
+
+def _profile_response(
+    user: User,
+    object_url: Callable[[str], str] | None,
+) -> ProfileResponse:
+    served, is_custom = _served_avatar(
+        avatar_url=user.avatar_url,
+        avatar_object_key=user.avatar_object_key,
+        object_url=object_url,
+    )
+    return ProfileResponse(
+        user_kind=user.kind,
+        display_name=user.display_name,
+        avatar_url=served,
+        avatar_is_custom=is_custom,
+        created_at=user.created_at,
+    )
 
 
 def _trimmed(value: str | None) -> str | None:
@@ -170,6 +238,17 @@ def _rate_limits(request: Request) -> RateLimitService:
 
 def _rate_limit_policies(request: Request) -> RateLimitPolicies:
     return cast(RateLimitPolicies, request.app.state.rate_limit_policies)
+
+
+def _object_storage(request: Request) -> ObjectStorage | None:
+    return cast(ObjectStorage | None, request.app.state.object_storage)
+
+
+def _object_url(request: Request) -> Callable[[str], str] | None:
+    return cast(
+        Callable[[str], str] | None,
+        request.app.state.object_url,
+    )
 
 
 def _user_log_identifier(request: Request) -> Callable[[UUID], str]:
@@ -250,7 +329,7 @@ def create_guest(request: Request, body: GuestAuthRequest) -> AuthTokensResponse
             rejection = error
     if rejection is not None or tokens is None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN) from rejection
-    return AuthTokensResponse.from_tokens(tokens)
+    return AuthTokensResponse.from_tokens(tokens, object_url=_object_url(request))
 
 
 @router.post("/apple", response_model=AuthTokensResponse)
@@ -300,7 +379,7 @@ def sign_in_with_apple(
             )
     except AccountMergeInvalid as error:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT) from error
-    return AuthTokensResponse.from_tokens(tokens)
+    return AuthTokensResponse.from_tokens(tokens, object_url=_object_url(request))
 
 
 @router.post("/google", response_model=AuthTokensResponse)
@@ -344,7 +423,7 @@ def sign_in_with_google(
             )
     except AccountMergeInvalid as error:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT) from error
-    return AuthTokensResponse.from_tokens(tokens)
+    return AuthTokensResponse.from_tokens(tokens, object_url=_object_url(request))
 
 
 @router.post("/refresh", response_model=AuthTokensResponse)
@@ -370,7 +449,7 @@ def refresh_session(request: Request, body: RefreshRequest) -> AuthTokensRespons
 
     if authentication_error is not None or tokens is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
-    return AuthTokensResponse.from_tokens(tokens)
+    return AuthTokensResponse.from_tokens(tokens, object_url=_object_url(request))
 
 
 @router.patch("/profile", response_model=ProfileResponse)
@@ -392,12 +471,84 @@ def update_profile(
         if user is None:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
         user.display_name = name
-        return ProfileResponse(
-            user_kind=user.kind,
-            display_name=user.display_name,
-            avatar_url=user.avatar_url,
-            created_at=user.created_at,
+        return _profile_response(user, _object_url(request))
+
+
+@router.put("/avatar", response_model=ProfileResponse)
+def replace_avatar(
+    request: Request,
+    body: Annotated[bytes, Body(media_type=AVATAR_CONTENT_TYPE)] = b"",
+    content_type: Annotated[str | None, Header()] = None,
+    authorization: Annotated[str | None, Header()] = None,
+) -> ProfileResponse:
+    """Store the photo a cook chose, and answer with the profile it changed.
+
+    The body is the JPEG itself rather than a field in an envelope: it is
+    already the whole request, and base64 in JSON would cost a third more
+    bytes for nothing. The bytes are checked, not decoded — a magic-number
+    test separates a JPEG from a PNG or a HEIC, and nothing here ever renders
+    what a cook uploads.
+
+    Rate limiting is the global limiter's, exactly as `PATCH /profile`: this
+    writes one bounded object per account, and an account that replaces its
+    photo twenty times in a minute has cost nothing worth a policy.
+    """
+    claims = access_claims(request, authorization)
+    storage = _object_storage(request)
+    if storage is None:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
+    media_type = (content_type or "").split(";")[0].strip().lower()
+    if media_type != AVATAR_CONTENT_TYPE:
+        raise HTTPException(status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE)
+    if len(body) > AVATAR_MAXIMUM_BYTES:
+        raise HTTPException(status_code=status.HTTP_413_CONTENT_TOO_LARGE)
+    if not body.startswith(_JPEG_MAGIC):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
+
+    key = f"avatars/{claims.user_id}/{uuid4()}.jpg"
+    # Stored before the row is written on purpose. A failed commit then leaves
+    # an object nothing points at, which the bucket's lifecycle sweeps; the
+    # other order leaves a row pointing at nothing, which a cook sees.
+    storage.put(key, body, content_type=AVATAR_CONTENT_TYPE)
+    with database(request) as current_database, current_database.begin():
+        user = current_database.get(User, claims.user_id)
+        if user is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+        queue_object_deletion(
+            current_database,
+            user.avatar_object_key,
+            reason="avatarReplaced",
+            now=request_clock(request).now(),
         )
+        user.avatar_object_key = key
+        return _profile_response(user, _object_url(request))
+
+
+@router.delete("/avatar", response_model=ProfileResponse)
+def delete_avatar(
+    request: Request,
+    authorization: Annotated[str | None, Header()] = None,
+) -> ProfileResponse:
+    """Take the cook's photo away, leaving whatever the provider supplied.
+
+    Idempotent, and deliberately not a 404 when there is nothing stored:
+    "there is no photo" is the state being asked for, and a cook whose remove
+    was retried on a flaky connection has got what they wanted either way.
+    Object storage need not even be configured — this only queues a key.
+    """
+    claims = access_claims(request, authorization)
+    with database(request) as current_database, current_database.begin():
+        user = current_database.get(User, claims.user_id)
+        if user is None:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+        queue_object_deletion(
+            current_database,
+            user.avatar_object_key,
+            reason="avatarRemoved",
+            now=request_clock(request).now(),
+        )
+        user.avatar_object_key = None
+        return _profile_response(user, _object_url(request))
 
 
 @router.delete("/session", status_code=status.HTTP_204_NO_CONTENT)

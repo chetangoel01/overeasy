@@ -62,6 +62,10 @@
 			</dict>
 		</dict>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Overeasy opens the camera only when you take a photo for your profile.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Overeasy reads only the picture you choose for your profile.</string>
 	<key>NSHealthShareUsageDescription</key>
 	<string>Overeasy reads nutrition types only to prepare the serving you choose to export.</string>
 	<key>NSHealthUpdateUsageDescription</key>

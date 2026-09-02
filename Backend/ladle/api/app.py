@@ -73,7 +73,7 @@ from ladle.imports.reservations import ReservationService
 from ladle.imports.source_identity import SourceIdentityParser
 from ladle.imports.transitions import ImportCancellationService, ImportRetryService
 from ladle.infrastructure.dns import PinnedRedirectResolver, SystemDNSResolver
-from ladle.infrastructure.object_storage import S3ObjectStorage
+from ladle.infrastructure.object_storage import ObjectStorage, S3ObjectStorage
 from ladle.observability.metrics import MetricsRegistry, RedisMetricsBackend
 from ladle.observability.middleware import install_request_middleware
 from ladle.observability.structured_logging import (
@@ -84,6 +84,12 @@ from ladle.observability.tracing import instrument_application
 from ladle.recipes.repository import RecipeRepository
 from ladle.recipes.service import RecipeService
 from ladle.sync.service import RecipeSyncService
+
+# How long a signed read URL for a private object stays good. It has to
+# comfortably outlive an access token, because the profile — and with it the
+# cook's avatar URL — is re-sent on every refresh and nowhere else; at 15
+# minutes a token and 6 hours a URL, a running app always holds a live one.
+SIGNED_READ_LIFETIME = timedelta(hours=6)
 
 
 def create_app(
@@ -100,6 +106,7 @@ def create_app(
     readiness_probes: dict[str, ReadinessProbe] | None = None,
     metrics: MetricsRegistry | None = None,
     rate_limit_backend: RateLimitBackend | None = None,
+    object_storage: ObjectStorage | None = None,
     settings: Settings | None = None,
 ) -> FastAPI:
     """Build the HTTP application without eagerly contacting infrastructure."""
@@ -235,8 +242,7 @@ def create_app(
         metrics=runtime_metrics,
     )
     application.state.rate_limit_policies = RateLimitPolicies.from_settings(configured)
-    object_storage: S3ObjectStorage | None = None
-    if configured.object_storage_enabled:
+    if object_storage is None and configured.object_storage_enabled:
         object_storage = S3ObjectStorage(
             endpoint_url=str(configured.object_storage_endpoint_url),
             region=configured.object_storage_region,
@@ -255,8 +261,14 @@ def create_app(
         signing_storage = object_storage
 
         def object_url(key: str) -> str:
-            return signing_storage.signed_read_url(key, expires_in=timedelta(hours=6))
+            return signing_storage.signed_read_url(
+                key,
+                expires_in=SIGNED_READ_LIFETIME,
+            )
 
+    # Recipe images read it from the repository; the profile's avatar reads it
+    # off the app, because the auth routes mint the URL themselves.
+    application.state.object_url = object_url
     recipe_repository = RecipeRepository(object_url=object_url)
     application.state.recipe_service = RecipeService(
         clock=runtime_clock,

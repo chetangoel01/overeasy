@@ -13,11 +13,19 @@ apps or websites.
   security records provide sign-in, sync, fraud prevention, and replay defense.
   Apple or Google supplies its stable account identifier only when you choose
   that sign-in method.
-- A display name and a profile picture link, when the sign-in provider supplies
-  them, identify your account to you inside the app. The display name is
-  editable and is never overwritten by a later sign-in; the picture is a link
-  to the provider's own copy, which Overeasy does not host. Both are removed
-  when you delete your account.
+- A display name and a profile picture identify your account to you inside
+  the app. Both may be supplied by the sign-in provider, and the display name
+  is editable and is never overwritten by a later sign-in. A provider's picture
+  is a link to their own copy, which Overeasy does not host.
+- A profile photo you choose yourself is stored by Overeasy, in the same
+  private object storage as your recipe images. It is shown only to you, in
+  your own app: it is never attached to anything you share, never shown in
+  Discover, and never served to another account. It is reachable only through
+  a signed link that expires within hours, it replaces the provider's picture
+  without deleting it, and you can remove it at any time from the avatar in
+  **Profile**. Removing it, replacing it, or deleting your account deletes the
+  stored photo. Overeasy uses the camera and reads from your photo library only
+  when you choose a picture, and only the picture you choose.
 - Imported URLs, public-source metadata, recipe content, thumbnails, and edit
   history provide imports and device sync.
 - Discover ranks public recipe-video sources by aggregate saves. It shows the
@@ -84,9 +92,10 @@ Every guest, Apple, and Google account can be permanently deleted in
 **Account → Delete account**. The operation verifies the current session,
 revokes Sign in with Apple credentials when applicable, and removes or
 anonymizes recipes, imports, sessions, devices, identity links, the display
-name and profile picture link, provider usage, private text, sync history,
-Discover impression records, and unreferenced objects. It is idempotent so a
-network retry cannot recreate or partially delete the account.
+name, the provider's profile picture link, any profile photo you uploaded,
+provider usage, private text, sync history, Discover impression records, and
+unreferenced objects. It is idempotent so a network retry cannot recreate or
+partially delete the account.
 
 Deletion cannot be undone. Backups are not used to restore an individual
 deleted account; any residual encrypted copy ages out within the 35-day backup

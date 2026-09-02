@@ -39,7 +39,11 @@ class SessionTokens:
     # that screen the client cannot work out for itself.
     created_at: datetime
     display_name: str | None = None
+    # The provider's link, and the key of the photo the cook chose. Both
+    # travel, because only the route knows how to sign a key into a URL and
+    # only these two together say whose picture is being served.
     avatar_url: str | None = None
+    avatar_object_key: str | None = None
 
 
 class SessionService:
@@ -253,4 +257,5 @@ class SessionService:
             created_at=user.created_at,
             display_name=user.display_name,
             avatar_url=user.avatar_url,
+            avatar_object_key=user.avatar_object_key,
         )

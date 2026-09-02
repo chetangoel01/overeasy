@@ -25,6 +25,63 @@ final class AuthContractTests: XCTestCase {
         XCTAssertEqual(tokens.profile?.createdAt, tokens.createdAt)
     }
 
+    /// Which of the two pictures the account is showing. The fixture is a
+    /// cook who chose their own, which is what makes "Remove Photo" theirs to
+    /// tap; nothing in the URL says so.
+    func testTokenFixtureSaysThePhotoIsTheCooksOwn() throws {
+        let tokens: AuthTokens = try decodeFixture("auth-tokens")
+
+        XCTAssertEqual(tokens.avatarIsCustom, true)
+        XCTAssertEqual(tokens.profile?.avatarIsCustom, true)
+    }
+
+    /// The Keychain record decoded on every launch. A non-optional flag here
+    /// would fail to decode every session written before the field existed,
+    /// which is to say it would sign out every cook on upgrade.
+    func testTokensWithoutTheCustomPhotoFlagDecodeAsTheProvidersPhoto() throws {
+        let legacy = Data(
+            """
+            {
+              "accessToken": "access",
+              "accessTokenExpiresAt": "2026-09-02T09:56:00.000Z",
+              "refreshToken": null,
+              "userID": "40000000-0000-4000-8000-000000000001",
+              "deviceID": "50000000-0000-4000-8000-000000000001",
+              "userKind": "google",
+              "displayName": "Priya Raman",
+              "avatarURL": "https://cdn.test/priya.jpg",
+              "createdAt": "2026-08-14T12:00:00.000Z"
+            }
+            """.utf8
+        )
+
+        let tokens = try RemoteContractJSON.decoder().decode(
+            AuthTokens.self,
+            from: legacy
+        )
+
+        XCTAssertNil(tokens.avatarIsCustom)
+        XCTAssertEqual(tokens.profile?.avatarIsCustom, false)
+        XCTAssertNotNil(tokens.profile?.avatarURL)
+    }
+
+    /// The flag is not something to show, so it cannot on its own make a
+    /// profile worth having: an account that says nothing else about itself
+    /// still restores as no profile at all.
+    func testTheCustomPhotoFlagAloneIsNotAProfile() {
+        let tokens = AuthTokens(
+            accessToken: "access",
+            accessTokenExpiresAt: .now,
+            refreshToken: nil,
+            userID: UUID(),
+            deviceID: UUID(),
+            userKind: "guest",
+            avatarIsCustom: true
+        )
+
+        XCTAssertNil(tokens.profile)
+    }
+
     /// The Keychain record is this same value re-encoded as a property list,
     /// so a date that decodes off the wire but does not survive storage would
     /// lose "cooking since" on the next launch and nowhere else.

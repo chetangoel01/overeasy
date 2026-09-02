@@ -323,6 +323,55 @@ final class AccountSessionTests: XCTestCase {
         XCTAssertNil(session.profile)
     }
 
+    /// Whose picture the pinned avatar is. Without the flag it is the
+    /// provider's, which the cook may not remove; with it, theirs.
+    func testAvatarCustomLaunchArgumentSaysThePhotoIsTheCooks() {
+        let arguments = [
+            "-ui-testing",
+            "-account-state", "signedInWithGoogle",
+            "-account-display-name", "Priya Raman",
+            "-account-avatar-url", "https://cdn.test/priya.jpg",
+        ]
+
+        let providers = AccountSession(
+            store: InMemoryPreferenceStore(),
+            launchArguments: arguments
+        )
+        let theirs = AccountSession(
+            store: InMemoryPreferenceStore(),
+            launchArguments: arguments + ["-account-avatar-custom"]
+        )
+
+        XCTAssertEqual(providers.profile?.avatarIsCustom, false)
+        XCTAssertEqual(theirs.profile?.avatarIsCustom, true)
+    }
+
+    /// The flag survives the round trip the header depends on: the server
+    /// echoes a profile back after an upload, and `applyProfile` is what puts
+    /// it where the avatar menu reads it.
+    func testAppliedProfileCarriesWhoseThePhotoIs() {
+        let session = AccountSession(store: InMemoryPreferenceStore())
+
+        session.applyRemoteAccount(
+            kind: "google",
+            profile: AccountProfile(
+                displayName: "Priya Raman",
+                avatarURL: URL(string: "https://cdn.test/priya.jpg")
+            )
+        )
+        XCTAssertEqual(session.profile?.avatarIsCustom, false)
+
+        session.applyProfile(
+            AccountProfile(
+                displayName: "Priya Raman",
+                avatarURL: URL(string: "https://objects.test/avatars/one.jpg"),
+                avatarIsCustom: true
+            )
+        )
+
+        XCTAssertEqual(session.profile?.avatarIsCustom, true)
+    }
+
     /// Under `-ui-testing` there is no `AuthClient`, so the header has no
     /// profile to draw unless the launch arguments supply one.
     func testUITestingLaunchArgumentsPinTheProfile() {

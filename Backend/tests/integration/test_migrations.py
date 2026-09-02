@@ -555,3 +555,29 @@ def test_discover_impressions_upgrade_cascades_and_downgrades(
     engine = create_engine(empty_postgres_url)
     assert "discover_impressions" not in inspect(engine).get_table_names()
     engine.dispose()
+
+
+@pytest.mark.integration
+def test_avatar_object_key_upgrades_and_downgrades(empty_postgres_url: str) -> None:
+    """0023 must add the column that holds a cook's own photo, reversibly.
+
+    Nullable, because most accounts have none: an Apple cook with no provider
+    picture reads as null in both avatar columns, and a Google cook who never
+    chose one reads as null here alone."""
+    config = alembic_config(empty_postgres_url)
+    command.upgrade(config, "head")
+    engine = create_engine(empty_postgres_url)
+    columns = {value["name"]: value for value in inspect(engine).get_columns("users")}
+    assert "avatar_object_key" in columns
+    assert columns["avatar_object_key"]["nullable"]
+    # The provider's link stays: the two are different things, and keeping
+    # them apart is what lets a sign-in refresh one without touching the other.
+    assert "avatar_url" in columns
+    engine.dispose()
+
+    command.downgrade(config, "0022")
+    engine = create_engine(empty_postgres_url)
+    names = {value["name"] for value in inspect(engine).get_columns("users")}
+    assert "avatar_object_key" not in names
+    assert "avatar_url" in names
+    engine.dispose()
