@@ -72,6 +72,7 @@
 		7735E4254A1CC43579B1C7AD /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CAD674446D07BDCDBFD2F66 /* RootView.swift */; };
 		7903D591A395E0DD678CC58F /* RecipeTimer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AE99C267EF3E47EF936C777 /* RecipeTimer.swift */; };
 		7B03E111FA24728DE96CDE04 /* RecipePresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B2EA3F560B531E7D745E2BC /* RecipePresentation.swift */; };
+		7E5995BF6D80F212D89A3B16 /* IngredientIcons.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2B65D84D7321ED2C89BEEBD9 /* IngredientIcons.xcassets */; };
 		7F7F801ED46BB5D88AB81AA1 /* APIError.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFEF6337E3010401783B92DC /* APIError.swift */; };
 		84D797D5B8CB86A7C4C53756 /* LadleTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07E8E61AD25B02CFF497294C /* LadleTheme.swift */; };
 		87248E2F1716A999204DEB21 /* StoredImportJob.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30865D07CBC2C21DCB5B7BDA /* StoredImportJob.swift */; };
@@ -196,6 +197,7 @@
 		2460B2541E823AB098F4BAFA /* FullRecipeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullRecipeView.swift; sourceTree = "<group>"; };
 		27E622AAB3FB89F99BAD6CAE /* StoredRecipe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoredRecipe.swift; sourceTree = "<group>"; };
 		2A229BB67821612265D01BD7 /* GoogleSignInProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleSignInProvider.swift; sourceTree = "<group>"; };
+		2B65D84D7321ED2C89BEEBD9 /* IngredientIcons.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = IngredientIcons.xcassets; sourceTree = "<group>"; };
 		2D060807D3AFDD5F858FA2FD /* LadleTypography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LadleTypography.swift; sourceTree = "<group>"; };
 		2EF08F8F0D0C043AE9DB28AB /* RemoteFailure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteFailure.swift; sourceTree = "<group>"; };
 		2FCA9C00709407DA52C805AE /* VideoEmbedSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoEmbedSheet.swift; sourceTree = "<group>"; };
@@ -336,6 +338,7 @@
 			isa = PBXGroup;
 			children = (
 				5BDEAB572C83A392AED5C622 /* Assets.xcassets */,
+				2B65D84D7321ED2C89BEEBD9 /* IngredientIcons.xcassets */,
 				DD8157BECA8D206CD8B984BB /* PrivacyInfo.xcprivacy */,
 			);
 			path = Resources;
@@ -803,6 +806,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				FBE657A54D9B4A76364BC5C3 /* Assets.xcassets in Resources */,
+				7E5995BF6D80F212D89A3B16 /* IngredientIcons.xcassets in Resources */,
 				72DB888843AD8B0F3C06AA55 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
