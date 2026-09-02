@@ -177,3 +177,5 @@ preferences start at their defaults, launched with
 `-ui-testing -onboarding-complete`, driven by scripted taps. The status bar was
 frozen with `simctl status_bar override` for the captures and cleared
 afterwards. Captures are full-resolution PNGs written by `simctl io screenshot`.
+
+Filters became the third menu in this header on September 2: [Recipes filters are a menu, not a sheet](2026-09-02-recipes-filter-menu.md).
