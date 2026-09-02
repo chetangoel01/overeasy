@@ -10,7 +10,6 @@ struct AllRecipesView: View {
     let addRecipe: () -> Void
     let openRecipe: (Recipe) -> Void
     let openCollection: (LibraryRecipeCollection) -> Void
-    let presentFilters: () -> Void
 
     var body: some View {
         ScrollView {
@@ -97,15 +96,7 @@ struct AllRecipesView: View {
             .accessibilityLabel("Sort recipes")
             .buttonStyle(LadlePressButtonStyle())
 
-            Button(action: presentFilters) {
-                controlIcon(
-                    filterChips.isEmpty
-                        ? "line.3.horizontal.decrease"
-                        : "line.3.horizontal.decrease.circle.fill"
-                )
-            }
-            .accessibilityLabel(filterButtonTitle)
-            .buttonStyle(LadlePressButtonStyle())
+            filterMenu
 
             Menu {
                 // A binding rather than `$viewModel.displayMode`, so the
@@ -154,6 +145,83 @@ struct AllRecipesView: View {
     /// header from the one DESIGN.md specifies.
     private static let controlOpticalInset: CGFloat =
         (LadleTheme.Control.hitTarget - LadleTheme.IconSize.small) / 2
+
+    /// Filters is a menu of inline pickers, built like Sort beside it. Each
+    /// row writes the view model directly, so a tap applies at once: there is
+    /// no staged copy of the filters and no Apply to forget to press. Every
+    /// submenu label carries its own current value, so the whole filter state
+    /// reads without opening anything.
+    private var filterMenu: some View {
+        Menu {
+            Toggle("Favorites", isOn: $viewModel.favoritesOnly)
+            filterSubmenu(.time, selection: $viewModel.maximumTotalMinutes)
+            filterSubmenu(
+                .calories,
+                selection: wholeNumber($viewModel.maximumCalories)
+            )
+            filterSubmenu(
+                .protein,
+                selection: wholeNumber($viewModel.minimumProtein)
+            )
+            filterSubmenu(
+                .carbohydrates,
+                selection: wholeNumber($viewModel.maximumCarbohydrates)
+            )
+            filterSubmenu(.fat, selection: wholeNumber($viewModel.maximumFat))
+
+            // Its own trailing section, and absent rather than disabled: a
+            // menu draws a disabled destructive row badly, and keeping it at
+            // the end means nothing above it moves when it appears.
+            if viewModel.hasActiveFilters {
+                Divider()
+                Button(
+                    "Reset filters",
+                    role: .destructive,
+                    action: viewModel.resetFilters
+                )
+            }
+        } label: {
+            controlIcon(
+                filterChips.isEmpty
+                    ? "line.3.horizontal.decrease"
+                    : "line.3.horizontal.decrease.circle.fill"
+            )
+        }
+        .menuOrder(.fixed)
+        .accessibilityLabel(filterButtonTitle)
+        .buttonStyle(LadlePressButtonStyle())
+    }
+
+    /// One submenu per dimension. Its options and their wording come from
+    /// `LibraryFilter`, which words the pills too — a row by `optionTitle`,
+    /// a pill by `pillTitle` — so neither can name a value the other does not.
+    private func filterSubmenu(
+        _ filter: LibraryFilter,
+        selection: Binding<Int?>
+    ) -> some View {
+        Menu {
+            Picker(filter.title, selection: selection) {
+                Text(LibraryFilter.anyTitle).tag(Int?.none)
+                ForEach(filter.options, id: \.self) { option in
+                    Text(filter.optionTitle(option)).tag(Int?.some(option))
+                }
+            }
+            .pickerStyle(.inline)
+        } label: {
+            Text(filter.menuTitle(for: selection.wrappedValue))
+        }
+    }
+
+    /// The four nutrition filters hold `Decimal` and the time filter holds
+    /// `Int`, while every option any of them can take is a whole number. One
+    /// bridge lets all five share the picker above rather than tagging the
+    /// optional five times over.
+    private func wholeNumber(_ filter: Binding<Decimal?>) -> Binding<Int?> {
+        Binding(
+            get: { filter.wrappedValue.map(LibraryFilter.option) },
+            set: { filter.wrappedValue = $0.map { Decimal($0) } }
+        )
+    }
 
     private var collections: some View {
         VStack(alignment: .leading, spacing: LadleTheme.Layout.rowGap) {
@@ -341,58 +409,7 @@ struct AllRecipesView: View {
     }
 
     private var filterChips: [LibraryFilterChip] {
-        var chips: [LibraryFilterChip] = []
-        if viewModel.selectedCollection != .all {
-            chips.append(
-                LibraryFilterChip(
-                    title: viewModel.selectedCollection.title,
-                    remove: { viewModel.selectedCollection = .all }
-                )
-            )
-        }
-        if viewModel.favoritesOnly {
-            chips.append(
-                LibraryFilterChip(
-                    title: "Favorites",
-                    remove: viewModel.removeFavoritesFilter
-                )
-            )
-        }
-        appendNumericFilters(to: &chips)
-        return chips
-    }
-
-    private func appendNumericFilters(to chips: inout [LibraryFilterChip]) {
-        if let value = viewModel.maximumTotalMinutes {
-            chips.append(.init(
-                title: "Up to \(value) min",
-                remove: viewModel.removeMaximumTimeFilter
-            ))
-        }
-        if let value = viewModel.maximumCalories {
-            chips.append(.init(
-                title: "Up to \(value.formatted()) cal",
-                remove: viewModel.removeMaximumCaloriesFilter
-            ))
-        }
-        if let value = viewModel.minimumProtein {
-            chips.append(.init(
-                title: "\(value.formatted()) g+ protein",
-                remove: viewModel.removeMinimumProteinFilter
-            ))
-        }
-        if let value = viewModel.maximumCarbohydrates {
-            chips.append(.init(
-                title: "Under \(value.formatted()) g carbs",
-                remove: viewModel.removeMaximumCarbohydratesFilter
-            ))
-        }
-        if let value = viewModel.maximumFat {
-            chips.append(.init(
-                title: "Under \(value.formatted()) g fat",
-                remove: viewModel.removeMaximumFatFilter
-            ))
-        }
+        LibraryFilterChip.chips(for: viewModel)
     }
 
     private func controlIcon(_ systemImage: String) -> some View {
@@ -447,13 +464,6 @@ struct AllRecipesView: View {
             && viewModel.selectedCollection == .all
             && filterChips.isEmpty
     }
-}
-
-private struct LibraryFilterChip: Identifiable {
-    let title: String
-    let remove: () -> Void
-
-    var id: String { title }
 }
 
 extension LibraryRecipeCollection {

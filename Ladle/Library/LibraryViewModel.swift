@@ -499,16 +499,32 @@ final class LibraryViewModel {
         favoritesOnly = false
     }
 
-    func showCollection(_ collection: LibraryRecipeCollection) {
-        selectedCollection = collection
-        searchText = ""
-        sort = .recentlyAdded
+    /// The six the filter menu owns. The selected collection is navigation
+    /// rather than a filter, so it is deliberately not counted here and the
+    /// menu's Reset leaves it alone.
+    var hasActiveFilters: Bool {
+        favoritesOnly
+            || maximumTotalMinutes != nil
+            || maximumCalories != nil
+            || minimumProtein != nil
+            || maximumCarbohydrates != nil
+            || maximumFat != nil
+    }
+
+    func resetFilters() {
         favoritesOnly = false
         maximumTotalMinutes = nil
         maximumCalories = nil
         minimumProtein = nil
         maximumCarbohydrates = nil
         maximumFat = nil
+    }
+
+    func showCollection(_ collection: LibraryRecipeCollection) {
+        selectedCollection = collection
+        searchText = ""
+        sort = .recentlyAdded
+        resetFilters()
     }
 
     func clearOperationError() {
