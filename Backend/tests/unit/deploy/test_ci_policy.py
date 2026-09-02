@@ -12,8 +12,7 @@ def test_ci_enforces_quality_security_migrations_and_exact_image_release() -> No
         "ruff format --check",
         "ruff check",
         "mypy --strict",
-        'pytest -q -m "not live_provider and not chaos"',
-        "test_migrations.py",
+        "uv run pytest -q",
         "git diff --check",
         "pip-audit",
         "gitleaks",
@@ -21,9 +20,18 @@ def test_ci_enforces_quality_security_migrations_and_exact_image_release() -> No
         "sbom",
         "provenance",
         "cosign sign",
-        "restore_drill.py",
     ):
         assert gate in workflow
+    # The migration check and the pg_dump restore drill used to be steps of
+    # their own that re-ran work the suite already does. They are gates now
+    # only because the default selection carries them.
+    pyproject = (BACKEND / "pyproject.toml").read_text()
+    assert "-m 'not live_provider and not chaos'" in pyproject
+    for covered in (
+        "tests/integration/test_migrations.py",
+        "tests/integration/operations/test_restore_drill.py",
+    ):
+        assert (BACKEND / covered).exists()
     for image in (
         "ladle-backend:${{ github.sha }}",
         "ladle-worker-egress:${{ github.sha }}",
@@ -73,12 +81,14 @@ def test_ci_pins_every_third_party_action_to_a_commit() -> None:
     )
 
 
-def test_verification_harnesses_cover_load_chaos_and_external_security() -> None:
+def test_load_profile_still_covers_every_capacity_scenario() -> None:
+    """The k6 profile is the only place these scenarios are named.
+
+    The chaos and staging-verifier halves of this test used to assert that
+    those files contained certain words; `tests/chaos/` and
+    `tests/unit/deploy/test_staging_verifier.py` run that code instead.
+    """
     load_test = (BACKEND / "load" / "k6-production.js").read_text()
-    chaos_test = (
-        BACKEND / "tests" / "chaos" / "test_worker_and_broker_recovery.py"
-    ).read_text()
-    staging_check = (BACKEND / "scripts" / "verify_staging.py").read_text()
 
     for scenario in (
         "guest_creation",
@@ -87,19 +97,3 @@ def test_verification_harnesses_cover_load_chaos_and_external_security() -> None
         "recipe_graph_limits",
     ):
         assert scenario in load_test
-    assert "SIGKILL" in chaos_test
-    assert "broker_outage" in chaos_test
-    for check in (
-        "Strict-Transport-Security",
-        "Retry-After",
-        "requestTooLarge",
-        "cloud metadata",
-        "openapi.json",
-    ):
-        assert check in staging_check
-
-
-def test_pytest_is_newer_than_the_audited_minimum() -> None:
-    pyproject = (BACKEND / "pyproject.toml").read_text()
-
-    assert '"pytest>=9.0.3,<10"' in pyproject

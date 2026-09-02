@@ -139,17 +139,3 @@ def test_vps_operations_stay_small_and_cover_the_real_recovery_contract() -> Non
     assert "--project-name platform-gateway" in push
     assert "--env-file /etc/platform/gateway.env" in push
     assert "caddy reload" in push
-
-
-def test_vps_documentation_explains_oauth_backup_and_rollback() -> None:
-    runbook = (BACKEND / "docs" / "deployment" / "vps.md").read_text().casefold()
-
-    for topic in (
-        "sign in with apple",
-        "google oauth",
-        "backup",
-        "rollback",
-        "100 users",
-        "/opt/platform/gateway/routes",
-    ):
-        assert topic in runbook

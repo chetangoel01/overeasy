@@ -43,12 +43,17 @@ dev = [
     "mypy>=1.17,<2",
     "pytest>=9.0.3,<10",
     "pytest-cov>=7,<8",
+    "pytest-xdist>=3.8,<4",
     "ruff>=0.12,<1",
     "testcontainers[postgres]>=4.10,<5",
 ]
 
 [tool.pytest.ini_options]
-addopts = "--strict-markers"
+# The default run is what CI gates on: every tier except the two that need
+# something this machine may not have (a live provider key, an isolated Docker
+# host). `-n auto` splits it across cores; each worker starts its own throwaway
+# PostgreSQL. Override either with `-m ...` or `-n0` on the command line.
+addopts = "--strict-markers -m 'not live_provider and not chaos' -n auto"
 testpaths = ["tests"]
 markers = [
     "chaos: kills real workers or infrastructure and must run in isolation",
