@@ -318,15 +318,15 @@ def test_discover_paging_is_pinned_to_the_session_that_started_it(
     recipe = json.loads(FIXTURE.read_text())
 
     with TestClient(app) as client:
-        # Seven guests: five savers build the ranking and two read it, so the
-        # pinned walk and the contrast below start from the same feed with
-        # nothing recorded against either reader.
+        # Eight guests: five savers build the ranking and three read it, so
+        # each walk below starts from the same feed with nothing recorded
+        # against its own reader.
         users = [
             client.post(
                 "/v1/auth/guest",
                 json={"installationID": f"discover-pin-{index}", "attestation": None},
             ).json()
-            for index in range(7)
+            for index in range(8)
         ]
         headers = {"Authorization": f"Bearer {users[0]['accessToken']}"}
         _seed(engine, recipe, users[1:])
@@ -356,6 +356,23 @@ def test_discover_paging_is_pinned_to_the_session_that_started_it(
             headers=headers,
         ).json()
         assert _titles(exhausted) == TITLES[:2]
+
+        # A phone whose clock runs a little fast sends a pin from the future.
+        # The impressions this walk writes must still not fall before it, or
+        # the pin protects nothing on exactly the devices that need it.
+        clock.value = started
+        fast_reader = {"Authorization": f"Bearer {users[7]['accessToken']}"}
+        ahead = _stamp(started + timedelta(seconds=30))
+        fast_first = client.get(
+            f"/v1/recipes/discover?limit=2&seen_before={ahead}",
+            headers=fast_reader,
+        ).json()
+        fast_second = client.get(
+            f"/v1/recipes/discover?limit=2"
+            f"&cursor={fast_first['nextCursor']}&seen_before={ahead}",
+            headers=fast_reader,
+        ).json()
+        assert _titles(fast_first) + _titles(fast_second) == TITLES[:4]
 
         # What the pin is for. The same two-page walk, with the pin renewed
         # between the pages, re-ranks against what page 1 just wrote: page 2

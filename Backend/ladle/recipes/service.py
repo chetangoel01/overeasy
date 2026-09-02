@@ -115,9 +115,25 @@ class RecipeService:
                 database,
                 user_id=user_id,
                 source_video_ids=[item.source_id for item in page.items],
-                seen_at=now,
+                seen_at=self._impression_stamp(now, seen_before),
             )
         return page
+
+    def _impression_stamp(self, now: datetime, seen_before: datetime) -> datetime:
+        """Never earlier than the pin, and never far beyond it.
+
+        The pin comes from the device and the stamp from the server, so a
+        phone whose clock runs a few seconds fast would otherwise write
+        impressions that are *older* than its own session — and page 2 would
+        demote what page 1 just served, which is the repeat-and-skip the pin
+        exists to prevent. Stamping at least the pin puts both in one frame.
+
+        The upper bound is for the clock that is not a few seconds out: an
+        unbounded pin is client-controlled input that could park a row years
+        ahead of the retention sweep. Past a window's worth of skew the pin
+        degrades instead, which is the right way round.
+        """
+        return min(max(now, seen_before), now + self._discover_seen_window)
 
     def discover_detail(
         self,

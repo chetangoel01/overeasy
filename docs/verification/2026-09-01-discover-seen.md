@@ -66,14 +66,29 @@ building a reading position either.
 
 The cursor is an offset. Without a pin, page 1 writes impressions, page 2
 re-ranks against them, and the reader gets a row they already saw while two
-they never reached are skipped. Because impressions are stamped at request
-time they are always *newer* than `seen_before`, so `seen_at < seen_before` is
-false for everything this session wrote. The failure mode is asserted directly
-rather than described:
+they never reached are skipped. The pin closes that because everything a
+session writes is stamped at or after it, so `seen_at < seen_before` is false
+for all of it.
+
+The failure mode is asserted rather than described.
 `test_discover_paging_is_pinned_to_the_session_that_started_it` walks three
 pages under one pin and gets each row exactly once, then repeats the first two
 pages with the pin renewed between them and gets `["Smash Burgers", "Lemon
 Orzo"]` back for page 2 — a repeat and two skips.
+
+"Stamped at or after it" is doing real work in that guarantee, and server time
+alone does not provide it. The pin comes from the *device* and the stamp from
+the *server*: a phone whose clock runs even a few seconds fast sends a pin
+from the future, page 1 records an older server timestamp against it, and page
+2 demotes what page 1 just served — the same repeat and skip, on exactly the
+devices the pin was supposed to protect. Seconds of clock skew are ordinary on
+phones, so the write is stamped `max(now, seen_before)`, bounded above by
+`now + window` because an unbounded pin is client-controlled input that could
+otherwise park a row years beyond the retention sweep's reach. Past a window's
+worth of skew the pin degrades rather than the record, which is the right way
+round. The same test walks two pages with a pin thirty seconds ahead of the
+server and asserts they do not overlap; before the clamp, page 2 returned
+`["Smash Burgers", "Lemon Orzo"]`.
 
 ### Rails and Watch
 
@@ -126,7 +141,12 @@ them from.
   obvious change if it ever matters.
 - **Naive timestamps are read as UTC.** `seen_at` is `timestamptz`; a client
   that dropped the offset would otherwise have its pin interpreted in the
-  database session's zone and shift the window by hours. The app sends `Z`.
+  database session's zone and shift the window by hours.
+- **A fast device clock clamps the write, not the pin.** See above: the pin is
+  the client's frame, the stamp is the server's, and reconciling them on the
+  write side is what makes the invariant hold on real hardware. Clamping the
+  pin to `now` instead would not work — page 2's `now` is later than page 1's,
+  so the comparison moves under the session. The app sends `Z`.
 
 ## Migration
 
@@ -170,7 +190,8 @@ what the cook did next — because the honest boundary is the point.
 - `Backend/alembic/versions/0022_record_which_discover_sources_a_cook_has_seen.py`
 - `Backend/ladle/db/models.py` — `DiscoverImpression`
 - `Backend/ladle/recipes/repository.py` — the bucket, the outer join, the upsert
-- `Backend/ladle/recipes/service.py` — `now`, the window, the write
+- `Backend/ladle/recipes/service.py` — `now`, the window, the write, and the
+  `_impression_stamp` clamp that survives a fast device clock
 - `Backend/ladle/api/routes/recipes.py` — `seen_before`, and the transaction
   the handler did not have
 - `Backend/ladle/config.py`, `Backend/ladle/api/app.py`,
@@ -186,14 +207,16 @@ what the cook did next — because the honest boundary is the point.
 Backend, from `Backend/`:
 
 - `uv run pytest tests/api/test_discover_paging.py -q` — 7 passed. The three
-  new tests were written first and failed before the repository change.
+  new tests were written first and failed before the repository change; the
+  fast-clock assertion inside the pin test was likewise added red and only
+  passes with the `_impression_stamp` clamp.
 - `uv run pytest tests/integration/auth/test_merge.py -q` — 9 passed.
 - `uv run pytest tests/integration/privacy/test_retention.py tests/integration/imports/test_quotas.py -q`
   — 6 passed.
 - `uv run pytest tests/integration/test_migrations.py -q` — 9 passed,
   including `test_migrated_schema_matches_model_metadata` (`alembic check`).
 - `uv run pytest tests/api tests/integration tests/unit -q` —
-  **797 passed, 1 warning in 69.40s**.
+  **797 passed, 1 warning in 73.23s**.
 - `uv run ruff format --check .`, `uv run ruff check .`,
   `uv run mypy --strict ladle` — identical to the `origin/main` baseline
   captured before any edit: one unformatted file
@@ -214,7 +237,7 @@ Client, under the watchdog (the process prints its results and never exits;
   `StateScenarioUITests/testDiscoverEmptyScenario`,
   `testDiscoverRateLimitedScenario`,
   `testDiscoverFailureOnLaunchFallsBackToRecipes`, `testLaunchLandsOnDiscover`
-  — all passed.
+  — **Executed 13 tests, with 0 failures (0 unexpected) in 189.654 seconds**.
 
 Local stack, rebuilt with `docker compose up -d --build api worker` so the
 worker picked up the new `RetentionPolicy` field:
