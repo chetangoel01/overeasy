@@ -113,18 +113,22 @@ struct RecipeArtworkView: View {
             }
         }
         .task(id: image?.id) {
-            guard
-                let image,
-                let remoteURL = image.remoteURL,
-                let imageCache
-            else {
+            guard let image, let remoteURL = image.remoteURL else {
                 downloadedImage = nil
                 loadState = .placeholder
                 return
             }
+            // Before the download cache is needed at all: a context-menu
+            // preview of a row already on screen finds the decoded image
+            // here, whatever its host managed to pass down.
             if let cached = RecipeArtworkMemoryCache.image(for: image.id) {
                 downloadedImage = cached
                 loadState = .loaded
+                return
+            }
+            guard let imageCache else {
+                downloadedImage = nil
+                loadState = .placeholder
                 return
             }
             // Whatever is on screen stays until the replacement is ready.
