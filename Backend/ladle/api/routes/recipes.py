@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from typing import Annotated, cast
 from uuid import UUID
 
@@ -125,13 +126,33 @@ def discover_recipes(
             ),
         ),
     ] = None,
+    seen_before: Annotated[
+        datetime | None,
+        Query(
+            description=(
+                "The moment this paging session started. Sources last shown "
+                "to you before it, and recently enough to still count, sort "
+                "after everything unseen; the page served is recorded as "
+                "seen. Omit it — as the shelves do — to rank purely on the "
+                "sort and record nothing."
+            ),
+        ),
+    ] = None,
     authorization: Annotated[str | None, Header()] = None,
 ) -> DiscoverPageDTO:
     claims = access_claims(request, authorization)
     _rate_limits(request).enforce(
         _rate_limit_policies(request).sync_poll(str(claims.user_id))
     )
-    with database(request) as current_database:
+    if seen_before is not None and seen_before.tzinfo is None:
+        # `seen_at` is timestamptz. A client that dropped the offset would
+        # otherwise have its pin read in the database session's zone, which
+        # silently shifts the window by hours.
+        seen_before = seen_before.replace(tzinfo=UTC)
+    # The read and the impression write are one step: a page that was served
+    # but not recorded would be served again, and a page recorded but not
+    # served would demote rows the cook never saw.
+    with database(request) as current_database, current_database.begin():
         return _recipes(request).discover(
             current_database,
             user_id=claims.user_id,
@@ -140,6 +161,7 @@ def discover_recipes(
             query=q,
             sort=sort,
             max_total_minutes=max_total_minutes,
+            seen_before=seen_before,
         )
 
 

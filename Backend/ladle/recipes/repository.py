@@ -5,7 +5,17 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import SQLColumnExpression, delete, distinct, func, or_, select
+from sqlalchemy import (
+    SQLColumnExpression,
+    and_,
+    case,
+    delete,
+    distinct,
+    func,
+    or_,
+    select,
+)
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, aliased
 
 from ladle.contracts.recipes import (
@@ -25,6 +35,7 @@ from ladle.contracts.recipes import (
 )
 from ladle.db.models import (
     DetectedTimer,
+    DiscoverImpression,
     ExtractionCache,
     FieldUncertainty,
     Ingredient,
@@ -110,6 +121,8 @@ class RecipeRepository:
         query: str | None = None,
         sort: DiscoverSort = DiscoverSort.POPULAR,
         max_total_minutes: int | None = None,
+        seen_before: datetime | None = None,
+        seen_since: datetime | None = None,
     ) -> DiscoverPageDTO:
         """One page of the public feed, ordered and filtered by the server.
 
@@ -122,6 +135,15 @@ class RecipeRepository:
         Discover's shelves are this same page under a different order or
         filter — `sort=newest` and `max_total_minutes` — rather than their own
         endpoint, so a shelf and the list beneath it return one DTO.
+
+        `seen_before` is the moment the caller started this paging session.
+        Sources this cook was last shown between `seen_since` and that moment
+        sort *after* everything unseen, each group keeping the ranking it
+        would otherwise have had. Impressions written during the session are
+        newer than the pin, so they cannot re-rank the pages still to come —
+        which is what stops page 2 repeating or skipping page 1's rows. Both
+        arguments are absent for the shelves and for Watch, which leaves the
+        ranking exactly as it was before any of this existed.
         """
         saved_recipe = aliased(Recipe)
         saved_source_ids = select(saved_recipe.source_video_id).where(
@@ -194,6 +216,22 @@ class RecipeRepository:
                 Recipe.source_video_id,
             ]
 
+        demoting = seen_before is not None and seen_since is not None
+        if demoting:
+            # An aggregate, because the query groups by source and one cook
+            # has at most one impression row per source: max() of a one-row
+            # group is that row, and NULL for a source never served. NULL
+            # falls through the CASE to 0, which is the unseen bucket, so
+            # every ordering keeps its own rank inside each bucket.
+            last_seen = func.max(DiscoverImpression.seen_at)
+            ordering.insert(
+                0,
+                case(
+                    (and_(last_seen < seen_before, last_seen > seen_since), 1),
+                    else_=0,
+                ),
+            )
+
         ranked_query = (
             select(
                 Recipe.source_video_id,
@@ -206,6 +244,17 @@ class RecipeRepository:
             .where(*conditions)
             .group_by(Recipe.source_video_id)
         )
+        if demoting:
+            # The cook goes in the ON clause, not the WHERE: in the WHERE it
+            # degrades to an inner join and the feed loses every source they
+            # have not seen — the exact opposite of the intent.
+            ranked_query = ranked_query.outerjoin(
+                DiscoverImpression,
+                and_(
+                    DiscoverImpression.source_video_id == Recipe.source_video_id,
+                    DiscoverImpression.user_id == user_id,
+                ),
+            )
         if max_total_minutes is not None:
             # The savers' own totals, taken at their minimum: one saver's
             # padded edit must not hide a source the rest call quick. A source
@@ -261,6 +310,42 @@ class RecipeRepository:
             items=items,
             next_cursor=cursor + len(consumed),
             has_more=has_more,
+        )
+
+    def record_discover_impressions(
+        self,
+        database: Session,
+        *,
+        user_id: UUID,
+        source_video_ids: Collection[UUID],
+        seen_at: datetime,
+    ) -> None:
+        """Mark the page just served as seen by this cook.
+
+        One statement for the whole page, and an update rather than an insert
+        when the source comes round again: the table is meant to be bounded by
+        corpus size per cook, not by how often they scroll.
+        """
+        if not source_video_ids:
+            return
+        statement = insert(DiscoverImpression).values(
+            [
+                {
+                    "user_id": user_id,
+                    "source_video_id": source_video_id,
+                    "seen_at": seen_at,
+                }
+                for source_video_id in source_video_ids
+            ]
+        )
+        database.execute(
+            statement.on_conflict_do_update(
+                index_elements=[
+                    DiscoverImpression.user_id,
+                    DiscoverImpression.source_video_id,
+                ],
+                set_={"seen_at": statement.excluded.seen_at},
+            )
         )
 
     def extraction_thumbnail_url(self, cache: ExtractionCache) -> str | None:

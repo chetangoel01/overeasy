@@ -138,7 +138,8 @@ protocol DiscoverServing {
         query: String,
         sort: DiscoverSort,
         maxTotalMinutes: Int?,
-        limit: Int
+        limit: Int,
+        seenBefore: Date?
     ) async throws -> DiscoverPage
     func fetchDiscoverRecipe(sourceID: UUID) async throws -> Recipe
     func saveDiscoverRecipe(
@@ -150,17 +151,24 @@ extension DiscoverServing {
     /// The feed's own page: no time filter, the server's page size. Swift
     /// protocols cannot carry default arguments, so the defaults live here
     /// and only the shelves pass the two extra values.
+    ///
+    /// `seenBefore` is the moment this paging session began. Sending it asks
+    /// the server to sort what the cook has recently seen to the back and to
+    /// record this page as seen; leaving it nil asks for neither, which is
+    /// what the rails want — a rail is a ranking, not a reading position.
     func fetchDiscoverPage(
         cursor: Int,
         query: String,
-        sort: DiscoverSort
+        sort: DiscoverSort,
+        seenBefore: Date? = nil
     ) async throws -> DiscoverPage {
         try await fetchDiscoverPage(
             cursor: cursor,
             query: query,
             sort: sort,
             maxTotalMinutes: nil,
-            limit: DiscoverPaging.pageSize
+            limit: DiscoverPaging.pageSize,
+            seenBefore: seenBefore
         )
     }
 }
@@ -176,12 +184,23 @@ enum DiscoverAPI {
 struct RemoteDiscoverService: DiscoverServing {
     let api: APIClient
 
+    /// UTC with fractional seconds, the same shape the response decoder
+    /// expects on the way back, so a timestamp means one thing in both
+    /// directions.
+    private static let seenBeforeFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        return formatter
+    }()
+
     func fetchDiscoverPage(
         cursor: Int,
         query: String,
         sort: DiscoverSort,
         maxTotalMinutes: Int?,
-        limit: Int
+        limit: Int,
+        seenBefore: Date?
     ) async throws -> DiscoverPage {
         var items = [
             URLQueryItem(name: "cursor", value: String(cursor)),
@@ -193,6 +212,14 @@ struct RemoteDiscoverService: DiscoverServing {
                 URLQueryItem(
                     name: "max_total_minutes",
                     value: String(maxTotalMinutes)
+                )
+            )
+        }
+        if let seenBefore {
+            items.append(
+                URLQueryItem(
+                    name: "seen_before",
+                    value: Self.seenBeforeFormatter.string(from: seenBefore)
                 )
             )
         }
@@ -253,12 +280,17 @@ struct DemoDiscoverService: DiscoverServing {
     /// returns one page. Without that the demo would not exercise paging —
     /// or, since #29, the two shelves, which are exactly this call under a
     /// different order and a time filter.
+    ///
+    /// `seenBefore` is accepted and ignored. The demo keeps no per-cook state
+    /// and the UI tests need the same rows on every launch, which is exactly
+    /// what a feed that reorders itself between sessions would destroy.
     func fetchDiscoverPage(
         cursor: Int,
         query: String,
         sort: DiscoverSort,
         maxTotalMinutes: Int?,
-        limit: Int
+        limit: Int,
+        seenBefore: Date?
     ) async throws -> DiscoverPage {
         if scenario == .discoverEmpty {
             return .empty

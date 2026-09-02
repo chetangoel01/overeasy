@@ -446,6 +446,7 @@ def runtime_retention() -> RetentionService:
             sync_history_days=settings.retention_sync_history_days,
             invalid_cache_days=settings.retention_invalid_cache_days,
             deletion_audit_days=settings.retention_deletion_audit_days,
+            discover_impression_days=settings.retention_discover_impression_days,
         ),
     )
 

@@ -951,6 +951,33 @@ class RecipeChange(Base):
     )
 
 
+class DiscoverImpression(Base):
+    """The last time a Discover page served one source to one cook.
+
+    Overwritten rather than appended, so the table is bounded by corpus size
+    per cook rather than by how often they scroll. The feed reads it to demote
+    what was seen recently — never to exclude — and the retention sweep
+    deletes aged rows, which together are the decay rule: nothing is
+    suppressed forever and no cook can exhaust the feed.
+    """
+
+    __tablename__ = "discover_impressions"
+    __table_args__ = (
+        # Serves the retention sweep's per-user cutoff scan. The feed's own
+        # lookup is one cook's row for a specific source, which the primary
+        # key already answers.
+        Index("ix_discover_impressions_user_seen_at", "user_id", "seen_at"),
+    )
+
+    user_id: Mapped[UUID] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    source_video_id: Mapped[UUID] = mapped_column(
+        Uuid, ForeignKey("source_videos.id", ondelete="CASCADE"), primary_key=True
+    )
+    seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class USDAFood(Base):
     """A FoodData Central detail response, stored exactly as it arrived.
 

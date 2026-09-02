@@ -24,6 +24,13 @@ apps or websites.
   public creator account, source metadata, thumbnail, and total save count. It
   does not expose who saved a recipe, private edits, ingredients, or personal
   correction notes from another account.
+- A record of which Discover sources were shown to your account, and when,
+  keeps the feed from repeating itself: a source you were shown in the last
+  day sorts below ones you have not seen. Only the source identifier and the
+  time it was last served are stored — never how long you looked, whether you
+  opened it, or anything you did next. Nothing is suppressed permanently, the
+  record is not used for advertising or profiling, and it is deleted with your
+  account.
 - Pasted recipe text and correction notes are encrypted at rest and used only
   to complete or retry the requested import.
 - Request IDs, pseudonymous user identifiers, import job IDs, provider stage,
@@ -60,6 +67,8 @@ data to advertising or data-broker services.
   orphaned thumbnails: 30 days before cleanup.
 - Recipe sync changes and deletion tombstones: 365 days. A device returning
   after that window receives a fresh authoritative snapshot.
+- Discover impression records: 30 days. They stop affecting what you are
+  shown after 24 hours, well before they are erased.
 - Pseudonymous account-deletion audit records: 365 days.
 - Recipes and account data: while the account exists, unless removed earlier at
   the user's request.
@@ -75,8 +84,8 @@ Every guest, Apple, and Google account can be permanently deleted in
 **Account → Delete account**. The operation verifies the current session,
 revokes Sign in with Apple credentials when applicable, and removes or
 anonymizes recipes, imports, sessions, devices, identity links, the display
-name and profile picture link, provider usage, private text, sync history, and
-unreferenced objects. It is idempotent so a
+name and profile picture link, provider usage, private text, sync history,
+Discover impression records, and unreferenced objects. It is idempotent so a
 network retry cannot recreate or partially delete the account.
 
 Deletion cannot be undone. Backups are not used to restore an individual

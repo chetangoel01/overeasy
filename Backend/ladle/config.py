@@ -75,6 +75,10 @@ class Settings(BaseSettings):
     startup_dependency_attempts: int = Field(default=12, gt=0, le=60)
     startup_dependency_delay_seconds: float = Field(default=5, gt=0, le=60)
     readiness_worker_timeout_seconds: float = Field(default=2, gt=0, le=10)
+    # How long a Discover source stays demoted after a cook was shown it.
+    # Short enough that a day's corpus turns over, long enough that opening
+    # the app twice in an afternoon is not the same feed twice.
+    discover_seen_window_hours: int = Field(default=24, ge=1, le=720)
     retention_maintenance_interval_seconds: int = Field(
         default=3600,
         ge=300,
@@ -87,6 +91,7 @@ class Settings(BaseSettings):
     retention_sync_history_days: int = Field(default=365, ge=30, le=3650)
     retention_invalid_cache_days: int = Field(default=30, ge=1, le=365)
     retention_deletion_audit_days: int = Field(default=365, ge=30, le=3650)
+    retention_discover_impression_days: int = Field(default=30, ge=1, le=365)
     object_deletion_maximum_attempts: int = Field(default=8, gt=0, le=20)
     object_deletion_batch_size: int = Field(default=100, gt=0, le=1000)
 

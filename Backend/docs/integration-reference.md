@@ -197,7 +197,7 @@ Canonical recipe payloads are available in:
 | `DELETE /v1/imports/{jobID}` | Bearer | `204` | Cancel an actively parsing import and release its reserved slot |
 | `POST /v1/imports/{jobID}/retry` | Bearer | `202` | Retry with optional correction or pasted text |
 | `GET /v1/recipes/sync?cursor=&limit=` | Bearer | `200` | Read ordered recipe upserts and tombstones |
-| `GET /v1/recipes/discover?limit=&cursor=&q=&sort=&max_total_minutes=` | Bearer | `200` | Rank unsaved public recipe-video sources; `sort` is `popular` (default), `newest`, `mostLiked` or `alphabetical`, and `max_total_minutes` keeps only timed sources at or under that total |
+| `GET /v1/recipes/discover?limit=&cursor=&q=&sort=&max_total_minutes=&seen_before=` | Bearer | `200` | Rank unsaved public recipe-video sources; `sort` is `popular` (default), `newest`, `mostLiked` or `alphabetical`, `max_total_minutes` keeps only timed sources at or under that total, and `seen_before` pins a paging session — sources shown to this account before it and inside the seen window sort last, and the page served is recorded |
 | `GET /v1/recipes/discover/{sourceVideoID}` | Bearer | `200` | Read the current shared recipe as a non-owned Discover preview |
 | `POST /v1/recipes/discover/{sourceVideoID}/save` | Bearer | `200` | Idempotently clone a ready shared extraction into the account |
 | `GET /v1/recipes/{recipeID}` | Bearer | `200` | Fetch one current recipe |
@@ -237,6 +237,31 @@ would drop an entire platform out of the shelf. `max_total_minutes` filters on
 the minimum total time across the savers of a source, so one saver's padded
 edit cannot hide a source the rest call quick; a source no saver timed is
 excluded rather than assumed quick.
+
+`seen_before` is a UTC timestamp: the moment the client began this paging
+session. It governs both halves of the recently-seen behaviour, and only
+appears on the ranked list — the two shelves omit it, so a rail stays a
+ranking rather than a reading position.
+
+- **Demotion.** A source whose latest `discover_impressions.seen_at` for this
+  account is both earlier than `seen_before` and later than
+  `now - LADLE_DISCOVER_SEEN_WINDOW_HOURS` (24) sorts after everything unseen.
+  Each group keeps the ranking it would otherwise have had, so nothing is
+  removed from the feed and a cook who has seen the whole corpus simply gets
+  the plain order back rather than a short page.
+- **Recording.** Every item on the served page is upserted with
+  `seen_at = now`, in the request's own transaction. Ranked rows dropped for a
+  stale extraction cache are not recorded: they never reached the reader.
+
+Because impressions are written at request time and demotion only considers
+`seen_at < seen_before`, the rows one session writes cannot re-rank the pages
+that session has not fetched yet — which is what makes an offset cursor safe
+here. Omitting the parameter demotes nothing and records nothing.
+
+```
+GET /v1/recipes/discover?cursor=0&limit=30&seen_before=2026-09-01T09:00:00.000Z
+GET /v1/recipes/discover?cursor=30&limit=30&seen_before=2026-09-01T09:00:00.000Z
+```
 
 ### Authentication payloads
 
@@ -599,12 +624,14 @@ erDiagram
     users ||--o{ import_jobs : submits
     users ||--|| user_sync_state : sequences
     users ||--o{ recipe_changes : receives
+    users ||--o{ discover_impressions : has_seen
 
     source_videos ||--o{ extraction_cache : caches
     source_videos ||--o| negative_extraction_cache : blocks
     source_videos ||--o{ extraction_claims : leases
     source_videos ||--o{ import_jobs : canonicalizes
     source_videos ||--o{ recipes : sourced
+    source_videos ||--o{ discover_impressions : shown_in
 
     import_jobs ||--o| recipe_slot_reservations : reserves
     import_jobs ||--o{ provider_attempts : records
@@ -684,6 +711,23 @@ concurrent requests.
 
 Child recipe rows cascade when the recipe is physically removed. Normal API
 deletion is soft: `recipes.deleted_at` is set and a sync tombstone is emitted.
+
+### Discover reading position
+
+| Table | Columns |
+| --- | --- |
+| `discover_impressions` | Composite PK `(user_id, source_video_id)`, both FKs `ON DELETE CASCADE`; `seen_at timestamptz` |
+
+One row per account and source, holding the moment that source was last
+served — overwritten rather than appended, so the table is bounded by corpus
+size per account rather than by how often a cook scrolls.
+`ix_discover_impressions_user_seen_at` on `(user_id, seen_at)` serves the
+retention sweep, which deletes rows older than
+`LADLE_RETENTION_DISCOVER_IMPRESSION_DAYS` (30). Both cascades matter: the
+record must not outlive the account or the source it refers to. A guest merge
+upserts the guest's rows onto the destination keeping the later `seen_at`,
+then removes the guest's, since the pair is the primary key and a plain
+re-point would collide.
 
 ### Sync
 
