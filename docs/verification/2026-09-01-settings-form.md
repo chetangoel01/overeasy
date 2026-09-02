@@ -127,3 +127,7 @@ Debug build on the "Overeast UI validation" simulator (iPhone 17, iOS 26.5),
 `-ui-testing -onboarding-complete -demo-scenario standard`. Measurements are
 read out of the PNGs by pixel at 3× — capsule bounds by fill luminance, label
 bounds by ink hue — not estimated by eye.
+
+## Superseded in part
+
+Issue [#62](https://github.com/chetangoel01/recipe-app/issues/62) turned this screen into Profile: a 96-point avatar, a facts line under the name, no section footers, and a name step for every new Apple or Google account. See [Settings becomes Profile, and new cooks are asked their name](2026-09-02-profile-sheet.md).

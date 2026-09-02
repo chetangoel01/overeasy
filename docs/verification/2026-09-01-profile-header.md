@@ -165,3 +165,7 @@ That is also the deploy constraint: **#43 must be deployed, not merely merged,
 before a build carrying this reaches TestFlight.** A client that forwards
 Apple's one-shot name to a server without the column loses that name for good —
 the exact failure this change exists to stop.
+
+## Superseded in part
+
+Issue [#62](https://github.com/chetangoel01/recipe-app/issues/62) turned this screen into Profile: a 96-point avatar, a facts line under the name, no section footers, and a name step for every new Apple or Google account. See [Settings becomes Profile, and new cooks are asked their name](2026-09-02-profile-sheet.md).

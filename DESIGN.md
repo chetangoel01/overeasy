@@ -272,17 +272,22 @@ buttons a different text origin per button.
 - Recipe cards and Discover results use the native long-press context menu as
   the modern replacement for 3D Touch. The menu previews the recipe and exposes
   Open plus a non-destructive Save or Favorite action.
-- Settings opens on the cook: a 64-point avatar — the provider's photo or a
-  monogram, whichever they choose — the editable display name, and the account
-  kind beneath it. A guest sees the word "Guest" and a sign-in button, and
-  nothing else. Beneath that header sit accent color, saved-recipe count, and
-  sync state. Internal installation identifiers stay hidden.
+- Profile opens on the cook: a 96-point avatar — the provider's photo or a
+  monogram, whichever they choose — the editable display name, the account
+  kind, and one line of facts ("6 recipes · 2 favorites · cooking since
+  August 2026"). A guest sees the word "Guest", what is on this device, and a
+  sign-in button. Beneath that header sit accent color, saved-recipe count,
+  and sync state, as rows under section headers with no explanatory footers.
+  Internal installation identifiers stay hidden.
+- A new Apple or Google account is asked its name once, on a full screen
+  between the welcome and the walkthrough, with the keyboard already up. Skip
+  always works and a failed save never blocks entry. Guests are not asked.
 
 ## Accessibility and verification
 
 - Test default, extra-large, and accessibility Dynamic Type sizes.
 - Verify light and dark cooking surfaces and VoiceOver labels.
 - Verify 44-point targets and WCAG AA contrast for small text.
-- Capture Recipes, Discover, Watch, Inbox, Settings, recipe detail, Focus Mode,
+- Capture Recipes, Discover, Watch, Inbox, Profile, recipe detail, Focus Mode,
   welcome, and Share Extension at the project simulator size before a design
   checkpoint.
