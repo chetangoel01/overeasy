@@ -261,6 +261,7 @@ def create_app(
     application.state.recipe_service = RecipeService(
         clock=runtime_clock,
         repository=recipe_repository,
+        discover_seen_window=timedelta(hours=configured.discover_seen_window_hours),
     )
     application.state.sync_service = RecipeSyncService(
         recipe_repository,

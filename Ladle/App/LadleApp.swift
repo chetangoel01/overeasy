@@ -1,6 +1,7 @@
 import Foundation
 import SwiftData
 import SwiftUI
+import UIKit
 
 struct LadleRuntimeConfiguration {
     let launchArguments: [String]
@@ -77,6 +78,7 @@ struct LadleApp: App {
     private let bootstrap: AppBootstrap
 
     init() {
+        Self.configureSegmentedControlAppearance()
         let processInfo = ProcessInfo.processInfo
         bootstrap = AppBootstrap(
             configuration: LadleRuntimeConfiguration(
@@ -86,14 +88,35 @@ struct LadleApp: App {
         )
     }
 
+    /// The system's selected-segment thumb is a grey that vanishes against
+    /// the dark chrome over Watch video. A white pill with ink text reads on
+    /// both that chrome and the light in-app tracks, which already looked
+    /// this way. Unselected titles are left to the system so they keep
+    /// adapting to the surrounding colour scheme.
+    private static func configureSegmentedControlAppearance() {
+        let segmented = UISegmentedControl.appearance()
+        segmented.selectedSegmentTintColor = .white
+        segmented.setTitleTextAttributes(
+            [.foregroundColor: UIColor(LadleTheme.Label.onFixedPale)],
+            for: .selected
+        )
+    }
+
+    /// The chosen accent, resolved once and published into the environment
+    /// so every screen re-renders when it changes.
+    ///
+    /// `.tint` takes the `label` role rather than `intent`: a tint lands on
+    /// bar buttons and tab labels at small sizes, where the fill-weight
+    /// accent does not hold its contrast.
+    private var resolvedAccent: LadleAccentColor {
+        LadleAccentColor.resolve(storedValue: accentColor)
+    }
+
     var body: some Scene {
         WindowGroup {
             content
-                .tint(
-                    LadleAccentColor.resolve(
-                        storedValue: accentColor
-                    ).textColor
-                )
+                .environment(\.ladleAccent, resolvedAccent)
+                .tint(resolvedAccent.label)
                 .task {
                     guard bootstrapResult.isPreparing else { return }
                     bootstrapResult = bootstrap.run()

@@ -41,7 +41,8 @@
 - Add a failing test before production behavior, then verify red-green-refactor.
 - Run the narrow tests for the changed behavior.
 - Run `swift test --package-path Packages/LadleCore` for shared domain changes.
-- Run the relevant `xcodebuild test` target for app or UI behavior.
+- Run the relevant `xcodebuild test` target for app or UI behavior, using the
+  `LadleAllTests` scheme (tests are disabled on the default `Ladle` scheme).
 - Run a full Ladle app and Share Extension build at milestone checkpoints.
 - Run `git diff --check` before every commit. This checks whitespace errors and conflict markers; it does not replace tests or compilation.
 - Commit only after the relevant tests pass.

@@ -3,6 +3,7 @@ import SwiftUI
 
 struct PendingImportCard: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.ladleAccent) private var accent
 
     let job: ImportJob
     var creatorName: String?
@@ -69,24 +70,24 @@ struct PendingImportCard: View {
     private var statusIcon: some View {
         if let systemImage = operationFailure?.report?.failure.systemImage {
             Image(systemName: systemImage)
-                .foregroundStyle(LadleTheme.Label.accent)
+                .foregroundStyle(accent.label)
                 .frame(width: 28, height: 28)
                 .accessibilityHidden(true)
         } else {
             switch job.status {
             case .parsing:
                 ProgressView()
-                    .tint(LadleTheme.Intent.accent)
+                    .tint(accent.intent)
                     .frame(width: 28, height: 28)
                     .accessibilityHidden(true)
             case .needsReview:
                 Image(systemName: "questionmark.circle.fill")
-                    .foregroundStyle(LadleTheme.Label.accent)
+                    .foregroundStyle(accent.label)
                     .frame(width: 28, height: 28)
                     .accessibilityHidden(true)
             case .failed:
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(LadleTheme.Label.accent)
+                    .foregroundStyle(accent.label)
                     .frame(width: 28, height: 28)
                     .accessibilityHidden(true)
             case .ready:

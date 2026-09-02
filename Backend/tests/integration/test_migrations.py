@@ -19,6 +19,7 @@ EXPECTED_TABLES = {
     "auth_sessions",
     "detected_timers",
     "devices",
+    "discover_impressions",
     "extraction_cache",
     "extraction_claims",
     "field_uncertainties",
@@ -41,6 +42,8 @@ EXPECTED_TABLES = {
     "recipes",
     "source_videos",
     "step_ingredients",
+    "usda_foods",
+    "usda_searches",
     "user_sync_state",
     "users",
 }
@@ -465,4 +468,96 @@ def test_recipe_child_foreign_key_indexes_upgrade_and_downgrade(
     for table, index in expected.items():
         names = {value["name"] for value in inspect(engine).get_indexes(table)}
         assert index not in names
+    engine.dispose()
+
+
+@pytest.mark.integration
+def test_discover_impressions_upgrade_cascades_and_downgrades(
+    clean_postgres_url: str,
+) -> None:
+    """0022 must key one row per (cook, source), index the sweep's lookup,
+    and take its rows with the account they belong to.
+
+    Without the cascade a deleted account would leave a behavioural record
+    behind, which is exactly what the privacy policy promises it does not.
+    Reversibly."""
+    config = alembic_config(clean_postgres_url)
+    command.upgrade(config, "head")
+    engine = create_engine(clean_postgres_url)
+    user_id = uuid4()
+    source_id = uuid4()
+    now = datetime.now(UTC)
+
+    indexes = {
+        value["name"] for value in inspect(engine).get_indexes("discover_impressions")
+    }
+    assert "ix_discover_impressions_user_seen_at" in indexes
+
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                INSERT INTO users (id, kind, created_at)
+                VALUES (:id, 'guest', :created_at)
+                """
+            ),
+            {"id": user_id, "created_at": now},
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO source_videos (
+                    id, platform, platform_video_id, canonical_url,
+                    source_revision, metadata_json, created_at
+                )
+                VALUES (
+                    :id, 'tiktok', 'seen-source',
+                    'https://www.tiktok.com/@cook/video/1', '1', '{}',
+                    :created_at
+                )
+                """
+            ),
+            {"id": source_id, "created_at": now},
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO discover_impressions (
+                    user_id, source_video_id, seen_at
+                ) VALUES (:user_id, :source_video_id, :seen_at)
+                """
+            ),
+            {"user_id": user_id, "source_video_id": source_id, "seen_at": now},
+        )
+
+    # One row per cook and source: seeing a source again is an update, not an
+    # append, which is what keeps the table bounded by corpus size rather
+    # than by how often a cook scrolls.
+    with pytest.raises(IntegrityError), engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                    INSERT INTO discover_impressions (
+                        user_id, source_video_id, seen_at
+                    ) VALUES (:user_id, :source_video_id, :seen_at)
+                    """
+            ),
+            {
+                "user_id": user_id,
+                "source_video_id": source_id,
+                "seen_at": now + timedelta(hours=1),
+            },
+        )
+
+    with engine.begin() as connection:
+        connection.execute(text("DELETE FROM users WHERE id = :id"), {"id": user_id})
+        remaining = connection.execute(
+            text("SELECT count(*) FROM discover_impressions")
+        ).scalar_one()
+    assert remaining == 0
+
+    engine.dispose()
+    command.downgrade(config, "0021")
+    engine = create_engine(clean_postgres_url)
+    assert "discover_impressions" not in inspect(engine).get_table_names()
     engine.dispose()

@@ -3,6 +3,7 @@ import SwiftUI
 
 struct FullRecipeView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.ladleAccent) private var accent
 
     @Bindable var viewModel: CookingViewModel
 
@@ -30,6 +31,7 @@ struct FullRecipeView: View {
 
     private var fullRecipeContent: some View {
         NavigationStack {
+            ScrollViewReader { scroll in
             ScrollView {
                 VStack(alignment: .leading, spacing: LadleTheme.Layout.sectionGap) {
                     recipeHeader
@@ -41,24 +43,46 @@ struct FullRecipeView: View {
                 .padding(.bottom, LadleTheme.Layout.scrollTail)
             }
             .scrollIndicators(.hidden)
+            // Picking a step used to change only the pill's own label: this
+            // screen shows every step at once, so nothing moved and the
+            // control looked broken. It now brings the chosen step into view.
+            // Animated on purpose. Dropping the animation was tried to stop a
+            // rebound after select-then-swipe, and it did halve the peak — but
+            // the rebound is the scroll view overshooting the end of the
+            // content and springing back, which a plain fast swipe does just
+            // as much of on its own. Since the bounce is the system's and not
+            // this jump's, the animation is worth keeping for the movement it
+            // gives the step change.
+            .onChange(of: viewModel.currentStepIndex) { _, index in
+                guard viewModel.recipe.orderedSteps.indices.contains(index)
+                else { return }
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    scroll.scrollTo(
+                        viewModel.recipe.orderedSteps[index].id,
+                        anchor: .top
+                    )
+                }
+            }
             .background(LadleTheme.Surface.porcelain)
             .accessibilityIdentifier("cooking.full-recipe")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(LadleTheme.Surface.porcelain, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button {
                         dismiss()
                     } label: {
+                        // No hand-drawn circle: the toolbar already gives the
+                        // button its own round glass background, and painting
+                        // a second one inside it made the system shape wrap a
+                        // wider box, which is why the close control read as a
+                        // squashed rounded rectangle instead of a circle.
                         Image(systemName: "xmark")
                             .font(.system(size: LadleTheme.IconSize.small, weight: .bold))
                             .foregroundStyle(LadleTheme.Label.primary)
-                            .frame(width: LadleTheme.Control.hitTarget, height: LadleTheme.Control.hitTarget)
-                            .background(LadleTheme.Surface.steel, in: Circle())
                     }
                     .accessibilityLabel("Close cooking")
                 }
+            }
             }
         }
     }
@@ -97,7 +121,7 @@ struct FullRecipeView: View {
             )
             .ladleFont(.bodyStrong)
             .foregroundStyle(LadleTheme.Label.primary)
-            .tint(LadleTheme.Intent.accent)
+            .tint(accent.intent)
             .padding(.horizontal, 16)
             .frame(minHeight: LadleTheme.Control.primary)
             .background(
@@ -121,11 +145,16 @@ struct FullRecipeView: View {
                 }
             }
         } label: {
-            LadlePill(
-                text: viewModel.progressText,
-                systemImage: "chevron.down"
-            )
-            .frame(minHeight: LadleTheme.Control.hitTarget)
+            // Built like the Focus mode button rather than with LadlePill:
+            // the pill draws its capsule inside its own padding, so a
+            // minHeight around it padded empty space and left a visibly
+            // shorter capsule beside a full-height button.
+            Label(viewModel.progressText, systemImage: "chevron.down")
+                .ladleFont(.metadata)
+                .foregroundStyle(LadleTheme.Label.primary)
+                .padding(.horizontal, 12)
+                .frame(minHeight: LadleTheme.Control.hitTarget)
+                .background(LadleTheme.Surface.raised, in: Capsule())
         }
         .accessibilityLabel("\(viewModel.progressText) cooking progress")
     }
@@ -139,7 +168,7 @@ struct FullRecipeView: View {
                 .foregroundStyle(LadleTheme.Label.onAccent)
                 .padding(.horizontal, 12)
                 .frame(minHeight: LadleTheme.Control.hitTarget)
-                .background(LadleTheme.Intent.accent, in: Capsule())
+                .background(accent.intent, in: Capsule())
         }
         .buttonStyle(LadlePressButtonStyle())
     }

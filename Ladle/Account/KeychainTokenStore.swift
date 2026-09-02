@@ -8,6 +8,44 @@ struct AuthTokens: Codable, Equatable, Sendable {
     let userID: UUID
     let deviceID: UUID
     let userKind: String
+    /// The cook's profile as the server last reported it. It rides on the
+    /// tokens rather than behind a `/me` call, so every refresh keeps it
+    /// current, and it survives a relaunch because this record is also the
+    /// Keychain record. Both fields are optional on the wire and absent
+    /// from tokens saved by builds that predate them, so both decode as
+    /// nil rather than failing the session.
+    ///
+    /// `avatarURL`, not `avatarUrl`: the backend's wire alias rewrites a
+    /// trailing `Url` to `URL`, the same shape as `userID` above.
+    var displayName: String?
+    var avatarURL: URL?
+
+    init(
+        accessToken: String,
+        accessTokenExpiresAt: Date,
+        refreshToken: String?,
+        userID: UUID,
+        deviceID: UUID,
+        userKind: String,
+        displayName: String? = nil,
+        avatarURL: URL? = nil
+    ) {
+        self.accessToken = accessToken
+        self.accessTokenExpiresAt = accessTokenExpiresAt
+        self.refreshToken = refreshToken
+        self.userID = userID
+        self.deviceID = deviceID
+        self.userKind = userKind
+        self.displayName = displayName
+        self.avatarURL = avatarURL
+    }
+
+    /// Nil when the account has neither a name nor an avatar — a guest, or
+    /// an Apple cook who signed in before the name was captured.
+    var profile: AccountProfile? {
+        AccountProfile(displayName: displayName, avatarURL: avatarURL)
+            .nonEmpty
+    }
 }
 
 protocol AuthTokenStoring: Sendable {

@@ -1,3 +1,4 @@
+from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -65,12 +66,73 @@ class LinkedDocument(WireModel):
     provenance: str = Field(min_length=1)
 
 
+class SourceCounts(WireModel):
+    """Engagement counts and publish date as the source platform reported them.
+
+    A snapshot, not a live figure: it is whatever the platform said the last
+    time we asked. Every field is optional because providers differ in what
+    they return and any of them can be withheld for a given video.
+    """
+
+    like_count: int | None = Field(default=None, ge=0)
+    view_count: int | None = Field(default=None, ge=0)
+    comment_count: int | None = Field(default=None, ge=0)
+    repost_count: int | None = Field(default=None, ge=0)
+    published_at: datetime | None = None
+
+    @property
+    def is_empty(self) -> bool:
+        return all(
+            value is None
+            for value in (
+                self.like_count,
+                self.view_count,
+                self.comment_count,
+                self.repost_count,
+                self.published_at,
+            )
+        )
+
+
+def apply_source_counts(
+    source: SourceVideo,
+    counts: SourceCounts,
+    *,
+    now: datetime,
+) -> bool:
+    """Write a counts snapshot onto the video, returning whether it changed.
+
+    A provider that returns nothing leaves the previous snapshot alone rather
+    than erasing it: a temporary failure should not look like a video losing
+    all its likes. Individual fields follow the same rule.
+    """
+    if counts.is_empty:
+        return False
+    changed = False
+    for field_name in (
+        "like_count",
+        "view_count",
+        "comment_count",
+        "repost_count",
+        "published_at",
+    ):
+        value = getattr(counts, field_name)
+        if value is None:
+            continue
+        if getattr(source, field_name) != value:
+            setattr(source, field_name, value)
+            changed = True
+    source.counts_refreshed_at = now
+    return changed
+
+
 class MediaMetadata(WireModel):
     title: str | None = None
     description: str = Field(max_length=50_000)
     creator_name: str | None = None
     thumbnail_url: str | None = None
     duration_seconds: float | None = Field(default=None, ge=0)
+    counts: SourceCounts = Field(default_factory=SourceCounts)
     billed_units: Decimal = Field(default=Decimal(0), ge=0)
 
 
@@ -90,6 +152,7 @@ class AcquiredVideoContext(WireModel):
     description: str = Field(max_length=50_000)
     creator_name: str | None = None
     thumbnail_url: str | None = None
+    counts: SourceCounts = Field(default_factory=SourceCounts)
     language: str | None = None
     transcript: list[TextEvidence] = Field(default_factory=list)
     visual_observations: list[VisualEvidence] = Field(default_factory=list)

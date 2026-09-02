@@ -4,6 +4,18 @@ import LadleCore
 enum PreviewFixtures {
     private static let baseDate = Date(timeIntervalSince1970: 1_784_836_000)
 
+    /// Bundled artwork for a demo Discover row.
+    ///
+    /// Fixture images are asset names, not URLs, and demo builds run without
+    /// a `RemoteImageCache` at all — so the only way a Discover thumbnail can
+    /// render offline is the local-asset path. Discover rows carry just a URL
+    /// (that is all the wire contract has), so they resolve back to the
+    /// fixture by source id. Real Discover recipes always arrive with a
+    /// remote URL and never reach this.
+    static func discoverArtwork(sourceID: UUID) -> RecipeImage? {
+        recipes.first { $0.id == sourceID }?.images.first
+    }
+
     static let recipes: [Recipe] = [
         makeRecipe(
             id: "B54D0E5B-8B10-410F-ADE7-7B0F12F94E01",

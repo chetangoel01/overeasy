@@ -10,6 +10,7 @@ import httpx
 ALLOWED_SOCIAL_HOSTS = frozenset(
     {
         "instagram.com",
+        "m.instagram.com",
         "m.tiktok.com",
         "m.youtube.com",
         "tiktok.com",

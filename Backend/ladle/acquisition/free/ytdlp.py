@@ -15,6 +15,7 @@ import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
 from urllib.request import Request
@@ -27,7 +28,7 @@ from ladle.acquisition.errors import (
     ProviderTransientError,
     ProviderUnavailable,
 )
-from ladle.acquisition.models import MediaMetadata, TextEvidence
+from ladle.acquisition.models import MediaMetadata, SourceCounts, TextEvidence
 from ladle.infrastructure.dns import (
     DNSResolver,
     PinnedHTTPClient,
@@ -290,6 +291,44 @@ def _tail(value: str | None, limit: int = 400) -> str:
     return text[-limit:] or "yt-dlp failed without detail"
 
 
+def _count(value: object) -> int | None:
+    """A count only counts if it is a non-negative whole number.
+
+    yt-dlp omits these entirely for some videos and returns None for others,
+    and a bool is an int in Python, so both are screened out here.
+    """
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    return value if value >= 0 else None
+
+
+def _published_at(payload: dict[str, Any]) -> datetime | None:
+    """Prefer the exact timestamp; fall back to the YYYYMMDD upload date."""
+    timestamp = payload.get("timestamp")
+    if isinstance(timestamp, int | float) and not isinstance(timestamp, bool):
+        try:
+            return datetime.fromtimestamp(float(timestamp), tz=UTC)
+        except (OverflowError, OSError, ValueError):
+            return None
+    upload_date = payload.get("upload_date")
+    if isinstance(upload_date, str) and len(upload_date) == 8:
+        try:
+            return datetime.strptime(upload_date, "%Y%m%d").replace(tzinfo=UTC)
+        except ValueError:
+            return None
+    return None
+
+
+def _source_counts(payload: dict[str, Any]) -> SourceCounts:
+    return SourceCounts(
+        like_count=_count(payload.get("like_count")),
+        view_count=_count(payload.get("view_count")),
+        comment_count=_count(payload.get("comment_count")),
+        repost_count=_count(payload.get("repost_count")),
+        published_at=_published_at(payload),
+    )
+
+
 def _media_from_payload(
     payload: dict[str, Any],
     *,
@@ -302,6 +341,7 @@ def _media_from_payload(
     )
     canonical = _text(payload.get("webpage_url") or payload.get("original_url"))
     duration = payload.get("duration")
+    counts = _source_counts(payload)
     media = _media_format(payload)
     audio = _audio_format(payload)
     video = _video_format(payload)
@@ -314,6 +354,7 @@ def _media_from_payload(
             duration_seconds=float(duration)
             if isinstance(duration, int | float) and duration >= 0
             else None,
+            counts=counts,
         ),
         canonical_url=canonical or None,
         media_url=_https_url(media) if media is not None else None,

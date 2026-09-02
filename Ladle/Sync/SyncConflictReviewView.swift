@@ -24,6 +24,8 @@ struct SyncConflictPresentation: Equatable {
 }
 
 struct SyncConflictBanner: View {
+    @Environment(\.ladleAccent) private var accent
+
     let count: Int
     let review: () -> Void
 
@@ -34,7 +36,7 @@ struct SyncConflictBanner: View {
                     size: LadleTheme.IconSize.medium,
                     weight: .semibold
                 ))
-                .foregroundStyle(LadleTheme.Label.accent)
+                .foregroundStyle(accent.label)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
                 Text("Recipe changes need review")
@@ -51,7 +53,7 @@ struct SyncConflictBanner: View {
             Spacer(minLength: LadleTheme.Spacing.compact)
             Button("Review", action: review)
                 .ladleFont(.bodyStrong)
-                .foregroundStyle(LadleTheme.Label.accent)
+                .foregroundStyle(accent.label)
                 .buttonStyle(.plain)
         }
         .padding(.horizontal, LadleTheme.Layout.screenMargin)
@@ -91,10 +93,6 @@ struct SyncConflictReviewSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close", action: dismiss.callAsFunction)
-                        .padding(
-                            .leading,
-                            LadleTheme.Layout.sheetToolbarInset
-                        )
                 }
             }
         }
