@@ -1,0 +1,2822 @@
+{
+  "generatedBy": "Tools/ingredient-icons/build.sh",
+  "source": "cooking-app-icons-complete 1.0.0",
+  "longestEdge": 192,
+  "count": 469,
+  "assets": [
+    {
+      "slug": "agave-nectar",
+      "displayName": "Agave nectar",
+      "category": "Sweeteners",
+      "container": "bottle"
+    },
+    {
+      "slug": "ajwain",
+      "displayName": "Ajwain",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "allspice",
+      "displayName": "Allspice",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "almond",
+      "displayName": "Almond",
+      "category": "Nuts & Seeds",
+      "container": null
+    },
+    {
+      "slug": "amchur",
+      "displayName": "Amchur",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "anchovy",
+      "displayName": "Anchovy",
+      "category": "Seafood",
+      "container": null
+    },
+    {
+      "slug": "anise-seed",
+      "displayName": "Anise seed",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "annatto",
+      "displayName": "Annatto",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "apple-granny-smith",
+      "displayName": "Apple, granny smith",
+      "category": "Fruits",
+      "container": null
+    },
+    {
+      "slug": "apple-honeycrisp",
+      "displayName": "Apple, honeycrisp",
+      "category": "Fruits",
+      "container": null
+    },
+    {
+      "slug": "apricot",
+      "displayName": "Apricot",
+      "category": "Fruits",
+      "container": null
+    },
+    {
+      "slug": "artichoke",
+      "displayName": "Artichoke",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "artichoke-hearts-jarred",
+      "displayName": "Artichoke hearts",
+      "category": "Canned & Jarred",
+      "container": "jar"
+    },
+    {
+      "slug": "arugula",
+      "displayName": "Arugula",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "asafoetida",
+      "displayName": "Asafoetida",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "asparagus",
+      "displayName": "Asparagus",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "avocado",
+      "displayName": "Avocado",
+      "category": "Fruits",
+      "container": null
+    },
+    {
+      "slug": "avocado-oil",
+      "displayName": "Avocado oil",
+      "category": "Oils & Fats",
+      "container": "bottle"
+    },
+    {
+      "slug": "bacon",
+      "displayName": "Bacon",
+      "category": "Meat & Poultry",
+      "container": null
+    },
+    {
+      "slug": "baguette",
+      "displayName": "Baguette",
+      "category": "Bread & Baked",
+      "container": null
+    },
+    {
+      "slug": "baking-powder",
+      "displayName": "Baking powder",
+      "category": "Baking",
+      "container": "box"
+    },
+    {
+      "slug": "baking-soda",
+      "displayName": "Baking soda",
+      "category": "Baking",
+      "container": "box"
+    },
+    {
+      "slug": "banana",
+      "displayName": "Banana",
+      "category": "Fruits",
+      "container": null
+    },
+    {
+      "slug": "barley",
+      "displayName": "Barley",
+      "category": "Grains, Rice & Pasta",
+      "container": "bag"
+    },
+    {
+      "slug": "basil-dried",
+      "displayName": "Basil, dried",
+      "category": "Dried Herbs",
+      "container": "jar"
+    },
+    {
+      "slug": "basil-fresh",
+      "displayName": "Basil",
+      "category": "Fresh Herbs",
+      "container": null
+    },
+    {
+      "slug": "bay-leaf",
+      "displayName": "Bay leaf",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "bbq-sauce",
+      "displayName": "Barbecue sauce",
+      "category": "Condiments & Sauces",
+      "container": "bottle"
+    },
+    {
+      "slug": "beef-brisket",
+      "displayName": "Beef, brisket",
+      "category": "Meat & Poultry",
+      "container": null
+    },
+    {
+      "slug": "beef-chuck",
+      "displayName": "Beef, chuck roast",
+      "category": "Meat & Poultry",
+      "container": null
+    },
+    {
+      "slug": "beef-ground",
+      "displayName": "Beef, ground",
+      "category": "Meat & Poultry",
+      "container": null
+    },
+    {
+      "slug": "beef-ribeye",
+      "displayName": "Beef, ribeye",
+      "category": "Meat & Poultry",
+      "container": null
+    },
+    {
+      "slug": "beef-short-ribs",
+      "displayName": "Beef, short ribs",
+      "category": "Meat & Poultry",
+      "container": null
+    },
+    {
+      "slug": "beef-sirloin",
+      "displayName": "Beef, sirloin",
+      "category": "Meat & Poultry",
+      "container": null
+    },
+    {
+      "slug": "beer",
+      "displayName": "Beer",
+      "category": "Cooking Liquids",
+      "container": "bottle"
+    },
+    {
+      "slug": "beet",
+      "displayName": "Beet",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "bell-pepper-green",
+      "displayName": "Bell pepper, green",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "bell-pepper-red",
+      "displayName": "Bell pepper, red",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "bell-pepper-yellow",
+      "displayName": "Bell pepper, yellow",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "black-beans",
+      "displayName": "Black beans",
+      "category": "Legumes & Pulses",
+      "container": "can"
+    },
+    {
+      "slug": "black-eyed-peas",
+      "displayName": "Black-eyed peas",
+      "category": "Legumes & Pulses",
+      "container": "can"
+    },
+    {
+      "slug": "black-pepper-ground",
+      "displayName": "Black pepper, ground",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "black-pepper-whole",
+      "displayName": "Black pepper, whole",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "blackberry",
+      "displayName": "Blackberry",
+      "category": "Fruits",
+      "container": null
+    },
+    {
+      "slug": "blueberry",
+      "displayName": "Blueberry",
+      "category": "Fruits",
+      "container": null
+    },
+    {
+      "slug": "bok-choy",
+      "displayName": "Bok choy",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "bonito-flakes",
+      "displayName": "Bonito flakes",
+      "category": "Stocks & Bases",
+      "container": "bag"
+    },
+    {
+      "slug": "bouillon-cubes",
+      "displayName": "Bouillon cubes",
+      "category": "Stocks & Bases",
+      "container": "box"
+    },
+    {
+      "slug": "brandy",
+      "displayName": "Brandy",
+      "category": "Cooking Liquids",
+      "container": "bottle"
+    },
+    {
+      "slug": "brazil-nut",
+      "displayName": "Brazil nut",
+      "category": "Nuts & Seeds",
+      "container": null
+    },
+    {
+      "slug": "bread-sourdough",
+      "displayName": "Bread, sourdough",
+      "category": "Bread & Baked",
+      "container": null
+    },
+    {
+      "slug": "bread-white",
+      "displayName": "Bread, white sandwich",
+      "category": "Bread & Baked",
+      "container": null
+    },
+    {
+      "slug": "bread-whole-wheat",
+      "displayName": "Bread, whole wheat",
+      "category": "Bread & Baked",
+      "container": null
+    },
+    {
+      "slug": "breadcrumbs",
+      "displayName": "Breadcrumbs",
+      "category": "Bread & Baked",
+      "container": "box"
+    },
+    {
+      "slug": "brioche",
+      "displayName": "Brioche",
+      "category": "Bread & Baked",
+      "container": null
+    },
+    {
+      "slug": "broccoli",
+      "displayName": "Broccoli",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "broccolini",
+      "displayName": "Broccolini",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "brussels-sprouts",
+      "displayName": "Brussels sprouts",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "buckwheat",
+      "displayName": "Buckwheat",
+      "category": "Grains, Rice & Pasta",
+      "container": "bag"
+    },
+    {
+      "slug": "bulgur",
+      "displayName": "Bulgur",
+      "category": "Grains, Rice & Pasta",
+      "container": "bag"
+    },
+    {
+      "slug": "butter-salted",
+      "displayName": "Butter, salted",
+      "category": "Dairy & Eggs",
+      "container": null
+    },
+    {
+      "slug": "butter-unsalted",
+      "displayName": "Butter, unsalted",
+      "category": "Dairy & Eggs",
+      "container": null
+    },
+    {
+      "slug": "buttermilk",
+      "displayName": "Buttermilk",
+      "category": "Dairy & Eggs",
+      "container": "bottle"
+    },
+    {
+      "slug": "butternut-squash",
+      "displayName": "Butternut squash",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "cabbage-green",
+      "displayName": "Cabbage, green",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "cabbage-red",
+      "displayName": "Cabbage, red",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "cannellini-beans",
+      "displayName": "Cannellini beans",
+      "category": "Legumes & Pulses",
+      "container": "can"
+    },
+    {
+      "slug": "canola-oil",
+      "displayName": "Canola oil",
+      "category": "Oils & Fats",
+      "container": "bottle"
+    },
+    {
+      "slug": "cantaloupe",
+      "displayName": "Cantaloupe",
+      "category": "Fruits",
+      "container": null
+    },
+    {
+      "slug": "capers",
+      "displayName": "Capers",
+      "category": "Canned & Jarred",
+      "container": "jar"
+    },
+    {
+      "slug": "caraway",
+      "displayName": "Caraway",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "cardamom-black",
+      "displayName": "Cardamom, black",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "cardamom-green",
+      "displayName": "Cardamom, green",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "carrot",
+      "displayName": "Carrot",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "cashew",
+      "displayName": "Cashew",
+      "category": "Nuts & Seeds",
+      "container": null
+    },
+    {
+      "slug": "cauliflower",
+      "displayName": "Cauliflower",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "cayenne",
+      "displayName": "Cayenne",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "celery",
+      "displayName": "Celery",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "celery-seed",
+      "displayName": "Celery seed",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "chard",
+      "displayName": "Chard",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "cheese-blue",
+      "displayName": "Cheese, blue",
+      "category": "Dairy & Eggs",
+      "container": null
+    },
+    {
+      "slug": "cheese-brie",
+      "displayName": "Cheese, brie",
+      "category": "Dairy & Eggs",
+      "container": null
+    },
+    {
+      "slug": "cheese-cheddar",
+      "displayName": "Cheese, cheddar",
+      "category": "Dairy & Eggs",
+      "container": null
+    },
+    {
+      "slug": "cheese-cotija",
+      "displayName": "Cheese, cotija",
+      "category": "Dairy & Eggs",
+      "container": null
+    },
+    {
+      "slug": "cheese-cream",
+      "displayName": "Cheese, cream",
+      "category": "Dairy & Eggs",
+      "container": null
+    },
+    {
+      "slug": "cheese-feta",
+      "displayName": "Cheese, feta",
+      "category": "Dairy & Eggs",
+      "container": null
+    },
+    {
+      "slug": "cheese-goat",
+      "displayName": "Cheese, goat",
+      "category": "Dairy & Eggs",
+      "container": null
+    },
+    {
+      "slug": "cheese-gruyere",
+      "displayName": "Cheese, gruyere",
+      "category": "Dairy & Eggs",
+      "container": null
+    },
+    {
+      "slug": "cheese-halloumi",
+      "displayName": "Cheese, halloumi",
+      "category": "Dairy & Eggs",
+      "container": null
+    },
+    {
+      "slug": "cheese-mascarpone",
+      "displayName": "Cheese, mascarpone",
+      "category": "Dairy & Eggs",
+      "container": null
+    },
+    {
+      "slug": "cheese-mozzarella",
+      "displayName": "Cheese, mozzarella",
+      "category": "Dairy & Eggs",
+      "container": null
+    },
+    {
+      "slug": "cheese-parmesan",
+      "displayName": "Cheese, parmesan",
+      "category": "Dairy & Eggs",
+      "container": null
+    },
+    {
+      "slug": "cheese-ricotta",
+      "displayName": "Cheese, ricotta",
+      "category": "Dairy & Eggs",
+      "container": null
+    },
+    {
+      "slug": "cherry",
+      "displayName": "Cherry",
+      "category": "Fruits",
+      "container": null
+    },
+    {
+      "slug": "chestnut",
+      "displayName": "Chestnut",
+      "category": "Nuts & Seeds",
+      "container": null
+    },
+    {
+      "slug": "chia-seeds",
+      "displayName": "Chia seeds",
+      "category": "Nuts & Seeds",
+      "container": "jar"
+    },
+    {
+      "slug": "chicken-breast",
+      "displayName": "Chicken, breast",
+      "category": "Meat & Poultry",
+      "container": null
+    },
+    {
+      "slug": "chicken-drumstick",
+      "displayName": "Chicken, drumstick",
+      "category": "Meat & Poultry",
+      "container": null
+    },
+    {
+      "slug": "chicken-thigh",
+      "displayName": "Chicken, thigh",
+      "category": "Meat & Poultry",
+      "container": null
+    },
+    {
+      "slug": "chicken-whole",
+      "displayName": "Chicken, whole",
+      "category": "Meat & Poultry",
+      "container": null
+    },
+    {
+      "slug": "chicken-wings",
+      "displayName": "Chicken, wings",
+      "category": "Meat & Poultry",
+      "container": null
+    },
+    {
+      "slug": "chickpeas",
+      "displayName": "Chickpeas",
+      "category": "Legumes & Pulses",
+      "container": "can"
+    },
+    {
+      "slug": "chili-flakes",
+      "displayName": "Chili flakes",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "chili-oil",
+      "displayName": "Chili oil",
+      "category": "Oils & Fats",
+      "container": "bottle"
+    },
+    {
+      "slug": "chili-powder",
+      "displayName": "Chili powder",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "chipotle-powder",
+      "displayName": "Chipotle powder",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "chipotles-adobo",
+      "displayName": "Chipotles in adobo",
+      "category": "Canned & Jarred",
+      "container": "can"
+    },
+    {
+      "slug": "chives",
+      "displayName": "Chives",
+      "category": "Fresh Herbs",
+      "container": null
+    },
+    {
+      "slug": "chocolate-bittersweet",
+      "displayName": "Chocolate, bittersweet",
+      "category": "Baking",
+      "container": null
+    },
+    {
+      "slug": "chocolate-chips",
+      "displayName": "Chocolate chips",
+      "category": "Baking",
+      "container": null
+    },
+    {
+      "slug": "chocolate-unsweetened",
+      "displayName": "Chocolate, unsweetened",
+      "category": "Baking",
+      "container": null
+    },
+    {
+      "slug": "chorizo",
+      "displayName": "Chorizo",
+      "category": "Meat & Poultry",
+      "container": null
+    },
+    {
+      "slug": "ciabatta",
+      "displayName": "Ciabatta",
+      "category": "Bread & Baked",
+      "container": null
+    },
+    {
+      "slug": "cilantro",
+      "displayName": "Cilantro",
+      "category": "Fresh Herbs",
+      "container": null
+    },
+    {
+      "slug": "cinnamon-ground",
+      "displayName": "Cinnamon, ground",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "cinnamon-stick",
+      "displayName": "Cinnamon stick",
+      "category": "Spices",
+      "container": null
+    },
+    {
+      "slug": "clams",
+      "displayName": "Clams",
+      "category": "Seafood",
+      "container": null
+    },
+    {
+      "slug": "clementine",
+      "displayName": "Clementine",
+      "category": "Fruits",
+      "container": null
+    },
+    {
+      "slug": "clove",
+      "displayName": "Clove",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "cocoa-powder",
+      "displayName": "Cocoa powder",
+      "category": "Baking",
+      "container": "box"
+    },
+    {
+      "slug": "coconut",
+      "displayName": "Coconut",
+      "category": "Fruits",
+      "container": null
+    },
+    {
+      "slug": "coconut-cream",
+      "displayName": "Coconut cream",
+      "category": "Canned & Jarred",
+      "container": "can"
+    },
+    {
+      "slug": "coconut-milk-canned",
+      "displayName": "Coconut milk, canned",
+      "category": "Canned & Jarred",
+      "container": "can"
+    },
+    {
+      "slug": "coconut-oil",
+      "displayName": "Coconut oil",
+      "category": "Oils & Fats",
+      "container": "jar"
+    },
+    {
+      "slug": "cod",
+      "displayName": "Cod",
+      "category": "Seafood",
+      "container": null
+    },
+    {
+      "slug": "collard-greens",
+      "displayName": "Collard greens",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "condensed-milk",
+      "displayName": "Sweetened condensed milk",
+      "category": "Baking",
+      "container": "can"
+    },
+    {
+      "slug": "coriander-ground",
+      "displayName": "Coriander, ground",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "coriander-seed",
+      "displayName": "Coriander seed",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "corn",
+      "displayName": "Corn",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "corn-canned",
+      "displayName": "Corn, canned",
+      "category": "Canned & Jarred",
+      "container": "can"
+    },
+    {
+      "slug": "corn-syrup",
+      "displayName": "Corn syrup",
+      "category": "Sweeteners",
+      "container": "bottle"
+    },
+    {
+      "slug": "cornmeal",
+      "displayName": "Cornmeal",
+      "category": "Baking",
+      "container": "bag"
+    },
+    {
+      "slug": "cornstarch",
+      "displayName": "Cornstarch",
+      "category": "Baking",
+      "container": "box"
+    },
+    {
+      "slug": "couscous",
+      "displayName": "Couscous",
+      "category": "Grains, Rice & Pasta",
+      "container": "bag"
+    },
+    {
+      "slug": "crab",
+      "displayName": "Crab",
+      "category": "Seafood",
+      "container": null
+    },
+    {
+      "slug": "cranberry",
+      "displayName": "Cranberry",
+      "category": "Fruits",
+      "container": null
+    },
+    {
+      "slug": "cream-of-tartar",
+      "displayName": "Cream of tartar",
+      "category": "Baking",
+      "container": "jar"
+    },
+    {
+      "slug": "creme-fraiche",
+      "displayName": "Creme fraiche",
+      "category": "Dairy & Eggs",
+      "container": null
+    },
+    {
+      "slug": "cucumber",
+      "displayName": "Cucumber",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "cumin-ground",
+      "displayName": "Cumin, ground",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "cumin-seed",
+      "displayName": "Cumin seed",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "curry-leaves",
+      "displayName": "Curry leaves",
+      "category": "Fresh Herbs",
+      "container": null
+    },
+    {
+      "slug": "curry-powder",
+      "displayName": "Curry powder",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "daikon",
+      "displayName": "Daikon",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "dashi",
+      "displayName": "Dashi",
+      "category": "Stocks & Bases",
+      "container": "box"
+    },
+    {
+      "slug": "date",
+      "displayName": "Date",
+      "category": "Fruits",
+      "container": null
+    },
+    {
+      "slug": "date-syrup",
+      "displayName": "Date syrup",
+      "category": "Sweeteners",
+      "container": "bottle"
+    },
+    {
+      "slug": "demi-glace",
+      "displayName": "Demi-glace",
+      "category": "Stocks & Bases",
+      "container": "jar"
+    },
+    {
+      "slug": "dill-dried",
+      "displayName": "Dill, dried",
+      "category": "Dried Herbs",
+      "container": "jar"
+    },
+    {
+      "slug": "dill-fresh",
+      "displayName": "Dill",
+      "category": "Fresh Herbs",
+      "container": null
+    },
+    {
+      "slug": "doubanjiang",
+      "displayName": "Doubanjiang",
+      "category": "Condiments & Sauces",
+      "container": "jar"
+    },
+    {
+      "slug": "duck-breast",
+      "displayName": "Duck breast",
+      "category": "Meat & Poultry",
+      "container": null
+    },
+    {
+      "slug": "duck-fat",
+      "displayName": "Duck fat",
+      "category": "Oils & Fats",
+      "container": "jar"
+    },
+    {
+      "slug": "edamame",
+      "displayName": "Edamame",
+      "category": "Plant Proteins",
+      "container": null
+    },
+    {
+      "slug": "egg-chicken",
+      "displayName": "Egg, chicken",
+      "category": "Dairy & Eggs",
+      "container": null
+    },
+    {
+      "slug": "egg-duck",
+      "displayName": "Egg, duck",
+      "category": "Dairy & Eggs",
+      "container": null
+    },
+    {
+      "slug": "egg-white",
+      "displayName": "Egg white",
+      "category": "Dairy & Eggs",
+      "container": null
+    },
+    {
+      "slug": "egg-yolk",
+      "displayName": "Egg yolk",
+      "category": "Dairy & Eggs",
+      "container": null
+    },
+    {
+      "slug": "eggplant",
+      "displayName": "Eggplant",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "endive",
+      "displayName": "Endive",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "espresso-powder",
+      "displayName": "Instant espresso powder",
+      "category": "Baking",
+      "container": "jar"
+    },
+    {
+      "slug": "evaporated-milk",
+      "displayName": "Evaporated milk",
+      "category": "Baking",
+      "container": "can"
+    },
+    {
+      "slug": "farro",
+      "displayName": "Farro",
+      "category": "Grains, Rice & Pasta",
+      "container": "bag"
+    },
+    {
+      "slug": "fava-beans",
+      "displayName": "Fava beans",
+      "category": "Legumes & Pulses",
+      "container": "can"
+    },
+    {
+      "slug": "fennel",
+      "displayName": "Fennel",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "fennel-seed",
+      "displayName": "Fennel seed",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "fenugreek",
+      "displayName": "Fenugreek",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "fig",
+      "displayName": "Fig",
+      "category": "Fruits",
+      "container": null
+    },
+    {
+      "slug": "fish-sauce",
+      "displayName": "Fish sauce",
+      "category": "Condiments & Sauces",
+      "container": "bottle"
+    },
+    {
+      "slug": "five-spice",
+      "displayName": "Five spice",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "flaxseed",
+      "displayName": "Flaxseed",
+      "category": "Nuts & Seeds",
+      "container": "jar"
+    },
+    {
+      "slug": "flour-all-purpose",
+      "displayName": "All-purpose flour",
+      "category": "Baking",
+      "container": "bag"
+    },
+    {
+      "slug": "flour-almond",
+      "displayName": "Almond flour",
+      "category": "Baking",
+      "container": "bag"
+    },
+    {
+      "slug": "flour-bread",
+      "displayName": "Bread flour",
+      "category": "Baking",
+      "container": "bag"
+    },
+    {
+      "slug": "flour-cake",
+      "displayName": "Cake flour",
+      "category": "Baking",
+      "container": "bag"
+    },
+    {
+      "slug": "flour-coconut",
+      "displayName": "Coconut flour",
+      "category": "Baking",
+      "container": "bag"
+    },
+    {
+      "slug": "flour-rye",
+      "displayName": "Rye flour",
+      "category": "Baking",
+      "container": "bag"
+    },
+    {
+      "slug": "flour-whole-wheat",
+      "displayName": "Whole wheat flour",
+      "category": "Baking",
+      "container": "bag"
+    },
+    {
+      "slug": "freekeh",
+      "displayName": "Freekeh",
+      "category": "Grains, Rice & Pasta",
+      "container": "bag"
+    },
+    {
+      "slug": "galangal",
+      "displayName": "Galangal",
+      "category": "Alliums & Aromatics",
+      "container": null
+    },
+    {
+      "slug": "garam-masala",
+      "displayName": "Garam masala",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "garlic",
+      "displayName": "Garlic",
+      "category": "Alliums & Aromatics",
+      "container": null
+    },
+    {
+      "slug": "garlic-powder",
+      "displayName": "Garlic powder",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "gelatin",
+      "displayName": "Gelatin",
+      "category": "Baking",
+      "container": "box"
+    },
+    {
+      "slug": "ghee",
+      "displayName": "Ghee",
+      "category": "Dairy & Eggs",
+      "container": "jar"
+    },
+    {
+      "slug": "ginger",
+      "displayName": "Ginger",
+      "category": "Alliums & Aromatics",
+      "container": null
+    },
+    {
+      "slug": "ginger-ground",
+      "displayName": "Ginger, ground",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "gochugaru",
+      "displayName": "Gochugaru",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "gochujang",
+      "displayName": "Gochujang",
+      "category": "Condiments & Sauces",
+      "container": "tub"
+    },
+    {
+      "slug": "grape-green",
+      "displayName": "Grape, green",
+      "category": "Fruits",
+      "container": null
+    },
+    {
+      "slug": "grape-red",
+      "displayName": "Grape, red",
+      "category": "Fruits",
+      "container": null
+    },
+    {
+      "slug": "grapefruit",
+      "displayName": "Grapefruit",
+      "category": "Fruits",
+      "container": null
+    },
+    {
+      "slug": "grapeseed-oil",
+      "displayName": "Grapeseed oil",
+      "category": "Oils & Fats",
+      "container": "bottle"
+    },
+    {
+      "slug": "green-beans",
+      "displayName": "Green beans",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "green-chiles",
+      "displayName": "Green chiles",
+      "category": "Canned & Jarred",
+      "container": "can"
+    },
+    {
+      "slug": "guava",
+      "displayName": "Guava",
+      "category": "Fruits",
+      "container": null
+    },
+    {
+      "slug": "halibut",
+      "displayName": "Halibut",
+      "category": "Seafood",
+      "container": null
+    },
+    {
+      "slug": "ham",
+      "displayName": "Ham",
+      "category": "Meat & Poultry",
+      "container": null
+    },
+    {
+      "slug": "harissa",
+      "displayName": "Harissa",
+      "category": "Condiments & Sauces",
+      "container": "jar"
+    },
+    {
+      "slug": "hazelnut",
+      "displayName": "Hazelnut",
+      "category": "Nuts & Seeds",
+      "container": null
+    },
+    {
+      "slug": "hearts-of-palm",
+      "displayName": "Hearts of palm",
+      "category": "Canned & Jarred",
+      "container": "can"
+    },
+    {
+      "slug": "heavy-cream",
+      "displayName": "Heavy cream",
+      "category": "Dairy & Eggs",
+      "container": "bottle"
+    },
+    {
+      "slug": "hemp-seeds",
+      "displayName": "Hemp seeds",
+      "category": "Nuts & Seeds",
+      "container": "jar"
+    },
+    {
+      "slug": "herbes-de-provence",
+      "displayName": "Herbes de Provence",
+      "category": "Dried Herbs",
+      "container": "jar"
+    },
+    {
+      "slug": "hoisin-sauce",
+      "displayName": "Hoisin sauce",
+      "category": "Condiments & Sauces",
+      "container": "jar"
+    },
+    {
+      "slug": "honey",
+      "displayName": "Honey",
+      "category": "Sweeteners",
+      "container": "jar"
+    },
+    {
+      "slug": "honey-mustard",
+      "displayName": "Honey mustard",
+      "category": "Condiments & Sauces",
+      "container": "bottle"
+    },
+    {
+      "slug": "horseradish",
+      "displayName": "Horseradish",
+      "category": "Alliums & Aromatics",
+      "container": null
+    },
+    {
+      "slug": "horseradish-prepared",
+      "displayName": "Horseradish, prepared",
+      "category": "Condiments & Sauces",
+      "container": "jar"
+    },
+    {
+      "slug": "hot-sauce",
+      "displayName": "Hot sauce",
+      "category": "Condiments & Sauces",
+      "container": "bottle"
+    },
+    {
+      "slug": "italian-seasoning",
+      "displayName": "Italian seasoning",
+      "category": "Dried Herbs",
+      "container": "jar"
+    },
+    {
+      "slug": "jaggery",
+      "displayName": "Jaggery",
+      "category": "Sweeteners",
+      "container": "bag"
+    },
+    {
+      "slug": "jalapeno",
+      "displayName": "Jalapeno",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "juniper-berries",
+      "displayName": "Juniper berries",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "kale",
+      "displayName": "Kale",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "ketchup",
+      "displayName": "Ketchup",
+      "category": "Condiments & Sauces",
+      "container": "bottle"
+    },
+    {
+      "slug": "kewpie-mayo",
+      "displayName": "Kewpie mayo",
+      "category": "Condiments & Sauces",
+      "container": "bottle"
+    },
+    {
+      "slug": "kidney-beans",
+      "displayName": "Kidney beans",
+      "category": "Legumes & Pulses",
+      "container": "can"
+    },
+    {
+      "slug": "kimchi",
+      "displayName": "Kimchi",
+      "category": "Condiments & Sauces",
+      "container": "jar"
+    },
+    {
+      "slug": "kiwi",
+      "displayName": "Kiwi",
+      "category": "Fruits",
+      "container": null
+    },
+    {
+      "slug": "kohlrabi",
+      "displayName": "Kohlrabi",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "kombu",
+      "displayName": "Kombu",
+      "category": "Stocks & Bases",
+      "container": "bag"
+    },
+    {
+      "slug": "lamb-chop",
+      "displayName": "Lamb chop",
+      "category": "Meat & Poultry",
+      "container": null
+    },
+    {
+      "slug": "lamb-ground",
+      "displayName": "Lamb, ground",
+      "category": "Meat & Poultry",
+      "container": null
+    },
+    {
+      "slug": "lard",
+      "displayName": "Lard",
+      "category": "Oils & Fats",
+      "container": "tub"
+    },
+    {
+      "slug": "leek",
+      "displayName": "Leek",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "lemon",
+      "displayName": "Lemon",
+      "category": "Fruits",
+      "container": null
+    },
+    {
+      "slug": "lemongrass",
+      "displayName": "Lemongrass",
+      "category": "Fresh Herbs",
+      "container": null
+    },
+    {
+      "slug": "lentils-brown",
+      "displayName": "Lentils, brown",
+      "category": "Legumes & Pulses",
+      "container": "bag"
+    },
+    {
+      "slug": "lentils-green",
+      "displayName": "Lentils, green",
+      "category": "Legumes & Pulses",
+      "container": "bag"
+    },
+    {
+      "slug": "lentils-red",
+      "displayName": "Lentils, red",
+      "category": "Legumes & Pulses",
+      "container": "bag"
+    },
+    {
+      "slug": "lettuce-iceberg",
+      "displayName": "Lettuce, iceberg",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "lettuce-romaine",
+      "displayName": "Lettuce, romaine",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "lima-beans",
+      "displayName": "Lima beans",
+      "category": "Legumes & Pulses",
+      "container": "can"
+    },
+    {
+      "slug": "lime",
+      "displayName": "Lime",
+      "category": "Fruits",
+      "container": null
+    },
+    {
+      "slug": "lobster",
+      "displayName": "Lobster",
+      "category": "Seafood",
+      "container": null
+    },
+    {
+      "slug": "lychee",
+      "displayName": "Lychee",
+      "category": "Fruits",
+      "container": null
+    },
+    {
+      "slug": "macadamia",
+      "displayName": "Macadamia",
+      "category": "Nuts & Seeds",
+      "container": null
+    },
+    {
+      "slug": "mace",
+      "displayName": "Mace",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "mackerel",
+      "displayName": "Mackerel",
+      "category": "Seafood",
+      "container": null
+    },
+    {
+      "slug": "mango",
+      "displayName": "Mango",
+      "category": "Fruits",
+      "container": null
+    },
+    {
+      "slug": "maple-syrup",
+      "displayName": "Maple syrup",
+      "category": "Sweeteners",
+      "container": "bottle"
+    },
+    {
+      "slug": "marjoram-dried",
+      "displayName": "Marjoram",
+      "category": "Dried Herbs",
+      "container": "jar"
+    },
+    {
+      "slug": "matcha-powder",
+      "displayName": "Matcha powder",
+      "category": "Baking",
+      "container": "jar"
+    },
+    {
+      "slug": "mayonnaise",
+      "displayName": "Mayonnaise",
+      "category": "Condiments & Sauces",
+      "container": "jar"
+    },
+    {
+      "slug": "milk-coconut",
+      "displayName": "Milk, coconut",
+      "category": "Dairy & Eggs",
+      "container": "can"
+    },
+    {
+      "slug": "milk-oat",
+      "displayName": "Milk, oat",
+      "category": "Dairy & Eggs",
+      "container": "box"
+    },
+    {
+      "slug": "milk-whole",
+      "displayName": "Milk, whole",
+      "category": "Dairy & Eggs",
+      "container": "bottle"
+    },
+    {
+      "slug": "millet",
+      "displayName": "Millet",
+      "category": "Grains, Rice & Pasta",
+      "container": "bag"
+    },
+    {
+      "slug": "mint-dried",
+      "displayName": "Mint, dried",
+      "category": "Dried Herbs",
+      "container": "jar"
+    },
+    {
+      "slug": "mint-fresh",
+      "displayName": "Mint",
+      "category": "Fresh Herbs",
+      "container": null
+    },
+    {
+      "slug": "mirin",
+      "displayName": "Mirin",
+      "category": "Cooking Liquids",
+      "container": "bottle"
+    },
+    {
+      "slug": "miso-red",
+      "displayName": "Miso, red",
+      "category": "Condiments & Sauces",
+      "container": "tub"
+    },
+    {
+      "slug": "miso-white",
+      "displayName": "Miso, white",
+      "category": "Condiments & Sauces",
+      "container": "tub"
+    },
+    {
+      "slug": "molasses",
+      "displayName": "Molasses",
+      "category": "Sweeteners",
+      "container": "bottle"
+    },
+    {
+      "slug": "mung-beans",
+      "displayName": "Mung beans",
+      "category": "Legumes & Pulses",
+      "container": "bag"
+    },
+    {
+      "slug": "mushroom-button",
+      "displayName": "Mushroom, button",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "mushroom-cremini",
+      "displayName": "Mushroom, cremini",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "mushroom-portobello",
+      "displayName": "Mushroom, portobello",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "mushroom-shiitake",
+      "displayName": "Mushroom, shiitake",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "mussels",
+      "displayName": "Mussels",
+      "category": "Seafood",
+      "container": null
+    },
+    {
+      "slug": "mustard-dijon",
+      "displayName": "Mustard, dijon",
+      "category": "Condiments & Sauces",
+      "container": "jar"
+    },
+    {
+      "slug": "mustard-seed",
+      "displayName": "Mustard seed",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "mustard-whole-grain",
+      "displayName": "Mustard, whole grain",
+      "category": "Condiments & Sauces",
+      "container": "jar"
+    },
+    {
+      "slug": "mustard-yellow",
+      "displayName": "Mustard, yellow",
+      "category": "Condiments & Sauces",
+      "container": "bottle"
+    },
+    {
+      "slug": "naan",
+      "displayName": "Naan",
+      "category": "Bread & Baked",
+      "container": null
+    },
+    {
+      "slug": "navy-beans",
+      "displayName": "Navy beans",
+      "category": "Legumes & Pulses",
+      "container": "can"
+    },
+    {
+      "slug": "nectarine",
+      "displayName": "Nectarine",
+      "category": "Fruits",
+      "container": null
+    },
+    {
+      "slug": "nigella-seeds",
+      "displayName": "Nigella seeds",
+      "category": "Nuts & Seeds",
+      "container": "jar"
+    },
+    {
+      "slug": "noodles-egg",
+      "displayName": "Noodles, egg",
+      "category": "Grains, Rice & Pasta",
+      "container": null
+    },
+    {
+      "slug": "noodles-ramen",
+      "displayName": "Noodles, ramen",
+      "category": "Grains, Rice & Pasta",
+      "container": null
+    },
+    {
+      "slug": "noodles-rice",
+      "displayName": "Noodles, rice",
+      "category": "Grains, Rice & Pasta",
+      "container": null
+    },
+    {
+      "slug": "noodles-soba",
+      "displayName": "Noodles, soba",
+      "category": "Grains, Rice & Pasta",
+      "container": null
+    },
+    {
+      "slug": "noodles-udon",
+      "displayName": "Noodles, udon",
+      "category": "Grains, Rice & Pasta",
+      "container": null
+    },
+    {
+      "slug": "nutmeg",
+      "displayName": "Nutmeg",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "nutritional-yeast",
+      "displayName": "Nutritional yeast",
+      "category": "Plant Proteins",
+      "container": "jar"
+    },
+    {
+      "slug": "oats-rolled",
+      "displayName": "Oats, rolled",
+      "category": "Grains, Rice & Pasta",
+      "container": "bag"
+    },
+    {
+      "slug": "oats-steel-cut",
+      "displayName": "Oats, steel-cut",
+      "category": "Grains, Rice & Pasta",
+      "container": "bag"
+    },
+    {
+      "slug": "octopus",
+      "displayName": "Octopus",
+      "category": "Seafood",
+      "container": null
+    },
+    {
+      "slug": "okra",
+      "displayName": "Okra",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "olive-oil-evoo",
+      "displayName": "Olive oil, extra virgin",
+      "category": "Oils & Fats",
+      "container": "bottle"
+    },
+    {
+      "slug": "olive-oil-light",
+      "displayName": "Olive oil, light",
+      "category": "Oils & Fats",
+      "container": "bottle"
+    },
+    {
+      "slug": "olives-green",
+      "displayName": "Olives, green",
+      "category": "Canned & Jarred",
+      "container": "jar"
+    },
+    {
+      "slug": "olives-kalamata",
+      "displayName": "Olives, kalamata",
+      "category": "Canned & Jarred",
+      "container": "jar"
+    },
+    {
+      "slug": "onion-powder",
+      "displayName": "Onion powder",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "onion-red",
+      "displayName": "Onion, red",
+      "category": "Alliums & Aromatics",
+      "container": null
+    },
+    {
+      "slug": "onion-white",
+      "displayName": "Onion, white",
+      "category": "Alliums & Aromatics",
+      "container": null
+    },
+    {
+      "slug": "onion-yellow",
+      "displayName": "Onion, yellow",
+      "category": "Alliums & Aromatics",
+      "container": null
+    },
+    {
+      "slug": "orange",
+      "displayName": "Orange",
+      "category": "Fruits",
+      "container": null
+    },
+    {
+      "slug": "oregano-dried",
+      "displayName": "Oregano, dried",
+      "category": "Dried Herbs",
+      "container": "jar"
+    },
+    {
+      "slug": "oregano-fresh",
+      "displayName": "Oregano",
+      "category": "Fresh Herbs",
+      "container": null
+    },
+    {
+      "slug": "oyster-sauce",
+      "displayName": "Oyster sauce",
+      "category": "Condiments & Sauces",
+      "container": "bottle"
+    },
+    {
+      "slug": "oysters",
+      "displayName": "Oysters",
+      "category": "Seafood",
+      "container": null
+    },
+    {
+      "slug": "pancetta",
+      "displayName": "Pancetta",
+      "category": "Meat & Poultry",
+      "container": null
+    },
+    {
+      "slug": "panko",
+      "displayName": "Panko",
+      "category": "Bread & Baked",
+      "container": "box"
+    },
+    {
+      "slug": "papaya",
+      "displayName": "Papaya",
+      "category": "Fruits",
+      "container": null
+    },
+    {
+      "slug": "paprika-smoked",
+      "displayName": "Paprika, smoked",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "paprika-sweet",
+      "displayName": "Paprika, sweet",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "parsley-dried",
+      "displayName": "Parsley, dried",
+      "category": "Dried Herbs",
+      "container": "jar"
+    },
+    {
+      "slug": "parsley-flat",
+      "displayName": "Parsley, flat-leaf",
+      "category": "Fresh Herbs",
+      "container": null
+    },
+    {
+      "slug": "parsnip",
+      "displayName": "Parsnip",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "passion-fruit",
+      "displayName": "Passion fruit",
+      "category": "Fruits",
+      "container": null
+    },
+    {
+      "slug": "pasta-farfalle",
+      "displayName": "Pasta, farfalle",
+      "category": "Grains, Rice & Pasta",
+      "container": null
+    },
+    {
+      "slug": "pasta-fettuccine",
+      "displayName": "Pasta, fettuccine",
+      "category": "Grains, Rice & Pasta",
+      "container": null
+    },
+    {
+      "slug": "pasta-fusilli",
+      "displayName": "Pasta, fusilli",
+      "category": "Grains, Rice & Pasta",
+      "container": null
+    },
+    {
+      "slug": "pasta-lasagna",
+      "displayName": "Pasta, lasagna",
+      "category": "Grains, Rice & Pasta",
+      "container": null
+    },
+    {
+      "slug": "pasta-macaroni",
+      "displayName": "Pasta, macaroni",
+      "category": "Grains, Rice & Pasta",
+      "container": null
+    },
+    {
+      "slug": "pasta-orzo",
+      "displayName": "Pasta, orzo",
+      "category": "Grains, Rice & Pasta",
+      "container": null
+    },
+    {
+      "slug": "pasta-penne",
+      "displayName": "Pasta, penne",
+      "category": "Grains, Rice & Pasta",
+      "container": null
+    },
+    {
+      "slug": "pasta-rigatoni",
+      "displayName": "Pasta, rigatoni",
+      "category": "Grains, Rice & Pasta",
+      "container": null
+    },
+    {
+      "slug": "pasta-spaghetti",
+      "displayName": "Pasta, spaghetti",
+      "category": "Grains, Rice & Pasta",
+      "container": null
+    },
+    {
+      "slug": "peach",
+      "displayName": "Peach",
+      "category": "Fruits",
+      "container": null
+    },
+    {
+      "slug": "peanut",
+      "displayName": "Peanut",
+      "category": "Nuts & Seeds",
+      "container": null
+    },
+    {
+      "slug": "peanut-oil",
+      "displayName": "Peanut oil",
+      "category": "Oils & Fats",
+      "container": "bottle"
+    },
+    {
+      "slug": "pear",
+      "displayName": "Pear",
+      "category": "Fruits",
+      "container": null
+    },
+    {
+      "slug": "peas",
+      "displayName": "Peas",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "pecan",
+      "displayName": "Pecan",
+      "category": "Nuts & Seeds",
+      "container": null
+    },
+    {
+      "slug": "peppercorn-pink",
+      "displayName": "Peppercorn, pink",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "peppercorn-sichuan",
+      "displayName": "Peppercorn, Sichuan",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "persimmon",
+      "displayName": "Persimmon",
+      "category": "Fruits",
+      "container": null
+    },
+    {
+      "slug": "pesto",
+      "displayName": "Pesto",
+      "category": "Condiments & Sauces",
+      "container": "jar"
+    },
+    {
+      "slug": "pickles",
+      "displayName": "Pickles",
+      "category": "Condiments & Sauces",
+      "container": "jar"
+    },
+    {
+      "slug": "pine-nuts",
+      "displayName": "Pine nuts",
+      "category": "Nuts & Seeds",
+      "container": null
+    },
+    {
+      "slug": "pineapple",
+      "displayName": "Pineapple",
+      "category": "Fruits",
+      "container": null
+    },
+    {
+      "slug": "pinto-beans",
+      "displayName": "Pinto beans",
+      "category": "Legumes & Pulses",
+      "container": "can"
+    },
+    {
+      "slug": "pistachio",
+      "displayName": "Pistachio",
+      "category": "Nuts & Seeds",
+      "container": null
+    },
+    {
+      "slug": "pita",
+      "displayName": "Pita",
+      "category": "Bread & Baked",
+      "container": null
+    },
+    {
+      "slug": "plantain",
+      "displayName": "Plantain",
+      "category": "Fruits",
+      "container": null
+    },
+    {
+      "slug": "plum",
+      "displayName": "Plum",
+      "category": "Fruits",
+      "container": null
+    },
+    {
+      "slug": "polenta",
+      "displayName": "Polenta",
+      "category": "Grains, Rice & Pasta",
+      "container": "bag"
+    },
+    {
+      "slug": "pomegranate",
+      "displayName": "Pomegranate",
+      "category": "Fruits",
+      "container": null
+    },
+    {
+      "slug": "ponzu",
+      "displayName": "Ponzu",
+      "category": "Condiments & Sauces",
+      "container": "bottle"
+    },
+    {
+      "slug": "poppy-seeds",
+      "displayName": "Poppy seeds",
+      "category": "Nuts & Seeds",
+      "container": "jar"
+    },
+    {
+      "slug": "pork-belly",
+      "displayName": "Pork belly",
+      "category": "Meat & Poultry",
+      "container": null
+    },
+    {
+      "slug": "pork-chop",
+      "displayName": "Pork chop",
+      "category": "Meat & Poultry",
+      "container": null
+    },
+    {
+      "slug": "pork-ground",
+      "displayName": "Pork, ground",
+      "category": "Meat & Poultry",
+      "container": null
+    },
+    {
+      "slug": "pork-shoulder",
+      "displayName": "Pork shoulder",
+      "category": "Meat & Poultry",
+      "container": null
+    },
+    {
+      "slug": "potato-russet",
+      "displayName": "Potato, russet",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "potato-yukon",
+      "displayName": "Potato, yukon",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "prosciutto",
+      "displayName": "Prosciutto",
+      "category": "Meat & Poultry",
+      "container": null
+    },
+    {
+      "slug": "pumpkin",
+      "displayName": "Pumpkin",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "pumpkin-puree",
+      "displayName": "Pumpkin puree",
+      "category": "Canned & Jarred",
+      "container": "can"
+    },
+    {
+      "slug": "pumpkin-seeds",
+      "displayName": "Pumpkin seeds",
+      "category": "Nuts & Seeds",
+      "container": null
+    },
+    {
+      "slug": "quinoa",
+      "displayName": "Quinoa",
+      "category": "Grains, Rice & Pasta",
+      "container": "bag"
+    },
+    {
+      "slug": "radish",
+      "displayName": "Radish",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "raisin",
+      "displayName": "Raisin",
+      "category": "Fruits",
+      "container": null
+    },
+    {
+      "slug": "ras-el-hanout",
+      "displayName": "Ras el hanout",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "raspberry",
+      "displayName": "Raspberry",
+      "category": "Fruits",
+      "container": null
+    },
+    {
+      "slug": "relish",
+      "displayName": "Relish",
+      "category": "Condiments & Sauces",
+      "container": "jar"
+    },
+    {
+      "slug": "rice-arborio",
+      "displayName": "Rice, arborio",
+      "category": "Grains, Rice & Pasta",
+      "container": "bag"
+    },
+    {
+      "slug": "rice-basmati",
+      "displayName": "Rice, basmati",
+      "category": "Grains, Rice & Pasta",
+      "container": "bag"
+    },
+    {
+      "slug": "rice-brown",
+      "displayName": "Rice, brown",
+      "category": "Grains, Rice & Pasta",
+      "container": "bag"
+    },
+    {
+      "slug": "rice-jasmine",
+      "displayName": "Rice, jasmine",
+      "category": "Grains, Rice & Pasta",
+      "container": "bag"
+    },
+    {
+      "slug": "rice-short-grain",
+      "displayName": "Rice, short-grain",
+      "category": "Grains, Rice & Pasta",
+      "container": "bag"
+    },
+    {
+      "slug": "rice-wild",
+      "displayName": "Rice, wild",
+      "category": "Grains, Rice & Pasta",
+      "container": "bag"
+    },
+    {
+      "slug": "rice-wine",
+      "displayName": "Rice wine",
+      "category": "Cooking Liquids",
+      "container": "bottle"
+    },
+    {
+      "slug": "roasted-red-peppers",
+      "displayName": "Roasted red peppers",
+      "category": "Canned & Jarred",
+      "container": "jar"
+    },
+    {
+      "slug": "rosemary-dried",
+      "displayName": "Rosemary, dried",
+      "category": "Dried Herbs",
+      "container": "jar"
+    },
+    {
+      "slug": "rosemary-fresh",
+      "displayName": "Rosemary",
+      "category": "Fresh Herbs",
+      "container": null
+    },
+    {
+      "slug": "saffron",
+      "displayName": "Saffron",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "sage-dried",
+      "displayName": "Sage, dried",
+      "category": "Dried Herbs",
+      "container": "jar"
+    },
+    {
+      "slug": "sage-fresh",
+      "displayName": "Sage",
+      "category": "Fresh Herbs",
+      "container": null
+    },
+    {
+      "slug": "sake",
+      "displayName": "Sake",
+      "category": "Cooking Liquids",
+      "container": "bottle"
+    },
+    {
+      "slug": "salmon-fillet",
+      "displayName": "Salmon fillet",
+      "category": "Seafood",
+      "container": null
+    },
+    {
+      "slug": "salsa",
+      "displayName": "Salsa",
+      "category": "Condiments & Sauces",
+      "container": "jar"
+    },
+    {
+      "slug": "salt-flaky",
+      "displayName": "Salt, flaky",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "salt-kosher",
+      "displayName": "Salt, kosher",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "salt-table",
+      "displayName": "Salt, table",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "sambal-oelek",
+      "displayName": "Sambal oelek",
+      "category": "Condiments & Sauces",
+      "container": "jar"
+    },
+    {
+      "slug": "sardines",
+      "displayName": "Sardines",
+      "category": "Seafood",
+      "container": null
+    },
+    {
+      "slug": "sauerkraut",
+      "displayName": "Sauerkraut",
+      "category": "Condiments & Sauces",
+      "container": "jar"
+    },
+    {
+      "slug": "sausage-italian",
+      "displayName": "Sausage, italian",
+      "category": "Meat & Poultry",
+      "container": null
+    },
+    {
+      "slug": "scallion",
+      "displayName": "Scallion",
+      "category": "Alliums & Aromatics",
+      "container": null
+    },
+    {
+      "slug": "scallops",
+      "displayName": "Scallops",
+      "category": "Seafood",
+      "container": null
+    },
+    {
+      "slug": "schmaltz",
+      "displayName": "Schmaltz",
+      "category": "Oils & Fats",
+      "container": "jar"
+    },
+    {
+      "slug": "sea-bass",
+      "displayName": "Sea bass",
+      "category": "Seafood",
+      "container": null
+    },
+    {
+      "slug": "seitan",
+      "displayName": "Seitan",
+      "category": "Plant Proteins",
+      "container": null
+    },
+    {
+      "slug": "semolina",
+      "displayName": "Semolina",
+      "category": "Baking",
+      "container": "bag"
+    },
+    {
+      "slug": "serrano-pepper",
+      "displayName": "Serrano pepper",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "sesame-oil-toasted",
+      "displayName": "Sesame oil, toasted",
+      "category": "Oils & Fats",
+      "container": "bottle"
+    },
+    {
+      "slug": "sesame-seeds-black",
+      "displayName": "Sesame seeds, black",
+      "category": "Nuts & Seeds",
+      "container": "jar"
+    },
+    {
+      "slug": "sesame-seeds-white",
+      "displayName": "Sesame seeds, white",
+      "category": "Nuts & Seeds",
+      "container": "jar"
+    },
+    {
+      "slug": "shallot",
+      "displayName": "Shallot",
+      "category": "Alliums & Aromatics",
+      "container": null
+    },
+    {
+      "slug": "sherry",
+      "displayName": "Sherry",
+      "category": "Cooking Liquids",
+      "container": "bottle"
+    },
+    {
+      "slug": "shiso",
+      "displayName": "Shiso",
+      "category": "Fresh Herbs",
+      "container": null
+    },
+    {
+      "slug": "shortening",
+      "displayName": "Shortening",
+      "category": "Oils & Fats",
+      "container": "tub"
+    },
+    {
+      "slug": "shrimp",
+      "displayName": "Shrimp",
+      "category": "Seafood",
+      "container": null
+    },
+    {
+      "slug": "snap-peas",
+      "displayName": "Snap peas",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "snapper",
+      "displayName": "Snapper",
+      "category": "Seafood",
+      "container": null
+    },
+    {
+      "slug": "sour-cream",
+      "displayName": "Sour cream",
+      "category": "Dairy & Eggs",
+      "container": "tub"
+    },
+    {
+      "slug": "soy-curls",
+      "displayName": "Soy curls",
+      "category": "Plant Proteins",
+      "container": "bag"
+    },
+    {
+      "slug": "soy-sauce",
+      "displayName": "Soy sauce",
+      "category": "Condiments & Sauces",
+      "container": "bottle"
+    },
+    {
+      "slug": "spinach",
+      "displayName": "Spinach",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "split-peas",
+      "displayName": "Split peas",
+      "category": "Legumes & Pulses",
+      "container": "bag"
+    },
+    {
+      "slug": "squid",
+      "displayName": "Squid",
+      "category": "Seafood",
+      "container": null
+    },
+    {
+      "slug": "sriracha",
+      "displayName": "Sriracha",
+      "category": "Condiments & Sauces",
+      "container": "bottle"
+    },
+    {
+      "slug": "star-anise",
+      "displayName": "Star anise",
+      "category": "Spices",
+      "container": null
+    },
+    {
+      "slug": "stock-beef",
+      "displayName": "Beef stock",
+      "category": "Stocks & Bases",
+      "container": "box"
+    },
+    {
+      "slug": "stock-chicken",
+      "displayName": "Chicken stock",
+      "category": "Stocks & Bases",
+      "container": "box"
+    },
+    {
+      "slug": "stock-fish",
+      "displayName": "Fish stock",
+      "category": "Stocks & Bases",
+      "container": "box"
+    },
+    {
+      "slug": "stock-vegetable",
+      "displayName": "Vegetable stock",
+      "category": "Stocks & Bases",
+      "container": "box"
+    },
+    {
+      "slug": "strawberry",
+      "displayName": "Strawberry",
+      "category": "Fruits",
+      "container": null
+    },
+    {
+      "slug": "sugar-brown-dark",
+      "displayName": "Brown sugar, dark",
+      "category": "Sweeteners",
+      "container": "bag"
+    },
+    {
+      "slug": "sugar-brown-light",
+      "displayName": "Brown sugar, light",
+      "category": "Sweeteners",
+      "container": "bag"
+    },
+    {
+      "slug": "sugar-coconut",
+      "displayName": "Coconut sugar",
+      "category": "Sweeteners",
+      "container": "bag"
+    },
+    {
+      "slug": "sugar-granulated",
+      "displayName": "Granulated sugar",
+      "category": "Sweeteners",
+      "container": "bag"
+    },
+    {
+      "slug": "sugar-powdered",
+      "displayName": "Powdered sugar",
+      "category": "Sweeteners",
+      "container": "bag"
+    },
+    {
+      "slug": "sugar-turbinado",
+      "displayName": "Turbinado sugar",
+      "category": "Sweeteners",
+      "container": "bag"
+    },
+    {
+      "slug": "sumac",
+      "displayName": "Sumac",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "sun-dried-tomatoes",
+      "displayName": "Sun-dried tomatoes",
+      "category": "Canned & Jarred",
+      "container": "jar"
+    },
+    {
+      "slug": "sunflower-oil",
+      "displayName": "Sunflower oil",
+      "category": "Oils & Fats",
+      "container": "bottle"
+    },
+    {
+      "slug": "sunflower-seeds",
+      "displayName": "Sunflower seeds",
+      "category": "Nuts & Seeds",
+      "container": null
+    },
+    {
+      "slug": "sweet-chili-sauce",
+      "displayName": "Sweet chili sauce",
+      "category": "Condiments & Sauces",
+      "container": "bottle"
+    },
+    {
+      "slug": "sweet-potato",
+      "displayName": "Sweet potato",
+      "category": "Vegetables",
+      "container": null
+    },
+    {
+      "slug": "tahini",
+      "displayName": "Tahini",
+      "category": "Condiments & Sauces",
+      "container": "jar"
+    },
+    {
+      "slug": "tamari",
+      "displayName": "Tamari",
+      "category": "Condiments & Sauces",
+      "container": "bottle"
+    },
+    {
+      "slug": "tapioca-starch",
+      "displayName": "Tapioca starch",
+      "category": "Baking",
+      "container": "bag"
+    },
+    {
+      "slug": "tarragon-dried",
+      "displayName": "Tarragon, dried",
+      "category": "Dried Herbs",
+      "container": "jar"
+    },
+    {
+      "slug": "tarragon-fresh",
+      "displayName": "Tarragon",
+      "category": "Fresh Herbs",
+      "container": null
+    },
+    {
+      "slug": "tempeh",
+      "displayName": "Tempeh",
+      "category": "Plant Proteins",
+      "container": null
+    },
+    {
+      "slug": "thyme-dried",
+      "displayName": "Thyme, dried",
+      "category": "Dried Herbs",
+      "container": "jar"
+    },
+    {
+      "slug": "thyme-fresh",
+      "displayName": "Thyme",
+      "category": "Fresh Herbs",
+      "container": null
+    },
+    {
+      "slug": "tilapia",
+      "displayName": "Tilapia",
+      "category": "Seafood",
+      "container": null
+    },
+    {
+      "slug": "tofu-extra-firm",
+      "displayName": "Tofu, extra firm",
+      "category": "Plant Proteins",
+      "container": null
+    },
+    {
+      "slug": "tofu-firm",
+      "displayName": "Tofu, firm",
+      "category": "Plant Proteins",
+      "container": null
+    },
+    {
+      "slug": "tofu-silken",
+      "displayName": "Tofu, silken",
+      "category": "Plant Proteins",
+      "container": null
+    },
+    {
+      "slug": "tomato-paste",
+      "displayName": "Tomato paste",
+      "category": "Condiments & Sauces",
+      "container": "can"
+    },
+    {
+      "slug": "tomatoes-crushed",
+      "displayName": "Tomatoes, crushed",
+      "category": "Canned & Jarred",
+      "container": "can"
+    },
+    {
+      "slug": "tomatoes-diced",
+      "displayName": "Tomatoes, diced",
+      "category": "Canned & Jarred",
+      "container": "can"
+    },
+    {
+      "slug": "tomatoes-san-marzano",
+      "displayName": "Tomatoes, San Marzano",
+      "category": "Canned & Jarred",
+      "container": "can"
+    },
+    {
+      "slug": "toor-dal",
+      "displayName": "Toor dal",
+      "category": "Legumes & Pulses",
+      "container": "bag"
+    },
+    {
+      "slug": "tortilla-corn",
+      "displayName": "Tortilla, corn",
+      "category": "Bread & Baked",
+      "container": null
+    },
+    {
+      "slug": "tortilla-flour",
+      "displayName": "Tortilla, flour",
+      "category": "Bread & Baked",
+      "container": null
+    },
+    {
+      "slug": "trout",
+      "displayName": "Trout",
+      "category": "Seafood",
+      "container": null
+    },
+    {
+      "slug": "tuna-canned",
+      "displayName": "Tuna, canned",
+      "category": "Canned & Jarred",
+      "container": "can"
+    },
+    {
+      "slug": "tuna-steak",
+      "displayName": "Tuna steak",
+      "category": "Seafood",
+      "container": null
+    },
+    {
+      "slug": "turmeric-ground",
+      "displayName": "Turmeric, ground",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "turmeric-root",
+      "displayName": "Turmeric root",
+      "category": "Alliums & Aromatics",
+      "container": null
+    },
+    {
+      "slug": "tvp",
+      "displayName": "Textured vegetable protein",
+      "category": "Plant Proteins",
+      "container": "bag"
+    },
+    {
+      "slug": "urad-dal",
+      "displayName": "Urad dal",
+      "category": "Legumes & Pulses",
+      "container": "bag"
+    },
+    {
+      "slug": "vanilla-bean",
+      "displayName": "Vanilla bean",
+      "category": "Spices",
+      "container": null
+    },
+    {
+      "slug": "vanilla-extract",
+      "displayName": "Vanilla extract",
+      "category": "Baking",
+      "container": "bottle"
+    },
+    {
+      "slug": "vinegar-apple-cider",
+      "displayName": "Apple cider vinegar",
+      "category": "Vinegars",
+      "container": "bottle"
+    },
+    {
+      "slug": "vinegar-balsamic",
+      "displayName": "Balsamic vinegar",
+      "category": "Vinegars",
+      "container": "bottle"
+    },
+    {
+      "slug": "vinegar-black",
+      "displayName": "Black vinegar",
+      "category": "Vinegars",
+      "container": "bottle"
+    },
+    {
+      "slug": "vinegar-champagne",
+      "displayName": "Champagne vinegar",
+      "category": "Vinegars",
+      "container": "bottle"
+    },
+    {
+      "slug": "vinegar-malt",
+      "displayName": "Malt vinegar",
+      "category": "Vinegars",
+      "container": "bottle"
+    },
+    {
+      "slug": "vinegar-red-wine",
+      "displayName": "Red wine vinegar",
+      "category": "Vinegars",
+      "container": "bottle"
+    },
+    {
+      "slug": "vinegar-rice",
+      "displayName": "Rice vinegar",
+      "category": "Vinegars",
+      "container": "bottle"
+    },
+    {
+      "slug": "vinegar-sherry",
+      "displayName": "Sherry vinegar",
+      "category": "Vinegars",
+      "container": "bottle"
+    },
+    {
+      "slug": "vinegar-white",
+      "displayName": "Distilled white vinegar",
+      "category": "Vinegars",
+      "container": "bottle"
+    },
+    {
+      "slug": "vinegar-white-wine",
+      "displayName": "White wine vinegar",
+      "category": "Vinegars",
+      "container": "bottle"
+    },
+    {
+      "slug": "vital-wheat-gluten",
+      "displayName": "Vital wheat gluten",
+      "category": "Plant Proteins",
+      "container": "bag"
+    },
+    {
+      "slug": "walnut",
+      "displayName": "Walnut",
+      "category": "Nuts & Seeds",
+      "container": null
+    },
+    {
+      "slug": "walnut-oil",
+      "displayName": "Walnut oil",
+      "category": "Oils & Fats",
+      "container": "bottle"
+    },
+    {
+      "slug": "water-chestnuts",
+      "displayName": "Water chestnuts",
+      "category": "Canned & Jarred",
+      "container": "can"
+    },
+    {
+      "slug": "watermelon",
+      "displayName": "Watermelon",
+      "category": "Fruits",
+      "container": null
+    },
+    {
+      "slug": "wheat-berries",
+      "displayName": "Wheat berries",
+      "category": "Grains, Rice & Pasta",
+      "container": "bag"
+    },
+    {
+      "slug": "white-pepper",
+      "displayName": "White pepper",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "wine-red",
+      "displayName": "Red wine",
+      "category": "Cooking Liquids",
+      "container": "bottle"
+    },
+    {
+      "slug": "wine-white",
+      "displayName": "White wine",
+      "category": "Cooking Liquids",
+      "container": "bottle"
+    },
+    {
+      "slug": "worcestershire",
+      "displayName": "Worcestershire",
+      "category": "Condiments & Sauces",
+      "container": "bottle"
+    },
+    {
+      "slug": "xanthan-gum",
+      "displayName": "Xanthan gum",
+      "category": "Baking",
+      "container": "jar"
+    },
+    {
+      "slug": "xo-sauce",
+      "displayName": "XO sauce",
+      "category": "Condiments & Sauces",
+      "container": "jar"
+    },
+    {
+      "slug": "yeast-active-dry",
+      "displayName": "Yeast, active dry",
+      "category": "Baking",
+      "container": "jar"
+    },
+    {
+      "slug": "yogurt-greek",
+      "displayName": "Yogurt, greek",
+      "category": "Dairy & Eggs",
+      "container": "tub"
+    },
+    {
+      "slug": "zaatar",
+      "displayName": "Za'atar",
+      "category": "Spices",
+      "container": "jar"
+    },
+    {
+      "slug": "zucchini",
+      "displayName": "Zucchini",
+      "category": "Vegetables",
+      "container": null
+    }
+  ]
+}

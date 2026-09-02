@@ -310,7 +310,8 @@ struct RecipeDetailView: View {
         switch section {
         case .ingredients:
             IngredientList(
-                ingredients: displayedRecipe.orderedIngredients
+                ingredients: displayedRecipe.orderedIngredients,
+                showsIcons: true
             )
         case .method:
             MethodList(steps: displayedRecipe.orderedSteps)
