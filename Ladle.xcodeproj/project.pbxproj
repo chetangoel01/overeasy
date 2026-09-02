@@ -35,6 +35,8 @@
 		2AED269B9C6BFDDBB4DFE5B9 /* NotificationServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2027095EF76748A9CC4DE10F /* NotificationServiceTests.swift */; };
 		2EE7E5919A4DB4EC5D5205CA /* RemoteFailureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED6E479FC67096188CF3D983 /* RemoteFailureTests.swift */; };
 		30267813D7EFF356A6505425 /* IngredientIconCatalogue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D2BC62DCD9B6DCA4534D1F4 /* IngredientIconCatalogue.swift */; };
+		33629426F5BA656274D0914A /* ProfileSheetUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDFAAA84DD1A4CAE657E8869 /* ProfileSheetUITests.swift */; };
+		340B320117B3068AF76171CE /* NameStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A652BA975C67995F34462E7 /* NameStepView.swift */; };
 		38670B3279A15C8147795E43 /* LadleShare.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D975A502CE6CABFF17DE770D /* LadleShare.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		38677AB549840DF26397BE92 /* RemoteFailure.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EF08F8F0D0C043AE9DB28AB /* RemoteFailure.swift */; };
 		39BB9D3C3EC14FFDCE622491 /* DemoImportServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADCDE2C252635C3E9076C6DD /* DemoImportServiceTests.swift */; };
@@ -201,6 +203,7 @@
 		2460B2541E823AB098F4BAFA /* FullRecipeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullRecipeView.swift; sourceTree = "<group>"; };
 		27E622AAB3FB89F99BAD6CAE /* StoredRecipe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoredRecipe.swift; sourceTree = "<group>"; };
 		2A229BB67821612265D01BD7 /* GoogleSignInProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleSignInProvider.swift; sourceTree = "<group>"; };
+		2A652BA975C67995F34462E7 /* NameStepView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NameStepView.swift; sourceTree = "<group>"; };
 		2B65D84D7321ED2C89BEEBD9 /* IngredientIcons.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = IngredientIcons.xcassets; sourceTree = "<group>"; };
 		2D060807D3AFDD5F858FA2FD /* LadleTypography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LadleTypography.swift; sourceTree = "<group>"; };
 		2EF08F8F0D0C043AE9DB28AB /* RemoteFailure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteFailure.swift; sourceTree = "<group>"; };
@@ -287,6 +290,7 @@
 		CA416CDA508810231C30D8D5 /* LibraryFilterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryFilterTests.swift; sourceTree = "<group>"; };
 		CA9412596DCD6FFCA28EC55D /* NutritionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionView.swift; sourceTree = "<group>"; };
 		CB066027446B7B833B07673C /* IngredientIconResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngredientIconResolver.swift; sourceTree = "<group>"; };
+		CDFAAA84DD1A4CAE657E8869 /* ProfileSheetUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileSheetUITests.swift; sourceTree = "<group>"; };
 		D0370D3E55CB7D0FD1314AF8 /* OnboardingWalkthroughView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingWalkthroughView.swift; sourceTree = "<group>"; };
 		D170AF6E8F4C1086A15B0546 /* LibraryNavigationStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryNavigationStateTests.swift; sourceTree = "<group>"; };
 		D4507355A7CFAE19690B7D70 /* RemoteImportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteImportService.swift; sourceTree = "<group>"; };
@@ -442,6 +446,7 @@
 				480030F07BD940462128F4AE /* GuestLimitView.swift */,
 				595643DC966138C3BC7DA2FC /* InstallationIdentity.swift */,
 				FA758C400CD14A086E39D48D /* KeychainTokenStore.swift */,
+				2A652BA975C67995F34462E7 /* NameStepView.swift */,
 				D0370D3E55CB7D0FD1314AF8 /* OnboardingWalkthroughView.swift */,
 				F27EE9D08B4AD704ED77330A /* PrivacyDetailView.swift */,
 				F000720581D01DB27C9E2960 /* SignInOptionsView.swift */,
@@ -555,6 +560,7 @@
 			isa = PBXGroup;
 			children = (
 				DE78D9B90CFB707BA76115BA /* DiscoverInteractionUITests.swift */,
+				CDFAAA84DD1A4CAE657E8869 /* ProfileSheetUITests.swift */,
 				5AEC401E351C241A01EA933D /* RecipesFilterMenuUITests.swift */,
 				8A2AFD3E334A2FC149C2186A /* StateScenarioUITests.swift */,
 			);
@@ -839,6 +845,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				96E87A78BF3F631A16CE527B /* DiscoverInteractionUITests.swift in Sources */,
+				33629426F5BA656274D0914A /* ProfileSheetUITests.swift in Sources */,
 				00E91DC9A78A15221550401E /* RecipesFilterMenuUITests.swift in Sources */,
 				45201DD73B8C12A6374535FF /* StateScenarioUITests.swift in Sources */,
 			);
@@ -892,6 +899,7 @@
 				111AB9F91CF8DA219B560D2A /* LibraryView.swift in Sources */,
 				E5D62027E211EFC50B38F37C /* LibraryViewModel.swift in Sources */,
 				910528C2827351A23281CE62 /* MethodList.swift in Sources */,
+				340B320117B3068AF76171CE /* NameStepView.swift in Sources */,
 				60F294395D35AC79B907E3B0 /* NotificationService.swift in Sources */,
 				B7DF0B5B2E120DA67F5F747D /* NutritionNote.swift in Sources */,
 				ADFA32D4AFDD16210863F59F /* NutritionView.swift in Sources */,
