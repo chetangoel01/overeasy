@@ -52,9 +52,8 @@ struct AccountDeletionFailure: Equatable {
 /// inset, and circular icon badges. All of it re-implemented what `Form`
 /// already does, and none of it matched the platform.
 ///
-/// `FilterSheet` made the same move for the same reason. Notably it does not
-/// override the list background either: a grouped form on the system's own
-/// ground is what a settings screen looks like on iOS.
+/// Notably it does not override the list background either: a grouped form
+/// on the system's own ground is what a settings screen looks like on iOS.
 struct AccountSheet: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage(LadleAccentColor.preferenceKey)

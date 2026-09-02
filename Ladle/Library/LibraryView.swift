@@ -143,7 +143,6 @@ struct LibraryView: View {
     var onSignOut: @MainActor () async -> Void = {}
     var onDeleteAccount: @MainActor () async throws -> Void = {}
 
-    @State private var isFilterSheetPresented = false
     @State private var isAddSheetPresented = false
     @State private var navigation = LibraryNavigationState()
     @State private var isAccountPresented = false
@@ -163,9 +162,6 @@ struct LibraryView: View {
                     viewModel.load()
                 }
                 openNotificationRecipeIfNeeded()
-            }
-            .sheet(isPresented: $isFilterSheetPresented) {
-                FilterSheet(viewModel: viewModel)
             }
             .sheet(isPresented: $isAccountPresented) {
                 AccountSheet(
@@ -350,8 +346,7 @@ struct LibraryView: View {
             viewModel: viewModel,
             addRecipe: { presentAddRecipe() },
             openRecipe: openRecipe,
-            openCollection: openCollection,
-            presentFilters: { isFilterSheetPresented = true }
+            openCollection: openCollection
         )
     }
 

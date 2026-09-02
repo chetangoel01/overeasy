@@ -698,8 +698,11 @@ final class DesignTokenTests: XCTestCase {
 
         XCTAssertEqual(
             source.components(separatedBy: "Picker(").count - 1,
-            2,
-            "One picker per menu, and no third one"
+            3,
+            """
+            One picker each for sort and view, and one shared row builder \
+            for the five filter submenus
+            """
         )
         XCTAssertTrue(
             code.contains("\"Sort recipes\", selection: $viewModel.sort"),
@@ -715,14 +718,29 @@ final class DesignTokenTests: XCTestCase {
         )
         XCTAssertEqual(
             source.components(separatedBy: ".menuOrder(.fixed)").count - 1,
-            2,
-            "Both menus keep declaration order wherever they pop from"
+            3,
+            "All three menus keep declaration order wherever they pop from"
         )
 
-        // The accessibility contract the Recipes UI test drives.
+        // Filters is a menu of live bindings: no staged copy, no Apply.
+        XCTAssertTrue(
+            code.contains(
+                "Toggle(\"Favorites\", isOn: $viewModel.favoritesOnly)"
+            ),
+            "The favorites row writes the view model as it is tapped"
+        )
+        XCTAssertTrue(
+            code.contains("filterSubmenu(.time, selection:"),
+            "Each dimension is a submenu over the shared LibraryFilter source"
+        )
+
+        // The accessibility contract the Recipes UI tests drive.
         XCTAssertTrue(source.contains("accessibilityLabel(\"Sort recipes\")"))
         XCTAssertTrue(source.contains("accessibilityLabel(\"Recipe view\")"))
         XCTAssertTrue(source.contains("accessibilityValue(displayModeTitle)"))
+        XCTAssertTrue(
+            source.contains("accessibilityLabel(filterButtonTitle)")
+        )
     }
 
     /// Every row in either picker carries its own symbol, so the icon column
