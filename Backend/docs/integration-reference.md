@@ -181,6 +181,8 @@ Canonical recipe payloads are available in:
 - `Contracts/Fixtures/recipe-needs-review.json`
 - `Contracts/Fixtures/sync-page.json`
 - `Contracts/Fixtures/errors.json`
+- `Contracts/Fixtures/auth-tokens.json`
+- `Contracts/Fixtures/auth-profile.json`
 
 ## HTTP API
 
@@ -190,8 +192,11 @@ Canonical recipe payloads are available in:
 | --- | --- | --- | --- |
 | `POST /v1/auth/guest` | No | `201` | Create or resume a guest device and issue tokens |
 | `POST /v1/auth/apple` | Guest bearer | `200` | Verify Apple credentials and atomically merge the guest |
+| `POST /v1/auth/google` | Guest bearer | `200` | Verify a Google identity token and atomically merge the guest |
 | `POST /v1/auth/refresh` | No | `200` | Rotate a refresh token and issue a new access token |
+| `PATCH /v1/auth/profile` | Bearer | `200` | Set the cook's display name; blank clears it back to the provider's |
 | `DELETE /v1/auth/session` | Bearer | `204` | Revoke the current session |
+| `DELETE /v1/auth/account` | Bearer | `204` | Delete the account and everything it owns |
 | `POST /v1/imports` | Bearer | `202` | Admit and enqueue an import |
 | `GET /v1/imports/{jobID}` | Bearer | `200` | Poll an import owned by the current user |
 | `DELETE /v1/imports/{jobID}` | Bearer | `204` | Cancel an actively parsing import and release its reserved slot |
@@ -300,9 +305,24 @@ The response is:
   "refreshToken": "<rotating opaque token>",
   "userID": "00000000-0000-4000-8000-000000000001",
   "deviceID": "00000000-0000-4000-8000-000000000002",
-  "userKind": "guest"
+  "userKind": "guest",
+  "createdAt": "2026-07-24T12:00:00.000Z",
+  "displayName": null,
+  "avatarURL": null
 }
 ```
+
+The profile travels with the tokens rather than behind a `/me` call, so every
+refresh keeps it current. `displayName` and `avatarURL` are null until a
+provider supplies them or the cook edits the name; `createdAt` is when the
+account was created, is always present, and is server-owned — there is no
+request field for it, and `PATCH /v1/auth/profile` rejects one. The app reads
+it for the "cooking since August 2026" line on the Profile sheet.
+
+`PATCH /v1/auth/profile` takes `{"displayName": "Priya Raman"}` and answers
+with `userKind`, `displayName`, `avatarURL` and `createdAt` — the shape in
+`Contracts/Fixtures/auth-profile.json`. A blank or absent name clears the
+stored one back to whatever the provider supplied.
 
 Refresh:
 
