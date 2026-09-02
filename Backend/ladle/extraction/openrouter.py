@@ -149,7 +149,12 @@ class OpenRouterStructuredClient:
                 ) from error
             if response.status_code != 429 or attempt == 3:
                 break
-            self._sleep(_retry_after_seconds(response, default=2 ** (attempt + 1)))
+            self._sleep(
+                retry_after_seconds(
+                    response.headers.get("Retry-After"),
+                    default=2 ** (attempt + 1),
+                )
+            )
         if response.status_code >= 400:
             raise ExtractionUnavailable(
                 f"OpenRouter extraction failed with HTTP {response.status_code}"
@@ -206,9 +211,15 @@ def _cost_usd(value: object) -> Decimal | None:
     return parsed if parsed.is_finite() and parsed >= 0 else None
 
 
-def _retry_after_seconds(response: httpx.Response, *, default: int) -> float:
+def retry_after_seconds(header: str | None, *, default: int) -> float:
+    """The server's own Retry-After, bounded, falling back to `default`.
+
+    Takes the header value rather than the response: the time backfill meets
+    the same rate limiter through the Anthropic SDK, whose errors carry a
+    response object from a different httpx distribution entirely.
+    """
     try:
-        delay = Decimal(response.headers.get("Retry-After", str(default)))
+        delay = Decimal(header if header is not None else str(default))
     except InvalidOperation:
         return float(default)
     if not delay.is_finite() or delay < 0:

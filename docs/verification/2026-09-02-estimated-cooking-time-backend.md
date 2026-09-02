@@ -181,3 +181,87 @@ sudo /opt/ladle/app/Backend/deploy/vps/manage.sh backfill-times
 `push.sh` ships `manage.sh` with the revision, so the command exists on the
 VPS as soon as the deploy lands. The dry run costs one provider call per
 recipe (~22) and writes nothing; read the table before the real run.
+
+## Addendum, 2026-09-02 — retrying and pacing the backfill
+
+### Production symptom
+
+The first production dry run (`manage.sh backfill-times --dry-run`, deployed at
+`f7b0227`, live OpenRouter) estimated the first 13 recipes and then reported
+`skipped: no estimate returned` for all 9 remaining — Madras Curry, the
+Shakshuka, both Lasagna Soups and the Vegan Pizza among them, every one of
+which had estimated fine in the local run the day before.
+
+That pattern — a clean prefix, then a uniform tail — is a rate limiter, not
+nine models declining at once. `OpenRouterTimeEstimateClient.estimate`
+returned `None` on any `httpx.HTTPError` and on any status ≥ 400, with no
+retry and nothing recorded about which it was, so a 429 after a burst of
+22 back-to-back requests was indistinguishable from a refusal. The extraction
+client had already met and solved this (`extraction/openrouter.py`); the
+backfill client had not inherited it.
+
+### Fix
+
+- **Retry.** Both estimate clients now make up to 3 attempts, retrying 429,
+  5xx and transient `httpx.HTTPError`, honouring the server's `Retry-After`
+  and otherwise backing off exponentially (2s, 4s). Other 4xx are not
+  retried — a request this provider rejects outright will be rejected the
+  next two times too. `_retry_after_seconds` was promoted to
+  `retry_after_seconds` in `extraction/openrouter.py` and is now shared, so
+  the header parsing and its 60-second bound have one implementation. It
+  takes the header value rather than a response object: the Anthropic SDK
+  carries its response on the exception, and that response comes from a
+  different httpx distribution (`httpx2`) than the one this project uses.
+  The SDK's own `max_retries` is set to 0 in `build_service`, so the loop
+  here is the single retry policy rather than one stacked on another —
+  otherwise a persistent 429 would cost nine requests, not three.
+- **Pacing.** `TimeBackfillService` waits one second between recipes (not
+  before the first). A 22-row run costs an extra 21 seconds and stops
+  arriving as a burst.
+- **Reasons.** `estimate` returns an `EstimateOutcome` — an estimate, or the
+  reason there is none — and the reason reaches the `action` column verbatim:
+
+  | action | means |
+  | --- | --- |
+  | `skipped: provider 429 after 3 attempts` | rate limited, retries exhausted; re-run the command |
+  | `skipped: provider 502` | upstream error, retries exhausted |
+  | `skipped: provider 400` | request rejected, not retried |
+  | `skipped: request failed (ConnectTimeout)` | transport failure, retries exhausted |
+  | `skipped: no estimate in reply` | the provider answered, with nothing usable in it |
+  | `skipped: below timer sum (65 min)` | the estimate was under the floor |
+
+  `set N min` and `would set N min` are unchanged. The floor line names which
+  bound it broke — `below timer sum (N min)` or `below stated prep + cook
+  (N min)` — because "timer sum" would be a lie on a recipe with no timers.
+
+Retries are logged at WARNING in both clients, so a run that recovers still
+leaves a trace of what it recovered from.
+
+One adjacent bug fixed while here: a 200 whose `content` is null — what a
+content filter returns — reached the unfencing helper as `None` and raised
+`AttributeError`, which is outside the handled tuple. That would have aborted
+the run and rolled back every estimate before it. It now reads as
+"no estimate in reply".
+
+### Verification
+
+- `uv run pytest` from `Backend/` — **869 passed** (was 855; 12 new client
+  unit tests and 2 new backfill integration tests).
+- `uv run ruff format --check .`, `uv run ruff check .`,
+  `uv run mypy --strict ladle` — all clean.
+
+New unit tests in `tests/unit/admin/test_backfill_times_client.py` drive an
+`httpx.MockTransport`: two 429s with `Retry-After: 0` then a 200 still yields
+an estimate; a persistent 429 exhausts and names itself; 5xx retries then
+names the status; 400 is not retried; a transport error names its exception
+class; and both a `choices: []` body and a `finish_reason: length` reply read
+as "no estimate in reply" rather than a provider failure, as does a null
+`content`. Two more drive the Anthropic client through a real
+`anthropic.RateLimitError` to prove it honours `Retry-After` and names an
+exhausted rate limit. Two integration tests cover the reason reaching the
+table and the pause falling between recipes rather than before the first.
+
+The unit file is named `test_backfill_times_client.py` rather than
+`test_backfill_times.py`: the test tree has no `__init__.py` files, so pytest
+requires unique module basenames and the integration file already owns that
+name.
