@@ -195,6 +195,8 @@ Canonical recipe payloads are available in:
 | `POST /v1/auth/google` | Guest bearer | `200` | Verify a Google identity token and atomically merge the guest |
 | `POST /v1/auth/refresh` | No | `200` | Rotate a refresh token and issue a new access token |
 | `PATCH /v1/auth/profile` | Bearer | `200` | Set the cook's display name; blank clears it back to the provider's |
+| `PUT /v1/auth/avatar` | Bearer | `200` | Store the cook's profile photo — a raw `image/jpeg` body of at most 512 KiB — and answer with the profile |
+| `DELETE /v1/auth/avatar` | Bearer | `200` | Remove the cook's profile photo, leaving whatever the provider supplied |
 | `DELETE /v1/auth/session` | Bearer | `204` | Revoke the current session |
 | `DELETE /v1/auth/account` | Bearer | `204` | Delete the account and everything it owns |
 | `POST /v1/imports` | Bearer | `202` | Admit and enqueue an import |
@@ -308,7 +310,8 @@ The response is:
   "userKind": "guest",
   "createdAt": "2026-07-24T12:00:00.000Z",
   "displayName": null,
-  "avatarURL": null
+  "avatarURL": null,
+  "avatarIsCustom": false
 }
 ```
 
@@ -319,10 +322,36 @@ account was created, is always present, and is server-owned — there is no
 request field for it, and `PATCH /v1/auth/profile` rejects one. The app reads
 it for the "cooking since August 2026" line on the Profile sheet.
 
+`avatarIsCustom` says which of two pictures `avatarURL` is. False: the
+provider's own link, served as it stands. True: the photo the cook chose,
+served as a **signed read URL** for a private object, good for six hours. A
+client cannot tell them apart by looking, and it has to, because only the
+cook's own photo can be removed.
+
+Nothing re-signs an avatar URL on demand, and no endpoint exists to ask for
+one. The profile is re-sent with every `POST /v1/auth/refresh`, and an access
+token lasts fifteen minutes, so a running app always holds a live URL. A cold
+launch after more than six hours idle shows the stored URL until the first
+refresh replaces it.
+
 `PATCH /v1/auth/profile` takes `{"displayName": "Priya Raman"}` and answers
-with `userKind`, `displayName`, `avatarURL` and `createdAt` — the shape in
-`Contracts/Fixtures/auth-profile.json`. A blank or absent name clears the
-stored one back to whatever the provider supplied.
+with `userKind`, `displayName`, `avatarURL`, `avatarIsCustom` and `createdAt`
+— the shape in `Contracts/Fixtures/auth-profile.json`. A blank or absent name
+clears the stored one back to whatever the provider supplied.
+
+`PUT /v1/auth/avatar` is the one route whose body is not JSON. It takes the
+JPEG itself with `Content-Type: image/jpeg`, at most 512 KiB; the app crops to
+a 512-pixel centre square and steps the quality down until it fits, so the cap
+bounds a mistake rather than ordinary use. Another content type is `415`,
+bytes that do not start with a JPEG marker are `400`, and a larger body is
+`413` — all in the ordinary error envelope. `DELETE /v1/auth/avatar` removes
+the photo and is idempotent: an account with none gets `200` and its unchanged
+profile, not `404`. Both answer with `ProfileResponse`, and both are covered
+by the global rate limiter only, exactly as `PATCH /profile` is.
+
+The object a photo replaces is queued for deletion rather than erased inline,
+the way a replaced recipe image is; so is the photo of a deleted account, and
+a guest's photo when they sign into an account that has its own.
 
 Refresh:
 

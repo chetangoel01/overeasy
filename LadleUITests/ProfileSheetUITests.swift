@@ -106,8 +106,9 @@ final class ProfileSheetUITests: XCTestCase {
     /// the photo away only when the photo is theirs to take away. A provider's
     /// copy is not ours to remove — the account still has it either way.
     ///
-    /// "Take Photo" is deliberately not asserted: no simulator has a camera,
-    /// so it is absent here by design.
+    /// "Take Photo" is deliberately not asserted either way: whether a
+    /// simulator reports a camera has changed between iOS versions, and the
+    /// item's presence is `isSourceTypeAvailable(.camera)`, not this change.
     @MainActor
     func testAvatarMenuOffersAPhotoAndNoRemoveForAProvidersPicture() {
         let app = launchSignedIn()

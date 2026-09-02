@@ -12,6 +12,10 @@ furniture. This is the third and last of that sequence: the screen stops
 being Settings that happens to start with a person and becomes a Profile
 that happens to end with settings.
 
+Followed by [a cook can choose their own profile
+photo](2026-09-02-profile-photo.md), which gives the avatar this screen is
+built around something to do.
+
 ## Purpose
 
 Two things a cook could not do, and one they were told too much about.
