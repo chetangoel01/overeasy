@@ -1,3 +1,8 @@
+# Every provider timeout that Settings.validate_worker_timing orders must be
+# pinned here below the 12 s soft task limit. One left at its default fails
+# validation, and api, worker and beat then crash at startup before
+# /health/ready exists. tests/unit/deploy/test_local_stack_policy.py builds
+# Settings from these pins so a new timeout cannot land without one.
 x-chaos-timing: &chaos-timing
   LADLE_ANTHROPIC_TIMEOUT_SECONDS: "10"
   LADLE_CELERY_TASK_SOFT_TIME_LIMIT_SECONDS: "12"
@@ -12,6 +17,7 @@ x-chaos-timing: &chaos-timing
   LADLE_SOSCRIPTED_TIMEOUT_SECONDS: "10"
   LADLE_SUPADATA_TIMEOUT_SECONDS: "10"
   LADLE_TRANSCRIPTION_TIMEOUT_SECONDS: "10"
+  LADLE_USDA_TIMEOUT_SECONDS: "10"
   LADLE_YTDLP_TIMEOUT_SECONDS: "10"
 
 services:
