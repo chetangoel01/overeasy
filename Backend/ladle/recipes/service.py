@@ -84,6 +84,7 @@ class RecipeService:
         sort: DiscoverSort = DiscoverSort.POPULAR,
         max_total_minutes: int | None = None,
         seen_before: datetime | None = None,
+        record_impressions: bool = True,
     ) -> DiscoverPageDTO:
         """One page, with the seen bucket and the impression write together.
 
@@ -92,6 +93,12 @@ class RecipeService:
         records. That is what keeps the two shelves ranked purely on their own
         criteria and Watch's pages deterministic, while the Discover list —
         the only caller that sends it — turns over between sessions.
+
+        `record_impressions=False` splits the two for the one caller that has
+        to: a page fetched behind the reader's back and held behind a pill is
+        ranked as a session — otherwise it repeats what they just read — but
+        marking it seen would bury rows nobody looked at. The client re-fetches
+        under the same pin with recording on when the reader takes the page.
         """
         now = self._clock.now()
         page = self._repository.discover(
@@ -107,7 +114,7 @@ class RecipeService:
                 None if seen_before is None else now - self._discover_seen_window
             ),
         )
-        if seen_before is not None:
+        if seen_before is not None and record_impressions:
             # What was served, not what was ranked: a source dropped for a
             # stale cache never reached the cook and must not be demoted for
             # them next time.

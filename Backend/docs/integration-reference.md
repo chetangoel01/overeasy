@@ -197,7 +197,7 @@ Canonical recipe payloads are available in:
 | `DELETE /v1/imports/{jobID}` | Bearer | `204` | Cancel an actively parsing import and release its reserved slot |
 | `POST /v1/imports/{jobID}/retry` | Bearer | `202` | Retry with optional correction or pasted text |
 | `GET /v1/recipes/sync?cursor=&limit=` | Bearer | `200` | Read ordered recipe upserts and tombstones |
-| `GET /v1/recipes/discover?limit=&cursor=&q=&sort=&max_total_minutes=&seen_before=` | Bearer | `200` | Rank unsaved public recipe-video sources; `sort` is `popular` (default), `newest`, `mostLiked` or `alphabetical`, `max_total_minutes` keeps only timed sources at or under that total, and `seen_before` pins a paging session — sources shown to this account before it and inside the seen window sort last, and the page served is recorded |
+| `GET /v1/recipes/discover?limit=&cursor=&q=&sort=&max_total_minutes=&seen_before=&record_impressions=` | Bearer | `200` | Rank unsaved public recipe-video sources; `sort` is `popular` (default), `newest`, `mostLiked` or `alphabetical`, `max_total_minutes` keeps only timed sources at or under that total, and `seen_before` pins a paging session — sources shown to this account before it and inside the seen window sort last, and the page served is recorded unless `record_impressions=false` asks for the ranking without the write |
 | `GET /v1/recipes/discover/{sourceVideoID}` | Bearer | `200` | Read the current shared recipe as a non-owned Discover preview |
 | `POST /v1/recipes/discover/{sourceVideoID}/save` | Bearer | `200` | Idempotently clone a ready shared extraction into the account |
 | `GET /v1/recipes/{recipeID}` | Bearer | `200` | Fetch one current recipe |
@@ -262,6 +262,23 @@ here. Omitting the parameter demotes nothing and records nothing.
 GET /v1/recipes/discover?cursor=0&limit=30&seen_before=2026-09-01T09:00:00.000Z
 GET /v1/recipes/discover?cursor=30&limit=30&seen_before=2026-09-01T09:00:00.000Z
 ```
+
+`record_impressions=false` keeps the demotion and drops the write. It exists
+for a page fetched behind the reader's back: Discover fetches page 1 quietly
+when the cook scrolls back to the top and holds it behind a "New recipes"
+pill. That page has to be ranked as a session — under a fresh pin, or it
+returns what they have just been reading — but a page nobody has looked at
+must not be marked as read. Taking the pill re-fetches under the *same* pin
+with recording on; the ranking is deterministic and nothing was written in
+between, so the rows come back identical and what the cook is handed is
+exactly what the server records.
+
+```
+GET /v1/recipes/discover?cursor=0&limit=30&seen_before=2026-09-01T09:31:00.000Z&record_impressions=false
+GET /v1/recipes/discover?cursor=0&limit=30&seen_before=2026-09-01T09:31:00.000Z
+```
+
+The parameter is ignored without `seen_before`, which records nothing anyway.
 
 ### Authentication payloads
 

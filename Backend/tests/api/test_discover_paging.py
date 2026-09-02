@@ -297,6 +297,83 @@ def test_discover_demotes_what_an_earlier_session_served(
 
 
 @pytest.mark.integration
+def test_a_quiet_page_demotes_without_recording(
+    clean_postgres_url: str,
+) -> None:
+    """`record_impressions=false` ranks like a session but writes nothing.
+
+    Discover fetches page 1 behind the reader's back when they scroll back to
+    the top. That fetch has to be ranked as a real session — the pin is the
+    only thing that sorts what they have already read to the back — but its
+    rows are held behind a "New recipes" pill and may never be looked at, so
+    recording them would mark as seen a page nobody saw. Applying the pill
+    re-fetches under the same pin with recording on; the ranking is
+    deterministic, so the page the cook is handed is the page the server
+    marks as read.
+    """
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    engine = build_engine(clean_postgres_url)
+    started = datetime(2026, 8, 24, 9, 0, tzinfo=UTC)
+    clock = FrozenClock(started)
+    app = create_app(
+        session_factory=sessionmaker(engine, expire_on_commit=False),
+        attestation=AttestationService(enforced=False),
+        clock=clock,
+    )
+    recipe = json.loads(FIXTURE.read_text())
+
+    with TestClient(app) as client:
+        users = [
+            client.post(
+                "/v1/auth/guest",
+                json={"installationID": f"discover-quiet-{index}", "attestation": None},
+            ).json()
+            for index in range(6)
+        ]
+        headers = {"Authorization": f"Bearer {users[0]['accessToken']}"}
+        _seed(engine, recipe, users[1:])
+
+        read = client.get(
+            f"/v1/recipes/discover?limit=2&seen_before={_stamp(started)}",
+            headers=headers,
+        ).json()
+        assert _titles(read) == ["Lemon Orzo", "Lemon Chicken"]
+        after_reading = _impressions(engine)
+        assert len(after_reading) == 2
+
+        # The quiet fetch: a new pin, so the two rows the cook has read sink,
+        # and nothing at all is written.
+        clock.value = started + timedelta(minutes=10)
+        pin = _stamp(clock.value)
+        quiet = client.get(
+            f"/v1/recipes/discover?seen_before={pin}&record_impressions=false",
+            headers=headers,
+        ).json()
+        assert _titles(quiet) == [
+            "Garlic Butter Udon",
+            "Preserved Lemon Salad",
+            "Smash Burgers",
+            "Lemon Orzo",
+            "Lemon Chicken",
+        ]
+        assert _impressions(engine) == after_reading
+
+        # Applying the pill: the same pin, recording on. The same rows, since
+        # nothing the quiet fetch did could have moved them — and now they
+        # count as read.
+        applied = client.get(
+            f"/v1/recipes/discover?seen_before={pin}&record_impressions=true",
+            headers=headers,
+        ).json()
+        assert _titles(applied) == _titles(quiet)
+        recorded = _impressions(engine)
+        assert set(recorded) == {UUID(item["sourceID"]) for item in applied["items"]}
+        assert set(recorded.values()) == {clock.value}
+
+    engine.dispose()
+
+
+@pytest.mark.integration
 def test_discover_paging_is_pinned_to_the_session_that_started_it(
     clean_postgres_url: str,
 ) -> None:
