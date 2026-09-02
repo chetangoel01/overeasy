@@ -19,32 +19,6 @@ private extension UIColor {
 
 @MainActor
 final class DesignTokenTests: XCTestCase {
-    func testProductionHasNoLegacyPrimaryButtonWrapper() throws {
-        let project = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let sources = project.appendingPathComponent("Ladle")
-        let enumerator = try XCTUnwrap(
-            FileManager.default.enumerator(
-                at: sources,
-                includingPropertiesForKeys: nil
-            )
-        )
-        var offenders: [String] = []
-
-        for case let file as URL in enumerator where file.pathExtension == "swift" {
-            let source = try String(contentsOf: file, encoding: .utf8)
-            if source.contains("LadlePrimaryButtonStyle") {
-                offenders.append(file.path.replacingOccurrences(
-                    of: project.path + "/",
-                    with: ""
-                ))
-            }
-        }
-
-        XCTAssertEqual(offenders.sorted(), [])
-    }
-
     func testProductionScreensUseSemanticColorRoles() throws {
         let project = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -93,8 +67,9 @@ final class DesignTokenTests: XCTestCase {
             encoding: .utf8
         )
 
-        XCTAssertFalse(source.contains("ShareTheme.field"))
-        XCTAssertFalse(source.contains("ShareTheme.review"))
+        // `ShareTheme.field` and `ShareTheme.review` are gone from the type,
+        // so the compiler already refuses them; only their replacements need
+        // asserting.
         XCTAssertTrue(source.contains("ShareTheme.Surface.raised"))
         XCTAssertTrue(source.contains("ShareTheme.Surface.steel"))
     }

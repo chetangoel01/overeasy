@@ -2,14 +2,6 @@ import XCTest
 
 final class StateScenarioUITests: XCTestCase {
     @MainActor
-    func testEmptyLibraryScenario() {
-        let app = launchApp(scenario: "empty", startingOn: "Recipes")
-
-        XCTAssertTrue(app.staticTexts["No recipes yet"].waitForExistence(timeout: 3))
-        attachScreenshot(of: app, named: "Scenario - empty library")
-    }
-
-    @MainActor
     func testOfflineContentScenarioPreservesRecipes() {
         let app = launchApp(scenario: "offline-content", startingOn: "Recipes")
 
@@ -53,31 +45,6 @@ final class StateScenarioUITests: XCTestCase {
         attachScreenshot(of: app, named: "Scenario - Discover empty")
     }
 
-    @MainActor
-    func testDiscoverRateLimitedScenario() {
-        let app = launchApp(scenario: "discover-rate-limited")
-        app.tabBars.buttons["Discover"].tap()
-
-        XCTAssertTrue(
-            app.staticTexts["Too many requests"]
-                .waitForExistence(timeout: 3)
-        )
-        attachScreenshot(of: app, named: "Scenario - Discover rate limited")
-    }
-
-    @MainActor
-    func testLaunchLandsOnDiscover() {
-        let app = launchApp(scenario: "standard")
-
-        let discover = app.tabBars.buttons["Discover"]
-        XCTAssertTrue(discover.waitForExistence(timeout: 5))
-        XCTAssertTrue(discover.isSelected)
-        XCTAssertTrue(
-            app.descendants(matching: .any)["library.discover"].exists
-        )
-        attachScreenshot(of: app, named: "Launch - Discover first")
-    }
-
     /// The one failure path: a cold launch whose feed never arrives opens
     /// the saved library instead of an error screen.
     @MainActor
@@ -101,8 +68,9 @@ final class StateScenarioUITests: XCTestCase {
 
         // The feed is still failed, so Discover owns the error from here.
         // `discover.initial-failure` sits on a ContentUnavailableView, whose
-        // identifier XCUITest does not surface, so assert its copy instead —
-        // the same shape testDiscoverRateLimitedScenario already uses.
+        // identifier XCUITest does not surface, so assert its copy instead.
+        // This is also the whole of the retired testDiscoverRateLimitedScenario,
+        // which launched the same scenario to make the same assertion.
         app.tabBars.buttons["Discover"].tap()
         XCTAssertTrue(
             app.staticTexts["Too many requests"]
@@ -111,6 +79,7 @@ final class StateScenarioUITests: XCTestCase {
         XCTAssertTrue(
             app.staticTexts["Your saved recipes are still available."].exists
         )
+        attachScreenshot(of: app, named: "Scenario - Discover rate limited")
     }
 
     @MainActor
@@ -191,9 +160,13 @@ final class StateScenarioUITests: XCTestCase {
         attachScreenshot(of: app, named: "Welcome - accessibility XXX Large")
     }
 
+    /// One launch of the empty scenario covers both empty screens it has.
     @MainActor
-    func testInboxEmptyStateStartsAnImport() {
-        let app = launchApp(scenario: "empty")
+    func testEmptyLibraryAndInboxBothOfferAnImport() {
+        let app = launchApp(scenario: "empty", startingOn: "Recipes")
+
+        XCTAssertTrue(app.staticTexts["No recipes yet"].waitForExistence(timeout: 3))
+        attachScreenshot(of: app, named: "Scenario - empty library")
 
         app.tabBars.buttons["Inbox"].tap()
         XCTAssertTrue(app.staticTexts["Inbox clear"].waitForExistence(timeout: 3))
@@ -209,6 +182,15 @@ final class StateScenarioUITests: XCTestCase {
     @MainActor
     func testPrimaryJourneyCapturesInboxDetailAndCooking() {
         let app = launchApp(scenario: "standard")
+
+        // The journey starts where a cold launch lands.
+        let discover = app.tabBars.buttons["Discover"]
+        XCTAssertTrue(discover.waitForExistence(timeout: 5))
+        XCTAssertTrue(discover.isSelected)
+        XCTAssertTrue(
+            app.descendants(matching: .any)["library.discover"].exists
+        )
+        attachScreenshot(of: app, named: "Launch - Discover first")
 
         app.tabBars.buttons["Inbox"].tap()
         XCTAssertTrue(

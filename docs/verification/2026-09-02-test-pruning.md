@@ -61,7 +61,65 @@ number of launches, not the number of assertions.
 
 ## Decisions
 
-Filled in as the work lands; see the pull request for the per-test table.
+### Speed
+
+- **Migrate once, copy per test.** `tests/conftest.py` runs `alembic upgrade
+  head` a single time into `ladle_migrated_template`, and `clean_postgres_url`
+  hands each test its own `CREATE DATABASE ... TEMPLATE` copy, dropped in
+  teardown. Each test still gets a private, pristine database, so nothing about
+  isolation changed. The `command.upgrade(..., "head")` line in ~137 tests was
+  left alone: it now finds nothing to do (~20 ms), and it keeps each test
+  readable without its fixture. 75.1 s -> 41.8 s, no test touched.
+- `tests/integration/test_migrations.py` takes a new `empty_postgres_url`
+  instead: the migrations are what it tests, so it needs a database with no
+  schema. Its `alembic_config` helper moved to `tests/conftest.py` and is
+  re-exported, so the modules that import it from there still work.
+- **`-n auto` in `addopts`.** Each xdist worker builds its own container and
+  template, which is why more workers stop helping: `-n 4` measured 23.5 s and
+  `-n auto` (10 workers on this machine) 25.2 s. GitHub's `ubuntu-24.04` runner
+  has 4 vCPUs, so `-n auto` resolves to the fast end there. The chaos job passes
+  `-n0`, because those tests kill real workers and the marker says they run
+  alone.
+- **`-m 'not live_provider and not chaos'` in `addopts`.** `uv run pytest` and
+  the CI step are now the same command. A command-line `-m` still overrides it,
+  which is how the chaos job selects its tier (verified with `--collect-only`).
+- **Two CI steps removed.** `Migration metadata consistency` re-ran
+  `tests/integration/test_migrations.py`, which the full selection already runs;
+  `Real PostgreSQL restore drill` ran `scripts/restore_drill.py`, whose
+  `__main__` only prints, while
+  `tests/integration/operations/test_restore_drill.py` calls the same function
+  and asserts on the result. Both duplicated a fresh set of PostgreSQL
+  containers for no extra coverage.
+- **UI launches merged.** A UI test costs ~10 s to launch and a second or two to
+  assert, so the suite's cost is the number of launches. Six launches went, by
+  merging tests that already asserted the same screen from the same launch
+  arguments, or by deleting one whose own docstring recorded that it does not
+  catch what it exists to catch.
+
+### Kept, though they were candidates
+
+- The 8-case parametrisation of
+  `test_staging_verifier::test_secret_rejects_unsafe_header_values_without_leaking_them`.
+  The cases probably share one branch, but they are the header-injection guard
+  on a value that goes into a request header, and they cost nothing.
+- `test_config.py`'s 17-case `test_production_runtime_dependencies_fail_closed`
+  and the 12-address SSRF sets: one case per validator or address class, and
+  all of them fail-closed security checks.
+- `ProjectSmokeTests.testPrimaryScreensAvoidRedundantExplanatoryHeadings`. It
+  scans source text, but for UI copy rather than for symbols, so the compiler
+  guarantees nothing and nothing else covers it.
+- `StateScenarioUITests.testLargeLibraryScenario` alongside
+  `testLargeLibraryAtXXXLargeUsesOneReadableColumn`. The content size category
+  is a launch argument, so they cannot share a launch, and at XXXL the
+  80th card is not materialised for the first test to assert on.
+- `DiscoverInteractionUITests.testRecipeOptionsExposeTheDeleteAction`. Folding
+  it into the primary journey would need the menu dismissed mid-flow, which is
+  fragile in XCUITest for a gain of one launch.
+- `DiscoverInteractionUITests.testFailedImportRecoveryActionsShareLabelOrigin`.
+  Merged, measured, reverted: with the slow import from the neighbouring test
+  still in flight, a second `Add recipe` tap does not present the sheet, so the
+  merged test was asserting a different thing. The comment in the file records
+  it.
 
 ## Affected components
 
@@ -74,4 +132,36 @@ Filled in as the work lands; see the pull request for the per-test table.
 
 ## Verification
 
-Filled in as the work lands.
+| Suite | Before | After |
+| --- | --- | --- |
+| Backend, CI selection | 841 tests, 75.1 s | 827 tests, 16.3 s |
+| iOS `LadleTests` | 406 tests, 3.72 s | 404 tests, 3.70 s |
+| iOS `LadleUITests` | 26 tests, 350.4 s | 20 tests, 279.2 s |
+
+Commands, all run from this branch:
+
+```bash
+# Backend, from Backend/
+uv run ruff format --check .      # 326 files already formatted
+uv run ruff check .               # All checks passed
+uv run mypy --strict ladle        # no issues in 122 source files
+uv run pytest                     # 827 passed
+uv run pytest -n0                 # 827 passed, serial
+uv lock --check                   # lockfile matches pyproject
+
+# iOS, from the repository root, under the xcodebuild watchdog
+xcodebuild test -project Ladle.xcodeproj -scheme LadleAllTests \
+  -destination 'platform=iOS Simulator,name=iPhone 17' \
+  -only-testing:LadleTests        # 404 tests, 1 skipped, 0 failures
+xcodebuild test -project Ladle.xcodeproj -scheme LadleAllTests \
+  -destination 'platform=iOS Simulator,name=iPhone 17' \
+  -only-testing:LadleUITests      # 20 tests, 0 failures
+```
+
+The backend numbers are also what CI runs: `Backend production gate` is the only
+workflow in the repository, and its `paths` filter is `Backend/**`. There is no
+iOS workflow, so the two iOS rows are local, from an iPhone 17 simulator.
+
+Two merges were made, measured and undone because they changed what was being
+asserted rather than only how it was launched; both are recorded above under
+"Kept, though they were candidates".

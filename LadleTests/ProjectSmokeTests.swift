@@ -171,6 +171,9 @@ final class ProjectSmokeTests: XCTestCase {
         XCTAssertFalse(configuration.seedsPreviewData)
     }
 
+    /// Also the only check the `@Sendable` completion needs: this closure
+    /// would not compile against a non-`Sendable` parameter, which a retired
+    /// test used to assert by searching the provider's source for the words.
     func testGoogleAppCheckPrewarmFailureDoesNotBlockSignInSetup() async throws {
         let provider = GoogleSignInProvider(
             infoDictionary: [
@@ -183,22 +186,6 @@ final class ProjectSmokeTests: XCTestCase {
         )
 
         try await provider.configureIfNeeded()
-    }
-
-    func testGoogleAppCheckCompletionIsSendable() throws {
-        let project = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let source = try String(
-            contentsOf: project.appendingPathComponent(
-                "Ladle/Account/GoogleSignInProvider.swift"
-            ),
-            encoding: .utf8
-        )
-
-        XCTAssertTrue(
-            source.contains("@escaping @Sendable (Error?) -> Void")
-        )
     }
 
     func testAccountPresentationExplainsProviderAndSyncScope() {

@@ -39,7 +39,11 @@
 ## Verification before commits
 
 - Add a failing test before production behavior, then verify red-green-refactor.
-- Run the narrow tests for the changed behavior.
+- Run the narrow tests for the changed behavior. Backend: `uv run pytest <path>`
+  from `Backend/`; add `-n0` for a single file, where starting the xdist workers
+  costs more than the tests do.
+- Run `uv run pytest` from `Backend/` for backend changes. Its `addopts` already
+  hold the selection CI gates on, so no marker arguments are needed.
 - Run `swift test --package-path Packages/LadleCore` for shared domain changes.
 - Run the relevant `xcodebuild test` target for app or UI behavior, using the
   `LadleAllTests` scheme (tests are disabled on the default `Ladle` scheme).
