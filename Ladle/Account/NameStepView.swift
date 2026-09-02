@@ -249,6 +249,8 @@ struct NameStepView: View {
                 AccountProfile(
                     displayName: trimmedName,
                     avatarURL: accountSession.profile?.avatarURL,
+                    avatarIsCustom:
+                        accountSession.profile?.avatarIsCustom ?? false,
                     createdAt: accountSession.profile?.createdAt
                 )
             )
@@ -265,7 +267,7 @@ struct NameStepView: View {
             } catch {
                 // Stay here with the reason. Skip is still one tap away, so
                 // a network error delays entry rather than blocking it.
-                failure = ProfileNameFailure.message(error)
+                failure = ProfileEditFailure.name(error)
             }
         }
     }

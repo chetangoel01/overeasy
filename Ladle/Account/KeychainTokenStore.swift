@@ -19,6 +19,12 @@ struct AuthTokens: Codable, Equatable, Sendable {
     /// trailing `Url` to `URL`, the same shape as `userID` above.
     var displayName: String?
     var avatarURL: URL?
+    /// Whether that URL is the cook's own photo. `Bool?` rather than `Bool`
+    /// for the same reason the fields around it are optional, and it matters
+    /// more here: this record is decoded from the Keychain on every launch,
+    /// and a non-optional flag would fail to decode every session written
+    /// before the field existed — signing out every cook on upgrade.
+    var avatarIsCustom: Bool?
     /// When the account was created. Optional for the same reason the two
     /// above are: a Keychain record written before the field existed decodes
     /// as nil rather than failing the session. The server always sends it.
@@ -33,6 +39,7 @@ struct AuthTokens: Codable, Equatable, Sendable {
         userKind: String,
         displayName: String? = nil,
         avatarURL: URL? = nil,
+        avatarIsCustom: Bool? = nil,
         createdAt: Date? = nil
     ) {
         self.accessToken = accessToken
@@ -43,6 +50,7 @@ struct AuthTokens: Codable, Equatable, Sendable {
         self.userKind = userKind
         self.displayName = displayName
         self.avatarURL = avatarURL
+        self.avatarIsCustom = avatarIsCustom
         self.createdAt = createdAt
     }
 
@@ -52,6 +60,7 @@ struct AuthTokens: Codable, Equatable, Sendable {
         AccountProfile(
             displayName: displayName,
             avatarURL: avatarURL,
+            avatarIsCustom: avatarIsCustom ?? false,
             createdAt: createdAt
         )
         .nonEmpty

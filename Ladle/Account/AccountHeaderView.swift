@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftUI
 
 /// One line of facts under the name: what a cook would recognise as theirs.
@@ -39,12 +40,23 @@ enum ProfileFacts {
     }
 }
 
-/// What a cook is told when the name did not save. Shared, because the
-/// header and the sign-up name step submit through the same `updateProfile`
-/// and a failure there means the same thing on both.
-enum ProfileNameFailure {
-    static func message(_ error: any Error) -> String {
-        let unchanged = "Your name is unchanged."
+/// What a cook is told when a profile edit did not save. Shared, because the
+/// header, the sign-up name step and the avatar menu all submit through the
+/// same client, and a failure there means the same thing on all three — only
+/// the first sentence, naming what did not change, differs.
+enum ProfileEditFailure {
+    static func name(_ error: any Error) -> String {
+        message(error, unchanged: "Your name is unchanged.")
+    }
+
+    static func photo(_ error: any Error) -> String {
+        message(error, unchanged: "Your photo is unchanged.")
+    }
+
+    private static func message(
+        _ error: any Error,
+        unchanged: String
+    ) -> String {
         switch RemoteFailure(error) {
         case .offline:
             return "\(unchanged) Reconnect and try again."
@@ -107,6 +119,16 @@ struct AccountHeaderView: View {
     @State private var nameFailure: String?
     @FocusState private var isNameFocused: Bool
 
+    @State private var isChoosingPhoto = false
+    @State private var isTakingPhoto = false
+    @State private var pickedItem: PhotosPickerItem?
+    /// The picture the cook just chose, drawn while it uploads and kept
+    /// afterwards. Kept, because the answer is a URL for the same photo and
+    /// swapping to it would flash the monogram while `AsyncImage` fetched it.
+    @State private var pendingPhoto: UIImage?
+    @State private var isSavingPhoto = false
+    @State private var photoFailure: String?
+
     init(
         accountSession: AccountSession,
         library: LibraryViewModel,
@@ -167,6 +189,46 @@ struct AccountHeaderView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(nameFailure ?? "Please try again.")
+        }
+        .alert(
+            "Photo couldn’t be saved",
+            isPresented: Binding(
+                get: { photoFailure != nil },
+                set: { if !$0 { photoFailure = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(photoFailure ?? "Please try again.")
+        }
+        .photosPicker(
+            isPresented: $isChoosingPhoto,
+            selection: $pickedItem,
+            matching: .images,
+            photoLibrary: .shared()
+        )
+        .onChange(of: pickedItem) { _, item in
+            guard let item else { return }
+            Task { @MainActor in
+                pickedItem = nil
+                guard
+                    let data = try? await item.loadTransferable(
+                        type: Data.self
+                    ),
+                    let image = UIImage(data: data)
+                else {
+                    // A picture in iCloud that would not download, or a
+                    // format no `UIImage` can read.
+                    photoFailure =
+                        "Your photo is unchanged. That picture couldn’t be opened."
+                    return
+                }
+                choosePhoto(image)
+            }
+        }
+        .fullScreenCover(isPresented: $isTakingPhoto) {
+            CameraPhotoPicker(onCapture: choosePhoto)
+                .ignoresSafeArea()
         }
     }
 
@@ -272,48 +334,88 @@ struct AccountHeaderView: View {
         }
     }
 
-    /// The avatar, with the photo-or-initials choice on it — but only when
-    /// there is a photo to choose. Apple never supplies one, so for an Apple
-    /// cook the menu would offer a single option that changes nothing.
-    @ViewBuilder
+    /// The avatar, and everything a cook can do to it.
+    ///
+    /// A menu for every signed-in cook now, not only one a provider gave a
+    /// picture to: choosing a photo is the thing a profile screen is expected
+    /// to let you do, and an Apple account — which never gets a provider photo
+    /// at all — had no way to reach it.
+    ///
+    /// What is in the menu depends on what exists. Take Photo only where there
+    /// is a camera; the photo/initials choice only when there is a photo to
+    /// show; Remove only when the photo is the cook’s own, because the
+    /// provider’s copy is not ours to take away.
     private var avatarControl: some View {
-        if photoURL != nil {
-            Menu {
+        Menu {
+            if CameraPhotoPicker.isAvailable {
+                Button("Take Photo", systemImage: "camera") {
+                    isTakingPhoto = true
+                }
+            }
+            Button("Choose Photo", systemImage: "photo.on.rectangle") {
+                isChoosingPhoto = true
+            }
+            if hasPhoto {
                 Picker("Avatar", selection: $avatarStyle) {
                     Text("Show photo").tag(AvatarStyle.photo.rawValue)
                     Text("Show initials").tag(AvatarStyle.initials.rawValue)
                 }
                 .pickerStyle(.inline)
-            } label: {
-                avatar
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Profile picture options")
-            .accessibilityIdentifier("account.profile.avatar")
-        } else {
+            if isPhotoTheCooks {
+                Button(
+                    "Remove Photo",
+                    systemImage: "trash",
+                    role: .destructive,
+                    action: removePhoto
+                )
+            }
+        } label: {
             avatar
-                .accessibilityHidden(true)
         }
+        .buttonStyle(.plain)
+        .disabled(isSavingPhoto)
+        .accessibilityLabel("Profile picture options")
+        .accessibilityIdentifier("account.profile.avatar")
     }
 
-    @ViewBuilder
     private var avatar: some View {
-        if let photoURL, avatarStyle == AvatarStyle.photo.rawValue {
-            AsyncImage(url: photoURL) { image in
-                image
-                    .resizable()
-                    .scaledToFill()
+        Group {
+            if avatarStyle != AvatarStyle.photo.rawValue {
+                monogram
+            } else if let pendingPhoto {
+                circle(Image(uiImage: pendingPhoto))
+            } else if let photoURL {
+                AsyncImage(url: photoURL) { image in
+                    circle(image)
+                } placeholder: {
+                    monogram
+                }
+            } else {
+                monogram
+            }
+        }
+        .overlay {
+            if isSavingPhoto {
+                ProgressView()
                     .frame(
                         width: Self.avatarDiameter,
                         height: Self.avatarDiameter
                     )
-                    .clipShape(Circle())
-            } placeholder: {
-                monogram
+                    .background(
+                        LadleTheme.Surface.badge.opacity(0.7),
+                        in: Circle()
+                    )
             }
-        } else {
-            monogram
         }
+    }
+
+    private func circle(_ image: Image) -> some View {
+        image
+            .resizable()
+            .scaledToFill()
+            .frame(width: Self.avatarDiameter, height: Self.avatarDiameter)
+            .clipShape(Circle())
     }
 
     private var monogram: some View {
@@ -400,6 +502,17 @@ struct AccountHeaderView: View {
         accountSession.profile?.avatarURL
     }
 
+    private var hasPhoto: Bool {
+        pendingPhoto != nil || photoURL != nil
+    }
+
+    /// Whether the picture on screen is one the cook chose rather than one a
+    /// provider supplied. `pendingPhoto` counts: they have just picked it, and
+    /// the offer to take it away must not wait for a round trip.
+    private var isPhotoTheCooks: Bool {
+        pendingPhoto != nil || accountSession.profile?.avatarIsCustom == true
+    }
+
     private var displayedName: String {
         accountSession.profile?.displayName ?? "Add your name"
     }
@@ -407,6 +520,80 @@ struct AccountHeaderView: View {
     private func beginEditingName() {
         draftName = accountSession.profile?.displayName ?? ""
         isEditingName = true
+    }
+
+    /// Crop, downscale, show, then send.
+    ///
+    /// The picture appears at once and the upload runs behind it: a cook who
+    /// has just chosen a photo should not watch the old one for a round trip.
+    /// A failure puts the old one back, which is what the alert says happened.
+    private func choosePhoto(_ image: UIImage) {
+        guard let jpeg = ProfilePhoto.jpeg(from: image) else {
+            photoFailure =
+                "Your photo is unchanged. That picture couldn’t be prepared."
+            return
+        }
+        pendingPhoto = image
+        // A cook showing initials who then picks a photo means to see it;
+        // leaving the toggle alone would look like nothing happened.
+        avatarStyle = AvatarStyle.photo.rawValue
+        guard let authClient else {
+            // Demo and UI-test builds have no backend, the way the sign-in
+            // flow has none. The photo lands on the session from a file, so
+            // the whole menu — Remove Photo included — is still walkable.
+            applyPhotoLocally(jpeg)
+            return
+        }
+        isSavingPhoto = true
+        Task { @MainActor in
+            defer { isSavingPhoto = false }
+            do {
+                try await authClient.uploadAvatar(jpeg)
+            } catch {
+                pendingPhoto = nil
+                photoFailure = ProfileEditFailure.photo(error)
+            }
+        }
+    }
+
+    private func removePhoto() {
+        let restored = pendingPhoto
+        pendingPhoto = nil
+        guard let authClient else {
+            accountSession.applyProfile(
+                AccountProfile(
+                    displayName: accountSession.profile?.displayName,
+                    avatarURL: nil,
+                    avatarIsCustom: false,
+                    createdAt: accountSession.profile?.createdAt
+                )
+            )
+            return
+        }
+        isSavingPhoto = true
+        Task { @MainActor in
+            defer { isSavingPhoto = false }
+            do {
+                try await authClient.removeAvatar()
+            } catch {
+                pendingPhoto = restored
+                photoFailure = ProfileEditFailure.photo(error)
+            }
+        }
+    }
+
+    private func applyPhotoLocally(_ jpeg: Data) {
+        let file = URL.temporaryDirectory
+            .appending(path: "profile-photo-\(UUID().uuidString).jpg")
+        try? jpeg.write(to: file, options: .atomic)
+        accountSession.applyProfile(
+            AccountProfile(
+                displayName: accountSession.profile?.displayName,
+                avatarURL: file,
+                avatarIsCustom: true,
+                createdAt: accountSession.profile?.createdAt
+            )
+        )
     }
 
     private func submitName() {
@@ -425,6 +612,8 @@ struct AccountHeaderView: View {
                 AccountProfile(
                     displayName: trimmed.isEmpty ? nil : trimmed,
                     avatarURL: photoURL,
+                    avatarIsCustom:
+                        accountSession.profile?.avatarIsCustom ?? false,
                     createdAt: accountSession.profile?.createdAt
                 )
             )
@@ -438,7 +627,7 @@ struct AccountHeaderView: View {
             } catch {
                 // The name shown comes from the session, which the failed
                 // request never touched, so it has already reverted.
-                nameFailure = ProfileNameFailure.message(error)
+                nameFailure = ProfileEditFailure.name(error)
             }
         }
     }

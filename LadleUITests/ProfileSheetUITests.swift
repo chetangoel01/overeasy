@@ -102,6 +102,46 @@ final class ProfileSheetUITests: XCTestCase {
         )
     }
 
+    /// The avatar is a menu for every signed-in cook, and it offers to take
+    /// the photo away only when the photo is theirs to take away. A provider's
+    /// copy is not ours to remove — the account still has it either way.
+    ///
+    /// "Take Photo" is deliberately not asserted: no simulator has a camera,
+    /// so it is absent here by design.
+    @MainActor
+    func testAvatarMenuOffersAPhotoAndNoRemoveForAProvidersPicture() {
+        let app = launchSignedIn()
+
+        openAvatarMenu(in: app)
+
+        XCTAssertTrue(
+            app.buttons["Choose Photo"].waitForExistence(timeout: 3),
+            "The avatar menu offers a photo to every signed-in cook"
+        )
+        XCTAssertFalse(app.buttons["Remove Photo"].exists)
+    }
+
+    @MainActor
+    func testAvatarMenuRemovesOnlyThePhotoTheCookChose() {
+        let app = launchSignedIn(photoIsTheCooks: true)
+
+        openAvatarMenu(in: app)
+
+        XCTAssertTrue(app.buttons["Choose Photo"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Remove Photo"].exists)
+    }
+
+    @MainActor
+    private func openAvatarMenu(in app: XCUIApplication) {
+        app.buttons["Profile"].tap()
+        XCTAssertTrue(
+            app.navigationBars["Profile"].waitForExistence(timeout: 3)
+        )
+        let avatar = app.descendants(matching: .any)["account.profile.avatar"]
+        XCTAssertTrue(avatar.waitForExistence(timeout: 3))
+        avatar.tap()
+    }
+
     // MARK: - The name step
 
     /// Google always sends a name, so the field arrives filled in and the
@@ -177,7 +217,9 @@ final class ProfileSheetUITests: XCTestCase {
     }
 
     @MainActor
-    private func launchSignedIn() -> XCUIApplication {
+    private func launchSignedIn(
+        photoIsTheCooks: Bool = false
+    ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = [
             "-ui-testing",
@@ -192,6 +234,9 @@ final class ProfileSheetUITests: XCTestCase {
             "-account-created-at",
             "2026-08-14T12:00:00Z",
         ]
+        if photoIsTheCooks {
+            app.launchArguments.append("-account-avatar-custom")
+        }
         app.launch()
         return app
     }

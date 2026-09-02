@@ -30,6 +30,12 @@ struct AccountProfile: Equatable, Sendable {
 
     var displayName: String?
     var avatarURL: URL?
+    /// Whether that URL is the photo the cook chose or the provider's own.
+    /// It cannot be read off the URL — both are links — and the avatar menu
+    /// has to know, because "Remove Photo" means something for one of them
+    /// and nothing for the other. Deliberately not part of `isEmpty`: a flag
+    /// about a picture is not itself something to show.
+    var avatarIsCustom = false
     /// When the account was created, as the server reported it. Server-owned
     /// and never edited here; it is what "cooking since August 2026" reads.
     /// Optional because a guest session predating the field, or a Keychain
@@ -195,11 +201,17 @@ final class AccountSession {
         return AccountState(rawValue: launchArguments[index + 1])
     }
 
-    /// `-account-display-name <name>`, `-account-avatar-url <url>` and
-    /// `-account-created-at <ISO 8601>`, honoured only alongside
-    /// `-ui-testing`. The date is read without fractional seconds — the form
-    /// a person types on a command line, `2026-08-14T12:00:00Z` — rather than
-    /// the wire's `.000Z`, which nothing here has to round-trip.
+    /// `-account-display-name <name>`, `-account-avatar-url <url>`,
+    /// `-account-avatar-custom` and `-account-created-at <ISO 8601>`,
+    /// honoured only alongside `-ui-testing`. The date is read without
+    /// fractional seconds — the form a person types on a command line,
+    /// `2026-08-14T12:00:00Z` — rather than the wire's `.000Z`, which nothing
+    /// here has to round-trip.
+    ///
+    /// `-account-avatar-custom` is a bare flag beside the URL, because that
+    /// is the only difference a test can otherwise not create: the same
+    /// picture is a provider's or the cook's own depending on it, and only
+    /// one of those offers to remove it.
     private static func pinnedProfile(
         in launchArguments: [String]
     ) -> AccountProfile? {
@@ -207,6 +219,7 @@ final class AccountSession {
             displayName: value(of: "-account-display-name", in: launchArguments),
             avatarURL: value(of: "-account-avatar-url", in: launchArguments)
                 .flatMap(URL.init(string:)),
+            avatarIsCustom: launchArguments.contains("-account-avatar-custom"),
             createdAt: value(of: "-account-created-at", in: launchArguments)
                 .flatMap(ISO8601DateFormatter().date(from:))
         )
