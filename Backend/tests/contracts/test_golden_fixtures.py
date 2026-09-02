@@ -25,6 +25,7 @@ from ladle.contracts.errors import (
 )
 from ladle.contracts.imports import ImportFailure, ImportJobResponse, ImportStatus
 from ladle.contracts.recipes import RecipeDTO, SyncPageDTO
+from ladle.extraction.review import ESTIMATED_TOTAL_REASON
 
 FIXTURE_ROOT = Path(__file__).parents[3] / "Contracts" / "Fixtures"
 JOB_ID = UUID("10000000-0000-4000-8000-000000000001")
@@ -50,6 +51,7 @@ def canonical_json(value: Any) -> str:
         ("import-failures.json", TypeAdapter(list[ImportJobResponse])),
         ("recipe-ready.json", TypeAdapter(RecipeDTO)),
         ("recipe-needs-review.json", TypeAdapter(RecipeDTO)),
+        ("recipe-estimated-time.json", TypeAdapter(RecipeDTO)),
         ("sync-page.json", TypeAdapter(SyncPageDTO)),
         ("errors.json", TypeAdapter(list[ErrorEnvelope])),
     ],
@@ -136,3 +138,21 @@ def test_error_details_are_code_specific_and_nullable() -> None:
         "existingRecipeID": str(RECIPE_ID)
     }
     assert generic.model_dump(mode="json", by_alias=True)["error"]["details"] is None
+
+
+def test_estimated_total_is_a_caveat_rather_than_a_blocker() -> None:
+    """The shape the app renders "About 25 min" from.
+
+    An estimated total travels as an uncertainty on an otherwise ready
+    recipe: nothing new on the wire, and no trip to Check details for a
+    number we labelled as ours.
+    """
+
+    recipe = RecipeDTO.model_validate(fixture_json("recipe-estimated-time.json"))
+
+    assert recipe.total_minutes == 25
+    assert recipe.preparation_minutes is None
+    assert recipe.cooking_minutes is None
+    assert recipe.review_status.value == "ready"
+    assert [value.field for value in recipe.uncertainties] == ["total_minutes"]
+    assert recipe.uncertainties[0].reason == ESTIMATED_TOTAL_REASON
