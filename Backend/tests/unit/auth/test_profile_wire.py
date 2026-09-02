@@ -88,3 +88,29 @@ def test_a_client_cannot_assert_its_own_creation_date() -> None:
         ProfileUpdateRequest.model_validate(
             {"displayName": "Priya Raman", "createdAt": "2020-01-01T00:00:00.000Z"}
         )
+
+
+def test_the_cooks_own_photo_is_served_as_a_signed_url() -> None:
+    """`avatarIsCustom` is what tells the app the photo is theirs to remove.
+
+    It cannot be read off the URL: a signed object URL and a provider link
+    are both just links, and the menu offers "Remove Photo" for one only.
+    """
+    rendered = AuthTokensResponse.from_tokens(
+        _tokens(avatar_object_key="avatars/priya/one.jpg"),
+        object_url=lambda key: f"https://objects.test/{key}?signature=fake",
+    ).model_dump(mode="json", by_alias=True)
+
+    assert rendered["avatarURL"] == (
+        "https://objects.test/avatars/priya/one.jpg?signature=fake"
+    )
+    assert rendered["avatarIsCustom"] is True
+
+
+def test_the_providers_link_is_served_when_the_cook_chose_no_photo() -> None:
+    rendered = AuthTokensResponse.from_tokens(_tokens()).model_dump(
+        mode="json", by_alias=True
+    )
+
+    assert rendered["avatarURL"] == "https://example.com/avatar.jpg"
+    assert rendered["avatarIsCustom"] is False
