@@ -1,0 +1,128 @@
+# Overeasy goes to TestFlight
+
+Date: September 2, 2026
+Status: **uploaded. Build 1.0 (20260902.1) reached App Store Connect on
+September 2 through Xcode's Organizer. The scripted upload path is written but
+not yet exercised.**
+
+The app has only ever been installed over a cable, one device at a time. This
+records what a TestFlight build needs, and leaves the whole run behind one
+command so the second upload is not another afternoon of archaeology.
+
+## What ships
+
+Version **1.0**, build **20260902.1** — a date with a counter, so a build
+number is never reused and reading one tells you when it was cut.
+
+The Release configuration is what makes this a real build rather than a
+developer's laptop build, and it was worth confirming rather than assuming:
+
+| Setting | Value | Why it matters |
+| --- | --- | --- |
+| `LADLE_API_BASE_URL` | the VPS over https | a tester has no `api.ladle.localhost` |
+| `APP_ATTEST_ENVIRONMENT` | `production` | Apple rejects a store build carrying the development environment |
+| `LADLE_APP_ATTEST_ENABLED` | `NO` | attestation stays off until the server enforces it |
+| `ITSAppUsesNonExemptEncryption` | `false` | no export-compliance question on every upload |
+
+## The pieces
+
+`Config/ExportOptions.plist` exports for `app-store-connect` with automatic
+signing against team `P48VDW72LU`, uploads symbols so crash reports
+symbolicate, and sets `manageAppVersionAndBuildNumber` to false — Xcode
+silently renumbering a build would defeat the scheme above.
+
+`Tools/release/testflight.sh` archives, exports, validates, and uploads.
+`--validate-only` stops after validation, which runs the same checks Apple
+runs on receipt without spending a build number; that is the way to try a
+change. `--archive-only` needs no credentials at all.
+
+Credentials come from the environment — `LADLE_ASC_KEY_ID`,
+`LADLE_ASC_ISSUER_ID`, `LADLE_ASC_KEY_PATH` — and never from the repository.
+`altool` takes a key identifier rather than a path and searches a few fixed
+directories for the file, so the script points `API_PRIVATE_KEYS_DIR` at
+whichever directory the key actually lives in.
+
+## Decisions
+
+**The `.p8` already in `.private/` is not the key this needs.** It is the
+Sign in with Apple key the backend signs client secrets with
+(`LADLE_APPLE_PRIVATE_KEY_PATH`). App Store Connect API keys, Sign in with
+Apple keys, and APNs keys all arrive as `AuthKey_<KEYID>.p8` and are
+indistinguishable by inspection, so the distinction is recorded here rather
+than rediscovered.
+
+**Internal testers first.** An internal group is App Store Connect users on
+the team: no Beta App Review, no privacy policy URL, available as soon as
+processing finishes. An external group or a public link puts the build through
+review, and HealthKit and Sign in with Apple will both want explaining. That
+is a decision for when there are testers who are not Chetan.
+
+## Two things a tester inherits
+
+**`LADLE_TUNNEL_ACCESS_KEY` ships inside the build.** It is an Info.plist
+value, so anyone holding the `.ipa` can read it, and TestFlight hands the
+build to Apple and to every tester. While that key is what gates the VPS API,
+distributing the app distributes the key.
+
+**The deployment target is iOS 26.5**, so a tester below that will not see the
+build at all.
+
+## Verification
+
+`xcodebuild archive` at `-configuration Release` succeeded, and the archive
+was read back rather than trusted: bundle `com.ladle.ios`, version `1.0`
+(`20260902.1`), display name Overeasy, the VPS URL, `appattest-environment`
+of `production`, `LadleShare.appex` embedded, and dSYMs for both.
+
+Four validation failures were ruled out before archiving, each of which
+rejects an upload rather than a build:
+
+- `TARGETED_DEVICE_FAMILY` is `1`, so the three supported orientations cannot
+  trip the iPad multitasking rule (ITMS-90474).
+- `Config/LadleShare-Info.plist` carries the same `$(MARKETING_VERSION)` and
+  `$(CURRENT_PROJECT_VERSION)` as the host app (ITMS-90473).
+- The app icon is 1024×1024 with no alpha channel.
+- `Ladle/Resources/PrivacyInfo.xcprivacy` is present.
+
+`xcodebuild -exportArchive` then succeeded, and the question of the missing
+distribution certificate answered itself: there is no distribution identity in
+the login keychain, and there does not need to be. Xcode signed with a
+**cloud-managed** certificate, `Apple Distribution: Chetan Goel
+(P48VDW72LU)`. The exported `.ipa` was unpacked and read back — the
+distribution authority, `get-task-allow` false, and `beta-reports-active`
+true, which is the entitlement that lets a build appear in TestFlight.
+
+Not exercised: `altool --validate-app` and `--upload-app`. The first upload
+went through Organizer's Distribute App instead, which authenticates with the
+Xcode account already signed in and needs no API key. The script's upload path
+therefore stays unproven until someone runs it with a key.
+
+## The first upload
+
+Organizer was driven through **Custom → App Store Connect → Upload** rather
+than the one-click App Store Connect path, for one reason: only the custom
+route exposes the options page, and the recommended settings leave **Manage
+version and build number** on. That checkbox would let Xcode renumber the
+build, which is exactly what `manageAppVersionAndBuildNumber = false` in the
+export options exists to prevent. It was unchecked.
+
+**TestFlight internal testing only** was left off deliberately. It is a
+permanent mark on the build: one carrying it can never be promoted to external
+testers or the store, so a build worth shipping would have to be uploaded
+again. Restricting who can install is a property of the tester group, not of
+the build, and is set in App Store Connect where it can be changed.
+
+Two questions were still open when the run started, and it answered both.
+The app record for `com.ladle.ios` already existed — Organizer's "Fetching app
+record" step found it rather than offering to create one. And the review page
+named the signing identity as **Cloud Managed Apple Distribution**, which is
+why the login keychain holds no distribution certificate and does not need to.
+
+The review page agreed with the `.ipa` inspected earlier on every point that
+matters: team `P48VDW72LU`, the store provisioning profile, symbols included,
+`arm64`, version 1.0 (20260902.1), and `appattest-environment` of
+`production`. Upload finished with `Ladle 1.0 (20260902.1) uploaded`.
+
+What remains is Apple's: processing, then an internal tester group with the
+build enabled. Internal testers are App Store Connect users on the team, so
+none of that needs Beta App Review.
