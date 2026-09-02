@@ -44,7 +44,11 @@ enum PreviewFixtures {
             slug: "garlic-udon",
             imageName: "RecipeUdon",
             minutes: 15,
-            favorite: true
+            favorite: true,
+            // One ingredient USDA has no usable record for. The demo library
+            // needs a recipe whose calories are honestly short so the
+            // "not counted" notes have somewhere to appear.
+            uncountedIngredient: 4
         ),
         makeRecipe(
             id: "B54D0E5B-8B10-410F-ADE7-7B0F12F94E04",
@@ -139,10 +143,15 @@ enum PreviewFixtures {
         slug: String,
         imageName: String,
         minutes: Int,
-        favorite: Bool = false
+        favorite: Bool = false,
+        uncountedIngredient: Int? = nil
     ) -> Recipe {
         let recipeID = UUID(uuidString: id)!
         let content = recipeContent(for: slug)
+        let (ingredients, uncertainties) = uncounted(
+            in: content.ingredients,
+            at: uncountedIngredient
+        )
         return Recipe(
             id: recipeID,
             title: title,
@@ -155,14 +164,47 @@ enum PreviewFixtures {
             cookingMinutes: max(minutes - 10, 0),
             totalMinutes: minutes,
             servings: 4,
-            ingredients: content.ingredients,
+            ingredients: ingredients,
             steps: content.steps,
             nutrition: content.nutrition,
             isFavorite: favorite,
+            uncertainties: uncertainties,
             createdAt: baseDate.addingTimeInterval(
                 TimeInterval(recipesOrderOffset(for: recipeID))
             ),
             updatedAt: baseDate
+        )
+    }
+
+    /// The notes a recipe carries when its totals skip an ingredient.
+    ///
+    /// The backend writes both: one against the ingredient, which the row
+    /// renders, and one recipe-level summary, which the nutrition panel
+    /// renders. The demo library mirrors that rather than inventing a shape.
+    private static func uncounted(
+        in values: [Ingredient],
+        at index: Int?
+    ) -> ([Ingredient], [FieldUncertainty]) {
+        guard let index, values.indices.contains(index) else {
+            return (values, [])
+        }
+        let name = values[index].name
+        let note = FieldUncertainty(
+            field: "ingredients[\(index)].nutrition",
+            reason: "Not counted: no nutrition record found for \(name)."
+        )
+        var ingredients = values
+        ingredients[index].uncertainty = note
+        return (
+            ingredients,
+            [
+                note,
+                FieldUncertainty(
+                    field: "nutrition",
+                    reason:
+                        "1 of \(values.count) ingredients not counted: \(name)."
+                ),
+            ]
         )
     }
 

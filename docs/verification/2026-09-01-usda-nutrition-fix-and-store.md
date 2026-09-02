@@ -2,6 +2,12 @@
 
 Date: September 1, 2026
 
+Followed by
+[per-ingredient degrading and the coverage floor](2026-09-02-nutrition-per-ingredient-fallback.md),
+which changes what happens when the selection described here finds nothing
+usable: the ingredient is skipped and named rather than costing the recipe its
+whole panel.
+
 ## Purpose
 
 Recipes were importing without any calorie or macro information. The cause was
