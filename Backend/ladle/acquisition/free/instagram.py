@@ -20,6 +20,7 @@ import httpx
 from ladle.acquisition.free.links import LinkFetcher, UnsafeURL
 from ladle.acquisition.models import (
     MediaMetadata,
+    SourceCounts,
     SourceVideoDescriptor,
     VisualEvidence,
 )
@@ -105,9 +106,38 @@ def _media(media: dict[str, object]) -> InstagramMedia | None:
                 if isinstance(duration, int | float) and duration >= 0
                 else None
             ),
+            counts=_counts(media),
         ),
         observations=_observations(media),
         media_url=str(media.get("video_url") or "").strip() or None,
+    )
+
+
+def _edge_count(media: dict[str, object], key: str) -> int | None:
+    """Instagram wraps counts in a GraphQL edge: {"count": n}."""
+    edge = media.get(key)
+    if not isinstance(edge, dict):
+        return None
+    return _whole(edge.get("count"))
+
+
+def _whole(value: object) -> int | None:
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    return value if value >= 0 else None
+
+
+def _counts(media: dict[str, object]) -> SourceCounts:
+    """Engagement counts from the same embed blob the caption comes from.
+
+    The embed carries likes, comments and views but no publish timestamp and
+    no repost count, so `published_at` stays empty for Instagram — which is
+    why the feed cannot offer a "recent" order on this platform.
+    """
+    return SourceCounts(
+        like_count=_edge_count(media, "edge_liked_by"),
+        comment_count=_edge_count(media, "edge_media_to_comment"),
+        view_count=_whole(media.get("video_view_count")),
     )
 
 

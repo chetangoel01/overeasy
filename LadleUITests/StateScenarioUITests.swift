@@ -3,7 +3,7 @@ import XCTest
 final class StateScenarioUITests: XCTestCase {
     @MainActor
     func testEmptyLibraryScenario() {
-        let app = launchApp(scenario: "empty")
+        let app = launchApp(scenario: "empty", startingOn: "Recipes")
 
         XCTAssertTrue(app.staticTexts["No recipes yet"].waitForExistence(timeout: 3))
         attachScreenshot(of: app, named: "Scenario - empty library")
@@ -11,7 +11,7 @@ final class StateScenarioUITests: XCTestCase {
 
     @MainActor
     func testOfflineContentScenarioPreservesRecipes() {
-        let app = launchApp(scenario: "offline-content")
+        let app = launchApp(scenario: "offline-content", startingOn: "Recipes")
 
         XCTAssertTrue(
             app.descendants(matching: .any)["sync.status"]
@@ -24,7 +24,7 @@ final class StateScenarioUITests: XCTestCase {
 
     @MainActor
     func testOfflineEmptyScenarioExplainsBothStates() {
-        let app = launchApp(scenario: "offline-empty")
+        let app = launchApp(scenario: "offline-empty", startingOn: "Recipes")
 
         XCTAssertTrue(app.staticTexts["You're offline"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.staticTexts["No recipes yet"].exists)
@@ -66,8 +66,56 @@ final class StateScenarioUITests: XCTestCase {
     }
 
     @MainActor
+    func testLaunchLandsOnDiscover() {
+        let app = launchApp(scenario: "standard")
+
+        let discover = app.tabBars.buttons["Discover"]
+        XCTAssertTrue(discover.waitForExistence(timeout: 5))
+        XCTAssertTrue(discover.isSelected)
+        XCTAssertTrue(
+            app.descendants(matching: .any)["library.discover"].exists
+        )
+        attachScreenshot(of: app, named: "Launch - Discover first")
+    }
+
+    /// The one failure path: a cold launch whose feed never arrives opens
+    /// the saved library instead of an error screen.
+    @MainActor
+    func testDiscoverFailureOnLaunchFallsBackToRecipes() {
+        let app = launchApp(scenario: "discover-rate-limited")
+
+        let recipes = app.tabBars.buttons["Recipes"]
+        XCTAssertTrue(recipes.waitForExistence(timeout: 5))
+        // No tap: the app has to land here on its own.
+        let landedOnRecipes = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "selected == true"),
+            object: recipes
+        )
+        wait(for: [landedOnRecipes], timeout: 5)
+        XCTAssertFalse(app.tabBars.buttons["Discover"].isSelected)
+        XCTAssertTrue(
+            app.descendants(matching: .any)["library.all-recipes"]
+                .waitForExistence(timeout: 3)
+        )
+        attachScreenshot(of: app, named: "Launch - Discover failure falls back")
+
+        // The feed is still failed, so Discover owns the error from here.
+        // `discover.initial-failure` sits on a ContentUnavailableView, whose
+        // identifier XCUITest does not surface, so assert its copy instead —
+        // the same shape testDiscoverRateLimitedScenario already uses.
+        app.tabBars.buttons["Discover"].tap()
+        XCTAssertTrue(
+            app.staticTexts["Too many requests"]
+                .waitForExistence(timeout: 3)
+        )
+        XCTAssertTrue(
+            app.staticTexts["Your saved recipes are still available."].exists
+        )
+    }
+
+    @MainActor
     func testImportQuotaScenario() {
-        let app = launchApp(scenario: "import-quota")
+        let app = launchApp(scenario: "import-quota", startingOn: "Recipes")
         submitImport(in: app)
 
         XCTAssertTrue(app.staticTexts["Limit reached"].waitForExistence(timeout: 3))
@@ -77,7 +125,7 @@ final class StateScenarioUITests: XCTestCase {
 
     @MainActor
     func testImportRateLimitedScenario() {
-        let app = launchApp(scenario: "import-rate-limited")
+        let app = launchApp(scenario: "import-rate-limited", startingOn: "Recipes")
         submitImport(in: app)
 
         XCTAssertTrue(app.staticTexts["Too many requests"].waitForExistence(timeout: 3))
@@ -91,7 +139,7 @@ final class StateScenarioUITests: XCTestCase {
 
     @MainActor
     func testAuthenticationExpiredScenario() {
-        let app = launchApp(scenario: "authentication-expired")
+        let app = launchApp(scenario: "authentication-expired", startingOn: "Recipes")
 
         XCTAssertTrue(app.staticTexts["Sign in again"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.descendants(matching: .any)["sync.status"].exists)
@@ -100,7 +148,7 @@ final class StateScenarioUITests: XCTestCase {
 
     @MainActor
     func testLargeLibraryScenario() {
-        let app = launchApp(scenario: "large-library")
+        let app = launchApp(scenario: "large-library", startingOn: "Recipes")
 
         XCTAssertTrue(app.staticTexts["80 recipes"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Weeknight Recipe 80"].exists)
@@ -111,6 +159,7 @@ final class StateScenarioUITests: XCTestCase {
     func testLargeLibraryAtXXXLargeUsesOneReadableColumn() {
         let app = launchApp(
             scenario: "large-library",
+            startingOn: "Recipes",
             contentSizeCategory: "UICTContentSizeCategoryXXXL"
         )
         let cards = app.buttons.matching(
@@ -140,6 +189,21 @@ final class StateScenarioUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Overeasy"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.buttons["Try as a guest"].exists)
         attachScreenshot(of: app, named: "Welcome - accessibility XXX Large")
+    }
+
+    @MainActor
+    func testInboxEmptyStateStartsAnImport() {
+        let app = launchApp(scenario: "empty")
+
+        app.tabBars.buttons["Inbox"].tap()
+        XCTAssertTrue(app.staticTexts["Inbox clear"].waitForExistence(timeout: 3))
+        attachScreenshot(of: app, named: "Inbox - empty with add recipe")
+
+        app.buttons["inbox.empty.add-recipe"].tap()
+
+        XCTAssertTrue(
+            app.textFields["Recipe link"].waitForExistence(timeout: 3)
+        )
     }
 
     @MainActor
@@ -185,9 +249,12 @@ final class StateScenarioUITests: XCTestCase {
         attachScreenshot(of: app, named: "Cooking - focus mode")
     }
 
+    /// A launch lands on Discover, so a test about another tab has to ask
+    /// for it rather than assume the first screen is its own.
     @MainActor
     private func launchApp(
         scenario: String,
+        startingOn tab: String? = nil,
         contentSizeCategory: String? = nil
     ) -> XCUIApplication {
         let app = XCUIApplication()
@@ -205,6 +272,14 @@ final class StateScenarioUITests: XCTestCase {
             ]
         }
         app.launch()
+        if let tab {
+            let button = app.tabBars.buttons[tab]
+            XCTAssertTrue(
+                button.waitForExistence(timeout: 5),
+                "Expected the \(tab) tab after launch"
+            )
+            button.tap()
+        }
         return app
     }
 

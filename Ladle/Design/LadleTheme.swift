@@ -56,6 +56,19 @@ enum LadleAccentColor: String, CaseIterable, Identifiable {
         Self(rawValue: storedValue ?? "") ?? .tomato
     }
 
+    /// Primary actions, favourites, active navigation, attention badges.
+    ///
+    /// The `Intent.accent` role, resolved against a chosen accent. Nothing
+    /// decorative may use this: an accent-coloured creator handle or bullet
+    /// is a misuse of the intent layer.
+    var intent: Color { actionColor }
+
+    /// Tinted text and icons that must still pass small-text contrast.
+    ///
+    /// The `Label.accent` role. Darker than `intent`, because `intent` is
+    /// sized for a fill and this has to survive at footnote size.
+    var label: Color { textColor }
+
     private static func dynamicColor(light: Int, dark: Int) -> Color {
         Color(
             uiColor: UIColor { traits in
@@ -64,6 +77,25 @@ enum LadleAccentColor: String, CaseIterable, Identifiable {
                 )
             }
         )
+    }
+}
+
+/// The accent the cook chose, carried down the view tree.
+///
+/// This is an environment value rather than a global read because SwiftUI
+/// has no dependency on `UserDefaults`: a theme property that read the
+/// preference directly invalidated nothing when it changed, so a view only
+/// picked up a new accent when it happened to re-render for some unrelated
+/// reason. Publishing it here means changing the accent invalidates every
+/// view that reads it, which is all of them.
+private struct LadleAccentEnvironmentKey: EnvironmentKey {
+    static let defaultValue: LadleAccentColor = .tomato
+}
+
+extension EnvironmentValues {
+    var ladleAccent: LadleAccentColor {
+        get { self[LadleAccentEnvironmentKey.self] }
+        set { self[LadleAccentEnvironmentKey.self] = newValue }
     }
 }
 
@@ -82,12 +114,12 @@ enum LadleTheme {
     // Palette values are private vocabulary for the semantic roles below.
     // Production screens consume Surface, Label, Intent, and Stroke instead.
     static let plumHex = "#14181B"
-    static let paperHex = "#F2F4F6"
-    static let oatHex = "#E3E7EA"
+    static let paperHex = "#F7F4EF"
+    static let oatHex = "#ECE7E1"
     static let inkHex = "#14181B"
     static let brickHex = "#EE4B2F"
     static let celeryHex = "#83A18A"
-    static let ubeHex = "#D7DDE2"
+    static let ubeHex = "#E3DDD6"
     static let mutedInkHex = "#64707A"
     static let darkPaperHex = "#101214"
     static let darkOatHex = "#1C2024"
@@ -105,11 +137,9 @@ enum LadleTheme {
     static let paper = Color("Paper")
     static let oat = Color("Oat")
     static let ink = Color("Ink")
-    static var brick: Color { selectedAccent.actionColor }
     static let celery = Color("Celery")
     static let ube = Color("Ube")
     static let mutedInk = Color("MutedInk")
-    static var accentText: Color { selectedAccent.textColor }
     static let onAccent = Color(
         red: 250 / 255,
         green: 251 / 255,
@@ -149,7 +179,7 @@ enum LadleTheme {
         /// `steel` is only about four percent off `raised`, so a badge drawn
         /// in it disappears into the card behind it. This role is separated
         /// far enough to read as a badge at 34 points.
-        static let badge = dynamicColor(light: 0xCDD5DC, dark: 0x303840)
+        static let badge = dynamicColor(light: 0xDCD5CC, dark: 0x303840)
     }
 
     /// Foregrounds. Each one names the surface it is legible on.
@@ -162,15 +192,15 @@ enum LadleTheme {
         static let onAccent = LadleTheme.onAccent
         /// Text on a surface that stays pale in both appearances.
         static let onFixedPale = LadleTheme.fixedInk
-        /// Tinted text and icons that must still pass small-text contrast.
-        static var accent: Color { LadleTheme.accentText }
+        // The accent roles are not here. They depend on a value the cook
+        // chooses at runtime, so they live on `LadleAccentColor` and are
+        // reached through `@Environment(\.ladleAccent)`. A static property
+        // could only read `UserDefaults`, which SwiftUI cannot observe.
     }
 
     /// Colours that carry meaning. Nothing here may be used for decoration:
     /// an accent-coloured creator handle or bullet is a misuse of this layer.
     enum Intent {
-        /// Primary actions, favourites, active navigation, attention badges.
-        static var accent: Color { LadleTheme.brick }
         /// Destructive actions. The system role, so it matches the platform's
         /// own delete affordances.
         static let destructive = Color.red
@@ -200,14 +230,6 @@ enum LadleTheme {
         )
     }
 
-    private static var selectedAccent: LadleAccentColor {
-        LadleAccentColor.resolve(
-            storedValue: UserDefaults.standard.string(
-                forKey: LadleAccentColor.preferenceKey
-            )
-        )
-    }
-
     /// The only spacing steps the app may use. Any padding or stack spacing
     /// that is not one of these six values is a bug; see `Layout` first for a
     /// role that already names the value you want.
@@ -229,9 +251,6 @@ enum LadleTheme {
         /// Leading and trailing margin for content inside a sheet, including
         /// the sheet's own toolbar control.
         static let sheetMargin = Spacing.generous
-        /// Extra inset that moves a native toolbar item from the system's
-        /// 16-point edge onto the 24-point sheet content margin.
-        static let sheetToolbarInset = sheetMargin - screenMargin
         /// Inner padding for a grouped card or field.
         static let cardPadding = Spacing.regular
         /// Gap between two sections of a screen.

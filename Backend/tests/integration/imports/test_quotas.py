@@ -252,6 +252,7 @@ def test_monthly_quota_survives_the_retention_sweep_of_terminal_jobs(
             sync_history_days=365,
             invalid_cache_days=30,
             deletion_audit_days=365,
+            discover_impression_days=30,
         ),
     )
 

@@ -2,6 +2,8 @@ import LadleCore
 import SwiftUI
 
 struct RecipeListRow: View {
+    @Environment(\.ladleAccent) private var accent
+
     let recipe: Recipe
     let openRecipe: () -> Void
     let toggleFavorite: () -> Void
@@ -39,7 +41,7 @@ struct RecipeListRow: View {
                 .font(.system(size: LadleTheme.IconSize.medium, weight: .semibold))
                 .foregroundStyle(
                     recipe.isFavorite
-                        ? LadleTheme.Label.accent
+                        ? accent.label
                         : LadleTheme.Label.primary.opacity(0.52)
                 )
                 .frame(width: LadleTheme.Control.hitTarget, height: LadleTheme.Control.hitTarget)
@@ -51,7 +53,15 @@ struct RecipeListRow: View {
                     : "Add \(recipe.title) to favorites"
             )
         }
-        .padding(8)
+        // The trailing element is a 44-point hit frame around a 16-point
+        // glyph, so it carries its own slack. Padding the trailing edge as
+        // well put the heart 22 points off the card while the thumbnail sat 8
+        // points off the other side. The frame supplies the trailing inset;
+        // the other three edges are padded to match it, which brings the two
+        // sides within two points of each other. Titles still truncate — that
+        // is the hit frame's width, not this padding.
+        .padding(.leading, LadleTheme.Layout.rowGap)
+        .padding(.vertical, LadleTheme.Layout.rowGap)
         .ladleCard()
         .contentShape(Rectangle())
         .onTapGesture(perform: openRecipe)

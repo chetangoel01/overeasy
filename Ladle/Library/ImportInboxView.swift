@@ -5,11 +5,13 @@ struct ImportInboxView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @Bindable var viewModel: LibraryViewModel
+    let addRecipe: () -> Void
     let recoverImport: (ImportJob) -> Void
     let openProcessing: (ImportJob) -> Void
     let cancelImport: (UUID) -> Void
     let openReview: (Recipe, String) -> Void
     var operationFailure: (ImportJob) -> ImportOperationFailure? = { _ in nil }
+    var canImport = true
 
     @State private var importAwaitingCancellation: ImportJob?
 
@@ -48,11 +50,16 @@ struct ImportInboxView: View {
     @ViewBuilder
     private var jobs: some View {
         if viewModel.actionableImportJobs.isEmpty {
-            ContentUnavailableView(
-                "Inbox clear",
-                systemImage: "checkmark.circle",
-                description: Text("New imports appear here.")
-            )
+            ContentUnavailableView {
+                Label("Inbox clear", systemImage: "checkmark.circle")
+            } description: {
+                Text("Paste a link to start one.")
+            } actions: {
+                Button("Add recipe", action: addRecipe)
+                    .buttonStyle(LadleButtonStyle(role: .secondary))
+                    .disabled(!canImport)
+                    .accessibilityIdentifier("inbox.empty.add-recipe")
+            }
             .foregroundStyle(LadleTheme.Label.primary)
             .listRowBackground(LadleTheme.Surface.porcelain)
             .listRowSeparator(.hidden)

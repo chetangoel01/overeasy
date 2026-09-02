@@ -148,15 +148,38 @@ final class AccountSignInFlow {
             await signInWithApple(
                 identityToken: identityToken,
                 authorizationCode: authorizationCode,
-                nonce: nonce
+                nonce: nonce,
+                fullName: Self.displayName(from: credential.fullName)
             )
         }
+    }
+
+    /// Apple's name as something that can be stored and shown.
+    ///
+    /// `credential.fullName` is `PersonNameComponents`, and it is non-nil
+    /// only on the very first authorization for an Apple ID — on every later
+    /// sign-in the components come back empty, which is nil here rather than
+    /// a blank name that would overwrite a real one.
+    ///
+    /// The result is clamped to what the server accepts: `fullName` is
+    /// bounded at 64 characters there, and an over-long name would fail the
+    /// whole sign-in rather than arrive shortened.
+    static func displayName(from components: PersonNameComponents?) -> String? {
+        guard let components else { return nil }
+        let formatter = PersonNameComponentsFormatter()
+        formatter.style = .default
+        let formatted = formatter
+            .string(from: components)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !formatted.isEmpty else { return nil }
+        return String(formatted.prefix(AccountProfile.displayNameLimit))
     }
 
     func signInWithApple(
         identityToken: String,
         authorizationCode: String,
-        nonce: String
+        nonce: String,
+        fullName: String? = nil
     ) async {
         await run(fallback: Self.appleFallback) { [self] in
             guard let authClient else {
@@ -168,7 +191,8 @@ final class AccountSignInFlow {
                 identityToken: identityToken,
                 authorizationCode: authorizationCode,
                 nonce: nonce,
-                idempotencyKey: UUID().uuidString.lowercased()
+                idempotencyKey: UUID().uuidString.lowercased(),
+                fullName: fullName
             )
         }
     }

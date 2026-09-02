@@ -1,3 +1,4 @@
+import logging
 from contextlib import AbstractContextManager, nullcontext
 from datetime import timedelta
 from enum import StrEnum
@@ -17,6 +18,7 @@ from ladle.acquisition.models import (
     AcquiredVideoContext,
     SourceVideoDescriptor,
     TextEvidence,
+    apply_source_counts,
 )
 from ladle.acquisition.protocol import VideoAcquirer
 from ladle.cache.claims import ClaimLease
@@ -53,6 +55,9 @@ from ladle.usage.limits import UsageLimitExceeded
 # reaper deletes it. Completion follows the upload within seconds; the grace
 # only has to outlast that window.
 _THUMBNAIL_DISCARD_GRACE = timedelta(hours=1)
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 class ProcessOutcome(StrEnum):
@@ -114,8 +119,52 @@ class ImportOrchestrator:
         self._nutrition = nutrition_enricher
         self._verifier = verifier
 
+    #: How stale a counts snapshot must be before a cache-hit import spends a
+    #: provider call refreshing it. Engagement numbers move continuously, so
+    #: the goal is "recent enough to rank by", not "live".
+    COUNTS_REFRESH_AFTER = timedelta(hours=12)
+
+    def _refresh_source_counts(
+        self,
+        descriptor: SourceVideoDescriptor,
+        *,
+        job_id: UUID,
+    ) -> None:
+        """Re-read engagement counts for a video someone imported again.
+
+        A cache hit is the only moment the app revisits a source it already
+        has, so it is the one natural place to refresh. Throttled, and never
+        allowed to fail the import: the reader asked for a recipe, not for
+        fresh like counts.
+        """
+        now = self._clock.now()
+        with self._sessions.begin() as database:
+            source = database.get(SourceVideo, descriptor.source_video_id)
+            if source is None:
+                return
+            refreshed_at = source.counts_refreshed_at
+            if (
+                refreshed_at is not None
+                and now - refreshed_at < self.COUNTS_REFRESH_AFTER
+            ):
+                return
+
+        try:
+            counts = self._acquirer.refresh_counts(descriptor, job_id=job_id)
+        except Exception:
+            LOGGER.info("Count refresh failed for %s", descriptor.canonical_url)
+            return
+        if counts.is_empty:
+            return
+
+        with self._sessions.begin() as database:
+            source = database.get(SourceVideo, descriptor.source_video_id)
+            if source is not None:
+                apply_source_counts(source, counts, now=self._clock.now())
+
     def process(self, job_id: UUID) -> ProcessOutcome:
         requires_recheck = False
+        cache_hit_outcome: ProcessOutcome | None = None
         with self._sessions.begin() as database:
             job = database.execute(
                 select(ImportJob).where(ImportJob.id == job_id).with_for_update()
@@ -137,7 +186,7 @@ class ImportOrchestrator:
                 model_id=self._extractor.model_id,
             )
             if decision.disposition == CacheDisposition.HIT:
-                return self._outcome(
+                cache_hit_outcome = self._outcome(
                     ProcessOutcome.CACHE_HIT,
                     status=job.status,
                     source=job.source,
@@ -179,7 +228,12 @@ class ImportOrchestrator:
                     status="parsing",
                     source=job.source,
                 )
-            if not requires_recheck and not bypass_cache and decision.claim is None:
+            if (
+                cache_hit_outcome is None
+                and not requires_recheck
+                and not bypass_cache
+                and decision.claim is None
+            ):
                 raise RuntimeError("leader decision did not include a claim")
 
             source = database.get(SourceVideo, job.source_video_id)
@@ -189,6 +243,12 @@ class ImportOrchestrator:
             claim = decision.claim
             correction_encrypted = job.correction_notes_encrypted
             pasted_encrypted = job.pasted_text_encrypted
+
+        if cache_hit_outcome is not None:
+            # Outside the transaction on purpose: the refresh shells out to
+            # yt-dlp, and the job row is held FOR UPDATE inside the block.
+            self._refresh_source_counts(descriptor, job_id=job_id)
+            return cache_hit_outcome
 
         if requires_recheck:
             try:
@@ -390,6 +450,7 @@ class ImportOrchestrator:
                 model_id=self._extractor.model_id,
                 thumbnail_object_key=thumbnail_key,
                 thumbnail_remote_url=thumbnail_remote_url,
+                counts=context.counts,
             )
             self._cancel_thumbnail_discard(database, thumbnail_key)
         return self._outcome(

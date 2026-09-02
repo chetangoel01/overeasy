@@ -4,6 +4,7 @@ import SwiftUI
 
 struct HealthExportSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.ladleAccent) private var accent
 
     @State private var viewModel: HealthExportViewModel
 
@@ -45,10 +46,6 @@ struct HealthExportSheet: View {
                     Button("Cancel") {
                         dismiss()
                     }
-                    .padding(
-                        .leading,
-                        LadleTheme.Layout.sheetToolbarInset
-                    )
                 }
             }
         }
@@ -89,7 +86,7 @@ struct HealthExportSheet: View {
         VStack(alignment: .leading, spacing: LadleTheme.Spacing.medium) {
             Image(systemName: "heart.text.clipboard")
                 .font(.system(size: LadleTheme.IconSize.large, weight: .semibold))
-                .foregroundStyle(LadleTheme.Label.accent)
+                .foregroundStyle(accent.label)
                 .frame(width: 52, height: 52)
                 .background(LadleTheme.Surface.badge, in: Circle())
 
@@ -255,7 +252,7 @@ struct HealthExportSheet: View {
                 .font(.system(size: LadleTheme.IconSize.feature, weight: .bold))
                 .foregroundStyle(LadleTheme.Label.onAccent)
                 .frame(width: 62, height: 62)
-                .background(LadleTheme.Intent.accent, in: Circle())
+                .background(accent.intent, in: Circle())
 
             Text(title)
                 .ladleFont(.title)

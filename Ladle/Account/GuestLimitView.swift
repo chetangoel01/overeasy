@@ -1,12 +1,11 @@
-import AuthenticationServices
 import LadleCore
 import SwiftUI
 
 struct GuestLimitView: View {
+    @Environment(\.ladleAccent) private var accent
+
     let decision: GuestSaveDecision
     var continueAction: () -> Void
-
-    @Environment(\.colorScheme) private var colorScheme
 
     @State private var flow: AccountSignInFlow
 
@@ -37,7 +36,7 @@ struct GuestLimitView: View {
 
                 Image(systemName: "books.vertical")
                     .font(.system(size: LadleTheme.IconSize.feature, weight: .semibold))
-                    .foregroundStyle(LadleTheme.Label.accent)
+                    .foregroundStyle(accent.label)
                     .frame(width: 54, height: 54)
                     .background(LadleTheme.Surface.badge, in: Circle())
 
@@ -52,42 +51,10 @@ struct GuestLimitView: View {
                         .multilineTextAlignment(.center)
                 }
 
-                VStack(spacing: LadleTheme.Spacing.medium) {
-                    SignInWithAppleButton(.continue) { request in
-                        flow.prepareAppleRequest(request)
-                    } onCompletion: { result in
-                        Task { await flow.handleAppleCompletion(result) }
-                    }
-                    // Unlike the welcome screen's fixed graphite, porcelain
-                    // adapts to the appearance, so the button must too.
-                    .signInWithAppleButtonStyle(
-                        colorScheme == .dark ? .white : .black
-                    )
-                    .frame(height: LadleTheme.Control.primary)
-                    .clipShape(
-                        RoundedRectangle(
-                            cornerRadius: LadleTheme.Corner.control
-                        )
-                    )
-                    .disabled(flow.isAuthenticating)
-
-                    GoogleSignInControl(
-                        isEnabled: !flow.isAuthenticating,
-                        accessibilityIdentifier: "guest-limit.google-sign-in"
-                    ) {
-                        Task { await flow.signInWithGoogle() }
-                    }
-                    .overlay(
-                        RoundedRectangle(
-                            cornerRadius: LadleTheme.Corner.control,
-                            style: .continuous
-                        )
-                        .strokeBorder(
-                            LadleTheme.Label.primary.opacity(0.08),
-                            lineWidth: 1
-                        )
-                    )
-                }
+                SignInOptionsView(
+                    flow: flow,
+                    identifierPrefix: "guest-limit"
+                )
 
                 if decision == .allowWithAccountPrompt {
                     Button("Save recipe and continue", action: continueAction)
@@ -98,14 +65,14 @@ struct GuestLimitView: View {
                 if flow.isAuthenticating {
                     ProgressView("Creating your free account")
                         .ladleFont(.metadata)
-                        .tint(LadleTheme.Intent.accent)
+                        .tint(accent.intent)
                         .foregroundStyle(LadleTheme.Label.secondary)
                 }
 
                 if let failure = flow.failure {
                     Text(failure.message)
                         .ladleFont(.metadata)
-                        .foregroundStyle(LadleTheme.Label.accent)
+                        .foregroundStyle(accent.label)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("guest-limit.sign-in-failure")

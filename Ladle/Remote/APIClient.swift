@@ -38,6 +38,7 @@ actor APIClient {
     private let appAttester: (any AppAttesting)?
     private let tunnelAccessKey: String?
     private let authenticationExpired: @Sendable () async -> Void
+    private let sessionRefreshed: @Sendable (AuthTokens) async -> Void
     private var refreshTask: Task<AuthTokens, Error>?
 
     init(
@@ -47,7 +48,9 @@ actor APIClient {
         appAttester: (any AppAttesting)? = nil,
         tunnelAccessKey: String? = nil,
         authenticationExpired:
-            @escaping @Sendable () async -> Void = {}
+            @escaping @Sendable () async -> Void = {},
+        sessionRefreshed:
+            @escaping @Sendable (AuthTokens) async -> Void = { _ in }
     ) {
         self.baseURL = baseURL
         self.session = session
@@ -55,6 +58,7 @@ actor APIClient {
         self.appAttester = appAttester
         self.tunnelAccessKey = tunnelAccessKey
         self.authenticationExpired = authenticationExpired
+        self.sessionRefreshed = sessionRefreshed
     }
 
     func request<Response>(
@@ -263,6 +267,9 @@ actor APIClient {
             throw APIError.authenticationExpired
         }
         try tokenStore.save(refreshed)
+        // The profile rides on the tokens, so a refresh is also how a name
+        // edited on another device reaches this one.
+        await sessionRefreshed(refreshed)
         return refreshed
     }
 

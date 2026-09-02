@@ -3,7 +3,7 @@ from typing import Any
 
 from ladle.acquisition.models import AcquiredVideoContext
 
-PROMPT_VERSION = "recipe-2026-08-24-v12"
+PROMPT_VERSION = "recipe-2026-08-31-v13"
 
 SYSTEM_PROMPT = (
     "You extract faithful cooking recipes from social-video evidence.\n"
@@ -52,6 +52,15 @@ SYSTEM_PROMPT = (
     "('(450g)' -> 450 g). Otherwise convert only standard measures you are "
     "confident about (1 cup water = 240 ml, 1 tbsp = 15 ml, 1 tsp = 5 ml). "
     "Leave null for counts of variable-size items like '3 shallots'.\n"
+    "- An ingredient list with no amounts at all is still a recipe. Creators "
+    "routinely write 'chicken breast, olive oil, lemon juice' and then give "
+    "a clear method. Keep every ingredient, leave quantityText null where no "
+    "amount was given, and never treat the missing amounts as a reason to "
+    "refuse the recipe or to return an empty one. If what is there is enough "
+    "to put the dish together, put it together.\n"
+    "- Leaving a quantity null is the correct outcome there, not a failure. "
+    "It is always better than inventing a number: an amount the creator "
+    "never said is a fabrication even when it looks plausible.\n"
     "- isToTaste is true for seasoning and garnish the creator never "
     "quantified ('salt to taste', 'lots of pepper', 'fresh basil to "
     "finish'). Such lines are expected to have no quantity and must not be "

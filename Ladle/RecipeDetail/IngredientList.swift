@@ -2,6 +2,8 @@ import LadleCore
 import SwiftUI
 
 struct IngredientList: View {
+    @Environment(\.ladleAccent) private var accent
+
     let ingredients: [Ingredient]
 
     /// Width of the bullet leading each ingredient. The row divider and the
@@ -44,7 +46,7 @@ struct IngredientList: View {
                             systemImage: "exclamationmark.circle"
                         )
                         .ladleFont(.metadata)
-                        .foregroundStyle(LadleTheme.Label.accent)
+                        .foregroundStyle(accent.label)
                         .padding(.leading, Self.labelOrigin)
                         .accessibilityLabel(
                             "Uncertain ingredient: \(uncertainty.reason)"

@@ -270,6 +270,11 @@ final class LadleRuntime {
                     await MainActor.run {
                         accountSession.signOut()
                     }
+                },
+                sessionRefreshed: { tokens in
+                    await MainActor.run {
+                        accountSession.applyRemoteProfile(tokens.profile)
+                    }
                 }
             )
             authClient = AuthClient(
@@ -486,6 +491,8 @@ final class LadleRuntime {
 }
 
 struct AppBootstrapFailureView: View {
+    @Environment(\.ladleAccent) private var accent
+
     let failure: AppBootstrapFailure
     let retry: () -> Void
 
@@ -493,7 +500,7 @@ struct AppBootstrapFailureView: View {
         VStack(spacing: LadleTheme.Layout.sectionGap) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: LadleTheme.IconSize.feature))
-                .foregroundStyle(LadleTheme.Label.accent)
+                .foregroundStyle(accent.label)
                 .frame(width: 60, height: 60)
                 .background(LadleTheme.Surface.steel, in: Circle())
 
@@ -527,10 +534,12 @@ struct AppBootstrapFailureView: View {
 }
 
 struct AppBootstrapPreparingView: View {
+    @Environment(\.ladleAccent) private var accent
+
     var body: some View {
         VStack(spacing: LadleTheme.Spacing.regular) {
             ProgressView()
-                .tint(LadleTheme.Intent.accent)
+                .tint(accent.intent)
             Text("Preparing Overeasy")
                 .ladleFont(.bodyStrong)
                 .foregroundStyle(LadleTheme.Label.primary)

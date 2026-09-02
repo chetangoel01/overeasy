@@ -162,14 +162,20 @@ Run the domain package:
 swift test --package-path Packages/LadleCore
 ```
 
-Run the app and Share Extension unit tests:
+Run the app and Share Extension unit tests. Tests are disabled on the default
+`Ladle` scheme so ordinary builds stay fast — use the `LadleAllTests` scheme:
 
 ```bash
 xcodebuild test \
   -project Ladle.xcodeproj \
-  -scheme Ladle \
+  -scheme LadleAllTests \
   -destination 'platform=iOS Simulator,name=iPhone 17'
 ```
+
+Add `-only-testing:LadleTests` for just the fast unit suite (the UI tests take
+a few minutes). Backend tests are likewise skipped in CI behind the
+`RUN_BACKEND_TESTS` flag in `.github/workflows/backend-ci.yml`; they still run
+locally with `uv run pytest` from `Backend/`.
 
 ## Deterministic demo and test imports
 

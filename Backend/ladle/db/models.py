@@ -39,6 +39,12 @@ class User(Base):
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    # Seeded from the provider on first sign-in and editable afterwards, so a
+    # later sign-in must never overwrite it. Apple supplies a name exactly
+    # once, which is why it is captured rather than fetched on demand.
+    display_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # The provider's own copy. No local edit to lose, so this may refresh.
+    avatar_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -259,6 +265,12 @@ class AuthSession(Base):
 class SourceVideo(Base):
     __tablename__ = "source_videos"
     __table_args__ = (
+        # Migration 0019's partial index, restated so autogenerate keeps it.
+        Index(
+            "ix_source_videos_like_count",
+            text("like_count DESC"),
+            postgresql_where=text("like_count IS NOT NULL"),
+        ),
         UniqueConstraint(
             "platform",
             "platform_video_id",
@@ -279,6 +291,18 @@ class SourceVideo(Base):
     )
     source_revision: Mapped[str] = mapped_column(
         String(255), nullable=False, server_default="1"
+    )
+    # Engagement counts as the source platform last reported them, with the
+    # moment they were taken. A snapshot, never a live figure.
+    like_count: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    view_count: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    comment_count: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    repost_count: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    published_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    counts_refreshed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
     )
     source_metadata: Mapped[dict[str, Any]] = mapped_column(
         "metadata_json", JSON, nullable=False, server_default=text("'{}'::json")
@@ -360,6 +384,17 @@ class NegativeExtractionCache(Base):
 class Recipe(Base):
     __tablename__ = "recipes"
     __table_args__ = (
+        # Declared here as well as in migration 0018 so autogenerate does not
+        # propose dropping them: the Discover feed groups and filters on
+        # exactly these columns.
+        Index("ix_recipes_source_video_id", "source_video_id"),
+        Index(
+            "ix_recipes_discover_ranking",
+            "review_status",
+            "source",
+            "source_video_id",
+            postgresql_where=text("deleted_at IS NULL AND source_cache_id IS NOT NULL"),
+        ),
         CheckConstraint(
             "source IN ('tiktok', 'instagram', 'youtube', 'other')",
             name="ck_recipes_source",
@@ -912,5 +947,66 @@ class RecipeChange(Base):
     kind: Mapped[str] = mapped_column(String(16), nullable=False)
     recipe_revision: Mapped[int] = mapped_column(Integer, nullable=False)
     changed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class DiscoverImpression(Base):
+    """The last time a Discover page served one source to one cook.
+
+    Overwritten rather than appended, so the table is bounded by corpus size
+    per cook rather than by how often they scroll. The feed reads it to demote
+    what was seen recently — never to exclude — and the retention sweep
+    deletes aged rows, which together are the decay rule: nothing is
+    suppressed forever and no cook can exhaust the feed.
+    """
+
+    __tablename__ = "discover_impressions"
+    __table_args__ = (
+        # Serves the retention sweep's per-user cutoff scan. The feed's own
+        # lookup is one cook's row for a specific source, which the primary
+        # key already answers.
+        Index("ix_discover_impressions_user_seen_at", "user_id", "seen_at"),
+    )
+
+    user_id: Mapped[UUID] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    source_video_id: Mapped[UUID] = mapped_column(
+        Uuid, ForeignKey("source_videos.id", ondelete="CASCADE"), primary_key=True
+    )
+    seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class USDAFood(Base):
+    """A FoodData Central detail response, stored exactly as it arrived.
+
+    The payload is kept raw rather than parsed into columns so that changes to
+    how a record is validated or ranked apply to everything already collected.
+    The branded panels that used to cost recipes their nutrition are still in
+    here; they are simply rejected at read time now.
+    """
+
+    __tablename__ = "usda_foods"
+
+    fdc_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    fetched_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class USDASearch(Base):
+    """A FoodData Central search response for one normalized query.
+
+    Keyed by the same normalization the client applies before searching, so
+    "  Chickpeas   CANNED " and "chickpeas canned" are one row.
+    """
+
+    __tablename__ = "usda_searches"
+
+    query: Mapped[str] = mapped_column(String(255), primary_key=True)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    fetched_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

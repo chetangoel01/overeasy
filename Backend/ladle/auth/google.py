@@ -17,14 +17,35 @@ class GoogleIdentityTokenInvalid(Exception):
     pass
 
 
+def _optional_text(value: object, *, limit: int) -> str | None:
+    """A profile claim, or `None` if it is absent, blank or not a string.
+
+    A claim is provider-controlled input even after the signature checks out,
+    so it is bounded here rather than at the column.
+    """
+    if not isinstance(value, str):
+        return None
+    trimmed = value.strip()
+    if not trimmed:
+        return None
+    return trimmed[:limit]
+
+
 @dataclass(frozen=True)
 class GoogleIdentityClaims:
     subject: str
+    # Profile claims. Optional by contract as well as in practice: they depend
+    # on the scopes granted, and a missing name is a cook without a default
+    # display name, not a failed sign-in.
+    name: str | None = None
+    picture: str | None = None
 
 
 @dataclass(frozen=True)
 class GoogleCredential:
     subject: str
+    name: str | None = None
+    picture: str | None = None
 
 
 class GoogleJWKS(Protocol):
@@ -130,7 +151,11 @@ class GoogleIdentityTokenVerifier:
             raise GoogleIdentityTokenInvalid(
                 "Google identity token issued-at is invalid"
             )
-        return GoogleIdentityClaims(subject=subject)
+        return GoogleIdentityClaims(
+            subject=subject,
+            name=_optional_text(payload.get("name"), limit=64),
+            picture=_optional_text(payload.get("picture"), limit=2048),
+        )
 
     def _decode(
         self,
@@ -176,4 +201,8 @@ class GoogleCredentialService:
 
     def verify(self, identity_token: str) -> GoogleCredential:
         claims = self._identity_tokens.verify(identity_token)
-        return GoogleCredential(subject=claims.subject)
+        return GoogleCredential(
+            subject=claims.subject,
+            name=claims.name,
+            picture=claims.picture,
+        )
