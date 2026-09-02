@@ -37,19 +37,27 @@ struct NameStepPrototypeView: View {
             VStack(spacing: 0) {
                 header
 
-                ScrollView {
-                    VStack(spacing: LadleTheme.Spacing.generous) {
-                        message
-                        monogram
-                        nameField
+                // Centred in what is left between the header and the
+                // button, and scrollable when the type is large enough to
+                // need it — the shape Welcome uses for the same problem.
+                GeometryReader { proxy in
+                    ScrollView {
+                        VStack(spacing: LadleTheme.Spacing.generous) {
+                            message
+                            monogram
+                            nameField
+                        }
+                        .frame(maxWidth: 360)
+                        .padding(.horizontal, LadleTheme.Spacing.generous)
+                        .padding(.vertical, LadleTheme.Spacing.generous)
+                        .frame(
+                            maxWidth: .infinity,
+                            minHeight: proxy.size.height,
+                            alignment: .center
+                        )
                     }
-                    .frame(maxWidth: 360)
-                    .frame(maxWidth: .infinity)
-                    .padding(.horizontal, LadleTheme.Spacing.generous)
-                    .padding(.top, LadleTheme.Spacing.generous)
-                    .padding(.bottom, LadleTheme.Spacing.generous)
+                    .scrollIndicators(.hidden)
                 }
-                .scrollIndicators(.hidden)
 
                 footer
             }
@@ -154,6 +162,10 @@ struct NameStepPrototypeView: View {
                     style: .continuous
                 )
             )
+            // The field's own hit area is only the line of text; the chrome
+            // around it looks tappable and has to be.
+            .contentShape(Rectangle())
+            .onTapGesture { isNameFocused = true }
             .accessibilityLabel("Your name")
             .accessibilityIdentifier("name-step.name-field")
     }
