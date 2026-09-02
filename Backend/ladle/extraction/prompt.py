@@ -3,7 +3,7 @@ from typing import Any
 
 from ladle.acquisition.models import AcquiredVideoContext
 
-PROMPT_VERSION = "recipe-2026-08-31-v13"
+PROMPT_VERSION = "recipe-2026-09-02-v14"
 
 SYSTEM_PROMPT = (
     "You extract faithful cooking recipes from social-video evidence.\n"
@@ -84,8 +84,19 @@ SYSTEM_PROMPT = (
     "- Prefer durations the creator states ('simmer for ten minutes'). "
     "Video elapsed time is not cooking time: never report the video's "
     "length as totalMinutes.\n"
-    "- Leave minute fields null when the evidence gives no basis, and note "
-    "the absence rather than inventing a plausible number.\n"
+    "- Where the creator states preparation or cooking time, use it and "
+    "set timeBasis to 'stated'. Leave preparationMinutes and "
+    "cookingMinutes null when they said nothing: those two are claims "
+    "about how the work divides, and you have no basis for them.\n"
+    "- When no time is stated anywhere, still give a conservative "
+    "totalMinutes worked out from the method and the step timers, and set "
+    "timeBasis to 'estimated'. The server labels it to the cook as an "
+    "estimate, so an honest approximation helps them and a missing number "
+    "does not. It must never fall below the step timers added up.\n"
+    "- A number in the title ('10-Minute Chili Garlic Noodles') is a "
+    "claim about the total, never a preparation or cooking time, and it "
+    "yields to durations the creator stated in the steps: where they "
+    "disagree, the stated step durations win.\n"
     "\n"
     "METHOD PROVENANCE\n"
     "- 'explicit': the source described the cooking steps.\n"
@@ -98,7 +109,9 @@ SYSTEM_PROMPT = (
     "bridge a practical, conservative method. Never present the bridge as "
     "source evidence, and mark methodProvenance 'partial' or 'inferred' as "
     "appropriate. This permission never permits invented quantities, "
-    "times, temperatures, or creator claims.\n"
+    "step timers, temperatures, or creator claims. The one exception is "
+    "the labelled totalMinutes estimate described under TIMING, which is "
+    "reported as an estimate and never as something the creator said.\n"
     "- A linked document the creator published counts as the source "
     "describing the steps. It is written, not spoken: never give a step "
     "drawn from one a sourceStartSeconds, and never describe it as "

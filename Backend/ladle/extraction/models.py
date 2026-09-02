@@ -142,6 +142,7 @@ class ExtractedNutrition(WireModel):
 
 MethodProvenance = Literal["explicit", "partial", "inferred"]
 ServingsBasis = Literal["stated", "estimatedFromYield", "unknown"]
+TimeBasis = Literal["stated", "estimated", "unknown"]
 
 
 class RecipeExtraction(WireModel):
@@ -152,6 +153,10 @@ class RecipeExtraction(WireModel):
     # How servings was arrived at, so the server never presents a guess as
     # a stated fact.
     servings_basis: ServingsBasis = "unknown"
+    # Whether the creator gave a time or the model worked one out from the
+    # method, so the server can label the estimate instead of passing it
+    # off as something they said.
+    time_basis: TimeBasis = "unknown"
     preparation_minutes: int | None = Field(default=None, ge=0)
     cooking_minutes: int | None = Field(default=None, ge=0)
     total_minutes: int | None = Field(default=None, ge=0)

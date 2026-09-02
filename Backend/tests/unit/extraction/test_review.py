@@ -12,7 +12,7 @@ from ladle.extraction.models import (
     ExtractedStep,
     RecipeExtraction,
 )
-from ladle.extraction.review import build_reviewed_template
+from ladle.extraction.review import ESTIMATED_TOTAL_REASON, build_reviewed_template
 
 
 def context(*, diagnostics: list[str] | None = None) -> AcquiredVideoContext:
@@ -317,3 +317,27 @@ def test_one_missing_quantity_in_a_short_recipe_does_not_force_review() -> None:
     assert "ingredientQuantities" not in {
         value.field for value in reviewed.uncertainties
     }
+
+
+def test_estimated_time_adds_an_uncertainty_and_does_not_block() -> None:
+    reviewed = build_reviewed_template(
+        _solid_recipe(time_basis="estimated", total_minutes=25),
+        context=context(),
+    )
+
+    assert reviewed.total_minutes == 25
+    assert reviewed.review_status == RecipeReviewStatus.READY
+    assert [
+        value.reason
+        for value in reviewed.uncertainties
+        if value.field == "total_minutes"
+    ] == [ESTIMATED_TOTAL_REASON]
+
+
+def test_stated_time_carries_no_estimate_caveat() -> None:
+    reviewed = build_reviewed_template(
+        _solid_recipe(time_basis="stated", total_minutes=25),
+        context=context(),
+    )
+
+    assert all(value.field != "total_minutes" for value in reviewed.uncertainties)

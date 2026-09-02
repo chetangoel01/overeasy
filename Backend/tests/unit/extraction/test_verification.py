@@ -13,7 +13,12 @@ from ladle.acquisition.models import (
     TextEvidence,
     VisualEvidence,
 )
-from ladle.contracts.recipes import RecipeReviewStatus, RecipeSource
+from ladle.contracts.recipes import (
+    FieldUncertaintyDTO,
+    RecipeReviewStatus,
+    RecipeSource,
+)
+from ladle.extraction.review import ESTIMATED_TOTAL_REASON
 from ladle.extraction.verification import (
     OpenRouterVerificationClient,
     StructuredVerificationResponse,
@@ -32,6 +37,7 @@ from ladle.recipes.template_clone import (
     TemplateIngredient,
     TemplateNutrition,
     TemplateStep,
+    TemplateTimer,
 )
 
 
@@ -547,3 +553,83 @@ def test_openrouter_verifier_provider_errors_are_typed(status: int) -> None:
             issues=deterministic_issues(value, spans),
             evidence=spans,
         )
+
+
+def _timed_step(seconds: int) -> TemplateStep:
+    return TemplateStep(
+        order_index=0,
+        instruction="Bake the tray.",
+        ingredient_indexes=[0],
+        timers=[TemplateTimer(label="Bake", duration_seconds=seconds)],
+    )
+
+
+def test_estimated_total_below_the_step_timers_is_an_issue() -> None:
+    issues = deterministic_issues(
+        recipe(
+            servings_basis="unknown",
+            preparation_minutes=None,
+            cooking_minutes=None,
+            total_minutes=20,
+            steps=[_timed_step(65 * 60)],
+            uncertainties=[
+                FieldUncertaintyDTO(
+                    field="total_minutes",
+                    reason=ESTIMATED_TOTAL_REASON,
+                )
+            ],
+        ),
+        [evidence("Bake for 65 minutes.")],
+    )
+
+    assert "total_minutes" in {value.field_path for value in issues}
+    assert [value.supporting_evidence for value in issues] == [["Bake for 65 minutes."]]
+
+
+def test_estimated_total_covering_the_step_timers_passes() -> None:
+    issues = deterministic_issues(
+        recipe(
+            servings_basis="unknown",
+            preparation_minutes=None,
+            cooking_minutes=None,
+            total_minutes=75,
+            steps=[_timed_step(65 * 60)],
+            uncertainties=[
+                FieldUncertaintyDTO(
+                    field="total_minutes",
+                    reason=ESTIMATED_TOTAL_REASON,
+                )
+            ],
+        ),
+        [evidence("Bake for 65 minutes.")],
+    )
+
+    assert issues == []
+
+
+def test_stated_total_below_the_step_timers_is_left_alone() -> None:
+    # Steps can overlap, so a creator's own total is allowed to sit under the
+    # sum of their timers. Only an estimate we made is held to that floor.
+    issues = deterministic_issues(
+        recipe(
+            servings_basis="unknown",
+            preparation_minutes=None,
+            cooking_minutes=None,
+            total_minutes=20,
+            steps=[_timed_step(65 * 60)],
+        ),
+        [evidence("Bake for 65 minutes.")],
+    )
+
+    assert issues == []
+
+
+def test_title_minutes_below_stated_prep_and_cook_still_trip() -> None:
+    # "10-Minute Chili Garlic Noodles": the number in the title is a claim
+    # about the total, and it loses to the durations the creator stated.
+    issues = deterministic_issues(
+        recipe(preparation_minutes=10, cooking_minutes=20, total_minutes=10),
+        [evidence("Prep 10 minutes, cook 20 minutes.")],
+    )
+
+    assert "total_minutes" in {value.field_path for value in issues}
