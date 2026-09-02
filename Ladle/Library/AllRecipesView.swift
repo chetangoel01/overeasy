@@ -193,8 +193,8 @@ struct AllRecipesView: View {
     }
 
     /// One submenu per dimension. Its options and their wording come from
-    /// `LibraryFilter`, which the pills read too, so a checked row and the
-    /// pill that removes it can never disagree.
+    /// `LibraryFilter`, which words the pills too — a row by `optionTitle`,
+    /// a pill by `pillTitle` — so neither can name a value the other does not.
     private func filterSubmenu(
         _ filter: LibraryFilter,
         selection: Binding<Int?>

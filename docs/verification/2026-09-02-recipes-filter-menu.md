@@ -55,10 +55,10 @@ so the three header controls are the same control.
   flags, and the six filters have always started empty. Making a menu of them
   is not a reason to change that.
 - **One shared option source.** `LibraryFilter` owns the option lists and the
-  words for every value, and both the picker rows and the pills read it, so a
-  value cannot be named one thing on the checked row and another on the pill
-  that removes it. `LibraryFilterChip.chips(for:)` moved out of the view for
-  the same reason — it is the only way the tie is testable.
+  words for every value; the picker rows and the pills are both worded from it
+  off that one list, so neither can name a value the other does not.
+  `LibraryFilterChip.chips(for:)` moved out of the view for the same reason —
+  it is the only way the tie is testable.
 - **A pill carries the noun; a submenu row does not.** `optionTitle` words a
   value inside its own submenu, where the label above it already says
   "Carbohydrates"; `pillTitle` words the same value for a pill that stands
