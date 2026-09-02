@@ -95,7 +95,9 @@
 		ADFA32D4AFDD16210863F59F /* NutritionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA9412596DCD6FFCA28EC55D /* NutritionView.swift */; };
 		AE4B668CBE0E318875AF01EA /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72AE00384EB09CFD40366417 /* ShareViewController.swift */; };
 		AE645C3991B22C20AF387561 /* ImportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC911C7C9A9D3FDBABF02BB9 /* ImportService.swift */; };
+		B33417F9D7F9DD7E7DDBEFD3 /* NutritionNoteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAE1A079A91563D4B4A47FA0 /* NutritionNoteTests.swift */; };
 		B6F2C50D9C1E3327A6A59F33 /* RecipeRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70F3A8AF60529A54861B53EB /* RecipeRepository.swift */; };
+		B7DF0B5B2E120DA67F5F747D /* NutritionNote.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED5A2404583300FE955A8774 /* NutritionNote.swift */; };
 		B8666103939A1C937D3007CF /* AppAttestClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 015AA36229E912578D0E22A5 /* AppAttestClient.swift */; };
 		B8C07A83B04420D104948A91 /* ImportCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCE40C1144201ECA9A36E8BC /* ImportCoordinator.swift */; };
 		BCE8D4284DDADFE5A4E61200 /* RemoteImageCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2364871665B549A371E8011 /* RemoteImageCache.swift */; };
@@ -276,6 +278,7 @@
 		D7B73A4D628A16E2ED7ADBB5 /* CorrectionNotesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CorrectionNotesView.swift; sourceTree = "<group>"; };
 		D975A502CE6CABFF17DE770D /* LadleShare.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = LadleShare.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		DA818A2F41C226B07147DE3D /* AccountHeaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountHeaderView.swift; sourceTree = "<group>"; };
+		DAE1A079A91563D4B4A47FA0 /* NutritionNoteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionNoteTests.swift; sourceTree = "<group>"; };
 		DB9237724B9663AD4AFC1232 /* AccountSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSession.swift; sourceTree = "<group>"; };
 		DC8EEB0F6CE2D7F25FAF7308 /* RecipeGridCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeGridCard.swift; sourceTree = "<group>"; };
 		DD8157BECA8D206CD8B984BB /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
@@ -287,6 +290,7 @@
 		E8D8492C25EEFD85B7E7240C /* SwiftDataRecipeRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftDataRecipeRepository.swift; sourceTree = "<group>"; };
 		E9C01DA218666D762AB16E8A /* AuthClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthClient.swift; sourceTree = "<group>"; };
 		ED3A0E550E090DA7C5FCA73D /* AccountSignInFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSignInFlowTests.swift; sourceTree = "<group>"; };
+		ED5A2404583300FE955A8774 /* NutritionNote.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionNote.swift; sourceTree = "<group>"; };
 		ED6E479FC67096188CF3D983 /* RemoteFailureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteFailureTests.swift; sourceTree = "<group>"; };
 		F000720581D01DB27C9E2960 /* SignInOptionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignInOptionsView.swift; sourceTree = "<group>"; };
 		F165E4B6E30D83BFDFE33A13 /* ImportRecoveryActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportRecoveryActions.swift; sourceTree = "<group>"; };
@@ -430,6 +434,7 @@
 		5B2B06AAF3633268B84B87A2 /* Nutrition */ = {
 			isa = PBXGroup;
 			children = (
+				ED5A2404583300FE955A8774 /* NutritionNote.swift */,
 				CA9412596DCD6FFCA28EC55D /* NutritionView.swift */,
 			);
 			path = Nutrition;
@@ -497,6 +502,7 @@
 				D170AF6E8F4C1086A15B0546 /* LibraryNavigationStateTests.swift */,
 				6E75C97A3440E521A8A01510 /* LibraryViewModelTests.swift */,
 				2027095EF76748A9CC4DE10F /* NotificationServiceTests.swift */,
+				DAE1A079A91563D4B4A47FA0 /* NutritionNoteTests.swift */,
 				9209E28951C4CAA3BC8E7629 /* ProjectSmokeTests.swift */,
 				703E2046735779150499C97A /* RecipeEditorViewModelTests.swift */,
 				99E1C2581DC55DA301481A34 /* RecipeSyncServiceTests.swift */,
@@ -839,6 +845,7 @@
 				E5D62027E211EFC50B38F37C /* LibraryViewModel.swift in Sources */,
 				910528C2827351A23281CE62 /* MethodList.swift in Sources */,
 				60F294395D35AC79B907E3B0 /* NotificationService.swift in Sources */,
+				B7DF0B5B2E120DA67F5F747D /* NutritionNote.swift in Sources */,
 				ADFA32D4AFDD16210863F59F /* NutritionView.swift in Sources */,
 				3D212F33DC8232C5C1A8FAA7 /* OnboardingWalkthroughView.swift in Sources */,
 				3B24B8FC354FB569DA827D92 /* PendingImportCard.swift in Sources */,
@@ -911,6 +918,7 @@
 				8D8E4FF5E0B642F22239CFB4 /* LibraryNavigationStateTests.swift in Sources */,
 				94CBE2FD5CDC33A263424029 /* LibraryViewModelTests.swift in Sources */,
 				2AED269B9C6BFDDBB4DFE5B9 /* NotificationServiceTests.swift in Sources */,
+				B33417F9D7F9DD7E7DDBEFD3 /* NutritionNoteTests.swift in Sources */,
 				D78BB07879939E3FC2D9E071 /* ProjectSmokeTests.swift in Sources */,
 				FA4BA8A760D9DDCB30729AB7 /* RecipeEditorViewModelTests.swift in Sources */,
 				5042FC333DCDB3F45C5DFEC3 /* RecipeSyncServiceTests.swift in Sources */,
