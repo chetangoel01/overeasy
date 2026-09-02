@@ -21,6 +21,11 @@ final class DiscoverViewModel {
     private let service: any DiscoverServing
     private let removesSavedRecipeImmediately: Bool
     private let loadsShelves: Bool
+    private let recordsSeenSources: Bool
+    /// The moment this paging session began, sent with every page of it. The
+    /// server demotes only what was seen *before* it, so the rows this walk
+    /// records cannot re-rank the pages it has not fetched yet.
+    private var sessionStartedAt: Date?
     /// The rails as last loaded. `visibleShelves` is what the screen draws.
     private(set) var shelves: [DiscoverShelf] = []
     private(set) var state: State = .idle
@@ -75,11 +80,13 @@ final class DiscoverViewModel {
     init(
         service: any DiscoverServing,
         removesSavedRecipeImmediately: Bool = true,
-        loadsShelves: Bool = true
+        loadsShelves: Bool = true,
+        recordsSeenSources: Bool = true
     ) {
         self.service = service
         self.removesSavedRecipeImmediately = removesSavedRecipeImmediately
         self.loadsShelves = loadsShelves
+        self.recordsSeenSources = recordsSeenSources
     }
 
     /// The server already applied the query, so this is also what makes an
@@ -108,8 +115,13 @@ final class DiscoverViewModel {
 
     /// Loads the first page for the current query and sort, replacing
     /// whatever is on screen. Also the refresh path.
+    ///
+    /// Every call starts a new paging session, which is the point: pulling to
+    /// refresh, changing the sort or coming back to a feed the cook has
+    /// already read is exactly when they are asking for different rows.
     func load() async {
         guard refreshState != .refreshing else { return }
+        sessionStartedAt = recordsSeenSources ? Date() : nil
         let token = generation
         let cachedRecipes: [DiscoverRecipe]?
         if case let .loaded(recipes) = state, !recipes.isEmpty {
@@ -130,7 +142,8 @@ final class DiscoverViewModel {
                 try await service.fetchDiscoverPage(
                     cursor: 0,
                     query: query,
-                    sort: sort
+                    sort: sort,
+                    seenBefore: sessionStartedAt
                 )
             )
         } catch {
@@ -181,13 +194,18 @@ final class DiscoverViewModel {
     /// Nil when the rail could not be filled. A rail is decoration on top of
     /// the feed, so its failure is silent — there is no banner, no retry and
     /// nothing for the reader to act on.
+    ///
+    /// No `seenBefore`: "New to Overeasy" that hid what is new because the
+    /// cook glanced at it, or a rail reordered by the list underneath it,
+    /// would stop meaning what its title says.
     private func fetchShelf(_ id: DiscoverShelf.ID) async -> DiscoverShelf? {
         guard let page = try? await service.fetchDiscoverPage(
             cursor: 0,
             query: "",
             sort: id.sort,
             maxTotalMinutes: id.maxTotalMinutes,
-            limit: DiscoverPaging.shelfSize
+            limit: DiscoverPaging.shelfSize,
+            seenBefore: nil
         ) else { return nil }
         return DiscoverShelf(
             id: id,
@@ -208,7 +226,11 @@ final class DiscoverViewModel {
             let page = try await service.fetchDiscoverPage(
                 cursor: nextCursor,
                 query: query,
-                sort: sort
+                sort: sort,
+                // The session's own timestamp, not this moment: a fresh one
+                // here would re-rank against the rows page 1 just recorded
+                // and hand the cook repeats.
+                seenBefore: sessionStartedAt
             )
             guard token == generation, case .loaded = state else { return }
             let seen = Set(existing.map(\.sourceID))

@@ -205,6 +205,81 @@ final class DiscoverViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.visibleShelves.count, 2)
     }
 
+    // MARK: - Seen sources
+
+    /// The whole point of the pin. `seenBefore` is the moment the walk
+    /// started, so the impressions each page writes are newer than it and
+    /// cannot re-rank the pages still to come; a fresh timestamp per page
+    /// would demote what page 1 served and hand page 2 repeats.
+    func testLoadMoreReusesTheTimestampTheSessionStartedWith() async {
+        let service = DiscoverTestService(result: .success((1...5).map { paged($0) }))
+        service.pageSize = 2
+        let viewModel = DiscoverViewModel(service: service)
+
+        await viewModel.load()
+        await viewModel.loadMore()
+        await viewModel.loadMore()
+
+        let stamps = service.requests.map(\.seenBefore)
+        XCTAssertEqual(stamps.count, 3)
+        XCTAssertNotNil(stamps.first ?? nil)
+        XCTAssertEqual(Set(stamps.map { $0?.timeIntervalSinceReferenceDate }).count, 1)
+    }
+
+    /// Pull to refresh, a new sort, or coming back to a feed already read.
+    /// Each is the cook asking for a different list, which is exactly when
+    /// the previous session's rows should sink.
+    func testLoadRenewsTheSessionTimestamp() async {
+        let service = DiscoverTestService(result: .success((1...5).map { paged($0) }))
+        service.pageSize = 2
+        let viewModel = DiscoverViewModel(service: service)
+
+        await viewModel.load()
+        await viewModel.loadMore()
+        let firstSession = service.requests.first?.seenBefore
+        await viewModel.load()
+
+        XCTAssertNotNil(firstSession)
+        XCTAssertNotNil(service.requests.last?.seenBefore)
+        XCTAssertNotEqual(service.requests.last?.seenBefore, firstSession)
+    }
+
+    /// A rail is a ranking, not a reading position. "New to Overeasy" that
+    /// hid what is new because the cook glanced at it would stop meaning what
+    /// its title says.
+    func testShelvesNeitherReportNorPinSeenSources() async {
+        let service = DiscoverTestService(
+            result: .success((1...4).map { paged($0) })
+        )
+        let viewModel = DiscoverViewModel(service: service)
+
+        await viewModel.load()
+
+        XCTAssertEqual(service.shelfRequests.count, 2)
+        XCTAssertTrue(service.shelfRequests.allSatisfy { $0.seenBefore == nil })
+    }
+
+    /// Watch shares this view model but is a different surface: a video
+    /// swiped past there is not a row read in the list, and its feed has to
+    /// stay the same on every launch for the UI tests to mean anything.
+    func testWatchSendsNoSessionTimestamp() async {
+        let service = DiscoverTestService(result: .success((1...5).map { paged($0) }))
+        service.pageSize = 2
+        let viewModel = DiscoverViewModel(
+            service: service,
+            removesSavedRecipeImmediately: false,
+            loadsShelves: false,
+            recordsSeenSources: false
+        )
+
+        await viewModel.load()
+        await viewModel.loadMore()
+
+        XCTAssertEqual(service.requests.count, 2)
+        XCTAssertTrue(service.requests.allSatisfy { $0.seenBefore == nil })
+        XCTAssertTrue(service.shelfRequests.isEmpty)
+    }
+
     // MARK: - Paging
 
     func testLoadMoreAppendsTheNextPage() async {
@@ -549,6 +624,7 @@ private final class DiscoverTestService: DiscoverServing {
         let sort: DiscoverSort
         var maxTotalMinutes: Int?
         var limit: Int = DiscoverPaging.pageSize
+        var seenBefore: Date?
 
         /// A shelf asks for a short page; the feed asks for a full one. That
         /// is the only thing that tells the two apart on the wire.
@@ -574,14 +650,16 @@ private final class DiscoverTestService: DiscoverServing {
         query: String,
         sort: DiscoverSort,
         maxTotalMinutes: Int?,
-        limit: Int
+        limit: Int,
+        seenBefore: Date?
     ) async throws -> DiscoverPage {
         let request = FetchRequest(
             cursor: cursor,
             query: query,
             sort: sort,
             maxTotalMinutes: maxTotalMinutes,
-            limit: limit
+            limit: limit,
+            seenBefore: seenBefore
         )
         if request.isShelf {
             shelfRequests.append(request)

@@ -65,7 +65,12 @@ struct WatchView: View {
                 // Watch is a full-screen video feed with no room for a rail
                 // and nothing that would draw one. Loading shelves here would
                 // be two requests per launch that nothing ever reads.
-                loadsShelves: false
+                loadsShelves: false,
+                // A card seen in the list is not a video watched here, and a
+                // swipe here is not a row read there. Recording either
+                // against the other would demote sources on a screen the cook
+                // never reached them from.
+                recordsSeenSources: false
             )
         )
     }
