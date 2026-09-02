@@ -214,6 +214,19 @@ buttons a different text origin per button.
 
 ## Cooking
 
+- Recipe detail's ingredient rows lead with a 40-point watercolour of the
+  ingredient — the one place in the app where illustration is allowed, and
+  the exception PRODUCT.md's anti-references now name. The square is the same
+  40 points whether it holds a painting, a pantry container, or the
+  `Surface.badge` disc with a neutral `fork.knife` that stands in where the
+  set has no honest answer, so no row changes height for want of a picture
+  and `dividerInset(iconWidth:)` keeps the divider on the label. The paintings
+  sit on the porcelain ground bare in both appearances; the set's README warns
+  against dark grounds, but composited onto `porcelain` at #101214 none of
+  them loses its edges, and a disc behind every one reads heavier than the
+  list wants. The art is decorative — `.accessibilityHidden(true)` — and never the only
+  thing carrying a row's meaning. The reimport sheet reuses this list without
+  the icons, because there the reader is comparing two versions of the text.
 - Full Recipe stays a light checklist and overview.
 - Focus Mode uses the graphite ground with porcelain text and a fixed signal-red
   progress/action color.

@@ -37,7 +37,13 @@ chrome or explanatory cards.
 - The "AI recipe app" default: cream background + terracotta accents + system
   serif (New York) headlines + tracked uppercase eyebrows. This app had that
   look and is deliberately moving off it.
-- Cozy pantry, deli-counter, kraft-paper, or illustrated food metaphors.
+- Cozy pantry, deli-counter, kraft-paper, or illustrated food metaphors —
+  with one deliberate exception. Each row of the recipe detail's ingredient
+  list leads with a watercolour of that ingredient. It is identification, not
+  atmosphere: at the counter it says what to reach for before the words are
+  read. It appears nowhere else, it is never decoration around type, and an
+  ingredient the set cannot name honestly gets a neutral badge rather than
+  the nearest picture.
 - Editorial food-magazine styling (Fraunces/Playfair serifs, italic accents).
 - Shouty coaching copy ("DO THIS NOW", exclamation marks).
 
