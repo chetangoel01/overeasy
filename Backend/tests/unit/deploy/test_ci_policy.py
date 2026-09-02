@@ -89,6 +89,13 @@ def test_load_profile_still_covers_every_capacity_scenario() -> None:
     `tests/unit/deploy/test_staging_verifier.py` run that code instead.
     """
     load_test = (BACKEND / "load" / "k6-production.js").read_text()
+    workflow = (REPOSITORY / ".github" / "workflows" / "backend-ci.yml").read_text()
+
+    # k6's setup() needs a warm API: the step polls the API's own readiness
+    # between starting the stack and running the profile.
+    started = workflow.index("docker compose up -d --build")
+    ready = workflow.index("http://127.0.0.1:4112/health/ready")
+    assert started < ready < workflow.index("run /load/k6-production.js")
 
     for scenario in (
         "guest_creation",
