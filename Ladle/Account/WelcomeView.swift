@@ -174,14 +174,6 @@ struct WelcomeView: View {
             .buttonStyle(.plain)
             .disabled(flow.isAuthenticating)
 
-            if let authenticationFailure = flow.failure {
-                Text(authenticationFailure.message)
-                    .ladleFont(.metadata)
-                    .foregroundStyle(accent.label)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, LadleTheme.Spacing.medium)
-            }
         }
     }
 

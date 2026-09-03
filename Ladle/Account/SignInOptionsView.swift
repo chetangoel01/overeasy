@@ -36,6 +36,9 @@ struct SignInOptionsView: View {
         static let border = Color.black.opacity(0.12)
         static let markSide: CGFloat = 20
         static let gap: CGFloat = 10
+        /// Three lines of metadata text, reserved whether or not a failure
+        /// is showing, so appearing never moves the screen.
+        static let failureSlotHeight: CGFloat = 46
     }
 
     let flow: AccountSignInFlow
@@ -89,7 +92,33 @@ struct SignInOptionsView: View {
             .disabled(flow.isAuthenticating)
             .accessibilityLabel("Sign in with Google")
             .accessibilityIdentifier("\(identifierPrefix).google-sign-in")
+
+            failureSlot
         }
+    }
+
+    /// Always laid out, whether or not there is anything to say.
+    ///
+    /// The failure used to be an `if let` appended by each call site. Both
+    /// place these buttons inside a vertically centred stack, so the moment
+    /// a sign-in failed the message appeared, the stack grew, and everything
+    /// above it — logo, headline, both buttons — jumped upward, at the exact
+    /// moment the reader was trying to find out what went wrong.
+    ///
+    /// The slot keeps a constant height instead. Messages vary in length, so
+    /// the text is bounded rather than the box: three lines, scaling down
+    /// before it would grow. Nothing on the screen moves.
+    private var failureSlot: some View {
+        Text(flow.failure?.message ?? "")
+            .ladleFont(.metadata)
+            .foregroundStyle(LadleTheme.Label.secondary)
+            .multilineTextAlignment(.center)
+            .lineLimit(3)
+            .minimumScaleFactor(0.8)
+            .frame(maxWidth: .infinity)
+            .frame(height: Chrome.failureSlotHeight)
+            .accessibilityHidden(flow.failure == nil)
+            .accessibilityIdentifier("\(identifierPrefix).sign-in-failure")
     }
 
     private func authLabel(

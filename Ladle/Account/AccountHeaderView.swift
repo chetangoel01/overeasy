@@ -461,14 +461,6 @@ struct AccountHeaderView: View {
 
                 SignInOptionsView(flow: flow, identifierPrefix: "account")
 
-                if let failure = flow.failure {
-                    Text(failure.message)
-                        .ladleFont(.metadata)
-                        .foregroundStyle(LadleTheme.Label.secondary)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityIdentifier("account.sign-in-failure")
-                }
             }
             .padding(LadleTheme.Layout.sheetMargin)
             // Centred rather than pinned to the top. The content is a title,
