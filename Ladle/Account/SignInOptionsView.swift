@@ -19,6 +19,17 @@ struct SignInOptionsView: View {
         case graphite
     }
 
+    /// Google's button is supplied as a fixed-aspect image, so it cannot run
+    /// full width without either stretching its wordmark or growing far
+    /// taller than a control should be. Both buttons are therefore sized to
+    /// that aspect at the standard control height, which is the one way the
+    /// two can agree exactly — and they must, sitting one above the other.
+    private static let googleAspectRatio: CGFloat = 188 / 44
+
+    private var controlWidth: CGFloat {
+        (LadleTheme.Control.primary * Self.googleAspectRatio).rounded()
+    }
+
     @Environment(\.colorScheme) private var colorScheme
 
     let flow: AccountSignInFlow
@@ -35,31 +46,24 @@ struct SignInOptionsView: View {
                 Task { await flow.handleAppleCompletion(result) }
             }
             .signInWithAppleButtonStyle(appleButtonStyle)
-            .frame(height: LadleTheme.Control.primary)
+            .frame(width: controlWidth, height: LadleTheme.Control.primary)
             .clipShape(
                 RoundedRectangle(cornerRadius: LadleTheme.Corner.control)
             )
             .disabled(flow.isAuthenticating)
 
+            // No border here: the asset draws its own, and the porcelain
+            // stroke this used to add landed on top of Google's, reading as
+            // a doubled edge.
             GoogleSignInControl(
                 isEnabled: !flow.isAuthenticating,
                 accessibilityIdentifier: "\(identifierPrefix).google-sign-in"
             ) {
                 Task { await flow.signInWithGoogle() }
             }
-            .overlay {
-                if surface == .porcelain {
-                    RoundedRectangle(
-                        cornerRadius: LadleTheme.Corner.control,
-                        style: .continuous
-                    )
-                    .strokeBorder(
-                        LadleTheme.Label.primary.opacity(0.08),
-                        lineWidth: 1
-                    )
-                }
-            }
+            .frame(width: controlWidth, height: LadleTheme.Control.primary)
         }
+        .frame(maxWidth: .infinity)
     }
 
     /// Graphite is fixed regardless of the device appearance, so a style

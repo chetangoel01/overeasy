@@ -469,11 +469,12 @@ struct AccountHeaderView: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("account.sign-in-failure")
                 }
-
-                Spacer(minLength: 0)
             }
             .padding(LadleTheme.Layout.sheetMargin)
-            .frame(maxWidth: .infinity)
+            // Centred rather than pinned to the top. The content is a title,
+            // a sentence and two buttons; against a fixed medium detent that
+            // left a half-sheet of empty paper hanging beneath it.
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(LadleTheme.Surface.porcelain)
             .navigationTitle("Sign in")
             .navigationBarTitleDisplayMode(.inline)

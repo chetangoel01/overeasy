@@ -210,10 +210,12 @@ struct GoogleSignInControl: View {
         Button {
             action()
         } label: {
+            // Google ships this as a finished button: pill, border and all.
+            // It is the control, not a glyph to be mounted inside one, so it
+            // takes whatever frame the caller gives it and keeps its aspect.
             Image("GoogleSignInNeutral")
                 .resizable()
                 .scaledToFit()
-                .frame(width: 188, height: 44)
                 .accessibilityHidden(true)
         }
         .buttonStyle(GoogleSignInButtonStyle())
@@ -227,16 +229,12 @@ private struct GoogleSignInButtonStyle: ButtonStyle {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.isEnabled) private var isEnabled
 
+    /// Deliberately paints no background. The asset already carries Google's
+    /// own pill and border, and a second one behind it rendered a button
+    /// inside a button — a full-width white card with a smaller grey pill
+    /// floating in the middle of it.
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .frame(maxWidth: .infinity, minHeight: LadleTheme.Control.primary)
-            .background(
-                LadleTheme.Label.onAccent,
-                in: RoundedRectangle(
-                    cornerRadius: LadleTheme.Corner.control,
-                    style: .continuous
-                )
-            )
             .opacity(
                 !isEnabled
                     ? 0.48
