@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Overeasy privacy policy — Overeasy</title>
+<meta name="description" content="How Overeasy handles your recipes, account, and data.">
+<meta name="color-scheme" content="light dark">
+<style>
+:root {
+  --paper: #f7f4ef;
+  --oat: #ece7e1;
+  --ink: #14181b;
+  --muted: #64707a;
+  --brick: #ee4b2f;
+  --rule: rgba(20, 24, 27, 0.12);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #101214;
+    --oat: #1c2024;
+    --ink: #f2f4f5;
+    --muted: #a6afb7;
+    --brick: #ff674e;
+    --rule: rgba(242, 244, 245, 0.14);
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 17px/1.65 ui-serif, "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  -webkit-text-size-adjust: 100%;
+}
+.wrap { max-width: 39rem; margin: 0 auto; padding: 4rem 1.5rem 6rem; }
+header.masthead { display: flex; align-items: baseline; gap: 0.6rem; margin-bottom: 3.5rem; }
+.mark {
+  font: 600 0.78rem/1 ui-sans-serif, -apple-system, "Helvetica Neue", sans-serif;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--brick);
+}
+.mark a { color: inherit; text-decoration: none; }
+.masthead nav {
+  margin-left: auto;
+  font: 0.78rem/1 ui-sans-serif, -apple-system, "Helvetica Neue", sans-serif;
+  letter-spacing: 0.06em;
+}
+.masthead nav a { color: var(--muted); text-decoration: none; margin-left: 1.1rem; }
+.masthead nav a:hover, .masthead nav a:focus-visible { color: var(--ink); }
+h1 {
+  font-size: 2.1rem;
+  line-height: 1.15;
+  font-weight: 600;
+  margin: 0 0 0.6rem;
+  text-wrap: balance;
+}
+.effective {
+  font: 0.82rem/1.5 ui-sans-serif, -apple-system, "Helvetica Neue", sans-serif;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 2.75rem;
+}
+h2 {
+  font-size: 1.16rem;
+  font-weight: 600;
+  margin: 3rem 0 0.9rem;
+  padding-top: 1.6rem;
+  border-top: 1px solid var(--rule);
+  text-wrap: balance;
+}
+p { margin: 0 0 1.15rem; }
+ul { margin: 0 0 1.15rem; padding-left: 1.15rem; }
+li { margin-bottom: 0.85rem; }
+li::marker { color: var(--brick); }
+strong { font-weight: 600; }
+a { color: var(--ink); text-decoration-color: var(--brick); text-underline-offset: 0.18em; }
+.lede { font-size: 1.08rem; color: var(--ink); }
+.card {
+  background: var(--oat);
+  border-radius: 14px;
+  padding: 1.4rem 1.5rem;
+  margin: 0 0 1.15rem;
+}
+.card p:last-child { margin-bottom: 0; }
+footer {
+  margin-top: 4rem;
+  padding-top: 1.6rem;
+  border-top: 1px solid var(--rule);
+  font: 0.82rem/1.6 ui-sans-serif, -apple-system, "Helvetica Neue", sans-serif;
+  color: var(--muted);
+}
+footer a { color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="masthead">
+  <span class="mark"><a href="/">Overeasy</a></span>
+  <nav><a href="/privacy.html">Privacy</a><a href="/support.html">Support</a></nav>
+</header>
+<h1>Overeasy privacy policy</h1>
+<p class="effective">Effective: August 23, 2026</p>
+<p>Overeasy turns public recipe links and text you provide into recipes and syncs them across your devices. This policy describes the data needed to do that. Overeasy does not sell personal data, serve ads, or track activity across other apps or websites.</p>
+<h2>Data we collect and why</h2>
+<ul><li>Account and device identifiers, authentication sessions, and App Attest security records provide sign-in, sync, fraud prevention, and replay defense. Apple or Google supplies its stable account identifier only when you choose that sign-in method.</li><li>A display name and a profile picture identify your account to you inside the app. Both may be supplied by the sign-in provider, and the display name is editable and is never overwritten by a later sign-in. A provider's picture is a link to their own copy, which Overeasy does not host.</li><li>A profile photo you choose yourself is stored by Overeasy, in the same private object storage as your recipe images. It is shown only to you, in your own app: it is never attached to anything you share, never shown in Discover, and never served to another account. It is reachable only through a signed link that expires within hours, it replaces the provider's picture without deleting it, and you can remove it at any time from the avatar in <strong>Profile</strong>. Removing it, replacing it, or deleting your account deletes the stored photo. Overeasy uses the camera and reads from your photo library only when you choose a picture, and only the picture you choose.</li><li>Imported URLs, public-source metadata, recipe content, thumbnails, and edit history provide imports and device sync.</li><li>Discover ranks public recipe-video sources by aggregate saves. It shows the public creator account, source metadata, thumbnail, and total save count. It does not expose who saved a recipe, private edits, ingredients, or personal correction notes from another account.</li><li>A record of which Discover sources were shown to your account, and when, keeps the feed from repeating itself: a source you were shown in the last day sorts below ones you have not seen. Only the source identifier and the time it was last served are stored — never how long you looked, whether you opened it, or anything you did next. Nothing is suppressed permanently, the record is not used for advertising or profiling, and it is deleted with your account.</li><li>Pasted recipe text and correction notes are encrypted at rest and used only to complete or retry the requested import.</li><li>Request IDs, pseudonymous user identifiers, import job IDs, provider stage, duration, result, rate-limit decisions, and error class support security, reliability, and cost control. Logs exclude recipe/private text, authorization tokens, provider credentials, and raw identity tokens.</li><li>Apple Health receives nutrition only after you explicitly export it from the device. The permission Overeasy asks for is write-only: it can add the serving you export and cannot read anything from Health, including data written by other apps. Health data is never used for advertising or marketing, never sold, never shared with a third party, and never leaves the device through Overeasy — the export is a local write from your phone to your own Health store. Timers and local notifications remain on the device.</li></ul>
+<h2>Service providers</h2>
+<p>Overeasy shares only data necessary to operate the selected feature:</p>
+<ul><li>Hosting, managed PostgreSQL, Redis, and private object-storage providers process service data and backups.</li><li>Depending on the successful import path, public URLs, captions, media evidence, pasted text, or correction notes may be processed by configured acquisition, transcription, vision, and extraction providers such as Supadata, SoScripted, OpenRouter, Anthropic, or their hosted model provider.</li><li>Apple and Google process authentication when their respective sign-in option is used.</li></ul>
+<p>These processors act to provide Overeasy's service. Overeasy does not disclose data to advertising or data-broker services.</p>
+<h2>Retention</h2>
+<ul><li>Pasted text and correction notes: erased within 24 hours after an import reaches a terminal state.</li><li>Completed or failed import jobs: 30 days.</li><li>Provider-attempt and cost records: 90 days.</li><li>Expired or revoked session and refresh-token hashes: seven days.</li><li>Negative extraction caches: until their short expiry; invalid caches and orphaned thumbnails: 30 days before cleanup.</li><li>Recipe sync changes and deletion tombstones: 365 days. A device returning after that window receives a fresh authoritative snapshot.</li><li>Discover impression records: 30 days. They stop affecting what you are shown after 24 hours, well before they are erased.</li><li>Pseudonymous account-deletion audit records: 365 days.</li><li>Recipes and account data: while the account exists, unless removed earlier at the user's request.</li><li>Temporary object uploads: one day; noncurrent object versions: 30 days.</li></ul>
+<p>Encrypted automated backups are retained for 35 days; continuous point-in-time recovery covers at least the latest seven days. Expired backups are destroyed by the infrastructure provider's lifecycle.</p>
+<h2>Account deletion</h2>
+<p>Every guest, Apple, and Google account can be permanently deleted in <strong>Account → Delete account</strong>. The operation verifies the current session, revokes Sign in with Apple credentials when applicable, and removes or anonymizes recipes, imports, sessions, devices, identity links, the display name, the provider's profile picture link, any profile photo you uploaded, provider usage, private text, sync history, Discover impression records, and unreferenced objects. It is idempotent so a network retry cannot recreate or partially delete the account.</p>
+<p>Deletion cannot be undone. Backups are not used to restore an individual deleted account; any residual encrypted copy ages out within the 35-day backup schedule.</p>
+<h2>Security and changes</h2>
+<p>Private text uses authenticated, versioned encryption keys stored separately by environment in managed secret storage. Traffic uses TLS, production access is attested and rate limited, and workers are restricted from private-network and cloud-metadata egress.</p>
+<p>Material policy changes will update the effective date and the in-app disclosure.</p>
+<h2>Contact</h2>
+<p>Questions about this policy, a privacy request, or anything that went wrong: <strong>hello@chetangoel.me</strong>. A person reads it. Overeasy is made by Chetan Goel.</p>
+<footer>
+  <p>Overeasy is made by Chetan Goel. <a href="mailto:hello@chetangoel.me">hello@chetangoel.me</a></p>
+</footer>
+</div>
+</body>
+</html>

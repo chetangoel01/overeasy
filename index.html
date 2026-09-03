@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Overeasy</title>
+<meta name="description" content="Overeasy turns recipe videos and text into recipes you can cook from.">
+<meta name="color-scheme" content="light dark">
+<style>
+:root {
+  --paper: #f7f4ef;
+  --oat: #ece7e1;
+  --ink: #14181b;
+  --muted: #64707a;
+  --brick: #ee4b2f;
+  --rule: rgba(20, 24, 27, 0.12);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #101214;
+    --oat: #1c2024;
+    --ink: #f2f4f5;
+    --muted: #a6afb7;
+    --brick: #ff674e;
+    --rule: rgba(242, 244, 245, 0.14);
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 17px/1.65 ui-serif, "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  -webkit-text-size-adjust: 100%;
+}
+.wrap { max-width: 39rem; margin: 0 auto; padding: 4rem 1.5rem 6rem; }
+header.masthead { display: flex; align-items: baseline; gap: 0.6rem; margin-bottom: 3.5rem; }
+.mark {
+  font: 600 0.78rem/1 ui-sans-serif, -apple-system, "Helvetica Neue", sans-serif;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--brick);
+}
+.mark a { color: inherit; text-decoration: none; }
+.masthead nav {
+  margin-left: auto;
+  font: 0.78rem/1 ui-sans-serif, -apple-system, "Helvetica Neue", sans-serif;
+  letter-spacing: 0.06em;
+}
+.masthead nav a { color: var(--muted); text-decoration: none; margin-left: 1.1rem; }
+.masthead nav a:hover, .masthead nav a:focus-visible { color: var(--ink); }
+h1 {
+  font-size: 2.1rem;
+  line-height: 1.15;
+  font-weight: 600;
+  margin: 0 0 0.6rem;
+  text-wrap: balance;
+}
+.effective {
+  font: 0.82rem/1.5 ui-sans-serif, -apple-system, "Helvetica Neue", sans-serif;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 2.75rem;
+}
+h2 {
+  font-size: 1.16rem;
+  font-weight: 600;
+  margin: 3rem 0 0.9rem;
+  padding-top: 1.6rem;
+  border-top: 1px solid var(--rule);
+  text-wrap: balance;
+}
+p { margin: 0 0 1.15rem; }
+ul { margin: 0 0 1.15rem; padding-left: 1.15rem; }
+li { margin-bottom: 0.85rem; }
+li::marker { color: var(--brick); }
+strong { font-weight: 600; }
+a { color: var(--ink); text-decoration-color: var(--brick); text-underline-offset: 0.18em; }
+.lede { font-size: 1.08rem; color: var(--ink); }
+.card {
+  background: var(--oat);
+  border-radius: 14px;
+  padding: 1.4rem 1.5rem;
+  margin: 0 0 1.15rem;
+}
+.card p:last-child { margin-bottom: 0; }
+footer {
+  margin-top: 4rem;
+  padding-top: 1.6rem;
+  border-top: 1px solid var(--rule);
+  font: 0.82rem/1.6 ui-sans-serif, -apple-system, "Helvetica Neue", sans-serif;
+  color: var(--muted);
+}
+footer a { color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="masthead">
+  <span class="mark"><a href="/">Overeasy</a></span>
+  <nav><a href="/privacy.html">Privacy</a><a href="/support.html">Support</a></nav>
+</header>
+<h1>Overeasy</h1>
+<p class="effective">Recipes, kept</p>
+<p class="lede">Overeasy turns a recipe video or a wall of text into a recipe you
+can actually cook from — ingredients, method, timings — and keeps it on your
+phone, yours to edit.</p>
+<p>It is in testing on TestFlight.</p>
+<h2>Pages</h2>
+<ul>
+<li><a href="/privacy.html">Privacy policy</a> — what is collected, why, and for
+how long.</li>
+<li><a href="/support.html">Support</a> — how to reach a person.</li>
+</ul>
+<footer>
+  <p>Overeasy is made by Chetan Goel. <a href="mailto:hello@chetangoel.me">hello@chetangoel.me</a></p>
+</footer>
+</div>
+</body>
+</html>
