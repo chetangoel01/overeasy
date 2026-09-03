@@ -69,14 +69,6 @@ struct GuestLimitView: View {
                         .foregroundStyle(LadleTheme.Label.secondary)
                 }
 
-                if let failure = flow.failure {
-                    Text(failure.message)
-                        .ladleFont(.metadata)
-                        .foregroundStyle(accent.label)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityIdentifier("guest-limit.sign-in-failure")
-                }
             }
             .padding(LadleTheme.Spacing.generous)
         }

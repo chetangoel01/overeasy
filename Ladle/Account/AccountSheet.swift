@@ -187,8 +187,22 @@ struct AccountSheet: View {
                     status: syncStatus.state
                 )
             )
+            // The welcome screen used to spell this out under the guest
+            // button, where it was a wall of small print in front of someone
+            // who had not started yet. It belongs here, next to the count it
+            // actually constrains, and only for the accounts it applies to.
+            if accountSession.state == .guest {
+                LabeledContent(
+                    "Guest limit",
+                    value: "\(Self.guestRecipeLimit) recipes"
+                )
+            }
         }
     }
+
+    /// Matches the limit the import flow enforces and the guest-limit sheet
+    /// quotes.
+    private static let guestRecipeLimit = 10
 
     private var appearanceSection: some View {
         Section {
