@@ -132,5 +132,32 @@ through with its six sections, wrapped bullet items joined, bold runs
 converted, and no markdown left unrendered. The result was opened in a browser
 and reads correctly in dark mode.
 
-The Caddy route has **not** been validated on the VPS yet — `push.sh` runs
-`caddy validate` before reloading, and that is the check that matters.
+The Caddy route deployed as `5024f1f` on September 2. `push.sh` ran
+`caddy validate` — "Valid configuration" — before reloading, and the API and
+worker reported healthy first.
+
+Measured against the live host before and after, with no header sent:
+
+| Request | Before | After |
+| --- | --- | --- |
+| `/health/ready` | 404 | 200 |
+| `/v1/recipes/discover` | 404 | 401 |
+| `/v1/auth/guest` (GET) | 404 | 405 |
+| `/openapi.json` | 404 | 404 |
+
+The 401 and the 405 are the point. Before, every path answered 404 whether it
+existed or not, because the gateway refused to proxy at all — which is also
+what made route probing so confusing earlier in this session. After, the API
+answers for itself: 401 where authentication is required, 405 where the route
+exists but the method is wrong, and 404 where nothing is. Authentication is
+doing the work the header was pretending to do.
+
+Sending a wrong `X-Ladle-Tunnel-Key` now behaves identically to sending none,
+which is the proof the matcher is gone rather than merely loosened.
+`/openapi.json` stays 404: the schema is not published in production.
+
+Readiness reports every dependency healthy, `rateLimitRedis` among them — worth
+naming, because the limiter fails open. If Redis goes away it logs "serving
+request unlimited" and keeps serving. That is the right call for uptime and the
+wrong assumption to make about a backstop, and it matters more now that the
+limiter is the outermost thing standing.
