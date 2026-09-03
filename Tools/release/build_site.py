@@ -131,8 +131,8 @@ PAGE = """<!doctype html>
 <body>
 <div class="wrap">
 <header class="masthead">
-  <span class="mark"><a href="/">Overeasy</a></span>
-  <nav><a href="/privacy.html">Privacy</a><a href="/support.html">Support</a></nav>
+  <span class="mark"><a href="./">Overeasy</a></span>
+  <nav><a href="privacy.html">Privacy</a><a href="support.html">Support</a></nav>
 </header>
 {body}
 <footer>
@@ -246,7 +246,7 @@ undone.</li>
 </ul>
 <h2>Privacy</h2>
 <p>What Overeasy collects, why, how long it keeps it, and how to have it deleted
-is set out in the <a href="/privacy.html">privacy policy</a>.</p>"""
+is set out in the <a href="privacy.html">privacy policy</a>.</p>"""
     return PAGE.format(
         title="Support — Overeasy",
         description="How to get help with Overeasy.",
@@ -265,9 +265,9 @@ phone, yours to edit.</p>
 <p>It is in testing on TestFlight.</p>
 <h2>Pages</h2>
 <ul>
-<li><a href="/privacy.html">Privacy policy</a> — what is collected, why, and for
+<li><a href="privacy.html">Privacy policy</a> — what is collected, why, and for
 how long.</li>
-<li><a href="/support.html">Support</a> — how to reach a person.</li>
+<li><a href="support.html">Support</a> — how to reach a person.</li>
 </ul>"""
     return PAGE.format(
         title="Overeasy",
@@ -281,6 +281,15 @@ how long.</li>
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", default="build/site", help="output directory")
+    parser.add_argument(
+        "--cname",
+        action="store_true",
+        help=(
+            f"also write a CNAME for {DOMAIN}. Withhold it until the DNS record "
+            "exists: GitHub redirects the github.io URL to the custom domain, so "
+            "a CNAME without DNS leaves no working URL at all."
+        ),
+    )
     args = parser.parse_args()
 
     out = (ROOT / args.out).resolve()
@@ -289,7 +298,10 @@ def main() -> None:
     (out / "index.html").write_text(index_page(), encoding="utf-8")
     (out / "privacy.html").write_text(privacy_page(), encoding="utf-8")
     (out / "support.html").write_text(support_page(), encoding="utf-8")
-    (out / "CNAME").write_text(f"{DOMAIN}\n", encoding="utf-8")
+    if args.cname:
+        (out / "CNAME").write_text(f"{DOMAIN}\n", encoding="utf-8")
+    else:
+        (out / "CNAME").unlink(missing_ok=True)
     # GitHub Pages runs Jekyll unless told not to, and Jekyll hides files it
     # does not recognise.
     (out / ".nojekyll").write_text("", encoding="utf-8")
