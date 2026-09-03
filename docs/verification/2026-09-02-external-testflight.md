@@ -112,6 +112,54 @@ Done since this document was started: the Caddy change deployed as `5024f1f`,
 `overeasy` resolves to GitHub Pages, and `hello@chetangoel.me` forwards through
 Porkbun's `fwd1`/`fwd2` mail servers.
 
+## App Store screenshots
+
+Six framed screenshots at **1320 x 2868**, built for the 6.9" slot, which App
+Store Connect says covers "iPhone 6.5", 6.7" or 6.9" Displays" and is then
+scaled for everything smaller: "we'll use these screenshots for all iOS display
+sizes and localizations." One set is therefore the whole iPhone requirement,
+and `TARGETED_DEVICE_FAMILY` of `1` means no iPad set is wanted at all. Only
+the first three reach the install sheet, so the order is library, recipe,
+timers.
+
+`Tools/release/frame.swift` composes them: caption, accent rule, and the
+capture inside a rounded device on a warm wash from the app's own palette.
+Captures come from `xcrun simctl io ... screenshot` on the iPhone 17 Pro Max
+(`FDD41CB2`), which renders 1320 x 2868 natively, so nothing is resampled to
+fit. `Tools/release/flatten.swift` strips the alpha channel simctl always
+writes; App Store Connect rejects a screenshot that carries one.
+
+The device is dressed first: `simctl ui ... appearance light` and
+`simctl status_bar ... override --time 9:41`, and the app is launched
+`-ui-testing -onboarding-complete`.
+
+### Two things the demo data had to stop doing
+
+**It named real people.** `PreviewFixtures.swift` carried `@chebbo`,
+`@iankyo`, `@iramsfoodstory`, `@sundaytable` and `JZ Eats` — real creators —
+next to **real TikTok video IDs** pointing at their actual posts, in a public
+repository. Putting those in store marketing claims an endorsement nobody
+gave. They are now `@thecopperpan`, `@weeknightwok`, `@slowbutterbakes`,
+`@themorningloaf` and `Sheet Pan Sunday`, with synthetic IDs. No test asserted
+on any of them.
+
+**It played other people's videos.** The Watch screen embeds the creator's
+clip from the platform, which is the point of the screen and unusable in a
+screenshot: a real ID shows a video we may not publish, and a synthetic one
+shows the platform's "unavailable" page, which fills the frame with its own
+recommendations — during this work that meant strangers' faces and a TikTok
+logo. `InlineVideoPlayer` now recognises a `-ui-testing` build and loads the
+recipe's own photograph dressed as a paused clip, through the same
+`simulatedRequest` mechanism the YouTube host document already used. A recipe
+from the demo Discover feed has a remote image rather than an asset, so it
+falls back to the play chrome on a flat ground. Either way a demo build never
+reaches a video platform, which also makes UI review independent of the
+network and of whatever the platform served that day.
+
+The share-sheet screenshot uses a mock recipe post served from a throwaway
+local HTTP server, so no third-party page appears there either. It leaves one
+blemish: the sheet names the source as `localhost`.
+
 ## Not tonight, on purpose
 
 - **The ATS exception.** `NSAllowsLocalNetworking` and the `ladle.localhost`

@@ -295,7 +295,7 @@ actor DemoImportService: ImportService {
                 identifierPrefix: "A2020202",
                 title: "Sunday Tomato Ragu",
                 description: "A slow tomato sauce that needs one quick check.",
-                creator: "@sundaytable",
+                creator: "@themorningloaf",
                 imageName: "RecipeOrzo",
                 preparationMinutes: 15,
                 cookingMinutes: 45,

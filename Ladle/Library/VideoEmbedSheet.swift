@@ -1,5 +1,6 @@
 import LadleCore
 import SwiftUI
+import UIKit
 import WebKit
 
 enum VideoEmbed {
@@ -251,7 +252,98 @@ struct InlineVideoPlayer: View {
         """
     }
 
-    private static func load(_ url: URL, into page: WebPage) {
+    /// Demo and UI-review builds never reach a video platform.
+    ///
+    /// Embedding the creator's clip is the whole point of this screen, but it
+    /// makes a seeded build depend on the network and on content that is not
+    /// ours: a review pass shows whatever the platform decides to serve that
+    /// day — including, when a demo ID does not resolve, the platform's own
+    /// recommendations — and a store screenshot of it would publish a video
+    /// nobody gave us the right to publish. Under `-ui-testing` the player is
+    /// the recipe's own photograph, dressed as a paused clip.
+    private static let isDemoBuild = ProcessInfo.processInfo.arguments
+        .contains("-ui-testing")
+
+    private static func demoPlayerDocument(for recipe: Recipe) -> String? {
+        guard isDemoBuild else { return nil }
+
+        // A recipe from the demo Discover feed carries a remote image rather
+        // than an asset name. It still must not reach a platform, so it falls
+        // back to the play chrome over a flat ground: never a real embed.
+        let artwork = recipe.images.first?.localName
+            .flatMap(UIImage.init(named:))
+            .flatMap { $0.jpegData(compressionQuality: 0.82) }
+        let backdrop = artwork.map {
+            #"<img src="data:image/jpeg;base64,\#($0.base64EncodedString())">"#
+        } ?? ""
+
+        return """
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta name="viewport"
+                  content="width=device-width, initial-scale=1,
+                           viewport-fit=cover">
+            <style>
+              html, body {
+                margin: 0; height: 100%;
+                background: #14100e; overflow: hidden;
+              }
+              .stage { position: relative; height: 100%; display: grid;
+                       place-items: center;
+                       background: radial-gradient(120% 80% at 50% 30%,
+                                     #2a211c 0%, #14100e 100%); }
+              .stage img { position: absolute; inset: 0; width: 100%;
+                           height: 100%; object-fit: cover; }
+              .scrim {
+                position: absolute; inset: 0;
+                background: linear-gradient(180deg,
+                  rgba(0,0,0,0.40) 0%, rgba(0,0,0,0) 26%,
+                  rgba(0,0,0,0) 64%, rgba(0,0,0,0.70) 100%);
+              }
+              .play {
+                position: relative; width: 96px; height: 96px;
+                border-radius: 50%; background: rgba(0,0,0,0.42);
+                -webkit-backdrop-filter: blur(6px);
+                display: grid; place-items: center;
+              }
+              .play::after {
+                content: ""; width: 0; height: 0; margin-left: 8px;
+                border-left: 30px solid #fff;
+                border-top: 19px solid transparent;
+                border-bottom: 19px solid transparent;
+              }
+              .bar {
+                position: absolute; left: 0; right: 0; bottom: 0;
+                height: 3px; background: rgba(255,255,255,0.28);
+              }
+              .bar span { display: block; height: 100%; width: 34%;
+                          background: #fff; }
+            </style>
+          </head>
+          <body>
+            <div class="stage">
+              \(backdrop)
+              <div class="scrim"></div>
+              <div class="play"></div>
+              <div class="bar"><span></span></div>
+            </div>
+          </body>
+        </html>
+        """
+    }
+
+    private static func load(_ url: URL, for recipe: Recipe, into page: WebPage) {
+        if let demo = demoPlayerDocument(for: recipe),
+           let origin = URL(
+               string: "https://\(EmbedPlayerHost.name)/demo"
+           ) {
+            page.load(
+                simulatedRequest: URLRequest(url: origin),
+                responseHTML: demo
+            )
+            return
+        }
         guard isYouTube(url),
               let origin = URL(
                   string: "https://\(EmbedPlayerHost.name)/player"
@@ -295,7 +387,7 @@ struct InlineVideoPlayer: View {
                     .onAppear {
                         if !didLoad {
                             didLoad = true
-                            Self.load(url, into: page)
+                            Self.load(url, for: recipe, into: page)
                         }
                         updatePlaybackSuspension()
                         applyMutedState()
