@@ -144,34 +144,35 @@ struct WelcomeView: View {
             guestSeparator
                 .padding(.vertical, LadleTheme.Spacing.medium)
 
+            // The progress state replaces the button's own label rather than
+            // appending a row beneath it. This stack is centred inside the
+            // screen, so anything added at the bottom pushed the logo, the
+            // headline and both sign-in buttons visibly upward the instant
+            // the guest button was tapped.
             Button {
                 Task { await flow.continueAsGuest() }
             } label: {
-                Text("Try as a guest")
-                    .ladleFont(.bodyStrong)
-                    .foregroundStyle(LadleTheme.Label.primary)
-                    .frame(maxWidth: .infinity, minHeight: LadleTheme.Control.hitTarget)
-                    .contentShape(Rectangle())
+                Group {
+                    if flow.isAuthenticating {
+                        HStack(spacing: LadleTheme.Spacing.compact) {
+                            ProgressView()
+                                .tint(accent.intent)
+                            Text("Setting up Overeasy")
+                        }
+                    } else {
+                        Text("Try as a guest")
+                    }
+                }
+                .ladleFont(.bodyStrong)
+                .foregroundStyle(LadleTheme.Label.primary)
+                .frame(
+                    maxWidth: .infinity,
+                    minHeight: LadleTheme.Control.hitTarget
+                )
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .disabled(flow.isAuthenticating)
-
-            Text(
-                "Guests can save up to 10 recipes. Sign in later without losing them."
-            )
-            .ladleFont(.metadata)
-            .foregroundStyle(LadleTheme.Label.onAccent.opacity(0.72))
-            .multilineTextAlignment(.center)
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(.top, LadleTheme.Spacing.compact)
-
-            if flow.isAuthenticating {
-                ProgressView("Setting up Overeasy")
-                    .ladleFont(.metadata)
-                    .tint(accent.intent)
-                    .foregroundStyle(LadleTheme.Label.onAccent.opacity(0.8))
-                    .padding(.top, LadleTheme.Spacing.medium)
-            }
 
             if let authenticationFailure = flow.failure {
                 Text(authenticationFailure.message)
