@@ -5,12 +5,26 @@
 // install and no resampling of the capture beyond one clean downscale.
 //
 //   swift frame.swift SHOT.png OUT.png "Caption line one" ["line two"]
+//
+// Set LADLE_CANVAS to render a different accepted size, e.g. LADLE_CANVAS=
+// 1284x2778 for the 6.5" slot. The page is composed at that size rather than
+// resampled from another one, so no slot ever receives a stretched image.
 import AppKit
 import CoreGraphics
 import Foundation
 
-let canvasWidth: CGFloat = 1320
-let canvasHeight: CGFloat = 2868
+let canvas = ProcessInfo.processInfo.environment["LADLE_CANVAS"] ?? "1320x2868"
+let canvasParts = canvas.split(separator: "x").compactMap { Double($0) }
+guard canvasParts.count == 2 else {
+    FileHandle.standardError.write("LADLE_CANVAS must look like 1320x2868\n".data(using: .utf8)!)
+    exit(2)
+}
+let canvasWidth = CGFloat(canvasParts[0])
+let canvasHeight = CGFloat(canvasParts[1])
+// Every layout constant below was chosen against 1320x2868, so a different
+// canvas scales them rather than keeping absolute sizes that would crowd a
+// smaller page.
+let scale = canvasWidth / 1320
 
 // The app's palette, from Ladle/Resources/Assets.xcassets.
 let paper = CGColor(red: 0.968, green: 0.957, blue: 0.937, alpha: 1)
@@ -64,57 +78,57 @@ if let gradient = CGGradient(
 let previous = NSGraphicsContext.current
 NSGraphicsContext.current = NSGraphicsContext(cgContext: ctx, flipped: false)
 
-let captionSize: CGFloat = lines.count > 1 ? 96 : 104
+let captionSize: CGFloat = (lines.count > 1 ? 96 : 104) * scale
 let paragraph = NSMutableParagraphStyle()
 paragraph.alignment = .center
-paragraph.lineSpacing = 8
+paragraph.lineSpacing = 8 * scale
 
 let attributes: [NSAttributedString.Key: Any] = [
     .font: NSFont.systemFont(ofSize: captionSize, weight: .bold),
     .foregroundColor: ink,
     .paragraphStyle: paragraph,
-    .kern: -1.5,
+    .kern: -1.5 * scale,
 ]
 
 let caption = NSAttributedString(string: lines.joined(separator: "\n"), attributes: attributes)
-let captionWidth = canvasWidth - 200
+let captionWidth = canvasWidth - 200 * scale
 let captionBounds = caption.boundingRect(
     with: NSSize(width: captionWidth, height: .greatestFiniteMagnitude),
     options: [.usesLineFragmentOrigin, .usesFontLeading]
 )
 // CoreGraphics counts from the bottom, so a top margin is measured down from
 // the canvas height.
-let captionTop = canvasHeight - 190
+let captionTop = canvasHeight - 190 * scale
 caption.draw(with: NSRect(
-    x: 100,
+    x: 100 * scale,
     y: captionTop - captionBounds.height,
     width: captionWidth,
     height: captionBounds.height
 ), options: [.usesLineFragmentOrigin, .usesFontLeading])
 
 // A short rule under the caption, in the accent, to give the block a foot.
-let ruleWidth: CGFloat = 96
-let ruleY = captionTop - captionBounds.height - 54
+let ruleWidth: CGFloat = 96 * scale
+let ruleY = captionTop - captionBounds.height - 54 * scale
 ctx.setFillColor(brick.cgColor)
-ctx.fill(CGRect(x: (canvasWidth - ruleWidth) / 2, y: ruleY, width: ruleWidth, height: 8))
+ctx.fill(CGRect(x: (canvasWidth - ruleWidth) / 2, y: ruleY, width: ruleWidth, height: 8 * scale))
 
 NSGraphicsContext.current = previous
 
 // --- Device --------------------------------------------------------------
-let deviceWidth: CGFloat = 960
+let deviceWidth: CGFloat = 960 * scale
 let deviceHeight = deviceWidth * (CGFloat(shot.height) / CGFloat(shot.width))
 let deviceX = (canvasWidth - deviceWidth) / 2
 // CoreGraphics counts up from the bottom, so the device's *top* edge is
 // deviceY + deviceHeight. Placing it a fixed gap under the rule is the only
 // way to guarantee it never rides up over the caption.
-let deviceY = ruleY - 90 - deviceHeight
+let deviceY = ruleY - 90 * scale - deviceHeight
 let deviceRect = CGRect(x: deviceX, y: deviceY, width: deviceWidth, height: deviceHeight)
-let corner: CGFloat = 132
+let corner: CGFloat = 132 * scale
 
 ctx.saveGState()
 ctx.setShadow(
-    offset: CGSize(width: 0, height: -24),
-    blur: 60,
+    offset: CGSize(width: 0, height: -24 * scale),
+    blur: 60 * scale,
     color: CGColor(red: 0.15, green: 0.11, blue: 0.08, alpha: 0.28)
 )
 ctx.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
@@ -133,7 +147,7 @@ ctx.restoreGState()
 ctx.saveGState()
 ctx.addPath(CGPath(roundedRect: deviceRect, cornerWidth: corner, cornerHeight: corner, transform: nil))
 ctx.setStrokeColor(CGColor(red: 0.15, green: 0.11, blue: 0.08, alpha: 0.16))
-ctx.setLineWidth(3)
+ctx.setLineWidth(3 * scale)
 ctx.strokePath()
 ctx.restoreGState()
 
