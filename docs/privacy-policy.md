@@ -46,7 +46,12 @@ apps or websites.
   reliability, and cost control. Logs exclude recipe/private text,
   authorization tokens, provider credentials, and raw identity tokens.
 - Apple Health receives nutrition only after you explicitly export it from the
-  device. Timers and local notifications remain on the device.
+  device. The permission Overeasy asks for is write-only: it can add the
+  serving you export and cannot read anything from Health, including data
+  written by other apps. Health data is never used for advertising or
+  marketing, never sold, never shared with a third party, and never leaves the
+  device through Overeasy — the export is a local write from your phone to
+  your own Health store. Timers and local notifications remain on the device.
 
 ## Service providers
 
@@ -109,5 +114,9 @@ attested and rate limited, and workers are restricted from private-network and
 cloud-metadata egress.
 
 Material policy changes will update the effective date and the in-app
-disclosure. A public support and privacy contact must be added before App Store
-submission.
+disclosure.
+
+## Contact
+
+Questions about this policy, a privacy request, or anything that went wrong:
+**hello@chetangoel.me**. A person reads it. Overeasy is made by Chetan Goel.

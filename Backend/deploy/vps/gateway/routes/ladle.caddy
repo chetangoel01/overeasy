@@ -7,13 +7,22 @@
 			header_up Host {http.request.host}
 		}
 
-		@authorized header X-Ladle-Tunnel-Key {$LADLE_TUNNEL_ACCESS_KEY}
-		reverse_proxy @authorized ladle-api:4111 {
+		# The API answers without a shared header. It used to sit behind
+		# X-Ladle-Tunnel-Key, which worked while every build was handed out by
+		# cable: the key reached only devices we plugged in. A public TestFlight
+		# link ends that — anyone who installs the app can read the key out of
+		# Info.plist or watch it go past in a proxy — so a gate it cannot defend
+		# is worse than no gate, because it invites trust it has not earned.
+		# Bearer tokens, guest bootstrap, and the rate limits in
+		# ladle/api/rate_limits.py are what actually hold the door.
+		#
+		# The header is still stripped: older builds keep sending it, and it
+		# must never reach the application.
+		reverse_proxy ladle-api:4111 {
 			header_up Host {http.request.host}
 			header_up X-Ladle-Tunnel-Key ""
 		}
 
 		# Caddy sets X-Forwarded-For and X-Forwarded-Proto for both proxies.
-		respond 404
 	}
 }
