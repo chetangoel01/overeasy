@@ -20,7 +20,7 @@ enum PreviewFixtures {
         makeRecipe(
             id: "B54D0E5B-8B10-410F-ADE7-7B0F12F94E01",
             title: "Crispy Chili Oil Smash Burgers",
-            creator: "@chebbo",
+            creator: "@thecopperpan",
             source: .tiktok,
             slug: "smash-burgers",
             imageName: "RecipeBurger",
@@ -42,7 +42,7 @@ enum PreviewFixtures {
         makeRecipe(
             id: "B54D0E5B-8B10-410F-ADE7-7B0F12F94E03",
             title: "15-Minute Garlic Butter Udon",
-            creator: "@iankyo",
+            creator: "@weeknightwok",
             source: .tiktok,
             slug: "garlic-udon",
             imageName: "RecipeUdon",
@@ -56,7 +56,7 @@ enum PreviewFixtures {
         makeRecipe(
             id: "B54D0E5B-8B10-410F-ADE7-7B0F12F94E04",
             title: "Sheet-Pan Gochujang Chicken",
-            creator: "JZ Eats",
+            creator: "Sheet Pan Sunday",
             source: .youtube,
             slug: "gochujang-chicken",
             imageName: "RecipeChicken",
@@ -68,7 +68,7 @@ enum PreviewFixtures {
         makeRecipe(
             id: "B54D0E5B-8B10-410F-ADE7-7B0F12F94E05",
             title: "Whipped Ricotta Toast, Hot Honey",
-            creator: "@sundaytable",
+            creator: "@themorningloaf",
             source: .instagram,
             slug: "ricotta-toast",
             imageName: "RecipeToast",
@@ -77,7 +77,7 @@ enum PreviewFixtures {
         makeRecipe(
             id: "B54D0E5B-8B10-410F-ADE7-7B0F12F94E06",
             title: "Brown Butter Miso Cookies",
-            creator: "@iramsfoodstory",
+            creator: "@slowbutterbakes",
             source: .tiktok,
             slug: "miso-cookies",
             imageName: "RecipeCookies",
@@ -244,15 +244,15 @@ enum PreviewFixtures {
     private static func previewVideoURL(for slug: String) -> URL {
         let value = switch slug {
         case "smash-burgers":
-            "https://www.tiktok.com/@chebbo/video/7364345055881989392"
+            "https://www.tiktok.com/@thecopperpan/video/1000000000000000001"
         case "garlic-udon":
-            "https://www.tiktok.com/@iankyo/video/7436430114910506271"
+            "https://www.tiktok.com/@weeknightwok/video/1000000000000000002"
         case "miso-cookies":
-            "https://www.tiktok.com/@iramsfoodstory/video/7445012169432763690"
+            "https://www.tiktok.com/@slowbutterbakes/video/1000000000000000003"
         case "lemon-orzo", "ricotta-toast":
-            "https://www.instagram.com/reel/DbbHIKHM3xr/"
+            "https://www.instagram.com/reel/AAAADemoReel01/"
         case "gochujang-chicken":
-            "https://www.youtube.com/shorts/Cb0wIOhTQsE"
+            "https://www.youtube.com/shorts/AAAADemoShort"
         default:
             "https://example.com/\(slug)"
         }

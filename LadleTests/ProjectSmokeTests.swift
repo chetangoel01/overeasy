@@ -276,11 +276,25 @@ final class ProjectSmokeTests: XCTestCase {
             ) as? String,
             "1.0"
         )
+        // The build number is deliberately not pinned. It changes on every
+        // upload — App Store Connect rejects one it has already seen — so a
+        // literal here only ever fails late, and it did: the bump to
+        // 20260902.1 for the first TestFlight build broke this test, and the
+        // CI gate never ran it. What matters at runtime is that the value is
+        // present and shaped like the date-plus-counter scheme
+        // Tools/release/testflight.sh generates.
+        let build = Bundle.main.object(
+            forInfoDictionaryKey: "CFBundleVersion"
+        ) as? String
+        let unwrapped = try? XCTUnwrap(build)
+        XCTAssertNotNil(unwrapped)
         XCTAssertEqual(
-            Bundle.main.object(
-                forInfoDictionaryKey: "CFBundleVersion"
-            ) as? String,
-            "20260831.1"
+            unwrapped?.range(
+                of: #"^\d{8}\.\d+$"#,
+                options: .regularExpression
+            ) != nil,
+            true,
+            "CFBundleVersion \(build ?? "nil") is not YYYYMMDD.N"
         )
     }
 
