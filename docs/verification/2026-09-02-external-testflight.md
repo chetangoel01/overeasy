@@ -50,18 +50,18 @@ from the document the repository reviews. It also emits a support page and a
 small index, in the app's own palette.
 
 They publish with GitHub Pages from a `gh-pages` branch, live now at
-**https://chetangoel01.github.io/recipe-app/privacy.html**. GitHub Pages with a
+**https://overeasy.chetangoel.me/privacy.html**, with support alongside it. GitHub Pages with a
 custom domain was chosen over serving the page from the VPS for one reason: a
 privacy policy must be reachable when the API is not. Putting it behind the
 same gateway ties the document Apple reads to the uptime of the service it
 describes.
 
-The `CNAME` for `overeasy.chetangoel.me` is written only when
-`build_site.py --cname` is passed, and it is deliberately withheld until the
-DNS record exists. GitHub redirects the `github.io` URL to the custom domain as
-soon as a CNAME appears, so publishing one early would replace a working URL
-with a broken one. Links inside the pages are relative for the same reason:
-they have to survive both `/recipe-app/` and a domain root.
+The `CNAME` is written only when `build_site.py --cname` is passed, and it was
+deliberately withheld until the DNS record existed. GitHub redirects the
+`github.io` URL to the custom domain as soon as a CNAME appears, so publishing
+one early would have replaced a working URL with a broken one. Links inside the
+pages are relative for the same reason: they survive both `/recipe-app/` and a
+domain root, so the flip needed no edit.
 
 Two corrections went into the policy itself:
 
@@ -98,14 +98,19 @@ write permission only.
 
 ## Still open
 
-- DNS: `overeasy` CNAME to `chetangoel01.github.io`, at Porkbun. Then
-  `build_site.py --cname`, republish `gh-pages`, and set the custom domain.
-- Mail: `chetangoel.me` has no MX records at all, so `hello@` does not exist
-  yet. Porkbun's own email forwarding is the shortest path.
 - Beta App Review wants a contact first name, last name, email, and **phone
   number**.
-- The Caddy change is committed but not deployed; it ships with
-  `Backend/deploy/vps/push.sh`.
+- Everything in App Store Connect: the external group, the build attached to
+  it, Test Information filled from the text above, and the submission itself.
+- The app record's **name**. Xcode reported the upload as "Ladle", which is the
+  scheme name; if the record carries it too, that is what a tester sees in the
+  TestFlight app. It should read Overeasy before any link goes out, and
+  "Overeasy" may already be taken on the App Store, in which case the listing
+  name needs a variant. Neither touches the bundle identifier.
+
+Done since this document was started: the Caddy change deployed as `5024f1f`,
+`overeasy` resolves to GitHub Pages, and `hello@chetangoel.me` forwards through
+Porkbun's `fwd1`/`fwd2` mail servers.
 
 ## Not tonight, on purpose
 
