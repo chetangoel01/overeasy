@@ -26,3 +26,28 @@
 		# Caddy sets X-Forwarded-For and X-Forwarded-Proto for both proxies.
 	}
 }
+
+# The operator dashboard gets a name of its own so it can be handed to a
+# browser without handing over the API with it. Only /ops answers here: auth,
+# imports, sync, and the private object store stay on the API hostname.
+#
+# The default keeps `caddy validate` honest — an unset variable would resolve
+# to an empty site address and fail the reload for every route in this file.
+{$LADLE_DASHBOARD_HOSTNAME:dashboard.overeasy.chetangoel.me} {
+	route {
+		header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+
+		# Rewrite rather than redirect, so a pasted `/?token=...` keeps its
+		# query on the way to the handoff. Caddy retains the query string when
+		# the rewrite target has none of its own.
+		rewrite / /ops
+
+		@ops path /ops /ops/*
+		reverse_proxy @ops ladle-api:4111 {
+			header_up Host {http.request.host}
+			header_up X-Ladle-Tunnel-Key ""
+		}
+
+		respond 404
+	}
+}

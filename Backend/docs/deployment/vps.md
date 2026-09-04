@@ -197,6 +197,24 @@ Production refuses to start without it, and refuses to let it equal
 reaches a browser. Open the dashboard once with the token in the query string:
 
 ```text
+https://dashboard.overeasy.chetangoel.me/?token=<LADLE_OPS_DASHBOARD_TOKEN>
+```
+
+That name is a second site block in `deploy/vps/gateway/routes/ladle.caddy`,
+installed by `push.sh` along with the API route. It needs a DNS `A` record at
+Porkbun, where `chetangoel.me` is hosted, pointing
+`dashboard.overeasy.chetangoel.me` at the VPS; Caddy provisions the certificate
+by itself once that resolves. Override the name with
+`LADLE_DASHBOARD_HOSTNAME` in `/etc/platform/gateway.env`, which has a default
+so an unset variable cannot resolve to an empty site address and fail the
+reload for every route in the file.
+
+Only `/ops` answers on that hostname, and `/` rewrites to it so a pasted
+`/?token=...` keeps its query. Auth, imports, sync, and the private object
+store answer on `LADLE_PUBLIC_HOSTNAME` and nowhere else, so the name handed to
+a browser cannot reach them. The API hostname still serves `/ops` too:
+
+```text
 https://<LADLE_PUBLIC_HOSTNAME>/ops?token=<LADLE_OPS_DASHBOARD_TOKEN>
 ```
 
