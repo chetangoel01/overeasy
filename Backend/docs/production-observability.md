@@ -19,8 +19,18 @@ putting private recipe or authentication data in telemetry.
   browser holds the dashboard one in a cookie, and the Prometheus token must
   never reach a browser. The token arrives once as `?token=`, moves into an
   HttpOnly, `SameSite=Strict`, `/ops`-scoped cookie that expires after twelve
-  hours, and is absent from every later URL. Everything without that cookie
-  answers 404, matching `/metrics`.
+  hours, and is absent from every later URL. The cookie is marked `Secure`
+  whenever the request arrived over HTTPS, which is the scheme Caddy forwards,
+  rather than when the environment is production: the VPS runs the documented
+  `LADLE_ENVIRONMENT=development` exception behind a real gateway. Everything
+  without that cookie answers 404, matching `/metrics`.
+- Because that one handoff puts a credential in a request target, the access
+  log is not allowed to keep it. The production Compose command passes
+  `--no-access-log`, and importing the ASGI application installs a filter that
+  strips query strings from `uvicorn.access` records regardless of how the
+  server was started — the Compose command runs uvicorn directly, so
+  `ladle/api/__main__.py` never executes there. The shared Caddy gateway
+  declares no `log` directive, so it records no request targets at all.
 - The dashboard polls `/ops/metrics.json` every five seconds and computes rates
   from counter deltas in the browser, so request-per-minute charts build up
   while the page is open and totals read "since the counters were last reset."

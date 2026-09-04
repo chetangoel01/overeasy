@@ -76,6 +76,7 @@ from ladle.imports.source_identity import SourceIdentityParser
 from ladle.imports.transitions import ImportCancellationService, ImportRetryService
 from ladle.infrastructure.dns import PinnedRedirectResolver, SystemDNSResolver
 from ladle.infrastructure.object_storage import ObjectStorage, S3ObjectStorage
+from ladle.observability.access_log import install_access_log_redaction
 from ladle.observability.metrics import MetricsRegistry, RedisMetricsBackend
 from ladle.observability.middleware import install_request_middleware
 from ladle.observability.structured_logging import (
@@ -231,8 +232,7 @@ def create_app(
     application.state.ops_access = OpsAccessPolicy(
         configured.ops_dashboard_token.get_secret_value()
         if configured.ops_dashboard_token is not None
-        else None,
-        secure=configured.environment == "production",
+        else None
     )
     rate_limit_redis: Redis | None = None
     if rate_limit_backend is None:
@@ -511,5 +511,10 @@ def create_app(
             )
     return application
 
+
+# Installed on import rather than inside create_app, because this is about the
+# process that serves HTTP: uvicorn imports this module however it was started,
+# including the Compose command that bypasses ladle/api/__main__.py entirely.
+install_access_log_redaction()
 
 app = create_app()

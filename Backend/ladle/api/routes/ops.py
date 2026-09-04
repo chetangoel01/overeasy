@@ -34,9 +34,8 @@ class OpsAccessPolicy:
     string, moves into an HttpOnly cookie, and is absent from every later URL.
     """
 
-    def __init__(self, token: str | None, *, secure: bool) -> None:
+    def __init__(self, token: str | None) -> None:
         self._token = token
-        self._secure = secure
 
     def matches(self, supplied: str | None) -> bool:
         if self._token is None:
@@ -50,7 +49,16 @@ class OpsAccessPolicy:
             # Hide the dashboard from unauthenticated public scans.
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
-    def issue(self, response: Response) -> None:
+    def issue(self, response: Response, *, secure: bool) -> None:
+        """`secure` follows the scheme the request arrived on.
+
+        Not the environment: the VPS runs the documented
+        `LADLE_ENVIRONMENT=development` exception behind an HTTPS gateway, so
+        keying the flag on the environment would hand a real deployment a
+        cookie a browser is willing to send in clear. Local development is
+        plain HTTP, where a Secure cookie would be dropped instead of stored.
+        """
+
         if self._token is None:
             return
         response.set_cookie(
@@ -58,7 +66,7 @@ class OpsAccessPolicy:
             self._token,
             max_age=OPS_COOKIE_LIFETIME,
             httponly=True,
-            secure=self._secure,
+            secure=secure,
             samesite="strict",
             path="/ops",
         )
@@ -74,7 +82,7 @@ def dashboard(
         if not policy.matches(token):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
         handoff = RedirectResponse("/ops", status_code=status.HTTP_303_SEE_OTHER)
-        policy.issue(handoff)
+        policy.issue(handoff, secure=request.url.scheme == "https")
         return handoff
     policy.authorize(request)
     return HTMLResponse(_PAGE.read_text(encoding="utf-8"))

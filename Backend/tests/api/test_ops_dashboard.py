@@ -134,3 +134,22 @@ def test_production_refuses_to_start_without_a_dashboard_token() -> None:
             ops_dashboard_token=None,
             _env_file=None,
         )
+
+
+def test_the_cookie_is_secure_whenever_the_request_arrived_over_https() -> None:
+    # The VPS runs LADLE_ENVIRONMENT=development behind an HTTPS gateway, so
+    # the flag has to follow the scheme Caddy forwarded, not the environment.
+    app = create_app(
+        settings=Settings(ops_dashboard_token=TOKEN, _env_file=None),
+        readiness_probes={"database": Probe(healthy=True)},
+    )
+
+    with TestClient(app, base_url="https://ladle.example.test") as client:
+        secure = client.get("/ops", params={"token": TOKEN}, follow_redirects=False)
+    with TestClient(app, base_url="http://ladle.localhost") as client:
+        plain = client.get("/ops", params={"token": TOKEN}, follow_redirects=False)
+
+    assert "Secure" in secure.headers["set-cookie"]
+    # Local development is served over plain HTTP; a Secure cookie there would
+    # be dropped by the browser and the dashboard would never open.
+    assert "Secure" not in plain.headers["set-cookie"]

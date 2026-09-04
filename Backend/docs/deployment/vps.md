@@ -213,7 +213,15 @@ rate-limit rejections by policy, and the queue, worker, and readiness gauges.
 Counters are cumulative and survive restarts, so totals read "since the counters
 were last reset," not "today"; the per-minute chart builds while the page is
 open. Rotate the token by replacing the value and redeploying, which invalidates
-every issued cookie.
+every issued cookie. Rotate it also if it may have been recorded: the handoff
+puts the token in a request target, so `--no-access-log` on the API command and
+the `uvicorn.access` filter installed at import both exist to keep it out of
+`docker logs`. Check with:
+
+```bash
+sudo sh -c 'T=$(grep "^LADLE_OPS_DASHBOARD_TOKEN=" /opt/ladle/.env | cut -d= -f2-); \
+    docker logs ladle-api-1 2>&1 | grep -c -- "$T"'
+```
 
 ## Backups
 

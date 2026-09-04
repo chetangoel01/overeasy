@@ -164,6 +164,9 @@ services:
       - --workers
       - "2"
       - --proxy-headers
+      # The /ops token arrives once in a query string, and this command runs
+      # uvicorn directly, so ladle/api/__main__.py never gets to disable it.
+      - --no-access-log
     healthcheck:
       <<: *testing-healthcheck
       test:
