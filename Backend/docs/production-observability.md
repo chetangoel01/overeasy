@@ -13,6 +13,20 @@ putting private recipe or authentication data in telemetry.
 - `/metrics` is hidden unless the dedicated bearer token matches. It also emits
   bounded readiness gauges for the database/migration, Redis roles, storage,
   configuration, and worker.
+- `/ops` serves an operator dashboard rendered from the same counters. It
+  carries its own credential, `LADLE_OPS_DASHBOARD_TOKEN`, which production
+  refuses to start without and refuses to let equal the metrics token: a
+  browser holds the dashboard one in a cookie, and the Prometheus token must
+  never reach a browser. The token arrives once as `?token=`, moves into an
+  HttpOnly, `SameSite=Strict`, `/ops`-scoped cookie that expires after twelve
+  hours, and is absent from every later URL. Everything without that cookie
+  answers 404, matching `/metrics`.
+- The dashboard polls `/ops/metrics.json` every five seconds and computes rates
+  from counter deltas in the browser, so request-per-minute charts build up
+  while the page is open and totals read "since the counters were last reset."
+  Readiness is a separate, slower `/ops/readiness.json` on a sixty-second
+  timer, because a readiness check contacts every dependency and wakes a Celery
+  CLI process; it must never run at the polling cadence.
 - HTTP and import latency use Prometheus histograms. Metrics cover import
   outcomes, cache disposition, provider outcomes/cost, worker retries, sync
   conflicts/resets, rate-limit rejection policy, queue health, stuck jobs,
@@ -60,6 +74,11 @@ current compatible 1.44.0/0.65b0 release family documented by the
 5. Import `grafana-dashboard.json`, then set provider-spend thresholds to the
    configured daily limit rather than leaving the default 800-unit warning.
 
+The single-VPS deployment runs none of steps 3-5: it has no collector,
+Prometheus, or Grafana, and its assigned hostname has no spare subdomain to
+terminate their TLS on. `/ops` is what an operator reads there, and those
+files stay in the repository for the day the deployment outgrows one host.
+
 ## Alerts and first response
 
 - **5xx / dependency / migration:** stop rollout, inspect readiness and the
@@ -80,6 +99,10 @@ current compatible 1.44.0/0.65b0 release family documented by the
 - Unit tests cover bounded labels, histograms, sink-boundary redaction,
   authenticated metrics, FastAPI span emission, the required alert set,
   never-seen worker/Beat detection, and dashboard coverage.
+- API tests cover the `/ops` credential: hidden without it, hidden when the
+  cookie carries the metrics token instead, a query token that becomes a
+  cookie, a fast poll that wakes no probe, and the relaxed `/ops` content
+  security policy that leaves every other route's policy alone.
 - A Redis integration test proves increments are atomic, visible between
   registries, and still present after registry recreation.
 - In staging, restart API and worker replicas, confirm counters remain, follow

@@ -126,6 +126,7 @@ class Settings(BaseSettings):
         max_length=128,
     )
     metrics_auth_token: SecretStr | None = None
+    ops_dashboard_token: SecretStr | None = None
     structured_logging_enabled: bool = True
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     tracing_enabled: bool = False
@@ -492,6 +493,26 @@ class Settings(BaseSettings):
             raise ValueError(
                 "production metrics authentication requires a non-placeholder "
                 "secret of at least 32 characters"
+            )
+        if (
+            self.ops_dashboard_token is None
+            or self._is_placeholder(self.ops_dashboard_token.get_secret_value())
+            or len(self.ops_dashboard_token.get_secret_value())
+            < _MINIMUM_PRODUCTION_SECRET_LENGTH
+        ):
+            raise ValueError(
+                "production operator dashboard access requires a non-placeholder "
+                "secret of at least 32 characters"
+            )
+        if self.ops_dashboard_token.get_secret_value() == (
+            self.metrics_auth_token.get_secret_value()
+            if self.metrics_auth_token is not None
+            else None
+        ):
+            raise ValueError(
+                "production requires an operator dashboard token distinct from "
+                "the metrics token, because only the dashboard one reaches a "
+                "browser"
             )
         if not self.structured_logging_enabled:
             raise ValueError("production requires structured logging")

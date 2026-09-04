@@ -10,6 +10,7 @@ from ladle.clock import SystemClock
 from ladle.config import Settings
 
 GOOD_SECRET = "production-only-test-secret-that-is-at-least-32-bytes"
+OPS_SECRET = "production-only-dashboard-secret-that-is-long-enough"
 BACKEND_ROOT = Path(__file__).parents[2]
 PRODUCTION_ATTEST = {
     "attestation_enforced": True,
@@ -51,6 +52,7 @@ PRODUCTION_RUNTIME = {
     ),
     "durable_metrics_enabled": True,
     "metrics_auth_token": GOOD_SECRET,
+    "ops_dashboard_token": OPS_SECRET,
     "tracing_enabled": True,
     "tracing_otlp_endpoint": "https://telemetry.example.test/v1/traces",
     "apple_enabled": True,
@@ -384,6 +386,8 @@ def test_production_accepts_passworded_single_host_data_services() -> None:
         ("rate_limit_redis_url", "redis://redis.example.test:6379/2"),
         ("metrics_redis_url", "redis://redis.example.test:6379/3"),
         ("metrics_auth_token", None),
+        ("ops_dashboard_token", None),
+        ("ops_dashboard_token", GOOD_SECRET),
         ("tracing_otlp_endpoint", "http://telemetry.example.test/v1/traces"),
         (
             "database_url",

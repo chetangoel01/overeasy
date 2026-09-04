@@ -178,6 +178,43 @@ edit path so the estimate reaches devices on their next sync. Always run
 `--dry-run` first and read the table; `--limit N` bounds a first pass.
 `Backend/docs/integration-reference.md` documents the rules it applies.
 
+## Operator dashboard
+
+The VPS runs no Prometheus and no Grafana. It has neither the memory budget for
+them nor a spare subdomain on its assigned hostname to terminate their TLS on,
+so the API serves the dashboard itself at `/ops`, rendered in the browser from
+the same Redis counters Prometheus would have scraped.
+
+Add its credential to `/opt/ladle/.env` once, then redeploy:
+
+```bash
+printf 'LADLE_OPS_DASHBOARD_TOKEN=%s\n' "$(openssl rand -hex 32)" | \
+    sudo tee -a /opt/ladle/.env >/dev/null
+```
+
+Production refuses to start without it, and refuses to let it equal
+`LADLE_METRICS_AUTH_TOKEN`: the dashboard token is the only one that ever
+reaches a browser. Open the dashboard once with the token in the query string:
+
+```text
+https://<LADLE_PUBLIC_HOSTNAME>/ops?token=<LADLE_OPS_DASHBOARD_TOKEN>
+```
+
+The token moves into an HttpOnly, `SameSite=Strict` cookie scoped to `/ops` and
+good for twelve hours; the address bar keeps only `/ops` from then on. Anything
+without that cookie gets a 404, so the dashboard is invisible to public scans.
+The shared Caddy route already proxies every path to `ladle-api`, so this needs
+no gateway change.
+
+The page shows requests by route, method, and status class, live requests per
+minute, latency percentiles from the histogram buckets, import outcomes by
+status and source, provider outcomes and billed units, cache and sync results,
+rate-limit rejections by policy, and the queue, worker, and readiness gauges.
+Counters are cumulative and survive restarts, so totals read "since the counters
+were last reset," not "today"; the per-minute chart builds while the page is
+open. Rotate the token by replacing the value and redeploying, which invalidates
+every issued cookie.
+
 ## Backups
 
 `manage.sh backup` creates and validates a custom-format PostgreSQL dump, a

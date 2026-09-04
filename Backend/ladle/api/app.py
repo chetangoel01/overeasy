@@ -37,6 +37,8 @@ from ladle.api.routes.health import (
 )
 from ladle.api.routes.health import router as health_router
 from ladle.api.routes.imports import router as imports_router
+from ladle.api.routes.ops import OpsAccessPolicy
+from ladle.api.routes.ops import router as ops_router
 from ladle.api.routes.recipes import router as recipes_router
 from ladle.api.security_headers import SecurityHeadersMiddleware
 from ladle.auth.apple import (
@@ -225,6 +227,12 @@ def create_app(
         configured.metrics_auth_token.get_secret_value()
         if configured.metrics_auth_token is not None
         else None
+    )
+    application.state.ops_access = OpsAccessPolicy(
+        configured.ops_dashboard_token.get_secret_value()
+        if configured.ops_dashboard_token is not None
+        else None,
+        secure=configured.environment == "production",
     )
     rate_limit_redis: Redis | None = None
     if rate_limit_backend is None:
@@ -461,6 +469,7 @@ def create_app(
     application.include_router(recipes_router)
     application.include_router(imports_router)
     application.include_router(health_router)
+    application.include_router(ops_router)
     install_error_handlers(
         application,
         security_headers=SecurityHeadersMiddleware.headers(

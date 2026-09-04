@@ -12,6 +12,13 @@ class SecurityHeadersMiddleware:
         "style-src 'self'; img-src 'self' data:; connect-src 'self'; "
         "frame-ancestors 'none'; base-uri 'none'"
     )
+    # The operator dashboard is one self-contained document: its script, its
+    # styles, and its charts are inline, and it loads nothing from anywhere.
+    _OPS_DASHBOARD_POLICY = (
+        "default-src 'none'; script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
+        "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'"
+    )
 
     def __init__(
         self,
@@ -56,13 +63,16 @@ class SecurityHeadersMiddleware:
             if message["type"] == "http.response.start":
                 response_headers = MutableHeaders(scope=message)
                 for name, value in self._headers.items():
-                    if (
-                        name == "Content-Security-Policy"
-                        and self._interactive_docs
-                        and scope["path"] == "/docs"
-                    ):
-                        value = self._INTERACTIVE_DOCS_POLICY
+                    if name == "Content-Security-Policy":
+                        value = self._policy_for(scope["path"], default=value)
                     response_headers.setdefault(name, value)
             await send(message)
 
         await self._app(scope, receive, add_headers)
+
+    def _policy_for(self, path: str, *, default: str) -> str:
+        if self._interactive_docs and path == "/docs":
+            return self._INTERACTIVE_DOCS_POLICY
+        if path == "/ops":
+            return self._OPS_DASHBOARD_POLICY
+        return default
