@@ -45,8 +45,16 @@ def test_token_in_the_query_moves_into_a_cookie_and_leaves_the_url() -> None:
         assert handoff.headers["location"] == "/ops"
         cookie = handoff.headers["set-cookie"]
         assert "HttpOnly" in cookie
-        assert "SameSite=strict" in cookie.replace("samesite", "SameSite")
         assert TOKEN not in handoff.headers["location"]
+
+        # Path=/ and Lax, not Path=/ops and Strict. The dashboard hostname
+        # rewrites / to /ops inside Caddy, so the browser's URL stays `/` and
+        # a cookie scoped to /ops is never sent back — the bookmark 404s.
+        # Strict does the same to any link opened from Slack or mail. Every
+        # dashboard route is a read-only GET, so Lax gives up nothing.
+        assert "Path=/;" in cookie or cookie.rstrip().endswith("Path=/")
+        assert "Path=/ops" not in cookie
+        assert "samesite=lax" in cookie.lower()
 
         page = client.get("/ops")
 

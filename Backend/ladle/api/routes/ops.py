@@ -70,8 +70,16 @@ class OpsAccessPolicy:
             max_age=OPS_COOKIE_LIFETIME,
             httponly=True,
             secure=secure,
-            samesite="strict",
-            path="/ops",
+            # Lax, not Strict: every dashboard route is a read-only GET, and
+            # Strict drops the cookie on any link opened from chat or mail,
+            # which reads as the dashboard being broken.
+            samesite="lax",
+            # Scoped to the site, not to /ops. The dashboard hostname rewrites
+            # / to /ops inside Caddy, so the browser's URL stays `/` and a
+            # cookie scoped to /ops is never sent back — a bookmark would 404
+            # forever while the one-time handoff appeared to work. The
+            # dedicated hostname is what isolates this cookie now.
+            path="/",
         )
 
 

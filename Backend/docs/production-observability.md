@@ -18,8 +18,10 @@ putting private recipe or authentication data in telemetry.
   refuses to start without and refuses to let equal the metrics token: a
   browser holds the dashboard one in a cookie, and the Prometheus token must
   never reach a browser. The token arrives once as `?token=`, moves into an
-  HttpOnly, `SameSite=Strict`, `/ops`-scoped cookie that expires after twelve
-  hours, and is absent from every later URL. The cookie is marked `Secure`
+  HttpOnly, `SameSite=Lax`, site-scoped cookie that expires after twelve hours,
+  and is absent from every later URL. Not `/ops`-scoped: the dashboard hostname
+  rewrites `/` to `/ops` inside Caddy, so the browser's URL stays `/` and a
+  path-scoped cookie is never sent back. The cookie is marked `Secure`
   whenever the request arrived over HTTPS, which is the scheme Caddy forwards,
   rather than when the environment is production: the VPS runs the documented
   `LADLE_ENVIRONMENT=development` exception behind a real gateway. Everything

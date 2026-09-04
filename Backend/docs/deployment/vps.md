@@ -218,8 +218,18 @@ a browser cannot reach them. The API hostname still serves `/ops` too:
 https://<LADLE_PUBLIC_HOSTNAME>/ops?token=<LADLE_OPS_DASHBOARD_TOKEN>
 ```
 
-The token moves into an HttpOnly, `SameSite=Strict` cookie scoped to `/ops` and
-good for twelve hours; the address bar keeps only `/ops` from then on. Anything
+The token moves into an HttpOnly, `SameSite=Lax` cookie scoped to `/` and good
+for twelve hours; the address bar keeps only the path from then on.
+
+Both attributes are deliberate. The cookie is **not** scoped to `/ops`: the
+dashboard hostname rewrites `/` to `/ops` inside Caddy, so the browser's URL
+stays `/`, and a `/ops`-scoped cookie would never be sent back — the one-time
+handoff would appear to work and every later bookmark visit would 404. It is
+**Lax** rather than Strict because Strict drops the cookie on any link opened
+from chat or mail, which reads as the dashboard being broken; every dashboard
+route is a read-only GET, so there is no state-changing request for Strict to
+protect. The dedicated hostname, not the cookie path, is what keeps this
+credential away from the API. Anything
 without that cookie gets a 404, so the dashboard is invisible to public scans.
 The shared Caddy route already proxies every path to `ladle-api`, so this needs
 no gateway change.
