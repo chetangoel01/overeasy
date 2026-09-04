@@ -34,6 +34,19 @@
 # The default keeps `caddy validate` honest — an unset variable would resolve
 # to an empty site address and fail the reload for every route in this file.
 {$LADLE_DASHBOARD_HOSTNAME:dashboard.overeasy.chetangoel.me} {
+	# Access is a client certificate, not a shared secret in a URL. Without one
+	# the TLS handshake fails, so this name is unreachable rather than merely
+	# hidden, and there is no credential to expire, leak into a log, or paste.
+	# The CA is private to this dashboard; issue one certificate per device.
+	# The API hostname keeps serving /ops with the token, which is the way back
+	# in if a certificate is ever lost.
+	tls {
+		client_auth {
+			mode require_and_verify
+			trust_pool file /etc/caddy/routes/ops-ca.pem
+		}
+	}
+
 	route {
 		header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
 

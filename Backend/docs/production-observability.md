@@ -13,6 +13,8 @@ putting private recipe or authentication data in telemetry.
 - `/metrics` is hidden unless the dedicated bearer token matches. It also emits
   bounded readiness gauges for the database/migration, Redis roles, storage,
   configuration, and worker.
+- `dashboard.overeasy.chetangoel.me` requires a client certificate, so the
+  token below is only needed on the API hostname. See the deployment guide.
 - `/ops` serves an operator dashboard rendered from the same counters. It
   carries its own credential, `LADLE_OPS_DASHBOARD_TOKEN`, which production
   refuses to start without and refuses to let equal the metrics token: a

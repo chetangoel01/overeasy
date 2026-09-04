@@ -200,6 +200,37 @@ reaches a browser. Open the dashboard once with the token in the query string:
 https://dashboard.overeasy.chetangoel.me/?token=<LADLE_OPS_DASHBOARD_TOKEN>
 ```
 
+### Client certificates on the dashboard hostname
+
+`dashboard.overeasy.chetangoel.me` requires a client certificate. Without one
+the TLS handshake fails, so the name is unreachable rather than merely hidden,
+and there is no credential to expire, leak into a log, or paste into a chat.
+The API hostname keeps serving `/ops` with the token; that is the way back in
+if a certificate is lost.
+
+The CA is private to this dashboard and lives in the repository's ignored
+`.private/ops-mtls/`, which is also where its key stays so further devices can
+be issued. Only `ops-ca.pem` — the public certificate — is copied to the host
+at `/opt/platform/gateway/routes/ops-ca.pem`. `push.sh` does not manage that
+file; it is installed once by hand. The `import` glob in the shared Caddyfile
+matches `*.caddy`, so a `.pem` beside the routes is never parsed as config.
+
+Issue a certificate for another device:
+
+```bash
+cd .private/ops-mtls
+openssl ecparam -name prime256v1 -genkey -noout -out DEVICE.key
+openssl req -new -key DEVICE.key -out DEVICE.csr -subj "/CN=DEVICE"
+printf 'basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature\nextendedKeyUsage=clientAuth\n' > ext.cnf
+openssl x509 -req -in DEVICE.csr -CA ops-ca.pem -CAkey ops-ca.key -CAcreateserial \
+    -out DEVICE.crt -days 730 -sha256 -extfile ext.cnf
+openssl pkcs12 -export -legacy -out DEVICE.p12 -inkey DEVICE.key -in DEVICE.crt \
+    -certfile ops-ca.pem -name "Overeasy Ops (DEVICE)" -passout pass:
+```
+
+Revoking one device means re-issuing the CA and every other certificate; with a
+handful of devices that is cheaper than running a CRL or OCSP responder.
+
 That name is a second site block in `deploy/vps/gateway/routes/ladle.caddy`,
 installed by `push.sh` along with the API route. It needs a DNS `A` record at
 Porkbun, where `chetangoel.me` is hosted, pointing
