@@ -94,12 +94,10 @@ private enum EmbedPlayerHost {
     static let name = "player.ladle.localhost"
 }
 
-private struct EmbedNavigationDecider: WebPage.NavigationDeciding {
-    func decidePolicy(
-        for action: WebPage.NavigationAction,
-        preferences _: inout WebPage.NavigationPreferences
-    ) async -> WKNavigationActionPolicy {
-        guard action.target?.isMainFrame != false else {
+private enum EmbedNavigationPolicy {
+    @MainActor
+    static func decide(_ action: WKNavigationAction) -> WKNavigationActionPolicy {
+        guard action.targetFrame?.isMainFrame != false else {
             return .allow
         }
         if action.navigationType == .linkActivated {
@@ -168,17 +166,137 @@ private enum EmbeddedMediaControl {
         })();
         """
 
-    static let setMutedScript = """
-        const message = {
-            source: 'ladle',
-            command: 'set-muted',
-            muted: Boolean(muted)
-        };
-        window.postMessage(message, '*');
-        document.querySelectorAll('iframe').forEach((frame) => {
-            frame.contentWindow?.postMessage(message, '*');
-        });
+    /// Wrapped in a function expression so the script can run again without
+    /// redeclaring anything in the page's global scope.
+    static func setMutedScript(muted: Bool) -> String {
         """
+        (() => {
+            const message = {
+                source: 'ladle',
+                command: 'set-muted',
+                muted: \(muted)
+            };
+            window.postMessage(message, '*');
+            document.querySelectorAll('iframe').forEach((frame) => {
+                frame.contentWindow?.postMessage(message, '*');
+            });
+        })();
+        """
+    }
+}
+
+/// Owns the `WKWebView` for one embedded clip and mirrors its navigation
+/// state for SwiftUI.
+///
+/// Plain WebKit rather than SwiftUI's `WebPage`/`WebView` because those are
+/// iOS 26 only and this screen has to reach iOS 18. The view never shows a
+/// page of its own: the app decides what loads, swallows anything that would
+/// leave the embed, and drives playback from the outside.
+@MainActor
+@Observable
+private final class EmbeddedPlayerPage: NSObject, WKNavigationDelegate {
+    let webView: WKWebView
+    private(set) var isLoading = false
+
+    override init() {
+        let configuration = WKWebViewConfiguration()
+        configuration.allowsInlineMediaPlayback = true
+        configuration.mediaTypesRequiringUserActionForPlayback = []
+        configuration.allowsAirPlayForMediaPlayback = true
+        configuration.userContentController.addUserScript(
+            WKUserScript(
+                source: EmbeddedMediaControl.observerScript,
+                injectionTime: .atDocumentStart,
+                forMainFrameOnly: false
+            )
+        )
+        webView = WKWebView(frame: .zero, configuration: configuration)
+        super.init()
+        webView.navigationDelegate = self
+        // WebKit paints white until the first document arrives, which would
+        // flash through the loading overlay on a slow embed.
+        webView.isOpaque = false
+        webView.backgroundColor = .black
+        webView.scrollView.backgroundColor = .black
+        webView.scrollView.isScrollEnabled = false
+        webView.scrollView.bounces = false
+        webView.scrollView.contentInsetAdjustmentBehavior = .never
+    }
+
+    func load(_ request: URLRequest) {
+        webView.load(request)
+    }
+
+    func load(simulatedRequest request: URLRequest, responseHTML html: String) {
+        webView.loadSimulatedRequest(request, responseHTML: html)
+    }
+
+    func setAllMediaPlaybackSuspended(_ suspended: Bool) async {
+        await webView.setAllMediaPlaybackSuspended(suspended)
+    }
+
+    /// Fire-and-forget: the scripts here only post messages into the page.
+    ///
+    /// Deliberately the plain `evaluateJavaScript(_:completionHandler:)`.
+    /// Every `callAsyncJavaScript` overload, async or not, is a Swift-overlay
+    /// wrapper rather than a compiler-synthesised import, and the iOS 26 SDK
+    /// binds that overlay to a separate `libswiftWebKit.dylib` for deployment
+    /// targets below 18.5. iOS 18.5 does not ship that library, so the app
+    /// would abort at launch before running a line of its own code.
+    func evaluate(_ script: String) {
+        webView.evaluateJavaScript(script) { _, _ in }
+    }
+
+    // MARK: WKNavigationDelegate
+
+    func webView(
+        _: WKWebView,
+        didStartProvisionalNavigation _: WKNavigation!
+    ) {
+        isLoading = true
+    }
+
+    func webView(_: WKWebView, didFinish _: WKNavigation!) {
+        isLoading = false
+    }
+
+    func webView(
+        _: WKWebView,
+        didFail _: WKNavigation!,
+        withError _: any Error
+    ) {
+        isLoading = false
+    }
+
+    func webView(
+        _: WKWebView,
+        didFailProvisionalNavigation _: WKNavigation!,
+        withError _: any Error
+    ) {
+        isLoading = false
+    }
+
+    func webView(
+        _: WKWebView,
+        decidePolicyFor navigationAction: WKNavigationAction,
+        preferences: WKWebpagePreferences
+    ) async -> (WKNavigationActionPolicy, WKWebpagePreferences) {
+        (EmbedNavigationPolicy.decide(navigationAction), preferences)
+    }
+}
+
+private struct EmbeddedPlayerView: UIViewRepresentable {
+    let page: EmbeddedPlayerPage
+    let accessibilityIdentifier: String
+
+    func makeUIView(context _: Context) -> WKWebView {
+        page.webView.accessibilityIdentifier = accessibilityIdentifier
+        return page.webView
+    }
+
+    func updateUIView(_ webView: WKWebView, context _: Context) {
+        webView.accessibilityIdentifier = accessibilityIdentifier
+    }
 }
 
 @MainActor
@@ -189,7 +307,7 @@ struct InlineVideoPlayer: View {
     let isPaused: Bool
     let isMuted: Bool
 
-    @State private var page: WebPage
+    @State private var page = EmbeddedPlayerPage()
     @State private var didLoad = false
 
     init(
@@ -200,22 +318,6 @@ struct InlineVideoPlayer: View {
         self.recipe = recipe
         self.isPaused = isPaused
         self.isMuted = isMuted
-        var configuration = WebPage.Configuration()
-        configuration.mediaPlaybackBehavior = .allowsInlinePlayback
-        configuration.allowsAirPlayForMediaPlayback = true
-        configuration.userContentController.addUserScript(
-            WKUserScript(
-                source: EmbeddedMediaControl.observerScript,
-                injectionTime: .atDocumentStart,
-                forMainFrameOnly: false
-            )
-        )
-        _page = State(
-            initialValue: WebPage(
-                configuration: configuration,
-                navigationDecider: EmbedNavigationDecider()
-            )
-        )
     }
 
     /// YouTube's `/embed/` endpoint is built to run inside an iframe on a
@@ -333,7 +435,11 @@ struct InlineVideoPlayer: View {
         """
     }
 
-    private static func load(_ url: URL, for recipe: Recipe, into page: WebPage) {
+    private static func load(
+        _ url: URL,
+        for recipe: Recipe,
+        into page: EmbeddedPlayerPage
+    ) {
         if let demo = demoPlayerDocument(for: recipe),
            let origin = URL(
                string: "https://\(EmbedPlayerHost.name)/demo"
@@ -360,8 +466,10 @@ struct InlineVideoPlayer: View {
     var body: some View {
         Group {
             if let url = VideoEmbed.url(for: recipe) {
-                WebView(page)
-                    .scrollDisabled(true)
+                EmbeddedPlayerView(
+                    page: page,
+                    accessibilityIdentifier: "watch.player.\(recipe.librarySlug)"
+                )
                     .accessibilityIdentifier(
                         "watch.player.\(recipe.librarySlug)"
                     )
@@ -434,12 +542,7 @@ struct InlineVideoPlayer: View {
     }
 
     private func applyMutedState() {
-        Task {
-            _ = try? await page.callJavaScript(
-                EmbeddedMediaControl.setMutedScript,
-                arguments: ["muted": isMuted]
-            )
-        }
+        page.evaluate(EmbeddedMediaControl.setMutedScript(muted: isMuted))
     }
 }
 
