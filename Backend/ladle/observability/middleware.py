@@ -1,11 +1,13 @@
 import logging
 from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
 from time import perf_counter
 from uuid import UUID, uuid4
 
 from fastapi import FastAPI, Request, Response
 
 from ladle.observability.metrics import MetricsRegistry
+from ladle.observability.recent import RecentRequests
 from ladle.observability.structured_logging import log_context
 
 X_REQUEST_ID = "X-Request-ID"
@@ -13,7 +15,13 @@ LOGGER = logging.getLogger("ladle.http")
 # Endpoints polled on a timer rather than requested by a person: the uptime
 # probe, and the dashboard polling itself.
 _POLLED = frozenset(
-    {"/health/live", "/health/ready", "/ops/metrics.json", "/ops/readiness.json"}
+    {
+        "/health/live",
+        "/health/ready",
+        "/ops/metrics.json",
+        "/ops/readiness.json",
+        "/ops/requests.json",
+    }
 )
 
 
@@ -35,6 +43,7 @@ def install_request_middleware(
     application: FastAPI,
     *,
     metrics: MetricsRegistry,
+    recent: RecentRequests | None = None,
 ) -> None:
     @application.middleware("http")
     async def request_context(
@@ -98,5 +107,24 @@ def install_request_middleware(
         }
         if isinstance(safe_user, str):
             event["user_safe_id"] = safe_user
-        if is_loggable(str(route_path), status_code):
-            LOGGER.info("HTTP request completed", extra=event)
+        if not is_loggable(str(route_path), status_code):
+            return
+        LOGGER.info("HTTP request completed", extra=event)
+        if recent is not None:
+            # `route_path` is Starlette's matched template, never the requested
+            # URL, which is what keeps recipe IDs out of the stored entry.
+            recent.record(
+                {
+                    "at": datetime.now(tz=UTC).isoformat(),
+                    "request_id": event["request_id"],
+                    "method": event["method"],
+                    "route": event["route"],
+                    "status_code": status_code,
+                    "duration_ms": event["duration_ms"],
+                    **(
+                        {"user_safe_id": safe_user}
+                        if isinstance(safe_user, str)
+                        else {}
+                    ),
+                }
+            )

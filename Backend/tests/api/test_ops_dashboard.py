@@ -233,3 +233,35 @@ def test_an_untrusted_peer_cannot_forge_a_client_certificate() -> None:
 
 def test_an_empty_certificate_subject_is_not_an_identity() -> None:
     assert _certified(("172.30.0.3", 51000), {CLIENT_CERT_HEADER: ""}) == 404
+
+
+def test_recent_requests_list_what_matters_and_skip_the_pollers() -> None:
+    app = create_app(
+        settings=Settings(ops_dashboard_token=TOKEN, _env_file=None),
+        readiness_probes={"database": Probe(healthy=False)},
+    )
+    with TestClient(app) as client:
+        client.get("/ops", params={"token": TOKEN})
+        client.get("/health/live")
+        client.get("/health/ready")
+        listed = client.get("/ops/requests.json")
+
+    with TestClient(app) as stranger:
+        assert stranger.get("/ops/requests.json").status_code == 404
+
+    entries = listed.json()["requests"]
+    routes = [entry["route"] for entry in entries]
+    # A successful probe is noise; a failing one is the first sign of trouble.
+    assert "/health/live" not in routes
+    assert "/health/ready" in routes
+    assert "/ops/metrics.json" not in routes
+    for entry in entries:
+        assert set(entry) <= {
+            "at",
+            "request_id",
+            "method",
+            "route",
+            "status_code",
+            "duration_ms",
+            "user_safe_id",
+        }

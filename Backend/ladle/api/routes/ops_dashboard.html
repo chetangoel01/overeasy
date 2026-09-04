@@ -257,7 +257,7 @@
     </div>
     <div class="card">
       <h2>Cost and cache</h2>
-      <p class="sub">Billed units and how often work was avoided.</p>
+      <p class="sub" id="cost-sub">Billed units and how often work was avoided.</p>
       <dl class="kv" id="x-cost"></dl>
     </div>
     <div class="card">
@@ -312,6 +312,14 @@
     <div id="routes"></div>
   </div>
 
+  <div class="card" style="margin-top:16px">
+    <h2>Recent requests</h2>
+    <p class="sub">The last few completed requests. Metadata only — no bodies, no
+      query strings, and the route template rather than the path, so no recipe or
+      account identifier is stored. Polled endpoints are omitted unless they failed.</p>
+    <div id="recent"></div>
+  </div>
+
   <div class="section-title">Latency</div>
   <div class="card">
     <h2>Response time distribution</h2>
@@ -357,6 +365,7 @@
 
   var POLL_MS = 5000;
   var READY_MS = 60000;
+  var RECENT_MS = 10000;
   var MAX_POINTS = 180;
   var OPS_ROUTES = { "/ops": 1, "/ops/metrics.json": 1, "/ops/readiness.json": 1 };
   var HEALTH_ROUTES = { "/health/live": 1, "/health/ready": 1 };
@@ -365,6 +374,9 @@
 
   var state = {
     series: [],
+    recent: [],
+    pricing: {},
+    currency: "USD",
     prev: null,
     prevAt: null,
     baseline: null,
@@ -1175,6 +1187,32 @@
     for (var d in cache) looked += cache[d];
     var gauges = index(state.series);
 
+    // Real money only when an operator has supplied prices; otherwise the
+    // abstract unit is shown rather than a number that looks like currency.
+    var money = 0;
+    var priced = false;
+    for (var provider in billed) {
+      if (state.pricing[provider] !== undefined) {
+        money += billed[provider] * state.pricing[provider];
+        priced = true;
+      }
+    }
+    var asMoney = function (value) {
+      // A per-import cost is often a fraction of a cent; rounding it to two
+      // places prints $0.00 and tells the reader nothing.
+      var places = value !== 0 && Math.abs(value) < 0.5 ? 4 : 2;
+      try {
+        return value.toLocaleString(undefined, {
+          style: "currency",
+          currency: state.currency,
+          minimumFractionDigits: places,
+          maximumFractionDigits: places
+        });
+      } catch (error) {
+        return state.currency + " " + value.toFixed(places);
+      }
+    };
+
     var readings = [
       ["Billed units", units ? units.toFixed(2) : "0", false],
       ["Per import", jobs && units ? (units / jobs).toFixed(2) : "–", false],
@@ -1183,6 +1221,11 @@
       ["Cache hit rate", looked ? ((cache["hit"] || 0) / looked * 100).toFixed(0) + "%" : "–", false],
       ["Work avoided", (cache["hit"] || 0).toLocaleString() + " of " + looked.toLocaleString(), false]
     ];
+    if (priced) {
+      readings.splice(2, 0,
+        ["Spend", asMoney(money), false],
+        ["Cost per import", jobs ? asMoney(money / jobs) : "–", false]);
+    }
     for (var i = 0; i < readings.length; i++) {
       var term = document.createElement("dt");
       term.textContent = readings[i][0];
@@ -1194,6 +1237,10 @@
       host.appendChild(term);
       host.appendChild(definition);
     }
+    el("cost-sub").textContent = priced
+      ? "Real money, from the prices configured in LADLE_OPS_PROVIDER_UNIT_PRICES."
+      : "Billed units are an internal budget unit, not currency. Set " +
+        "LADLE_OPS_PROVIDER_UNIT_PRICES to see money here.";
   }
 
   function renderPipeline() {
@@ -1377,6 +1424,82 @@
       " Checked every 60 seconds.";
   }
 
+  var ROUTE_NOTES = {
+    "/v1/imports": "Submit a video URL to extract a recipe from",
+    "/v1/imports/{job_id}": "Poll one extraction job for progress or its result",
+    "/v1/recipes": "The signed-in cook's saved recipes",
+    "/v1/recipes/{recipe_id}": "Read, edit or delete one saved recipe",
+    "/v1/recipes/sync": "Reconcile a device's local library against the server",
+    "/v1/recipes/discover": "The public feed of shared recipes",
+    "/v1/recipes/discover/{source_video_id}": "One recipe from the public feed",
+    "/v1/auth/guest": "Create an anonymous account so the app works before sign-in",
+    "/v1/auth/refresh": "Exchange a refresh token for a new access token",
+    "/v1/auth/apple": "Sign in with Apple",
+    "/v1/auth/google": "Sign in with Google",
+    "/v1/auth/attestation": "App Attest challenge, proving the caller is the real app",
+    "/health/live": "Is the process up (contacts nothing)",
+    "/health/ready": "Are all dependencies reachable (contacts every one)",
+    "/metrics": "Prometheus scrape endpoint, bearer-token gated",
+    "/ops": "This dashboard",
+    "/ops/metrics.json": "This dashboard's counter poll",
+    "/ops/readiness.json": "This dashboard's slower readiness poll",
+    "/ops/requests.json": "This dashboard's recent-request poll",
+    "unmatched": "No route matched — a scanner, a stale client, or a typo"
+  };
+
+  function renderRecent() {
+    var host = el("recent");
+    host.textContent = "";
+    var entries = state.recent;
+    if (!entries || !entries.length) {
+      host.innerHTML = '<p class="empty">Nothing recorded yet. Requests appear here as they are served.</p>';
+      return;
+    }
+    var table = document.createElement("table");
+    table.innerHTML = "<thead><tr><th>When</th><th>Endpoint</th>" +
+      "<th class='num'>Status</th><th class='num'>Took</th></tr></thead>";
+    var body = document.createElement("tbody");
+    for (var i = 0; i < entries.length; i++) {
+      var entry = entries[i];
+      var tr = document.createElement("tr");
+
+      var when = document.createElement("td");
+      var at = new Date(entry.at);
+      when.textContent = isNaN(at.getTime()) ? "–" : at.toLocaleTimeString();
+      when.style.color = "var(--muted)";
+      when.style.fontVariantNumeric = "tabular-nums";
+      tr.appendChild(when);
+
+      var route = document.createElement("td");
+      route.className = "route";
+      route.innerHTML = '<span class="method">' + esc(entry.method) + "</span>" +
+        esc(entry.route);
+      var note = ROUTE_NOTES[entry.route];
+      hoverable(route, "<b>" + esc(entry.method + " " + entry.route) + "</b>" +
+        (note ? "<br>" + esc(note) : "") +
+        (entry.user_safe_id ? "<br>cook " + esc(entry.user_safe_id) : "") +
+        (entry.request_id ? "<br>request " + esc(String(entry.request_id).slice(0, 8)) : ""));
+      tr.appendChild(route);
+
+      var status = document.createElement("td");
+      status.className = "num";
+      var code = Number(entry.status_code);
+      status.innerHTML = '<span style="color:' +
+        (code >= 500 ? "var(--critical)" : code >= 400 ? "var(--warning)" : "var(--good)") +
+        '">' + esc(entry.status_code) + "</span>";
+      tr.appendChild(status);
+
+      var took = document.createElement("td");
+      took.className = "num";
+      took.textContent = duration(Number(entry.duration_ms) / 1000);
+      tr.appendChild(took);
+
+      body.appendChild(tr);
+    }
+    table.appendChild(body);
+    host.appendChild(table);
+  }
+
   function renderAll() {
     renderExtractionTiles();
     renderOutcomeBySource();
@@ -1391,6 +1514,7 @@
     renderProviders();
     renderCacheSync();
     renderRateLimits();
+    renderRecent();
     paintHealthToggle();
   }
 
@@ -1426,6 +1550,8 @@
         if (isNaN(at.getTime())) at = new Date();
         var previous = state.series;
         state.series = payload.series;
+        state.pricing = payload.pricing || {};
+        state.currency = payload.currency || "USD";
         if (state.prev) {
           var window = (at - state.prevAt) / 1000;
           if (window > 0.5) {
@@ -1462,6 +1588,19 @@
         }
         return error;
       });
+  }
+
+  function pollRecent() {
+    if (!state.running) return;
+    fetch("/ops/requests.json", { credentials: "same-origin", cache: "no-store" })
+      .then(function (response) { return response.ok ? response.json() : null; })
+      .then(function (payload) {
+        if (payload && payload.requests) {
+          state.recent = payload.requests;
+          renderRecent();
+        }
+      })
+      .catch(function () { /* the next tick tries again */ });
   }
 
   function pollReadiness() {
@@ -1515,8 +1654,10 @@
   paintHealthToggle();
   poll();
   pollReadiness();
+  pollRecent();
   setInterval(poll, POLL_MS);
   setInterval(pollReadiness, READY_MS);
+  setInterval(pollRecent, RECENT_MS);
 })();
 </script>
 </body>

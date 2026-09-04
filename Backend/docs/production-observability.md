@@ -49,6 +49,18 @@ putting private recipe or authentication data in telemetry.
   back — readiness 5xx are worth looking at — and the choice is remembered per
   browser. Both rate series are recorded on every poll, so switching re-reads
   the other one instead of restarting the chart.
+- `/ops/requests.json` keeps the last `LADLE_OPS_RECENT_REQUEST_LIMIT` (200)
+  completed requests in a trimmed Redis list, so an operator can see what just
+  happened rather than only how much. It stores metadata only: a field outside
+  the allowlist is dropped, and the route is Starlette's matched template, not
+  the requested path, so no body, query string, recipe ID or account ID is
+  retained. Nothing in it needs to participate in account deletion. Polled
+  endpoints are omitted unless they failed, on the same reasoning as the log.
+- Provider spend is reported in billed units, which are an internal budget
+  abstraction, not currency. `LADLE_OPS_PROVIDER_UNIT_PRICES` maps a provider
+  to money per unit; when it is set the dashboard adds spend and cost per
+  import in `LADLE_OPS_CURRENCY`, and until then it says plainly that units are
+  not money rather than printing a number that looks like one.
 - HTTP and import latency use Prometheus histograms. Metrics cover import
   outcomes, cache disposition, provider outcomes/cost, worker retries, sync
   conflicts/resets, rate-limit rejection policy, queue health, stuck jobs,

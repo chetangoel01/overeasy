@@ -18,6 +18,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from ladle.api.rate_limits import ClientIPResolver
 from ladle.api.routes.health import ReadinessService
 from ladle.observability.metrics import MetricsRegistry
+from ladle.observability.recent import RecentRequests
 
 router = APIRouter()
 
@@ -129,15 +130,32 @@ def dashboard_metrics(request: Request) -> Response:
     policy = cast(OpsAccessPolicy, request.app.state.ops_access)
     policy.authorize(request)
     registry = cast(MetricsRegistry, request.app.state.metrics)
+    pricing = cast(dict[str, float], request.app.state.ops_pricing)
     return JSONResponse(
         {
             "generatedAt": datetime.now(tz=UTC).isoformat(),
+            "pricing": pricing,
+            "currency": cast(str, request.app.state.ops_currency),
             "series": [
                 {"name": name, "labels": dict(labels), "value": value}
                 for (name, labels), value in sorted(registry.snapshot().items())
             ],
         }
     )
+
+
+@router.get("/ops/requests.json")
+def dashboard_requests(request: Request) -> Response:
+    """The last few completed requests, metadata only.
+
+    Counters say how much; this says what just happened. It holds no body, no
+    query string and no path identifier — see ladle/observability/recent.py.
+    """
+
+    policy = cast(OpsAccessPolicy, request.app.state.ops_access)
+    policy.authorize(request)
+    recent = cast(RecentRequests, request.app.state.recent_requests)
+    return JSONResponse({"requests": recent.snapshot()})
 
 
 @router.get("/ops/readiness.json")

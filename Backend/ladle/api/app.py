@@ -79,6 +79,11 @@ from ladle.infrastructure.object_storage import ObjectStorage, S3ObjectStorage
 from ladle.observability.access_log import install_access_log_redaction
 from ladle.observability.metrics import MetricsRegistry, RedisMetricsBackend
 from ladle.observability.middleware import install_request_middleware
+from ladle.observability.recent import (
+    MemoryRecentBackend,
+    RecentRequests,
+    RedisRecentBackend,
+)
 from ladle.observability.structured_logging import (
     configure_structured_logging,
     pseudonymous_identifier,
@@ -221,14 +226,31 @@ def create_app(
                 prefix=configured.metrics_key_prefix,
             )
         )
+        runtime_recent = RecentRequests(
+            backend=RedisRecentBackend(
+                metrics_redis,
+                prefix=configured.metrics_key_prefix,
+            ),
+            limit=configured.ops_recent_request_limit,
+        )
     else:
         runtime_metrics = MetricsRegistry()
+        runtime_recent = RecentRequests(
+            backend=MemoryRecentBackend(),
+            limit=configured.ops_recent_request_limit,
+        )
     application.state.metrics = runtime_metrics
+    application.state.recent_requests = runtime_recent
     application.state.metrics_access = MetricsAccessPolicy(
         configured.metrics_auth_token.get_secret_value()
         if configured.metrics_auth_token is not None
         else None
     )
+    application.state.ops_pricing = {
+        provider: float(price)
+        for provider, price in configured.ops_provider_unit_prices.items()
+    }
+    application.state.ops_currency = configured.ops_currency
     application.state.ops_access = OpsAccessPolicy(
         configured.ops_dashboard_token.get_secret_value()
         if configured.ops_dashboard_token is not None
@@ -486,6 +508,7 @@ def create_app(
     install_request_middleware(
         application,
         metrics=application.state.metrics,
+        recent=application.state.recent_requests,
     )
     if configured.tracing_enabled:
         tracer_provider = instrument_application(

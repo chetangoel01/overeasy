@@ -127,6 +127,12 @@ class Settings(BaseSettings):
     )
     metrics_auth_token: SecretStr | None = None
     ops_dashboard_token: SecretStr | None = None
+    ops_recent_request_limit: int = Field(default=200, ge=0, le=2000)
+    # Money per billed unit, per provider, as JSON: {"openrouter": 0.004}.
+    # Empty by default because nothing in this codebase knows a real
+    # price; the dashboard shows units until an operator supplies these.
+    ops_provider_unit_prices: dict[str, Decimal] = Field(default_factory=dict)
+    ops_currency: str = Field(default="USD", min_length=3, max_length=3)
     structured_logging_enabled: bool = True
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     tracing_enabled: bool = False
