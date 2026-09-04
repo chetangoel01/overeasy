@@ -209,7 +209,13 @@ services:
         - inspect
         - ping
         - --timeout=5
-      timeout: 10s
+      # `celery inspect ping` spawns a CLI process that imports the whole
+      # application before it can ask anything, and that costs about eleven
+      # seconds on this host — measured over three runs, not guessed. At 10s
+      # the probe timed out while the ping itself answered OK, so a healthy
+      # worker reported unhealthy. The budget has to cover process start, not
+      # only the --timeout=5 that the ping itself waits.
+      timeout: 30s
     depends_on:
       migrate:
         condition: service_completed_successfully
