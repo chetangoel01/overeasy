@@ -208,6 +208,14 @@ and there is no credential to expire, leak into a log, or paste into a chat.
 The API hostname keeps serving `/ops` with the token; that is the way back in
 if a certificate is lost.
 
+The certificate is the sign-in. Caddy verifies it, then overwrites
+`X-Ladle-Ops-Client` with the peer's subject; the API hostname strips that
+header so it can never arrive from a client. The application accepts a
+non-empty value from a trusted proxy in place of the cookie, using the same
+`LADLE_RATE_LIMIT_TRUSTED_PROXY_CIDRS` list that decides whether
+`X-Forwarded-For` is believable. So on this hostname there is no token to
+paste and no session to expire.
+
 The CA is private to this dashboard and lives in the repository's ignored
 `.private/ops-mtls/`, which is also where its key stays so further devices can
 be issued. Only `ops-ca.pem` — the public certificate — is copied to the host

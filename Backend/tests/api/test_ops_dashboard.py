@@ -197,3 +197,39 @@ def test_an_untrusted_peer_cannot_talk_its_way_into_a_secure_cookie() -> None:
 
 def test_plain_local_http_still_gets_a_cookie_the_browser_will_store() -> None:
     assert "Secure" not in _handoff(("127.0.0.1", 51000), {})
+
+
+CLIENT_CERT_HEADER = "x-ladle-ops-client"
+
+
+def _certified(client_address: tuple[str, int], headers: dict[str, str]) -> int:
+    app = create_app(
+        settings=Settings(
+            ops_dashboard_token=TOKEN,
+            rate_limit_trusted_proxy_cidrs="172.30.0.0/24",
+            _env_file=None,
+        ),
+        readiness_probes={"database": Probe(healthy=True)},
+    )
+    with TestClient(app, client=client_address) as client:
+        return client.get("/ops", headers=headers).status_code
+
+
+def test_a_verified_client_certificate_stands_in_for_the_cookie() -> None:
+    # The gateway only sets this header after require_and_verify passed against
+    # the dashboard's private CA, so its presence is the authorization.
+    assert (
+        _certified(("172.30.0.3", 51000), {CLIENT_CERT_HEADER: "CN=chetan-macbook"})
+        == 200
+    )
+
+
+def test_an_untrusted_peer_cannot_forge_a_client_certificate() -> None:
+    assert (
+        _certified(("203.0.113.9", 51000), {CLIENT_CERT_HEADER: "CN=chetan-macbook"})
+        == 404
+    )
+
+
+def test_an_empty_certificate_subject_is_not_an_identity() -> None:
+    assert _certified(("172.30.0.3", 51000), {CLIENT_CERT_HEADER: ""}) == 404

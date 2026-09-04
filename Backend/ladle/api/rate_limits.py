@@ -186,6 +186,12 @@ class ClientIPResolver:
                 return str(address)
         return str(addresses[0])
 
+    def is_trusted_peer(self, request: Request) -> bool:
+        """Whether the immediate peer is one of the configured proxies."""
+
+        peer = self._parse(request.client.host if request.client is not None else None)
+        return peer is not None and self._is_trusted(peer)
+
     def forwarded_scheme(self, request: Request) -> str:
         """The scheme the browser used, believed only from a trusted proxy.
 

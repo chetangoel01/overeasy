@@ -21,6 +21,11 @@
 		reverse_proxy ladle-api:4111 {
 			header_up Host {http.request.host}
 			header_up X-Ladle-Tunnel-Key ""
+
+			# No client certificate is required here, so this header must never
+			# survive from a client: on this hostname it would be a forged
+			# identity. The dashboard hostname sets it from the verified peer.
+			header_up X-Ladle-Ops-Client ""
 		}
 
 		# Caddy sets X-Forwarded-For and X-Forwarded-Proto for both proxies.
@@ -59,6 +64,11 @@
 		reverse_proxy @ops ladle-api:4111 {
 			header_up Host {http.request.host}
 			header_up X-Ladle-Tunnel-Key ""
+
+			# Overwrites whatever the client sent, so this is always the
+			# subject of the certificate require_and_verify just accepted.
+			# That is what signs the operator in; no token, no cookie.
+			header_up X-Ladle-Ops-Client "{http.request.tls.client.subject}"
 		}
 
 		respond 404

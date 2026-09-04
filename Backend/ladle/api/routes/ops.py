@@ -23,6 +23,9 @@ router = APIRouter()
 
 OPS_COOKIE = "ladle_ops"
 OPS_COOKIE_LIFETIME = 12 * 60 * 60
+# Set by the gateway from the verified peer certificate, and stripped on every
+# other hostname so it can never arrive from a client.
+OPS_CLIENT_CERT_HEADER = "X-Ladle-Ops-Client"
 _PAGE = Path(__file__).with_name("ops_dashboard.html")
 
 
@@ -46,9 +49,28 @@ class OpsAccessPolicy:
         return hmac.compare_digest(supplied.encode(), self._token.encode())
 
     def authorize(self, request: Request) -> None:
-        if not self.matches(request.cookies.get(OPS_COOKIE)):
-            # Hide the dashboard from unauthenticated public scans.
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+        if self.certified(request) or self.matches(request.cookies.get(OPS_COOKIE)):
+            return
+        # Hide the dashboard from unauthenticated public scans.
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+    @staticmethod
+    def certified(request: Request) -> bool:
+        """A client certificate the gateway already verified.
+
+        Caddy requires and verifies a certificate against the dashboard's
+        private CA before it proxies anything, then overwrites this header with
+        the peer's subject; the API hostname strips it. So a non-empty value
+        from a trusted proxy is proof, and there is nothing here to re-check.
+        Trust for the header itself comes from the same list that decides
+        whether X-Forwarded-For is believable.
+        """
+
+        subject = request.headers.get(OPS_CLIENT_CERT_HEADER)
+        if not subject:
+            return False
+        client_ips = cast(ClientIPResolver, request.app.state.client_ips)
+        return client_ips.is_trusted_peer(request)
 
     def issue(self, response: Response, *, secure: bool) -> None:
         """`secure` follows the scheme the request arrived on.
