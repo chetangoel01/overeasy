@@ -209,6 +209,65 @@
     </div>
   </header>
 
+  <div class="section-title">Recipe extraction</div>
+  <div class="grid cols-4">
+    <div class="card tile">
+      <h2>Imports</h2>
+      <div class="value" id="x-total">–</div>
+      <div class="foot" id="x-total-foot">all time</div>
+    </div>
+    <div class="card tile">
+      <h2>Clean</h2>
+      <div class="value" id="x-clean">–</div>
+      <div class="foot" id="x-clean-foot">ready without review</div>
+    </div>
+    <div class="card tile">
+      <h2>Needs review</h2>
+      <div class="value" id="x-review">–</div>
+      <div class="foot" id="x-review-foot">extracted, but not trusted</div>
+    </div>
+    <div class="card tile">
+      <h2>Failed</h2>
+      <div class="value" id="x-failed">–</div>
+      <div class="foot" id="x-failed-foot">no recipe produced</div>
+    </div>
+  </div>
+
+  <div class="grid cols-2" style="margin-top:16px">
+    <div class="card">
+      <h2>Outcome by source</h2>
+      <p class="sub">Where extraction succeeds and where it does not. This is the
+        comparison that says which platform to work on.</p>
+      <div id="x-by-source"></div>
+      <div class="legend" id="x-source-legend"></div>
+    </div>
+    <div class="card">
+      <h2>Time to extract</h2>
+      <p class="sub">End-to-end job duration, all time.</p>
+      <div id="x-duration"></div>
+      <div class="legend" id="x-duration-quantiles"></div>
+    </div>
+  </div>
+
+  <div class="grid cols-3" style="margin-top:16px">
+    <div class="card">
+      <h2>Extraction providers</h2>
+      <p class="sub">Every outcome, per provider.</p>
+      <div id="providers"></div>
+    </div>
+    <div class="card">
+      <h2>Cost and cache</h2>
+      <p class="sub">Billed units and how often work was avoided.</p>
+      <dl class="kv" id="x-cost"></dl>
+    </div>
+    <div class="card">
+      <h2>Pipeline health</h2>
+      <p class="sub">Queue and worker gauges.</p>
+      <dl class="kv" id="pipeline"></dl>
+    </div>
+  </div>
+
+  <div class="section-title">Traffic</div>
   <div class="grid cols-4" id="tiles">
     <div class="card tile">
       <h2>Requests</h2>
@@ -232,8 +291,7 @@
     </div>
   </div>
 
-  <div class="section-title">Traffic</div>
-  <div class="grid cols-2">
+  <div class="grid cols-2" style="margin-top:16px">
     <div class="card">
       <h2>Requests per minute</h2>
       <p class="sub">Measured live from counter deltas; the line starts when this page opens.</p>
@@ -262,37 +320,11 @@
     <div class="legend" id="latency-quantiles"></div>
   </div>
 
-  <div class="section-title">Imports</div>
-  <div class="grid cols-3">
-    <div class="card">
-      <h2>Jobs by outcome</h2>
-      <p class="sub">All time.</p>
-      <div id="import-status"></div>
-    </div>
-    <div class="card">
-      <h2>Jobs by source</h2>
-      <p class="sub">Where recipes came from.</p>
-      <div id="import-source"></div>
-    </div>
-    <div class="card">
-      <h2>Pipeline health</h2>
-      <p class="sub">Queue and worker gauges.</p>
-      <dl class="kv" id="pipeline"></dl>
-    </div>
-  </div>
-
-  <div class="section-title">Providers &amp; cache</div>
-  <div class="grid cols-2">
-    <div class="card">
-      <h2>Extraction providers</h2>
-      <p class="sub">Outcomes and billed units per provider.</p>
-      <div id="providers"></div>
-    </div>
-    <div class="card">
-      <h2>Cache and sync</h2>
-      <p class="sub">Import cache disposition and device sync outcomes.</p>
-      <div id="cache-sync"></div>
-    </div>
+  <div class="section-title">Cache and sync</div>
+  <div class="card">
+    <h2>Cache disposition and device sync</h2>
+    <p class="sub">How often an import reused earlier work, and how device sync resolved.</p>
+    <div id="cache-sync"></div>
   </div>
 
   <div class="section-title">System</div>
@@ -899,28 +931,273 @@
     host.appendChild(table);
   }
 
-  function renderImports() {
+  var IMPORT_BUCKETS = [5, 15, 30, 60, 120, 300, 600, 1200];
+
+  function importJobs() {
+    var rows = Object.create(null);
+    var entries = pick("ladle_import_jobs_total");
+    for (var i = 0; i < entries.length; i++) {
+      var labels = entries[i].labels;
+      if (!rows[labels.source]) {
+        rows[labels.source] = { source: labels.source, total: 0, by: Object.create(null) };
+      }
+      rows[labels.source].by[labels.status] =
+        (rows[labels.source].by[labels.status] || 0) + entries[i].value;
+      rows[labels.source].total += entries[i].value;
+    }
+    var list = [];
+    for (var key in rows) list.push(rows[key]);
+    list.sort(function (a, b) { return b.total - a.total; });
+    return list;
+  }
+
+  function renderExtractionTiles() {
     var byStatus = groupSum(pick("ladle_import_jobs_total"), "status");
-    var statusRows = [];
+    var total = 0;
+    for (var key in byStatus) total += byStatus[key];
+
+    var tiles = [
+      ["x-total", total, null, total ? total.toLocaleString() + " jobs, all time" : "all time"],
+      ["x-clean", byStatus["ready"] || 0, "good", "ready without review"],
+      ["x-review", byStatus["needsReview"] || 0, "warning", "extracted, but not trusted"],
+      ["x-failed", byStatus["failed"] || 0, "critical", "no recipe produced"]
+    ];
+    for (var i = 0; i < tiles.length; i++) {
+      var id = tiles[i][0];
+      var count = tiles[i][1];
+      var node = el(id);
+      var foot = el(id + "-foot");
+      if (!total) {
+        node.className = "value pending";
+        node.textContent = "no imports yet";
+        foot.textContent = tiles[i][3];
+        continue;
+      }
+      if (i === 0) {
+        node.className = "value";
+        node.textContent = total < 100000 ? total.toLocaleString() : compact(total);
+        foot.textContent = tiles[i][3];
+        continue;
+      }
+      var share = (count / total) * 100;
+      node.className = "value" + (tiles[i][2] === "critical" && count ? " err" : "");
+      node.innerHTML = esc(share.toFixed(share >= 10 ? 0 : 1)) + '<span class="unit">%</span>';
+      foot.textContent = count.toLocaleString() + " of " + total.toLocaleString() +
+        " · " + tiles[i][3];
+    }
+  }
+
+  function renderOutcomeBySource() {
+    var host = el("x-by-source");
+    var legend = el("x-source-legend");
+    host.textContent = "";
+    legend.textContent = "";
+    var list = importJobs();
+    if (!list.length) {
+      host.innerHTML = '<p class="empty">No imports recorded yet.</p>';
+      return;
+    }
+
+    var table = document.createElement("table");
+    table.innerHTML = "<thead><tr><th>Source</th><th class='num'>Imports</th>" +
+      "<th class='num'>Clean</th></tr></thead>";
+    var body = document.createElement("tbody");
+
+    for (var i = 0; i < list.length; i++) {
+      var row = list[i];
+      var tr = document.createElement("tr");
+
+      var stack = document.createElement("div");
+      stack.className = "stack";
+      stack.style.marginTop = "7px";
+      for (var s = 0; s < IMPORT_STATUS.length; s++) {
+        var slot = IMPORT_STATUS[s];
+        var count = row.by[slot.key] || 0;
+        if (!count) continue;
+        var segment = document.createElement("i");
+        segment.style.width = ((count / row.total) * 100).toFixed(3) + "%";
+        segment.style.background = slot.color;
+        stack.appendChild(hoverable(segment, "<b>" + esc(row.source) + " · " +
+          esc(slot.label) + "</b><br>" + count.toLocaleString() + " of " +
+          row.total.toLocaleString() + " · " +
+          ((count / row.total) * 100).toFixed(1) + "%"));
+      }
+
+      var label = document.createElement("td");
+      label.textContent = row.source;
+      label.appendChild(stack);
+      tr.appendChild(label);
+
+      var count2 = document.createElement("td");
+      count2.className = "num";
+      count2.textContent = row.total.toLocaleString();
+      tr.appendChild(count2);
+
+      var clean = (row.by["ready"] || 0) / row.total * 100;
+      var rate = document.createElement("td");
+      rate.className = "num";
+      rate.innerHTML = '<span style="color:' +
+        (clean >= 75 ? "var(--good)" : clean >= 50 ? "var(--warning)" : "var(--critical)") +
+        '">' + clean.toFixed(0) + "%</span>";
+      tr.appendChild(rate);
+
+      body.appendChild(tr);
+    }
+    table.appendChild(body);
+    host.appendChild(table);
+
+    for (var k = 0; k < IMPORT_STATUS.length; k++) {
+      var item = document.createElement("span");
+      item.innerHTML = '<i style="background:' + IMPORT_STATUS[k].color + '"></i>' +
+        esc(IMPORT_STATUS[k].label);
+      legend.appendChild(item);
+    }
+  }
+
+  function renderImportDuration() {
+    var host = el("x-duration");
+    var quantiles = el("x-duration-quantiles");
+    host.textContent = "";
+    quantiles.textContent = "";
+
+    var counts = Object.create(null);
+    var entries = pick("ladle_import_duration_seconds_bucket");
+    for (var i = 0; i < entries.length; i++) {
+      var le = entries[i].labels.le;
+      counts[le] = (counts[le] || 0) + entries[i].value;
+    }
+    var buckets = [];
+    for (var b = 0; b < IMPORT_BUCKETS.length; b++) {
+      buckets.push({ le: IMPORT_BUCKETS[b], count: counts[String(IMPORT_BUCKETS[b])] || 0 });
+    }
+    buckets.push({ le: Infinity, count: counts["+Inf"] || 0 });
+
+    var total = buckets[buckets.length - 1].count;
+    if (!total) {
+      host.innerHTML = '<p class="empty">No completed imports yet.</p>';
+      return;
+    }
+
+    var bars = [];
+    var previousCount = 0;
+    var previousLe = 0;
+    for (i = 0; i < buckets.length; i++) {
+      bars.push({
+        label: isFinite(buckets[i].le) ? duration(buckets[i].le) : "> " + duration(previousLe),
+        span: (previousLe ? duration(previousLe) : "0") + " – " +
+          (isFinite(buckets[i].le) ? duration(buckets[i].le) : "∞"),
+        value: Math.max(0, buckets[i].count - previousCount)
+      });
+      previousCount = buckets[i].count;
+      if (isFinite(buckets[i].le)) previousLe = buckets[i].le;
+    }
+
+    var width = 640;
+    var height = 180;
+    var pad = { top: 10, right: 8, bottom: 34, left: 42 };
+    var plotWidth = width - pad.left - pad.right;
+    var plotHeight = height - pad.top - pad.bottom;
+    var peak = 0;
+    for (i = 0; i < bars.length; i++) peak = Math.max(peak, bars[i].value);
+    if (!peak) peak = 1;
+
+    var svg = svgEl("svg", { viewBox: "0 0 " + width + " " + height, role: "img" });
+    svg.setAttribute("aria-label", "Distribution of end-to-end import durations");
+
+    for (i = 0; i <= 2; i++) {
+      var value = (peak / 2) * i;
+      var y = pad.top + plotHeight - (value / peak) * plotHeight;
+      svg.appendChild(svgEl("line", {
+        x1: pad.left, x2: width - pad.right, y1: y, y2: y,
+        class: i === 0 ? "baseline" : "grid-line"
+      }));
+      var tick = svgEl("text", { x: pad.left - 8, y: y + 3.5, class: "axis-label", "text-anchor": "end" });
+      tick.textContent = compact(value);
+      svg.appendChild(tick);
+    }
+
+    var slotWidth = plotWidth / bars.length;
+    for (i = 0; i < bars.length; i++) {
+      var bar = bars[i];
+      var barHeight = (bar.value / peak) * plotHeight;
+      var x = pad.left + i * slotWidth + 2;
+      var barWidth = slotWidth - 4;
+      if (bar.value > 0) {
+        var rect = svgEl("rect", {
+          x: x, y: pad.top + plotHeight - Math.max(barHeight, 1.5),
+          width: barWidth, height: Math.max(barHeight, 1.5),
+          rx: 4, fill: "var(--series-1)"
+        });
+        svg.appendChild(hoverable(rect, "<b>" + esc(bar.span) + "</b><br>" +
+          bar.value.toLocaleString() + " imports · " +
+          ((bar.value / total) * 100).toFixed(1) + "%"));
+      }
+      var caption = svgEl("text", {
+        x: x + barWidth / 2, y: height - 20, class: "axis-label", "text-anchor": "middle"
+      });
+      caption.textContent = bar.label.replace(" ", "");
+      svg.appendChild(caption);
+    }
+    var unit = svgEl("text", { x: pad.left, y: height - 5, class: "axis-label" });
+    unit.textContent = "time to extract";
+    svg.appendChild(unit);
+    host.appendChild(svg);
+
+    var marks = [["p50", 0.5], ["p95", 0.95]];
+    for (i = 0; i < marks.length; i++) {
+      var item = document.createElement("span");
+      item.innerHTML = "<b>" + marks[i][0] + "</b>&nbsp; " +
+        esc(duration(quantile(buckets, marks[i][1])));
+      quantiles.appendChild(item);
+    }
+    var totals = groupSum(pick("ladle_import_duration_seconds_sum"), "status");
+    var counted = groupSum(pick("ladle_import_duration_seconds_count"), "status");
+    var seconds = 0;
+    var jobs = 0;
+    for (var key in totals) seconds += totals[key];
+    for (var key2 in counted) jobs += counted[key2];
+    if (jobs) {
+      var mean = document.createElement("span");
+      mean.innerHTML = "<b>mean</b>&nbsp; " + esc(duration(seconds / jobs));
+      quantiles.appendChild(mean);
+    }
+  }
+
+  function renderCost() {
+    var host = el("x-cost");
+    host.textContent = "";
+    var billed = groupSum(pick("ladle_provider_billed_units_total"), "provider");
+    var units = 0;
+    for (var key in billed) units += billed[key];
+    var jobs = sum(pick("ladle_import_jobs_total"));
+    var cache = groupSum(pick("ladle_cache_total"), "disposition");
+    var looked = 0;
+    for (var d in cache) looked += cache[d];
+    var gauges = index(state.series);
+
+    var readings = [
+      ["Billed units", units ? units.toFixed(2) : "0", false],
+      ["Per import", jobs && units ? (units / jobs).toFixed(2) : "–", false],
+      ["Budget spent", gauges["ladle_provider_spend_units{}"], false],
+      ["Reserved now", gauges["ladle_provider_reserved_units{}"], false],
+      ["Cache hit rate", looked ? ((cache["hit"] || 0) / looked * 100).toFixed(0) + "%" : "–", false],
+      ["Work avoided", (cache["hit"] || 0).toLocaleString() + " of " + looked.toLocaleString(), false]
+    ];
+    for (var i = 0; i < readings.length; i++) {
+      var term = document.createElement("dt");
+      term.textContent = readings[i][0];
+      var definition = document.createElement("dd");
+      var raw = readings[i][1];
+      definition.textContent = typeof raw === "number"
+        ? raw.toLocaleString(undefined, { maximumFractionDigits: 2 })
+        : (raw === undefined ? "–" : raw);
+      host.appendChild(term);
+      host.appendChild(definition);
+    }
+  }
+
+  function renderPipeline() {
     var i;
-    for (i = 0; i < IMPORT_STATUS.length; i++) {
-      var slot = IMPORT_STATUS[i];
-      statusRows.push({
-        label: slot.label, value: byStatus[slot.key] || 0, color: slot.color, mark: slot.mark
-      });
-    }
-    renderBarList(el("import-status"), statusRows, { empty: "No import jobs recorded yet." });
-
-    var bySource = groupSum(pick("ladle_import_jobs_total"), "source");
-    var sourceRows = [];
-    var names = Object.keys(bySource).sort(function (a, b) { return bySource[b] - bySource[a]; });
-    for (i = 0; i < names.length; i++) {
-      sourceRows.push({
-        label: names[i], value: bySource[names[i]], color: SOURCE_COLORS[names[i]] || "var(--series-1)"
-      });
-    }
-    renderBarList(el("import-source"), sourceRows, { empty: "No import jobs recorded yet." });
-
     var gauges = index(state.series);
     var pipeline = el("pipeline");
     pipeline.textContent = "";
@@ -978,30 +1255,47 @@
 
     var table = document.createElement("table");
     table.innerHTML = "<thead><tr><th>Provider</th><th class='num'>Calls</th>" +
-      "<th class='num'>Failed</th><th class='num'>Billed units</th></tr></thead>";
+      "<th class='num'>OK</th><th class='num'>Outcomes</th>" +
+      "<th class='num'>Units</th></tr></thead>";
     var body = document.createElement("tbody");
     for (i = 0; i < list.length; i++) {
       var provider = list[i];
-      var failed = 0;
-      for (var outcome in provider.outcomes) {
-        if (OUTCOME_TONE[outcome] === "err") failed += provider.outcomes[outcome];
-      }
-      var detail = [];
-      for (var name2 in provider.outcomes) detail.push(name2 + " " + provider.outcomes[name2]);
+      var ok = provider.outcomes["success"] || 0;
 
       var tr = document.createElement("tr");
       var cell = document.createElement("td");
       cell.textContent = provider.name;
-      hoverable(cell, "<b>" + esc(provider.name) + "</b><br>" + esc(detail.join(" · ")));
       tr.appendChild(cell);
+
       var calls = document.createElement("td");
       calls.className = "num";
       calls.textContent = provider.total.toLocaleString();
       tr.appendChild(calls);
-      var bad = document.createElement("td");
-      bad.className = "num" + (failed ? " err" : "");
-      bad.textContent = failed.toLocaleString();
-      tr.appendChild(bad);
+
+      var rate = document.createElement("td");
+      rate.className = "num";
+      var share = (ok / provider.total) * 100;
+      rate.innerHTML = '<span style="color:' +
+        (share >= 95 ? "var(--good)" : share >= 80 ? "var(--warning)" : "var(--critical)") +
+        '">' + share.toFixed(0) + "%</span>";
+      tr.appendChild(rate);
+
+      // Every non-success outcome named, not collapsed: a quota rejection and
+      // an auth failure need different responses.
+      var detail = document.createElement("td");
+      detail.className = "num";
+      var parts = [];
+      for (var outcome in provider.outcomes) {
+        if (outcome === "success") continue;
+        var tone = OUTCOME_TONE[outcome] === "err" ? "var(--critical)" : "var(--muted)";
+        parts.push('<span style="color:' + tone + '">' + esc(outcome) + " " +
+          provider.outcomes[outcome] + "</span>");
+      }
+      detail.innerHTML = parts.length
+        ? parts.join('<span style="color:var(--muted)"> · </span>')
+        : '<span style="color:var(--muted)">—</span>';
+      tr.appendChild(detail);
+
       var units = document.createElement("td");
       units.className = "num";
       units.textContent = spend[provider.name] ? spend[provider.name].toFixed(2) : "0";
@@ -1084,12 +1378,16 @@
   }
 
   function renderAll() {
+    renderExtractionTiles();
+    renderOutcomeBySource();
+    renderImportDuration();
+    renderCost();
+    renderPipeline();
     renderTiles();
     renderTraffic();
     renderStatus();
     renderRoutes();
     renderLatency();
-    renderImports();
     renderProviders();
     renderCacheSync();
     renderRateLimits();
