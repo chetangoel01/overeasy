@@ -69,7 +69,7 @@ def configure_worker_logging(
     **_: object,
 ) -> None:
     configured = settings or _worker_settings
-    if configured.environment == "production" and configured.structured_logging_enabled:
+    if configured.structured_logging_enabled:
         configure_structured_logging(level=configured.log_level)
 
 

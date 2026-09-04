@@ -21,6 +21,7 @@ x-ladle-environment: &ladle-environment
   LADLE_DURABLE_METRICS_ENABLED: "true"
   LADLE_METRICS_REDIS_URL: redis://:${LADLE_REDIS_PASSWORD}@redis:6379/3
   LADLE_METRICS_AUTH_TOKEN: ${LADLE_METRICS_AUTH_TOKEN:?set LADLE_METRICS_AUTH_TOKEN}
+  LADLE_OPS_DASHBOARD_TOKEN: ${LADLE_OPS_DASHBOARD_TOKEN:?set LADLE_OPS_DASHBOARD_TOKEN}
   LADLE_WORKER_PROVIDER_MODE: live
   LADLE_EXTRACTION_PROVIDER: ${LADLE_EXTRACTION_PROVIDER:-openrouter}
   LADLE_OPENROUTER_API_KEY: ${LADLE_OPENROUTER_API_KEY:-}
@@ -163,6 +164,9 @@ services:
       - --workers
       - "2"
       - --proxy-headers
+      # The /ops token arrives once in a query string, and this command runs
+      # uvicorn directly, so ladle/api/__main__.py never gets to disable it.
+      - --no-access-log
     healthcheck:
       <<: *testing-healthcheck
       test:

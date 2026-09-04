@@ -83,6 +83,35 @@ sudo docker network inspect platform-edge \
   --format '{{(index .IPAM.Config 0).Subnet}}'
 ```
 
+## SSH rate limiting
+
+The host refuses passwords outright (`passwordauthentication no`,
+`kbdinteractiveauthentication no`, `permitrootlogin no`) and the `INPUT` policy
+is `DROP` with an explicit allow chain for 22, 80 and 443, so the roughly 1,300
+brute-force attempts a day the address attracts cannot succeed. `fail2ban` is
+installed anyway, for log hygiene and defence in depth rather than to close a
+hole: 9,500 junk auth lines a week make a real anomaly hard to see.
+
+`/etc/fail2ban/jail.local` is not managed by `push.sh`; it is installed once by
+hand. Two details in it matter:
+
+- `banaction = iptables-multiport`, not the nftables default. Docker owns
+  iptables on this host, and pointing fail2ban at nftables would put two things
+  in charge of one firewall.
+- `ignoreip` lists the operator's address and any other host that legitimately
+  holds a key. A first ban is deliberately short (15 minutes, escalating to a
+  day for repeat offenders) so a fumbled login from a new machine expires
+  rather than stranding anyone.
+
+Confirm bans are actually reachable after any firewall change — the jail's
+chain has to be consulted *before* the allow chain, or it is inserted but never
+matched:
+
+```bash
+sudo iptables -S INPUT | head -3     # f2b-sshd must precede LADLE_HOST_INPUT_A
+sudo fail2ban-client status sshd
+```
+
 ## OAuth setup
 
 Every production deployment includes working Sign in with Apple and Google
@@ -177,6 +206,118 @@ container, so it carries the provider keys, and writes through the recipe
 edit path so the estimate reaches devices on their next sync. Always run
 `--dry-run` first and read the table; `--limit N` bounds a first pass.
 `Backend/docs/integration-reference.md` documents the rules it applies.
+
+## Operator dashboard
+
+The VPS runs no Prometheus and no Grafana. It has neither the memory budget for
+them nor a spare subdomain on its assigned hostname to terminate their TLS on,
+so the API serves the dashboard itself at `/ops`, rendered in the browser from
+the same Redis counters Prometheus would have scraped.
+
+Add its credential to `/opt/ladle/.env` once, then redeploy:
+
+```bash
+printf 'LADLE_OPS_DASHBOARD_TOKEN=%s\n' "$(openssl rand -hex 32)" | \
+    sudo tee -a /opt/ladle/.env >/dev/null
+```
+
+Production refuses to start without it, and refuses to let it equal
+`LADLE_METRICS_AUTH_TOKEN`: the dashboard token is the only one that ever
+reaches a browser. Open the dashboard once with the token in the query string:
+
+```text
+https://dashboard.overeasy.chetangoel.me/?token=<LADLE_OPS_DASHBOARD_TOKEN>
+```
+
+### Client certificates on the dashboard hostname
+
+`dashboard.overeasy.chetangoel.me` requires a client certificate. Without one
+the TLS handshake fails, so the name is unreachable rather than merely hidden,
+and there is no credential to expire, leak into a log, or paste into a chat.
+The API hostname keeps serving `/ops` with the token; that is the way back in
+if a certificate is lost.
+
+The certificate is the sign-in. Caddy verifies it, then overwrites
+`X-Ladle-Ops-Client` with the peer's subject; the API hostname strips that
+header so it can never arrive from a client. The application accepts a
+non-empty value from a trusted proxy in place of the cookie, using the same
+`LADLE_RATE_LIMIT_TRUSTED_PROXY_CIDRS` list that decides whether
+`X-Forwarded-For` is believable. So on this hostname there is no token to
+paste and no session to expire.
+
+The CA is private to this dashboard and lives in the repository's ignored
+`.private/ops-mtls/`, which is also where its key stays so further devices can
+be issued. Only `ops-ca.pem` — the public certificate — is copied to the host
+at `/opt/platform/gateway/routes/ops-ca.pem`. `push.sh` does not manage that
+file; it is installed once by hand. The `import` glob in the shared Caddyfile
+matches `*.caddy`, so a `.pem` beside the routes is never parsed as config.
+
+Issue a certificate for another device:
+
+```bash
+cd .private/ops-mtls
+openssl ecparam -name prime256v1 -genkey -noout -out DEVICE.key
+openssl req -new -key DEVICE.key -out DEVICE.csr -subj "/CN=DEVICE"
+printf 'basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature\nextendedKeyUsage=clientAuth\n' > ext.cnf
+openssl x509 -req -in DEVICE.csr -CA ops-ca.pem -CAkey ops-ca.key -CAcreateserial \
+    -out DEVICE.crt -days 730 -sha256 -extfile ext.cnf
+openssl pkcs12 -export -legacy -out DEVICE.p12 -inkey DEVICE.key -in DEVICE.crt \
+    -certfile ops-ca.pem -name "Overeasy Ops (DEVICE)" -passout pass:
+```
+
+Revoking one device means re-issuing the CA and every other certificate; with a
+handful of devices that is cheaper than running a CRL or OCSP responder.
+
+That name is a second site block in `deploy/vps/gateway/routes/ladle.caddy`,
+installed by `push.sh` along with the API route. It needs a DNS `A` record at
+Porkbun, where `chetangoel.me` is hosted, pointing
+`dashboard.overeasy.chetangoel.me` at the VPS; Caddy provisions the certificate
+by itself once that resolves. Override the name with
+`LADLE_DASHBOARD_HOSTNAME` in `/etc/platform/gateway.env`, which has a default
+so an unset variable cannot resolve to an empty site address and fail the
+reload for every route in the file.
+
+Only `/ops` answers on that hostname, and `/` rewrites to it so a pasted
+`/?token=...` keeps its query. Auth, imports, sync, and the private object
+store answer on `LADLE_PUBLIC_HOSTNAME` and nowhere else, so the name handed to
+a browser cannot reach them. The API hostname still serves `/ops` too:
+
+```text
+https://<LADLE_PUBLIC_HOSTNAME>/ops?token=<LADLE_OPS_DASHBOARD_TOKEN>
+```
+
+The token moves into an HttpOnly, `SameSite=Lax` cookie scoped to `/` and good
+for twelve hours; the address bar keeps only the path from then on.
+
+Both attributes are deliberate. The cookie is **not** scoped to `/ops`: the
+dashboard hostname rewrites `/` to `/ops` inside Caddy, so the browser's URL
+stays `/`, and a `/ops`-scoped cookie would never be sent back — the one-time
+handoff would appear to work and every later bookmark visit would 404. It is
+**Lax** rather than Strict because Strict drops the cookie on any link opened
+from chat or mail, which reads as the dashboard being broken; every dashboard
+route is a read-only GET, so there is no state-changing request for Strict to
+protect. The dedicated hostname, not the cookie path, is what keeps this
+credential away from the API. Anything
+without that cookie gets a 404, so the dashboard is invisible to public scans.
+The shared Caddy route already proxies every path to `ladle-api`, so this needs
+no gateway change.
+
+The page shows requests by route, method, and status class, live requests per
+minute, latency percentiles from the histogram buckets, import outcomes by
+status and source, provider outcomes and billed units, cache and sync results,
+rate-limit rejections by policy, and the queue, worker, and readiness gauges.
+Counters are cumulative and survive restarts, so totals read "since the counters
+were last reset," not "today"; the per-minute chart builds while the page is
+open. Rotate the token by replacing the value and redeploying, which invalidates
+every issued cookie. Rotate it also if it may have been recorded: the handoff
+puts the token in a request target, so `--no-access-log` on the API command and
+the `uvicorn.access` filter installed at import both exist to keep it out of
+`docker logs`. Check with:
+
+```bash
+sudo sh -c 'T=$(grep "^LADLE_OPS_DASHBOARD_TOKEN=" /opt/ladle/.env | cut -d= -f2-); \
+    docker logs ladle-api-1 2>&1 | grep -c -- "$T"'
+```
 
 ## Backups
 

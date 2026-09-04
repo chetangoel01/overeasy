@@ -1,0 +1,1664 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Ladle operations</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='%232a78d6'/%3E%3C/svg%3E">
+<style>
+  :root {
+    color-scheme: light;
+    --surface: #fcfcfb;
+    --plane: #f3f3f0;
+    --ink: #0b0b0b;
+    --ink-2: #52514e;
+    --muted: #898781;
+    --grid: #e1e0d9;
+    --axis: #c3c2b7;
+    --hairline: rgba(11, 11, 11, 0.10);
+    --series-1: #2a78d6;
+    --series-2: #eb6834;
+    --series-3: #1baf7a;
+    --series-4: #eda100;
+    --track: #e8e7e1;
+    --good: #0ca30c;
+    --warning: #fab219;
+    --serious: #ec835a;
+    --critical: #d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --surface: #1a1a19;
+      --plane: #0d0d0d;
+      --ink: #ffffff;
+      --ink-2: #c3c2b7;
+      --muted: #898781;
+      --grid: #2c2c2a;
+      --axis: #383835;
+      --hairline: rgba(255, 255, 255, 0.10);
+      --series-1: #3987e5;
+      --series-2: #d95926;
+      --series-3: #199e70;
+      --series-4: #c98500;
+      --track: #2c2c2a;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--plane);
+    color: var(--ink);
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 28px 24px 64px; }
+
+  header.bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 24px;
+  }
+  header.bar h1 { font-size: 20px; font-weight: 620; margin: 0; letter-spacing: -0.01em; }
+  header.bar .host { color: var(--muted); font-size: 13px; margin-left: 10px; font-weight: 400; }
+  .controls { display: flex; align-items: center; gap: 14px; font-size: 13px; color: var(--ink-2); }
+
+  .pulse { display: inline-flex; align-items: center; gap: 7px; color: var(--ink-2); }
+  .pulse .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--good);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--good) 22%, transparent);
+  }
+  .pulse.paused .dot { background: var(--muted); box-shadow: none; }
+  .pulse.stale .dot { background: var(--critical); box-shadow: 0 0 0 3px color-mix(in srgb, var(--critical) 22%, transparent); }
+
+  button.ghost {
+    font: inherit;
+    color: var(--ink-2);
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-radius: 7px;
+    padding: 5px 11px;
+    cursor: pointer;
+  }
+  button.ghost:hover { color: var(--ink); border-color: var(--axis); }
+
+  .grid { display: grid; gap: 16px; }
+  .cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  @media (max-width: 940px) {
+    .cols-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .cols-2, .cols-3 { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 520px) { .cols-4 { grid-template-columns: minmax(0, 1fr); } }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    border-radius: 12px;
+    padding: 18px 20px;
+    min-width: 0;
+  }
+  .card h2 {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.055em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 4px;
+  }
+  .card .sub { font-size: 12px; color: var(--muted); margin: 0 0 16px; }
+
+  .tile .value { font-size: 32px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.15; margin-top: 10px; }
+  .tile .value.pending { color: var(--muted); font-size: 17px; font-weight: 500; letter-spacing: 0; padding: 11px 0 12px; }
+  .tile .value .unit { font-size: 15px; font-weight: 500; color: var(--muted); margin-left: 3px; letter-spacing: 0; }
+  .tile .foot { font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12px; color: var(--ink-2); margin-top: 12px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th {
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 0 10px 8px 0;
+    border-bottom: 1px solid var(--grid);
+    white-space: nowrap;
+  }
+  td { padding: 9px 10px 9px 0; border-bottom: 1px solid var(--grid); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; padding-right: 0; }
+  td.route { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+  td .method { color: var(--muted); font-size: 11px; letter-spacing: 0.04em; margin-right: 7px; }
+
+  .magnitude { display: block; height: 6px; border-radius: 3px; background: var(--track); margin-top: 6px; overflow: hidden; }
+  .magnitude i { display: block; height: 100%; border-radius: 3px; background: var(--series-1); }
+
+  .stack { display: flex; height: 12px; border-radius: 3px; overflow: hidden; background: var(--track); gap: 2px; }
+  .stack i { display: block; height: 100%; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 7px;
+    border: 1px solid var(--hairline); border-radius: 999px;
+    padding: 4px 11px 4px 9px; font-size: 12.5px; color: var(--ink-2);
+  }
+  .chip .mark { font-size: 11px; line-height: 1; }
+  .chip.good .mark { color: var(--good); }
+  .chip.critical .mark { color: var(--critical); }
+  .chip.unknown .mark { color: var(--muted); }
+
+  .kv { display: grid; grid-template-columns: 1fr auto; gap: 9px 16px; font-size: 13px; }
+  .kv dt { color: var(--ink-2); margin: 0; }
+  .kv dd { margin: 0; font-variant-numeric: tabular-nums; text-align: right; }
+  .kv dd.alert { color: var(--critical); font-weight: 600; }
+
+  .empty { color: var(--muted); font-size: 13px; padding: 8px 0; }
+  .err { color: var(--critical); }
+  .ok { color: var(--good); }
+
+  svg { display: block; width: 100%; overflow: visible; }
+  .axis-label { fill: var(--muted); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+  .grid-line { stroke: var(--grid); stroke-width: 1; }
+  .baseline { stroke: var(--axis); stroke-width: 1; }
+  .spark-line { fill: none; stroke: var(--series-1); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .spark-area { fill: var(--series-1); opacity: 0.10; }
+  .hover-line { stroke: var(--axis); stroke-width: 1; }
+
+  .tip {
+    position: fixed; z-index: 20; pointer-events: none;
+    background: var(--surface); color: var(--ink);
+    border: 1px solid var(--hairline); border-radius: 8px;
+    padding: 7px 10px; font-size: 12.5px; line-height: 1.45;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14);
+    font-variant-numeric: tabular-nums; white-space: nowrap;
+    opacity: 0; transition: opacity 90ms ease;
+  }
+  .tip.on { opacity: 1; }
+  .tip b { font-weight: 600; }
+
+  footer.note { color: var(--muted); font-size: 12px; margin-top: 28px; line-height: 1.7; }
+  .section-title {
+    font-size: 12px; font-weight: 600; letter-spacing: 0.055em; text-transform: uppercase;
+    color: var(--muted); margin: 30px 0 12px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="bar">
+    <h1>Ladle backend<span class="host" id="host"></span></h1>
+    <div class="controls">
+      <span class="pulse" id="pulse"><span class="dot"></span><span id="pulse-text">connecting…</span></span>
+      <button class="ghost" id="health" type="button" aria-pressed="false">Health checks: hidden</button>
+      <button class="ghost" id="toggle" type="button">Pause</button>
+    </div>
+  </header>
+
+  <div class="section-title">Recipe extraction</div>
+  <div class="grid cols-4">
+    <div class="card tile">
+      <h2>Imports</h2>
+      <div class="value" id="x-total">–</div>
+      <div class="foot" id="x-total-foot">all time</div>
+    </div>
+    <div class="card tile">
+      <h2>Clean</h2>
+      <div class="value" id="x-clean">–</div>
+      <div class="foot" id="x-clean-foot">ready without review</div>
+    </div>
+    <div class="card tile">
+      <h2>Needs review</h2>
+      <div class="value" id="x-review">–</div>
+      <div class="foot" id="x-review-foot">extracted, but not trusted</div>
+    </div>
+    <div class="card tile">
+      <h2>Failed</h2>
+      <div class="value" id="x-failed">–</div>
+      <div class="foot" id="x-failed-foot">no recipe produced</div>
+    </div>
+  </div>
+
+  <div class="grid cols-2" style="margin-top:16px">
+    <div class="card">
+      <h2>Outcome by source</h2>
+      <p class="sub">Where extraction succeeds and where it does not. This is the
+        comparison that says which platform to work on.</p>
+      <div id="x-by-source"></div>
+      <div class="legend" id="x-source-legend"></div>
+    </div>
+    <div class="card">
+      <h2>Time to extract</h2>
+      <p class="sub">End-to-end job duration, all time.</p>
+      <div id="x-duration"></div>
+      <div class="legend" id="x-duration-quantiles"></div>
+    </div>
+  </div>
+
+  <div class="grid cols-3" style="margin-top:16px">
+    <div class="card">
+      <h2>Extraction providers</h2>
+      <p class="sub">Every outcome, per provider.</p>
+      <div id="providers"></div>
+    </div>
+    <div class="card">
+      <h2>Cost and cache</h2>
+      <p class="sub" id="cost-sub">Billed units and how often work was avoided.</p>
+      <dl class="kv" id="x-cost"></dl>
+    </div>
+    <div class="card">
+      <h2>Pipeline health</h2>
+      <p class="sub">Queue and worker gauges.</p>
+      <dl class="kv" id="pipeline"></dl>
+    </div>
+  </div>
+
+  <div class="section-title">Traffic</div>
+  <div class="grid cols-4" id="tiles">
+    <div class="card tile">
+      <h2>Requests</h2>
+      <div class="value" id="t-requests">–</div>
+      <div class="foot" id="t-requests-foot">all time</div>
+    </div>
+    <div class="card tile">
+      <h2>Live rate</h2>
+      <div class="value" id="t-rate">–</div>
+      <div class="foot">requests per minute, right now</div>
+    </div>
+    <div class="card tile">
+      <h2>Errors</h2>
+      <div class="value" id="t-errors">–</div>
+      <div class="foot" id="t-errors-foot">share of all responses</div>
+    </div>
+    <div class="card tile">
+      <h2>Latency p95</h2>
+      <div class="value" id="t-latency">–</div>
+      <div class="foot" id="t-latency-foot">all time</div>
+    </div>
+  </div>
+
+  <div class="grid cols-2" style="margin-top:16px">
+    <div class="card">
+      <h2>Requests per minute</h2>
+      <p class="sub">Measured live from counter deltas; the line starts when this page opens.</p>
+      <div id="traffic"></div>
+    </div>
+    <div class="card">
+      <h2>Responses by status</h2>
+      <p class="sub">Every response served, all time.</p>
+      <div id="status-stack"></div>
+      <div class="legend" id="status-legend"></div>
+    </div>
+  </div>
+
+  <div class="section-title">Endpoints</div>
+  <div class="card">
+    <h2>Requests by route</h2>
+    <p class="sub">Sorted by volume. Rate and errors are all-time; p95 is the all-time distribution for that route.</p>
+    <div id="routes"></div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <h2>Recent requests</h2>
+    <p class="sub">The last few completed requests. Metadata only — no bodies, no
+      query strings, and the route template rather than the path, so no recipe or
+      account identifier is stored. Polled endpoints are omitted unless they failed.</p>
+    <div id="recent"></div>
+  </div>
+
+  <div class="section-title">Latency</div>
+  <div class="card">
+    <h2>Response time distribution</h2>
+    <p class="sub">Share of requests completing within each bucket.</p>
+    <div id="latency"></div>
+    <div class="legend" id="latency-quantiles"></div>
+  </div>
+
+  <div class="section-title">Cache and sync</div>
+  <div class="card">
+    <h2>Cache disposition and device sync</h2>
+    <p class="sub">How often an import reused earlier work, and how device sync resolved.</p>
+    <div id="cache-sync"></div>
+  </div>
+
+  <div class="section-title">System</div>
+  <div class="grid cols-2">
+    <div class="card">
+      <h2>Readiness</h2>
+      <p class="sub" id="readiness-sub">Checked every 60 seconds.</p>
+      <div class="chips" id="readiness"></div>
+    </div>
+    <div class="card">
+      <h2>Rate limit rejections</h2>
+      <p class="sub">429s by policy, all time.</p>
+      <div id="ratelimits"></div>
+    </div>
+  </div>
+
+  <footer class="note">
+    Counters live in Redis and survive restarts, so totals read “since the counters were last reset,”
+    not “today.” Rates are computed while this page is open.
+    The dashboard’s own polling requests are always excluded.
+    <span id="health-note"></span>
+  </footer>
+</div>
+
+<div class="tip" id="tip"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  var POLL_MS = 5000;
+  var READY_MS = 60000;
+  var RECENT_MS = 10000;
+  var MAX_POINTS = 180;
+  var OPS_ROUTES = { "/ops": 1, "/ops/metrics.json": 1, "/ops/readiness.json": 1 };
+  var HEALTH_ROUTES = { "/health/live": 1, "/health/ready": 1 };
+  var HEALTH_PREF = "ladle.ops.includeHealth";
+  var HTTP_BUCKETS = [0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30];
+
+  var state = {
+    series: [],
+    recent: [],
+    pricing: {},
+    currency: "USD",
+    prev: null,
+    prevAt: null,
+    baseline: null,
+    points: [],
+    running: true,
+    failures: 0,
+    includeHealth: false
+  };
+
+  try {
+    state.includeHealth = localStorage.getItem(HEALTH_PREF) === "1";
+  } catch (error) {
+    state.includeHealth = false;
+  }
+
+  var el = function (id) { return document.getElementById(id); };
+  var tip = el("tip");
+
+  el("host").textContent = location.host;
+
+  /* ---------- helpers ---------- */
+
+  function keyOf(name, labels) {
+    var names = Object.keys(labels).sort();
+    var parts = [];
+    for (var i = 0; i < names.length; i++) parts.push(names[i] + "=" + labels[names[i]]);
+    return name + "{" + parts.join(",") + "}";
+  }
+
+  function index(series) {
+    var map = Object.create(null);
+    for (var i = 0; i < series.length; i++) {
+      map[keyOf(series[i].name, series[i].labels)] = series[i].value;
+    }
+    return map;
+  }
+
+  function pick(name, filter) {
+    var out = [];
+    for (var i = 0; i < state.series.length; i++) {
+      var entry = state.series[i];
+      if (entry.name !== name) continue;
+      if (filter && !filter(entry.labels)) continue;
+      out.push(entry);
+    }
+    return out;
+  }
+
+  function sum(entries) {
+    var total = 0;
+    for (var i = 0; i < entries.length; i++) total += entries[i].value;
+    return total;
+  }
+
+  function groupSum(entries, label) {
+    var out = Object.create(null);
+    for (var i = 0; i < entries.length; i++) {
+      var key = entries[i].labels[label];
+      out[key] = (out[key] || 0) + entries[i].value;
+    }
+    return out;
+  }
+
+  function rateOf(point) { return state.includeHealth ? point.rateAll : point.rate; }
+  function countOf(point) { return state.includeHealth ? point.countAll : point.count; }
+
+  function isOps(labels) { return OPS_ROUTES[labels.route] === 1; }
+  function isHealth(labels) { return HEALTH_ROUTES[labels.route] === 1; }
+
+  /* Uptime probes hit /health/ready on a tight loop and outnumber real traffic
+     by more than a hundred to one, which buries the error rate and drags p95
+     toward their own trivial cost. They are excluded everywhere by default and
+     can be switched back on. */
+  function visible(labels) {
+    if (isOps(labels)) return false;
+    return state.includeHealth || !isHealth(labels);
+  }
+
+  function compact(value) {
+    if (value === null || value === undefined) return "–";
+    if (value >= 1000000) return (value / 1000000).toFixed(value >= 10000000 ? 0 : 1) + "M";
+    if (value >= 10000) return (value / 1000).toFixed(value >= 100000 ? 0 : 1) + "k";
+    return String(Math.round(value));
+  }
+
+  function duration(seconds) {
+    if (seconds === null || seconds === undefined) return "–";
+    if (seconds < 1) return Math.round(seconds * 1000) + " ms";
+    if (seconds < 60) return seconds.toFixed(seconds < 10 ? 2 : 1) + " s";
+    return Math.round(seconds / 60) + " min";
+  }
+
+  function ago(unixSeconds) {
+    if (!unixSeconds) return "never";
+    var delta = Date.now() / 1000 - unixSeconds;
+    if (delta < 0) delta = 0;
+    if (delta < 60) return Math.round(delta) + "s ago";
+    if (delta < 3600) return Math.round(delta / 60) + "m ago";
+    if (delta < 86400) return Math.round(delta / 3600) + "h ago";
+    return Math.round(delta / 86400) + "d ago";
+  }
+
+  function esc(value) {
+    return String(value).replace(/[&<>"]/g, function (character) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[character];
+    });
+  }
+
+  function svgEl(tag, attributes) {
+    var node = document.createElementNS("http://www.w3.org/2000/svg", tag);
+    for (var name in attributes) {
+      if (attributes[name] !== null && attributes[name] !== undefined) {
+        node.setAttribute(name, String(attributes[name]));
+      }
+    }
+    return node;
+  }
+
+  function showTip(event, html) {
+    tip.innerHTML = html;
+    tip.classList.add("on");
+    var box = tip.getBoundingClientRect();
+    var left = event.clientX + 14;
+    var top = event.clientY - box.height - 12;
+    if (left + box.width > window.innerWidth - 8) left = event.clientX - box.width - 14;
+    if (top < 8) top = event.clientY + 18;
+    tip.style.left = left + "px";
+    tip.style.top = top + "px";
+  }
+
+  function hideTip() { tip.classList.remove("on"); }
+
+  function hoverable(node, html) {
+    node.addEventListener("mousemove", function (event) { showTip(event, html); });
+    node.addEventListener("mouseleave", hideTip);
+    return node;
+  }
+
+  /* Cumulative-histogram quantile with linear interpolation inside the bucket. */
+  function quantile(buckets, q) {
+    var total = 0;
+    var i;
+    for (i = 0; i < buckets.length; i++) total = Math.max(total, buckets[i].count);
+    if (!total) return null;
+    var target = q * total;
+    var prevLe = 0;
+    var prevCount = 0;
+    for (i = 0; i < buckets.length; i++) {
+      var bucket = buckets[i];
+      if (bucket.count >= target) {
+        if (!isFinite(bucket.le)) return prevLe;
+        var span = bucket.count - prevCount;
+        if (span <= 0) return bucket.le;
+        return prevLe + (bucket.le - prevLe) * ((target - prevCount) / span);
+      }
+      if (isFinite(bucket.le)) prevLe = bucket.le;
+      prevCount = bucket.count;
+    }
+    return prevLe;
+  }
+
+  function httpBuckets(routeFilter) {
+    var counts = Object.create(null);
+    var entries = pick("ladle_http_request_duration_seconds_bucket", function (labels) {
+      if (!visible(labels)) return false;
+      return routeFilter ? labels.route === routeFilter : true;
+    });
+    for (var i = 0; i < entries.length; i++) {
+      var le = entries[i].labels.le;
+      counts[le] = (counts[le] || 0) + entries[i].value;
+    }
+    var buckets = [];
+    for (var b = 0; b < HTTP_BUCKETS.length; b++) {
+      buckets.push({ le: HTTP_BUCKETS[b], count: counts[String(HTTP_BUCKETS[b])] || 0 });
+    }
+    buckets.push({ le: Infinity, count: counts["+Inf"] || 0 });
+    return buckets;
+  }
+
+  /* ---------- renderers ---------- */
+
+  function renderTiles() {
+    var requests = pick("ladle_http_requests_total", visible);
+    var total = sum(requests);
+    var byStatus = groupSum(requests, "status");
+    var failed = (byStatus["4xx"] || 0) + (byStatus["5xx"] || 0);
+    var serverErrors = byStatus["5xx"] || 0;
+
+    var requestNode = el("t-requests");
+    requestNode.className = "value" + (total ? "" : " pending");
+    requestNode.innerHTML = total
+      ? esc(compact(total)) + (total >= 10000 ? '<span class="unit">total</span>' : "")
+      : "none recorded yet";
+    el("t-requests-foot").textContent = total ? "all time, " + total.toLocaleString() + " served" : "all time";
+
+    var latest = state.points.length ? rateOf(state.points[state.points.length - 1]) : null;
+    var rateNode = el("t-rate");
+    rateNode.className = "value" + (latest === null ? " pending" : "");
+    rateNode.innerHTML = latest === null
+      ? "waiting for the second sample…"
+      : esc(latest.toFixed(latest < 10 ? 1 : 0)) + '<span class="unit">/min</span>';
+
+    var share = total ? (failed / total) * 100 : 0;
+    var errorNode = el("t-errors");
+    errorNode.innerHTML = total
+      ? esc(share.toFixed(share >= 10 ? 0 : share ? 2 : 0)) + '<span class="unit">%</span>'
+      : "nothing served yet";
+    errorNode.className = "value" + (total ? (serverErrors ? " err" : "") : " pending");
+    el("t-errors-foot").textContent = total
+      ? failed.toLocaleString() + " of " + total.toLocaleString() + " · " + serverErrors.toLocaleString() + " server-side"
+      : "share of all responses";
+
+    var p95 = quantile(httpBuckets(null), 0.95);
+    var latencyNode = el("t-latency");
+    latencyNode.className = "value" + (p95 === null ? " pending" : "");
+    latencyNode.innerHTML = p95 === null ? "no timed requests yet" : esc(duration(p95));
+    el("t-latency-foot").textContent = "all time, 95th percentile";
+  }
+
+  function renderTraffic() {
+    var host = el("traffic");
+    host.textContent = "";
+    var points = state.points;
+    if (points.length < 2) {
+      var waiting = document.createElement("p");
+      waiting.className = "empty";
+      waiting.textContent = "Collecting the first samples… the line appears after two polls.";
+      host.appendChild(waiting);
+      return;
+    }
+
+    var width = 640;
+    var height = 190;
+    var pad = { top: 12, right: 8, bottom: 24, left: 42 };
+    var plotWidth = width - pad.left - pad.right;
+    var plotHeight = height - pad.top - pad.bottom;
+
+    var peak = 0;
+    var i;
+    for (i = 0; i < points.length; i++) peak = Math.max(peak, rateOf(points[i]));
+    var top = peak <= 0 ? 1 : peak * 1.15;
+
+    var svg = svgEl("svg", { viewBox: "0 0 " + width + " " + height, role: "img" });
+    svg.setAttribute("aria-label", "Requests per minute over the current session");
+
+    var ticks = 4;
+    for (i = 0; i <= ticks; i++) {
+      var value = (top / ticks) * i;
+      var y = pad.top + plotHeight - (value / top) * plotHeight;
+      svg.appendChild(svgEl("line", {
+        x1: pad.left, x2: width - pad.right, y1: y, y2: y,
+        class: i === 0 ? "baseline" : "grid-line"
+      }));
+      var label = svgEl("text", { x: pad.left - 8, y: y + 3.5, class: "axis-label", "text-anchor": "end" });
+      label.textContent = value >= 10 ? Math.round(value) : value.toFixed(1);
+      svg.appendChild(label);
+    }
+
+    var xFor = function (n) {
+      return points.length === 1 ? pad.left : pad.left + (n / (points.length - 1)) * plotWidth;
+    };
+    var yFor = function (rate) { return pad.top + plotHeight - (rate / top) * plotHeight; };
+
+    var line = "";
+    for (i = 0; i < points.length; i++) {
+      line += (i ? " L" : "M") + xFor(i).toFixed(1) + " " + yFor(rateOf(points[i])).toFixed(1);
+    }
+    var area = line + " L" + xFor(points.length - 1).toFixed(1) + " " + (pad.top + plotHeight) +
+      " L" + xFor(0).toFixed(1) + " " + (pad.top + plotHeight) + " Z";
+    svg.appendChild(svgEl("path", { d: area, class: "spark-area" }));
+    svg.appendChild(svgEl("path", { d: line, class: "spark-line" }));
+
+    var startLabel = svgEl("text", { x: pad.left, y: height - 6, class: "axis-label" });
+    startLabel.textContent = points[0].at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    svg.appendChild(startLabel);
+    var endLabel = svgEl("text", { x: width - pad.right, y: height - 6, class: "axis-label", "text-anchor": "end" });
+    endLabel.textContent = "now";
+    svg.appendChild(endLabel);
+
+    var marker = svgEl("circle", { r: 4, cx: -20, cy: -20, fill: "var(--series-1)", stroke: "var(--surface)", "stroke-width": 2 });
+    var crosshair = svgEl("line", { class: "hover-line", x1: -20, x2: -20, y1: pad.top, y2: pad.top + plotHeight, opacity: 0 });
+    svg.appendChild(crosshair);
+    svg.appendChild(marker);
+
+    var capture = svgEl("rect", {
+      x: pad.left, y: pad.top, width: plotWidth, height: plotHeight, fill: "transparent"
+    });
+    capture.addEventListener("mousemove", function (event) {
+      var box = svg.getBoundingClientRect();
+      var ratio = ((event.clientX - box.left) / box.width) * width;
+      var nearest = Math.round(((ratio - pad.left) / plotWidth) * (points.length - 1));
+      nearest = Math.max(0, Math.min(points.length - 1, nearest));
+      var point = points[nearest];
+      marker.setAttribute("cx", xFor(nearest));
+      marker.setAttribute("cy", yFor(rateOf(point)));
+      crosshair.setAttribute("x1", xFor(nearest));
+      crosshair.setAttribute("x2", xFor(nearest));
+      crosshair.setAttribute("opacity", 1);
+      showTip(event, "<b>" + rateOf(point).toFixed(1) + "</b> req/min<br>" +
+        point.at.toLocaleTimeString() + "<br>" + countOf(point) + " in the last " +
+        point.window.toFixed(0) + "s");
+    });
+    capture.addEventListener("mouseleave", function () {
+      hideTip();
+      marker.setAttribute("cx", -20);
+      crosshair.setAttribute("opacity", 0);
+    });
+    svg.appendChild(capture);
+    host.appendChild(svg);
+  }
+
+  var STATUS_ORDER = [
+    { key: "2xx", label: "2xx success", color: "var(--good)" },
+    { key: "3xx", label: "3xx redirect", color: "var(--series-1)" },
+    { key: "4xx", label: "4xx client", color: "var(--warning)" },
+    { key: "5xx", label: "5xx server", color: "var(--critical)" }
+  ];
+
+  function renderStatus() {
+    var host = el("status-stack");
+    var legend = el("status-legend");
+    host.textContent = "";
+    legend.textContent = "";
+
+    var byStatus = groupSum(pick("ladle_http_requests_total", visible), "status");
+    var total = 0;
+    var i;
+    for (i = 0; i < STATUS_ORDER.length; i++) total += byStatus[STATUS_ORDER[i].key] || 0;
+    for (var key in byStatus) if (!/^[2345]xx$/.test(key)) total += byStatus[key];
+
+    if (!total) {
+      host.innerHTML = '<p class="empty">No responses recorded yet.</p>';
+      return;
+    }
+
+    var stack = document.createElement("div");
+    stack.className = "stack";
+    for (i = 0; i < STATUS_ORDER.length; i++) {
+      var slot = STATUS_ORDER[i];
+      var count = byStatus[slot.key] || 0;
+      if (!count) continue;
+      var segment = document.createElement("i");
+      segment.style.width = ((count / total) * 100).toFixed(3) + "%";
+      segment.style.background = slot.color;
+      stack.appendChild(hoverable(segment, "<b>" + slot.label + "</b><br>" +
+        count.toLocaleString() + " · " + ((count / total) * 100).toFixed(1) + "%"));
+    }
+    host.appendChild(stack);
+
+    for (i = 0; i < STATUS_ORDER.length; i++) {
+      var entry = STATUS_ORDER[i];
+      var value = byStatus[entry.key] || 0;
+      var item = document.createElement("span");
+      item.innerHTML = '<i style="background:' + entry.color + '"></i>' +
+        esc(entry.label) + " · " + value.toLocaleString();
+      legend.appendChild(item);
+    }
+  }
+
+  function renderRoutes() {
+    var host = el("routes");
+    host.textContent = "";
+    var entries = pick("ladle_http_requests_total", visible);
+    if (!entries.length) {
+      host.innerHTML = '<p class="empty">No requests recorded yet.</p>';
+      return;
+    }
+
+    var rows = Object.create(null);
+    for (var i = 0; i < entries.length; i++) {
+      var labels = entries[i].labels;
+      var id = labels.method + " " + labels.route;
+      if (!rows[id]) {
+        rows[id] = { method: labels.method, route: labels.route, total: 0, errors: 0, server: 0 };
+      }
+      rows[id].total += entries[i].value;
+      if (labels.status === "4xx") rows[id].errors += entries[i].value;
+      if (labels.status === "5xx") { rows[id].errors += entries[i].value; rows[id].server += entries[i].value; }
+    }
+
+    var list = [];
+    for (var id2 in rows) list.push(rows[id2]);
+    list.sort(function (a, b) { return b.total - a.total; });
+
+    var peak = list[0].total;
+    var table = document.createElement("table");
+    table.innerHTML =
+      "<thead><tr><th>Endpoint</th><th class='num'>Requests</th>" +
+      "<th class='num'>Errors</th><th class='num'>p95</th></tr></thead>";
+    var body = document.createElement("tbody");
+
+    for (var r = 0; r < list.length; r++) {
+      var row = list[r];
+      var p95 = quantile(httpBuckets(row.route), 0.95);
+      var tr = document.createElement("tr");
+
+      var cell = document.createElement("td");
+      cell.className = "route";
+      cell.innerHTML = '<span class="method">' + esc(row.method) + "</span>" + esc(row.route) +
+        '<span class="magnitude"><i style="width:' + ((row.total / peak) * 100).toFixed(2) + '%"></i></span>';
+      hoverable(cell, "<b>" + esc(row.method + " " + row.route) + "</b><br>" +
+        row.total.toLocaleString() + " requests<br>" +
+        ((row.total / peak) * 100).toFixed(1) + "% of the busiest endpoint");
+      tr.appendChild(cell);
+
+      var count = document.createElement("td");
+      count.className = "num";
+      count.textContent = row.total.toLocaleString();
+      tr.appendChild(count);
+
+      var errors = document.createElement("td");
+      errors.className = "num" + (row.server ? " err" : "");
+      errors.textContent = row.errors ? row.errors.toLocaleString() : "0";
+      if (row.server) {
+        hoverable(errors, "<b>" + row.server.toLocaleString() + " server errors</b><br>" +
+          (row.errors - row.server).toLocaleString() + " client errors");
+      }
+      tr.appendChild(errors);
+
+      var latency = document.createElement("td");
+      latency.className = "num";
+      latency.textContent = p95 === null ? "–" : duration(p95);
+      tr.appendChild(latency);
+
+      body.appendChild(tr);
+    }
+    table.appendChild(body);
+    host.appendChild(table);
+  }
+
+  function renderLatency() {
+    var host = el("latency");
+    var quantiles = el("latency-quantiles");
+    host.textContent = "";
+    quantiles.textContent = "";
+
+    var buckets = httpBuckets(null);
+    var total = buckets[buckets.length - 1].count;
+    if (!total) {
+      host.innerHTML = '<p class="empty">No completed requests yet.</p>';
+      return;
+    }
+
+    var bars = [];
+    var previousCount = 0;
+    var previousLe = 0;
+    for (var i = 0; i < buckets.length; i++) {
+      var slice = buckets[i].count - previousCount;
+      bars.push({
+        label: isFinite(buckets[i].le) ? "≤" + duration(buckets[i].le) : "> " + duration(previousLe),
+        span: (previousLe ? duration(previousLe) : "0") + " – " +
+          (isFinite(buckets[i].le) ? duration(buckets[i].le) : "∞"),
+        value: Math.max(0, slice)
+      });
+      previousCount = buckets[i].count;
+      if (isFinite(buckets[i].le)) previousLe = buckets[i].le;
+    }
+
+    var width = 640;
+    var height = 180;
+    var pad = { top: 10, right: 8, bottom: 34, left: 42 };
+    var plotWidth = width - pad.left - pad.right;
+    var plotHeight = height - pad.top - pad.bottom;
+    var peak = 0;
+    for (i = 0; i < bars.length; i++) peak = Math.max(peak, bars[i].value);
+    if (!peak) peak = 1;
+
+    var svg = svgEl("svg", { viewBox: "0 0 " + width + " " + height, role: "img" });
+    svg.setAttribute("aria-label", "Distribution of response times across latency buckets");
+
+    for (i = 0; i <= 2; i++) {
+      var value = (peak / 2) * i;
+      var y = pad.top + plotHeight - (value / peak) * plotHeight;
+      svg.appendChild(svgEl("line", {
+        x1: pad.left, x2: width - pad.right, y1: y, y2: y, class: i === 0 ? "baseline" : "grid-line"
+      }));
+      var tick = svgEl("text", { x: pad.left - 8, y: y + 3.5, class: "axis-label", "text-anchor": "end" });
+      tick.textContent = compact(value);
+      svg.appendChild(tick);
+    }
+
+    var slotWidth = plotWidth / bars.length;
+    for (i = 0; i < bars.length; i++) {
+      var bar = bars[i];
+      var barHeight = (bar.value / peak) * plotHeight;
+      var x = pad.left + i * slotWidth + 2;
+      var barWidth = slotWidth - 4;
+      if (bar.value > 0) {
+        var rect = svgEl("rect", {
+          x: x, y: pad.top + plotHeight - Math.max(barHeight, 1.5),
+          width: barWidth, height: Math.max(barHeight, 1.5),
+          rx: 4, fill: "var(--series-1)"
+        });
+        svg.appendChild(hoverable(rect, "<b>" + esc(bar.span) + "</b><br>" +
+          bar.value.toLocaleString() + " requests · " + ((bar.value / total) * 100).toFixed(1) + "%"));
+      }
+      var caption = svgEl("text", {
+        x: x + barWidth / 2, y: height - 20, class: "axis-label", "text-anchor": "middle"
+      });
+      caption.textContent = bar.label.replace("≤", "").replace("> ", ">");
+      svg.appendChild(caption);
+    }
+
+    var unit = svgEl("text", { x: pad.left, y: height - 5, class: "axis-label" });
+    unit.textContent = "response time";
+    svg.appendChild(unit);
+    host.appendChild(svg);
+
+    var marks = [["p50", 0.5], ["p95", 0.95], ["p99", 0.99]];
+    for (i = 0; i < marks.length; i++) {
+      var q = quantile(buckets, marks[i][1]);
+      var item = document.createElement("span");
+      item.innerHTML = "<b>" + marks[i][0] + "</b>&nbsp; " + esc(duration(q));
+      quantiles.appendChild(item);
+    }
+  }
+
+  var IMPORT_STATUS = [
+    { key: "ready", label: "Ready", color: "var(--good)", mark: "●" },
+    { key: "parsing", label: "Parsing", color: "var(--series-1)", mark: "◐" },
+    { key: "needsReview", label: "Needs review", color: "var(--warning)", mark: "▲" },
+    { key: "failed", label: "Failed", color: "var(--critical)", mark: "✕" }
+  ];
+
+  var SOURCE_COLORS = {
+    youtube: "var(--series-1)",
+    tiktok: "var(--series-2)",
+    instagram: "var(--series-3)",
+    other: "var(--series-4)"
+  };
+
+  function renderBarList(host, rows, options) {
+    host.textContent = "";
+    var total = 0;
+    var i;
+    for (i = 0; i < rows.length; i++) total += rows[i].value;
+    if (!total) {
+      host.innerHTML = '<p class="empty">' + esc(options.empty) + "</p>";
+      return;
+    }
+    var peak = 0;
+    for (i = 0; i < rows.length; i++) peak = Math.max(peak, rows[i].value);
+
+    var table = document.createElement("table");
+    var body = document.createElement("tbody");
+    for (i = 0; i < rows.length; i++) {
+      var row = rows[i];
+      var tr = document.createElement("tr");
+      var label = document.createElement("td");
+      label.innerHTML = (row.mark ? '<span style="color:' + row.color + '">' + row.mark + "</span> " : "") +
+        esc(row.label) +
+        '<span class="magnitude"><i style="width:' + ((row.value / peak) * 100).toFixed(2) +
+        "%;background:" + row.color + '"></i></span>';
+      hoverable(label, "<b>" + esc(row.label) + "</b><br>" + row.value.toLocaleString() +
+        " · " + ((row.value / total) * 100).toFixed(1) + "%");
+      tr.appendChild(label);
+      var value = document.createElement("td");
+      value.className = "num";
+      value.textContent = row.value.toLocaleString();
+      tr.appendChild(value);
+      body.appendChild(tr);
+    }
+    table.appendChild(body);
+    host.appendChild(table);
+  }
+
+  var IMPORT_BUCKETS = [5, 15, 30, 60, 120, 300, 600, 1200];
+
+  function importJobs() {
+    var rows = Object.create(null);
+    var entries = pick("ladle_import_jobs_total");
+    for (var i = 0; i < entries.length; i++) {
+      var labels = entries[i].labels;
+      if (!rows[labels.source]) {
+        rows[labels.source] = { source: labels.source, total: 0, by: Object.create(null) };
+      }
+      rows[labels.source].by[labels.status] =
+        (rows[labels.source].by[labels.status] || 0) + entries[i].value;
+      rows[labels.source].total += entries[i].value;
+    }
+    var list = [];
+    for (var key in rows) list.push(rows[key]);
+    list.sort(function (a, b) { return b.total - a.total; });
+    return list;
+  }
+
+  function renderExtractionTiles() {
+    var byStatus = groupSum(pick("ladle_import_jobs_total"), "status");
+    var total = 0;
+    for (var key in byStatus) total += byStatus[key];
+
+    var tiles = [
+      ["x-total", total, null, total ? total.toLocaleString() + " jobs, all time" : "all time"],
+      ["x-clean", byStatus["ready"] || 0, "good", "ready without review"],
+      ["x-review", byStatus["needsReview"] || 0, "warning", "extracted, but not trusted"],
+      ["x-failed", byStatus["failed"] || 0, "critical", "no recipe produced"]
+    ];
+    for (var i = 0; i < tiles.length; i++) {
+      var id = tiles[i][0];
+      var count = tiles[i][1];
+      var node = el(id);
+      var foot = el(id + "-foot");
+      if (!total) {
+        node.className = "value pending";
+        node.textContent = "no imports yet";
+        foot.textContent = tiles[i][3];
+        continue;
+      }
+      if (i === 0) {
+        node.className = "value";
+        node.textContent = total < 100000 ? total.toLocaleString() : compact(total);
+        foot.textContent = tiles[i][3];
+        continue;
+      }
+      var share = (count / total) * 100;
+      node.className = "value" + (tiles[i][2] === "critical" && count ? " err" : "");
+      node.innerHTML = esc(share.toFixed(share >= 10 ? 0 : 1)) + '<span class="unit">%</span>';
+      foot.textContent = count.toLocaleString() + " of " + total.toLocaleString() +
+        " · " + tiles[i][3];
+    }
+  }
+
+  function renderOutcomeBySource() {
+    var host = el("x-by-source");
+    var legend = el("x-source-legend");
+    host.textContent = "";
+    legend.textContent = "";
+    var list = importJobs();
+    if (!list.length) {
+      host.innerHTML = '<p class="empty">No imports recorded yet.</p>';
+      return;
+    }
+
+    var table = document.createElement("table");
+    table.innerHTML = "<thead><tr><th>Source</th><th class='num'>Imports</th>" +
+      "<th class='num'>Clean</th></tr></thead>";
+    var body = document.createElement("tbody");
+
+    for (var i = 0; i < list.length; i++) {
+      var row = list[i];
+      var tr = document.createElement("tr");
+
+      var stack = document.createElement("div");
+      stack.className = "stack";
+      stack.style.marginTop = "7px";
+      for (var s = 0; s < IMPORT_STATUS.length; s++) {
+        var slot = IMPORT_STATUS[s];
+        var count = row.by[slot.key] || 0;
+        if (!count) continue;
+        var segment = document.createElement("i");
+        segment.style.width = ((count / row.total) * 100).toFixed(3) + "%";
+        segment.style.background = slot.color;
+        stack.appendChild(hoverable(segment, "<b>" + esc(row.source) + " · " +
+          esc(slot.label) + "</b><br>" + count.toLocaleString() + " of " +
+          row.total.toLocaleString() + " · " +
+          ((count / row.total) * 100).toFixed(1) + "%"));
+      }
+
+      var label = document.createElement("td");
+      label.textContent = row.source;
+      label.appendChild(stack);
+      tr.appendChild(label);
+
+      var count2 = document.createElement("td");
+      count2.className = "num";
+      count2.textContent = row.total.toLocaleString();
+      tr.appendChild(count2);
+
+      var clean = (row.by["ready"] || 0) / row.total * 100;
+      var rate = document.createElement("td");
+      rate.className = "num";
+      rate.innerHTML = '<span style="color:' +
+        (clean >= 75 ? "var(--good)" : clean >= 50 ? "var(--warning)" : "var(--critical)") +
+        '">' + clean.toFixed(0) + "%</span>";
+      tr.appendChild(rate);
+
+      body.appendChild(tr);
+    }
+    table.appendChild(body);
+    host.appendChild(table);
+
+    for (var k = 0; k < IMPORT_STATUS.length; k++) {
+      var item = document.createElement("span");
+      item.innerHTML = '<i style="background:' + IMPORT_STATUS[k].color + '"></i>' +
+        esc(IMPORT_STATUS[k].label);
+      legend.appendChild(item);
+    }
+  }
+
+  function renderImportDuration() {
+    var host = el("x-duration");
+    var quantiles = el("x-duration-quantiles");
+    host.textContent = "";
+    quantiles.textContent = "";
+
+    var counts = Object.create(null);
+    var entries = pick("ladle_import_duration_seconds_bucket");
+    for (var i = 0; i < entries.length; i++) {
+      var le = entries[i].labels.le;
+      counts[le] = (counts[le] || 0) + entries[i].value;
+    }
+    var buckets = [];
+    for (var b = 0; b < IMPORT_BUCKETS.length; b++) {
+      buckets.push({ le: IMPORT_BUCKETS[b], count: counts[String(IMPORT_BUCKETS[b])] || 0 });
+    }
+    buckets.push({ le: Infinity, count: counts["+Inf"] || 0 });
+
+    var total = buckets[buckets.length - 1].count;
+    if (!total) {
+      host.innerHTML = '<p class="empty">No completed imports yet.</p>';
+      return;
+    }
+
+    var bars = [];
+    var previousCount = 0;
+    var previousLe = 0;
+    for (i = 0; i < buckets.length; i++) {
+      bars.push({
+        label: isFinite(buckets[i].le) ? duration(buckets[i].le) : "> " + duration(previousLe),
+        span: (previousLe ? duration(previousLe) : "0") + " – " +
+          (isFinite(buckets[i].le) ? duration(buckets[i].le) : "∞"),
+        value: Math.max(0, buckets[i].count - previousCount)
+      });
+      previousCount = buckets[i].count;
+      if (isFinite(buckets[i].le)) previousLe = buckets[i].le;
+    }
+
+    var width = 640;
+    var height = 180;
+    var pad = { top: 10, right: 8, bottom: 34, left: 42 };
+    var plotWidth = width - pad.left - pad.right;
+    var plotHeight = height - pad.top - pad.bottom;
+    var peak = 0;
+    for (i = 0; i < bars.length; i++) peak = Math.max(peak, bars[i].value);
+    if (!peak) peak = 1;
+
+    var svg = svgEl("svg", { viewBox: "0 0 " + width + " " + height, role: "img" });
+    svg.setAttribute("aria-label", "Distribution of end-to-end import durations");
+
+    for (i = 0; i <= 2; i++) {
+      var value = (peak / 2) * i;
+      var y = pad.top + plotHeight - (value / peak) * plotHeight;
+      svg.appendChild(svgEl("line", {
+        x1: pad.left, x2: width - pad.right, y1: y, y2: y,
+        class: i === 0 ? "baseline" : "grid-line"
+      }));
+      var tick = svgEl("text", { x: pad.left - 8, y: y + 3.5, class: "axis-label", "text-anchor": "end" });
+      tick.textContent = compact(value);
+      svg.appendChild(tick);
+    }
+
+    var slotWidth = plotWidth / bars.length;
+    for (i = 0; i < bars.length; i++) {
+      var bar = bars[i];
+      var barHeight = (bar.value / peak) * plotHeight;
+      var x = pad.left + i * slotWidth + 2;
+      var barWidth = slotWidth - 4;
+      if (bar.value > 0) {
+        var rect = svgEl("rect", {
+          x: x, y: pad.top + plotHeight - Math.max(barHeight, 1.5),
+          width: barWidth, height: Math.max(barHeight, 1.5),
+          rx: 4, fill: "var(--series-1)"
+        });
+        svg.appendChild(hoverable(rect, "<b>" + esc(bar.span) + "</b><br>" +
+          bar.value.toLocaleString() + " imports · " +
+          ((bar.value / total) * 100).toFixed(1) + "%"));
+      }
+      var caption = svgEl("text", {
+        x: x + barWidth / 2, y: height - 20, class: "axis-label", "text-anchor": "middle"
+      });
+      caption.textContent = bar.label.replace(" ", "");
+      svg.appendChild(caption);
+    }
+    var unit = svgEl("text", { x: pad.left, y: height - 5, class: "axis-label" });
+    unit.textContent = "time to extract";
+    svg.appendChild(unit);
+    host.appendChild(svg);
+
+    var marks = [["p50", 0.5], ["p95", 0.95]];
+    for (i = 0; i < marks.length; i++) {
+      var item = document.createElement("span");
+      item.innerHTML = "<b>" + marks[i][0] + "</b>&nbsp; " +
+        esc(duration(quantile(buckets, marks[i][1])));
+      quantiles.appendChild(item);
+    }
+    var totals = groupSum(pick("ladle_import_duration_seconds_sum"), "status");
+    var counted = groupSum(pick("ladle_import_duration_seconds_count"), "status");
+    var seconds = 0;
+    var jobs = 0;
+    for (var key in totals) seconds += totals[key];
+    for (var key2 in counted) jobs += counted[key2];
+    if (jobs) {
+      var mean = document.createElement("span");
+      mean.innerHTML = "<b>mean</b>&nbsp; " + esc(duration(seconds / jobs));
+      quantiles.appendChild(mean);
+    }
+  }
+
+  function renderCost() {
+    var host = el("x-cost");
+    host.textContent = "";
+    var billed = groupSum(pick("ladle_provider_billed_units_total"), "provider");
+    var units = 0;
+    for (var key in billed) units += billed[key];
+    var jobs = sum(pick("ladle_import_jobs_total"));
+    var cache = groupSum(pick("ladle_cache_total"), "disposition");
+    var looked = 0;
+    for (var d in cache) looked += cache[d];
+    var gauges = index(state.series);
+
+    // Real money only when an operator has supplied prices; otherwise the
+    // abstract unit is shown rather than a number that looks like currency.
+    var money = 0;
+    var priced = false;
+    for (var provider in billed) {
+      if (state.pricing[provider] !== undefined) {
+        money += billed[provider] * state.pricing[provider];
+        priced = true;
+      }
+    }
+    var asMoney = function (value) {
+      // A per-import cost is often a fraction of a cent; rounding it to two
+      // places prints $0.00 and tells the reader nothing.
+      var places = value !== 0 && Math.abs(value) < 0.5 ? 4 : 2;
+      try {
+        return value.toLocaleString(undefined, {
+          style: "currency",
+          currency: state.currency,
+          minimumFractionDigits: places,
+          maximumFractionDigits: places
+        });
+      } catch (error) {
+        return state.currency + " " + value.toFixed(places);
+      }
+    };
+
+    var readings = [
+      ["Billed units", units ? units.toFixed(2) : "0", false],
+      ["Per import", jobs && units ? (units / jobs).toFixed(2) : "–", false],
+      ["Budget spent", gauges["ladle_provider_spend_units{}"], false],
+      ["Reserved now", gauges["ladle_provider_reserved_units{}"], false],
+      ["Cache hit rate", looked ? ((cache["hit"] || 0) / looked * 100).toFixed(0) + "%" : "–", false],
+      ["Work avoided", (cache["hit"] || 0).toLocaleString() + " of " + looked.toLocaleString(), false]
+    ];
+    if (priced) {
+      readings.splice(2, 0,
+        ["Spend", asMoney(money), false],
+        ["Cost per import", jobs ? asMoney(money / jobs) : "–", false]);
+    }
+    for (var i = 0; i < readings.length; i++) {
+      var term = document.createElement("dt");
+      term.textContent = readings[i][0];
+      var definition = document.createElement("dd");
+      var raw = readings[i][1];
+      definition.textContent = typeof raw === "number"
+        ? raw.toLocaleString(undefined, { maximumFractionDigits: 2 })
+        : (raw === undefined ? "–" : raw);
+      host.appendChild(term);
+      host.appendChild(definition);
+    }
+    el("cost-sub").textContent = priced
+      ? "Real money, from the prices configured in LADLE_OPS_PROVIDER_UNIT_PRICES."
+      : "Billed units are an internal budget unit, not currency. Set " +
+        "LADLE_OPS_PROVIDER_UNIT_PRICES to see money here.";
+  }
+
+  function renderPipeline() {
+    var i;
+    var gauges = index(state.series);
+    var pipeline = el("pipeline");
+    pipeline.textContent = "";
+    var readings = [
+      ["Queue depth", gauges["ladle_queue_depth{}"], false],
+      ["Oldest queued job", gauges["ladle_oldest_queued_job_age_seconds{}"], false, "seconds"],
+      ["Stuck jobs", gauges["ladle_stuck_jobs{}"], true],
+      ["Dead letters", gauges["ladle_dead_letters{}"], true],
+      ["Worker heartbeat", gauges["ladle_worker_last_seen_timestamp_seconds{}"], false, "time"],
+      ["Beat heartbeat", gauges["ladle_beat_last_seen_timestamp_seconds{}"], false, "time"],
+      ["Worker retries", sum(pick("ladle_worker_retries_total")), false],
+      ["Object cleanup failures", gauges["ladle_object_deletion_failures{}"], true]
+    ];
+    for (i = 0; i < readings.length; i++) {
+      var reading = readings[i];
+      var term = document.createElement("dt");
+      term.textContent = reading[0];
+      var definition = document.createElement("dd");
+      var raw = reading[1];
+      if (reading[3] === "time") definition.textContent = ago(raw);
+      else if (reading[3] === "seconds") definition.textContent = raw ? duration(raw) : "–";
+      else definition.textContent = raw === undefined ? "–" : Math.round(raw).toLocaleString();
+      if (reading[2] && raw) definition.className = "alert";
+      pipeline.appendChild(term);
+      pipeline.appendChild(definition);
+    }
+  }
+
+  var OUTCOME_TONE = {
+    success: "ok", failure: "err", circuitOpen: "err", quota: "err",
+    auth: "err", timeout: "err", fallback: ""
+  };
+
+  function renderProviders() {
+    var host = el("providers");
+    host.textContent = "";
+    var entries = pick("ladle_provider_total");
+    if (!entries.length) {
+      host.innerHTML = '<p class="empty">No provider calls recorded yet.</p>';
+      return;
+    }
+    var providers = Object.create(null);
+    var i;
+    for (i = 0; i < entries.length; i++) {
+      var name = entries[i].labels.provider;
+      if (!providers[name]) providers[name] = { name: name, total: 0, outcomes: Object.create(null) };
+      providers[name].total += entries[i].value;
+      providers[name].outcomes[entries[i].labels.outcome] = entries[i].value;
+    }
+    var spend = groupSum(pick("ladle_provider_billed_units_total"), "provider");
+
+    var list = [];
+    for (var key in providers) list.push(providers[key]);
+    list.sort(function (a, b) { return b.total - a.total; });
+
+    var table = document.createElement("table");
+    table.innerHTML = "<thead><tr><th>Provider</th><th class='num'>Calls</th>" +
+      "<th class='num'>OK</th><th class='num'>Outcomes</th>" +
+      "<th class='num'>Units</th></tr></thead>";
+    var body = document.createElement("tbody");
+    for (i = 0; i < list.length; i++) {
+      var provider = list[i];
+      var ok = provider.outcomes["success"] || 0;
+
+      var tr = document.createElement("tr");
+      var cell = document.createElement("td");
+      cell.textContent = provider.name;
+      tr.appendChild(cell);
+
+      var calls = document.createElement("td");
+      calls.className = "num";
+      calls.textContent = provider.total.toLocaleString();
+      tr.appendChild(calls);
+
+      var rate = document.createElement("td");
+      rate.className = "num";
+      var share = (ok / provider.total) * 100;
+      rate.innerHTML = '<span style="color:' +
+        (share >= 95 ? "var(--good)" : share >= 80 ? "var(--warning)" : "var(--critical)") +
+        '">' + share.toFixed(0) + "%</span>";
+      tr.appendChild(rate);
+
+      // Every non-success outcome named, not collapsed: a quota rejection and
+      // an auth failure need different responses.
+      var detail = document.createElement("td");
+      detail.className = "num";
+      var parts = [];
+      for (var outcome in provider.outcomes) {
+        if (outcome === "success") continue;
+        var tone = OUTCOME_TONE[outcome] === "err" ? "var(--critical)" : "var(--muted)";
+        parts.push('<span style="color:' + tone + '">' + esc(outcome) + " " +
+          provider.outcomes[outcome] + "</span>");
+      }
+      detail.innerHTML = parts.length
+        ? parts.join('<span style="color:var(--muted)"> · </span>')
+        : '<span style="color:var(--muted)">—</span>';
+      tr.appendChild(detail);
+
+      var units = document.createElement("td");
+      units.className = "num";
+      units.textContent = spend[provider.name] ? spend[provider.name].toFixed(2) : "0";
+      tr.appendChild(units);
+      body.appendChild(tr);
+    }
+    table.appendChild(body);
+    host.appendChild(table);
+  }
+
+  function renderCacheSync() {
+    var host = el("cache-sync");
+    host.textContent = "";
+    var cache = groupSum(pick("ladle_cache_total"), "disposition");
+    var sync = groupSum(pick("ladle_sync_total"), "outcome");
+    var rows = [];
+    var key;
+    for (key in cache) rows.push({ group: "cache", label: key, value: cache[key] });
+    for (key in sync) rows.push({ group: "sync", label: key, value: sync[key] });
+    if (!rows.length) {
+      host.innerHTML = '<p class="empty">No cache or sync activity yet.</p>';
+      return;
+    }
+    var table = document.createElement("table");
+    table.innerHTML = "<thead><tr><th>Signal</th><th>Outcome</th><th class='num'>Count</th></tr></thead>";
+    var body = document.createElement("tbody");
+    rows.sort(function (a, b) { return a.group === b.group ? b.value - a.value : (a.group < b.group ? -1 : 1); });
+    for (var i = 0; i < rows.length; i++) {
+      var tr = document.createElement("tr");
+      var group = document.createElement("td");
+      group.textContent = rows[i].group === "cache" ? "Import cache" : "Device sync";
+      tr.appendChild(group);
+      var label = document.createElement("td");
+      label.textContent = rows[i].label;
+      tr.appendChild(label);
+      var value = document.createElement("td");
+      value.className = "num" + (rows[i].label === "failure" || rows[i].label === "conflict" ? " err" : "");
+      value.textContent = rows[i].value.toLocaleString();
+      tr.appendChild(value);
+      body.appendChild(tr);
+    }
+    table.appendChild(body);
+    host.appendChild(table);
+  }
+
+  function renderRateLimits() {
+    var host = el("ratelimits");
+    host.textContent = "";
+    var byPolicy = groupSum(pick("ladle_rate_limit_rejections_total"), "policy");
+    var names = Object.keys(byPolicy).sort(function (a, b) { return byPolicy[b] - byPolicy[a]; });
+    if (!names.length) {
+      host.innerHTML = '<p class="empty">No requests have been rate limited.</p>';
+      return;
+    }
+    var rows = [];
+    for (var i = 0; i < names.length; i++) {
+      rows.push({ label: names[i], value: byPolicy[names[i]], color: "var(--warning)" });
+    }
+    renderBarList(host, rows, { empty: "No requests have been rate limited." });
+  }
+
+  function renderReadiness(payload) {
+    var host = el("readiness");
+    host.textContent = "";
+    if (!payload) {
+      host.innerHTML = '<p class="empty">Checking…</p>';
+      return;
+    }
+    var names = Object.keys(payload.checks).sort();
+    for (var i = 0; i < names.length; i++) {
+      var ready = payload.checks[names[i]] === "ready";
+      var chip = document.createElement("span");
+      chip.className = "chip " + (ready ? "good" : "critical");
+      chip.innerHTML = '<span class="mark">' + (ready ? "●" : "✕") + "</span>" + esc(names[i]) +
+        (ready ? "" : " unavailable");
+      host.appendChild(chip);
+    }
+    el("readiness-sub").textContent = (payload.healthy ? "All dependencies ready." : "Degraded.") +
+      " Checked every 60 seconds.";
+  }
+
+  var ROUTE_NOTES = {
+    "/v1/imports": "Submit a video URL to extract a recipe from",
+    "/v1/imports/{job_id}": "Poll one extraction job for progress or its result",
+    "/v1/recipes": "The signed-in cook's saved recipes",
+    "/v1/recipes/{recipe_id}": "Read, edit or delete one saved recipe",
+    "/v1/recipes/sync": "Reconcile a device's local library against the server",
+    "/v1/recipes/discover": "The public feed of shared recipes",
+    "/v1/recipes/discover/{source_video_id}": "One recipe from the public feed",
+    "/v1/auth/guest": "Create an anonymous account so the app works before sign-in",
+    "/v1/auth/refresh": "Exchange a refresh token for a new access token",
+    "/v1/auth/apple": "Sign in with Apple",
+    "/v1/auth/google": "Sign in with Google",
+    "/v1/auth/attestation": "App Attest challenge, proving the caller is the real app",
+    "/health/live": "Is the process up (contacts nothing)",
+    "/health/ready": "Are all dependencies reachable (contacts every one)",
+    "/metrics": "Prometheus scrape endpoint, bearer-token gated",
+    "/ops": "This dashboard",
+    "/ops/metrics.json": "This dashboard's counter poll",
+    "/ops/readiness.json": "This dashboard's slower readiness poll",
+    "/ops/requests.json": "This dashboard's recent-request poll",
+    "unmatched": "No route matched — a scanner, a stale client, or a typo"
+  };
+
+  function renderRecent() {
+    var host = el("recent");
+    host.textContent = "";
+    var entries = state.recent;
+    if (!entries || !entries.length) {
+      host.innerHTML = '<p class="empty">Nothing recorded yet. Requests appear here as they are served.</p>';
+      return;
+    }
+    var table = document.createElement("table");
+    table.innerHTML = "<thead><tr><th>When</th><th>Endpoint</th>" +
+      "<th class='num'>Status</th><th class='num'>Took</th></tr></thead>";
+    var body = document.createElement("tbody");
+    for (var i = 0; i < entries.length; i++) {
+      var entry = entries[i];
+      var tr = document.createElement("tr");
+
+      var when = document.createElement("td");
+      var at = new Date(entry.at);
+      when.textContent = isNaN(at.getTime()) ? "–" : at.toLocaleTimeString();
+      when.style.color = "var(--muted)";
+      when.style.fontVariantNumeric = "tabular-nums";
+      tr.appendChild(when);
+
+      var route = document.createElement("td");
+      route.className = "route";
+      route.innerHTML = '<span class="method">' + esc(entry.method) + "</span>" +
+        esc(entry.route);
+      var note = ROUTE_NOTES[entry.route];
+      hoverable(route, "<b>" + esc(entry.method + " " + entry.route) + "</b>" +
+        (note ? "<br>" + esc(note) : "") +
+        (entry.user_safe_id ? "<br>cook " + esc(entry.user_safe_id) : "") +
+        (entry.request_id ? "<br>request " + esc(String(entry.request_id).slice(0, 8)) : ""));
+      tr.appendChild(route);
+
+      var status = document.createElement("td");
+      status.className = "num";
+      var code = Number(entry.status_code);
+      status.innerHTML = '<span style="color:' +
+        (code >= 500 ? "var(--critical)" : code >= 400 ? "var(--warning)" : "var(--good)") +
+        '">' + esc(entry.status_code) + "</span>";
+      tr.appendChild(status);
+
+      var took = document.createElement("td");
+      took.className = "num";
+      took.textContent = duration(Number(entry.duration_ms) / 1000);
+      tr.appendChild(took);
+
+      body.appendChild(tr);
+    }
+    table.appendChild(body);
+    host.appendChild(table);
+  }
+
+  function renderAll() {
+    renderExtractionTiles();
+    renderOutcomeBySource();
+    renderImportDuration();
+    renderCost();
+    renderPipeline();
+    renderTiles();
+    renderTraffic();
+    renderStatus();
+    renderRoutes();
+    renderLatency();
+    renderProviders();
+    renderCacheSync();
+    renderRateLimits();
+    renderRecent();
+    paintHealthToggle();
+  }
+
+  /* ---------- polling ---------- */
+
+  function pulse(kind, text) {
+    var node = el("pulse");
+    node.className = "pulse" + (kind ? " " + kind : "");
+    el("pulse-text").textContent = text;
+  }
+
+  function totalRequests(series, withHealth) {
+    var total = 0;
+    for (var i = 0; i < series.length; i++) {
+      var entry = series[i];
+      if (entry.name !== "ladle_http_requests_total") continue;
+      if (isOps(entry.labels)) continue;
+      if (!withHealth && isHealth(entry.labels)) continue;
+      total += entry.value;
+    }
+    return total;
+  }
+
+  function poll() {
+    if (!state.running) return Promise.resolve();
+    return fetch("/ops/metrics.json", { credentials: "same-origin", cache: "no-store" })
+      .then(function (response) {
+        if (!response.ok) throw new Error("HTTP " + response.status);
+        return response.json();
+      })
+      .then(function (payload) {
+        var at = new Date(payload.generatedAt);
+        if (isNaN(at.getTime())) at = new Date();
+        var previous = state.series;
+        state.series = payload.series;
+        state.pricing = payload.pricing || {};
+        state.currency = payload.currency || "USD";
+        if (state.prev) {
+          var window = (at - state.prevAt) / 1000;
+          if (window > 0.5) {
+            // Both are recorded every tick so flipping the health toggle
+            // re-reads the other series instead of restarting the chart.
+            var real = totalRequests(payload.series, false) -
+              totalRequests(previous, false);
+            var all = totalRequests(payload.series, true) -
+              totalRequests(previous, true);
+            state.points.push({
+              at: at,
+              rate: (Math.max(0, real) / window) * 60,
+              rateAll: (Math.max(0, all) / window) * 60,
+              count: Math.round(Math.max(0, real)),
+              countAll: Math.round(Math.max(0, all)),
+              window: window
+            });
+            if (state.points.length > MAX_POINTS) state.points.shift();
+          }
+        } else {
+          state.baseline = payload.series;
+        }
+        state.prev = payload.series;
+        state.prevAt = at;
+        state.failures = 0;
+        renderAll();
+        pulse("", "live · " + at.toLocaleTimeString());
+      })
+      .catch(function (error) {
+        state.failures += 1;
+        pulse("stale", state.failures > 2 ? "disconnected" : "retrying…");
+        if (state.failures > 6) {
+          pulse("stale", "disconnected — reload to sign in again");
+        }
+        return error;
+      });
+  }
+
+  function pollRecent() {
+    if (!state.running) return;
+    fetch("/ops/requests.json", { credentials: "same-origin", cache: "no-store" })
+      .then(function (response) { return response.ok ? response.json() : null; })
+      .then(function (payload) {
+        if (payload && payload.requests) {
+          state.recent = payload.requests;
+          renderRecent();
+        }
+      })
+      .catch(function () { /* the next tick tries again */ });
+  }
+
+  function pollReadiness() {
+    if (!state.running) return;
+    fetch("/ops/readiness.json", { credentials: "same-origin", cache: "no-store" })
+      .then(function (response) { return response.ok ? response.json() : null; })
+      .then(renderReadiness)
+      .catch(function () { renderReadiness(null); });
+  }
+
+  function paintHealthToggle() {
+    var button = el("health");
+    button.textContent = "Health checks: " + (state.includeHealth ? "shown" : "hidden");
+    button.setAttribute("aria-pressed", state.includeHealth ? "true" : "false");
+    var probes = sum(pick("ladle_http_requests_total", function (labels) {
+      return isHealth(labels);
+    }));
+    el("health-note").textContent = probes
+      ? (state.includeHealth ? "Counting " : "Excluding ") + probes.toLocaleString() +
+        " uptime-probe requests to /health/live and /health/ready."
+      : "";
+  }
+
+  el("health").addEventListener("click", function () {
+    state.includeHealth = !state.includeHealth;
+    try {
+      localStorage.setItem(HEALTH_PREF, state.includeHealth ? "1" : "0");
+    } catch (error) {
+      // A private window just forgets the choice; the page still works.
+    }
+    renderAll();
+  });
+
+  el("toggle").addEventListener("click", function () {
+    state.running = !state.running;
+    this.textContent = state.running ? "Pause" : "Resume";
+    if (state.running) {
+      pulse("", "resuming…");
+      poll();
+      pollReadiness();
+    } else {
+      pulse("paused", "paused");
+    }
+  });
+
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden && state.running) poll();
+  });
+
+  renderReadiness(null);
+  paintHealthToggle();
+  poll();
+  pollReadiness();
+  pollRecent();
+  setInterval(poll, POLL_MS);
+  setInterval(pollReadiness, READY_MS);
+  setInterval(pollRecent, RECENT_MS);
+})();
+</script>
+</body>
+</html>

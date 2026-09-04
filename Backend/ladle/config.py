@@ -126,6 +126,13 @@ class Settings(BaseSettings):
         max_length=128,
     )
     metrics_auth_token: SecretStr | None = None
+    ops_dashboard_token: SecretStr | None = None
+    ops_recent_request_limit: int = Field(default=200, ge=0, le=2000)
+    # Money per billed unit, per provider, as JSON: {"openrouter": 0.004}.
+    # Empty by default because nothing in this codebase knows a real
+    # price; the dashboard shows units until an operator supplies these.
+    ops_provider_unit_prices: dict[str, Decimal] = Field(default_factory=dict)
+    ops_currency: str = Field(default="USD", min_length=3, max_length=3)
     structured_logging_enabled: bool = True
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     tracing_enabled: bool = False
@@ -492,6 +499,26 @@ class Settings(BaseSettings):
             raise ValueError(
                 "production metrics authentication requires a non-placeholder "
                 "secret of at least 32 characters"
+            )
+        if (
+            self.ops_dashboard_token is None
+            or self._is_placeholder(self.ops_dashboard_token.get_secret_value())
+            or len(self.ops_dashboard_token.get_secret_value())
+            < _MINIMUM_PRODUCTION_SECRET_LENGTH
+        ):
+            raise ValueError(
+                "production operator dashboard access requires a non-placeholder "
+                "secret of at least 32 characters"
+            )
+        if self.ops_dashboard_token.get_secret_value() == (
+            self.metrics_auth_token.get_secret_value()
+            if self.metrics_auth_token is not None
+            else None
+        ):
+            raise ValueError(
+                "production requires an operator dashboard token distinct from "
+                "the metrics token, because only the dashboard one reaches a "
+                "browser"
             )
         if not self.structured_logging_enabled:
             raise ValueError("production requires structured logging")

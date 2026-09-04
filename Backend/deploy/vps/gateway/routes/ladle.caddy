@@ -21,8 +21,56 @@
 		reverse_proxy ladle-api:4111 {
 			header_up Host {http.request.host}
 			header_up X-Ladle-Tunnel-Key ""
+
+			# No client certificate is required here, so this header must never
+			# survive from a client: on this hostname it would be a forged
+			# identity. The dashboard hostname sets it from the verified peer.
+			header_up X-Ladle-Ops-Client ""
 		}
 
 		# Caddy sets X-Forwarded-For and X-Forwarded-Proto for both proxies.
+	}
+}
+
+# The operator dashboard gets a name of its own so it can be handed to a
+# browser without handing over the API with it. Only /ops answers here: auth,
+# imports, sync, and the private object store stay on the API hostname.
+#
+# The default keeps `caddy validate` honest — an unset variable would resolve
+# to an empty site address and fail the reload for every route in this file.
+{$LADLE_DASHBOARD_HOSTNAME:dashboard.overeasy.chetangoel.me} {
+	# Access is a client certificate, not a shared secret in a URL. Without one
+	# the TLS handshake fails, so this name is unreachable rather than merely
+	# hidden, and there is no credential to expire, leak into a log, or paste.
+	# The CA is private to this dashboard; issue one certificate per device.
+	# The API hostname keeps serving /ops with the token, which is the way back
+	# in if a certificate is ever lost.
+	tls {
+		client_auth {
+			mode require_and_verify
+			trust_pool file /etc/caddy/routes/ops-ca.pem
+		}
+	}
+
+	route {
+		header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+
+		# Rewrite rather than redirect, so a pasted `/?token=...` keeps its
+		# query on the way to the handoff. Caddy retains the query string when
+		# the rewrite target has none of its own.
+		rewrite / /ops
+
+		@ops path /ops /ops/*
+		reverse_proxy @ops ladle-api:4111 {
+			header_up Host {http.request.host}
+			header_up X-Ladle-Tunnel-Key ""
+
+			# Overwrites whatever the client sent, so this is always the
+			# subject of the certificate require_and_verify just accepted.
+			# That is what signs the operator in; no token, no cookie.
+			header_up X-Ladle-Ops-Client "{http.request.tls.client.subject}"
+		}
+
+		respond 404
 	}
 }

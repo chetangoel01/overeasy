@@ -262,6 +262,10 @@ class MetricsRegistry:
             float(ready),
         )
 
+    def snapshot(self) -> dict[MetricKey, float]:
+        """Structured series for callers that should not parse the text format."""
+        return self._backend.snapshot()
+
     def render(self) -> str:
         items = sorted(self._backend.snapshot().items())
         lines: list[str] = []

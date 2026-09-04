@@ -13,6 +13,54 @@ putting private recipe or authentication data in telemetry.
 - `/metrics` is hidden unless the dedicated bearer token matches. It also emits
   bounded readiness gauges for the database/migration, Redis roles, storage,
   configuration, and worker.
+- `dashboard.overeasy.chetangoel.me` requires a client certificate, so the
+  token below is only needed on the API hostname. See the deployment guide.
+- `/ops` serves an operator dashboard rendered from the same counters. It
+  carries its own credential, `LADLE_OPS_DASHBOARD_TOKEN`, which production
+  refuses to start without and refuses to let equal the metrics token: a
+  browser holds the dashboard one in a cookie, and the Prometheus token must
+  never reach a browser. The token arrives once as `?token=`, moves into an
+  HttpOnly, `SameSite=Lax`, site-scoped cookie that expires after twelve hours,
+  and is absent from every later URL. Not `/ops`-scoped: the dashboard hostname
+  rewrites `/` to `/ops` inside Caddy, so the browser's URL stays `/` and a
+  path-scoped cookie is never sent back. The cookie is marked `Secure`
+  whenever the request arrived over HTTPS, which is the scheme Caddy forwards,
+  rather than when the environment is production: the VPS runs the documented
+  `LADLE_ENVIRONMENT=development` exception behind a real gateway. Everything
+  without that cookie answers 404, matching `/metrics`.
+- Because that one handoff puts a credential in a request target, the access
+  log is not allowed to keep it. The production Compose command passes
+  `--no-access-log`, and importing the ASGI application installs a filter that
+  strips query strings from `uvicorn.access` records regardless of how the
+  server was started — the Compose command runs uvicorn directly, so
+  `ladle/api/__main__.py` never executes there. The shared Caddy gateway
+  declares no `log` directive, so it records no request targets at all.
+- The dashboard polls `/ops/metrics.json` every five seconds and computes rates
+  from counter deltas in the browser, so request-per-minute charts build up
+  while the page is open and totals read "since the counters were last reset."
+  Readiness is a separate, slower `/ops/readiness.json` on a sixty-second
+  timer, because a readiness check contacts every dependency and wakes a Celery
+  CLI process; it must never run at the polling cadence.
+- The page hides `/health/live` and `/health/ready` by default, and always hides
+  its own polling. Uptime probes outnumber real traffic by more than a hundred
+  to one on the deployed host, which does not merely add noise: they suppress
+  the error rate and pull p95 toward their own trivial cost, so both headline
+  numbers read better than the service actually is. A header toggle brings them
+  back — readiness 5xx are worth looking at — and the choice is remembered per
+  browser. Both rate series are recorded on every poll, so switching re-reads
+  the other one instead of restarting the chart.
+- `/ops/requests.json` keeps the last `LADLE_OPS_RECENT_REQUEST_LIMIT` (200)
+  completed requests in a trimmed Redis list, so an operator can see what just
+  happened rather than only how much. It stores metadata only: a field outside
+  the allowlist is dropped, and the route is Starlette's matched template, not
+  the requested path, so no body, query string, recipe ID or account ID is
+  retained. Nothing in it needs to participate in account deletion. Polled
+  endpoints are omitted unless they failed, on the same reasoning as the log.
+- Provider spend is reported in billed units, which are an internal budget
+  abstraction, not currency. `LADLE_OPS_PROVIDER_UNIT_PRICES` maps a provider
+  to money per unit; when it is set the dashboard adds spend and cost per
+  import in `LADLE_OPS_CURRENCY`, and until then it says plainly that units are
+  not money rather than printing a number that looks like one.
 - HTTP and import latency use Prometheus histograms. Metrics cover import
   outcomes, cache disposition, provider outcomes/cost, worker retries, sync
   conflicts/resets, rate-limit rejection policy, queue health, stuck jobs,
@@ -60,6 +108,11 @@ current compatible 1.44.0/0.65b0 release family documented by the
 5. Import `grafana-dashboard.json`, then set provider-spend thresholds to the
    configured daily limit rather than leaving the default 800-unit warning.
 
+The single-VPS deployment runs none of steps 3-5: it has no collector,
+Prometheus, or Grafana, and its assigned hostname has no spare subdomain to
+terminate their TLS on. `/ops` is what an operator reads there, and those
+files stay in the repository for the day the deployment outgrows one host.
+
 ## Alerts and first response
 
 - **5xx / dependency / migration:** stop rollout, inspect readiness and the
@@ -80,6 +133,10 @@ current compatible 1.44.0/0.65b0 release family documented by the
 - Unit tests cover bounded labels, histograms, sink-boundary redaction,
   authenticated metrics, FastAPI span emission, the required alert set,
   never-seen worker/Beat detection, and dashboard coverage.
+- API tests cover the `/ops` credential: hidden without it, hidden when the
+  cookie carries the metrics token instead, a query token that becomes a
+  cookie, a fast poll that wakes no probe, and the relaxed `/ops` content
+  security policy that leaves every other route's policy alone.
 - A Redis integration test proves increments are atomic, visible between
   registries, and still present after registry recreation.
 - In staging, restart API and worker replicas, confirm counters remain, follow

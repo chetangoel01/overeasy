@@ -121,6 +121,7 @@ services:
       LADLE_DURABLE_METRICS_ENABLED: "true"
       LADLE_METRICS_REDIS_URL: redis://redis:6379/3
       LADLE_METRICS_AUTH_TOKEN: local-metrics-token-not-for-production
+      LADLE_OPS_DASHBOARD_TOKEN: local-ops-dashboard-token-not-for-production
       LADLE_APPLE_ENABLED: ${LADLE_APPLE_ENABLED:-false}
       LADLE_APPLE_BUNDLE_ID: ${LADLE_APPLE_BUNDLE_ID:-com.ladle.ios}
       LADLE_APPLE_TEAM_ID: ${LADLE_APPLE_TEAM_ID:-}

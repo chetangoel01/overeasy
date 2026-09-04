@@ -65,3 +65,20 @@ def test_a_failing_handler_is_still_recorded_and_logged() -> None:
 
     assert response.status_code == 500
     assert 'status="5xx"' in metrics.render()
+
+
+def test_successful_uptime_probes_are_not_logged_but_failing_ones_are() -> None:
+    # /health/ready is 98.5% of requests on the deployed host. Logging every
+    # success would fill the 30 MB the json-file driver keeps with the poller
+    # and evict the traffic an operator actually needs. A probe that fails is
+    # exactly the thing worth keeping.
+    from ladle.observability.middleware import is_loggable
+
+    assert is_loggable("/health/ready", 200) is False
+    assert is_loggable("/health/live", 200) is False
+    assert is_loggable("/health/ready", 503) is True
+    assert is_loggable("/v1/recipes", 200) is True
+    # An open dashboard polls twelve times a minute; same reasoning.
+    assert is_loggable("/ops/metrics.json", 200) is False
+    assert is_loggable("/ops/metrics.json", 500) is True
+    assert is_loggable("/ops/requests.json", 200) is False

@@ -37,6 +37,8 @@ from ladle.api.routes.health import (
 )
 from ladle.api.routes.health import router as health_router
 from ladle.api.routes.imports import router as imports_router
+from ladle.api.routes.ops import OpsAccessPolicy
+from ladle.api.routes.ops import router as ops_router
 from ladle.api.routes.recipes import router as recipes_router
 from ladle.api.security_headers import SecurityHeadersMiddleware
 from ladle.auth.apple import (
@@ -74,8 +76,14 @@ from ladle.imports.source_identity import SourceIdentityParser
 from ladle.imports.transitions import ImportCancellationService, ImportRetryService
 from ladle.infrastructure.dns import PinnedRedirectResolver, SystemDNSResolver
 from ladle.infrastructure.object_storage import ObjectStorage, S3ObjectStorage
+from ladle.observability.access_log import install_access_log_redaction
 from ladle.observability.metrics import MetricsRegistry, RedisMetricsBackend
 from ladle.observability.middleware import install_request_middleware
+from ladle.observability.recent import (
+    MemoryRecentBackend,
+    RecentRequests,
+    RedisRecentBackend,
+)
 from ladle.observability.structured_logging import (
     configure_structured_logging,
     pseudonymous_identifier,
@@ -112,7 +120,7 @@ def create_app(
     """Build the HTTP application without eagerly contacting infrastructure."""
 
     configured = settings or Settings()
-    if configured.environment == "production" and configured.structured_logging_enabled:
+    if configured.structured_logging_enabled:
         configure_structured_logging(level=configured.log_level)
     runtime_clock = clock or SystemClock()
     token_codec = access_tokens or AccessTokenCodec(
@@ -218,12 +226,34 @@ def create_app(
                 prefix=configured.metrics_key_prefix,
             )
         )
+        runtime_recent = RecentRequests(
+            backend=RedisRecentBackend(
+                metrics_redis,
+                prefix=configured.metrics_key_prefix,
+            ),
+            limit=configured.ops_recent_request_limit,
+        )
     else:
         runtime_metrics = MetricsRegistry()
+        runtime_recent = RecentRequests(
+            backend=MemoryRecentBackend(),
+            limit=configured.ops_recent_request_limit,
+        )
     application.state.metrics = runtime_metrics
+    application.state.recent_requests = runtime_recent
     application.state.metrics_access = MetricsAccessPolicy(
         configured.metrics_auth_token.get_secret_value()
         if configured.metrics_auth_token is not None
+        else None
+    )
+    application.state.ops_pricing = {
+        provider: float(price)
+        for provider, price in configured.ops_provider_unit_prices.items()
+    }
+    application.state.ops_currency = configured.ops_currency
+    application.state.ops_access = OpsAccessPolicy(
+        configured.ops_dashboard_token.get_secret_value()
+        if configured.ops_dashboard_token is not None
         else None
     )
     rate_limit_redis: Redis | None = None
@@ -236,9 +266,12 @@ def create_app(
             )
         else:
             rate_limit_backend = NullRateLimitBackend()
+    application.state.client_ips = ClientIPResolver(
+        configured.rate_limit_trusted_proxy_cidrs
+    )
     application.state.rate_limits = RateLimitService(
         rate_limit_backend,
-        client_ips=ClientIPResolver(configured.rate_limit_trusted_proxy_cidrs),
+        client_ips=application.state.client_ips,
         metrics=runtime_metrics,
     )
     application.state.rate_limit_policies = RateLimitPolicies.from_settings(configured)
@@ -461,6 +494,7 @@ def create_app(
     application.include_router(recipes_router)
     application.include_router(imports_router)
     application.include_router(health_router)
+    application.include_router(ops_router)
     install_error_handlers(
         application,
         security_headers=SecurityHeadersMiddleware.headers(
@@ -474,6 +508,7 @@ def create_app(
     install_request_middleware(
         application,
         metrics=application.state.metrics,
+        recent=application.state.recent_requests,
     )
     if configured.tracing_enabled:
         tracer_provider = instrument_application(
@@ -502,5 +537,10 @@ def create_app(
             )
     return application
 
+
+# Installed on import rather than inside create_app, because this is about the
+# process that serves HTTP: uvicorn imports this module however it was started,
+# including the Compose command that bypasses ladle/api/__main__.py entirely.
+install_access_log_redaction()
 
 app = create_app()
