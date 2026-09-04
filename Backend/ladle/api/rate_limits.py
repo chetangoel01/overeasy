@@ -186,6 +186,26 @@ class ClientIPResolver:
                 return str(address)
         return str(addresses[0])
 
+    def forwarded_scheme(self, request: Request) -> str:
+        """The scheme the browser used, believed only from a trusted proxy.
+
+        Uvicorn runs with --proxy-headers but trusts the loopback alone, so
+        behind the shared gateway `request.url.scheme` reads `http` on a
+        connection that was HTTPS all the way to the client. An untrusted peer
+        claiming `https` is ignored; the header is only ever believed from the
+        same proxies this resolver already trusts for X-Forwarded-For.
+        """
+
+        if request.url.scheme == "https":
+            return "https"
+        peer = self._parse(request.client.host if request.client is not None else None)
+        if peer is None or not self._is_trusted(peer):
+            return request.url.scheme
+        forwarded = request.headers.get("x-forwarded-proto")
+        if forwarded is None:
+            return request.url.scheme
+        return forwarded.split(",")[0].strip().lower() or request.url.scheme
+
     def _is_trusted(self, address: IPAddress) -> bool:
         return any(address in network for network in self._trusted)
 

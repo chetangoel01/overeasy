@@ -15,6 +15,7 @@ from typing import cast
 from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
+from ladle.api.rate_limits import ClientIPResolver
 from ladle.api.routes.health import ReadinessService
 from ladle.observability.metrics import MetricsRegistry
 
@@ -57,6 +58,8 @@ class OpsAccessPolicy:
         keying the flag on the environment would hand a real deployment a
         cookie a browser is willing to send in clear. Local development is
         plain HTTP, where a Secure cookie would be dropped instead of stored.
+        The caller resolves the scheme through the trusted-proxy list, because
+        uvicorn believes forwarded headers from the loopback only.
         """
 
         if self._token is None:
@@ -82,7 +85,8 @@ def dashboard(
         if not policy.matches(token):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
         handoff = RedirectResponse("/ops", status_code=status.HTTP_303_SEE_OTHER)
-        policy.issue(handoff, secure=request.url.scheme == "https")
+        client_ips = cast(ClientIPResolver, request.app.state.client_ips)
+        policy.issue(handoff, secure=client_ips.forwarded_scheme(request) == "https")
         return handoff
     policy.authorize(request)
     return HTMLResponse(_PAGE.read_text(encoding="utf-8"))

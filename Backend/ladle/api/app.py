@@ -244,9 +244,12 @@ def create_app(
             )
         else:
             rate_limit_backend = NullRateLimitBackend()
+    application.state.client_ips = ClientIPResolver(
+        configured.rate_limit_trusted_proxy_cidrs
+    )
     application.state.rate_limits = RateLimitService(
         rate_limit_backend,
-        client_ips=ClientIPResolver(configured.rate_limit_trusted_proxy_cidrs),
+        client_ips=application.state.client_ips,
         metrics=runtime_metrics,
     )
     application.state.rate_limit_policies = RateLimitPolicies.from_settings(configured)

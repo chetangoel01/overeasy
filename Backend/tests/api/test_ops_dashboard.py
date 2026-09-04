@@ -153,3 +153,39 @@ def test_the_cookie_is_secure_whenever_the_request_arrived_over_https() -> None:
     # Local development is served over plain HTTP; a Secure cookie there would
     # be dropped by the browser and the dashboard would never open.
     assert "Secure" not in plain.headers["set-cookie"]
+
+
+def _handoff(client_address: tuple[str, int], headers: dict[str, str]) -> str:
+    app = create_app(
+        settings=Settings(
+            ops_dashboard_token=TOKEN,
+            rate_limit_trusted_proxy_cidrs="172.30.0.0/24",
+            _env_file=None,
+        ),
+        readiness_probes={"database": Probe(healthy=True)},
+    )
+    with TestClient(app, client=client_address) as client:
+        response = client.get(
+            "/ops",
+            params={"token": TOKEN},
+            headers=headers,
+            follow_redirects=False,
+        )
+    return response.headers["set-cookie"]
+
+
+def test_a_trusted_gateway_reporting_https_gets_a_secure_cookie() -> None:
+    # Uvicorn runs with --proxy-headers but trusts only the loopback, so the
+    # forwarded scheme has to be read with the same trust list the rate
+    # limiter already uses for X-Forwarded-For.
+    assert "Secure" in _handoff(("172.30.0.3", 51000), {"x-forwarded-proto": "https"})
+
+
+def test_an_untrusted_peer_cannot_talk_its_way_into_a_secure_cookie() -> None:
+    assert "Secure" not in _handoff(
+        ("203.0.113.9", 51000), {"x-forwarded-proto": "https"}
+    )
+
+
+def test_plain_local_http_still_gets_a_cookie_the_browser_will_store() -> None:
+    assert "Secure" not in _handoff(("127.0.0.1", 51000), {})
