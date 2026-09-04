@@ -115,7 +115,7 @@ def create_app(
     """Build the HTTP application without eagerly contacting infrastructure."""
 
     configured = settings or Settings()
-    if configured.environment == "production" and configured.structured_logging_enabled:
+    if configured.structured_logging_enabled:
         configure_structured_logging(level=configured.log_level)
     runtime_clock = clock or SystemClock()
     token_codec = access_tokens or AccessTokenCodec(

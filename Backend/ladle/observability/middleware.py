@@ -10,6 +10,20 @@ from ladle.observability.structured_logging import log_context
 
 X_REQUEST_ID = "X-Request-ID"
 LOGGER = logging.getLogger("ladle.http")
+_UPTIME_PROBES = frozenset({"/health/live", "/health/ready"})
+
+
+def is_loggable(route: str, status_code: int) -> bool:
+    """Whether a completed request is worth a line in the log.
+
+    The uptime probe is 98.5% of requests on the deployed host. Logging every
+    success would fill the 30 MB the json-file driver keeps with the poller and
+    evict the traffic an operator actually needs. A probe that fails is the
+    opposite — it is the first sign of a dependency going, so those are kept.
+    Metrics still count every request either way.
+    """
+
+    return status_code >= 400 or route not in _UPTIME_PROBES
 
 
 def install_request_middleware(
@@ -79,4 +93,5 @@ def install_request_middleware(
         }
         if isinstance(safe_user, str):
             event["user_safe_id"] = safe_user
-        LOGGER.info("HTTP request completed", extra=event)
+        if is_loggable(str(route_path), status_code):
+            LOGGER.info("HTTP request completed", extra=event)
