@@ -83,6 +83,35 @@ sudo docker network inspect platform-edge \
   --format '{{(index .IPAM.Config 0).Subnet}}'
 ```
 
+## SSH rate limiting
+
+The host refuses passwords outright (`passwordauthentication no`,
+`kbdinteractiveauthentication no`, `permitrootlogin no`) and the `INPUT` policy
+is `DROP` with an explicit allow chain for 22, 80 and 443, so the roughly 1,300
+brute-force attempts a day the address attracts cannot succeed. `fail2ban` is
+installed anyway, for log hygiene and defence in depth rather than to close a
+hole: 9,500 junk auth lines a week make a real anomaly hard to see.
+
+`/etc/fail2ban/jail.local` is not managed by `push.sh`; it is installed once by
+hand. Two details in it matter:
+
+- `banaction = iptables-multiport`, not the nftables default. Docker owns
+  iptables on this host, and pointing fail2ban at nftables would put two things
+  in charge of one firewall.
+- `ignoreip` lists the operator's address and any other host that legitimately
+  holds a key. A first ban is deliberately short (15 minutes, escalating to a
+  day for repeat offenders) so a fumbled login from a new machine expires
+  rather than stranding anyone.
+
+Confirm bans are actually reachable after any firewall change — the jail's
+chain has to be consulted *before* the allow chain, or it is inserted but never
+matched:
+
+```bash
+sudo iptables -S INPUT | head -3     # f2b-sshd must precede LADLE_HOST_INPUT_A
+sudo fail2ban-client status sshd
+```
+
 ## OAuth setup
 
 Every production deployment includes working Sign in with Apple and Google
