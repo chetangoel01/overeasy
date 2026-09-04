@@ -204,6 +204,7 @@
     <h1>Ladle backend<span class="host" id="host"></span></h1>
     <div class="controls">
       <span class="pulse" id="pulse"><span class="dot"></span><span id="pulse-text">connecting…</span></span>
+      <button class="ghost" id="health" type="button" aria-pressed="false">Health checks: hidden</button>
       <button class="ghost" id="toggle" type="button">Pause</button>
     </div>
   </header>
@@ -311,7 +312,8 @@
   <footer class="note">
     Counters live in Redis and survive restarts, so totals read “since the counters were last reset,”
     not “today.” Rates are computed while this page is open.
-    The dashboard’s own polling requests are excluded from every chart above.
+    The dashboard’s own polling requests are always excluded.
+    <span id="health-note"></span>
   </footer>
 </div>
 
@@ -325,6 +327,8 @@
   var READY_MS = 60000;
   var MAX_POINTS = 180;
   var OPS_ROUTES = { "/ops": 1, "/ops/metrics.json": 1, "/ops/readiness.json": 1 };
+  var HEALTH_ROUTES = { "/health/live": 1, "/health/ready": 1 };
+  var HEALTH_PREF = "ladle.ops.includeHealth";
   var HTTP_BUCKETS = [0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30];
 
   var state = {
@@ -334,8 +338,15 @@
     baseline: null,
     points: [],
     running: true,
-    failures: 0
+    failures: 0,
+    includeHealth: false
   };
+
+  try {
+    state.includeHealth = localStorage.getItem(HEALTH_PREF) === "1";
+  } catch (error) {
+    state.includeHealth = false;
+  }
 
   var el = function (id) { return document.getElementById(id); };
   var tip = el("tip");
@@ -385,8 +396,20 @@
     return out;
   }
 
+  function rateOf(point) { return state.includeHealth ? point.rateAll : point.rate; }
+  function countOf(point) { return state.includeHealth ? point.countAll : point.count; }
+
   function isOps(labels) { return OPS_ROUTES[labels.route] === 1; }
-  function notOps(labels) { return !isOps(labels); }
+  function isHealth(labels) { return HEALTH_ROUTES[labels.route] === 1; }
+
+  /* Uptime probes hit /health/ready on a tight loop and outnumber real traffic
+     by more than a hundred to one, which buries the error rate and drags p95
+     toward their own trivial cost. They are excluded everywhere by default and
+     can be switched back on. */
+  function visible(labels) {
+    if (isOps(labels)) return false;
+    return state.includeHealth || !isHealth(labels);
+  }
 
   function compact(value) {
     if (value === null || value === undefined) return "–";
@@ -474,7 +497,7 @@
   function httpBuckets(routeFilter) {
     var counts = Object.create(null);
     var entries = pick("ladle_http_request_duration_seconds_bucket", function (labels) {
-      if (isOps(labels)) return false;
+      if (!visible(labels)) return false;
       return routeFilter ? labels.route === routeFilter : true;
     });
     for (var i = 0; i < entries.length; i++) {
@@ -492,7 +515,7 @@
   /* ---------- renderers ---------- */
 
   function renderTiles() {
-    var requests = pick("ladle_http_requests_total", notOps);
+    var requests = pick("ladle_http_requests_total", visible);
     var total = sum(requests);
     var byStatus = groupSum(requests, "status");
     var failed = (byStatus["4xx"] || 0) + (byStatus["5xx"] || 0);
@@ -505,7 +528,7 @@
       : "none recorded yet";
     el("t-requests-foot").textContent = total ? "all time, " + total.toLocaleString() + " served" : "all time";
 
-    var latest = state.points.length ? state.points[state.points.length - 1].rate : null;
+    var latest = state.points.length ? rateOf(state.points[state.points.length - 1]) : null;
     var rateNode = el("t-rate");
     rateNode.className = "value" + (latest === null ? " pending" : "");
     rateNode.innerHTML = latest === null
@@ -549,7 +572,7 @@
 
     var peak = 0;
     var i;
-    for (i = 0; i < points.length; i++) peak = Math.max(peak, points[i].rate);
+    for (i = 0; i < points.length; i++) peak = Math.max(peak, rateOf(points[i]));
     var top = peak <= 0 ? 1 : peak * 1.15;
 
     var svg = svgEl("svg", { viewBox: "0 0 " + width + " " + height, role: "img" });
@@ -575,7 +598,7 @@
 
     var line = "";
     for (i = 0; i < points.length; i++) {
-      line += (i ? " L" : "M") + xFor(i).toFixed(1) + " " + yFor(points[i].rate).toFixed(1);
+      line += (i ? " L" : "M") + xFor(i).toFixed(1) + " " + yFor(rateOf(points[i])).toFixed(1);
     }
     var area = line + " L" + xFor(points.length - 1).toFixed(1) + " " + (pad.top + plotHeight) +
       " L" + xFor(0).toFixed(1) + " " + (pad.top + plotHeight) + " Z";
@@ -604,12 +627,12 @@
       nearest = Math.max(0, Math.min(points.length - 1, nearest));
       var point = points[nearest];
       marker.setAttribute("cx", xFor(nearest));
-      marker.setAttribute("cy", yFor(point.rate));
+      marker.setAttribute("cy", yFor(rateOf(point)));
       crosshair.setAttribute("x1", xFor(nearest));
       crosshair.setAttribute("x2", xFor(nearest));
       crosshair.setAttribute("opacity", 1);
-      showTip(event, "<b>" + point.rate.toFixed(1) + "</b> req/min<br>" +
-        point.at.toLocaleTimeString() + "<br>" + point.count + " in the last " +
+      showTip(event, "<b>" + rateOf(point).toFixed(1) + "</b> req/min<br>" +
+        point.at.toLocaleTimeString() + "<br>" + countOf(point) + " in the last " +
         point.window.toFixed(0) + "s");
     });
     capture.addEventListener("mouseleave", function () {
@@ -634,7 +657,7 @@
     host.textContent = "";
     legend.textContent = "";
 
-    var byStatus = groupSum(pick("ladle_http_requests_total", notOps), "status");
+    var byStatus = groupSum(pick("ladle_http_requests_total", visible), "status");
     var total = 0;
     var i;
     for (i = 0; i < STATUS_ORDER.length; i++) total += byStatus[STATUS_ORDER[i].key] || 0;
@@ -672,7 +695,7 @@
   function renderRoutes() {
     var host = el("routes");
     host.textContent = "";
-    var entries = pick("ladle_http_requests_total", notOps);
+    var entries = pick("ladle_http_requests_total", visible);
     if (!entries.length) {
       host.innerHTML = '<p class="empty">No requests recorded yet.</p>';
       return;
@@ -1070,6 +1093,7 @@
     renderProviders();
     renderCacheSync();
     renderRateLimits();
+    paintHealthToggle();
   }
 
   /* ---------- polling ---------- */
@@ -1080,12 +1104,14 @@
     el("pulse-text").textContent = text;
   }
 
-  function totalRequests(map) {
+  function totalRequests(series, withHealth) {
     var total = 0;
-    for (var key in map) {
-      if (key.indexOf("ladle_http_requests_total{") !== 0) continue;
-      if (key.indexOf('route=/ops') !== -1) continue;
-      total += map[key];
+    for (var i = 0; i < series.length; i++) {
+      var entry = series[i];
+      if (entry.name !== "ladle_http_requests_total") continue;
+      if (isOps(entry.labels)) continue;
+      if (!withHealth && isHealth(entry.labels)) continue;
+      total += entry.value;
     }
     return total;
   }
@@ -1100,22 +1126,31 @@
       .then(function (payload) {
         var at = new Date(payload.generatedAt);
         if (isNaN(at.getTime())) at = new Date();
+        var previous = state.series;
         state.series = payload.series;
-        var map = index(payload.series);
         if (state.prev) {
           var window = (at - state.prevAt) / 1000;
           if (window > 0.5) {
-            var delta = totalRequests(map) - totalRequests(state.prev);
-            if (delta < 0) delta = 0;
+            // Both are recorded every tick so flipping the health toggle
+            // re-reads the other series instead of restarting the chart.
+            var real = totalRequests(payload.series, false) -
+              totalRequests(previous, false);
+            var all = totalRequests(payload.series, true) -
+              totalRequests(previous, true);
             state.points.push({
-              at: at, rate: (delta / window) * 60, count: Math.round(delta), window: window
+              at: at,
+              rate: (Math.max(0, real) / window) * 60,
+              rateAll: (Math.max(0, all) / window) * 60,
+              count: Math.round(Math.max(0, real)),
+              countAll: Math.round(Math.max(0, all)),
+              window: window
             });
             if (state.points.length > MAX_POINTS) state.points.shift();
           }
         } else {
-          state.baseline = map;
+          state.baseline = payload.series;
         }
-        state.prev = map;
+        state.prev = payload.series;
         state.prevAt = at;
         state.failures = 0;
         renderAll();
@@ -1139,6 +1174,29 @@
       .catch(function () { renderReadiness(null); });
   }
 
+  function paintHealthToggle() {
+    var button = el("health");
+    button.textContent = "Health checks: " + (state.includeHealth ? "shown" : "hidden");
+    button.setAttribute("aria-pressed", state.includeHealth ? "true" : "false");
+    var probes = sum(pick("ladle_http_requests_total", function (labels) {
+      return isHealth(labels);
+    }));
+    el("health-note").textContent = probes
+      ? (state.includeHealth ? "Counting " : "Excluding ") + probes.toLocaleString() +
+        " uptime-probe requests to /health/live and /health/ready."
+      : "";
+  }
+
+  el("health").addEventListener("click", function () {
+    state.includeHealth = !state.includeHealth;
+    try {
+      localStorage.setItem(HEALTH_PREF, state.includeHealth ? "1" : "0");
+    } catch (error) {
+      // A private window just forgets the choice; the page still works.
+    }
+    renderAll();
+  });
+
   el("toggle").addEventListener("click", function () {
     state.running = !state.running;
     this.textContent = state.running ? "Pause" : "Resume";
@@ -1156,6 +1214,7 @@
   });
 
   renderReadiness(null);
+  paintHealthToggle();
   poll();
   pollReadiness();
   setInterval(poll, POLL_MS);
