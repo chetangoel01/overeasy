@@ -352,3 +352,57 @@ def test_privacy_retention_and_object_cleanup_run_on_a_schedule() -> None:
     import ladle.worker.tasks  # noqa: F401
 
     assert RETENTION_SWEEP_TASK in celery_app.tasks
+
+
+def test_the_worker_connects_its_log_formatter_outside_production() -> None:
+    """The gate that kept the redacting formatter off the deployed worker.
+
+    `configure_worker_logging` itself was fixed to follow the setting, but the
+    signal that calls it was still connected only when environment ==
+    "production". The VPS runs the documented development exception, so worker
+    output never went through sink-boundary redaction at all.
+    """
+
+    import importlib
+
+    from celery.signals import setup_logging
+
+    import ladle.worker.app as worker_app
+
+    # The suite runs with the default environment, which is "development" —
+    # exactly the case the old gate excluded.
+    assert worker_app._worker_settings.environment != "production"
+    importlib.reload(worker_app)
+
+    assert setup_logging.has_listeners(), (
+        "setup_logging must have a receiver, or worker output never reaches "
+        "the redacting formatter"
+    )
+
+
+def test_the_heartbeat_also_leaves_a_file_the_health_check_can_stat(
+    tmp_path,
+) -> None:
+    # An 11-second `celery inspect ping` was being spent to learn what this
+    # file answers in microseconds.
+    from ladle.worker.app import record_worker_heartbeat
+
+    beacon = tmp_path / "worker-heartbeat"
+    metrics = RecordingMetrics()
+
+    record_worker_heartbeat(metrics=metrics, beacon=beacon)
+
+    assert beacon.exists()
+
+
+def test_a_missing_beacon_directory_never_kills_the_worker(tmp_path) -> None:
+    # Liveness bookkeeping must not be able to take down the process it
+    # reports on, so an unwritable path is swallowed.
+    from ladle.worker.app import record_worker_heartbeat
+
+    metrics = RecordingMetrics()
+    record_worker_heartbeat(
+        metrics=metrics, beacon=tmp_path / "no" / "such" / "dir" / "f"
+    )
+
+    assert metrics.values, "the gauge must still be written"

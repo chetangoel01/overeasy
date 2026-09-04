@@ -201,21 +201,16 @@ services:
       - --concurrency=4
     healthcheck:
       <<: *testing-healthcheck
+      # `celery inspect ping` cost about eleven seconds a run: it spawns a CLI
+      # process that imports the whole application before it can ask the worker
+      # anything, and it was timing out against its own 10s budget while
+      # answering OK. Celery's heartbeat already touches this file, so the same
+      # liveness is one stat call away. /tmp is tmpfs above, which is what makes
+      # it writable under read_only: true.
       test:
-        - CMD
-        - /app/.venv/bin/celery
-        - -A
-        - ladle.worker.app:celery_app
-        - inspect
-        - ping
-        - --timeout=5
-      # `celery inspect ping` spawns a CLI process that imports the whole
-      # application before it can ask anything, and that costs about eleven
-      # seconds on this host — measured over three runs, not guessed. At 10s
-      # the probe timed out while the ping itself answered OK, so a healthy
-      # worker reported unhealthy. The budget has to cover process start, not
-      # only the --timeout=5 that the ping itself waits.
-      timeout: 30s
+        - CMD-SHELL
+        - test -f /tmp/worker-heartbeat && [ $(( $(date +%s) - $(stat -c %Y /tmp/worker-heartbeat) )) -lt 300 ]
+      timeout: 5s
     depends_on:
       migrate:
         condition: service_completed_successfully

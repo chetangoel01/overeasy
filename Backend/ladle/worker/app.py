@@ -1,3 +1,6 @@
+import logging
+from pathlib import Path
+
 from celery import Celery
 from celery.signals import heartbeat_sent, setup_logging, worker_ready
 
@@ -9,6 +12,8 @@ from ladle.observability.metrics import MetricsRegistry
 from ladle.observability.structured_logging import configure_structured_logging
 from ladle.observability.tracing import instrument_worker
 from ladle.privacy.retention import RETENTION_SWEEP_TASK
+
+LOGGER = logging.getLogger("ladle.worker")
 
 
 def create_celery_app(settings: Settings | None = None) -> Celery:
@@ -73,10 +78,18 @@ def configure_worker_logging(
         configure_structured_logging(level=configured.log_level)
 
 
+# Written on every Celery heartbeat so a container health check can learn the
+# worker is alive by stat-ing a file, instead of spending eleven seconds and a
+# whole Python interpreter on `celery inspect ping`. /tmp is tmpfs in the
+# deployment, which is why this works under read_only: true.
+WORKER_BEACON = Path("/tmp/worker-heartbeat")
+
+
 def record_worker_heartbeat(
     *,
     metrics: MetricsRegistry | None = None,
     clock: Clock | None = None,
+    beacon: Path | None = None,
     **_: object,
 ) -> None:
     if metrics is None:
@@ -87,15 +100,23 @@ def record_worker_heartbeat(
         "ladle_worker_last_seen_timestamp_seconds",
         (clock or SystemClock()).now().timestamp(),
     )
+    try:
+        (beacon or WORKER_BEACON).touch()
+    except OSError:
+        # Liveness bookkeeping must never be able to kill the process it
+        # reports on. A missing beacon just makes the probe go stale, which is
+        # the honest outcome anyway.
+        LOGGER.warning("could not write the worker heartbeat beacon")
 
 
 _worker_settings = Settings()
 celery_app = create_celery_app(_worker_settings)
-if (
-    _worker_settings.environment == "production"
-    and _worker_settings.structured_logging_enabled
-):
-    setup_logging.connect(configure_worker_logging, weak=False)
+# Follows the setting, not the environment. The deployed host runs the
+# documented LADLE_ENVIRONMENT=development exception, so gating on
+# "production" here meant worker output never reached the redacting formatter
+# on the one machine where that mattered. configure_worker_logging checks the
+# setting again, so connecting unconditionally stays correct when it is off.
+setup_logging.connect(configure_worker_logging, weak=False)
 heartbeat_sent.connect(record_worker_heartbeat, weak=False)
 worker_ready.connect(record_worker_heartbeat, weak=False)
 worker_tracer_provider = instrument_worker(_worker_settings)
