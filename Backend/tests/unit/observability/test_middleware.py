@@ -78,3 +78,6 @@ def test_successful_uptime_probes_are_not_logged_but_failing_ones_are() -> None:
     assert is_loggable("/health/live", 200) is False
     assert is_loggable("/health/ready", 503) is True
     assert is_loggable("/v1/recipes", 200) is True
+    # An open dashboard polls twelve times a minute; same reasoning.
+    assert is_loggable("/ops/metrics.json", 200) is False
+    assert is_loggable("/ops/metrics.json", 500) is True
