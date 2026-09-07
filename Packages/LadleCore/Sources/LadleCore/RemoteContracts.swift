@@ -415,6 +415,7 @@ public struct RemoteNutritionDTO: Codable, Hashable, Sendable {
     public let otherNutrients: [RemoteNutrientDTO]
     public let servingBasis: String
     public let isEstimated: Bool
+    public let approximate: Bool
 
     public init(_ value: Nutrition) {
         calories = value.calories.map(remoteDecimalString)
@@ -428,6 +429,49 @@ public struct RemoteNutritionDTO: Codable, Hashable, Sendable {
         otherNutrients = value.otherNutrients.map(RemoteNutrientDTO.init)
         servingBasis = remoteDecimalString(value.servingBasis)
         isEstimated = value.isEstimated
+        approximate = value.approximate
+    }
+
+    /// Hand-written only for `approximate`: a deployment older than the
+    /// marker never sends the key, and its panels are complete.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        calories = try container.decodeIfPresent(String.self, forKey: .calories)
+        proteinGrams = try container.decodeIfPresent(
+            String.self,
+            forKey: .proteinGrams
+        )
+        carbohydrateGrams = try container.decodeIfPresent(
+            String.self,
+            forKey: .carbohydrateGrams
+        )
+        fatGrams = try container.decodeIfPresent(String.self, forKey: .fatGrams)
+        saturatedFatGrams = try container.decodeIfPresent(
+            String.self,
+            forKey: .saturatedFatGrams
+        )
+        fiberGrams = try container.decodeIfPresent(
+            String.self,
+            forKey: .fiberGrams
+        )
+        sugarGrams = try container.decodeIfPresent(
+            String.self,
+            forKey: .sugarGrams
+        )
+        sodiumMilligrams = try container.decodeIfPresent(
+            String.self,
+            forKey: .sodiumMilligrams
+        )
+        otherNutrients = try container.decode(
+            [RemoteNutrientDTO].self,
+            forKey: .otherNutrients
+        )
+        servingBasis = try container.decode(String.self, forKey: .servingBasis)
+        isEstimated = try container.decode(Bool.self, forKey: .isEstimated)
+        approximate = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .approximate
+        ) ?? false
     }
 
     fileprivate func nutrition() throws -> Nutrition {
@@ -451,7 +495,8 @@ public struct RemoteNutritionDTO: Codable, Hashable, Sendable {
             ),
             otherNutrients: try otherNutrients.map { try $0.nutrient() },
             servingBasis: try remoteDecimal(servingBasis, field: "servingBasis"),
-            isEstimated: isEstimated
+            isEstimated: isEstimated,
+            approximate: approximate
         )
     }
 

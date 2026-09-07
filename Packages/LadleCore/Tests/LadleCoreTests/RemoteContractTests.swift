@@ -19,6 +19,48 @@ struct RemoteContractTests {
     }
 
     @Test
+    func approximateNutritionFixtureCarriesTheMarkerAndNamesTheGap() throws {
+        // Totals for what matched, the marker set, and the ingredient that
+        // was skipped named twice: once on its own row and once in the
+        // recipe-level summary the panel reads.
+        let dto: RemoteRecipeDTO = try decodeFixture(
+            "recipe-approximate-nutrition"
+        )
+        let recipe = try dto.recipe()
+
+        #expect(recipe.reviewStatus == .ready)
+        #expect(recipe.nutrition?.calories == Decimal(string: "410"))
+        #expect(recipe.nutrition?.approximate == true)
+        #expect(recipe.ingredients[1].uncertainty?.reason
+            == "Not counted: no nutrition record found for garam masala.")
+        #expect(recipe.uncertainties.first { $0.field == "nutrition" }?.reason
+            == "1 of 2 ingredients not counted: garam masala.")
+    }
+
+    @Test
+    func aServerWithoutTheApproximateKeyMeansComplete() throws {
+        // Older deployments never send the field; their panels are whole.
+        var stripped = try fixtureObject("recipe-approximate-nutrition")
+        var nutrition = try #require(stripped["nutrition"] as? [String: Any])
+        nutrition.removeValue(forKey: "approximate")
+        stripped["nutrition"] = nutrition
+
+        let dto = try RemoteContractJSON.decoder().decode(
+            RemoteRecipeDTO.self,
+            from: JSONSerialization.data(withJSONObject: stripped)
+        )
+
+        #expect(try dto.recipe().nutrition?.approximate == false)
+    }
+
+    @Test
+    func aCompletePanelIsNotMarkedApproximate() throws {
+        let dto: RemoteRecipeDTO = try decodeFixture("recipe-ready")
+
+        #expect(try dto.recipe().nutrition?.approximate == false)
+    }
+
+    @Test
     func needsReviewFixturePreservesUncertainty() throws {
         let dto: RemoteRecipeDTO = try decodeFixture("recipe-needs-review")
         let recipe = try dto.recipe()
@@ -341,6 +383,17 @@ struct RemoteContractTests {
 }
 
 private func decodeFixture<Value: Decodable>(_ name: String) throws -> Value {
+    try RemoteContractJSON.decoder().decode(Value.self, from: fixtureData(name))
+}
+
+/// A fixture as loose JSON, for the tests that have to take a key away
+/// before decoding it.
+private func fixtureObject(_ name: String) throws -> [String: Any] {
+    try JSONSerialization.jsonObject(with: fixtureData(name))
+        as? [String: Any] ?? [:]
+}
+
+private func fixtureData(_ name: String) throws -> Data {
     let repositoryRoot = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent()
         .deletingLastPathComponent()
@@ -351,6 +404,5 @@ private func decodeFixture<Value: Decodable>(_ name: String) throws -> Value {
         .appendingPathComponent("Contracts")
         .appendingPathComponent("Fixtures")
         .appendingPathComponent("\(name).json")
-    let data = try Data(contentsOf: fixtureURL)
-    return try RemoteContractJSON.decoder().decode(Value.self, from: data)
+    return try Data(contentsOf: fixtureURL)
 }
