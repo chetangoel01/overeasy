@@ -215,3 +215,11 @@ No UI test pinned the old glyph or the old VoiceOver label, so
 - No demo fixture carries the marker, so the "Overeast UI validation"
   scenarios show it only against a live server.
 - The ops-dashboard panel and the curated table are the later halves of #37.
+
+## Captures
+
+Left is `main`, right is this branch, on the seeded library.
+
+| Before | After |
+| --- | --- |
+| ![Before](captures/2026-09-07-approximate-nutrition-marker/before.png) | ![After](captures/2026-09-07-approximate-nutrition-marker/after.png) |
