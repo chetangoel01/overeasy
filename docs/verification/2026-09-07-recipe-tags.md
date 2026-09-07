@@ -3,6 +3,9 @@
 Issue #87, backend half. The iOS filter control is a separate change; nothing
 in `Ladle/` or `Packages/` is touched here.
 
+Stacked on `feat/nutrition-skip-what-does-not-match` (#104), which owns
+migration `0024`. This one is `0025`.
+
 ## Why
 
 TestFlight feedback from Sagrika Sethi: on the Watch tab she scrolled past ten
@@ -28,6 +31,8 @@ Both tables are keyed on `(recipe_id, …, value)` and cascade from the recipe,
 so account deletion and the retention sweep need no changes, and a guest→account
 merge carries tags along because `auth/merge.py` reassigns `Recipe.user_id`
 rather than re-inserting the recipe.
+
+Migration `0025`, on top of #104's `0024`.
 
 Proposals get their own table rather than a fourth `family` value so that "not
 filterable until promoted" is a property of the schema rather than a rule in
@@ -182,7 +187,7 @@ uv run pytest tests/integration/admin/test_backfill_tags.py -n0   → 8 passed
 ### Local stack
 
 `docker compose up -d --build` from `Backend/`, then `/health/ready` reported
-every check ready on migration `0024`. 81 recipes across 14 sources were
+every check ready on migration `0025`. 81 recipes across 14 sources were
 already stored from earlier local work.
 
 Dry run, one source:
