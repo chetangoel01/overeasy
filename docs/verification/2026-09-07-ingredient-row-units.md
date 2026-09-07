@@ -146,3 +146,14 @@ pinned instead by `testTheDemoLibraryReadsWithItsUnits`, which asserts the
 first two rows of the smash burgers read "1 lb ground beef — 80/20, in four
 loose balls" and "4 potato rolls — split". That assertion is durable in a way a
 screenshot is not.
+
+## Captures
+
+The editor's ingredient fields on the seeded library, `Ladle-Verify` (iPhone
+17, iOS 26.5). Left is `main`, right is this branch: the first field is now
+"Amount" and holds the whole phrase, so a hand-typed row is stored in the same
+shape as an imported one.
+
+| Before | After |
+| --- | --- |
+| ![Before](captures/2026-09-07-ingredient-row-units/before-editor-ingredients.png) | ![After](captures/2026-09-07-ingredient-row-units/after-editor-ingredients.png) |
