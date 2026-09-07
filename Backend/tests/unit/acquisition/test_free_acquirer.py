@@ -289,7 +289,6 @@ def test_a_photo_post_never_shells_out_to_ytdlp() -> None:
     assert context.metadata is not None
     assert context.metadata.description == COVERED_CAPTION
     assert context.metadata.title == "Hot Honey Chicken Tacos"
-    assert "photoPostCaption" in context.diagnostics
 
 
 def test_a_photo_post_reads_its_page_even_with_subtitles_disabled() -> None:

@@ -132,8 +132,6 @@ class FreeAcquirer:
         # read whether or not captions are wanted.
         if not context.transcript and source.platform == "tiktok":
             self._apply_tiktok_page(source.canonical_url, context)
-        if context.media_kind is MediaKind.PHOTO:
-            context.diagnostics.append("photoPostCaption")
         metadata = context.metadata
         if metadata is None:
             return context

@@ -72,6 +72,13 @@ narration; a carousel has none, so each is a call certain to fail. `check_public
 gets the same treatment, so a stale-source re-check cannot fall through to a
 paid metadata call either.
 
+**The verifier still has something to work with.** `verification_evidence`
+(`extraction/verification.py:89`) copies the title and the description into the
+verifier boundary alongside transcript and linked documents — unlike
+`has_recipe_evidence`, which counts neither. So a caption-only import is checked
+against its own caption rather than against nothing, and a recipe-bearing
+carousel can reach `ready` instead of being pushed into review by construction.
+
 `assess_coverage` and `has_recipe_evidence` were deliberately **not** touched.
 Widening them is the line the whole provider ladder rests on, and returning
 early makes it unnecessary.
@@ -149,6 +156,14 @@ need a bump.
   photo-specific code instead of slowly and expensively with the generic one.
   Vision over slides is deliberately out of scope; if the hand-off turns out to
   be the common case, that is a new issue with that evidence attached.
+- **A deleted or private carousel fails `parserUnavailable`, not
+  `privateOrDeleted`.** yt-dlp was the only source of `PrivateOrDeleted` for
+  TikTok, and it is now skipped for photo posts; `TikTokPageClient` swallows a
+  404 into empty evidence, which `_photo_context` turns into
+  `ProviderUnavailable`. The cook is told the parser was unavailable and the job
+  is retryable when it should not be. Not a regression — a `/photo/` URL was
+  rejected outright before — but it is the next thing to fix here, and it wants
+  the page client to distinguish a 404 from a transport failure.
 - `FreeAcquirer.counts` still routes TikTok through yt-dlp, so a count refresh
   on a carousel returns nothing. That is unchanged from TikTok video posts on
   server infrastructure, where TikTok rejects yt-dlp outright, and is not made
