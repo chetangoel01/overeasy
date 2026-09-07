@@ -167,3 +167,11 @@ xcrun simctl launch --terminate-running-process <udid> com.ladle.ios \
 The accent held in the app's own domain was checked too, by having a
 diagnostic build write `sage` through `UserDefaults.standard` on one launch
 and reading it back on the next. Both paths end on brick.
+
+## Captures
+
+Left is `main`, right is this branch, on the seeded library.
+
+| Before | After |
+| --- | --- |
+| ![Before](captures/2026-09-07-reset-preferences-accent/before.png) | ![After](captures/2026-09-07-reset-preferences-accent/after.png) |
