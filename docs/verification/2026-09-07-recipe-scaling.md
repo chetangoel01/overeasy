@@ -76,6 +76,12 @@ multiplier, held in view state, that nothing writes and nothing syncs.
   the marker uses `Label.secondary` where uncertainty uses the accent. An
   unquantified line is an aside about one row, not a warning about the recipe,
   and a scaled list of eight ingredients could otherwise light up in accent.
+- **The scaled state is announced once, when the sheet closes.** The stepper
+  reads its own value on every press, so announcing from the band on each
+  change made a cook stepping four to eight hear each count twice. The
+  announcement fires on dismissal, and only if the count actually moved. The
+  band also carries an accessibility label, value and hint, so a VoiceOver
+  user who missed the announcement can read the state off the control.
 - **An edit re-bases the scaling.** `applyChangedRecipe` rebuilds it from the
   recipe's new `servings`, because a ratio against a yield the recipe no
   longer claims is meaningless.
@@ -146,20 +152,43 @@ fifteen minutes without starting a test and was killed.
   equal to ("Optional(1.5)")`.
 - **Green, after:** the same command — "Executed 23 tests, with 0 failures (0
   unexpected)", "** TEST SUCCEEDED **".
-- **Whole unit suite,** `-only-testing:LadleTests` — "Executed 488 tests, with
-  1 test skipped and 0 failures (0 unexpected)". This is the run that checks
-  the fixture change did not move any rendered string: #90's
-  `testTheDemoLibraryReadsWithItsUnits` still passes unchanged.
+- **Whole unit suite,** `-only-testing:LadleTests` — "Executed 493 tests, with
+  1 test skipped and 0 failures (0 unexpected)", after rebasing onto #103's
+  later editor commit. This is the run that checks the fixture change did not
+  move any rendered string: #90's `testTheDemoLibraryReadsWithItsUnits` still
+  passes unchanged, as do that commit's editor tests, which now write a
+  `normalizedQuantity` of their own for scaling to multiply.
+- **Whole UI suite,** `-only-testing:LadleUITests` — "Executed 29 tests, with 0
+  failures (0 unexpected)", "** TEST SUCCEEDED **". Worth running rather than
+  reasoning about: `StateScenarioUITests` drives card → detail → Start Cooking
+  → Focus mode, which is the flow this change rebuilt.
 - **UI test,** `-only-testing:LadleUITests/RecipeScalingUITests` — taps the
   yield on the seeded demo library, steps 4 → 8, and asserts the ground-beef
   row moves from "1 lb" to "2 lb", that the verbatim row is gone, and that the
   band reads "Scaled from 4 servings" — "Executed 1 test, with 0 failures (0
   unexpected) in 22.243 seconds", "** TEST SUCCEEDED **". It attaches two
   screenshots, the stepper at eight and the scaled page.
-- **Build,** `xcodebuild build -scheme LadleAllTests` — "** BUILD SUCCEEDED **".
+- **Build,** `xcodebuild build -scheme Ladle` — "** BUILD SUCCEEDED **", so the
+  app and the Share Extension both compile.
 - **Looked at**, not only asserted: the two attachments show the band reading
   "8 servings ⌃⌄ / Scaled from 4 servings" in the same shape as "25 min /
   Total time" beside it, and the sheet as a plain iOS stepper card.
+
+### Two things this machine did, that the next agent should not chase
+
+- **A stale `-derivedDataPath` produced a false failure.** `RecipeScalingUITests`
+  failed on "no `recipe.yield` button", and the captured hierarchy showed the
+  old read-only band. `strings` on the built `Ladle.app` had no "Scaled from"
+  in it: the app had not been rebuilt, after earlier runs in the same
+  DerivedData were killed part-way. Deleting the directory and rebuilding from
+  clean fixed it. Check the binary before believing a UI failure that says a
+  view is missing.
+- **`DiscoverInteractionUITests.testDiscoverRecipeSupportsTapAndLongPress`
+  failed twice inside a whole-suite run** with "Restarting after unexpected
+  exit, crash, or test timeout", at two different points, and no crash report
+  on the device. Run alone on this branch it passes in 17s, as it does on the
+  base commit; the whole suite then passed 29/29. Several agents had
+  simulators booted at the time. Environment, not this change.
 
 ### Gap
 
