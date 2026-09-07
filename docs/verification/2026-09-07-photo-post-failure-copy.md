@@ -135,3 +135,11 @@ Tests added:
 
 `DemoImportService` fails any link whose URL contains `photo` with the new code,
 so the sheet can be opened in the UI-review simulator without a server.
+
+## Captures
+
+Left is `main`, right is this branch, on the seeded library.
+
+| Before | After |
+| --- | --- |
+| ![Before](captures/2026-09-07-photo-post-failure-copy/before.png) | ![After](captures/2026-09-07-photo-post-failure-copy/after.png) |
