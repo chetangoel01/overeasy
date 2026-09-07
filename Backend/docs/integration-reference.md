@@ -714,6 +714,7 @@ erDiagram
     recipes ||--o{ ingredients : has
     recipes ||--o{ recipe_steps : has
     recipes ||--o| nutrition : has
+    recipes ||--o{ nutrition_skips : could_not_count
     recipes ||--o{ field_uncertainties : flags
     recipes ||--o{ recipe_changes : emits
 
@@ -777,11 +778,25 @@ concurrent requests.
 | `step_ingredients` | Composite PK `(recipe_id, step_id, ingredient_id)` with composite FKs that guarantee the step and ingredient belong to the same recipe |
 | `detected_timers` | `id uuid PK`; step FK; label; positive duration enforced by the API contract |
 | `nutrition` | Recipe UUID PK/FK; standard nutrients as `numeric(18,6)`; serving basis; estimated flag |
+| `nutrition_skips` | `id uuid PK`; recipe FK `ON DELETE CASCADE`; ingredient name; failure `code varchar(64)`; `estimated_grams numeric(18,6)`; `recorded_at timestamptz` |
 | `other_nutrients` | `id uuid PK`; nutrition recipe FK; name; amount `numeric(18,6)`; unit |
 | `field_uncertainties` | `id uuid PK`; recipe FK; optional ingredient/step FKs; field path; reason; confidence `numeric(5,4)` |
 
 Child recipe rows cascade when the recipe is physically removed. Normal API
 deletion is soft: `recipes.deleted_at` is set and a sync tombstone is emitted.
+
+An ingredient no food record answers is skipped rather than voiding the
+recipe's nutrition: the rest is totalled and one `nutrition_skips` row per
+skipped ingredient is written with the recipe. The rows are replaced whole
+every time a recipe's nutrition is recalculated, so they describe what is
+missing now. They serve two readers. `NutritionDTO.approximate` is computed
+from them on the way out — a stored column would be cleared by the first
+`PUT /recipes/{id}` from a client that has never heard of the field, since that
+route rewrites the graph from what it was sent, and nothing a client writes
+reaches this table. And an operator can count which foods are missed most
+often, and on which recipes. The rows themselves are not on the wire: the app
+learns which ingredients were skipped from the `ingredients[i].nutrition`
+uncertainties, which name them.
 
 ### Discover reading position
 

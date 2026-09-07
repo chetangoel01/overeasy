@@ -35,17 +35,17 @@ def uncounted_ingredients(
 ) -> list[UncountedIngredient]:
     """What a one-ingredient recipe could not cost.
 
-    One ingredient is the whole of such a recipe's mass, so failing to cost
-    it always trips the coverage floor. The records are still written before
-    the raise, which is what these tests are about.
+    The single ingredient is the whole recipe, so nothing is left to total
+    and the calculation ends with no nutrition rather than an error. The
+    record naming the ingredient is still written, which is what these
+    tests are about.
     """
     records: list[UncountedIngredient] = []
-    with pytest.raises(NutritionCalculationUnavailable) as error:
-        NutritionCalculator(source).calculate_required(
-            recipe([value]),
-            uncounted=records,
-        )
-    assert error.value.code == "insufficientCoverage"
+    result = NutritionCalculator(source).calculate_required(
+        recipe([value]),
+        uncounted=records,
+    )
+    assert result is None
     return records
 
 
@@ -348,10 +348,11 @@ def test_explicitly_excluded_water_is_not_looked_up() -> None:
 
 
 def test_missing_food_match_leaves_the_only_ingredient_uncounted() -> None:
-    """The ingredient is dropped, not the calculation — but it is the recipe.
+    """The ingredient is dropped, and with it the whole of the recipe.
 
     Nothing is left to total once the single ingredient goes uncounted, so
-    the coverage floor blocks the recipe. The record still names it.
+    there is no block to show — which is an empty result, not a failure.
+    The record still names the ingredient.
     """
     assert NutritionCalculator(Foods({})).calculate(recipe([ingredient()])) is None
 
@@ -845,12 +846,12 @@ def test_one_unmatched_ingredient_of_many_still_totals_the_rest() -> None:
     assert result.evidence == "USDA FDC 171077"
 
 
-def test_uncounted_mass_over_the_share_blocks_the_recipe() -> None:
-    """Skipping the chicken is not the same as skipping the curry leaves.
+def test_most_of_the_dish_going_uncounted_still_totals_the_rest() -> None:
+    """Even 200 g of 500 g missing does not cost the recipe its number.
 
-    The floor is on mass, not on how many ingredients failed: a quarter of
-    the dish going uncounted is the point at which the remaining number
-    stops describing the plate.
+    There is no coverage floor: a recipe is never voided for nutrition
+    reasons. A stew where only the onion matched shows the onion, and the
+    marker on the card carries the doubt.
     """
     source = Foods(
         {
@@ -861,35 +862,35 @@ def test_uncounted_mass_over_the_share_blocks_the_recipe() -> None:
     )
     records: list[UncountedIngredient] = []
 
-    with pytest.raises(NutritionCalculationUnavailable) as error:
-        NutritionCalculator(source).calculate_required(
-            recipe(
-                [
-                    ingredient(
-                        name="egg noodles",
-                        query="egg noodles dry",
-                        quantity="300",
-                        metric_amount="300",
-                    ),
-                    ingredient(
-                        name="garam masala",
-                        query="garam masala",
-                        quantity="200",
-                        metric_amount="200",
-                        order_index=1,
-                    ),
-                ]
-            ),
-            uncounted=records,
-        )
+    result = NutritionCalculator(source).calculate_required(
+        recipe(
+            [
+                ingredient(
+                    name="egg noodles",
+                    query="egg noodles dry",
+                    quantity="300",
+                    metric_amount="300",
+                ),
+                ingredient(
+                    name="garam masala",
+                    query="garam masala",
+                    quantity="200",
+                    metric_amount="200",
+                    order_index=1,
+                ),
+            ]
+        ),
+        uncounted=records,
+    )
 
-    assert error.value.code == "insufficientCoverage"
+    assert result is not None
+    assert result.calories == Decimal("105.0")
     assert [value.name for value in records] == ["garam masala"]
 
 
-def test_uncounted_mass_at_the_share_is_still_costed() -> None:
-    # 100 g of 500 g is exactly the default quarter; the floor is a strict
-    # inequality, so the boundary is costed rather than blocked.
+def test_one_unmatched_ingredient_leaves_the_others_totalled() -> None:
+    # The counted 400 g stands on its own; the uncounted 100 g changes
+    # nothing about it beyond the record saying it was left out.
     source = Foods(
         {
             "egg noodles dry": [
@@ -924,39 +925,31 @@ def test_uncounted_mass_at_the_share_is_still_costed() -> None:
     assert [value.estimated_grams for value in records] == [Decimal("100")]
 
 
-def test_a_stricter_share_blocks_what_the_default_allows() -> None:
-    source = Foods(
-        {
-            "egg noodles dry": [
-                food(fdc_id=23, description="egg noodles dry", search_rank=0)
+def test_nothing_matched_produces_no_block_rather_than_an_error() -> None:
+    """The one legitimate empty case, and it is not a failure.
+
+    Every ingredient was skipped, so there is nothing to total. The caller
+    gets no nutrition and no exception: the recipe keeps everything else it
+    has, and the records say what could not be counted.
+    """
+    records: list[UncountedIngredient] = []
+
+    result = NutritionCalculator(Foods({})).calculate_required(
+        recipe(
+            [
+                ingredient(name="egg noodles", query="egg noodles dry"),
+                ingredient(
+                    name="garam masala",
+                    query="garam masala",
+                    order_index=1,
+                ),
             ]
-        }
-    )
-    template = recipe(
-        [
-            ingredient(
-                name="egg noodles",
-                query="egg noodles dry",
-                quantity="400",
-                metric_amount="400",
-            ),
-            ingredient(
-                name="garam masala",
-                query="garam masala",
-                quantity="100",
-                metric_amount="100",
-                order_index=1,
-            ),
-        ]
+        ),
+        uncounted=records,
     )
 
-    with pytest.raises(NutritionCalculationUnavailable) as error:
-        NutritionCalculator(
-            source,
-            uncounted_mass_share_limit=Decimal("0.1"),
-        ).calculate_required(template)
-
-    assert error.value.code == "insufficientCoverage"
+    assert result is None
+    assert [value.name for value in records] == ["egg noodles", "garam masala"]
 
 
 def test_the_fallback_source_is_consulted_once_and_costed() -> None:

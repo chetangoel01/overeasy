@@ -31,6 +31,7 @@ EXPECTED_TABLES = {
     "ingredients",
     "negative_extraction_cache",
     "nutrition",
+    "nutrition_skips",
     "object_deletion_queue",
     "other_nutrients",
     "provider_attempts",
@@ -554,6 +555,88 @@ def test_discover_impressions_upgrade_cascades_and_downgrades(
     command.downgrade(config, "0021")
     engine = create_engine(empty_postgres_url)
     assert "discover_impressions" not in inspect(engine).get_table_names()
+    engine.dispose()
+
+
+@pytest.mark.integration
+def test_nutrition_skips_upgrade_cascades_and_downgrades(
+    empty_postgres_url: str,
+) -> None:
+    """0024 must index the two reads it exists for and follow the recipe.
+
+    The operator panel reads one food across every recipe and a recipe reads
+    its own skips, so both columns are indexed. Deleting a recipe takes its
+    skips with it: a count of what the pipeline is missing must not include
+    recipes that no longer exist. Reversibly."""
+    config = alembic_config(empty_postgres_url)
+    command.upgrade(config, "head")
+    engine = create_engine(empty_postgres_url)
+    user_id = uuid4()
+    recipe_id = uuid4()
+    now = datetime.now(UTC)
+
+    indexes = {
+        value["name"] for value in inspect(engine).get_indexes("nutrition_skips")
+    }
+    assert "ix_nutrition_skips_recipe_id" in indexes
+    assert "ix_nutrition_skips_ingredient_name" in indexes
+
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                INSERT INTO users (id, kind, created_at)
+                VALUES (:id, 'guest', :created_at)
+                """
+            ),
+            {"id": user_id, "created_at": now},
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO recipes (
+                    id, user_id, title, description, source, original_url,
+                    servings, favorite, review_status, revision,
+                    created_at, updated_at
+                )
+                VALUES (
+                    :id, :user_id, 'Chicken Curry', '', 'other', :original_url,
+                    4, false, 'ready', 1, :created_at, :created_at
+                )
+                """
+            ),
+            {
+                "id": recipe_id,
+                "user_id": user_id,
+                "original_url": f"https://manual.ladle.local/{recipe_id}",
+                "created_at": now,
+            },
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO nutrition_skips (
+                    id, recipe_id, ingredient_name, code, estimated_grams
+                ) VALUES (:id, :recipe_id, 'garam masala', 'foodNotFound', 6)
+                """
+            ),
+            {"id": uuid4(), "recipe_id": recipe_id},
+        )
+
+    with engine.begin() as connection:
+        connection.execute(
+            text("DELETE FROM recipes WHERE id = :id"),
+            {"id": recipe_id},
+        )
+        remaining = connection.execute(
+            text("SELECT count(*) FROM nutrition_skips")
+        ).scalar_one()
+    assert remaining == 0
+
+    engine.dispose()
+    command.downgrade(config, "0023")
+    engine = create_engine(empty_postgres_url)
+    assert "nutrition_skips" not in inspect(engine).get_table_names()
     engine.dispose()
 
 

@@ -40,6 +40,7 @@ from ladle.db.models import (
     FieldUncertainty,
     Ingredient,
     Nutrition,
+    NutritionSkip,
     OtherNutrient,
     Recipe,
     RecipeImage,
@@ -612,6 +613,18 @@ class RecipeRepository:
                 select(Nutrition).where(Nutrition.recipe_id.in_(recipe_ids))
             )
         }
+        # The "these totals are missing something" marker is derived from
+        # the skips rather than stored beside the totals. A client editing a
+        # recipe sends the whole nutrition block back, without a field it has
+        # never heard of, and a stored flag would be cleared by that; these
+        # rows are the pipeline's own and no client write reaches them.
+        approximate = set(
+            database.scalars(
+                select(NutritionSkip.recipe_id)
+                .where(NutritionSkip.recipe_id.in_(recipe_ids))
+                .distinct()
+            )
+        )
         other_nutrients: dict[UUID, list[OtherNutrient]] = defaultdict(list)
         for nutrient in database.scalars(
             select(OtherNutrient).where(
@@ -630,6 +643,7 @@ class RecipeRepository:
                 uncertainties=uncertainties[stored.id],
                 nutrition=nutrition.get(stored.id),
                 other_nutrients=other_nutrients[stored.id],
+                approximate=stored.id in approximate,
             )
             for stored in recipes
         }
@@ -646,6 +660,7 @@ class RecipeRepository:
         uncertainties: list[FieldUncertainty],
         nutrition: Nutrition | None,
         other_nutrients: list[OtherNutrient],
+        approximate: bool,
     ) -> RecipeDTO:
         ingredient_uncertainty = {
             value.ingredient_id: value
@@ -707,7 +722,7 @@ class RecipeRepository:
                 )
                 for step in steps
             ],
-            nutrition=self._nutrition_dto(nutrition, other_nutrients),
+            nutrition=self._nutrition_dto(nutrition, other_nutrients, approximate),
             is_favorite=stored.favorite,
             review_status=RecipeReviewStatus(stored.review_status),
             uncertainties=[
@@ -796,6 +811,7 @@ class RecipeRepository:
         self,
         nutrition: Nutrition | None,
         others: list[OtherNutrient],
+        approximate: bool,
     ) -> NutritionDTO | None:
         if nutrition is None:
             return None
@@ -819,6 +835,7 @@ class RecipeRepository:
             ],
             serving_basis=nutrition.serving_basis,
             is_estimated=nutrition.is_estimated,
+            approximate=approximate,
         )
 
     def _image_url(self, image: RecipeImage) -> str:

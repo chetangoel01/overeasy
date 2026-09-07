@@ -3,7 +3,11 @@ from decimal import Decimal
 from uuid import uuid4
 
 from ladle.contracts.recipes import RecipeSource
-from ladle.recipes.template_clone import RecipeTemplate, TemplateIngredient
+from ladle.recipes.template_clone import (
+    RecipeTemplate,
+    TemplateIngredient,
+    TemplateNutrition,
+)
 
 
 def template(*, notes: list[str]) -> RecipeTemplate:
@@ -58,6 +62,37 @@ def test_from_recipe_keeps_notes_when_a_stored_recipe_is_re_templated() -> None:
     round_tripped = RecipeTemplate.from_recipe(recipe)
 
     assert round_tripped.notes == ["Toast the orzo first."]
+
+
+def test_the_approximate_marker_survives_a_round_trip_through_a_recipe() -> None:
+    """A partial total stays labelled once it has been stored and read back.
+
+    Re-templating a stored recipe is how re-import and the refresh script
+    both start. Losing the marker there would quietly promote an incomplete
+    number to a complete one.
+    """
+    source = template(notes=[]).model_copy(
+        update={
+            "nutrition": TemplateNutrition(
+                calories=Decimal("410"),
+                serving_basis=Decimal("1"),
+                is_estimated=True,
+                approximate=True,
+                basis="usdaCalculated",
+            )
+        }
+    )
+
+    recipe = source.instantiate(
+        recipe_id=uuid4(),
+        now=datetime(2026, 9, 7, 12, 0, tzinfo=UTC),
+    )
+
+    assert recipe.nutrition is not None
+    assert recipe.nutrition.approximate
+    round_tripped = RecipeTemplate.from_recipe(recipe)
+    assert round_tripped.nutrition is not None
+    assert round_tripped.nutrition.approximate
 
 
 def test_instantiate_drops_notes_a_recipe_could_never_hold() -> None:

@@ -1,0 +1,86 @@
+{
+  "cookingMinutes": 25,
+  "createdAt": "2026-07-23T20:15:00.000Z",
+  "creatorName": "Mia",
+  "description": "A weeknight curry with a spice blend nothing could cost.",
+  "id": "20000000-0000-4000-8000-000000000004",
+  "images": [],
+  "ingredients": [
+    {
+      "id": "22000000-0000-4000-8000-000000000011",
+      "name": "chicken thighs",
+      "normalizedQuantity": "600",
+      "orderIndex": 0,
+      "preparation": "diced",
+      "quantityText": "600 g",
+      "uncertainty": null,
+      "unit": "g"
+    },
+    {
+      "id": "22000000-0000-4000-8000-000000000012",
+      "name": "garam masala",
+      "normalizedQuantity": "2",
+      "orderIndex": 1,
+      "preparation": null,
+      "quantityText": "2 tsp",
+      "uncertainty": {
+        "confidence": null,
+        "field": "ingredients[1].nutrition",
+        "reason": "Not counted: no nutrition record found for garam masala."
+      },
+      "unit": "tsp"
+    }
+  ],
+  "isFavorite": false,
+  "notes": [],
+  "nutrition": {
+    "approximate": true,
+    "calories": "410",
+    "carbohydrateGrams": "6",
+    "fatGrams": "22",
+    "fiberGrams": null,
+    "isEstimated": true,
+    "otherNutrients": [],
+    "proteinGrams": "38",
+    "saturatedFatGrams": null,
+    "servingBasis": "1",
+    "sodiumMilligrams": null,
+    "sugarGrams": null
+  },
+  "originalURL": "https://www.youtube.com/watch?v=ladle-approximate",
+  "preparationMinutes": 10,
+  "reviewStatus": "ready",
+  "revision": 1,
+  "servings": "4",
+  "source": "youtube",
+  "steps": [
+    {
+      "id": "24000000-0000-4000-8000-000000000011",
+      "ingredientIDs": [
+        "22000000-0000-4000-8000-000000000011",
+        "22000000-0000-4000-8000-000000000012"
+      ],
+      "instruction": "Brown the chicken with the spice blend.",
+      "orderIndex": 0,
+      "sourceEndSeconds": null,
+      "sourceStartSeconds": null,
+      "timers": [],
+      "uncertainty": null
+    }
+  ],
+  "title": "Chicken Curry",
+  "totalMinutes": 35,
+  "uncertainties": [
+    {
+      "confidence": null,
+      "field": "ingredients[1].nutrition",
+      "reason": "Not counted: no nutrition record found for garam masala."
+    },
+    {
+      "confidence": null,
+      "field": "nutrition",
+      "reason": "1 of 2 ingredients not counted: garam masala."
+    }
+  ],
+  "updatedAt": "2026-07-23T20:15:00.000Z"
+}

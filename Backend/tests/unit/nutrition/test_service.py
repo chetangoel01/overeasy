@@ -18,6 +18,7 @@ from ladle.nutrition.normalization import (
 from ladle.nutrition.service import RecipeNutritionService
 from ladle.nutrition.usda import FoodNutrients
 from ladle.recipes.template_clone import (
+    NutritionSkip,
     RecipeTemplate,
     TemplateIngredient,
     TemplateNutrition,
@@ -197,6 +198,8 @@ def test_success_combines_gemini_normalization_with_usda_evidence() -> None:
     assert result.nutrition.protein_grams == Decimal("14.0")
     assert result.nutrition.basis == "usdaCalculated"
     assert result.nutrition.is_estimated
+    assert not result.nutrition.approximate
+    assert result.nutrition_skips == []
     assert "USDA FDC 123" in (result.nutrition.evidence or "")
     assert "85%" in (result.nutrition.evidence or "")
     assert "Dry noodle mass is 400 g." in (result.nutrition.evidence or "")
@@ -220,11 +223,12 @@ def test_normalization_failure_becomes_a_visible_inline_uncertainty() -> None:
     assert "normalizationUnavailable" in blocker.reason
 
 
-def test_usda_failure_names_the_unavailable_ingredient() -> None:
+def test_nothing_matching_names_the_ingredients_without_blocking() -> None:
     """Nothing is left to total when the only ingredient goes uncounted.
 
-    The recipe is blocked for coverage rather than for the lookup, and the
-    blocker still says which ingredient could not be costed.
+    That is an empty result, not an error: no enrichment blocker is written,
+    the recipe keeps everything else, and the notes still say which
+    ingredient could not be costed.
     """
     service = RecipeNutritionService(
         normalizer=Normalizer(),
@@ -235,9 +239,10 @@ def test_usda_failure_names_the_unavailable_ingredient() -> None:
 
     assert result.nutrition is None
     assert result.review_status == RecipeReviewStatus.READY
-    blocker = next(item for item in result.uncertainties if item.field == "nutrition")
-    assert "insufficientCoverage" in blocker.reason
-    assert "noodles" in blocker.reason
+    summary = next(item for item in result.uncertainties if item.field == "nutrition")
+    assert "blocked" not in summary.reason
+    assert summary.reason == "1 of 1 ingredients not counted: noodles."
+    assert [value.name for value in result.nutrition_skips] == ["noodles"]
 
 
 def test_an_uncounted_ingredient_keeps_the_totals_and_marks_the_row() -> None:
@@ -268,6 +273,7 @@ def test_an_uncounted_ingredient_keeps_the_totals_and_marks_the_row() -> None:
 
     assert result.nutrition is not None
     assert result.nutrition.calories == Decimal("350.0")
+    assert result.nutrition.approximate
 
     row = result.ingredients[1].uncertainty
     assert row is not None
@@ -279,7 +285,12 @@ def test_an_uncounted_ingredient_keeps_the_totals_and_marks_the_row() -> None:
     assert summary.reason == "1 of 2 ingredients not counted: garam masala."
 
 
-def test_uncounted_mass_over_the_share_blocks_and_names_the_ingredients() -> None:
+def test_a_heavy_uncounted_ingredient_still_keeps_the_totals() -> None:
+    """Half the mass missing is still not a reason to void the recipe.
+
+    There is no coverage floor left: the marker on the block, not the
+    absence of a block, is what tells the cook the number is partial.
+    """
     service = RecipeNutritionService(
         normalizer=Normalizer(),
         calculator=NutritionCalculator(Foods()),
@@ -300,11 +311,10 @@ def test_uncounted_mass_over_the_share_blocks_and_names_the_ingredients() -> Non
         job_id=uuid4(),
     )
 
-    assert result.nutrition is None
-    blocker = next(item for item in result.uncertainties if item.field == "nutrition")
-    assert "insufficientCoverage" in blocker.reason
-    assert "garam masala" in blocker.reason
-    assert not any(item.field.endswith(".nutrition") for item in result.uncertainties)
+    assert result.nutrition is not None
+    assert result.nutrition.calories == Decimal("350.0")
+    assert result.nutrition.approximate
+    assert [value.name for value in result.nutrition_skips] == ["garam masala"]
 
 
 def test_last_runs_notes_do_not_survive_a_clean_recalculation() -> None:
@@ -325,6 +335,9 @@ def test_last_runs_notes_do_not_survive_a_clean_recalculation() -> None:
     value = value.model_copy(
         update={
             "uncertainties": [*value.uncertainties, stale],
+            "nutrition_skips": [
+                NutritionSkip(index=0, name="noodles", code="foodNotFound")
+            ],
             "ingredients": [
                 value.ingredients[0].model_copy(update={"uncertainty": stale})
             ],
@@ -334,6 +347,8 @@ def test_last_runs_notes_do_not_survive_a_clean_recalculation() -> None:
     result = service.enrich(value, context=context(), job_id=uuid4())
 
     assert result.nutrition is not None
+    assert not result.nutrition.approximate
     assert result.uncertainties == []
+    assert result.nutrition_skips == []
     assert result.ingredients[0].uncertainty is None
     assert result.review_status == RecipeReviewStatus.READY

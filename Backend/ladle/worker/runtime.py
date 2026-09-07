@@ -300,7 +300,6 @@ def _nutrition_calculator(settings: Settings) -> NutritionCalculator | None:
         # an ingredient USDA cannot answer is skipped and named rather than
         # asked about again.
         fallback=None,
-        uncounted_mass_share_limit=settings.nutrition_uncounted_mass_share_limit,
     )
 
 

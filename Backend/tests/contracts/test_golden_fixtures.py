@@ -10,6 +10,7 @@ client reads and the server would no longer send fails here first.
 
 import json
 from datetime import UTC, datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -53,6 +54,7 @@ def canonical_json(value: Any) -> str:
         ("recipe-ready.json", TypeAdapter(RecipeDTO)),
         ("recipe-needs-review.json", TypeAdapter(RecipeDTO)),
         ("recipe-estimated-time.json", TypeAdapter(RecipeDTO)),
+        ("recipe-approximate-nutrition.json", TypeAdapter(RecipeDTO)),
         ("sync-page.json", TypeAdapter(SyncPageDTO)),
         ("errors.json", TypeAdapter(list[ErrorEnvelope])),
         ("auth-tokens.json", TypeAdapter(AuthTokensResponse)),
@@ -115,6 +117,32 @@ def test_wire_scalars_are_lowercase_fractional_and_string_decimal() -> None:
     fixture["servings"] = 4
     with pytest.raises(ValidationError):
         RecipeDTO.model_validate(fixture)
+
+
+def test_approximate_nutrition_names_what_was_left_out() -> None:
+    """The shape the app renders "≈ 410 cal" from.
+
+    One ingredient nothing could cost no longer voids the panel: the totals
+    stand, `approximate` marks them, and the ingredients left out ride the
+    uncertainty channel that already puts a note under the row. The card
+    shows only the marker; the names belong on the nutrition sheet.
+    """
+
+    recipe = RecipeDTO.model_validate(fixture_json("recipe-approximate-nutrition.json"))
+
+    assert recipe.nutrition is not None
+    assert recipe.nutrition.approximate
+    assert recipe.nutrition.calories == Decimal("410")
+    assert recipe.review_status.value == "ready"
+
+    row = recipe.ingredients[1].uncertainty
+    assert row is not None
+    assert row.reason == "Not counted: no nutrition record found for garam masala."
+
+    summary = next(
+        value for value in recipe.uncertainties if value.field == "nutrition"
+    )
+    assert summary.reason == "1 of 2 ingredients not counted: garam masala."
 
 
 def test_error_details_are_code_specific_and_nullable() -> None:

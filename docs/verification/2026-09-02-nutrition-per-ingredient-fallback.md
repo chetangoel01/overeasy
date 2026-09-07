@@ -2,6 +2,11 @@
 
 Date: September 2, 2026
 
+> The floor described here was removed on September 7 — a recipe is never
+> voided for nutrition reasons. See
+> [2026-09-07](2026-09-07-nutrition-no-coverage-floor.md). Everything else
+> below still stands.
+
 Follows [the September 1 USDA work](2026-09-01-usda-nutrition-fix-and-store.md),
 which fixed *which* record an ingredient resolves to. This changes what happens
 when no record resolves at all.
