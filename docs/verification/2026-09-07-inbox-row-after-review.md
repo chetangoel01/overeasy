@@ -269,6 +269,7 @@ Debug builds of the `LadleAllTests` scheme. The unit red run and the first
 green run were on the house simulator
 `54720038-6397-4145-B02F-8C9B639C69FE` (iPhone 17 Pro, iOS 26.5). Every UI
 run and the full 466-test unit suite were on a clean iPhone 17 Pro, iOS 26.5
-simulator created for this work and deleted afterwards: two other agents were
+simulator created for that work and deleted afterwards; the repair's runs
+were on a second one, created and deleted the same way. Two other agents were
 driving the house device at the time, and the UI test died with "Test crashed
 with signal kill" until it had a simulator to itself.
