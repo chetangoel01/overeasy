@@ -153,6 +153,50 @@ final class RecipesFilterMenuUITests: XCTestCase {
         )
     }
 
+    /// Watch draws the control in its own overlay rather than a navigation
+    /// bar, so the alert presents from a different place. The one path with
+    /// no other coverage.
+    @MainActor
+    func testTheControlAndItsAlertAlsoWorkFromWatchsOverlay() throws {
+        let app = launchApp(startingOn: "Watch")
+
+        let filters = app.buttons["library.watch.filter"]
+        XCTAssertTrue(
+            filters.waitForExistence(timeout: 5),
+            "Watch carries the same control in its one band of chrome"
+        )
+        filters.tap()
+
+        let ingredients = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH 'Ingredients'")
+        ).firstMatch
+        XCTAssertTrue(ingredients.waitForExistence(timeout: 2))
+        ingredients.tap()
+
+        let add = app.buttons["Add ingredient…"]
+        XCTAssertTrue(add.waitForExistence(timeout: 2))
+        add.tap()
+
+        let field = app.alerts.textFields.firstMatch
+        XCTAssertTrue(
+            field.waitForExistence(timeout: 2),
+            "The alert presents over the video feed too"
+        )
+        field.typeText("nothing-matches-this")
+        app.alerts.buttons["Add"].tap()
+
+        // Watch has no header to hang a pill from, so the empty state is
+        // where the filter has to show — and it has to offer the way out.
+        XCTAssertTrue(
+            app.buttons["Clear filters"].waitForExistence(timeout: 5),
+            "An emptied feed says what emptied it and offers to clear it"
+        )
+        app.buttons["Clear filters"].tap()
+        XCTAssertTrue(
+            app.buttons["Clear filters"].waitForNonExistence(timeout: 5)
+        )
+    }
+
     /// The diet is written to preferences, so a run that left one on would
     /// hand it to the next test on the same simulator.
     @MainActor

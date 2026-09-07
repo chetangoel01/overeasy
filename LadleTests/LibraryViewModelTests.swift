@@ -133,6 +133,16 @@ final class LibraryViewModelTests: XCTestCase {
         // same filter rather than being the one screen that ignores it.
         XCTAssertEqual(viewModel.watchRecipes.count, 4)
 
+        // The collections stay — a diet is ambient, not a browse — and they
+        // count through it, or a row would promise recipes its own screen
+        // then refused to show.
+        XCTAssertFalse(viewModel.hasBrowsingFilters)
+        XCTAssertEqual(
+            viewModel.collectionRows.map(\.count),
+            [2, 1, 4],
+            "Quick, favorited and uncooked, all vegetarian"
+        )
+
         viewModel.filters.filter.cuisines = [.japanese]
         XCTAssertEqual(
             viewModel.visibleRecipes.map(\.title),

@@ -463,10 +463,14 @@ struct AllRecipesView: View {
         return "Recent"
     }
 
+    /// Hidden while the cook is looking for something in particular, and
+    /// not merely because a diet is on. `filterChips` would have counted
+    /// the diet — which survives launches — so setting one would have taken
+    /// the Collections card away for good.
     private var showsCollections: Bool {
         viewModel.searchText.isEmpty
             && viewModel.selectedCollection == .all
-            && filterChips.isEmpty
+            && !viewModel.hasBrowsingFilters
     }
 }
 
