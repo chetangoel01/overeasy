@@ -44,6 +44,14 @@ public struct RecipeFilter: Equatable, Sendable {
     /// to point at without counting the others.
     public var hasDiet: Bool { !diets.isEmpty }
 
+    /// The families that mean the cook is looking for something in
+    /// particular, as opposed to the diet, which is simply true of them.
+    /// A screen that hides itself under a filter should hide under these
+    /// and not under a diet, which would otherwise hide it forever.
+    public var hasBrowsingFilters: Bool {
+        !cuisines.isEmpty || !keywords.isEmpty || !ingredients.isEmpty
+    }
+
     public var isEmpty: Bool {
         diets.isEmpty
             && cuisines.isEmpty
