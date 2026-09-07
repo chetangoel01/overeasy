@@ -343,7 +343,7 @@ struct RecipeDetailView: View {
                 if model.isSaving {
                     ProgressView()
                         .controlSize(.small)
-                        .tint(accent.label)
+                        .tint(accent.intent)
                 } else {
                     Label(
                         model.isSaved ? "Saved" : "Save",
