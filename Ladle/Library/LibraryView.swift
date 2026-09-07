@@ -429,6 +429,7 @@ struct LibraryView: View {
         WatchView(
             viewModel: viewModel,
             discoverService: discoverService,
+            filters: viewModel.filters,
             refreshVersion: watchRefreshVersion,
             openSavedRecipe: openRecipe,
             openDiscoverRecipe: { recipe, save in
@@ -480,6 +481,7 @@ struct LibraryView: View {
     private var discover: some View {
         DiscoverView(
             service: discoverService,
+            filters: viewModel.filters,
             saveRecipe: { saved in
                 viewModel.storeDiscoveredRecipe(saved)
             },

@@ -50,6 +50,120 @@ final class RecipesFilterMenuUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Remove filter: 30 min or less"].exists)
     }
 
+    /// The point of the shared model: a diet chosen on Recipes is already
+    /// true on Discover, without a second control and without choosing it
+    /// again. Recipes answers it from its own decoded tags; Discover asks
+    /// the server. Neither is visible from here — only that they agree.
+    @MainActor
+    func testADietChosenOnRecipesIsAlreadyAppliedOnDiscover() throws {
+        let app = launchApp(startingOn: "Recipes")
+        defer { clearFilters(in: app) }
+
+        XCTAssertTrue(
+            app.staticTexts["6 recipes"].waitForExistence(timeout: 5),
+            "The demo library starts at six recipes"
+        )
+
+        app.buttons["Filters"].tap()
+        let vegetarian = app.buttons["Vegetarian"]
+        XCTAssertTrue(
+            vegetarian.waitForExistence(timeout: 2),
+            "Diet is the first section of the menu, not behind a submenu"
+        )
+        vegetarian.tap()
+
+        // Four of the demo's six dishes are vegetarian.
+        XCTAssertTrue(
+            app.staticTexts["4 recipes"].waitForExistence(timeout: 3),
+            "The library narrows on the tags it already holds"
+        )
+        XCTAssertTrue(
+            app.buttons["Remove filter: Vegetarian diet"].exists,
+            "A diet outlives the launch, so it says so on screen"
+        )
+
+        app.tabBars.buttons["Discover"].tap()
+
+        XCTAssertTrue(
+            app.buttons["Remove filter: Vegetarian diet"]
+                .waitForExistence(timeout: 3),
+            "Discover reads the same filter, so it shows the same pill"
+        )
+        let burger = app.staticTexts["Crispy Chili Oil Smash Burgers"]
+        XCTAssertFalse(
+            burger.waitForExistence(timeout: 2),
+            "The feed came back filtered; the meat dish is not in it"
+        )
+        XCTAssertTrue(
+            app.staticTexts["One-Pot Lemon Orzo with Feta"].exists,
+            "The vegetarian sources are still there"
+        )
+    }
+
+    /// Ingredients is the one part of the control a menu cannot draw, so it
+    /// borrows a system alert. Driven from Discover, which is the harder of
+    /// the two placements: the menu lives in the navigation bar there, and
+    /// an alert presented from a toolbar item is the thing worth proving.
+    @MainActor
+    func testAnIngredientTermIsTypedIntoTheControlAndNarrowsDiscover() throws {
+        let app = launchApp(startingOn: "Discover")
+
+        XCTAssertTrue(
+            app.staticTexts["Crispy Chili Oil Smash Burgers"]
+                .waitForExistence(timeout: 5)
+        )
+
+        app.buttons["Filters"].tap()
+        let ingredients = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH 'Ingredients'")
+        ).firstMatch
+        XCTAssertTrue(ingredients.waitForExistence(timeout: 2))
+        ingredients.tap()
+
+        let add = app.buttons["Add ingredient…"]
+        XCTAssertTrue(add.waitForExistence(timeout: 2))
+        add.tap()
+
+        let field = app.alerts.textFields.firstMatch
+        XCTAssertTrue(
+            field.waitForExistence(timeout: 2),
+            "Add ingredient… opens an alert with one field"
+        )
+        field.typeText("gochujang")
+        app.alerts.buttons["Add"].tap()
+
+        XCTAssertTrue(
+            app.buttons["Remove filter: With gochujang"]
+                .waitForExistence(timeout: 3),
+            "The term becomes a pill like every other filter"
+        )
+        XCTAssertTrue(
+            app.staticTexts["Sheet-Pan Gochujang Chicken"]
+                .waitForExistence(timeout: 3)
+        )
+        XCTAssertFalse(
+            app.staticTexts["Crispy Chili Oil Smash Burgers"].exists,
+            "The feed came back without the sources that do not list it"
+        )
+
+        app.buttons["Remove filter: With gochujang"].tap()
+        XCTAssertTrue(
+            app.staticTexts["Crispy Chili Oil Smash Burgers"]
+                .waitForExistence(timeout: 3)
+        )
+    }
+
+    /// The diet is written to preferences, so a run that left one on would
+    /// hand it to the next test on the same simulator.
+    @MainActor
+    private func clearFilters(in app: XCUIApplication) {
+        guard app.state == .runningForeground else { return }
+        let pill = app.buttons["Remove filter: Vegetarian diet"].firstMatch
+        if pill.waitForExistence(timeout: 1) {
+            pill.tap()
+        }
+    }
+
     /// The submenu's label carries its current value, so it is matched on its
     /// leading dimension name rather than on the whole string.
     @MainActor
