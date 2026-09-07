@@ -161,6 +161,28 @@ struct RecipeFilterTests {
     }
 
     @Test
+    func showingOneShelfReplacesTheKeywordsAndKeepsEverythingElse() {
+        /// "See all" on a Discover shelf. The shelf was composed under the
+        /// diet and the cuisine that were already on, so those stay or the
+        /// list would not match the row that was tapped. The keywords are
+        /// replaced rather than added to: they combine with *or*, and adding
+        /// one would widen the feed at the moment the cook asked to narrow.
+        var filter = RecipeFilter(
+            diets: [.vegetarian],
+            cuisines: [.japanese],
+            keywords: [.soup],
+            ingredients: ["miso"]
+        )
+
+        filter.showOnly(keyword: .weeknight)
+
+        #expect(filter.keywords == [.weeknight])
+        #expect(filter.diets == [.vegetarian])
+        #expect(filter.cuisines == [.japanese])
+        #expect(filter.ingredients == ["miso"])
+    }
+
+    @Test
     func selectedTagsReadBackInVocabularyOrder() {
         let filter = RecipeFilter(
             diets: [.dairyFree, .vegan],

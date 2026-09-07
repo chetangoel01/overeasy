@@ -102,6 +102,18 @@ public struct RecipeFilter: Equatable, Sendable {
         clearBrowsingFilters()
     }
 
+    /// Browse one keyword and nothing else, keeping who the cook is.
+    ///
+    /// What "See all" on a Discover shelf does. The shelf was already
+    /// composed under the diet, the cuisines and the ingredient terms that
+    /// were on, so leaving those alone is what makes the list underneath
+    /// agree with the shelf that was tapped. The keywords are replaced
+    /// rather than added to: they combine with *or*, so adding one would
+    /// widen the feed at the moment the cook asked to see one shelf's worth.
+    public mutating func showOnly(keyword: RecipeKeyword) {
+        keywords = [keyword]
+    }
+
     /// The library's own answer. Recipes never asks the server to filter —
     /// the tags travelled with the recipe, so the work is already local, and
     /// a network round trip to narrow a list the cook is holding would be a

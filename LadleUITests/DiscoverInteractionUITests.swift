@@ -269,6 +269,50 @@ final class DiscoverInteractionUITests: XCTestCase {
         attachScreenshot(of: app, named: "Recipe options destructive action")
     }
 
+    /// The one path no unit test reaches: the button in a shelf's header.
+    /// A keyword shelf is the only shelf with a destination, and tapping it
+    /// has to land the cook on the same rows under the shared filter — with
+    /// the shelf itself gone, because it would repeat the list below it.
+    @MainActor
+    func testSeeAllOnAKeywordShelfNarrowsTheListBeneathIt() throws {
+        let app = launchApp()
+
+        XCTAssertTrue(
+            app.staticTexts["Crispy Chili Oil Smash Burgers"]
+                .waitForExistence(timeout: 5)
+        )
+
+        // Three of the six demo dishes are weeknight dinners, which is the
+        // floor, so this is the only keyword shelf a demo run composes. It
+        // sits below the two curated rails.
+        let seeAll = app.buttons["discover.shelf.keyword-weeknight.see-all"]
+        var scrolls = 0
+        while scrolls < 6, !seeAll.exists || !seeAll.isHittable {
+            app.swipeUp(velocity: .slow)
+            scrolls += 1
+        }
+        XCTAssertTrue(
+            seeAll.isHittable,
+            "The Weeknight shelf and its way out are on the screen"
+        )
+        attachScreenshot(of: app, named: "Discover keyword shelf")
+
+        seeAll.tap()
+
+        XCTAssertTrue(
+            app.buttons["Remove filter: Weeknight"].waitForExistence(timeout: 3),
+            "The shelf's keyword lands in the filter every tab reads"
+        )
+        XCTAssertTrue(
+            seeAll.waitForNonExistence(timeout: 3),
+            "Its own shelf would now repeat the list underneath it"
+        )
+        XCTAssertFalse(
+            app.staticTexts["Crispy Chili Oil Smash Burgers"].exists,
+            "The list beneath is the shelf: no dish without the keyword"
+        )
+    }
+
     /// A launch lands on Discover, so a test about another tab has to ask
     /// for it rather than assume the first screen is its own.
     @MainActor

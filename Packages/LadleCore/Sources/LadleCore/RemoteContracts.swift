@@ -239,6 +239,27 @@ public struct RemoteDiscoverPageDTO: Codable, Hashable, Sendable {
     public let hasMore: Bool
 }
 
+/// One keyword shelf, composed by the server from the tags its recipes carry.
+///
+/// The title travels with it and the keyword arrives as text, both for the
+/// same reason: the vocabulary is the server's, and a build shipped before a
+/// keyword was promoted must still be able to draw its shelf. It simply
+/// cannot offer to filter by a keyword it has never heard of, which is what
+/// `keyword` being nil means.
+public struct RemoteDiscoverShelfDTO: Codable, Hashable, Sendable {
+    public let keyword: String
+    public let title: String
+    public let items: [RemoteDiscoverRecipeDTO]
+
+    public var recipeKeyword: RecipeKeyword? { RecipeKeyword(rawValue: keyword) }
+
+    public var recipes: [DiscoverRecipe] { items.map { $0.recipe() } }
+}
+
+public struct RemoteDiscoverShelvesDTO: Codable, Hashable, Sendable {
+    public let shelves: [RemoteDiscoverShelfDTO]
+}
+
 extension RemoteRecipeSource: Codable {
     public init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()

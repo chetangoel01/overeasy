@@ -171,6 +171,117 @@ final class DiscoverViewModelTests: XCTestCase {
         )
     }
 
+    func testTheKeywordShelvesArriveNamedAndSitAfterTheTwoRails() async {
+        let service = DiscoverTestService(
+            result: .success((1...4).map { paged($0) })
+        )
+        service.keywordShelfResult = .success([
+            keywordShelf(.weeknight, "Weeknight", count: 4),
+            keywordShelf(.onePot, "One pot", count: 3),
+        ])
+        let viewModel = DiscoverViewModel(service: service)
+
+        await viewModel.load()
+
+        XCTAssertEqual(
+            viewModel.visibleShelves.map(\.id),
+            [
+                .newToOvereasy,
+                .quickDinners,
+                .keyword("weeknight"),
+                .keyword("onePot"),
+            ]
+        )
+        // The words come off the wire. Nothing in the app maps a keyword to
+        // a shelf heading, so a keyword promoted after this build shipped
+        // still draws.
+        XCTAssertEqual(
+            viewModel.visibleShelves.map(\.title).suffix(2),
+            ["Weeknight", "One pot"]
+        )
+        XCTAssertNil(viewModel.visibleShelves.last?.caption)
+        XCTAssertEqual(service.keywordShelfRequests, [.none])
+    }
+
+    /// The shelves are the feed cut a different way, so they answer the same
+    /// filter — and the client hands it over rather than composing anything.
+    func testTheFilterRidesOnTheKeywordShelvesToo() async {
+        let filter = RecipeFilter(diets: [.vegetarian])
+        let service = DiscoverTestService(
+            result: .success((1...4).map { paged($0) })
+        )
+        let viewModel = DiscoverViewModel(service: service, filter: filter)
+
+        await viewModel.load()
+
+        XCTAssertEqual(service.keywordShelfRequests, [filter])
+    }
+
+    /// After "See all" the ranked list is that keyword, so its shelf would be
+    /// the first few rows of the list underneath it.
+    func testAShelfForAKeywordAlreadyBeingFilteredOnIsHidden() async {
+        let service = DiscoverTestService(
+            result: .success((1...4).map { paged($0) })
+        )
+        service.keywordShelfResult = .success([
+            keywordShelf(.weeknight, "Weeknight", count: 4),
+            keywordShelf(.onePot, "One pot", count: 3),
+        ])
+        let viewModel = DiscoverViewModel(service: service)
+
+        await viewModel.load()
+        viewModel.filter = RecipeFilter(keywords: [.weeknight])
+
+        XCTAssertEqual(
+            viewModel.shelves.map(\.id).suffix(2),
+            [.keyword("weeknight"), .keyword("onePot")],
+            "The shelf is hidden, not thrown away"
+        )
+        XCTAssertEqual(
+            viewModel.visibleShelves.map(\.id),
+            [.newToOvereasy, .quickDinners, .keyword("onePot")]
+        )
+    }
+
+    func testAFailedKeywordShelfCostsNeitherTheRailsNorTheFeed() async {
+        let recipes = (1...4).map { paged($0) }
+        let service = DiscoverTestService(result: .success(recipes))
+        service.keywordShelfResult = .failure(TestError.failed)
+        let viewModel = DiscoverViewModel(service: service)
+
+        await viewModel.load()
+
+        XCTAssertEqual(
+            viewModel.visibleShelves.map(\.id),
+            [.newToOvereasy, .quickDinners]
+        )
+        XCTAssertEqual(viewModel.state, .loaded(recipes))
+    }
+
+    /// The demo service stands in for the server in every UI run, so it
+    /// composes shelves the same way — floor included, filter first.
+    func testTheDemoFeedComposesTheShelvesTheWayTheServerWould() async throws {
+        let service = DemoDiscoverService()
+
+        let shelves = try await service.fetchKeywordShelves(
+            filter: .none,
+            limit: DiscoverPaging.shelfSize
+        )
+        let vegetarian = try await service.fetchKeywordShelves(
+            filter: RecipeFilter(diets: [.vegetarian]),
+            limit: DiscoverPaging.shelfSize
+        )
+
+        // Three of the six demo dishes are weeknight dinners and nothing
+        // else reaches three, so there is exactly one shelf.
+        XCTAssertEqual(shelves.map(\.keyword), [.weeknight])
+        XCTAssertEqual(shelves.first?.title, "Weeknight")
+        XCTAssertEqual(shelves.first?.recipes.count, 3)
+        // Two of those three are vegetarian, which puts the shelf under the
+        // floor: a diet changes which shelves exist, not just what is on one.
+        XCTAssertTrue(vegetarian.isEmpty)
+    }
+
     func testAFailedShelfHidesItsRailAndLeavesTheFeedAlone() async {
         let recipes = (1...4).map { paged($0) }
         let service = DiscoverTestService(result: .success(recipes))
@@ -1155,6 +1266,20 @@ private final class DiscoverTestService: DiscoverServing {
         )
     }
 
+    /// What the server would have composed, recorded with the filter it was
+    /// asked under — which is the whole contract on this call: the client
+    /// composes nothing and only has to pass the cook's filter along.
+    private(set) var keywordShelfRequests: [RecipeFilter] = []
+    var keywordShelfResult: Result<[DiscoverShelf], any Error> = .success([])
+
+    func fetchKeywordShelves(
+        filter: RecipeFilter,
+        limit: Int
+    ) async throws -> [DiscoverShelf] {
+        keywordShelfRequests.append(filter)
+        return try keywordShelfResult.get()
+    }
+
     func saveDiscoverRecipe(
         sourceID: UUID
     ) async throws -> SavedDiscoverRecipe {
@@ -1239,6 +1364,21 @@ private func paged(_ index: Int) -> DiscoverRecipe {
         sourceID: UUID(
             uuidString: "90000000-0000-4000-8000-00000000000\(index)"
         )!
+    )
+}
+
+/// A shelf as the server would have sent it: the raw keyword for identity,
+/// a title written by the server, and no caption.
+private func keywordShelf(
+    _ keyword: RecipeKeyword,
+    _ title: String,
+    count: Int
+) -> DiscoverShelf {
+    DiscoverShelf(
+        id: .keyword(keyword.rawValue),
+        title: title,
+        keyword: keyword,
+        recipes: (1...count).map { paged($0) }
     )
 }
 

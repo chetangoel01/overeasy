@@ -72,6 +72,22 @@ final class RecipeFilterStoreTests: XCTestCase {
         )
     }
 
+    /// "See all" on a Discover keyword shelf. The shelf was composed under
+    /// the diet the cook already had on, so the ranked list it opens has to
+    /// keep it — and the keyword replaces whatever browsing keyword was on,
+    /// because two keywords widen a feed the cook just asked to narrow.
+    func testSeeAllOnAShelfPutsItsKeywordInTheSharedFilter() {
+        let preferences = FilterStorePreferences()
+        let store = RecipeFilterStore(preferenceStore: preferences)
+        store.filter.diets = [.vegetarian]
+        store.filter.keywords = [.soup]
+
+        store.showAll(keyword: .weeknight)
+
+        XCTAssertEqual(store.filter.keywords, [.weeknight])
+        XCTAssertEqual(store.filter.diets, [.vegetarian])
+    }
+
     func testTheLibraryResetClearsTheDietWithEverythingElse() {
         let store = FilterStorePreferences()
         store.set("pescatarian", forKey: RecipeFilterStore.dietPreferenceKey)

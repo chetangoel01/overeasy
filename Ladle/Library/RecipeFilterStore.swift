@@ -43,6 +43,17 @@ final class RecipeFilterStore {
         )
     }
 
+    /// Browse everything on one Discover shelf.
+    ///
+    /// The shelf was composed under whatever the cook already had on, so
+    /// only the keywords move: the diet stays because it is who they are,
+    /// and the cuisines and ingredient terms stay because the shelf they
+    /// tapped was already narrowed by them. The result is a ranked list that
+    /// begins with the row they were looking at.
+    func showAll(keyword: RecipeKeyword) {
+        filter.showOnly(keyword: keyword)
+    }
+
     /// Put a launch back on no diet at all.
     ///
     /// The empty value is *written*, not removed, for the reason

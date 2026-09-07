@@ -246,6 +246,40 @@ struct RemoteContractTests {
         #expect(page.hasMore)
     }
 
+    @Test
+    func shelvesFixtureCarriesAKeywordAndTheWordsToHeadItWith() throws {
+        let shelves: RemoteDiscoverShelvesDTO = try decodeFixture(
+            "discover-shelves"
+        )
+
+        #expect(shelves.shelves.map(\.title) == ["One pot", "High protein"])
+        #expect(shelves.shelves.map(\.recipeKeyword) == [.onePot, .highProtein])
+        #expect(shelves.shelves[0].items.count == 2)
+        #expect(shelves.shelves[0].recipes[1].title == "Chickpea Curry")
+        #expect(shelves.shelves[0].recipes[1].likeCount == nil)
+    }
+
+    @Test
+    func aShelfForAPromotedKeywordStillDrawsWithoutItsFilter() throws {
+        /// The vocabulary is the server's, so a shipped build will meet
+        /// keywords it does not have. Losing the shelf would be the wrong
+        /// answer — the title arrived with it, which is the point of sending
+        /// one — so only the offer to filter by it goes.
+        let json = Data(
+            """
+            {"shelves":[{"keyword":"picnic","title":"Picnic","items":[]}]}
+            """.utf8
+        )
+
+        let shelves = try JSONDecoder().decode(
+            RemoteDiscoverShelvesDTO.self,
+            from: json
+        )
+
+        #expect(shelves.shelves[0].title == "Picnic")
+        #expect(shelves.shelves[0].recipeKeyword == nil)
+    }
+
     /// The auth responses are decoded in the app, not here — `AuthTokens`
     /// is a Keychain record and belongs beside the Keychain. What this holds
     /// is the wire shape itself: the field names and the timestamp format
