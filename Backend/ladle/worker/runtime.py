@@ -41,6 +41,7 @@ from ladle.cache.service import ExtractionCacheService
 from ladle.clock import SystemClock
 from ladle.config import Settings
 from ladle.contracts.recipes import RecipeReviewStatus, RecipeSource
+from ladle.contracts.tags import CuisineTag, DietTag, RecipeKeyword
 from ladle.crypto.private_text import build_private_text_cipher
 from ladle.db.session import build_engine, build_session_factory
 from ladle.extraction.claude import (
@@ -190,6 +191,13 @@ class FakeRuntimeExtractor:
                     ],
                 )
             ],
+            # Tagged so the local stack exercises the filter and the tag
+            # backfill end to end, including a proposal held out of the
+            # filterable set.
+            diets=[DietTag.VEGETARIAN],
+            cuisines=[CuisineTag.MEDITERRANEAN],
+            keywords=[RecipeKeyword.ONE_POT, RecipeKeyword.WEEKNIGHT],
+            keyword_proposals=["lemony"],
             review_status=RecipeReviewStatus.READY,
         )
 
@@ -197,7 +205,7 @@ class FakeRuntimeExtractor:
 def _audio_transcriber(
     settings: Settings,
     *,
-    usage: ProviderUsageLedger,
+    usage: ProviderUsageSink,
 ) -> AudioTranscriptProvider | None:
     if not settings.audio_transcription_enabled or settings.openrouter_api_key is None:
         return None
@@ -496,6 +504,100 @@ def runtime_object_storage() -> S3ObjectStorage | None:
 
 
 @lru_cache(maxsize=1)
+def runtime_acquirer(
+    settings: Settings,
+    *,
+    usage: ProviderUsageSink,
+    metrics: MetricsRegistry,
+) -> VideoAcquirer:
+    """The live acquisition chain, wired the one way it is wired anywhere.
+
+    Taking the usage sink as an argument is what lets an admin command borrow
+    it: provider attempts are recorded against an import job by foreign key,
+    and a command that has no job passes the null sink rather than inventing
+    an identifier the database would reject.
+    """
+
+    return ProviderChain(
+        primary=(
+            SupadataClient(
+                http=httpx.Client(
+                    timeout=settings.supadata_timeout_seconds,
+                    trust_env=False,
+                ),
+                api_key=settings.supadata_api_key,
+                base_url=str(settings.supadata_base_url),
+                usage=usage,
+            )
+            if settings.supadata_api_key is not None
+            else None
+        ),
+        fallback=(
+            SoScriptedClient(
+                http=httpx.Client(
+                    timeout=settings.soscripted_timeout_seconds,
+                    trust_env=False,
+                ),
+                api_key=settings.soscripted_api_key,
+                base_url=str(settings.soscripted_base_url),
+                usage=usage,
+            )
+            if settings.soscripted_api_key is not None
+            else None
+        ),
+        circuits=RedisCircuitBreaker(
+            Redis.from_url(settings.celery_broker_url),
+            failure_threshold=settings.provider_circuit_failure_threshold,
+            cooldown=timedelta(seconds=settings.provider_circuit_cooldown_seconds),
+            prefix=settings.provider_circuit_key_prefix,
+        ),
+        free=_free_acquirer(settings),
+        audio=_audio_transcriber(settings, usage=usage),
+        search=_creator_search(settings),
+        metrics=metrics,
+    )
+
+
+def runtime_extractor(
+    settings: Settings,
+    *,
+    usage: ProviderUsageSink,
+) -> RecipeExtractor:
+    """The configured extraction provider, on the current prompt."""
+
+    if settings.extraction_provider == "openrouter":
+        if settings.openrouter_api_key is None:
+            raise RuntimeError("extraction requires an OpenRouter API key")
+        return ClaudeRecipeExtractor(
+            client=OpenRouterStructuredClient(
+                http=httpx.Client(
+                    timeout=settings.openrouter_timeout_seconds,
+                    trust_env=False,
+                ),
+                api_key=settings.openrouter_api_key.get_secret_value(),
+                base_url=str(settings.openrouter_base_url),
+            ),
+            model_id=settings.openrouter_model_id,
+            max_tokens=settings.openrouter_max_tokens,
+            usage=usage,
+            provider="openrouter",
+        )
+    if settings.anthropic_api_key is None:
+        raise RuntimeError("extraction requires an Anthropic API key")
+    return ClaudeRecipeExtractor(
+        client=AnthropicStructuredClient(
+            Anthropic(
+                api_key=settings.anthropic_api_key.get_secret_value(),
+                base_url=str(settings.anthropic_base_url),
+                timeout=settings.anthropic_timeout_seconds,
+            )
+        ),
+        model_id=settings.anthropic_model_id,
+        max_tokens=settings.anthropic_max_tokens,
+        usage=usage,
+    )
+
+
 def runtime_orchestrator() -> ImportOrchestrator:
     settings = Settings()
     if settings.worker_provider_mode == "disabled":
@@ -559,74 +661,8 @@ def runtime_orchestrator() -> ImportOrchestrator:
         )
         nutrition_service = _nutrition_service(settings, usage=usage)
         verifier = _recipe_verifier(settings, usage=usage)
-        acquirer = ProviderChain(
-            primary=(
-                SupadataClient(
-                    http=httpx.Client(
-                        timeout=settings.supadata_timeout_seconds,
-                        trust_env=False,
-                    ),
-                    api_key=settings.supadata_api_key,
-                    base_url=str(settings.supadata_base_url),
-                    usage=usage,
-                )
-                if settings.supadata_api_key is not None
-                else None
-            ),
-            fallback=(
-                SoScriptedClient(
-                    http=httpx.Client(
-                        timeout=settings.soscripted_timeout_seconds,
-                        trust_env=False,
-                    ),
-                    api_key=settings.soscripted_api_key,
-                    base_url=str(settings.soscripted_base_url),
-                    usage=usage,
-                )
-                if settings.soscripted_api_key is not None
-                else None
-            ),
-            circuits=RedisCircuitBreaker(
-                Redis.from_url(settings.celery_broker_url),
-                failure_threshold=settings.provider_circuit_failure_threshold,
-                cooldown=timedelta(seconds=settings.provider_circuit_cooldown_seconds),
-                prefix=settings.provider_circuit_key_prefix,
-            ),
-            free=_free_acquirer(settings),
-            audio=_audio_transcriber(settings, usage=usage),
-            search=_creator_search(settings),
-            metrics=metrics,
-        )
-        if settings.extraction_provider == "openrouter":
-            assert settings.openrouter_api_key is not None
-            extractor = ClaudeRecipeExtractor(
-                client=OpenRouterStructuredClient(
-                    http=httpx.Client(
-                        timeout=settings.openrouter_timeout_seconds,
-                        trust_env=False,
-                    ),
-                    api_key=settings.openrouter_api_key.get_secret_value(),
-                    base_url=str(settings.openrouter_base_url),
-                ),
-                model_id=settings.openrouter_model_id,
-                max_tokens=settings.openrouter_max_tokens,
-                usage=usage,
-                provider="openrouter",
-            )
-        else:
-            assert settings.anthropic_api_key is not None
-            extractor = ClaudeRecipeExtractor(
-                client=AnthropicStructuredClient(
-                    Anthropic(
-                        api_key=settings.anthropic_api_key.get_secret_value(),
-                        base_url=str(settings.anthropic_base_url),
-                        timeout=settings.anthropic_timeout_seconds,
-                    )
-                ),
-                model_id=settings.anthropic_model_id,
-                max_tokens=settings.anthropic_max_tokens,
-                usage=usage,
-            )
+        acquirer = runtime_acquirer(settings, usage=usage, metrics=metrics)
+        extractor = runtime_extractor(settings, usage=usage)
     thumbnails: OEmbedThumbnailFetcher | None = None
     if settings.object_storage_enabled:
         thumbnails = OEmbedThumbnailFetcher(
