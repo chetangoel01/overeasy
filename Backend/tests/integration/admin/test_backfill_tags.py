@@ -279,6 +279,31 @@ def test_a_real_run_writes_only_the_tags_and_bumps_the_revision(
 
 
 @pytest.mark.integration
+def test_a_second_run_over_the_same_answer_writes_nothing(
+    clean_postgres_url: str,
+) -> None:
+    """Re-running after fixing one video must not resync the whole library."""
+
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    engine = build_engine(clean_postgres_url)
+    _, recipe_ids = seed(engine)
+    service, _ = build(engine)
+
+    with Session(engine) as database, database.begin():
+        service.run(database, limit=None, dry_run=False)
+    with Session(engine) as database, database.begin():
+        rows = service.run(database, limit=None, dry_run=False)
+
+    assert [row.action for row in rows] == ["unchanged"]
+
+    with Session(engine) as database:
+        after = RecipeRepository().to_dto(database, database.get(Recipe, recipe_ids[0]))
+    assert after.revision == 2
+
+    engine.dispose()
+
+
+@pytest.mark.integration
 def test_one_acquisition_serves_every_saver_of_a_source(
     clean_postgres_url: str,
 ) -> None:

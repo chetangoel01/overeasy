@@ -34,7 +34,7 @@ from dataclasses import dataclass, replace
 from datetime import timedelta
 from uuid import UUID, uuid4
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ladle.acquisition.errors import AcquisitionError
@@ -123,9 +123,9 @@ class TagBackfillService:
                 Recipe.source_video_id.is_not(None),
             )
             .group_by(Recipe.source_video_id)
-            # Oldest source first, so a run stopped by --limit resumes where a
-            # reader of the table would expect it to.
-            .order_by(Recipe.source_video_id)
+            # Oldest save first, with the source id breaking ties, so a run
+            # stopped by --limit takes the same prefix every time.
+            .order_by(func.min(Recipe.created_at), Recipe.source_video_id)
         )
         if limit is not None:
             query = query.limit(limit)
@@ -198,6 +198,11 @@ class TagBackfillService:
         row = _row(stored, "", template=template)
         if not any(tags.values()):
             return replace(row, action="skipped: the model returned no tags")
+        if all(getattr(recipe, name) == value for name, value in tags.items()):
+            # A second run — after one private video was fixed, say — must not
+            # bump every revision it touches: that would push the whole library
+            # down every phone's sync feed to change nothing.
+            return replace(row, action="unchanged")
         if dry_run:
             return replace(row, action="would tag")
         try:

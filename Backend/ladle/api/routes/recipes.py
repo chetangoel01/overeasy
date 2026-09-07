@@ -4,7 +4,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request, Response, status
 from fastapi.responses import JSONResponse
-from pydantic import Field, PositiveInt
+from pydantic import Field, PositiveInt, StringConstraints
 
 from ladle.api.dependencies import database
 from ladle.api.errors import error_response
@@ -162,9 +162,12 @@ def discover_recipes(
         ),
     ] = None,
     ingredient: Annotated[
-        list[str] | None,
+        # The bound belongs on each term as well as on the list: `max_length`
+        # on a list parameter counts entries, so without the inner constraint
+        # one enormous query string becomes one enormous LIKE pattern.
+        list[Annotated[str, StringConstraints(max_length=100)]] | None,
         Query(
-            max_length=100,
+            max_length=10,
             description=(
                 '"Only recipes with chicken in them". Matched against the '
                 "ingredient names of the saved copies, and repeating the "
