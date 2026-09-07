@@ -51,7 +51,8 @@ enum AccountAuthenticationFailure: Equatable {
             case .offline:
                 "You’re offline. Reconnect and try again."
             case .serviceUnavailable:
-                "Overeasy is temporarily unavailable. Try again in a moment."
+                // The shared sentence, not a fourth copy of it.
+                report.failure.message
             case let .rateLimited(retryAt):
                 "Too many attempts. Try again after \(retryAt.formatted(date: .omitted, time: .shortened))."
             case .quotaExceeded:

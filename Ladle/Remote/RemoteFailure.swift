@@ -52,7 +52,7 @@ enum RemoteFailure: Equatable, Sendable {
         case .offline:
             "You're offline"
         case .serviceUnavailable:
-            "Service unavailable"
+            "Overeasy had a problem"
         case .rateLimited:
             "Too many requests"
         case .quotaExceeded:
@@ -66,12 +66,20 @@ enum RemoteFailure: Equatable, Sendable {
         }
     }
 
+    /// The sentence a cook reads, and the only place this app writes one for
+    /// a failed request.
+    ///
+    /// `.serviceUnavailable` names us, not the kitchen's Wi-Fi. It is
+    /// reached only from a *parsed* error body — `providerUnavailable` (503)
+    /// or `internalError` (500) — which means the API answered, so a cook
+    /// sent to check their connection would be hunting a fault that isn't
+    /// theirs. `.offline` is the transport case and keeps the connection.
     var message: String {
         switch self {
         case .offline:
             "Your saved recipes are still available. Reconnect to refresh."
         case .serviceUnavailable:
-            "The service is temporarily unavailable. Try again in a moment."
+            "Overeasy hit a problem on our side. Try again in a moment."
         case .rateLimited:
             "This service is busy. Try again when the limit resets."
         case .quotaExceeded:

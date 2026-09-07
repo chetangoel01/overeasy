@@ -57,11 +57,13 @@ enum ProfileEditFailure {
         _ error: any Error,
         unchanged: String
     ) -> String {
-        switch RemoteFailure(error) {
+        let failure = RemoteFailure(error)
+        switch failure {
         case .offline:
             return "\(unchanged) Reconnect and try again."
         case .serviceUnavailable:
-            return "\(unchanged) Overeasy is temporarily unavailable."
+            // The shared sentence, not a third copy of it.
+            return "\(unchanged) \(failure.message)"
         case let .rateLimited(retryAt):
             return "\(unchanged) Try again after \(retryAt.formatted(date: .omitted, time: .shortened))."
         case .authenticationExpired:

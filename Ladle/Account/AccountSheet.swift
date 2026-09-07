@@ -29,7 +29,7 @@ struct AccountDeletionFailure: Equatable {
         case .offline:
             return "\(unchanged) Reconnect and try again."
         case .serviceUnavailable:
-            return "\(unchanged) The service is temporarily unavailable. Try again in a moment."
+            return "\(unchanged) \(failure.message)"
         case let .rateLimited(retryAt):
             return "\(unchanged) Try again after \(retryAt.formatted(date: .omitted, time: .shortened))."
         case .quotaExceeded:

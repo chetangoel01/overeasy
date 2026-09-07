@@ -62,6 +62,78 @@ final class RemoteFailureTests: XCTestCase {
         )
     }
 
+    /// Every case says a different thing, and none of them says the wrong
+    /// one.
+    ///
+    /// `.serviceUnavailable` is only ever a parsed 503 or 500 from the API,
+    /// so the server demonstrably answered: the copy must not send a cook to
+    /// check their Wi-Fi. `.offline` is the transport case and stays about
+    /// the connection.
+    func testEveryFailureNamesTheRightCulprit() {
+        let all: [RemoteFailure] = [
+            .offline,
+            .serviceUnavailable,
+            .rateLimited(retryAt: retryAt),
+            .quotaExceeded,
+            .authenticationExpired,
+            .invalidResponse,
+            .unknown,
+        ]
+        XCTAssertEqual(Set(all.map(\.title)).count, all.count)
+        XCTAssertEqual(Set(all.map(\.message)).count, all.count)
+
+        XCTAssertEqual(
+            RemoteFailure.serviceUnavailable.title,
+            "Overeasy had a problem"
+        )
+        XCTAssertEqual(
+            RemoteFailure.serviceUnavailable.message,
+            "Overeasy hit a problem on our side. Try again in a moment."
+        )
+        for word in ["connection", "offline", "Wi-Fi", "Reconnect"] {
+            XCTAssertFalse(
+                RemoteFailure.serviceUnavailable.message.contains(word),
+                "A 5xx must not be blamed on the cook's connection"
+            )
+        }
+
+        XCTAssertEqual(RemoteFailure.offline.title, "You're offline")
+        XCTAssertTrue(RemoteFailure.offline.message.contains("Reconnect"))
+        XCTAssertFalse(
+            RemoteFailure.offline.message.contains("our side"),
+            "A transport error must not be blamed on the service"
+        )
+    }
+
+    /// One string, three Account surfaces.
+    ///
+    /// Sign-in, the profile edits and account deletion each used to carry
+    /// their own wording for the same 503. They now all quote the failure —
+    /// only the opening sentence naming what did not change is theirs.
+    func testAccountSurfacesQuoteTheSharedUnavailableSentence() throws {
+        let error = APIError.remote(
+            try remoteError(code: .internalError, retryable: true)
+        )
+        let shared = RemoteFailure.serviceUnavailable.message
+
+        XCTAssertEqual(
+            AccountAuthenticationFailure(error, fallback: "unused")?.message,
+            shared
+        )
+        XCTAssertEqual(
+            ProfileEditFailure.name(error),
+            "Your name is unchanged. \(shared)"
+        )
+        XCTAssertEqual(
+            ProfileEditFailure.photo(error),
+            "Your photo is unchanged. \(shared)"
+        )
+        XCTAssertEqual(
+            AccountDeletionFailure(error)?.message,
+            "Your account and recipes are unchanged. \(shared)"
+        )
+    }
+
     func testDiagnosticReportRetainsRequestIDWithoutShowingServerMessage() throws {
         let remote = try remoteError(
             code: .providerUnavailable,
