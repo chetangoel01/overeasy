@@ -80,7 +80,22 @@ ingredients      id, recipe_id, order_index, quantity_text, unit, name,
                  uncertainty jsonb
 steps            id, recipe_id, order_index, instruction,
                  ingredient_ids uuid[], uncertainty jsonb
+recipe_tags      recipe_id, family (diet|cuisine|keyword), value
+                 pk (recipe_id, family, value); three closed vocabularies in
+                 one table because the filter asks each of them the same
+                 question, and the key is that question
+recipe_keyword_proposals
+                 recipe_id, value    pk (recipe_id, value)
+                 keywords the extraction model invented. A separate table, so
+                 "not filterable until promoted" is a fact about the schema
+                 rather than a rule in the query — the Discover filter joins
+                 recipe_tags and cannot reach these rows
 ```
+
+The three vocabularies live in `ladle/contracts/tags.py` and nowhere else:
+the extraction prompt is rendered from them, `RecipeDTO` is typed by them,
+and the Discover query parameters validate against them. Changing a list
+changes the prompt, so `PROMPT_VERSION` has to move with it.
 
 Field names on the wire are the `LadleCore` names (`quantityText`,
 `servingBasis`, `isEstimated`, `FieldUncertainty{field, reason, confidence}`,
@@ -109,7 +124,30 @@ POST /v1/imports/{id}/retry      { correctionNotes?, pastedText? }   (re-import 
 GET  /v1/recipes?updatedSince=   → delta sync (includes tombstones via deletedAt)
 PUT  /v1/recipes/{id}            → client edit wins (last-write-wins on updatedAt)
 DELETE /v1/recipes/{id}          → soft delete
+
+GET  /v1/recipes/discover        → the Discover list, its shelves and Watch
+     ?diet=…&diet=…              every diet listed must hold (they narrow)
+     ?cuisine=…&cuisine=…        any cuisine listed (they widen)
+     ?keyword=…&keyword=…        any curated keyword listed (they widen)
+     ?ingredient=chicken         a name match over the saved copies'
+                                 ingredients; repeating it requires all of
+                                 them. Max 10 terms of 100 characters.
 ```
+
+The filter is server-side because the feed is paged: a client thinning a
+fetched page would show three results and look like the end of the corpus.
+Watch is this same endpoint without `seenBefore`. Off-vocabulary values are
+422 rather than ignored — a filter that silently matched everything reads to
+a cook as an app with nothing in it.
+
+`RecipeDTO` carries `diets`, `cuisines`, `keywords` and `keywordProposals`,
+which is what lets the Recipes tab filter its synced library locally without
+a network call. All four are **tri-state**: the server always sends lists,
+but `null` on the way *in* means "leave what is stored" and `[]` means
+"clear it". Builds released before tags existed encode no tag keys at all,
+and reading their silence as an empty list would strip a recipe of its tags
+the first time somebody renamed it. Only curated keywords appear in
+`keywords`; a proposal travels in `keywordProposals` and is not filterable.
 
 Status values and failure reasons map 1:1 to `ImportStatus` /
 `ImportFailure` in LadleCore (`parsing`, `ready`, `needsReview`, `failed` +
