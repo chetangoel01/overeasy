@@ -137,6 +137,7 @@ protocol DiscoverServing {
         cursor: Int,
         query: String,
         sort: DiscoverSort,
+        filter: RecipeFilter,
         maxTotalMinutes: Int?,
         limit: Int,
         seenBefore: Date?,
@@ -166,6 +167,7 @@ extension DiscoverServing {
         cursor: Int,
         query: String,
         sort: DiscoverSort,
+        filter: RecipeFilter = .none,
         seenBefore: Date? = nil,
         recordsImpressions: Bool = true
     ) async throws -> DiscoverPage {
@@ -173,6 +175,7 @@ extension DiscoverServing {
             cursor: cursor,
             query: query,
             sort: sort,
+            filter: filter,
             maxTotalMinutes: nil,
             limit: DiscoverPaging.pageSize,
             seenBefore: seenBefore,
@@ -206,6 +209,7 @@ struct RemoteDiscoverService: DiscoverServing {
         cursor: Int,
         query: String,
         sort: DiscoverSort,
+        filter: RecipeFilter,
         maxTotalMinutes: Int?,
         limit: Int,
         seenBefore: Date?,
@@ -216,6 +220,7 @@ struct RemoteDiscoverService: DiscoverServing {
             URLQueryItem(name: "limit", value: String(limit)),
             URLQueryItem(name: "sort", value: sort.rawValue),
         ]
+        items += Self.filterItems(filter)
         if let maxTotalMinutes {
             items.append(
                 URLQueryItem(
@@ -255,6 +260,28 @@ struct RemoteDiscoverService: DiscoverServing {
             nextCursor: page.nextCursor,
             hasMore: page.hasMore
         )
+    }
+
+    /// One repeated parameter per chosen tag, in vocabulary order.
+    ///
+    /// The families mean different things to the server — every `diet` and
+    /// every `ingredient` must hold, any `cuisine` or `keyword` will do —
+    /// and none of that is encoded here: repeating the name is the whole
+    /// wire format, and the meaning lives in the endpoint. Values are the
+    /// enum's raw strings, so an off-vocabulary term cannot be spelled.
+    static func filterItems(_ filter: RecipeFilter) -> [URLQueryItem] {
+        filter.orderedDiets.map {
+            URLQueryItem(name: "diet", value: $0.rawValue)
+        }
+            + filter.orderedCuisines.map {
+                URLQueryItem(name: "cuisine", value: $0.rawValue)
+            }
+            + filter.orderedKeywords.map {
+                URLQueryItem(name: "keyword", value: $0.rawValue)
+            }
+            + filter.ingredients.map {
+                URLQueryItem(name: "ingredient", value: $0)
+            }
     }
 
     func fetchDiscoverRecipe(sourceID: UUID) async throws -> Recipe {
@@ -308,6 +335,7 @@ struct DemoDiscoverService: DiscoverServing {
         cursor: Int,
         query: String,
         sort: DiscoverSort,
+        filter: RecipeFilter,
         maxTotalMinutes: Int?,
         limit: Int,
         seenBefore: Date?,
@@ -322,6 +350,10 @@ struct DemoDiscoverService: DiscoverServing {
         // Enumerated before filtering, so a fixture's save and like counts
         // stay put whatever the time filter removes.
         let all = PreviewFixtures.recipes.enumerated().filter { _, recipe in
+            // The tag filter is the server's work in a real build, so the
+            // demo has to do it here or a UI run would show a filter that
+            // changes nothing.
+            guard filter.matches(recipe) else { return false }
             guard let maxTotalMinutes else { return true }
             // Same rule as the server: a recipe with no stated time at all is
             // left out rather than assumed quick, but one that states only a
