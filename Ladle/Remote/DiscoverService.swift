@@ -508,7 +508,15 @@ struct DemoDiscoverService: DiscoverServing {
         filter: RecipeFilter,
         limit: Int
     ) async throws -> [DiscoverShelf] {
-        guard scenario != .discoverEmpty else { return [] }
+        if scenario == .discoverEmpty {
+            return []
+        }
+        if scenario == .discoverRateLimited {
+            // The real endpoint is behind the same rate limit as the feed,
+            // so a demo where the feed is throttled and the shelves are not
+            // would be a screen that cannot happen.
+            throw DemoRemoteError.rateLimited
+        }
         let matching = PreviewFixtures.recipes.filter(filter.matches)
         let counted = RecipeKeyword.allCases.enumerated().map { rank, keyword in
             (rank, keyword, matching.filter { $0.keywords.contains(keyword) })
