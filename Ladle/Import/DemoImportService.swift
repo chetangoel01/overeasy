@@ -119,6 +119,11 @@ actor DemoImportService: ImportService {
         if slug.contains("network") || slug.contains("offline") {
             return .failed(.networkUnavailable)
         }
+        // Before the generic failure, so a TikTok carousel's own /photo/ URL
+        // lands on the hand-off it would get from the server.
+        if slug.contains("photo") {
+            return .failed(.photoPostNeedsManualEntry)
+        }
         if slug.contains("parser") || slug.contains("failed") {
             return .failed(.parserUnavailable)
         }

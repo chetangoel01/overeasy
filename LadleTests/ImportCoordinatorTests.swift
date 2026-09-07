@@ -2551,6 +2551,22 @@ final class ImportCoordinatorTests: XCTestCase {
         }
     }
 
+    func testInboxLabelsAPhotoPostFailureByWhatItNeeds() {
+        XCTAssertEqual(
+            ImportFailure.photoPostNeedsManualEntry.inboxStatusLabel,
+            "Type it in"
+        )
+        XCTAssertEqual(
+            ImportFailure.insufficientTextEvidence.inboxStatusLabel,
+            "Import failed"
+        )
+        XCTAssertEqual(
+            ImportFailure.unrecognized("someCodeFromALaterServer")
+                .inboxStatusLabel,
+            "Import failed"
+        )
+    }
+
     private func makeCoordinator(
         repository: ImportTestRepository,
         accountSession: AccountSession = AccountSession(

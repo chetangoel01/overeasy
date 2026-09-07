@@ -1314,6 +1314,18 @@ extension ImportFailure {
             "Processing capacity is exhausted. Retry after your quota or provider capacity resets. The saved link is safe."
         }
     }
+
+    /// The Inbox row's status pill, which has room for three words. Every
+    /// failure reads "Import failed" except the one whose way out is the cook
+    /// rather than another attempt — including a code this build cannot name.
+    var inboxStatusLabel: String {
+        switch self {
+        case .photoPostNeedsManualEntry:
+            "Type it in"
+        default:
+            "Import failed"
+        }
+    }
 }
 
 extension ImportCoordinatorState {
