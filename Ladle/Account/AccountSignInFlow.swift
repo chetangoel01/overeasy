@@ -51,7 +51,8 @@ enum AccountAuthenticationFailure: Equatable {
             case .offline:
                 "You’re offline. Reconnect and try again."
             case .serviceUnavailable:
-                "Overeasy is temporarily unavailable. Try again in a moment."
+                // The shared sentence, not a fourth copy of it.
+                report.failure.message
             case let .rateLimited(retryAt):
                 "Too many attempts. Try again after \(retryAt.formatted(date: .omitted, time: .shortened))."
             case .quotaExceeded:
@@ -65,6 +66,21 @@ enum AccountAuthenticationFailure: Equatable {
             }
         case let .other(message):
             message
+        }
+    }
+
+    /// Whether sending the very same request again could plausibly work.
+    ///
+    /// A 503 or a 500 is ours and may well be gone a second later. A refused
+    /// identity claim would be refused identically, a build without Google
+    /// configured will not gain it, and a provider-side failure never got as
+    /// far as a request to repeat.
+    var canRetry: Bool {
+        switch self {
+        case let .remote(report):
+            report.failure.canRetry()
+        case .missingConfiguration, .identityConflict, .other:
+            false
         }
     }
 }
@@ -90,6 +106,20 @@ final class AccountSignInFlow {
     private(set) var isAuthenticating = false
     private(set) var failure: AccountAuthenticationFailure?
     private var rawNonce: String?
+
+    /// The backend exchange the last attempt failed on, kept so Retry can
+    /// send that exact request again. Cleared the moment one succeeds.
+    private var failedAttempt: Attempt?
+
+    /// One attempt's trip to the backend — and nothing it did through
+    /// Apple's or Google's own sheet, which a cook has already answered and
+    /// must not be asked to answer twice because our server returned a 500.
+    private struct Attempt {
+        typealias Exchange = @MainActor () async throws -> Void
+
+        let fallback: String
+        let exchange: Exchange
+    }
 
     init(
         accountSession: AccountSession,
@@ -181,37 +211,46 @@ final class AccountSignInFlow {
         nonce: String,
         fullName: String? = nil
     ) async {
+        // Outside the exchange, so a retry re-sends the key the failed
+        // attempt used — which is what an idempotency key is for after a 500.
+        let idempotencyKey = UUID().uuidString.lowercased()
         await run(fallback: Self.appleFallback) { [self] in
-            guard let authClient else {
-                accountSession.signInWithApple()
-                return
+            { [self] in
+                guard let authClient else {
+                    accountSession.signInWithApple()
+                    return
+                }
+                try await ensureRemoteSession(authClient)
+                _ = try await authClient.signInWithApple(
+                    identityToken: identityToken,
+                    authorizationCode: authorizationCode,
+                    nonce: nonce,
+                    idempotencyKey: idempotencyKey,
+                    fullName: fullName
+                )
             }
-            try await ensureRemoteSession(authClient)
-            _ = try await authClient.signInWithApple(
-                identityToken: identityToken,
-                authorizationCode: authorizationCode,
-                nonce: nonce,
-                idempotencyKey: UUID().uuidString.lowercased(),
-                fullName: fullName
-            )
         }
     }
 
     func signInWithGoogle() async {
+        let idempotencyKey = UUID().uuidString.lowercased()
         await run(
             fallback:
                 "Sign in with Google didn’t complete. Please try again."
         ) { [self] in
             guard let googleSignIn, let authClient else {
-                accountSession.signInWithGoogle()
-                return
+                return { [self] in accountSession.signInWithGoogle() }
             }
+            // Google's own sheet, answered once. It is deliberately outside
+            // the returned exchange: Retry must not re-present it.
             let identityToken = try await googleSignIn.signIn()
-            try await ensureRemoteSession(authClient)
-            _ = try await authClient.signInWithGoogle(
-                identityToken: identityToken,
-                idempotencyKey: UUID().uuidString.lowercased()
-            )
+            return { [self] in
+                try await ensureRemoteSession(authClient)
+                _ = try await authClient.signInWithGoogle(
+                    identityToken: identityToken,
+                    idempotencyKey: idempotencyKey
+                )
+            }
         }
     }
 
@@ -219,12 +258,28 @@ final class AccountSignInFlow {
         await run(
             fallback: "Account setup didn’t complete. Please try again."
         ) { [self] in
-            guard let authClient else {
-                accountSession.continueAsGuest()
-                return
+            { [self] in
+                guard let authClient else {
+                    accountSession.continueAsGuest()
+                    return
+                }
+                _ = try await authClient.bootstrapGuest(attestation: nil)
             }
-            _ = try await authClient.bootstrapGuest(attestation: nil)
         }
+    }
+
+    /// Whether the screen should offer to send the failed request again.
+    var canRetry: Bool {
+        failedAttempt != nil && failure?.canRetry == true
+    }
+
+    /// Send the request that failed, again.
+    ///
+    /// The provider ceremony is not repeated — only the exchange with our
+    /// own backend, which is the part that returned the 5xx.
+    func retry() async {
+        guard let attempt = failedAttempt else { return }
+        await run(fallback: attempt.fallback) { attempt.exchange }
     }
 
     /// An Apple or Google merge claims the caller's current guest user, so
@@ -239,24 +294,38 @@ final class AccountSignInFlow {
         }
     }
 
+    /// One attempt, start to finish.
+    ///
+    /// `prepare` does whatever cannot be replayed — presenting Google's
+    /// sheet — and hands back the exchange with our backend. Only that
+    /// exchange is remembered, so a failure inside `prepare` leaves nothing
+    /// to retry, which is correct: a cancelled sheet never sent a request.
     private func run(
         fallback: String,
-        _ authenticate: @MainActor () async throws -> Void
+        prepare: @MainActor () async throws -> Attempt.Exchange
     ) async {
         guard !isAuthenticating else {
             return
         }
         isAuthenticating = true
         failure = nil
+        failedAttempt = nil
         defer { isAuthenticating = false }
         do {
-            try await authenticate()
+            let exchange = try await prepare()
+            failedAttempt = Attempt(fallback: fallback, exchange: exchange)
+            try await exchange()
+            failedAttempt = nil
             await onAuthenticated()
         } catch {
             failure = AccountAuthenticationFailure(
                 error,
                 fallback: fallback
             )
+            if failure == nil {
+                // A cancel is not a failure, so there is nothing to offer.
+                failedAttempt = nil
+            }
         }
     }
 

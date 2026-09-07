@@ -29,7 +29,7 @@ struct AccountDeletionFailure: Equatable {
         case .offline:
             return "\(unchanged) Reconnect and try again."
         case .serviceUnavailable:
-            return "\(unchanged) The service is temporarily unavailable. Try again in a moment."
+            return "\(unchanged) \(failure.message)"
         case let .rateLimited(retryAt):
             return "\(unchanged) Try again after \(retryAt.formatted(date: .omitted, time: .shortened))."
         case .quotaExceeded:
@@ -41,6 +41,50 @@ struct AccountDeletionFailure: Equatable {
         case .unknown:
             return "\(unchanged) Please try again."
         }
+    }
+}
+
+/// Deleting the account, as something a test can fail and then retry.
+///
+/// The sheet is handed the deletion as a closure, so this holds on to the
+/// last one it ran: a 5xx means the account is still there and the same
+/// request is still the right one to send. Deliberately not the sheet's own
+/// `@State` booleans — Retry has to re-issue a request, and a button inside
+/// an `.alert` is not something a unit test can reach.
+@MainActor
+@Observable
+final class AccountDeleter {
+    private(set) var isDeleting = false
+    private(set) var didDelete = false
+    var failure: AccountDeletionFailure?
+    private var lastRequest: (@MainActor () async throws -> Void)?
+
+    func delete(
+        _ request: @escaping @MainActor () async throws -> Void
+    ) async {
+        guard !isDeleting else { return }
+        isDeleting = true
+        failure = nil
+        lastRequest = request
+        defer { isDeleting = false }
+        do {
+            try await request()
+            lastRequest = nil
+            didDelete = true
+        } catch {
+            failure = AccountDeletionFailure(error)
+        }
+    }
+
+    /// Whether the alert should offer to send the deletion again. A quota or
+    /// an expired session would answer the same way twice.
+    func canRetry(at date: Date = .now) -> Bool {
+        lastRequest != nil && failure?.canRetry(at: date) == true
+    }
+
+    func retry() async {
+        guard let lastRequest else { return }
+        await delete(lastRequest)
     }
 }
 
@@ -78,8 +122,7 @@ struct AccountSheet: View {
     @State private var isSignOutConfirmationPresented = false
     @State private var isDeleteConfirmationPresented = false
     @State private var isSigningOut = false
-    @State private var isDeletingAccount = false
-    @State private var deletionFailure: AccountDeletionFailure?
+    @State private var deletion = AccountDeleter()
 
     var body: some View {
         NavigationStack {
@@ -133,16 +176,24 @@ struct AccountSheet: View {
                     "Your synced recipes and account data will be permanently deleted. This can\u{2019}t be undone."
                 )
             }
+            // Try Again re-issues the deletion. The account is still there
+            // — that is what the message says — so the alert now offers the
+            // request again rather than only a way out of itself.
             .alert(
                 "Account could not be deleted",
                 isPresented: Binding(
-                    get: { deletionFailure != nil },
-                    set: { if !$0 { deletionFailure = nil } }
+                    get: { deletion.failure != nil },
+                    set: { if !$0 { deletion.failure = nil } }
                 )
             ) {
+                if deletion.canRetry() {
+                    Button("Try Again") {
+                        Task { await deletion.retry(); dismissIfDeleted() }
+                    }
+                }
                 Button("OK", role: .cancel) {}
             } message: {
-                Text(deletionFailure?.message ?? "Please try again.")
+                Text(deletion.failure?.message ?? "Please try again.")
             }
         }
         .presentationDetents([.large])
@@ -264,15 +315,15 @@ struct AccountSheet: View {
             } label: {
                 actionLabel("Sign out", isLoading: isSigningOut)
             }
-            .disabled(isSigningOut || isDeletingAccount)
+            .disabled(isSigningOut || deletion.isDeleting)
             .accessibilityIdentifier("account.sign-out")
 
             Button(role: .destructive) {
                 isDeleteConfirmationPresented = true
             } label: {
-                actionLabel("Delete account", isLoading: isDeletingAccount)
+                actionLabel("Delete account", isLoading: deletion.isDeleting)
             }
-            .disabled(isDeletingAccount || isSigningOut)
+            .disabled(deletion.isDeleting || isSigningOut)
             .accessibilityIdentifier("account.delete")
         } header: {
             Text("Account")
@@ -296,7 +347,7 @@ struct AccountSheet: View {
     }
 
     private func performSignOut() {
-        guard !isSigningOut, !isDeletingAccount else {
+        guard !isSigningOut, !deletion.isDeleting else {
             return
         }
         isSigningOut = true
@@ -308,19 +359,16 @@ struct AccountSheet: View {
     }
 
     private func performAccountDeletion() {
-        guard !isDeletingAccount, !isSigningOut else {
-            return
-        }
-        isDeletingAccount = true
-        deletionFailure = nil
+        guard !isSigningOut else { return }
         Task { @MainActor in
-            defer { isDeletingAccount = false }
-            do {
-                try await deleteAccount()
-                dismiss()
-            } catch {
-                deletionFailure = AccountDeletionFailure(error)
-            }
+            await deletion.delete(deleteAccount)
+            dismissIfDeleted()
+        }
+    }
+
+    private func dismissIfDeleted() {
+        if deletion.didDelete {
+            dismiss()
         }
     }
 
