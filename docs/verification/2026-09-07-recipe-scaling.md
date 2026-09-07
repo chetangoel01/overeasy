@@ -201,3 +201,14 @@ demo row a genuinely unquantified amount — "kosher salt, to taste", which is a
 shape the backend certainly sends and the demo library does not have — would
 fix that and make the demo library more honest. It changes demo recipe content,
 which this issue did not ask for, so it is left for a follow-up.
+
+**Large type was reasoned about, not seen.** Two attempts to capture the scaled
+page at `UICTContentSizeCategoryXXL` were killed by this machine before they
+rendered anything. What shipped is the conservative shape — the band's label
+keeps its original no-line-limit behaviour, so "Scaled from 4 servings" wraps
+inside a half-width tile rather than truncating — but no screenshot proves it.
+The same is unchecked for `ServingsSheet`, a `VStack` at `.medium` with no
+`.large` detent and no scroll view: at accessibility sizes the reset button may
+sit below the detent. Adding `.large` as a second detent is the likely fix and
+needs one more `RecipeScalingUITests` run, because the Done path is what that
+test drives.
