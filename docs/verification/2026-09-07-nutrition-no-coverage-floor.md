@@ -128,13 +128,19 @@ the names through the uncertainties.
 ### The panel this feeds (not in this PR)
 
 ```sql
-SELECT s.ingredient_name, count(*) AS misses, count(DISTINCT s.recipe_id) AS recipes
+SELECT s.ingredient_name,
+       count(*) AS misses,
+       count(DISTINCT s.recipe_id) AS recipes
 FROM nutrition_skips s
+JOIN recipes r ON r.id = s.recipe_id
+WHERE r.deleted_at IS NULL
 GROUP BY s.ingredient_name
 ORDER BY misses DESC;
 ```
 
-Join `recipes` on `recipe_id` for the titles each miss came from. `code` says
+The join is not optional: API deletion is soft, so without it a recipe a cook
+threw away goes on voting for a food. Read `r.title` from the same join for the
+recipes each miss came from. `code` says
 which rung gave up (`foodNotFound` dominates; `ambiguousFoodMatch`,
 `inconsistentNutrients`, `missingMass` are the others), and `estimated_grams`
 says how much of a dish the miss was worth.
@@ -201,7 +207,33 @@ uv run mypy --strict ladle        no issues found in 127 source files
 uv run pytest                     927 passed
 ```
 
+`swift test --package-path Packages/LadleCore` — 56 tests in 10 suites passed.
+The fixtures the package decodes gained a key, and `Nutrition` is a synthesised
+`Codable`, so the additive field is ignored until the client work adds it.
+
 `ladle/api/routes/health.py` expects revision `0024`.
+
+Not exercised: `scripts/refresh_recipe_nutrition.py` needs a live database and
+provider keys, and is outside `mypy --strict ladle`. Its two changes — dropping
+the share-limit argument and replacing skip rows beside the nutrition row — are
+by inspection. Its dry-run print still labels the recipe-level `nutrition`
+uncertainty `blocked`, which for an all-unmatched recipe is now the "N of N not
+counted" summary rather than a blocker; harmless, and worth tidying when the
+script is next run for real.
+
+## Backfill
+
+Recipes that already carry partial totals from the September 2 work have their
+"N of M ingredients not counted" notes but **no skip rows** — the table did not
+exist when they were written. Until they are re-enriched they read as
+`approximate: false` while their own notes say otherwise, and they are invisible
+to the ops panel. The same holds for templates already in `extraction_cache`: a
+cache hit clones a recipe with the notes and no rows.
+
+`scripts/refresh_recipe_nutrition.py --apply` on the host fixes both — it
+re-runs enrichment in place, writes the skips, and announces the change so
+clients pull it. That is a deploy step, not part of this PR, and the marker and
+the panel undercount until it runs.
 
 ## Not done here, deliberately
 
