@@ -505,6 +505,51 @@ public struct RemoteNutritionDTO: Codable, Hashable, Sendable {
     }
 }
 
+/// One tag family on the wire, where absent, `null` and `[]` are three
+/// different things.
+///
+/// The server reads `null` as "leave whatever is stored" and `[]` as "clear
+/// it", because the app sends the whole recipe back on every edit and a
+/// build released before tags existed encodes no tag keys at all. This app
+/// does not edit tags, so it always sends `null` — and it must send it
+/// *explicitly*, which is why this is a struct rather than a bare optional
+/// array: a nil property is omitted by the synthesized encoder, while a
+/// present wrapper holding nothing encodes as a literal null.
+///
+/// On the way back, an unknown member is dropped rather than thrown. The
+/// curated keyword list is expected to grow, and a shipped build meeting a
+/// promoted keyword must lose the keyword, not the recipe.
+public struct RemoteTagListDTO: Codable, Hashable, Sendable {
+    /// Nil is the wire's `null`: "this client is not managing this family".
+    public let values: [String]?
+
+    public init(_ values: [String]?) {
+        self.values = values
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        values = container.decodeNil()
+            ? nil
+            : try container.decode([String].self)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.singleValueContainer()
+        if let values {
+            try container.encode(values)
+        } else {
+            try container.encodeNil()
+        }
+    }
+
+    public func tags<Tag: RawRepresentable>(
+        _: Tag.Type
+    ) -> [Tag] where Tag.RawValue == String {
+        (values ?? []).compactMap(Tag.init(rawValue:))
+    }
+}
+
 public struct RemoteRecipeDTO: Codable, Hashable, Sendable {
     public let id: UUID
     public let title: String
@@ -521,6 +566,12 @@ public struct RemoteRecipeDTO: Codable, Hashable, Sendable {
     public let steps: [RemoteRecipeStepDTO]
     public let nutrition: RemoteNutritionDTO?
     public let notes: [String]
+    /// Optional so that a response from a server that predates tags still
+    /// decodes: a missing key is an untagged recipe, not a broken one.
+    public let diets: RemoteTagListDTO?
+    public let cuisines: RemoteTagListDTO?
+    public let keywords: RemoteTagListDTO?
+    public let keywordProposals: RemoteTagListDTO?
     public let isFavorite: Bool
     public let reviewStatus: RecipeReviewStatus
     public let uncertainties: [RemoteFieldUncertaintyDTO]
@@ -553,6 +604,14 @@ public struct RemoteRecipeDTO: Codable, Hashable, Sendable {
         steps = recipe.steps.map(RemoteRecipeStepDTO.init)
         nutrition = recipe.nutrition.map(RemoteNutritionDTO.init)
         notes = recipe.notes
+        // Four explicit nulls. Tags are the extraction model's, not the
+        // cook's: nothing in the app edits them, so every write says "leave
+        // them alone" rather than echoing a copy that a stale sync could
+        // have thinned.
+        diets = RemoteTagListDTO(nil)
+        cuisines = RemoteTagListDTO(nil)
+        keywords = RemoteTagListDTO(nil)
+        keywordProposals = RemoteTagListDTO(nil)
         isFavorite = recipe.isFavorite
         reviewStatus = recipe.reviewStatus
         uncertainties = recipe.uncertainties.map(
@@ -580,6 +639,10 @@ public struct RemoteRecipeDTO: Codable, Hashable, Sendable {
             steps: steps.map { $0.step() },
             nutrition: try nutrition?.nutrition(),
             notes: notes,
+            diets: diets?.tags(DietTag.self) ?? [],
+            cuisines: cuisines?.tags(CuisineTag.self) ?? [],
+            keywords: keywords?.tags(RecipeKeyword.self) ?? [],
+            keywordProposals: keywordProposals?.values ?? [],
             isFavorite: isFavorite,
             reviewStatus: reviewStatus,
             uncertainties: uncertainties.map { $0.uncertainty() },

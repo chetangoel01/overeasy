@@ -108,6 +108,19 @@ public struct RecipeStep: Codable, Hashable, Identifiable, Sendable {
     }
 }
 
+extension KeyedDecodingContainer {
+    /// A closed tag family, decoded so that one unknown member costs its own
+    /// value and nothing else. Missing decodes as empty, which is what makes
+    /// a payload written before the family existed still load.
+    func decodeTags<Tag: RawRepresentable>(
+        _: Tag.Type,
+        forKey key: Key
+    ) throws -> [Tag] where Tag.RawValue == String {
+        let raw = try decodeIfPresent([String].self, forKey: key) ?? []
+        return raw.compactMap(Tag.init(rawValue:))
+    }
+}
+
 public struct Recipe: Codable, Hashable, Identifiable, Sendable {
     public let id: UUID
     public var title: String
@@ -126,6 +139,17 @@ public struct Recipe: Codable, Hashable, Identifiable, Sendable {
     /// Creator caveats and context that belong beside the recipe rather
     /// than inside its ingredient or step lists.
     public var notes: [String]
+    /// What the dish is, as the extraction model tagged it. Empty means
+    /// untagged, never "excluded": a filter that hid what has not been
+    /// tagged yet would hide a cook's own library from them.
+    public var diets: [DietTag]
+    public var cuisines: [CuisineTag]
+    public var keywords: [RecipeKeyword]
+    /// Keywords the model offered that the curated list does not carry.
+    /// Shown where tags are shown, never filterable — promoting one is a
+    /// backend change, which is exactly what keeps the filter vocabulary
+    /// closed on both sides.
+    public var keywordProposals: [String]
     public var isFavorite: Bool
     public var reviewStatus: RecipeReviewStatus
     public var uncertainties: [FieldUncertainty]
@@ -149,6 +173,10 @@ public struct Recipe: Codable, Hashable, Identifiable, Sendable {
         steps: [RecipeStep] = [],
         nutrition: Nutrition? = nil,
         notes: [String] = [],
+        diets: [DietTag] = [],
+        cuisines: [CuisineTag] = [],
+        keywords: [RecipeKeyword] = [],
+        keywordProposals: [String] = [],
         isFavorite: Bool = false,
         reviewStatus: RecipeReviewStatus = .ready,
         uncertainties: [FieldUncertainty] = [],
@@ -171,6 +199,10 @@ public struct Recipe: Codable, Hashable, Identifiable, Sendable {
         self.steps = steps
         self.nutrition = nutrition
         self.notes = notes
+        self.diets = diets
+        self.cuisines = cuisines
+        self.keywords = keywords
+        self.keywordProposals = keywordProposals
         self.isFavorite = isFavorite
         self.reviewStatus = reviewStatus
         self.uncertainties = uncertainties
@@ -228,6 +260,20 @@ public struct Recipe: Codable, Hashable, Identifiable, Sendable {
         notes = try container.decodeIfPresent(
             [String].self,
             forKey: .notes
+        ) ?? []
+        // Read through `[String]` rather than straight into the enums. A
+        // library persisted by a build that knew one more keyword than this
+        // one does must still load: an unrecognised tag is dropped, not
+        // taken as a corrupt recipe.
+        diets = try container.decodeTags(DietTag.self, forKey: .diets)
+        cuisines = try container.decodeTags(CuisineTag.self, forKey: .cuisines)
+        keywords = try container.decodeTags(
+            RecipeKeyword.self,
+            forKey: .keywords
+        )
+        keywordProposals = try container.decodeIfPresent(
+            [String].self,
+            forKey: .keywordProposals
         ) ?? []
         isFavorite = try container.decodeIfPresent(
             Bool.self,
