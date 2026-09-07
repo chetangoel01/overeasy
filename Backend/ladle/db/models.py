@@ -772,6 +772,52 @@ class RecipeImage(Base):
     order_index: Mapped[int] = mapped_column(Integer, nullable=False)
 
 
+class RecipeTag(Base):
+    """One closed-vocabulary tag on one recipe.
+
+    Three families in one table because they are queried identically — the
+    Discover filter is the same correlated EXISTS for each — and because the
+    primary key is exactly the lookup: "does this recipe carry this value in
+    this family". Nothing else is stored: a tag has no order, no confidence
+    and no provenance, so a row is its own answer.
+    """
+
+    __tablename__ = "recipe_tags"
+    __table_args__ = (
+        CheckConstraint(
+            "family IN ('diet', 'cuisine', 'keyword')",
+            name="ck_recipe_tags_family",
+        ),
+        # The filter asks the other way round for the shelves that will come
+        # later: every recipe carrying one keyword.
+        Index("ix_recipe_tags_family_value", "family", "value"),
+    )
+
+    recipe_id: Mapped[UUID] = mapped_column(
+        Uuid, ForeignKey("recipes.id", ondelete="CASCADE"), primary_key=True
+    )
+    family: Mapped[str] = mapped_column(String(16), primary_key=True)
+    value: Mapped[str] = mapped_column(String(64), primary_key=True)
+
+
+class RecipeKeywordProposal(Base):
+    """A keyword the extraction model invented, held apart until reviewed.
+
+    A separate table rather than a fourth family, so "not filterable until
+    promoted" is a fact about the schema instead of a rule somebody has to
+    remember: the Discover filter joins `recipe_tags` and cannot reach these
+    rows at all. Promotion means adding the term to `RecipeKeyword` and
+    re-running the tag backfill, at which point it arrives as a real tag.
+    """
+
+    __tablename__ = "recipe_keyword_proposals"
+
+    recipe_id: Mapped[UUID] = mapped_column(
+        Uuid, ForeignKey("recipes.id", ondelete="CASCADE"), primary_key=True
+    )
+    value: Mapped[str] = mapped_column(String(64), primary_key=True)
+
+
 class Ingredient(Base):
     __tablename__ = "ingredients"
     __table_args__ = (

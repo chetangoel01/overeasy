@@ -2,6 +2,7 @@ from collections import defaultdict
 from collections.abc import Callable, Collection, Sequence
 from datetime import datetime
 from decimal import Decimal
+from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
@@ -33,6 +34,7 @@ from ladle.contracts.recipes import (
     RecipeSource,
     RecipeStepDTO,
 )
+from ladle.contracts.tags import CuisineTag, DietTag, RecipeKeyword
 from ladle.db.models import (
     DetectedTimer,
     DiscoverImpression,
@@ -44,10 +46,21 @@ from ladle.db.models import (
     OtherNutrient,
     Recipe,
     RecipeImage,
+    RecipeKeywordProposal,
     RecipeStep,
+    RecipeTag,
     SourceVideo,
     StepIngredient,
 )
+
+#: Which enum each `recipe_tags.family` holds, in the one place that has to
+#: know. Read order follows the vocabulary rather than insertion, so a recipe
+#: renders its tags identically however they were written.
+TAG_FAMILIES: dict[str, type[StrEnum]] = {
+    "diet": DietTag,
+    "cuisine": CuisineTag,
+    "keyword": RecipeKeyword,
+}
 
 
 def _escape_like(value: str) -> str:
@@ -57,6 +70,17 @@ def _escape_like(value: str) -> str:
     trailing backslash breaks the pattern outright.
     """
     return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def _tag_values[TagT: StrEnum](vocabulary: type[TagT], stored: set[str]) -> list[TagT]:
+    """Stored strings as vocabulary members, in vocabulary order.
+
+    A value the vocabulary no longer holds is dropped rather than raised: a
+    term retired from the list must not make every recipe still carrying it
+    unreadable, and the tag backfill is what clears it out for good.
+    """
+
+    return [member for member in vocabulary if member.value in stored]
 
 
 class ObjectURLUnavailable(Exception):
@@ -448,6 +472,7 @@ class RecipeRepository:
             )
         }
         self._delete_graph(database, stored.id)
+        self._replace_tags(database, stored=stored, recipe=recipe)
 
         database.add_all(
             self._replacement_image(
@@ -555,6 +580,53 @@ class RecipeRepository:
                 for nutrient in nutrition.other_nutrients
             )
 
+    def _replace_tags(
+        self,
+        database: Session,
+        *,
+        stored: Recipe,
+        recipe: RecipeDTO,
+    ) -> None:
+        """Write the tag families the recipe actually carried an answer for.
+
+        A null family is left exactly as it is. Tags come from extraction and
+        the app returns the whole recipe on every edit, so a build released
+        before tags existed sends no tag keys at all — and taking that silence
+        for "clear them" would strip a library of its tags one rename at a
+        time. An explicit empty list still clears, which is how a cook removes
+        a wrong one.
+        """
+
+        provided = {
+            "diet": recipe.diets,
+            "cuisine": recipe.cuisines,
+            "keyword": recipe.keywords,
+        }
+        families = [family for family, values in provided.items() if values is not None]
+        if families:
+            database.execute(
+                delete(RecipeTag).where(
+                    RecipeTag.recipe_id == stored.id,
+                    RecipeTag.family.in_(families),
+                )
+            )
+            database.add_all(
+                RecipeTag(recipe_id=stored.id, family=family, value=value.value)
+                for family in families
+                for value in provided[family] or ()
+            )
+        if recipe.keyword_proposals is not None:
+            database.execute(
+                delete(RecipeKeywordProposal).where(
+                    RecipeKeywordProposal.recipe_id == stored.id
+                )
+            )
+            database.add_all(
+                RecipeKeywordProposal(recipe_id=stored.id, value=value)
+                for value in recipe.keyword_proposals
+            )
+        database.flush()
+
     def to_dto(self, database: Session, stored: Recipe) -> RecipeDTO:
         return self.to_dtos(database, [stored])[stored.id]
 
@@ -607,6 +679,20 @@ class RecipeRepository:
             select(FieldUncertainty).where(FieldUncertainty.recipe_id.in_(recipe_ids))
         ):
             uncertainties[value.recipe_id].append(value)
+        tags: dict[UUID, dict[str, set[str]]] = defaultdict(
+            lambda: {family: set() for family in TAG_FAMILIES}
+        )
+        for tag in database.scalars(
+            select(RecipeTag).where(RecipeTag.recipe_id.in_(recipe_ids))
+        ):
+            tags[tag.recipe_id][tag.family].add(tag.value)
+        proposals: dict[UUID, list[str]] = defaultdict(list)
+        for proposal in database.scalars(
+            select(RecipeKeywordProposal)
+            .where(RecipeKeywordProposal.recipe_id.in_(recipe_ids))
+            .order_by(RecipeKeywordProposal.recipe_id, RecipeKeywordProposal.value)
+        ):
+            proposals[proposal.recipe_id].append(proposal.value)
         nutrition = {
             row.recipe_id: row
             for row in database.scalars(
@@ -644,6 +730,8 @@ class RecipeRepository:
                 nutrition=nutrition.get(stored.id),
                 other_nutrients=other_nutrients[stored.id],
                 approximate=stored.id in approximate,
+                tags=tags[stored.id],
+                keyword_proposals=proposals[stored.id],
             )
             for stored in recipes
         }
@@ -661,6 +749,8 @@ class RecipeRepository:
         nutrition: Nutrition | None,
         other_nutrients: list[OtherNutrient],
         approximate: bool,
+        tags: dict[str, set[str]],
+        keyword_proposals: list[str],
     ) -> RecipeDTO:
         ingredient_uncertainty = {
             value.ingredient_id: value
@@ -723,6 +813,12 @@ class RecipeRepository:
                 for step in steps
             ],
             nutrition=self._nutrition_dto(nutrition, other_nutrients, approximate),
+            # Always lists, never null: null on the wire is an old client
+            # saying nothing, and the server is never the one saying it.
+            diets=_tag_values(DietTag, tags["diet"]),
+            cuisines=_tag_values(CuisineTag, tags["cuisine"]),
+            keywords=_tag_values(RecipeKeyword, tags["keyword"]),
+            keyword_proposals=keyword_proposals,
             is_favorite=stored.favorite,
             review_status=RecipeReviewStatus(stored.review_status),
             uncertainties=[
