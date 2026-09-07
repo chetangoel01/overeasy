@@ -93,9 +93,10 @@ FAILED tests/contracts/test_golden_fixtures.py::test_golden_fixture_round_trips_
 ```
 
 `.github/workflows/backend-ci.yml` only runs on `Backend/**`, so neither this PR
-nor its merge triggers it — but a backend PR opened in the window between these
-two merges would go red on `main`'s account, not its own. Merge #112 promptly
-after this one.
+nor its merge triggers it. Two things still can, until #112 lands: a backend PR
+opened in the window, which would go red on `main`'s account rather than its
+own, and the workflow's weekly `schedule` (`17 5 * * 1`, next 2026-09-14), which
+needs no PR at all. Merge #112 promptly after this one.
 
 ## Verification
 
