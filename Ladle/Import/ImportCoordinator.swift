@@ -1262,7 +1262,9 @@ extension ImportFailure {
             "You're offline"
         case .authenticationExpired:
             "Sign in again"
-        case .parserUnavailable:
+        // A code this build doesn't know says nothing this build can explain,
+        // so it wears the generic failure's words and its recovery options.
+        case .parserUnavailable, .unrecognized:
             "Couldn't read the recipe"
         case .insufficientTextEvidence:
             "More recipe detail needed"
@@ -1283,7 +1285,7 @@ extension ImportFailure {
             "The connection dropped. The saved link is safe to retry."
         case .authenticationExpired:
             "Sign in again before retrying. The saved link is safe."
-        case .parserUnavailable:
+        case .parserUnavailable, .unrecognized:
             "Overeasy couldn’t read the recipe. Retry, add a note, paste details, or create it manually."
         case .insufficientTextEvidence:
             "The post lacks enough written detail. Paste the recipe or create it manually."

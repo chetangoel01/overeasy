@@ -53,6 +53,69 @@ struct ImportJobTests {
     }
 
     @Test
+    func aFailureCodeThisBuildDoesNotKnowDecodesInsteadOfThrowing() throws {
+        let decoded = try JSONDecoder().decode(
+            ImportFailure.self,
+            from: Data("\"someCodeFromALaterServer\"".utf8)
+        )
+
+        #expect(decoded == .unrecognized("someCodeFromALaterServer"))
+    }
+
+    @Test
+    func anUnrecognisedCodeSurvivesTheDurableJobPayload() throws {
+        // The job is stored as encoded JSON, so dropping the string here
+        // would lose it for good: a build that later learns the code would
+        // still read the row as a generic failure.
+        let failed = try ImportJob.queued(sourceURL: sourceURL)
+            .transitioning(to: .failed(.unrecognized("someCodeFromALaterServer")))
+
+        let restored = try JSONDecoder().decode(
+            ImportJob.self,
+            from: JSONEncoder().encode(failed)
+        )
+
+        #expect(
+            restored.status
+                == .failed(.unrecognized("someCodeFromALaterServer"))
+        )
+    }
+
+    @Test
+    func aKnownFailureKeepsTheWireShapeAlreadyOnDisk() throws {
+        // Import jobs persisted by earlier builds hold this exact JSON in
+        // their SwiftData payload. A failure reason that stopped encoding as
+        // a bare string would make every stored failed job undecodable.
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+
+        let encoded = try encoder.encode(ImportStatus.failed(.parserUnavailable))
+
+        #expect(
+            String(decoding: encoded, as: UTF8.self)
+                == #"{"failed":{"_0":"parserUnavailable"}}"#
+        )
+    }
+
+    @Test
+    func everyKnownFailureRoundTripsThroughItsWireValue() throws {
+        let known: [ImportFailure] = [
+            .parserUnavailable,
+            .insufficientTextEvidence,
+            .privateOrDeleted,
+            .unsupportedSource,
+            .invalidURL,
+            .networkUnavailable,
+            .authenticationExpired,
+            .quotaExceeded,
+        ]
+
+        for failure in known {
+            #expect(ImportFailure(rawValue: failure.rawValue) == failure)
+        }
+    }
+
+    @Test
     func readyCannotReturnToParsing() throws {
         let ready = try ImportJob.queued(sourceURL: sourceURL)
             .transitioning(to: .ready)
