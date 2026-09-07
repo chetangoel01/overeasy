@@ -490,6 +490,239 @@ final class ImportCoordinatorTests: XCTestCase {
         )
     }
 
+    // MARK: - Repairing rows builds 20260902.1 and 20260903.1 stranded
+
+    func testStrandedRowIsLinkedAndThenClearsThroughReview() throws {
+        // The cook pasted a mobile link; the server stored the canonical one.
+        let job = try strandedReviewJob(
+            "https://m.tiktok.com/@cook/video/7612708181004799263?is_from_webapp=1"
+        )
+        let recipe = reviewRecipe(
+            "https://www.tiktok.com/@cook/video/7612708181004799263",
+            reviewStatus: .needsReview
+        )
+        let repository = ImportTestRepository(
+            recipes: [recipe],
+            importJobs: [job]
+        )
+
+        let outcome = try ImportReviewLinkRepair(
+            repository: repository
+        ).repair()
+
+        XCTAssertEqual(outcome, .init(linked: [job.id]))
+        XCTAssertEqual(
+            repository.importJobs.first?.reviewRecipeID,
+            recipe.id
+        )
+
+        let library = LibraryViewModel(
+            repository: repository,
+            preferenceStore: ImportTestPreferenceStore()
+        )
+        library.load()
+        XCTAssertNotNil(library.completeReview(recipeID: recipe.id))
+        XCTAssertEqual(repository.importJobs.first?.status, .ready)
+        XCTAssertTrue(library.actionableImportJobs.isEmpty)
+    }
+
+    func testStrandedRowWhoseRecipeIsAlreadyReviewedClearsOnLoad() throws {
+        let job = try strandedReviewJob(
+            "https://www.instagram.com/share/reels/DKfQ2mXOn3p/"
+        )
+        let recipe = reviewRecipe(
+            "https://www.instagram.com/reel/DKfQ2mXOn3p/",
+            reviewStatus: .ready
+        )
+        let repository = ImportTestRepository(
+            recipes: [recipe],
+            importJobs: [job]
+        )
+
+        let outcome = try ImportReviewLinkRepair(
+            repository: repository
+        ).repair()
+
+        XCTAssertEqual(outcome, .init(cleared: [job.id]))
+        XCTAssertEqual(repository.importJobs.first?.status, .ready)
+
+        let library = LibraryViewModel(
+            repository: repository,
+            preferenceStore: ImportTestPreferenceStore()
+        )
+        library.load()
+        XCTAssertTrue(library.actionableImportJobs.isEmpty)
+    }
+
+    func testStrandedRowWithNoMatchingRecipeIsLeftAlone() throws {
+        let job = try strandedReviewJob(
+            "https://www.tiktok.com/@cook/video/7612708181004799263"
+        )
+        let other = reviewRecipe(
+            "https://www.tiktok.com/@cook/video/1111111111111111111",
+            reviewStatus: .needsReview
+        )
+        let repository = ImportTestRepository(
+            recipes: [other],
+            importJobs: [job]
+        )
+
+        let outcome = try ImportReviewLinkRepair(
+            repository: repository
+        ).repair()
+
+        XCTAssertEqual(outcome, .init(skipped: [job.id]))
+        XCTAssertEqual(repository.importJobs, [job])
+        XCTAssertEqual(repository.recipes, [other])
+    }
+
+    func testStrandedRowMatchingTwoRecipesIsLeftAlone() throws {
+        // The same video imported twice. Guessing between them would put the
+        // wrong recipe behind the row.
+        let job = try strandedReviewJob(
+            "https://www.tiktok.com/@cook/video/7612708181004799263"
+        )
+        let repository = ImportTestRepository(
+            recipes: [
+                reviewRecipe(
+                    "https://www.tiktok.com/@cook/video/7612708181004799263",
+                    reviewStatus: .needsReview
+                ),
+                reviewRecipe(
+                    "https://m.tiktok.com/@cook/video/7612708181004799263",
+                    reviewStatus: .ready
+                ),
+            ],
+            importJobs: [job]
+        )
+
+        let outcome = try ImportReviewLinkRepair(
+            repository: repository
+        ).repair()
+
+        XCTAssertEqual(outcome, .init(skipped: [job.id]))
+        XCTAssertEqual(repository.importJobs, [job])
+    }
+
+    func testStrandedShortLinkOnlyTheServerCanResolveIsLeftAlone() throws {
+        let job = try strandedReviewJob("https://vm.tiktok.com/ZMabcdefg/")
+        let repository = ImportTestRepository(
+            recipes: [
+                reviewRecipe(
+                    "https://www.tiktok.com/@cook/video/7612708181004799263",
+                    reviewStatus: .needsReview
+                ),
+            ],
+            importJobs: [job]
+        )
+
+        let outcome = try ImportReviewLinkRepair(
+            repository: repository
+        ).repair()
+
+        XCTAssertEqual(outcome, .init(skipped: [job.id]))
+        XCTAssertEqual(repository.importJobs, [job])
+    }
+
+    func testReimportAwaitingItsDecisionIsNeverRepaired() throws {
+        let current = reviewRecipe(
+            "https://www.tiktok.com/@cook/video/7612708181004799263",
+            reviewStatus: .ready
+        )
+        let candidate = reviewRecipe(
+            current.originalURL.absoluteString,
+            reviewStatus: .needsReview
+        )
+        let job = try ImportJob.reimporting(
+            sourceURL: current.originalURL,
+            source: .tiktok,
+            currentRecipeID: current.id,
+            candidateRecipeID: candidate.id
+        )
+        .awaitingReview(candidate: candidate)
+        let repository = ImportTestRepository(
+            recipes: [current],
+            importJobs: [job]
+        )
+
+        let outcome = try ImportReviewLinkRepair(
+            repository: repository
+        ).repair()
+
+        XCTAssertTrue(outcome.isEmpty)
+        XCTAssertEqual(repository.importJobs, [job])
+    }
+
+    func testALibraryWithNothingStrandedIsNotEvenRead() throws {
+        let repository = ImportTestRepository(
+            importJobs: PreviewFixtures.importJobs
+        )
+
+        let outcome = try ImportReviewLinkRepair(
+            repository: repository
+        ).repair()
+
+        XCTAssertTrue(outcome.isEmpty)
+        XCTAssertEqual(repository.recipeFetchCount, 0)
+    }
+
+    func testEveryFormOfALinkResolvesToOneVideoKey() {
+        let pairs = [
+            (
+                "https://m.tiktok.com/@cook/video/123456?is_from_webapp=1",
+                "https://www.tiktok.com/@cook/video/123456"
+            ),
+            (
+                "https://www.instagram.com/share/reels/DKfQ2mXOn3p/",
+                "https://www.instagram.com/reel/DKfQ2mXOn3p/"
+            ),
+            (
+                "https://youtu.be/dQw4w9WgXcQ",
+                "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+            ),
+            (
+                "https://m.youtube.com/shorts/dQw4w9WgXcQ",
+                "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+            ),
+        ]
+        for (pasted, canonical) in pairs {
+            XCTAssertEqual(
+                SourceVideoKey(URL(string: pasted)!),
+                SourceVideoKey(URL(string: canonical)!),
+                pasted
+            )
+        }
+        XCTAssertNil(
+            SourceVideoKey(URL(string: "https://vm.tiktok.com/ZMabcdefg/")!)
+        )
+        XCTAssertNil(
+            SourceVideoKey(URL(string: "https://example.com/recipe")!)
+        )
+    }
+
+    /// The shape those builds left on a phone: awaiting review, naming no
+    /// recipe at all.
+    private func strandedReviewJob(_ sourceURL: String) throws -> ImportJob {
+        try ImportJob.queued(
+            sourceURL: URL(string: sourceURL)!,
+            source: .tiktok
+        )
+        .transitioning(to: .needsReview)
+    }
+
+    private func reviewRecipe(
+        _ originalURL: String,
+        reviewStatus: RecipeReviewStatus
+    ) -> Recipe {
+        Recipe(
+            title: "One-Pot French Onion Pasta",
+            source: .tiktok,
+            originalURL: URL(string: originalURL)!,
+            servings: 4,
+            reviewStatus: reviewStatus
+        )
+    }
+
     private func makeReviewingCoordinator(
         repository: ImportTestRepository
     ) -> ImportCoordinator {
@@ -3385,6 +3618,7 @@ private actor ThrowingImportService: ImportService {
 private final class ImportTestRepository: RecipeRepository {
     var recipes: [Recipe]
     var importJobs: [ImportJob]
+    private(set) var recipeFetchCount = 0
 
     init(
         recipes: [Recipe] = [],
@@ -3395,7 +3629,8 @@ private final class ImportTestRepository: RecipeRepository {
     }
 
     func fetchRecipes() throws -> [Recipe] {
-        recipes
+        recipeFetchCount += 1
+        return recipes
     }
 
     func fetchRecipe(id: UUID) throws -> Recipe? {

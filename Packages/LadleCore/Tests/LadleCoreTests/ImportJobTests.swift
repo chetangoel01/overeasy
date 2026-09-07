@@ -36,6 +36,29 @@ struct ImportJobTests {
     }
 
     @Test
+    func awaitingJobThatNamesNoRecipeCanBeLinkedToOne() throws {
+        let recipeID = UUID()
+        let job = try ImportJob.queued(sourceURL: sourceURL)
+            .transitioning(to: .needsReview)
+        #expect(job.reviewRecipeID == nil)
+
+        let linked = try job.linkingReviewRecipe(recipeID)
+
+        #expect(linked.status == .needsReview)
+        #expect(linked.reviewRecipeID == recipeID)
+    }
+
+    @Test
+    func linkingRefusesAJobThatAlreadyNamesARecipe() throws {
+        let job = try ImportJob.queued(sourceURL: sourceURL)
+            .awaitingReview(recipeID: UUID())
+
+        #expect(throws: ImportTransitionError.self) {
+            try job.linkingReviewRecipe(UUID())
+        }
+    }
+
+    @Test
     func parsingCanFail() throws {
         let job = ImportJob.queued(sourceURL: sourceURL)
 

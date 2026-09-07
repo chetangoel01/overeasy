@@ -174,6 +174,10 @@ final class LadleRuntime {
     let installationIdentity: InstallationIdentity
 
     private let sharedQueueReconciler: SharedQueueReconciler?
+    /// Runs again on every activation, not only at launch: on the first
+    /// launch after the update the recipe a stranded row belongs to may
+    /// still be arriving with the sync that `sceneBecameActive` starts.
+    private let reviewLinkRepair: ImportReviewLinkRepair
     private let sessionWriters: [any SessionWriter]
 
     init(
@@ -228,6 +232,12 @@ final class LadleRuntime {
         } else {
             sharedQueueReconciler = nil
         }
+
+        let reviewLinkRepair = ImportReviewLinkRepair(
+            repository: appEnvironment.recipeRepository
+        )
+        _ = try? reviewLinkRepair.repair()
+        self.reviewLinkRepair = reviewLinkRepair
 
         let notificationService: any NotificationService
         let authClient: AuthClient?
@@ -439,6 +449,7 @@ final class LadleRuntime {
                     using: syncService,
                     status: syncStatus
                 )
+                _ = try? reviewLinkRepair.repair()
                 libraryViewModel.load()
             }
         } catch {

@@ -145,6 +145,27 @@ public struct ImportJob: Codable, Hashable, Identifiable, Sendable {
         return copy
     }
 
+    /// Names the recipe an already-awaiting job is waiting on. Only for a
+    /// row that names none — `awaitingReview` cannot be used, because it
+    /// enters `.needsReview` and a job cannot enter a status it is in.
+    public func linkingReviewRecipe(
+        _ recipeID: UUID,
+        at date: Date = .now
+    ) throws -> Self {
+        guard case .needsReview = status,
+              currentRecipeID == nil,
+              candidateRecipeID == nil else {
+            throw ImportTransitionError.invalid(
+                from: status,
+                to: .needsReview
+            )
+        }
+        var copy = self
+        copy.currentRecipeID = recipeID
+        copy.updatedAt = date
+        return copy
+    }
+
     public var reviewRecipeID: UUID? {
         guard case .needsReview = status else {
             return nil

@@ -78,12 +78,67 @@ title and byline and opens the review when tapped, instead of falling through
 to the failed-import sheet. That is the behaviour the seeded review row has
 always had.
 
-### What this does not do
+### The rows already on a phone
 
-Rows already persisted by a shipped build keep their `nil` recipe link; no
-migration was added, per the issue's "no deletion, no resolved state". A cook
-carrying one can still swipe it away with **Discard**. Worth a follow-up if
-more than one report arrives.
+Fixing the write does nothing for the rows builds `20260902.1` and
+`20260903.1` already persisted, and asking the reporter to swipe away a row
+that says "Couldn't read the recipe" about a recipe he can see in his library
+is not a fix. `ImportReviewLinkRepair` re-links them; see below.
+
+## Repairing the stranded rows
+
+`ImportReviewLinkRepair` walks every `.needsReview` job whose
+`reviewRecipeID` is nil and puts the recipe back on it. Nothing is ever
+deleted: a row it cannot match with confidence is left exactly as it was.
+
+### The key is the video, not the URL
+
+The obvious key is the URL, and it does not work. The job holds what the cook
+pasted; the recipe holds what the server canonicalised —
+`Backend/ladle/recipes/repository.py:315` writes `original_url =
+source.canonical_url`, and `Backend/ladle/imports/source_identity.py` rebuilds
+that from the platform and the video id. So a job saved from
+`m.tiktok.com/@cook/video/123?is_from_webapp=1` sits beside a recipe whose
+`originalURL` is `www.tiktok.com/@cook/video/123`. The client's own
+`ImportCoordinator.canonicalURL` only lowercases the host and trims a
+trailing slash, which is nowhere near enough.
+
+`SourceVideoKey` therefore parses both sides down to platform + video id,
+mirroring the server's rules: `m.` and `www.` hosts collapse, Instagram's
+`/reels/` collapses to `/reel/` and `/share/` is stripped, YouTube's
+`/watch?v=`, `/shorts/`, `/live/`, `/embed/` and `youtu.be` all reduce to the
+same id. What it deliberately does not do is resolve short links
+(`vm.tiktok.com`, `/t/…`) — only the server can, so those rows yield no key
+and are left alone.
+
+### What it will and will not touch
+
+| Case | Outcome |
+|---|---|
+| Exactly one unclaimed recipe matches, still `.needsReview` | linked; the row now shows the recipe and opens review |
+| Exactly one matches and is already `.ready` | linked and moved to `.ready`; the row goes |
+| No match — recipe deleted, or a short link | skipped, untouched |
+| Two matches — the same video imported twice | skipped; guessing would put the wrong recipe behind the row |
+| A re-import awaiting its accept/keep decision | never in the list: `reviewRecipeID` is non-nil there |
+
+A recipe already named by another job's `currentRecipeID` or
+`candidateRecipeID` is not a candidate, so two stranded rows cannot both
+claim one recipe.
+
+### Where it runs, and the log that is not a log
+
+`AppBootstrap` runs it once at init, next to the shared-queue reconcile, and
+again in `sceneBecameActive` after `performSync` — on the first launch after
+the update the recipe a stranded row belongs to may still be arriving with
+that sync. Running it twice is safe by construction: it only touches a
+`.needsReview` job that names no recipe, and a repaired job no longer
+qualifies. It reads the recipe list only when there is something to repair.
+
+The app has no logging facility — no `OSLog`, no `os_log`, nothing — and
+introducing one for a single line is not a decision this change should make.
+`repair()` returns an `Outcome` of the job IDs it linked, cleared and
+skipped instead. That is the log: the tests assert on it, and `AppBootstrap`
+discards it.
 
 ## The four exits from the failure sheet
 
@@ -166,16 +221,47 @@ Full UI suite, because a needs-review row now renders and routes differently:
 Executed 29 tests, with 0 failures (0 unexpected) in 555.396 seconds
 ```
 
+### The repair
+
+Red by disabling the walk (`unlinked` forced empty), which is the state a
+phone updating from `20260903.1` is in:
+
+```
+-only-testing:LadleTests/ImportCoordinatorTests/testStrandedRow… ×5
+Executed 5 tests, with 10 failures (0 unexpected) in 0.574 seconds
+```
+
+The two positive cases fail on the link itself — `reviewRecipeID` nil, and
+the job still `.needsReview` after `completeReview` — and the three
+leave-alone cases fail because they assert the repair ran and reported a
+skip, not that nothing happened.
+
+Green, with the shared domain and the two Inbox UI tests:
+
+```
+swift test --package-path Packages/LadleCore
+  Test run with 58 tests in 10 suites passed
+
+-only-testing:LadleTests
+  Executed 474 tests, with 1 test skipped and 0 failures (0 unexpected) in 7.489 seconds
+
+-only-testing:LadleUITests/StateScenarioUITests/testReviewedImportLeavesTheInbox
+-only-testing:LadleUITests/StateScenarioUITests/testPrimaryJourneyCapturesInboxDetailAndCooking
+  Executed 2 tests, with 0 failures (0 unexpected) in 54.469 seconds
+```
+
 ## Files
 
 | File | Change |
 |------|--------|
 | `Ladle/Import/ImportCoordinator.swift` | a completed needs-review import names its recipe on the job |
-| `LadleTests/ImportCoordinatorTests.swift` | five tests — a fresh import and each of the four sheet exits — plus a `NeedsReviewImportService` stub |
+| `Ladle/Import/ImportReviewLinkRepair.swift` | new — the launch-time repair and `SourceVideoKey` |
+| `Ladle/App/AppBootstrap.swift` | runs the repair at init and after each activation's sync |
+| `Packages/LadleCore/.../ImportJob.swift` | `linkingReviewRecipe(_:at:)`, the one transition an already-awaiting job needed |
+| `LadleTests/ImportCoordinatorTests.swift` | five tests for the write, eight for the repair, a `NeedsReviewImportService` stub, a recipe-fetch counter on the test repository |
+| `Packages/LadleCore/Tests/.../ImportJobTests.swift` | the new transition and its rejection |
 | `LadleUITests/StateScenarioUITests.swift` | `testReviewedImportLeavesTheInbox` |
-
-No file was added or removed, so `xcodegen generate` was not needed and
-`Ladle.xcodeproj` is untouched.
+| `Ladle.xcodeproj/project.pbxproj` | `xcodegen generate` for the one new file — four lines, nothing reordered |
 
 ## How this was verified
 
