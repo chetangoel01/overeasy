@@ -188,3 +188,11 @@ The UI row is two runs: the machine killed the first one 15 tests in, after
 `DiscoverInteractionUITests` (7), `ProfileSheetUITests` (7) and
 `RecipesFilterMenuUITests` (1) had all passed, and `StateScenarioUITests` (13)
 was run on its own straight after. Nothing failed in either.
+
+## Captures
+
+Left is `main`, right is this branch, on the seeded library.
+
+| Before | After |
+| --- | --- |
+| ![Before](captures/2026-09-07-discover-page-save/before.png) | ![After](captures/2026-09-07-discover-page-save/after.png) |
