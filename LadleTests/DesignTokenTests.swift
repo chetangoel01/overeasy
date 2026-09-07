@@ -718,8 +718,21 @@ final class DesignTokenTests: XCTestCase {
         )
         XCTAssertEqual(
             source.components(separatedBy: ".menuOrder(.fixed)").count - 1,
-            3,
-            "All three menus keep declaration order wherever they pop from"
+            2,
+            """
+            Sort and view keep declaration order here; Filters is the shared             control now and keeps it in RecipeFilterMenu
+            """
+        )
+        let sharedControl = try String(
+            contentsOf: project.appendingPathComponent(
+                "Ladle/Library/RecipeFilterMenu.swift"
+            ),
+            encoding: .utf8
+        )
+        XCTAssertEqual(
+            sharedControl.components(separatedBy: ".menuOrder(.fixed)").count - 1,
+            1,
+            "The one filter control, on all three tabs, keeps its order too"
         )
 
         // Filters is a menu of live bindings: no staged copy, no Apply.

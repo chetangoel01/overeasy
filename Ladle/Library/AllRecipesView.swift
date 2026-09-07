@@ -146,48 +146,50 @@ struct AllRecipesView: View {
     private static let controlOpticalInset: CGFloat =
         (LadleTheme.Control.hitTarget - LadleTheme.IconSize.small) / 2
 
-    /// Filters is a menu of inline pickers, built like Sort beside it. Each
-    /// row writes the view model directly, so a tap applies at once: there is
-    /// no staged copy of the filters and no Apply to forget to press. Every
-    /// submenu label carries its own current value, so the whole filter state
-    /// reads without opening anything.
+    /// Filters is a menu of inline pickers and toggles, built like Sort
+    /// beside it. Each row writes its state directly, so a tap applies at
+    /// once: there is no staged copy of the filters and no Apply to forget
+    /// to press. Every submenu label carries its own current value, so the
+    /// whole filter state reads without opening anything.
+    ///
+    /// The shared tag families come first and the library's own dimensions
+    /// after them, because the tags are the filter the other two tabs also
+    /// answer — this menu is that one control with the library's extra rows
+    /// spliced in, not a control of its own.
     private var filterMenu: some View {
-        Menu {
-            Toggle("Favorites", isOn: $viewModel.favoritesOnly)
-            filterSubmenu(.time, selection: $viewModel.maximumTotalMinutes)
-            filterSubmenu(
-                .calories,
-                selection: wholeNumber($viewModel.maximumCalories)
-            )
-            filterSubmenu(
-                .protein,
-                selection: wholeNumber($viewModel.minimumProtein)
-            )
-            filterSubmenu(
-                .carbohydrates,
-                selection: wholeNumber($viewModel.maximumCarbohydrates)
-            )
-            filterSubmenu(.fat, selection: wholeNumber($viewModel.maximumFat))
-
-            // Its own trailing section, and absent rather than disabled: a
-            // menu draws a disabled destructive row badly, and keeping it at
-            // the end means nothing above it moves when it appears.
-            if viewModel.hasActiveFilters {
+        RecipeFilterMenu(
+            filters: viewModel.filters,
+            extraSections: {
                 Divider()
-                Button(
-                    "Reset filters",
-                    role: .destructive,
-                    action: viewModel.resetFilters
+                Toggle("Favorites", isOn: $viewModel.favoritesOnly)
+                filterSubmenu(.time, selection: $viewModel.maximumTotalMinutes)
+                filterSubmenu(
+                    .calories,
+                    selection: wholeNumber($viewModel.maximumCalories)
+                )
+                filterSubmenu(
+                    .protein,
+                    selection: wholeNumber($viewModel.minimumProtein)
+                )
+                filterSubmenu(
+                    .carbohydrates,
+                    selection: wholeNumber($viewModel.maximumCarbohydrates)
+                )
+                filterSubmenu(
+                    .fat,
+                    selection: wholeNumber($viewModel.maximumFat)
+                )
+            },
+            hasActiveFilters: viewModel.hasActiveFilters,
+            clearFilters: viewModel.resetFilters,
+            label: {
+                controlIcon(
+                    filterChips.isEmpty
+                        ? "line.3.horizontal.decrease"
+                        : "line.3.horizontal.decrease.circle.fill"
                 )
             }
-        } label: {
-            controlIcon(
-                filterChips.isEmpty
-                    ? "line.3.horizontal.decrease"
-                    : "line.3.horizontal.decrease.circle.fill"
-            )
-        }
-        .menuOrder(.fixed)
+        )
         .accessibilityLabel(filterButtonTitle)
         .buttonStyle(LadlePressButtonStyle())
     }
@@ -278,26 +280,8 @@ struct AllRecipesView: View {
         .padding(.top, 8)
     }
 
-    @ViewBuilder
     private var activeFilters: some View {
-        if !filterChips.isEmpty {
-            ScrollView(.horizontal) {
-                HStack(spacing: 8) {
-                    ForEach(filterChips) { chip in
-                        Button(action: chip.remove) {
-                            LadlePill(
-                                text: chip.title,
-                                systemImage: "xmark",
-                                tint: LadleTheme.Intent.success.opacity(0.45)
-                            )
-                        }
-                        .buttonStyle(LadlePressButtonStyle())
-                        .accessibilityLabel("Remove filter: \(chip.title)")
-                    }
-                }
-            }
-            .scrollIndicators(.hidden)
-        }
+        RecipeFilterChipsRow(chips: filterChips)
     }
 
     @ViewBuilder
@@ -358,6 +342,9 @@ struct AllRecipesView: View {
         }
     }
 
+    /// An empty library under a filter has to say which filter emptied it.
+    /// A diet is still on from a previous launch, which is exactly the case
+    /// where "No recipes found" reads as lost recipes rather than a filter.
     private var emptyState: some View {
         VStack(spacing: LadleTheme.Spacing.medium) {
             Image(systemName: "magnifyingglass")
@@ -366,12 +353,29 @@ struct AllRecipesView: View {
             Text("No recipes found")
                 .ladleFont(.section)
                 .foregroundStyle(LadleTheme.Label.primary)
-            Text("Try another filter or return to all recipes.")
+            Text(emptyStateMessage)
                 .ladleFont(.metadata)
                 .foregroundStyle(LadleTheme.Label.secondary)
+                .multilineTextAlignment(.center)
+            if viewModel.hasActiveFilters {
+                Button("Clear filters", action: viewModel.resetFilters)
+                    .buttonStyle(LadleButtonStyle(role: .secondary))
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, LadleTheme.Spacing.cooking)
+        .accessibilityIdentifier("library.no-recipes")
+    }
+
+    private var emptyStateMessage: String {
+        let summary = viewModel.filters.filter.summary
+        if !summary.isEmpty {
+            return "Nothing in your library matches \(summary)."
+        }
+        if viewModel.hasActiveFilters {
+            return "Nothing in your library matches these filters."
+        }
+        return "Try another filter or return to all recipes."
     }
 
     /// Width of a collection row's leading icon. The row dividers derive

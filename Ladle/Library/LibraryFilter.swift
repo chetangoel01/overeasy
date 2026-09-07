@@ -100,6 +100,13 @@ struct LibraryFilterChip: Identifiable {
                 )
             )
         }
+        // Diet first, ahead of the library's own dimensions: it is the one
+        // filter that was still on when the app opened, so it is the one a
+        // cook is most likely to be looking for an explanation of.
+        chips.insert(
+            contentsOf: Self.chips(for: viewModel.filters),
+            at: 0
+        )
         for (filter, value, remove) in numericFilters(of: viewModel) {
             guard let value else { continue }
             chips.append(

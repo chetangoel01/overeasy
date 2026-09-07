@@ -39,6 +39,11 @@ final class LibraryViewModel {
         static let comeBackCollapsed = "ladle.library.comeback-collapsed"
     }
 
+    /// The tag filter, shared with Discover and Watch. Held here because
+    /// this is the object every tab already has a reference to, and because
+    /// the library is the one tab that answers it without a request.
+    let filters: RecipeFilterStore
+
     @ObservationIgnored
     private let repository: RecipeRepository
 
@@ -86,6 +91,7 @@ final class LibraryViewModel {
     init(
         repository: RecipeRepository,
         preferenceStore: PreferenceStoring = UserDefaults.standard,
+        filters: RecipeFilterStore? = nil,
         now: @escaping () -> Date = Date.init,
         shuffleRecipeIDs: @escaping ([UUID]) -> [UUID] = { $0.shuffled() },
         didMutate:
@@ -93,6 +99,10 @@ final class LibraryViewModel {
     ) {
         self.repository = repository
         self.preferenceStore = preferenceStore
+        // Defaults to a store over the same preferences, so a caller that
+        // does not care about the filter still gets the persisted diet.
+        self.filters = filters
+            ?? RecipeFilterStore(preferenceStore: preferenceStore)
         self.now = now
         self.shuffleRecipeIDs = shuffleRecipeIDs
         self.didMutate = didMutate
@@ -144,6 +154,10 @@ final class LibraryViewModel {
         ].forEach {
             preferenceStore.removeObject(forKey: $0)
         }
+        // The diet is the one preference here that changes what a screen
+        // *contains* rather than how it looks, so a run that skipped it
+        // would open on a thinned library and blame the seeding.
+        RecipeFilterStore.resetPreferences(in: preferenceStore)
     }
 
     var visibleRecipes: [Recipe] {
@@ -158,7 +172,11 @@ final class LibraryViewModel {
             maximumFat: maximumFat
         )
         .apply(to: recipes)
-        return matches.filter(matchesSelectedCollection)
+        // Locally, always. The tags travelled with the recipe, so narrowing
+        // a library the cook is already holding never costs a request.
+        return filters.filter
+            .apply(to: matches)
+            .filter(matchesSelectedCollection)
     }
 
     var savedThisWeek: [Recipe] {
@@ -214,11 +232,15 @@ final class LibraryViewModel {
         ]
     }
 
+    /// Watch's "My Recipes" feed is this library, so it answers the shared
+    /// filter here rather than leaving one of the three tabs unfiltered.
     var watchRecipes: [Recipe] {
         let recipesByID = Dictionary(
             uniqueKeysWithValues: recipes.map { ($0.id, $0) }
         )
-        return watchRecipeOrder.compactMap { recipesByID[$0] }
+        return filters.filter.apply(
+            to: watchRecipeOrder.compactMap { recipesByID[$0] }
+        )
     }
 
     func searchResults(matching text: String) -> [Recipe] {
@@ -499,9 +521,9 @@ final class LibraryViewModel {
         favoritesOnly = false
     }
 
-    /// The six the filter menu owns. The selected collection is navigation
-    /// rather than a filter, so it is deliberately not counted here and the
-    /// menu's Reset leaves it alone.
+    /// Everything the filter menu owns, its own six and the shared tags.
+    /// The selected collection is navigation rather than a filter, so it is
+    /// deliberately not counted here and the menu's Reset leaves it alone.
     var hasActiveFilters: Bool {
         favoritesOnly
             || maximumTotalMinutes != nil
@@ -509,9 +531,18 @@ final class LibraryViewModel {
             || minimumProtein != nil
             || maximumCarbohydrates != nil
             || maximumFat != nil
+            || !filters.filter.isEmpty
     }
 
+    /// Clears the diet along with the rest. It is asked for explicitly, from
+    /// a destructive row the cook chose — the persistence is there so a diet
+    /// survives *neglect*, not so it survives being cleared.
     func resetFilters() {
+        resetLibraryFilters()
+        filters.filter.clear()
+    }
+
+    private func resetLibraryFilters() {
         favoritesOnly = false
         maximumTotalMinutes = nil
         maximumCalories = nil
@@ -520,11 +551,15 @@ final class LibraryViewModel {
         maximumFat = nil
     }
 
+    /// Opening a collection starts a fresh browse, so the browsing filters
+    /// go — but not the diet, which is not a browse and which the cook
+    /// would have to set again on every collection they opened.
     func showCollection(_ collection: LibraryRecipeCollection) {
         selectedCollection = collection
         searchText = ""
         sort = .recentlyAdded
-        resetFilters()
+        resetLibraryFilters()
+        filters.filter.clearBrowsingFilters()
     }
 
     func clearOperationError() {
