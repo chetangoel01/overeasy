@@ -117,6 +117,97 @@ final class AccountSignInFlowTests: XCTestCase {
         XCTAssertEqual(fixture.onAuthenticatedCount(), 0)
     }
 
+    /// A 500 from our own server is not the cook's fault, and not a reason
+    /// to make them walk Google's sheet again: Retry re-issues the exchange
+    /// that failed, under the idempotency key that attempt already used.
+    func testRetryReissuesTheFailedExchangeWithoutTheProviderSheet() async throws {
+        let requests = Locked<[URLRequest]>([])
+        URLProtocolStub.install { request in
+            let attempt = requests.withValue {
+                $0.append(request)
+                return $0.count
+            }
+            guard attempt > 1 else {
+                return (
+                    Self.response(request, status: 500),
+                    Self.errorJSON(code: "internalError")
+                )
+            }
+            return (
+                Self.response(request, status: 200),
+                Self.tokensJSON(
+                    accessToken: "google-access",
+                    userKind: "google"
+                )
+            )
+        }
+        let fixture = makeFixture()
+
+        await fixture.flow.signInWithGoogle()
+
+        XCTAssertEqual(
+            fixture.flow.failure?.message,
+            RemoteFailure.serviceUnavailable.message
+        )
+        XCTAssertTrue(
+            fixture.flow.canRetry,
+            "A 500 is exactly the failure Retry exists for"
+        )
+        XCTAssertEqual(fixture.accountSession.state, .guest)
+
+        await fixture.flow.retry()
+
+        XCTAssertEqual(
+            requests.snapshot.map(\.url?.path),
+            ["/v1/auth/google", "/v1/auth/google"],
+            "Retry must re-issue the request, not only clear the message"
+        )
+        XCTAssertEqual(
+            fixture.googleSignIn.signInCallCount,
+            1,
+            "The cook already proved who they are; Retry replays only the exchange"
+        )
+        let keys = try requests.snapshot.map(Self.idempotencyKey)
+        XCTAssertEqual(
+            keys[0],
+            keys[1],
+            "The same attempt retried keeps its idempotency key"
+        )
+        XCTAssertEqual(fixture.accountSession.state, .signedInWithGoogle)
+        XCTAssertNil(fixture.flow.failure)
+        XCTAssertFalse(fixture.flow.canRetry)
+        XCTAssertEqual(fixture.onAuthenticatedCount(), 1)
+    }
+
+    /// Retry is offered only where re-sending the same request could work.
+    /// A refused identity claim would be refused again, and a cancelled
+    /// provider sheet left no request behind to send.
+    func testRetryIsNotOfferedForFailuresRepeatingWouldNotFix() async {
+        URLProtocolStub.install { request in
+            (
+                Self.response(request, status: 409),
+                Self.errorJSON(code: "conflict")
+            )
+        }
+        let conflicted = makeFixture()
+
+        await conflicted.flow.signInWithGoogle()
+
+        XCTAssertEqual(conflicted.flow.failure, .identityConflict)
+        XCTAssertFalse(conflicted.flow.canRetry)
+
+        let cancelled = makeFixture(
+            googleResult: .failure(GoogleSignInProviderError.cancelled)
+        )
+
+        await cancelled.flow.signInWithGoogle()
+        await cancelled.flow.retry()
+
+        XCTAssertFalse(cancelled.flow.canRetry)
+        XCTAssertNil(cancelled.flow.failure)
+        XCTAssertEqual(cancelled.accountSession.state, .guest)
+    }
+
     func testIdentityConflictShowsAVisibleMessageAndKeepsTheCap() async {
         URLProtocolStub.install { request in
             (
@@ -460,6 +551,15 @@ final class AccountSignInFlowTests: XCTestCase {
             "deviceID": "10000000-0000-4000-8000-000000000002",
             "userKind": userKind,
         ])
+    }
+
+    nonisolated private static func idempotencyKey(
+        _ request: URLRequest
+    ) throws -> String {
+        let body = try JSONSerialization.jsonObject(
+            with: URLProtocolStub.bodyData(for: request)
+        ) as? [String: Any]
+        return try XCTUnwrap(body?["idempotencyKey"] as? String)
     }
 
     nonisolated private static func errorJSON(code: String) -> Data {

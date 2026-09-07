@@ -36,9 +36,11 @@ struct SignInOptionsView: View {
         static let border = Color.black.opacity(0.12)
         static let markSide: CGFloat = 20
         static let gap: CGFloat = 10
-        /// Three lines of metadata text, reserved whether or not a failure
-        /// is showing, so appearing never moves the screen.
-        static let failureSlotHeight: CGFloat = 46
+        /// Three lines of metadata text beside a Try Again button, reserved
+        /// whether or not a failure is showing, so appearing never moves the
+        /// screen. A tertiary control's own height, because that is what the
+        /// button is; the message is shorter than that and centres in it.
+        static let failureSlotHeight = LadleTheme.Control.primary
     }
 
     let flow: AccountSignInFlow
@@ -108,17 +110,35 @@ struct SignInOptionsView: View {
     /// The slot keeps a constant height instead. Messages vary in length, so
     /// the text is bounded rather than the box: three lines, scaling down
     /// before it would grow. Nothing on the screen moves.
+    ///
+    /// Try Again sits inside that same slot, beside the message rather than
+    /// under it, for the same reason: a button appearing on its own row
+    /// would move the screen exactly as the message used to. It is offered
+    /// only where re-sending would help — a 5xx from our own backend — and
+    /// it re-issues that request without re-presenting the provider sheet
+    /// the cook has already answered.
     private var failureSlot: some View {
-        Text(flow.failure?.message ?? "")
-            .ladleFont(.metadata)
-            .foregroundStyle(LadleTheme.Label.secondary)
-            .multilineTextAlignment(.center)
-            .lineLimit(3)
-            .minimumScaleFactor(0.8)
-            .frame(maxWidth: .infinity)
-            .frame(height: Chrome.failureSlotHeight)
-            .accessibilityHidden(flow.failure == nil)
-            .accessibilityIdentifier("\(identifierPrefix).sign-in-failure")
+        HStack(spacing: LadleTheme.Spacing.compact) {
+            Text(flow.failure?.message ?? "")
+                .ladleFont(.metadata)
+                .foregroundStyle(LadleTheme.Label.secondary)
+                .multilineTextAlignment(.center)
+                .lineLimit(3)
+                .minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity)
+                .accessibilityHidden(flow.failure == nil)
+                .accessibilityIdentifier("\(identifierPrefix).sign-in-failure")
+
+            if flow.canRetry {
+                Button("Try Again") {
+                    Task { await flow.retry() }
+                }
+                .buttonStyle(LadleButtonStyle(role: .tertiary))
+                .disabled(flow.isAuthenticating)
+                .accessibilityIdentifier("\(identifierPrefix).sign-in-retry")
+            }
+        }
+        .frame(height: Chrome.failureSlotHeight)
     }
 
     private func authLabel(
