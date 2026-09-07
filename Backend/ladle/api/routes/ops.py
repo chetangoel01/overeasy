@@ -15,8 +15,10 @@ from typing import cast
 from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
+from ladle.api.dependencies import database
 from ladle.api.rate_limits import ClientIPResolver
 from ladle.api.routes.health import ReadinessService
+from ladle.nutrition.misses import EXAMPLE_LIMIT, NAME_LIMIT, summarise_misses
 from ladle.observability.metrics import MetricsRegistry
 from ladle.observability.recent import RecentRequests
 
@@ -156,6 +158,56 @@ def dashboard_requests(request: Request) -> Response:
     policy.authorize(request)
     recent = cast(RecentRequests, request.app.state.recent_requests)
     return JSONResponse({"requests": recent.snapshot()})
+
+
+@router.get("/ops/nutrition-misses.json")
+def dashboard_nutrition_misses(request: Request) -> Response:
+    """The ingredients nutrition could not count, most missed first.
+
+    The only dashboard read that goes to the database, so it sits on a slow
+    timer of its own like readiness does. Authorization happens before the
+    session is opened: an unauthenticated scan must cost a 404 and no query,
+    which is also why this is not a `Depends`.
+    """
+
+    policy = cast(OpsAccessPolicy, request.app.state.ops_access)
+    policy.authorize(request)
+    with database(request) as current_database:
+        misses = summarise_misses(current_database)
+    return JSONResponse(
+        {
+            "generatedAt": datetime.now(tz=UTC).isoformat(),
+            "limits": {"names": NAME_LIMIT, "examples": EXAMPLE_LIMIT},
+            "totals": {
+                "names": misses.total_names,
+                "skips": misses.total_skips,
+                "recipes": misses.total_recipes,
+            },
+            "names": [
+                {
+                    # Verbatim. A sibling PR seeds the curated table from
+                    # these strings, and they have to be the ones the
+                    # calculator looked up.
+                    "name": entry.name,
+                    "skips": entry.skips,
+                    "recipes": entry.recipes,
+                    "estimatedGrams": (
+                        None
+                        if entry.estimated_grams is None
+                        else float(entry.estimated_grams)
+                    ),
+                    "codes": [
+                        {"code": code, "skips": count} for code, count in entry.codes
+                    ],
+                    "examples": [
+                        {"id": str(recipe.id), "title": recipe.title}
+                        for recipe in entry.examples
+                    ],
+                }
+                for entry in misses.names
+            ],
+        }
+    )
 
 
 @router.get("/ops/readiness.json")

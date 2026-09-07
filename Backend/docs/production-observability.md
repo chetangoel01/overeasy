@@ -56,6 +56,15 @@ putting private recipe or authentication data in telemetry.
   the requested path, so no body, query string, recipe ID or account ID is
   retained. Nothing in it needs to participate in account deletion. Polled
   endpoints are omitted unless they failed, on the same reasoning as the log.
+- `/ops/nutrition-misses.json` is the one dashboard read that reaches Postgres,
+  so it polls on the readiness timer rather than the counter one. It ranks the
+  ingredients nutrition could not cost (`nutrition_skips`, migration `0024`) by
+  how often they are missed, and returns at most the top 25 names with three
+  recipes each — plus totals, so the panel can say how much of the table it is
+  not showing. Every query joins `recipes` on `deleted_at IS NULL`: API
+  deletion is soft, and a recipe a cook threw away must not go on voting for a
+  food. The names are returned exactly as recorded, because the curated table
+  of common misses is seeded from those strings.
 - Provider spend is reported in billed units, which are an internal budget
   abstraction, not currency. `LADLE_OPS_PROVIDER_UNIT_PRICES` maps a provider
   to money per unit; when it is set the dashboard adds spend and cost per

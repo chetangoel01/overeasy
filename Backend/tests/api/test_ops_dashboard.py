@@ -35,6 +35,9 @@ def test_dashboard_and_its_data_are_hidden_without_the_token() -> None:
         assert client.get("/ops", params={"token": "wrong"}).status_code == 404
         assert client.get("/ops/metrics.json").status_code == 404
         assert client.get("/ops/readiness.json").status_code == 404
+        # The one dashboard read that touches the database. It refuses before
+        # it opens a session, so a scan costs a 404 and no query.
+        assert client.get("/ops/nutrition-misses.json").status_code == 404
 
 
 def test_token_in_the_query_moves_into_a_cookie_and_leaves_the_url() -> None:
@@ -117,6 +120,15 @@ def test_readiness_json_is_a_separate_slower_endpoint() -> None:
         payload = client.get("/ops/readiness.json").json()
 
     assert payload == {"healthy": False, "checks": {"database": "unavailable"}}
+
+
+def test_the_page_mounts_the_panel_of_ingredients_that_were_not_counted() -> None:
+    with _client() as client:
+        client.get("/ops", params={"token": TOKEN})
+        page = client.get("/ops").text
+
+    assert 'id="nutrition-misses"' in page
+    assert "/ops/nutrition-misses.json" in page
 
 
 def test_dashboard_page_may_run_its_own_inline_script_and_styles() -> None:
