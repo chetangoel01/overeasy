@@ -4,6 +4,8 @@ from enum import StrEnum
 from typing import Protocol
 from urllib.parse import SplitResult, parse_qs, urlsplit
 
+from ladle.acquisition.models import MediaKind, media_kind_for_url
+
 
 class InvalidSourceURL(Exception):
     pass
@@ -25,14 +27,29 @@ class SourceIdentity:
     platform_video_id: str
     canonical_url: str
 
+    @property
+    def media_kind(self) -> MediaKind:
+        """Whether this is a photo post, so the pipeline can skip the audio.
+
+        Read off the canonical URL rather than stored beside it, so the one
+        fact cannot drift from the URL that states it — and so a carousel
+        needs no column, no migration and no wire field.
+        """
+
+        return media_kind_for_url(self.canonical_url)
+
 
 class RedirectResolver(Protocol):
     def resolve(self, url: str) -> str: ...
 
 
 _VIDEO_IDENTIFIER = re.compile(r"^[A-Za-z0-9_-]{6,64}$")
+# /photo/ is a carousel of stills. It is admitted on the same footing as a
+# video because the recipe is routinely written out in the caption; what it
+# cannot support is transcription, which the media kind tells the chain.
 _TIKTOK_PATH = re.compile(
-    r"^/@(?P<username>[A-Za-z0-9._-]+)/video/(?P<video_id>[0-9]{6,32})/?$"
+    r"^/@(?P<username>[A-Za-z0-9._-]+)/(?P<kind>video|photo)"
+    r"/(?P<video_id>[0-9]{6,32})/?$"
 )
 _TIKTOK_SHARE_PATH = re.compile(r"^/t/[A-Za-z0-9_-]{3,64}/?$")
 _TIKTOK_SHORT_HOSTS = {"vm.tiktok.com", "vt.tiktok.com"}
@@ -93,11 +110,12 @@ class SourceIdentityParser:
             if match is None:
                 raise InvalidSourceURL("invalid TikTok video path")
             username = match.group("username")
+            kind = match.group("kind")
             video_id = match.group("video_id")
             return SourceIdentity(
                 platform=SourcePlatform.TIKTOK,
                 platform_video_id=video_id,
-                canonical_url=f"https://www.tiktok.com/@{username}/video/{video_id}",
+                canonical_url=(f"https://www.tiktok.com/@{username}/{kind}/{video_id}"),
             )
 
         if hostname in {"instagram.com", "m.instagram.com", "www.instagram.com"}:

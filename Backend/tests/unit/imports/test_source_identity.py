@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 import pytest
 
+from ladle.acquisition.models import MediaKind
 from ladle.imports.source_identity import (
     InvalidSourceURL,
     SourceIdentityParser,
@@ -46,6 +47,12 @@ class FakeRedirectResolver:
             SourcePlatform.TIKTOK,
             "7481234567890123456",
             "https://www.tiktok.com/@chef/video/7481234567890123456",
+        ),
+        (
+            "https://www.tiktok.com/@chef/photo/7481234567890123456?lang=en",
+            SourcePlatform.TIKTOK,
+            "7481234567890123456",
+            "https://www.tiktok.com/@chef/photo/7481234567890123456",
         ),
         (
             "https://www.instagram.com/reel/C9_recipe-ID/?igsh=test",
@@ -166,3 +173,56 @@ def test_unsafe_or_non_import_urls_are_rejected(url: str) -> None:
 def test_short_link_without_resolver_is_rejected() -> None:
     with pytest.raises(InvalidSourceURL):
         SourceIdentityParser().parse("https://vm.tiktok.com/ZMshort/")
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        # A carousel is /photo/<numeric id>, and nothing else on the path.
+        "https://www.tiktok.com/@chef/photo/abc",
+        "https://www.tiktok.com/@chef/photo/",
+        "https://www.tiktok.com/@chef/photos/7481234567890123456",
+        "https://www.tiktok.com/@chef/picture/7481234567890123456",
+        "https://www.tiktok.com/@chef/photo/7481234567890123456/extra",
+    ],
+)
+def test_malformed_photo_paths_are_still_rejected(url: str) -> None:
+    with pytest.raises(InvalidSourceURL):
+        SourceIdentityParser().parse(url)
+
+
+@pytest.mark.parametrize(
+    ("url", "kind"),
+    [
+        (
+            "https://www.tiktok.com/@chef/photo/7481234567890123456",
+            MediaKind.PHOTO,
+        ),
+        (
+            "https://www.tiktok.com/@chef/video/7481234567890123456",
+            MediaKind.VIDEO,
+        ),
+        # Instagram tells us at fetch time, not in the path: /p/ serves image
+        # carousels, video carousels and single videos alike.
+        ("https://www.instagram.com/p/C9_post-ID/", MediaKind.VIDEO),
+        ("https://www.youtube.com/watch?v=abc_DEF-123", MediaKind.VIDEO),
+    ],
+)
+def test_media_kind_rides_on_the_canonical_url(url: str, kind: MediaKind) -> None:
+    assert SourceIdentityParser().parse(url).media_kind == kind
+
+
+def test_tiktok_photo_short_link_resolves_to_a_photo_identity() -> None:
+    resolver = FakeRedirectResolver(
+        destination="https://www.tiktok.com/@chef/photo/7481234567890123456",
+        calls=[],
+    )
+
+    identity = SourceIdentityParser(redirect_resolver=resolver).parse(
+        "https://vt.tiktok.com/ZS4NEvuUH/"
+    )
+
+    assert identity.canonical_url == (
+        "https://www.tiktok.com/@chef/photo/7481234567890123456"
+    )
+    assert identity.media_kind == MediaKind.PHOTO
