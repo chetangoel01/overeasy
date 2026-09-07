@@ -167,6 +167,15 @@ struct RecipeDraft: Equatable {
     var ingredients: [IngredientDraft]
     var steps: [StepDraft]
     var nutrition: NutritionDraft
+    /// Carried, never edited. The editor rebuilds the whole recipe from
+    /// this draft, so a draft that dropped the tags would strip the local
+    /// copy of them on every rename — the server is safe (a write sends
+    /// null and it keeps what is stored), but the phone would be filtering
+    /// on nothing until the next sync pull.
+    let diets: [DietTag]
+    let cuisines: [CuisineTag]
+    let keywords: [RecipeKeyword]
+    let keywordProposals: [String]
 
     init(recipe: Recipe) {
         id = recipe.id
@@ -186,6 +195,10 @@ struct RecipeDraft: Equatable {
         ingredients = recipe.orderedIngredients.map(IngredientDraft.init)
         steps = recipe.orderedSteps.map(StepDraft.init)
         nutrition = NutritionDraft(recipe.nutrition)
+        diets = recipe.diets
+        cuisines = recipe.cuisines
+        keywords = recipe.keywords
+        keywordProposals = recipe.keywordProposals
     }
 
     func recipe(updatedAt: Date, locale: Locale = .current) -> Recipe {
@@ -232,6 +245,10 @@ struct RecipeDraft: Equatable {
                 )
             },
             nutrition: makeNutrition(locale: locale),
+            diets: diets,
+            cuisines: cuisines,
+            keywords: keywords,
+            keywordProposals: keywordProposals,
             isFavorite: isFavorite,
             reviewStatus: reviewStatus,
             uncertainties: uncertainties,
