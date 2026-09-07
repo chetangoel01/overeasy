@@ -88,14 +88,51 @@ extension ImportJob {
 }
 
 extension Ingredient {
+    /// The measured amount — "2 cups", or "4" for something counted. This is
+    /// the form that can be scaled, because it is the only one holding a
+    /// number: scaling a recipe renders it from `normalizedQuantity` times
+    /// the factor, in place of whatever the creator said.
+    ///
+    /// Two fraction digits, not the one `ladleNumber` defaults to. A tenth
+    /// of a gram is false precision on a nutrition panel, but a quarter of a
+    /// cup is an amount somebody measures, and rounding 0.25 to "0.3" would
+    /// be wrong in the kitchen.
+    func measuredAmount(_ quantity: Decimal) -> String {
+        [ladleNumber(quantity, maximumFractionDigits: 2), unit?.nonEmpty]
+            .compactMap(\.self)
+            .joined(separator: " ")
+    }
+
+    /// The amount at the head of an ingredient row.
+    ///
+    /// `quantityText` is what the creator said, verbatim — "100 g", "2 16oz
+    /// cans" — and `normalizedQuantity` with `unit` is the importer's split
+    /// of that same phrase, not a second fact about it. Printing both says
+    /// the unit twice, which is what a TestFlight tester saw. So the
+    /// creator's words win outright, and the split is the fallback for a row
+    /// that has no verbatim text of its own. The two forms never combine.
+    ///
+    /// A `unit` with no amount either side of it is not an amount: a row
+    /// reading "cups flour" is worse than one reading "flour".
+    var amountText: String? {
+        quantityText?.nonEmpty ?? normalizedQuantity.map(measuredAmount)
+    }
+
     var cookingDetailText: String {
-        var parts = [quantityText, unit]
-            .compactMap { $0 }
-            .filter { !$0.isEmpty }
-        parts.append(name)
-        if let preparation, !preparation.isEmpty {
+        var parts = [amountText, name.nonEmpty].compactMap(\.self)
+        if let preparation = preparation?.nonEmpty {
             parts.append("— \(preparation)")
         }
         return parts.joined(separator: " ")
+    }
+}
+
+private extension String {
+    /// A field that is present but blank. The wire contract types every one
+    /// of these as an optional string and promises no trimming, so an empty
+    /// one has to read as absent rather than as an extra space in the row.
+    var nonEmpty: String? {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }

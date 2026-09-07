@@ -547,12 +547,19 @@ enum PreviewFixtures {
         }
     }
 
+    /// Rows are written as the amount and its unit apart, because that reads
+    /// better in a table. An imported recipe does not arrive that way:
+    /// `quantityText` is the creator's whole phrase, "1 lb", and `unit` is
+    /// the importer's split of it. The demo library has to carry the shape
+    /// the backend sends, or its rows lose their units on screen.
     private static func orderedIngredients(
         _ rows: [(String?, String?, String, String?)]
     ) -> [Ingredient] {
         rows.enumerated().map { index, row in
             Ingredient(
-                quantityText: row.0,
+                quantityText: row.0.map {
+                    [$0, row.1].compactMap(\.self).joined(separator: " ")
+                },
                 unit: row.1,
                 name: row.2,
                 preparation: row.3,

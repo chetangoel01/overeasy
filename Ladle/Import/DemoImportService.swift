@@ -163,7 +163,13 @@ actor DemoImportService: ImportService {
                     details.identifierPrefix,
                     suffix: String(format: "%02d", 10 + index)
                 ),
-                quantityText: row.quantity,
+                // The rows below list the amount and its unit apart for
+                // readability. A real import carries the creator's whole
+                // phrase in `quantityText` and the split in `unit`, and a
+                // demo import has to look like one.
+                quantityText: row.quantity.map {
+                    [$0, row.unit].compactMap(\.self).joined(separator: " ")
+                },
                 unit: row.unit,
                 name: row.name,
                 preparation: row.preparation,
