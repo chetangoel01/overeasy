@@ -92,15 +92,22 @@ the client work: totals present, `approximate` true, one ingredient carrying its
 
 ### Persistence (`0024`)
 
-Two pieces, one migration.
-
-`nutrition.approximate boolean not null default false` — false for everything
-already stored, which is right: those panels were only written when every
-ingredient matched.
+One table, no new column beside the totals.
 
 `nutrition_skips` — one row per skipped ingredient per recipe: recipe FK
 (cascade), ingredient name, failure code, estimated grams, recorded timestamp.
 Indexed on `recipe_id` and on `ingredient_name`.
+
+**The marker is derived from those rows, not stored.** `to_dtos` batches one
+more query — the distinct recipe ids with skips — the same shape as the other
+child-table reads it already does, and `_nutrition_dto` takes the answer.
+Storing it beside the totals was the first attempt and it is wrong:
+`PUT /recipes/{id}` rewrites a recipe's whole graph from the `RecipeDTO` the
+client sent, so the first title edit from any already-shipped app — which has
+never heard of `approximate` — would write `false` over it while the skip rows
+sat there untouched. The rows are the pipeline's own record and no client write
+reaches them, so they are the honest source. An integration test pins exactly
+that: an older client's edit round-trips and the marker survives.
 
 **Why a table and not a JSON column on `nutrition`.** The recipe where nothing
 matched has no `nutrition` row to hang a column off, and that recipe is the most
@@ -173,9 +180,9 @@ New:
   (`tests/unit/recipes/test_template_clone.py`) — re-import and the refresh
   script both start by re-templating a stored recipe.
 - `tests/integration/nutrition/test_nutrition_skips.py` — a partial recipe
-  cloned through the real path stores `approximate` and its skip rows, and the
-  DTO carries the marker back out; a second run replaces the rows rather than
-  stacking them.
+  cloned through the real path stores its skip rows and the DTO carries the
+  derived marker back out; an older client's edit does not clear it; a second
+  run replaces the rows rather than stacking them.
 - `tests/integration/test_migrations.py::test_nutrition_skips_upgrade_cascades_and_downgrades`
   — both indexes, the cascade, and a clean downgrade to `0023`.
 - `tests/contracts/test_golden_fixtures.py::test_approximate_nutrition_names_what_was_left_out`.

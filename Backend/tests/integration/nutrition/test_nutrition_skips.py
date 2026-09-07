@@ -15,7 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from alembic import command
-from ladle.db.models import ImportJob, Nutrition, RecipeSlotReservation, SourceVideo
+from ladle.db.models import ImportJob, RecipeSlotReservation, SourceVideo
 from ladle.db.models import NutritionSkip as NutritionSkipRow
 from ladle.db.session import build_engine
 from ladle.imports.reservations import ReservationService
@@ -134,9 +134,6 @@ def test_a_partial_recipe_keeps_its_marker_and_the_names_it_skipped(
 
     assert recipe_id is not None
     with Session(engine) as database:
-        nutrition = database.get(Nutrition, recipe_id)
-        assert nutrition is not None
-        assert nutrition.approximate
         skips = list(
             database.scalars(
                 select(NutritionSkipRow).where(NutritionSkipRow.recipe_id == recipe_id)
@@ -147,14 +144,50 @@ def test_a_partial_recipe_keeps_its_marker_and_the_names_it_skipped(
         ]
         assert skips[0].estimated_grams == Decimal("6.000000")
 
-        # The marker rides back out on the wire, which is what puts the "≈"
-        # in front of the number the app already shows.
+        # The marker is read off those rows on the way out, which is what
+        # puts the "≈" in front of the number the app already shows.
         repository = RecipeRepository()
         stored = repository.find(database, user_id=user_id, recipe_id=recipe_id)
         assert stored is not None
         dto = repository.to_dto(database, stored)
         assert dto.nutrition is not None
         assert dto.nutrition.approximate
+
+    # An app that has never heard of the marker edits the title and sends the
+    # nutrition block back without it. `PUT /recipes/{id}` rewrites the graph
+    # from what it was sent, so a stored flag would be cleared here — which is
+    # why the marker is read from the skips instead.
+    with Session(engine) as database, database.begin():
+        stored = RecipeRepository().find(
+            database,
+            user_id=user_id,
+            recipe_id=recipe_id,
+        )
+        assert stored is not None
+        older_client = dto.model_copy(
+            update={
+                "title": "Chicken Curry, twice the chilli",
+                "nutrition": dto.nutrition.model_copy(update={"approximate": False}),
+            }
+        )
+        RecipeRepository().update(
+            database,
+            stored=stored,
+            recipe=older_client,
+            updated_at=NOW,
+        )
+
+    with Session(engine) as database:
+        stored = RecipeRepository().find(
+            database,
+            user_id=user_id,
+            recipe_id=recipe_id,
+        )
+        assert stored is not None
+        edited = RecipeRepository().to_dto(database, stored)
+        assert edited.title == "Chicken Curry, twice the chilli"
+        assert edited.nutrition is not None
+        assert edited.nutrition.approximate
 
     engine.dispose()
 

@@ -2,12 +2,7 @@
 
 One ingredient no food record answered used to cost a recipe its whole
 nutrition panel. It no longer does: whatever matched is totalled and whatever
-did not is skipped and named. Two pieces of that have to be stored.
-
-`nutrition.approximate` is the marker. It is not `is_estimated`, which every
-calculated panel already is — it says the number is also incomplete, which is
-what the app shows a "≈" for. False for everything already stored, which is
-right: those panels were only written when every ingredient matched.
+did not is skipped and named. What was skipped has to be stored.
 
 `nutrition_skips` is one row per ingredient left out, per recipe. A row rather
 than a JSON column on `nutrition`, because the recipe where nothing matched has
@@ -16,6 +11,12 @@ at, and because the operator question this feeds — which foods are missed most
 often, and on whose recipes — is a `GROUP BY` over rows. It is rewritten whole
 whenever a recipe's nutrition is, so it describes what is missing now rather
 than everything that ever was.
+
+These rows are also where the wire's `approximate` marker is read from, which
+is why no column was added beside the totals for it: `PUT /recipes/{id}`
+rewrites a recipe's nutrition from what the client sent, and a client that has
+never heard of the field would clear it on the first title edit. Nothing a
+client writes reaches this table.
 
 Cascades on the recipe: deleting a recipe takes its skips with it. The name is
 stored rather than a link to the ingredient row, because the panel counts foods
@@ -39,15 +40,6 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "nutrition",
-        sa.Column(
-            "approximate",
-            sa.Boolean(),
-            nullable=False,
-            server_default=sa.text("false"),
-        ),
-    )
     op.create_table(
         "nutrition_skips",
         sa.Column("id", sa.Uuid(), primary_key=True),
@@ -83,4 +75,3 @@ def downgrade() -> None:
     op.drop_index("ix_nutrition_skips_ingredient_name", table_name="nutrition_skips")
     op.drop_index("ix_nutrition_skips_recipe_id", table_name="nutrition_skips")
     op.drop_table("nutrition_skips")
-    op.drop_column("nutrition", "approximate")

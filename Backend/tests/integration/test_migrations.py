@@ -636,11 +636,7 @@ def test_nutrition_skips_upgrade_cascades_and_downgrades(
     engine.dispose()
     command.downgrade(config, "0023")
     engine = create_engine(empty_postgres_url)
-    inspector = inspect(engine)
-    assert "nutrition_skips" not in inspector.get_table_names()
-    assert "approximate" not in {
-        value["name"] for value in inspector.get_columns("nutrition")
-    }
+    assert "nutrition_skips" not in inspect(engine).get_table_names()
     engine.dispose()
 
 

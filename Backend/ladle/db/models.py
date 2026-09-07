@@ -870,12 +870,6 @@ class Nutrition(Base):
     )
     serving_basis: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False)
     is_estimated: Mapped[bool] = mapped_column(Boolean, nullable=False)
-    #: Ingredients were left out of these totals. Separate from
-    #: `is_estimated`, which every calculated panel is: this one says the
-    #: number is also incomplete, and the app marks it with a "≈".
-    approximate: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, server_default=text("false")
-    )
 
 
 class NutritionSkip(Base):
@@ -888,7 +882,11 @@ class NutritionSkip(Base):
     missed most often, and on whose recipes — is a `GROUP BY` over rows.
 
     Rewritten whole for a recipe every time its nutrition is, so the table
-    describes what is missing now, not what ever was.
+    describes what is missing now, not what ever was. It is also where the
+    wire's `approximate` marker is read from: a client editing a recipe sends
+    the nutrition block back without a field it has never heard of, so a
+    stored flag would be erased by the first title change. Nothing a client
+    writes touches these rows.
     """
 
     __tablename__ = "nutrition_skips"

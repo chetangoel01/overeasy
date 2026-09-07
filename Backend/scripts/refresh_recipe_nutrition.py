@@ -170,7 +170,6 @@ def _replace_nutrition(
                 sodium_milligrams=value.sodium_milligrams,
                 serving_basis=value.serving_basis,
                 is_estimated=value.is_estimated,
-                approximate=value.approximate,
             )
         )
     record_nutrition_skips(
