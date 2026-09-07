@@ -23,8 +23,10 @@ from ladle.contracts.recipes import (
     RecipeDTO,
     SyncPageDTO,
 )
+from ladle.contracts.tags import CuisineTag, DietTag, RecipeKeyword
 from ladle.observability.metrics import MetricsRegistry
 from ladle.recipes.limits import GuestRecipeLimitReached
+from ladle.recipes.repository import DiscoverFilter
 from ladle.recipes.service import (
     DiscoverRecipeUnavailable,
     InvalidManualRecipe,
@@ -126,6 +128,50 @@ def discover_recipes(
             ),
         ),
     ] = None,
+    diet: Annotated[
+        list[DietTag] | None,
+        Query(
+            description=(
+                "Keep only sources that satisfy every diet listed. Repeat the "
+                "parameter to add one: somebody who avoids gluten and meat "
+                "wants dishes that are both, so these narrow rather than "
+                "widen. A value outside the vocabulary is refused rather than "
+                "ignored, because a filter that silently matched everything "
+                "would read as an empty library."
+            ),
+        ),
+    ] = None,
+    cuisine: Annotated[
+        list[CuisineTag] | None,
+        Query(
+            description=(
+                "Keep sources belonging to any cuisine listed. Repeating it "
+                "widens: two cuisines are two shelves, not an impossible "
+                "dish that is both."
+            ),
+        ),
+    ] = None,
+    keyword: Annotated[
+        list[RecipeKeyword] | None,
+        Query(
+            description=(
+                "Keep sources carrying any keyword listed. Only curated "
+                "keywords are accepted; a term the extraction model proposed "
+                "is not filterable until somebody promotes it."
+            ),
+        ),
+    ] = None,
+    ingredient: Annotated[
+        list[str] | None,
+        Query(
+            max_length=100,
+            description=(
+                '"Only recipes with chicken in them". Matched against the '
+                "ingredient names of the saved copies, and repeating the "
+                "parameter requires all of them."
+            ),
+        ),
+    ] = None,
     seen_before: Annotated[
         datetime | None,
         Query(
@@ -174,6 +220,19 @@ def discover_recipes(
             query=q,
             sort=sort,
             max_total_minutes=max_total_minutes,
+            filters=DiscoverFilter(
+                diets=tuple(diet or ()),
+                cuisines=tuple(cuisine or ()),
+                keywords=tuple(keyword or ()),
+                # Blank entries would each add a "%%" match that keeps
+                # everything, which reads to the cook as a filter that did
+                # nothing rather than one they mistyped.
+                ingredients=tuple(
+                    stripped
+                    for value in ingredient or ()
+                    if (stripped := value.strip())
+                ),
+            ),
             seen_before=seen_before,
             record_impressions=record_impressions,
         )
