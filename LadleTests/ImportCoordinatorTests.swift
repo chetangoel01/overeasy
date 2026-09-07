@@ -382,6 +382,127 @@ final class ImportCoordinatorTests: XCTestCase {
         XCTAssertEqual(repository.recipes.first?.title, "Family Pasta")
     }
 
+    func testNeedsReviewImportLinksItsRecipeToTheInboxJob() async throws {
+        let repository = ImportTestRepository()
+        let coordinator = makeReviewingCoordinator(repository: repository)
+
+        await coordinator.submit(
+            urlText: "https://www.tiktok.com/@ladle/video/needs-review-soup"
+        )
+
+        try assertReviewClearsTheInbox(in: repository)
+    }
+
+    // The four exits from the failed-import sheet. Every one of them hands
+    // the job back to the importer, so every one of them can come back
+    // needing review, and the reviewed recipe has to clear its own row.
+    func testRetryingAFailedImportIntoReviewClearsTheInboxRow() async throws {
+        try await assertRecoveredReviewClearsTheInbox()
+    }
+
+    func testCorrectionNotesRecoveringIntoReviewClearTheInboxRow() async throws {
+        try await assertRecoveredReviewClearsTheInbox(
+            correctionNotes: "The stock is one cup, not one quart."
+        )
+    }
+
+    func testPastedDetailsRecoveringIntoReviewClearTheInboxRow() async throws {
+        try await assertRecoveredReviewClearsTheInbox(
+            pastedRecipeText: "1 pound pasta\nSimmer with tomato sauce."
+        )
+    }
+
+    func testManualRecipeRecoveringIntoReviewClearsTheInboxRow() async throws {
+        // "Create manually" submits the typed title and body as pasted
+        // details, exactly as `CorrectionNotesView` composes them.
+        try await assertRecoveredReviewClearsTheInbox(
+            pastedRecipeText: "Family Pasta\n1 pound pasta"
+        )
+    }
+
+    private func assertRecoveredReviewClearsTheInbox(
+        correctionNotes: String? = nil,
+        pastedRecipeText: String? = nil,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async throws {
+        let failed = try failedJob(slug: "parser-failed-soup")
+        let repository = ImportTestRepository(importJobs: [failed])
+        let coordinator = makeReviewingCoordinator(repository: repository)
+
+        await coordinator.retry(
+            jobID: failed.id,
+            correctionNotes: correctionNotes,
+            pastedRecipeText: pastedRecipeText
+        )
+
+        try assertReviewClearsTheInbox(
+            in: repository,
+            file: file,
+            line: line
+        )
+    }
+
+    private func assertReviewClearsTheInbox(
+        in repository: ImportTestRepository,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        let recipe = try XCTUnwrap(
+            repository.recipes.first,
+            file: file,
+            line: line
+        )
+        let job = try XCTUnwrap(
+            repository.importJobs.first,
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(job.status, .needsReview, file: file, line: line)
+        XCTAssertNil(job.reviewCandidate, file: file, line: line)
+        XCTAssertEqual(
+            job.reviewRecipeID,
+            recipe.id,
+            file: file,
+            line: line
+        )
+
+        let library = LibraryViewModel(
+            repository: repository,
+            preferenceStore: ImportTestPreferenceStore()
+        )
+        library.load()
+        XCTAssertNotNil(
+            library.completeReview(recipeID: recipe.id),
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(
+            repository.importJobs.first?.status,
+            .ready,
+            file: file,
+            line: line
+        )
+        XCTAssertTrue(
+            library.actionableImportJobs.isEmpty,
+            file: file,
+            line: line
+        )
+    }
+
+    private func makeReviewingCoordinator(
+        repository: ImportTestRepository
+    ) -> ImportCoordinator {
+        ImportCoordinator(
+            repository: repository,
+            service: NeedsReviewImportService(),
+            accountSession: AccountSession(
+                store: ImportTestPreferenceStore()
+            ),
+            clock: ImmediateImportClock()
+        )
+    }
+
     func testFailedReimportRetryKeepsCurrentRecipeUntouched() async throws {
         let current = importRecipe(
             title: "Current Usable Recipe",
@@ -3147,6 +3268,54 @@ private actor FixedImportService: ImportService {
         pastedRecipeText: String?
     ) async throws -> ImportServiceUpdate {
         ImportServiceUpdate(remoteJobID: remoteJobID, progress: outcome)
+    }
+}
+
+/// Every outcome needs review, whether the job arrives fresh or as a retry
+/// out of the failed-import sheet.
+private actor NeedsReviewImportService: ImportService {
+    private var recipesByRemoteJobID: [String: Recipe] = [:]
+
+    func submit(
+        _ job: ImportJob,
+        allowingDuplicate: Bool
+    ) async throws -> ImportServiceUpdate {
+        let remoteJobID = job.id.uuidString
+        var recipe = importRecipe(
+            id: job.candidateRecipeID ?? job.id,
+            title: "Recipe to Review",
+            originalURL: job.sourceURL
+        )
+        recipe.reviewStatus = .needsReview
+        recipesByRemoteJobID[remoteJobID] = recipe
+        return ImportServiceUpdate(
+            remoteJobID: remoteJobID,
+            progress: .needsReview(recipe)
+        )
+    }
+
+    func status(remoteJobID: String) async throws -> ImportServiceUpdate {
+        try update(remoteJobID: remoteJobID)
+    }
+
+    func retry(
+        remoteJobID: String,
+        correctionNotes: String?,
+        pastedRecipeText: String?
+    ) async throws -> ImportServiceUpdate {
+        try update(remoteJobID: remoteJobID)
+    }
+
+    private func update(
+        remoteJobID: String
+    ) throws -> ImportServiceUpdate {
+        guard let recipe = recipesByRemoteJobID[remoteJobID] else {
+            throw APIError.invalidResponse
+        }
+        return ImportServiceUpdate(
+            remoteJobID: remoteJobID,
+            progress: .needsReview(recipe)
+        )
     }
 }
 
