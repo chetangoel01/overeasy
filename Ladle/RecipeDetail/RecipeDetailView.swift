@@ -283,30 +283,37 @@ struct RecipeDetailView: View {
 
     private var recipeHeader: some View {
         VStack(alignment: .leading, spacing: LadleTheme.Spacing.medium) {
+            // Only the title shares its row with Save. The byline and the
+            // description run the full width underneath, so a title that
+            // wraps beside the button does not leave an empty column under it.
             if let discoverSave, !dynamicTypeSize.isAccessibilitySize {
                 HStack(alignment: .top, spacing: LadleTheme.Spacing.medium) {
-                    recipeTitleBlock
+                    recipeTitle
                     saveButton(discoverSave)
                 }
             } else {
-                recipeTitleBlock
+                recipeTitle
                 if let discoverSave {
                     saveButton(discoverSave)
                 }
             }
+            recipeByline
             if let report = discoverSave?.failure {
                 saveFailureNotice(report)
             }
         }
     }
 
-    private var recipeTitleBlock: some View {
-        VStack(alignment: .leading, spacing: LadleTheme.Spacing.medium) {
-            Text(displayedRecipe.title)
-                .ladleFont(.title)
-                .foregroundStyle(LadleTheme.Label.primary)
-                .fixedSize(horizontal: false, vertical: true)
+    private var recipeTitle: some View {
+        Text(displayedRecipe.title)
+            .ladleFont(.title)
+            .foregroundStyle(LadleTheme.Label.primary)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
 
+    private var recipeByline: some View {
+        VStack(alignment: .leading, spacing: LadleTheme.Spacing.medium) {
             HStack(spacing: LadleTheme.Spacing.compact) {
                 if let creatorName = displayedRecipe.creatorName {
                     Text(creatorName)
