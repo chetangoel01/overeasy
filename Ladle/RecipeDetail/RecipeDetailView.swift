@@ -192,6 +192,12 @@ struct RecipeDetailView: View {
                     favoriteButton
                     optionsMenu
                 }
+            } else if let discoverSave {
+                // Save sits where the heart and menu will sit once it lands:
+                // the same top-right group, so the page's actions never move.
+                ToolbarItem(placement: .primaryAction) {
+                    saveButton(discoverSave)
+                }
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button(action: openAccount) {
@@ -283,20 +289,7 @@ struct RecipeDetailView: View {
 
     private var recipeHeader: some View {
         VStack(alignment: .leading, spacing: LadleTheme.Spacing.medium) {
-            // Only the title shares its row with Save. The byline and the
-            // description run the full width underneath, so a title that
-            // wraps beside the button does not leave an empty column under it.
-            if let discoverSave, !dynamicTypeSize.isAccessibilitySize {
-                HStack(alignment: .top, spacing: LadleTheme.Spacing.medium) {
-                    recipeTitle
-                    saveButton(discoverSave)
-                }
-            } else {
-                recipeTitle
-                if let discoverSave {
-                    saveButton(discoverSave)
-                }
-            }
+            recipeTitle
             recipeByline
             if let report = discoverSave?.failure {
                 saveFailureNotice(report)
@@ -337,9 +330,9 @@ struct RecipeDetailView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// The Discover card's Save, in the page's own header: same capsule, same
-    /// two words, same colours, so tapping through to a recipe does not
-    /// change what saving looks like.
+    /// Save, in the top-right toolbar group beside the account button — the
+    /// spot the heart and the menu take over once the recipe is the cook's.
+    /// Same two words as the Discover card, drawn like its toolbar neighbours.
     private func saveButton(_ model: DiscoverSaveModel) -> some View {
         Button {
             save(through: model)
@@ -348,26 +341,21 @@ struct RecipeDetailView: View {
                 if model.isSaving {
                     ProgressView()
                         .controlSize(.small)
-                        .tint(LadleTheme.Label.onAccent)
+                        .tint(accent.label)
                 } else {
                     Label(
                         model.isSaved ? "Saved" : "Save",
                         systemImage: model.isSaved ? "checkmark" : "plus"
                     )
+                    // The toolbar would keep only the glyph, and a bare plus
+                    // up here reads as "add a recipe", not "keep this one".
+                    .labelStyle(.titleAndIcon)
                 }
             }
             .ladleFont(.metadata)
-            .foregroundStyle(
-                model.isSaved
-                    ? LadleTheme.Label.primary
-                    : LadleTheme.Label.onAccent
-            )
-            .padding(.horizontal, LadleTheme.Spacing.medium)
+            .foregroundStyle(model.isSaved ? LadleTheme.Label.primary : accent.label)
+            .padding(.horizontal, LadleTheme.Spacing.compact)
             .frame(minHeight: LadleTheme.Control.hitTarget)
-            .background(
-                model.isSaved ? LadleTheme.Intent.success : accent.intent,
-                in: Capsule()
-            )
         }
         .buttonStyle(LadlePressButtonStyle())
         .disabled(model.isSaving || model.isSaved)

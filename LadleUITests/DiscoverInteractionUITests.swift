@@ -75,11 +75,12 @@ final class DiscoverInteractionUITests: XCTestCase {
             app.buttons["Recipe options"].waitForExistence(timeout: 3),
             "A saved page carries the favourite and options controls"
         )
-        XCTAssertTrue(
-            save.label.hasSuffix(" saved"),
-            "The control reads Saved once it is: \(save.label)"
+        // Save lived in the top-right group; once the recipe is the cook's,
+        // the heart and the menu take that spot and Save is gone.
+        XCTAssertFalse(
+            save.exists,
+            "Save hands its place to the favourite and options controls"
         )
-        XCTAssertFalse(save.isEnabled)
         XCTAssertTrue(
             account.exists,
             "Saving leaves the cook on the recipe they were reading"
@@ -90,9 +91,8 @@ final class DiscoverInteractionUITests: XCTestCase {
         // to the same page — still the saved copy, not the preview again.
         app.tabBars.buttons["Recipes"].tap()
         app.tabBars.buttons["Discover"].tap()
-        XCTAssertTrue(save.waitForExistence(timeout: 2))
-        XCTAssertTrue(save.label.hasSuffix(" saved"))
-        XCTAssertTrue(app.buttons["Recipe options"].exists)
+        XCTAssertTrue(app.buttons["Recipe options"].waitForExistence(timeout: 2))
+        XCTAssertFalse(save.exists)
     }
 
     /// The header is the reason `-account-state` exists: until it did, no UI
