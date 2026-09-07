@@ -4,6 +4,7 @@ import re
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
 
+from ladle.nutrition.curated import CuratedFoodTable
 from ladle.nutrition.usda import FoodDataSource, FoodNutrients, FoodPortion
 from ladle.recipes.template_clone import (
     RecipeTemplate,
@@ -16,6 +17,10 @@ _DATA_TYPE_PRIORITY = {
     "SR Legacy": 1,
     "Survey (FNDDS)": 2,
     "Branded": 3,
+    # Curated records never reach the ranking — they are answered before any
+    # search happens — but a data type missing from this table would be a
+    # KeyError rather than a bad ordering, so it is spelled out.
+    "Curated": 4,
 }
 _MASS_TO_GRAMS = {
     "g": Decimal(1),
@@ -97,9 +102,12 @@ class NutritionCalculationUnavailable(Exception):
 class NutritionCalculator:
     """Cost a recipe from food records, skipping what no record describes.
 
-    `fallback` is the second rung of the ladder: a provider asked only about
-    the ingredients the primary source could not answer, so the common case
-    still costs one search per ingredient. PR A leaves it unset in
+    Three rungs, in order. `curated` is the checked-in table of foods USDA
+    has no usable record for; it answers first, because asking a search
+    engine about garam masala only buys the wrong answer more slowly.
+    `source` is USDA. `fallback` is the second provider of the ladder,
+    asked only about the ingredients the primary source could not answer, so
+    the common case still costs one search per ingredient. It is unset in
     production; the seam exists so adding a provider is a composition change
     rather than a calculator change.
     """
@@ -108,9 +116,11 @@ class NutritionCalculator:
         self,
         source: FoodDataSource,
         fallback: FoodDataSource | None = None,
+        curated: CuratedFoodTable | None = None,
     ) -> None:
         self._source = source
         self._fallback = fallback
+        self._curated = curated
 
     def calculate(self, template: RecipeTemplate) -> TemplateNutrition | None:
         try:
@@ -149,13 +159,13 @@ class NutritionCalculator:
 
         records = uncounted if uncounted is not None else []
         totals = [Decimal(0), Decimal(0), Decimal(0), Decimal(0)]
-        foods: list[tuple[str, int]] = []
+        foods: list[str] = []
         material = material_ingredients(template)
         if not material:
             raise NutritionCalculationUnavailable("noMaterialIngredients")
         for index, ingredient in material:
             try:
-                source_name, food, grams = self._matched(ingredient, index=index)
+                cited, food, grams = self._matched(ingredient, index=index)
             except NutritionCalculationUnavailable as error:
                 if error.code not in _INGREDIENT_CODES:
                     raise
@@ -179,7 +189,7 @@ class NutritionCalculator:
                 total + value * scale
                 for total, value in zip(totals, values, strict=True)
             ]
-            foods.append((source_name, food.fdc_id))
+            foods.append(cited)
 
         if not foods:
             return None
@@ -187,9 +197,7 @@ class NutritionCalculator:
             (value / template.servings).quantize(_QUANTUM, rounding=ROUND_HALF_UP)
             for value in totals
         ]
-        evidence = ", ".join(
-            f"{name} {fdc_id}" for name, fdc_id in dict.fromkeys(foods)
-        )
+        evidence = ", ".join(dict.fromkeys(foods))
         return TemplateNutrition(
             calories=per_serving[0],
             protein_grams=per_serving[1],
@@ -211,22 +219,47 @@ class NutritionCalculator:
         *,
         index: int,
     ) -> tuple[str, FoodNutrients, Decimal]:
-        """The first source that can cost this ingredient, and its answer.
+        """The first rung that can cost this ingredient, and its answer.
 
-        The primary source is asked first and answers almost everything. A
-        fallback, where one is configured, only sees the ingredients that
-        came back with nothing usable — including the ones whose closest
-        record does not describe them, since costing a vegetarian curry from
-        `Beef curry` is not an imprecise number but a wrong one.
+        The curated table goes first and wins outright where it has a row:
+        it is there precisely because the search below it answers these
+        foods wrongly, so falling through would spend a lookup to be told
+        something already known to be false. A curated row that cannot be
+        weighed fails as `missingMass` rather than dropping to USDA — the
+        fix is a portion in the table, and reporting it as `foodNotFound`
+        would put the food back on the ops panel's list of rows to add.
+
+        USDA answers almost everything else. A fallback, where one is
+        configured, only sees the ingredients that came back with nothing
+        usable — including the ones whose closest record does not describe
+        them, since costing a vegetarian curry from `Beef curry` is not an
+        imprecise number but a wrong one.
+
+        The string returned is the citation for the evidence line, which has
+        to say which rung answered or the panel stops being checkable.
         """
+        curated = (
+            self._curated.lookup(ingredient.name, ingredient.usda_search_term)
+            if self._curated is not None
+            else None
+        )
+        if curated is not None:
+            grams = _grams(ingredient, curated.portions)
+            if grams is None or grams <= 0:
+                raise NutritionCalculationUnavailable(
+                    "missingMass",
+                    ingredient_index=index,
+                    ingredient_name=ingredient.name,
+                )
+            return f"{CuratedFoodTable.name} {curated.description}", curated, grams
         try:
             food, grams = self._usable_food(self._source, ingredient, index=index)
         except NutritionCalculationUnavailable as error:
             if self._fallback is None or error.code not in _INGREDIENT_CODES:
                 raise
             food, grams = self._usable_food(self._fallback, ingredient, index=index)
-            return self._fallback.name, food, grams
-        return self._source.name, food, grams
+            return f"{self._fallback.name} {food.fdc_id}", food, grams
+        return f"{self._source.name} {food.fdc_id}", food, grams
 
     def _usable_food(
         self,

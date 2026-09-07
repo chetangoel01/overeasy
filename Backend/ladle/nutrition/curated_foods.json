@@ -1,0 +1,122 @@
+{
+  "comment": [
+    "Foods USDA has no usable record for, estimated per 100 g and reviewed",
+    "before merge. Every row states the basis its numbers came from, because",
+    "the review is the only thing standing between an estimate and a calorie",
+    "count a cook believes. Add a row only with evidence of a real miss: an",
+    "ingredient the ops panel or a dry run recorded as skipped, and a probe",
+    "showing USDA genuinely has no record for it rather than one the matching",
+    "layer failed to reach.",
+    "`id` is not a FoodData Central identifier. The 9000000 block is Ladle's",
+    "own; the evidence line names the source and the food, so these never",
+    "reach a screen."
+  ],
+  "entries": [
+    {
+      "id": 9000001,
+      "name": "garam masala",
+      "aliases": [
+        "garam masala powder",
+        "garam masala spice blend",
+        "garam masala spice mix",
+        "ground garam masala"
+      ],
+      "basis": "Unweighted mean of the six USDA SR Legacy spices a standard garam masala is built from: coriander seed (170922, 298 kcal), cumin seed (170923, 375), pepper black (170931, 251), cinnamon ground (171320, 247), cardamom (170919, 311), cloves ground (171321, 274). USDA has no garam masala record - its best answer is SMART SOUP, Indian Bean Masala (171181, 57 kcal). Proportions vary by house, so the mean is used rather than a weighted recipe; the six sit between 247 and 375 kcal, which bounds the error at well under a spoonful's worth.",
+      "calories_per_100g": "292.7",
+      "protein_grams_per_100g": "10.2",
+      "carbohydrate_grams_per_100g": "63.0",
+      "fat_grams_per_100g": "10.7",
+      "fibre_grams_per_100g": "32.1",
+      "portions": [
+        {"amount": "1", "measure_unit": "tsp", "gram_weight": "2.5"},
+        {"amount": "1", "measure_unit": "tbsp", "gram_weight": "7.5"}
+      ]
+    },
+    {
+      "id": 9000002,
+      "name": "curry leaves",
+      "aliases": [
+        "curry leaf",
+        "fresh curry leaves",
+        "kadi patta",
+        "kariveppilai",
+        "sweet neem leaves"
+      ],
+      "basis": "The published Indian food-composition figure for fresh Murraya koenigii leaves: 108 kcal, 6.1 g protein, 18.7 g carbohydrate, 1.0 g fat, 6.4 g fibre per 100 g. USDA has no record - it answers `curry leaves` with Drumstick leaves, raw (168416), a different plant, and `curry leaf` with beef curry. This is the least-backed row in the table: no laboratory record supports it and it is not a blend that can be averaged from one. Recipes use 1-15 g, so a 30% error here is a few kcal on a dish.",
+      "calories_per_100g": "108",
+      "protein_grams_per_100g": "6.1",
+      "carbohydrate_grams_per_100g": "18.7",
+      "fat_grams_per_100g": "1.0",
+      "fibre_grams_per_100g": "6.4",
+      "portions": [
+        {"amount": "1", "measure_unit": "piece", "gram_weight": "0.3"},
+        {"amount": "1", "measure_unit": "sprig", "gram_weight": "3"},
+        {"amount": "1", "measure_unit": "cup", "gram_weight": "20"}
+      ]
+    },
+    {
+      "id": 9000003,
+      "name": "ginger garlic paste",
+      "aliases": [
+        "ginger-garlic paste",
+        "garlic ginger paste",
+        "adrak lehsun paste",
+        "ginger and garlic paste"
+      ],
+      "basis": "Equal parts of the two USDA SR Legacy records it is made from: Ginger root, raw (169231 - 80 kcal, 1.82 P, 17.8 C, 0.75 F, 2.0 fibre) and Garlic, raw (169230 - 149 kcal, 6.36 P, 33.1 C, 0.5 F, 2.1 fibre). USDA has no paste record; before the September 1 query fix it answered Almond paste, and after it answers Ginger root, raw alone, which silently drops the garlic. Jarred pastes are usually let down with water and oil and salted; this row is the plain 1:1 fresh blend, which is what a recipe means.",
+      "calories_per_100g": "114.5",
+      "protein_grams_per_100g": "4.09",
+      "carbohydrate_grams_per_100g": "25.45",
+      "fat_grams_per_100g": "0.63",
+      "fibre_grams_per_100g": "2.05",
+      "portions": [
+        {"amount": "1", "measure_unit": "tsp", "gram_weight": "6"},
+        {"amount": "1", "measure_unit": "tbsp", "gram_weight": "18"},
+        {"amount": "1", "measure_unit": "ml", "gram_weight": "1.05"}
+      ]
+    },
+    {
+      "id": 9000004,
+      "name": "tamarind paste",
+      "aliases": [
+        "tamarind concentrate",
+        "tamarind pulp",
+        "tamarind puree",
+        "tamarind extract",
+        "imli paste"
+      ],
+      "basis": "USDA Tamarinds, raw (167763 - 239 kcal, 2.8 P, 62.5 C, 0.6 F, 5.1 fibre) scaled by 0.8 for the water a commercial paste is let down with. The 0.8 is the one outright guess in this table: jars run from near-neat pulp to heavily diluted concentrate and their own labels land between roughly 150 and 240 kcal per 100 g. Deliberately not aliased to bare `tamarind` - USDA answers that correctly with Tamarind (2709269) and Tamarinds, raw (167763), and a curated row must not displace a real record.",
+      "calories_per_100g": "191.2",
+      "protein_grams_per_100g": "2.24",
+      "carbohydrate_grams_per_100g": "50.0",
+      "fat_grams_per_100g": "0.48",
+      "fibre_grams_per_100g": "4.08",
+      "portions": [
+        {"amount": "1", "measure_unit": "tsp", "gram_weight": "6"},
+        {"amount": "1", "measure_unit": "tbsp", "gram_weight": "17"},
+        {"amount": "1", "measure_unit": "ml", "gram_weight": "1.15"}
+      ]
+    },
+    {
+      "id": 9000005,
+      "name": "italian seasoning",
+      "aliases": [
+        "italian herb mix",
+        "italian herbs",
+        "dried italian herbs",
+        "italian herb seasoning",
+        "italian herb blend"
+      ],
+      "basis": "Unweighted mean of the six USDA SR Legacy dried herbs the blend is made of: oregano (171328, 265 kcal), basil (171317, 233), thyme (170938, 276), rosemary (171333, 331), marjoram (170928, 271), sage ground (170935, 315). USDA has no record for the blend - it answers `italian seasoning` with Bread, Italian and Italian Ice. Two recipes in the September 2 dry run were skipped on it, at 1 g and 4 g.",
+      "calories_per_100g": "281.8",
+      "protein_grams_per_100g": "11.5",
+      "carbohydrate_grams_per_100g": "61.0",
+      "fat_grams_per_100g": "8.5",
+      "fibre_grams_per_100g": "40.1",
+      "portions": [
+        {"amount": "1", "measure_unit": "tsp", "gram_weight": "1"},
+        {"amount": "1", "measure_unit": "tbsp", "gram_weight": "3"}
+      ]
+    }
+  ]
+}

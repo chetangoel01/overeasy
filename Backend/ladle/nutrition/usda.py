@@ -20,7 +20,13 @@ from ladle.contracts.common import WireDecimal, WireModel
 if TYPE_CHECKING:
     from ladle.nutrition.store import USDAPayloadStore
 
-FoodDataType = Literal["Foundation", "SR Legacy", "Survey (FNDDS)", "Branded"]
+#: `Curated` is Ladle's own and is deliberately absent from `_DATA_TYPES`:
+#: it is never asked for in a search and `_parse_food` rejects any USDA
+#: payload claiming it, so the only records carrying it are the ones this
+#: repository wrote by hand.
+FoodDataType = Literal[
+    "Foundation", "SR Legacy", "Survey (FNDDS)", "Branded", "Curated"
+]
 _DATA_TYPES: tuple[FoodDataType, ...] = (
     "Foundation",
     "SR Legacy",

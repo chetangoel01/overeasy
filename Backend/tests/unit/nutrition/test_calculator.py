@@ -9,6 +9,7 @@ from ladle.nutrition.calculator import (
     NutritionCalculator,
     UncountedIngredient,
 )
+from ladle.nutrition.curated import curated_food_table
 from ladle.nutrition.usda import FoodNutrients, FoodPortion
 from ladle.recipes.template_clone import (
     RecipeTemplate,
@@ -1160,3 +1161,154 @@ def test_the_shared_fallback_fake_answers_the_known_usda_gaps() -> None:
 
     assert records == []
     assert result.evidence == "USDA FDC 171077, Fake Foods 900002"
+
+
+def test_a_curated_ingredient_is_costed_without_asking_usda() -> None:
+    """The table is the first rung, not a rescue after USDA fails.
+
+    Asking USDA about garam masala first would spend a search to be told
+    what the table already knows, and the answer it comes back with —
+    `SMART SOUP, Indian Bean Masala` — is the reason the row exists.
+    """
+    usda = Foods(
+        {
+            "chicken thigh raw": [
+                food(
+                    fdc_id=171077,
+                    description="Chicken, thigh, raw",
+                    data_type="SR Legacy",
+                    calories="209",
+                    protein="17.27",
+                    carbohydrate="0",
+                    fat="15.25",
+                    search_rank=0,
+                )
+            ]
+        }
+    )
+    records: list[UncountedIngredient] = []
+
+    result = NutritionCalculator(usda, curated=curated_food_table()).calculate_required(
+        recipe(
+            [
+                ingredient(
+                    name="chicken thighs",
+                    query="chicken thigh raw",
+                    quantity="500",
+                    metric_amount="500",
+                ),
+                ingredient(
+                    name="garam masala",
+                    query="garam masala",
+                    quantity="10",
+                    metric_amount="10",
+                    order_index=1,
+                ),
+            ],
+            servings="4",
+        ),
+        uncounted=records,
+    )
+
+    assert records == []
+    assert usda.calls == ["chicken thigh raw"]
+    # 500 g of thigh at 209 and 10 g of masala at 292.7, over four servings.
+    assert result.calories == Decimal("268.6")
+    assert result.evidence == "USDA FDC 171077, Ladle curated garam masala"
+
+
+def test_a_curated_match_does_not_mark_the_recipe_approximate() -> None:
+    """A curated row is a real match, not a doubtful one.
+
+    The ≈ marker says an ingredient went uncounted. Nothing did here, so
+    putting one on the card would be telling the cook the number is thinner
+    than it is.
+    """
+    result = NutritionCalculator(
+        Foods({}), curated=curated_food_table()
+    ).calculate_required(
+        recipe(
+            [
+                ingredient(
+                    name="curry leaves",
+                    query="curry leaves",
+                    quantity="10",
+                    metric_amount="10",
+                )
+            ]
+        )
+    )
+
+    assert result is not None
+    assert result.approximate is False
+    assert result.is_estimated is True
+
+
+def test_an_alias_reaches_the_same_curated_entry() -> None:
+    """`kadi patta` and `curry leaves` are one ingredient with two names."""
+    table = curated_food_table()
+    calculator = NutritionCalculator(Foods({}), curated=table)
+
+    by_name = calculator.calculate_required(
+        recipe([ingredient(name="curry leaves", query="curry leaves")])
+    )
+    by_alias = calculator.calculate_required(
+        recipe([ingredient(name="Kadi Patta", query="kadi patta leaves")])
+    )
+
+    assert by_name is not None
+    assert by_alias is not None
+    assert by_alias.calories == by_name.calories
+    assert by_alias.evidence == "Ladle curated curry leaves"
+
+
+def test_an_ingredient_absent_from_the_table_still_goes_to_usda() -> None:
+    """The table answers five foods, not every food."""
+    usda = Foods(
+        {"chickpeas drained": [food(fdc_id=10, search_rank=0)]},
+    )
+
+    result = NutritionCalculator(usda, curated=curated_food_table()).calculate_required(
+        recipe([ingredient()])
+    )
+
+    assert usda.calls == ["chickpeas drained"]
+    assert result is not None
+    assert result.evidence == "USDA FDC 10"
+
+
+def test_a_curated_ingredient_with_no_usable_measure_is_skipped_not_researched() -> (
+    None
+):
+    """A curated row that cannot be weighed is a missing portion, not a
+    missing food.
+
+    Falling through to USDA here would spend a search on the ingredient
+    USDA is known to fail, and would file the skip as `foodNotFound` — which
+    would put curry leaves back on the ops panel's list of foods to add to a
+    table they are already in. `missingMass` names the real fix.
+    """
+    usda = Foods({})
+    records: list[UncountedIngredient] = []
+
+    result = NutritionCalculator(usda, curated=curated_food_table()).calculate_required(
+        recipe(
+            [
+                ingredient(
+                    name="curry leaves",
+                    query="curry leaves",
+                    quantity="2",
+                    unit="handful",
+                    metric_amount=None,
+                    metric_unit=None,
+                )
+            ]
+        ),
+        uncounted=records,
+    )
+
+    assert result is None
+    assert usda.calls == []
+    assert [(value.name, value.code) for value in records] == [
+        ("curry leaves", "missingMass")
+    ]

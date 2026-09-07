@@ -64,6 +64,7 @@ from ladle.imports.thumbnails import OEmbedThumbnailFetcher
 from ladle.imports.transitions import ImportTransitionService
 from ladle.infrastructure.object_storage import S3ObjectStorage
 from ladle.nutrition.calculator import NutritionCalculator
+from ladle.nutrition.curated import curated_food_table
 from ladle.nutrition.normalization import (
     OpenRouterNutritionNormalizationClient,
     RecipeNutritionNormalizer,
@@ -297,9 +298,14 @@ def _nutrition_calculator(settings: Settings) -> NutritionCalculator | None:
             store=DatabaseUSDAPayloadStore(session_factory=runtime_sessions()),
         ),
         # The second provider of the fallback ladder is not chosen yet, so
-        # an ingredient USDA cannot answer is skipped and named rather than
-        # asked about again.
+        # an ingredient neither the table nor USDA can answer is skipped and
+        # named rather than asked about again.
         fallback=None,
+        # The checked-in table of foods USDA has no usable record for. It is
+        # reference data rather than a provider: no key, no network, and no
+        # setting to turn it off, because a row only exists once a real miss
+        # put it there.
+        curated=curated_food_table(),
     )
 
 
