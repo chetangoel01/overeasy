@@ -35,8 +35,8 @@ func rgb(_ hex: UInt32, _ alpha: CGFloat = 1) -> CGColor {
     )
 }
 
-let groundLift = rgb(0x4C3B46)   // measured near the top centre
-let groundEdge = rgb(0x3C2E37)   // measured at the corners
+let groundLift = rgb(0x4B3A45)   // measured near the top centre
+let groundEdge = rgb(0x3D2F38)   // measured at the corners
 let warmWhite = rgb(0xFCF9F2)    // the egg white
 let warmDeep = rgb(0xE4D9C8)     // porcelain in shadow
 let highlight = rgb(0xF8EBDF)    // the yolk's one specular ellipse

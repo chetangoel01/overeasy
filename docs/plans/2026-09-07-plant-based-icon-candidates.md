@@ -67,6 +67,13 @@ in a picker have to match **each other** first, so the candidates use the egg's
 measured colours, and any decision to bring the app mark onto the design system
 palette should move both icons at once, as its own change.
 
+`design/board/ingredient-icon-directions.html` was read and not borrowed from.
+It compares five *raster* art packs — sticker, pencil, watercolour, painted,
+soft 3D — for the ingredient rows, and DESIGN.md makes that watercolour the sole
+place illustration is allowed in this app. The app mark is flat vector and
+belongs to a different vocabulary; the shared language between them is the
+palette, not the rendering.
+
 **Green comes from the catalog.** `Celery.colorset` (`#83A18A`) is the app's
 only green and is what the candidates use, with `#5E7463` at 0.72× for the shade
 — the same fill-to-shade ratio the yolk uses — and `#9CB9A3` for the lit face.
@@ -195,10 +202,13 @@ together.
 ## Verification
 
 - `swift Tools/app-icon/candidates.swift` renders all seven artefacts clean.
-- Every candidate was read at 1024 and at 60 px, and three were reworked on what
-  that showed: the bowl's sprigs (read as ears), the roundel's veins (reached
-  the rim and notched the silhouette — now bounded by a ray/circle intersection
-  so they cannot), and the avocado's whole outline (read as an egg).
+- Every candidate was read at 1024 and at 60 px, and four were reworked on what
+  that showed: the bowl's sprigs (two symmetric ones read as ears), the
+  roundel's veins (reached the rim and notched the silhouette — now bounded by a
+  ray/circle intersection so they cannot), the avocado's whole outline (read as
+  an egg), and the lettuce's tones. The lettuce is the clearest case that the
+  60 px check earns its place: at 1024 its three rings were legible one shade
+  apart, and at 60 the whole head collapsed into a single green polygon.
 - Output is `CGImageAlphaInfo.noneSkipLast`, so the PNGs carry no alpha channel,
   which is what both the asset catalog and App Store Connect want.
 - No app or test target changed, so there is nothing to run beyond the script.
