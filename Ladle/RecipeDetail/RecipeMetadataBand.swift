@@ -165,12 +165,7 @@ struct RecipeNutritionSummary: View {
 
     @ViewBuilder
     private var nutritionItems: some View {
-        nutritionItem(
-            value: displayed.calories.map {
-                ladleNumber($0, maximumFractionDigits: 0)
-            },
-            label: "Calories"
-        )
+        nutritionItem(value: displayed.ladleCalorieText, label: "Calories")
         nutritionItem(value: grams(displayed.proteinGrams), label: "Protein")
         nutritionItem(value: grams(displayed.carbohydrateGrams), label: "Carbs")
         nutritionItem(value: grams(displayed.fatGrams), label: "Fat")
@@ -195,7 +190,11 @@ struct RecipeNutritionSummary: View {
 
     private var displayed: Nutrition {
         nutrition.perServing
-            ?? Nutrition(servingBasis: 1, isEstimated: nutrition.isEstimated)
+            ?? Nutrition(
+                servingBasis: 1,
+                isEstimated: nutrition.isEstimated,
+                approximate: nutrition.approximate
+            )
     }
 }
 

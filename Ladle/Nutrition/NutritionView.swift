@@ -59,6 +59,7 @@ struct NutritionView: View {
             HealthExportSheet(
                 recipeTitle: recipeTitle,
                 nutrition: nutrition,
+                uncountedNote: uncountedNote,
                 service: healthService
             )
         }
@@ -85,7 +86,7 @@ struct NutritionView: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
             hasValidServingBasis
-                ? "\(displayedNutrition.isEstimated ? "Estimated " : "")\(calorieText) calories"
+                ? spokenCalorieText
                 : "Nutrition per serving unavailable"
         )
     }
@@ -288,18 +289,28 @@ struct NutritionView: View {
     }
 
     private var calorieText: String {
+        displayedNutrition.ladleCalorieText ?? "—"
+    }
+
+    /// The hero read aloud. VoiceOver announces "≈" as a symbol, so the
+    /// marker becomes the word the metadata band already uses for a time it
+    /// is not sure of.
+    private var spokenCalorieText: String {
         guard let calories = displayedNutrition.calories else {
-            return "—"
+            return "Calories unavailable"
         }
-        let prefix = displayedNutrition.isEstimated ? "≈ " : ""
-        return "\(prefix)\(ladleNumber(calories, maximumFractionDigits: 0))"
+        let number = ladleNumber(calories, maximumFractionDigits: 0)
+        return displayedNutrition.approximate
+            ? "About \(number) calories"
+            : "\(number) calories"
     }
 
     private var displayedNutrition: Nutrition {
         nutrition.perServing
             ?? Nutrition(
                 servingBasis: 1,
-                isEstimated: nutrition.isEstimated
+                isEstimated: nutrition.isEstimated,
+                approximate: nutrition.approximate
             )
     }
 

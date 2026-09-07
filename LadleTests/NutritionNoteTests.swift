@@ -48,19 +48,72 @@ final class NutritionNoteTests: XCTestCase {
     }
 
     func testABlockedRecipeNeverOffersItsBlockerAsTheSummary() {
-        // `nutrition` carries the blocker when enrichment produced nothing.
-        // There is no panel to put it on, and it is not written for a cook.
+        // A recipe is no longer voided for missing ingredients — the totals
+        // are kept and marked instead. The whole-recipe failures that remain
+        // are the ones that were never about coverage, and they still write
+        // their blocker to `nutrition`. There is no panel to put it on, and
+        // it is not written for a cook.
         let recipe = recipe(
             nutrition: nil,
             uncertainties: [
                 FieldUncertainty(
                     field: "nutrition",
-                    reason: "Nutrition enrichment blocked: insufficientCoverage."
+                    reason: "Nutrition enrichment blocked: invalidYield."
                 )
             ]
         )
 
         XCTAssertNil(NutritionNote.uncounted(in: recipe))
+    }
+
+    func testTheSummaryIsOfferedForARecipeSyncedBeforeTheMarkerExisted() throws {
+        // The marker is derived server-side from rows that did not exist
+        // when the September 2 work wrote these notes, so until the host is
+        // backfilled a partial recipe arrives with its summary and
+        // `approximate: false`. The sheet reads the note, not the marker,
+        // and so still says what was left out.
+        let recipe = recipe(
+            nutrition: estimated,
+            uncertainties: [
+                FieldUncertainty(
+                    field: "nutrition",
+                    reason: "2 of 9 ingredients not counted: tamarind, curry leaves."
+                )
+            ]
+        )
+
+        XCTAssertFalse(try XCTUnwrap(recipe.nutrition).approximate)
+        XCTAssertEqual(
+            NutritionNote.uncounted(in: recipe),
+            "2 of 9 ingredients not counted: tamarind, curry leaves."
+        )
+    }
+
+    func testTheCalorieFigureIsMarkedWhenTheTotalIsIncomplete() {
+        let nutrition = Nutrition(
+            calories: 520,
+            proteinGrams: 21,
+            servingBasis: 1,
+            isEstimated: true,
+            approximate: true
+        )
+
+        XCTAssertEqual(nutrition.ladleCalorieText, "≈ 520")
+    }
+
+    func testAnEstimateThatCountedEverythingKeepsABareFigure() {
+        XCTAssertEqual(estimated.ladleCalorieText, "520")
+    }
+
+    func testThereIsNoFigureToMarkWithoutCalories() {
+        let nutrition = Nutrition(
+            proteinGrams: 21,
+            servingBasis: 1,
+            isEstimated: true,
+            approximate: true
+        )
+
+        XCTAssertNil(nutrition.ladleCalorieText)
     }
 
     private var estimated: Nutrition {

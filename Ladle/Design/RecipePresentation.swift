@@ -5,6 +5,33 @@ extension Nutrition {
     var perServing: Nutrition? {
         servingBasis > 0 ? scaled(toServings: 1) : nil
     }
+
+    /// The calorie figure as every surface prints it: whole, and marked when
+    /// the totals left an ingredient out.
+    var ladleCalorieText: String? {
+        calories.map {
+            ladleApproximate(
+                ladleNumber($0, maximumFractionDigits: 0),
+                when: approximate
+            )
+        }
+    }
+}
+
+/// Marks a figure whose totals are incomplete.
+///
+/// "≈" says the number is short by an ingredient the pipeline could not
+/// cost — not that it is an estimate. Every calculated panel is an estimate,
+/// so a marker for *that* would sit on all of them and say nothing; the word
+/// "Estimated" carries it on the detail band and the nutrition sheet
+/// instead. Only calories take the marker: it is the number people scan for,
+/// and one caveat on a line reads as a caveat where four read as noise.
+///
+/// The names of what was skipped are not here. They live on the ingredient
+/// rows and in one line on the nutrition sheet, both drawn from the
+/// uncertainties the server already sends.
+func ladleApproximate(_ text: String, when approximate: Bool) -> String {
+    approximate ? "≈ \(text)" : text
 }
 
 extension Recipe {
@@ -14,9 +41,14 @@ extension Recipe {
 
     /// The one-line summary under a recipe wherever it appears as a card or
     /// row. Calories lead because they are the number people scan for, and
-    /// protein is spelled out: "680 cal · 38g protein". The estimated marker
-    /// lives on the detail screen's nutrition panel, not here — a "≈" on a
-    /// card is noise at this size.
+    /// protein is spelled out: "680 cal · 38g protein".
+    ///
+    /// A "≈" leads the calories when the total is missing an ingredient, and
+    /// appears for nothing else. The card carries the marker alone — no
+    /// count, no words — because a cook scanning a shelf needs to know a
+    /// number is short before comparing it against another, and nothing more
+    /// than that fits at this size. Which ingredients, and why, are on the
+    /// nutrition sheet.
     ///
     /// Both numbers are whole. They come from a normalizer's guess at
     /// unquantified amounts and a USDA row matched by search, and two
@@ -25,9 +57,7 @@ extension Recipe {
     /// measured in a way that a whole gram does not.
     var libraryFacts: String {
         [
-            libraryNutrition?.calories.map {
-                "\(ladleNumber($0, maximumFractionDigits: 0)) cal"
-            },
+            libraryNutrition?.ladleCalorieText.map { "\($0) cal" },
             libraryNutrition?.proteinGrams.map {
                 "\(ladleNumber($0, maximumFractionDigits: 0))g protein"
             },
