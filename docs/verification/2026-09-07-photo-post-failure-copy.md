@@ -1,0 +1,125 @@
+# Photo posts on the client: an unknown failure code, and copy that asks the cook
+
+Date: 2026-09-07 · Branch: `feat/photo-post-failure-copy` · Issue:
+[#39](https://github.com/chetangoel01/overeasy/issues/39)
+Scope: iOS only. The backend half is
+[#112](https://github.com/chetangoel01/overeasy/pull/112) —
+`docs/verification/2026-09-07-photo-post-imports.md`.
+
+## Why
+
+The decision recorded on #39 on 2026-09-07 is that a photo post whose caption
+carries no recipe lands in the failure sheet with copy of its own: the recipe
+is in the pictures, we could not read it, here is where to type it. #112 adds
+the wire code `photoPostNeedsManualEntry` for that state.
+
+Underneath that is the reason this ships first. `RemoteImportJobDTO.failureReason`
+is an `ImportFailure?` decoded strictly, and the reason travels inside the
+import **poll** response. A code the build did not know threw a `DecodingError`
+on the whole payload — every job in the response stuck parsing, not just the one
+that failed. So the fallback lands before the case that would have triggered it,
+and before this class of failure can happen again.
+
+## What changed
+
+### 1. An unknown code decodes instead of throwing
+
+`ImportFailure` (`Packages/LadleCore/Sources/LadleCore/ImportJob.swift`) is no
+longer a `String`-backed enum with synthesized `Codable`. It keeps a `rawValue`
+and gains `case unrecognized(String)`, with `init(from:)` and `encode(to:)`
+written by hand so the value stays the same bare string on the wire.
+
+**Why the string is carried rather than dropped.** An import job is persisted as
+encoded JSON in `StoredImportJob.payload`. A payload-less `.unknown` would
+re-encode as something else and lose the server's real reason for good; carrying
+it means the row still holds `photoPostNeedsManualEntry` after an upgrade, and
+the build that finally knows the code reads it correctly. It is a diagnostic, not
+copy — an unrecognised code wears the generic failure's title, message and
+recovery options, and no wire code is ever shown to a cook.
+
+`{"failed":{"_0":"parserUnavailable"}}` is asserted in a test, because that is
+the JSON already sitting in every stored failed job and a change to it would make
+those rows undecodable.
+
+### 2. `photoPostNeedsManualEntry`
+
+The case, the `Contracts/Fixtures/import-failures.json` entry, and coverage in
+`RemoteContractTests` and `ImportJobTests` beside the existing
+`insufficientTextEvidence` ones.
+
+### 3. Failure sheet copy and action order
+
+| | Generic (`insufficientTextEvidence`) | Photo post |
+| --- | --- | --- |
+| Title | More recipe detail needed | The recipe is in the pictures |
+| Message | The post lacks enough written detail. Paste the recipe or create it manually. | Overeasy read the caption and it didn’t hold the recipe. Paste it from the post, or type it in. |
+| Leads with | Retry import | Paste recipe details |
+
+`ImportRecoveryLayout` (`Ladle/Import/ImportCoordinator.swift`) is the whole
+mechanism: `.retryFirst` for every failure that might not happen twice,
+`.manualEntryFirst` when the import already read everything the post holds.
+Retrying a caption that had nothing in it will have nothing in it again, so
+**Paste recipe details** takes the primary role and **Create manually** follows
+it. Retry stays on the sheet, and stays enabled — a demoted action, not a
+removed one — as a secondary row with the icon-and-label shape the other
+recovery rows already use. **Add correction notes** stays where it was.
+
+Both sheets that offer recovery read the layout off the failure:
+`FailedImportSheet` and `AddRecipeSheet`'s failed state, which is where a photo
+post fails while the add sheet is still open.
+
+### 4. The Inbox row
+
+`PendingImportCard`'s status pill says **Type it in** rather than "Import
+failed", in the register of the other short labels on that row ("Sign in again",
+"Limit reached"). It is the same string VoiceOver reads, and the byline beneath
+carries the message above.
+
+## Deploy order
+
+**This must ship before #112 deploys.** That is the whole point of splitting it
+out. Until this build is in cooks' hands, a `photoPostNeedsManualEntry` on the
+wire breaks import polling for them.
+
+One consequence to know about, recorded because it is invisible from this side:
+`Contracts/Fixtures/import-failures.json` is validated against the **backend's**
+`ImportFailure` StrEnum by `Backend/tests/contracts/test_golden_fixtures.py`, and
+`main`'s backend does not know the new code yet. With this branch's fixture on
+`main` and #112 not yet merged, that test fails:
+
+```
+FAILED tests/contracts/test_golden_fixtures.py::test_golden_fixture_round_trips_canonically[import-failures.json-adapter2]
+  Input should be 'parserUnavailable', … [input_value='photoPostNeedsManualEntry']
+```
+
+`.github/workflows/backend-ci.yml` only runs on `Backend/**`, so neither this PR
+nor its merge triggers it — but a backend PR opened in the window between these
+two merges would go red on `main`'s account, not its own. Merge #112 promptly
+after this one.
+
+## Verification
+
+```
+swift test --package-path Packages/LadleCore
+xcodebuild test -project Ladle.xcodeproj -scheme LadleAllTests \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:LadleTests
+```
+
+Results are in the pull request. `Backend/` is untouched by this branch.
+
+Tests added:
+
+- a made-up failure code decodes as `.unrecognized` and the job reads as
+  `.failed`, through `RemoteImportJobDTO.importStatus()` — the poll path that
+  used to throw;
+- that code survives a round trip through the encoded job payload;
+- `{"failed":{"_0":"parserUnavailable"}}` is still the stored shape, and every
+  known code round-trips through its wire value;
+- the new code in the fixture list and its stable raw value;
+- the photo-post title, message and `.manualEntryFirst` layout, each against the
+  generic `insufficientTextEvidence` failure, so a regression that flattened the
+  two would fail;
+- the Inbox label for the new code and for a failure that is not it.
+
+`DemoImportService` fails any link whose URL contains `photo` with the new code,
+so the sheet can be opened in the UI-review simulator without a server.
