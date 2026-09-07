@@ -157,3 +157,18 @@ fifteen minutes without starting a test and was killed.
   unexpected) in 22.243 seconds", "** TEST SUCCEEDED **". It attaches two
   screenshots, the stepper at eight and the scaled page.
 - **Build,** `xcodebuild build -scheme LadleAllTests` — "** BUILD SUCCEEDED **".
+- **Looked at**, not only asserted: the two attachments show the band reading
+  "8 servings ⌃⌄ / Scaled from 4 servings" in the same shape as "25 min /
+  Total time" beside it, and the sheet as a plain iOS stepper card.
+
+### Gap
+
+**The "Not scaled" marker has no on-screen coverage.** Every row in the demo
+library now has a `normalizedQuantity`, because every demo row was written
+with an amount, so nothing in the seeded data can render it. The rule behind
+it is unit-tested (`testARowWithoutASplitIsUntouchedByScaling`), and the marker
+is four lines of view code in two places, but no test draws it. Giving one
+demo row a genuinely unquantified amount — "kosher salt, to taste", which is a
+shape the backend certainly sends and the demo library does not have — would
+fix that and make the demo library more honest. It changes demo recipe content,
+which this issue did not ask for, so it is left for a follow-up.

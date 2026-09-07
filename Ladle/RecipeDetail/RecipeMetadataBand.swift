@@ -209,7 +209,7 @@ private struct ServingsSheet: View {
                 stepperRow
 
                 Text(
-                    "Ingredient amounts are recalculated from the recipe's \(scaling.baseYieldText). Nothing is saved — leaving the recipe puts it back."
+                    "Ingredient amounts are recalculated from the recipe’s \(scaling.baseYieldText). Nothing is saved — leaving the recipe puts it back."
                 )
                 .ladleFont(.metadata)
                 .foregroundStyle(LadleTheme.Label.secondary)
