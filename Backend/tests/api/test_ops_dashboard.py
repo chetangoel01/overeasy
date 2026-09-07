@@ -122,6 +122,15 @@ def test_readiness_json_is_a_separate_slower_endpoint() -> None:
     assert payload == {"healthy": False, "checks": {"database": "unavailable"}}
 
 
+def test_the_page_mounts_the_panel_of_ingredients_that_were_not_counted() -> None:
+    with _client() as client:
+        client.get("/ops", params={"token": TOKEN})
+        page = client.get("/ops").text
+
+    assert 'id="nutrition-misses"' in page
+    assert "/ops/nutrition-misses.json" in page
+
+
 def test_dashboard_page_may_run_its_own_inline_script_and_styles() -> None:
     with _client() as client:
         client.get("/ops", params={"token": TOKEN})

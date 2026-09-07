@@ -166,6 +166,16 @@
   .kv dd { margin: 0; font-variant-numeric: tabular-nums; text-align: right; }
   .kv dd.alert { color: var(--critical); font-weight: 600; }
 
+  /* The miss backlog. The name is set in the monospace face the route column
+     uses, because a stray space or a capital is a real difference between two
+     rows here and the proportional face hides it. */
+  td.miss-name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+  td.miss-name .literal { white-space: pre-wrap; }
+  .miss-codes { font-size: 11.5px; color: var(--muted); margin-top: 7px; }
+  .miss-codes b { font-weight: 600; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .miss-recipes { font: 12px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ink-2); margin-top: 3px; }
+  .miss-recipes .more { color: var(--muted); }
+
   .empty { color: var(--muted); font-size: 13px; padding: 8px 0; }
   .err { color: var(--critical); }
   .ok { color: var(--good); }
@@ -335,6 +345,16 @@
     <div id="cache-sync"></div>
   </div>
 
+  <div class="section-title">Nutrition</div>
+  <div class="card">
+    <h2>Not counted</h2>
+    <p class="sub">Ingredients no food record answered, so the recipe was totalled
+      without them. Most missed first, all time. Names are shown exactly as the
+      pipeline looked them up — this list is the backlog the curated table is
+      grown from, so the string matters. <span id="miss-scope"></span></p>
+    <div id="nutrition-misses"></div>
+  </div>
+
   <div class="section-title">System</div>
   <div class="grid cols-2">
     <div class="card">
@@ -366,8 +386,16 @@
   var POLL_MS = 5000;
   var READY_MS = 60000;
   var RECENT_MS = 10000;
+  /* The only poll that reaches the database, and the numbers move at the pace
+     recipes are imported. Readiness' cadence, not the counter poll's. */
+  var MISSES_MS = 60000;
   var MAX_POINTS = 180;
-  var OPS_ROUTES = { "/ops": 1, "/ops/metrics.json": 1, "/ops/readiness.json": 1 };
+  var OPS_ROUTES = {
+    "/ops": 1,
+    "/ops/metrics.json": 1,
+    "/ops/readiness.json": 1,
+    "/ops/nutrition-misses.json": 1
+  };
   var HEALTH_ROUTES = { "/health/live": 1, "/health/ready": 1 };
   var HEALTH_PREF = "ladle.ops.includeHealth";
   var HTTP_BUCKETS = [0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30];
@@ -375,6 +403,7 @@
   var state = {
     series: [],
     recent: [],
+    misses: null,
     pricing: {},
     currency: "USD",
     prev: null,
@@ -1444,6 +1473,7 @@
     "/ops/metrics.json": "This dashboard's counter poll",
     "/ops/readiness.json": "This dashboard's slower readiness poll",
     "/ops/requests.json": "This dashboard's recent-request poll",
+    "/ops/nutrition-misses.json": "This dashboard's poll for the ingredients nutrition skipped",
     "unmatched": "No route matched — a scanner, a stale client, or a typo"
   };
 
@@ -1500,6 +1530,139 @@
     host.appendChild(table);
   }
 
+  /* Which rung of the lookup gave up, in the operator's words. */
+  var MISS_CODES = {
+    foodNotFound: "no record",
+    ambiguousFoodMatch: "no relevant record",
+    inconsistentNutrients: "record contradicted itself",
+    missingMass: "no mass to cost"
+  };
+
+  function renderMisses() {
+    var host = el("nutrition-misses");
+    var scope = el("miss-scope");
+    host.textContent = "";
+    var payload = state.misses;
+    if (!payload) {
+      host.innerHTML = '<p class="empty">Loading…</p>';
+      scope.textContent = "";
+      return;
+    }
+    var names = payload.names || [];
+    if (!names.length) {
+      /* Genuinely empty until the recipes enriched before the skips table
+         existed are re-run; the doc calls that the backfill. Say so, because
+         "nothing here" and "nothing recorded yet" are different answers. */
+      host.innerHTML = '<p class="empty">No ingredient has been skipped since the ' +
+        "pipeline started recording them. Recipes enriched before that are not " +
+        "counted here until they are re-run.</p>";
+      scope.textContent = "";
+      return;
+    }
+    var total = payload.totals || {};
+    scope.textContent = names.length < total.names
+      ? "Showing the top " + names.length + " of " + total.names + " names."
+      : "All " + total.names + " names, across " + total.recipes +
+        " recipes.";
+
+    var peak = 0;
+    var i;
+    var j;
+    for (i = 0; i < names.length; i++) peak = Math.max(peak, names[i].skips);
+
+    var table = document.createElement("table");
+    table.innerHTML = "<thead><tr><th>Ingredient</th><th class='num'>Recipes</th>" +
+      "<th class='num'>Misses</th><th class='num'>Est. mass</th></tr></thead>";
+    var body = document.createElement("tbody");
+    for (i = 0; i < names.length; i++) {
+      var entry = names[i];
+      var tr = document.createElement("tr");
+
+      var label = document.createElement("td");
+      label.className = "miss-name";
+      /* Verbatim, including any stray space or capital: this is the string the
+         curated table has to answer, not a tidied version of it. Set as text
+         inside a pre-wrap span, because HTML would otherwise swallow the
+         leading space that is exactly the sort of thing worth seeing. */
+      var literal = document.createElement("span");
+      literal.className = "literal";
+      literal.textContent = entry.name;
+      hoverable(literal, "Recorded as <b>" + esc(JSON.stringify(entry.name)) +
+        "</b><br>The curated table has to answer this string, not a tidier one.");
+      label.appendChild(literal);
+      var bar = document.createElement("span");
+      bar.className = "magnitude";
+      bar.innerHTML = '<i style="width:' + ((entry.skips / peak) * 100).toFixed(2) +
+        '%;background:var(--series-2)"></i>';
+      label.appendChild(bar);
+
+      var codes = entry.codes || [];
+      var parts = [];
+      for (j = 0; j < codes.length; j++) {
+        parts.push(esc(MISS_CODES[codes[j].code] || codes[j].code) +
+          " <b>" + codes[j].skips.toLocaleString() + "</b>");
+      }
+      if (parts.length) {
+        var breakdown = document.createElement("div");
+        breakdown.className = "miss-codes";
+        breakdown.innerHTML = parts.join(" · ");
+        hoverable(breakdown, codes.map(function (code) {
+          return "<b>" + esc(code.code) + "</b> " + code.skips.toLocaleString();
+        }).join("<br>"));
+        label.appendChild(breakdown);
+      }
+
+      var examples = entry.examples || [];
+      if (examples.length) {
+        var from = document.createElement("div");
+        from.className = "miss-recipes";
+        for (j = 0; j < examples.length; j++) {
+          if (j) from.appendChild(document.createTextNode(" · "));
+          var recipe = document.createElement("span");
+          recipe.textContent = examples[j].title;
+          /* Nothing on this dashboard links a recipe, so the id is the handle
+             for looking one up by hand. */
+          hoverable(recipe, "<b>" + esc(examples[j].title) + "</b><br>" +
+            esc(examples[j].id));
+          from.appendChild(recipe);
+        }
+        var hidden = entry.recipes - examples.length;
+        if (hidden > 0) {
+          var more = document.createElement("span");
+          more.className = "more";
+          more.textContent = " + " + hidden.toLocaleString() + " more";
+          from.appendChild(more);
+        }
+        label.appendChild(from);
+      }
+      tr.appendChild(label);
+
+      var recipes = document.createElement("td");
+      recipes.className = "num";
+      recipes.textContent = entry.recipes.toLocaleString();
+      tr.appendChild(recipes);
+
+      var skips = document.createElement("td");
+      skips.className = "num";
+      skips.textContent = entry.skips.toLocaleString();
+      tr.appendChild(skips);
+
+      var mass = document.createElement("td");
+      mass.className = "num";
+      mass.textContent = entry.estimatedGrams === null || entry.estimatedGrams === undefined
+        ? "–"
+        : Math.round(entry.estimatedGrams).toLocaleString() + " g";
+      hoverable(mass, entry.estimatedGrams === null || entry.estimatedGrams === undefined
+        ? "No mass was estimated for these ingredients."
+        : "How much of a dish went uncounted, summed across every miss.");
+      tr.appendChild(mass);
+
+      body.appendChild(tr);
+    }
+    table.appendChild(body);
+    host.appendChild(table);
+  }
+
   function renderAll() {
     renderExtractionTiles();
     renderOutcomeBySource();
@@ -1515,6 +1678,7 @@
     renderCacheSync();
     renderRateLimits();
     renderRecent();
+    renderMisses();
     paintHealthToggle();
   }
 
@@ -1603,6 +1767,19 @@
       .catch(function () { /* the next tick tries again */ });
   }
 
+  function pollMisses() {
+    if (!state.running) return;
+    fetch("/ops/nutrition-misses.json", { credentials: "same-origin", cache: "no-store" })
+      .then(function (response) { return response.ok ? response.json() : null; })
+      .then(function (payload) {
+        if (payload) {
+          state.misses = payload;
+          renderMisses();
+        }
+      })
+      .catch(function () { /* the next tick tries again */ });
+  }
+
   function pollReadiness() {
     if (!state.running) return;
     fetch("/ops/readiness.json", { credentials: "same-origin", cache: "no-store" })
@@ -1655,9 +1832,11 @@
   poll();
   pollReadiness();
   pollRecent();
+  pollMisses();
   setInterval(poll, POLL_MS);
   setInterval(pollReadiness, READY_MS);
   setInterval(pollRecent, RECENT_MS);
+  setInterval(pollMisses, MISSES_MS);
 })();
 </script>
 </body>
