@@ -10,6 +10,7 @@
 		0088C19DE085223382B93D22 /* FailedImportSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E773EEC85D6B10B47798F46E /* FailedImportSheet.swift */; };
 		00CBE25ACB8C502FDB3DB85B /* RecipeContextMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FD8C1479556171086A421DD /* RecipeContextMenu.swift */; };
 		00E91DC9A78A15221550401E /* RecipesFilterMenuUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AEC401E351C241A01EA933D /* RecipesFilterMenuUITests.swift */; };
+		013083432A8DE894E7EB1BEC /* RecipeScaling.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C32185A41D09A33240A3C4D /* RecipeScaling.swift */; };
 		02B81E38806DC747131FD239 /* RecipeEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE210DBCF0B5E6E0CEF88ED8 /* RecipeEditorView.swift */; };
 		04F10BBF44F7962FD24A6ADD /* CookingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 659DEB801C4C5EC75C6F09EC /* CookingViewModel.swift */; };
 		0C08C50CC1819995B222FA03 /* RecipeSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3E83CF891E137AB8EEEC5D5 /* RecipeSyncService.swift */; };
@@ -66,6 +67,7 @@
 		5C05C3DF388966D02FA7F11F /* LadleTypography.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D060807D3AFDD5F858FA2FD /* LadleTypography.swift */; };
 		5EA77680885BEEC61FD3901A /* ProfilePhoto.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68F408C312C906E11D475E7A /* ProfilePhoto.swift */; };
 		6004155F8B4E42FACDDED7E5 /* HealthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 739B606520A158CF7F843006 /* HealthService.swift */; };
+		60234C517B79C03CB036A852 /* RecipeScalingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 348172FA2E2DE4E2B9BDCF81 /* RecipeScalingTests.swift */; };
 		60F294395D35AC79B907E3B0 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FD8652C5A7875BD43D823FC /* NotificationService.swift */; };
 		63AD334E56D71D43FB7A1EC6 /* ImportInboxView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8ECA1AA3280738489BF150D2 /* ImportInboxView.swift */; };
 		6452AE5EAEC0338244E824C1 /* DiscoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58A808844E9A9278B9DBE227 /* DiscoverView.swift */; };
@@ -195,6 +197,7 @@
 		07E8E61AD25B02CFF497294C /* LadleTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LadleTheme.swift; sourceTree = "<group>"; };
 		0944ED2DF428DE0518FF8422 /* ReimportPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReimportPresentation.swift; sourceTree = "<group>"; };
 		09B260DA499835E89F84D468 /* HealthExportViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthExportViewModelTests.swift; sourceTree = "<group>"; };
+		0C32185A41D09A33240A3C4D /* RecipeScaling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeScaling.swift; sourceTree = "<group>"; };
 		0CFAA18EE2255DC832AF47E2 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		0D2BC62DCD9B6DCA4534D1F4 /* IngredientIconCatalogue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngredientIconCatalogue.swift; sourceTree = "<group>"; };
 		0E19326D8562639EDF5FA97E /* ShareURLExtractorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareURLExtractorTests.swift; sourceTree = "<group>"; };
@@ -216,6 +219,7 @@
 		2FD8652C5A7875BD43D823FC /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
 		30865D07CBC2C21DCB5B7BDA /* StoredImportJob.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoredImportJob.swift; sourceTree = "<group>"; };
 		30A84A5F8B238E1FDC631926 /* AppAttestClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppAttestClientTests.swift; sourceTree = "<group>"; };
+		348172FA2E2DE4E2B9BDCF81 /* RecipeScalingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeScalingTests.swift; sourceTree = "<group>"; };
 		348D89D4BA7119269FD4F3BC /* LadleComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LadleComponents.swift; sourceTree = "<group>"; };
 		35EFCC50D17300CF2E3C284E /* AccountSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSheet.swift; sourceTree = "<group>"; };
 		3801D743E5C7CE52681E7C04 /* ImportCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportCoordinatorTests.swift; sourceTree = "<group>"; };
@@ -490,6 +494,7 @@
 				41B1A4DD4FEB2DE4274795C2 /* RecipeDetailView.swift */,
 				9B5D35390C608C2FB9D0C0C9 /* RecipeMetadataBand.swift */,
 				23538C17B8C5A0B1666D3494 /* RecipeOption.swift */,
+				0C32185A41D09A33240A3C4D /* RecipeScaling.swift */,
 			);
 			path = RecipeDetail;
 			sourceTree = "<group>";
@@ -554,6 +559,7 @@
 				0F13FC152287DC3F5F533D2C /* ProfilePhotoTests.swift */,
 				9209E28951C4CAA3BC8E7629 /* ProjectSmokeTests.swift */,
 				703E2046735779150499C97A /* RecipeEditorViewModelTests.swift */,
+				348172FA2E2DE4E2B9BDCF81 /* RecipeScalingTests.swift */,
 				99E1C2581DC55DA301481A34 /* RecipeSyncServiceTests.swift */,
 				E2461B3FDEC6CF3119C4548A /* ReimportSafetyTests.swift */,
 				ED6E479FC67096188CF3D983 /* RemoteFailureTests.swift */,
@@ -933,6 +939,7 @@
 				BE1CBC1D0BA910DEE35ACE9A /* RecipeOption.swift in Sources */,
 				7B03E111FA24728DE96CDE04 /* RecipePresentation.swift in Sources */,
 				B6F2C50D9C1E3327A6A59F33 /* RecipeRepository.swift in Sources */,
+				013083432A8DE894E7EB1BEC /* RecipeScaling.swift in Sources */,
 				0C08C50CC1819995B222FA03 /* RecipeSyncService.swift in Sources */,
 				7903D591A395E0DD678CC58F /* RecipeTimer.swift in Sources */,
 				9BA7286999B0D8E9E8B73822 /* ReimportPresentation.swift in Sources */,
@@ -997,6 +1004,7 @@
 				36D53ADE622A17B3BFA72894 /* ProfilePhotoTests.swift in Sources */,
 				D78BB07879939E3FC2D9E071 /* ProjectSmokeTests.swift in Sources */,
 				FA4BA8A760D9DDCB30729AB7 /* RecipeEditorViewModelTests.swift in Sources */,
+				60234C517B79C03CB036A852 /* RecipeScalingTests.swift in Sources */,
 				5042FC333DCDB3F45C5DFEC3 /* RecipeSyncServiceTests.swift in Sources */,
 				1D7AE199157D84F1562E6C95 /* ReimportSafetyTests.swift in Sources */,
 				2EE7E5919A4DB4EC5D5205CA /* RemoteFailureTests.swift in Sources */,

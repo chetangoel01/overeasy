@@ -106,4 +106,128 @@ final class IngredientRowTextTests: XCTestCase {
             "4 potato rolls — split"
         )
     }
+
+    // MARK: - Scaled rows
+
+    /// No multiplier is the recipe as written, and the creator's words still
+    /// win outright. Scaling adds a case; it does not reopen this one.
+    func testNoMultiplierLeavesTheRowVerbatim() {
+        let ingredient = Ingredient(
+            quantityText: "100 g",
+            normalizedQuantity: 100,
+            unit: "g",
+            name: "flour",
+            orderIndex: 0
+        )
+
+        XCTAssertEqual(
+            ingredient.cookingDetailText(scaledBy: nil),
+            "100 g flour"
+        )
+    }
+
+    /// The verbatim phrase is a claim about the yield the creator wrote for.
+    /// Once the cook changes the count it is no longer true, so the split
+    /// takes over and the amount is rendered from it.
+    func testAScaledRowIsRenderedFromTheSplit() {
+        let ingredient = Ingredient(
+            quantityText: "1½ tsp",
+            normalizedQuantity: 1.5,
+            unit: "tsp",
+            name: "baking powder",
+            orderIndex: 0
+        )
+
+        XCTAssertEqual(
+            ingredient.cookingDetailText(scaledBy: 2),
+            "3 tsp baking powder"
+        )
+    }
+
+    /// Plain decimals, no unit conversion: twice 1½ tsp is 3 tsp, and the app
+    /// does not decide that a cook would rather read a tablespoon.
+    func testScalingNeverConvertsUnits() {
+        let ingredient = Ingredient(
+            normalizedQuantity: 1.5,
+            unit: "tsp",
+            name: "kosher salt",
+            orderIndex: 0
+        )
+
+        XCTAssertEqual(
+            ingredient.cookingDetailText(scaledBy: 4),
+            "6 tsp kosher salt"
+        )
+    }
+
+    /// A third of a cup is an amount somebody measures, so it keeps the two
+    /// fraction digits `measuredAmount` renders rather than rounding to a
+    /// tenth.
+    func testAThirdOfARowKeepsTwoFractionDigits() {
+        let ingredient = Ingredient(
+            quantityText: "1 cup",
+            normalizedQuantity: 1,
+            unit: "cup",
+            name: "orzo",
+            orderIndex: 0
+        )
+
+        XCTAssertEqual(
+            ingredient.cookingDetailText(scaledBy: Decimal(1) / Decimal(3)),
+            "0.33 cup orzo"
+        )
+    }
+
+    func testAScaledRowStillTrailsItsPreparation() {
+        let ingredient = Ingredient(
+            quantityText: "1 lb",
+            normalizedQuantity: 1,
+            unit: "lb",
+            name: "ground beef",
+            preparation: "in four loose balls",
+            orderIndex: 0
+        )
+
+        XCTAssertEqual(
+            ingredient.cookingDetailText(scaledBy: 2),
+            "2 lb ground beef — in four loose balls"
+        )
+    }
+
+    /// "To taste" has no number to multiply. The row keeps the creator's
+    /// words, and the list marks it as the one that did not move.
+    func testARowWithoutASplitIsUntouchedByScaling() {
+        let ingredient = Ingredient(
+            quantityText: "to taste",
+            name: "flaky salt",
+            orderIndex: 0
+        )
+
+        XCTAssertEqual(
+            ingredient.cookingDetailText(scaledBy: 3),
+            "to taste flaky salt"
+        )
+    }
+
+    /// The demo library is what a reviewer, a screenshot and the UI test see,
+    /// so its rows carry the split the backend sends. #90 left it unset —
+    /// "the '½' rows make a half-hearted job of it, and #100 is the change
+    /// that needs it".
+    func testTheDemoLibraryScales() {
+        let smashBurgers = PreviewFixtures.recipes[0]
+
+        XCTAssertEqual(
+            smashBurgers.orderedIngredients[0].cookingDetailText(scaledBy: 2),
+            "2 lb ground beef — 80/20, in four loose balls"
+        )
+        XCTAssertEqual(
+            smashBurgers.orderedIngredients[1].cookingDetailText(scaledBy: 2),
+            "8 potato rolls — split"
+        )
+        // "½ small white onion", doubled, is a whole one — and no ".00".
+        XCTAssertEqual(
+            smashBurgers.orderedIngredients[5].cookingDetailText(scaledBy: 2),
+            "1 small white onion — shaved thin"
+        )
+    }
 }

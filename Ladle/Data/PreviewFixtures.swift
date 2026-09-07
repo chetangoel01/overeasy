@@ -560,6 +560,7 @@ enum PreviewFixtures {
                 quantityText: row.0.map {
                     [$0, row.1].compactMap(\.self).joined(separator: " ")
                 },
+                normalizedQuantity: row.0.flatMap(demoNormalizedQuantity),
                 unit: row.1,
                 name: row.2,
                 preparation: row.3,
@@ -567,6 +568,7 @@ enum PreviewFixtures {
             )
         }
     }
+
 
     private static func orderedSteps(
         _ rows: [(String, [UUID], [(String, Int)])]
@@ -625,4 +627,32 @@ enum PreviewFixtures {
             preconditionFailure("Invalid preview review job: \(error)")
         }
     }
+}
+
+/// The machine-readable half of an ingredient's split, for the two places
+/// that write demo data.
+///
+/// An import carries both halves — the creator's phrase and the number the
+/// extractor read out of it — and until now the demo data carried only the
+/// phrase. Nothing on screen moves, because `quantityText` still wins for an
+/// unscaled row; what changes is that a demo recipe can be scaled, where
+/// before every row would have read "Not scaled".
+///
+/// The demo tables are written the way a person writes a recipe, so "1½" has
+/// to be read as a number the same way the importer reads it.
+func demoNormalizedQuantity(_ amount: String) -> Decimal? {
+    let fractions: [Character: Decimal] = [
+        "½": 0.5, "⅓": 1 / 3, "⅔": 2 / 3, "¼": 0.25, "¾": 0.75,
+    ]
+    var whole = amount
+    var fraction: Decimal = 0
+    if let last = whole.last, let value = fractions[last] {
+        fraction = value
+        whole.removeLast()
+    }
+    if whole.isEmpty {
+        return fraction > 0 ? fraction : nil
+    }
+    guard let number = Decimal(string: whole) else { return nil }
+    return number + fraction
 }

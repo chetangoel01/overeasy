@@ -119,11 +119,39 @@ extension Ingredient {
     }
 
     var cookingDetailText: String {
-        var parts = [amountText, name.nonEmpty].compactMap(\.self)
+        cookingDetailText(scaledBy: nil)
+    }
+
+    /// The same row while the page is scaled.
+    ///
+    /// A `nil` multiplier is the recipe as written, and the only rule then is
+    /// `amountText`. With one, a row holding a `normalizedQuantity` is
+    /// re-rendered from it — the creator's verbatim phrase is a claim about
+    /// the yield they wrote for, and it stops being true the moment the cook
+    /// changes the count. A row without one has no number to multiply, so it
+    /// keeps the creator's words and the list says so beside it.
+    func cookingDetailText(scaledBy multiplier: Decimal?) -> String {
+        let amount = scaledAmountText(multiplier: multiplier) ?? amountText
+        var parts = [amount, name.nonEmpty].compactMap(\.self)
         if let preparation = preparation?.nonEmpty {
             parts.append("— \(preparation)")
         }
         return parts.joined(separator: " ")
+    }
+
+    /// The head of a scaled row, or `nil` for a row that cannot be scaled —
+    /// either because the page is unscaled or because the creator never gave
+    /// this line a number.
+    private func scaledAmountText(multiplier: Decimal?) -> String? {
+        guard let multiplier, let normalizedQuantity else { return nil }
+        return measuredAmount(normalizedQuantity * multiplier)
+    }
+
+    /// Whether a multiplier can reach this row. "Salt to taste" cannot be
+    /// doubled, and a scaled list has to say so rather than leave the cook to
+    /// notice that one line did not move.
+    var isScalable: Bool {
+        normalizedQuantity != nil
     }
 }
 

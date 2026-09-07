@@ -170,6 +170,8 @@ actor DemoImportService: ImportService {
                 quantityText: row.quantity.map {
                     [$0, row.unit].compactMap(\.self).joined(separator: " ")
                 },
+                normalizedQuantity: row.quantity
+                    .flatMap(demoNormalizedQuantity),
                 unit: row.unit,
                 name: row.name,
                 preparation: row.preparation,
