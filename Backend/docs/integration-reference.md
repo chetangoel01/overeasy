@@ -464,8 +464,13 @@ The response has this shape:
 ```
 
 Statuses are `parsing`, `ready`, `needsReview`, and `failed`. Failure reasons
-are `parserUnavailable`, `insufficientTextEvidence`, `privateOrDeleted`,
-`unsupportedSource`, `invalidURL`, `networkUnavailable`, and `quotaExceeded`.
+are `parserUnavailable`, `insufficientTextEvidence`, `photoPostNeedsManualEntry`,
+`privateOrDeleted`, `unsupportedSource`, `invalidURL`, `networkUnavailable`, and
+`quotaExceeded`. `photoPostNeedsManualEntry` is `insufficientTextEvidence` for a
+photo post — a TikTok `/photo/` carousel or an Instagram `/p/` image post, where
+the caption is the only text the pipeline reads and it carried no recipe. The
+recipe is in the pictures, so the client should say so and offer manual entry
+rather than the generic "couldn't read the recipe".
 Cancellation is exposed as a `204` delete operation rather than another
 pollable client status. The server records the terminal cancellation, releases
 the recipe-slot reservation, and prevents later worker completion from creating

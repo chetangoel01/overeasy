@@ -18,6 +18,10 @@ class ImportStatus(StrEnum):
 class ImportFailure(StrEnum):
     PARSER_UNAVAILABLE = "parserUnavailable"
     INSUFFICIENT_TEXT_EVIDENCE = "insufficientTextEvidence"
+    # A photo post whose caption held no recipe. Distinct from the general
+    # case so the failure sheet can say the recipe is in the pictures, which
+    # we cannot read, rather than implying the post carried nothing.
+    PHOTO_POST_NEEDS_MANUAL_ENTRY = "photoPostNeedsManualEntry"
     PRIVATE_OR_DELETED = "privateOrDeleted"
     UNSUPPORTED_SOURCE = "unsupportedSource"
     INVALID_URL = "invalidURL"

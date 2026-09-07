@@ -13,6 +13,7 @@ from alembic import command
 from ladle.acquisition.errors import ProviderTransientError
 from ladle.acquisition.models import (
     AcquiredVideoContext,
+    MediaKind,
     SourceVideoDescriptor,
 )
 from ladle.cache.claims import ExtractionClaimService
@@ -951,3 +952,87 @@ def test_retry_keeps_a_thumbnail_shared_with_the_current_recipe(
     )
 
     assert queued == set()
+
+
+PHOTO_URL = "https://www.tiktok.com/@creator/photo/7481234567890123456"
+
+
+@pytest.mark.integration
+def test_a_carousel_caption_holding_the_recipe_imports_like_any_other_source(
+    clean_postgres_url: str,
+) -> None:
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    clock = FrozenClock(datetime(2026, 9, 7, 12, 0, tzinfo=UTC))
+    sessions, orchestrator, _, acquirer, extractor = services(
+        clean_postgres_url,
+        clock,
+        template=RecipeTemplate.from_recipe(manual_recipe(uuid4())),
+    )
+    acquirer.media_kind = MediaKind.PHOTO
+    acquirer.transcript_text = None
+    acquirer.title = "Hot Honey Garlic Chicken Tacos"
+    acquirer.description = (
+        "2 chicken breasts and 1 cup of hot honey. Sear the chicken, then "
+        "simmer the sauce until it thickens."
+    )
+    with sessions.begin() as database:
+        source_id = uuid4()
+        database.add(
+            SourceVideo(
+                id=source_id,
+                platform="tiktok",
+                platform_video_id="7481234567890123456",
+                canonical_url=PHOTO_URL,
+                source_revision="1",
+                source_metadata={},
+            )
+        )
+        job_id = seed_import(database, source_id=source_id, suffix="carousel-ok")
+
+    assert orchestrator.process(job_id) != ProcessOutcome.FAILED
+    assert len(extractor.calls) == 1
+    with sessions() as database:
+        job = database.get(ImportJob, job_id)
+        assert job is not None
+        assert job.status != "failed"
+
+
+@pytest.mark.integration
+def test_a_carousel_without_a_recipe_caption_asks_the_cook_to_type_it(
+    clean_postgres_url: str,
+) -> None:
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    clock = FrozenClock(datetime(2026, 9, 7, 12, 0, tzinfo=UTC))
+    sessions, orchestrator, _, acquirer, extractor = services(
+        clean_postgres_url,
+        clock,
+        template=RecipeTemplate.from_recipe(manual_recipe(uuid4())),
+    )
+    acquirer.media_kind = MediaKind.PHOTO
+    acquirer.transcript_text = None
+    acquirer.title = None
+    acquirer.description = "#food #recipe #80s #retro #candy"
+    with sessions.begin() as database:
+        source_id = uuid4()
+        database.add(
+            SourceVideo(
+                id=source_id,
+                platform="tiktok",
+                platform_video_id="7481234567890123457",
+                canonical_url=PHOTO_URL,
+                source_revision="1",
+                source_metadata={},
+            )
+        )
+        job_id = seed_import(database, source_id=source_id, suffix="carousel-empty")
+
+    assert orchestrator.process(job_id) == ProcessOutcome.FAILED
+    # Nothing was extracted, so nothing was billed for a post we could not read.
+    assert extractor.calls == []
+    with sessions() as database:
+        job = database.get(ImportJob, job_id)
+        assert job is not None
+        assert job.status == "failed"
+        assert job.failure_reason == "photoPostNeedsManualEntry"
+        assert job.diagnostic_code == "photoPostNeedsManualEntry"
+        assert database.scalar(select(func.count()).select_from(Recipe)) == 0

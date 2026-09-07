@@ -5,6 +5,7 @@ import pytest
 from ladle.acquisition.models import (
     AcquiredVideoContext,
     LinkedDocument,
+    MediaKind,
     SourceVideoDescriptor,
     TextEvidence,
     VisualEvidence,
@@ -12,6 +13,7 @@ from ladle.acquisition.models import (
 from ladle.contracts.imports import ImportFailure
 from ladle.extraction.evidence_gate import (
     InsufficientTextEvidence,
+    PhotoPostNeedsManualEntry,
     require_recipe_evidence,
 )
 
@@ -171,3 +173,60 @@ def test_quantity_noun_alone_is_not_mistaken_for_a_cooking_action() -> None:
 
 def test_insufficient_evidence_has_a_typed_client_failure() -> None:
     assert ImportFailure.INSUFFICIENT_TEXT_EVIDENCE.value == "insufficientTextEvidence"
+
+
+def photo_context(description: str) -> AcquiredVideoContext:
+    return AcquiredVideoContext(
+        source=SourceVideoDescriptor(
+            source_video_id=uuid4(),
+            platform="tiktok",
+            platform_video_id="7481234567890123456",
+            canonical_url=("https://www.tiktok.com/@creator/photo/7481234567890123456"),
+            source_revision="1",
+        ),
+        is_public=True,
+        media_kind=MediaKind.PHOTO,
+        description=description,
+    )
+
+
+def test_a_carousel_whose_caption_carries_the_recipe_passes_the_gate() -> None:
+    require_recipe_evidence(
+        photo_context(
+            "Hot Honey Chicken Tacos\n2 chicken breasts, 1 cup hot honey.\n"
+            "Sear the chicken, then simmer the sauce until it thickens."
+        )
+    )
+
+
+def test_a_carousel_whose_recipe_is_only_in_the_pictures_asks_the_cook() -> None:
+    """The recipe exists — we just cannot read it. That is not the same failure.
+
+    A generic "couldn't read the recipe" tells the cook the post was no good.
+    Here the post is fine and the limitation is ours, so the sheet has to say
+    so and offer somewhere to type it.
+    """
+
+    with pytest.raises(PhotoPostNeedsManualEntry):
+        require_recipe_evidence(photo_context("#food #recipe #80s #retro #candy"))
+
+
+def test_an_empty_carousel_caption_asks_the_cook_too() -> None:
+    with pytest.raises(PhotoPostNeedsManualEntry):
+        require_recipe_evidence(photo_context(""))
+
+
+def test_a_video_post_keeps_the_generic_failure() -> None:
+    with pytest.raises(InsufficientTextEvidence) as raised:
+        require_recipe_evidence(_context(description="You need this tonight."))
+
+    assert not isinstance(raised.value, PhotoPostNeedsManualEntry)
+
+
+def test_the_photo_failure_is_still_an_insufficient_evidence_failure() -> None:
+    # Everything that already handles the general case — the orchestrator's
+    # catch list, the retry rules — must keep working unchanged.
+    assert issubclass(PhotoPostNeedsManualEntry, InsufficientTextEvidence)
+    assert (
+        ImportFailure.PHOTO_POST_NEEDS_MANUAL_ENTRY.value == "photoPostNeedsManualEntry"
+    )

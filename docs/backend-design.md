@@ -113,8 +113,9 @@ DELETE /v1/recipes/{id}          → soft delete
 
 Status values and failure reasons map 1:1 to `ImportStatus` /
 `ImportFailure` in LadleCore (`parsing`, `ready`, `needsReview`, `failed` +
-`parserUnavailable`, `insufficientTextEvidence`, `privateOrDeleted`,
-`unsupportedSource`, `invalidURL`, `networkUnavailable`). The client's state machine
+`parserUnavailable`, `insufficientTextEvidence`, `photoPostNeedsManualEntry`,
+`privateOrDeleted`, `unsupportedSource`, `invalidURL`, `networkUnavailable`).
+The client's state machine
 (`StoredImportJob.transitioning(to:)`) doesn't change.
 
 Guest limit: enforced client-side today; the server should also enforce it
@@ -138,7 +139,9 @@ Each stage writes progress to `import_jobs` so a crash resumes cleanly.
    `failed(parserUnavailable)`.
 5. **Evidence gate.** If neither transcript nor a creator-linked page contains
    a quantified ingredient and cooking action →
-   `failed(insufficientTextEvidence)` without invoking extraction.
+   `failed(insufficientTextEvidence)` without invoking extraction. For a photo
+   post, where the caption is the only text there is, the same gate fails with
+   `photoPostNeedsManualEntry` instead, so the client can offer manual entry.
 6. **Extract (Claude).** §7. Output includes per-field confidence.
 7. **Nutrition estimate.** §8. Always `isEstimated: true`.
 8. **Review gate.** Any field confidence < 0.7, or missing quantities on >30%

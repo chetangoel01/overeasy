@@ -3,6 +3,7 @@ from uuid import UUID
 
 from ladle.acquisition.models import (
     AcquiredVideoContext,
+    MediaKind,
     SourceVideoDescriptor,
     TextEvidence,
 )
@@ -18,6 +19,7 @@ class FakeAcquirer:
     context: AcquiredVideoContext | None = None
     title: str = "Lemon Orzo"
     description: str = "A fast one-pot recipe."
+    media_kind: MediaKind = MediaKind.VIDEO
     transcript_text: str | None = "Add two cups orzo, then simmer for ten minutes."
 
     def check_public(
@@ -47,6 +49,7 @@ class FakeAcquirer:
         return AcquiredVideoContext(
             source=source,
             is_public=True,
+            media_kind=self.media_kind,
             title=self.title,
             description=self.description,
             creator_name="Ladle Test Kitchen",

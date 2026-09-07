@@ -36,6 +36,7 @@ from ladle.db.models import (
 from ladle.extraction.claude import ExtractionUnavailable
 from ladle.extraction.evidence_gate import (
     InsufficientTextEvidence,
+    PhotoPostNeedsManualEntry,
     require_recipe_evidence,
 )
 from ladle.extraction.protocol import RecipeExtractor, RecipeVerifier
@@ -540,6 +541,10 @@ class ImportOrchestrator:
         if isinstance(error, PrivateOrDeleted):
             failure_reason = "privateOrDeleted"
             diagnostic_code = type(error).__name__
+        elif isinstance(error, PhotoPostNeedsManualEntry):
+            # Before the general case: it is a subclass of it.
+            failure_reason = "photoPostNeedsManualEntry"
+            diagnostic_code = "photoPostNeedsManualEntry"
         elif isinstance(error, InsufficientTextEvidence):
             failure_reason = "insufficientTextEvidence"
             diagnostic_code = "insufficientTextEvidence"
