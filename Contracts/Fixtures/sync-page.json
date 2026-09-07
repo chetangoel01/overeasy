@@ -7,7 +7,9 @@
         "cookingMinutes": null,
         "createdAt": "2026-07-23T20:16:00.000Z",
         "creatorName": null,
+        "cuisines": [],
         "description": "Quantities were visible but not spoken.",
+        "diets": [],
         "id": "20000000-0000-4000-8000-000000000002",
         "images": [],
         "ingredients": [
@@ -27,6 +29,9 @@
           }
         ],
         "isFavorite": false,
+        "keywordProposals": [],
+        "keywords": [],
+        "notes": [],
         "nutrition": null,
         "originalURL": "https://www.instagram.com/reel/ladle-review/",
         "preparationMinutes": null,
@@ -42,10 +47,10 @@
             ],
             "instruction": "Add the chopped tomatoes.",
             "orderIndex": 0,
-            "timers": [],
-            "uncertainty": null,
+            "sourceEndSeconds": null,
             "sourceStartSeconds": null,
-            "sourceEndSeconds": null
+            "timers": [],
+            "uncertainty": null
           }
         ],
         "title": "Tomato Toast",
@@ -57,8 +62,7 @@
             "reason": "Quantity was not recoverable from captions or visual analysis."
           }
         ],
-        "updatedAt": "2026-07-23T20:17:00.000Z",
-        "notes": []
+        "updatedAt": "2026-07-23T20:17:00.000Z"
       },
       "recipeID": "20000000-0000-4000-8000-000000000002",
       "recipeRevision": 1,

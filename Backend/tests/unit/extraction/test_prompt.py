@@ -51,6 +51,9 @@ def context() -> AcquiredVideoContext:
 #: cache identity: a changed prompt under an old version serves cooks recipes
 #: extracted by wording that no longer exists.
 PROMPT_DIGESTS = {
+    "recipe-2026-09-07-v15": (
+        "948f04c0257e3cc0a6f55b1aaf62920af6c0f0e05003a99c620658df6e2bd4ab"
+    ),
     "recipe-2026-09-02-v14": (
         "f658d44c94bff419a8c1cafc8cb912a82873ddc14a7536f3678b351c5db68da7"
     ),

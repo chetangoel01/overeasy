@@ -2,7 +2,9 @@
   "cookingMinutes": null,
   "createdAt": "2026-07-23T20:18:00.000Z",
   "creatorName": "Ravi",
+  "cuisines": [],
   "description": "The caption is all macros and no timings.",
+  "diets": [],
   "id": "20000000-0000-4000-8000-000000000003",
   "images": [],
   "ingredients": [
@@ -28,6 +30,8 @@
     }
   ],
   "isFavorite": false,
+  "keywordProposals": [],
+  "keywords": [],
   "notes": [
     "Full recipe and macros at my link."
   ],

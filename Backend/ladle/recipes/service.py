@@ -22,7 +22,7 @@ from ladle.db.models import (
     SourceVideo,
 )
 from ladle.recipes.limits import ensure_recipe_capacity
-from ladle.recipes.repository import RecipeRepository
+from ladle.recipes.repository import DiscoverFilter, RecipeRepository
 from ladle.recipes.template_clone import RecipeTemplate
 from ladle.sync.sequence import allocate_sequence
 
@@ -83,6 +83,7 @@ class RecipeService:
         query: str | None = None,
         sort: DiscoverSort = DiscoverSort.POPULAR,
         max_total_minutes: int | None = None,
+        filters: DiscoverFilter | None = None,
         seen_before: datetime | None = None,
         record_impressions: bool = True,
     ) -> DiscoverPageDTO:
@@ -109,6 +110,7 @@ class RecipeService:
             query=query,
             sort=sort,
             max_total_minutes=max_total_minutes,
+            filters=filters,
             seen_before=seen_before,
             seen_since=(
                 None if seen_before is None else now - self._discover_seen_window

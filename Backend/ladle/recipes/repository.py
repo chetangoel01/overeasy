@@ -1,11 +1,14 @@
 from collections import defaultdict
 from collections.abc import Callable, Collection, Sequence
+from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
+from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
 from sqlalchemy import (
+    ColumnElement,
     SQLColumnExpression,
     and_,
     case,
@@ -33,6 +36,7 @@ from ladle.contracts.recipes import (
     RecipeSource,
     RecipeStepDTO,
 )
+from ladle.contracts.tags import CuisineTag, DietTag, RecipeKeyword
 from ladle.db.models import (
     DetectedTimer,
     DiscoverImpression,
@@ -44,10 +48,21 @@ from ladle.db.models import (
     OtherNutrient,
     Recipe,
     RecipeImage,
+    RecipeKeywordProposal,
     RecipeStep,
+    RecipeTag,
     SourceVideo,
     StepIngredient,
 )
+
+#: Which enum each `recipe_tags.family` holds, in the one place that has to
+#: know. Read order follows the vocabulary rather than insertion, so a recipe
+#: renders its tags identically however they were written.
+TAG_FAMILIES: dict[str, type[StrEnum]] = {
+    "diet": DietTag,
+    "cuisine": CuisineTag,
+    "keyword": RecipeKeyword,
+}
 
 
 def _escape_like(value: str) -> str:
@@ -57,6 +72,94 @@ def _escape_like(value: str) -> str:
     trailing backslash breaks the pattern outright.
     """
     return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+@dataclass(frozen=True)
+class DiscoverFilter:
+    """What a cook has narrowed the feed to.
+
+    One object rather than four arguments threaded through the route, the
+    service and the repository, because the Recipes tab applies the same
+    four to its synced library and the two have to stay recognisably one
+    idea.
+
+    Diet is conjunctive: somebody who avoids gluten and meat wants dishes
+    that are both, and a feed that widened to either would be useless to
+    them. Cuisine and keyword are disjunctive within their family — those
+    are browsing choices, and picking two means "show me both shelves".
+    Ingredients are conjunctive again: "only recipes with chicken" is a
+    demand, not a preference.
+    """
+
+    diets: tuple[DietTag, ...] = ()
+    cuisines: tuple[CuisineTag, ...] = ()
+    keywords: tuple[RecipeKeyword, ...] = ()
+    ingredients: tuple[str, ...] = ()
+
+    def __bool__(self) -> bool:
+        return bool(self.diets or self.cuisines or self.keywords or self.ingredients)
+
+
+def _tag_values[TagT: StrEnum](vocabulary: type[TagT], stored: set[str]) -> list[TagT]:
+    """Stored strings as vocabulary members, in vocabulary order.
+
+    A value the vocabulary no longer holds is dropped rather than raised: a
+    term retired from the list must not make every recipe still carrying it
+    unreadable, and the tag backfill is what clears it out for good.
+    """
+
+    return [member for member in vocabulary if member.value in stored]
+
+
+def _carries_tag(family: str, values: Collection[StrEnum]) -> ColumnElement[bool]:
+    """Correlated on the recipe being ranked, which the primary key answers."""
+
+    return (
+        select(RecipeTag.recipe_id)
+        .where(
+            RecipeTag.recipe_id == Recipe.id,
+            RecipeTag.family == family,
+            RecipeTag.value.in_([value.value for value in values]),
+        )
+        .exists()
+    )
+
+
+def _carries_ingredient(term: str) -> ColumnElement[bool]:
+    """A substring match on the ingredient's own name.
+
+    Deliberately the same shape as the `q` search rather than a word-boundary
+    regex: "chicken" has to find "chicken thighs" and "boneless chicken", and
+    a cook asking for an ingredient is asking a loose question. The cost is
+    that "egg" also finds "eggplant"; a stricter match would fail far more
+    often than that helps, and Overeasy has no ingredient vocabulary to match
+    against yet.
+    """
+
+    pattern = f"%{_escape_like(term)}%"
+    return (
+        select(Ingredient.recipe_id)
+        .where(
+            Ingredient.recipe_id == Recipe.id,
+            Ingredient.name.ilike(pattern, escape="\\"),
+        )
+        .exists()
+    )
+
+
+def _filter_conditions(filters: DiscoverFilter) -> list[ColumnElement[bool]]:
+    conditions: list[ColumnElement[bool]] = [
+        # One EXISTS per diet, which is what makes them compose: two
+        # restrictions have to hold together, not either-or.
+        _carries_tag("diet", [value])
+        for value in filters.diets
+    ]
+    if filters.cuisines:
+        conditions.append(_carries_tag("cuisine", filters.cuisines))
+    if filters.keywords:
+        conditions.append(_carries_tag("keyword", filters.keywords))
+    conditions.extend(_carries_ingredient(term) for term in filters.ingredients)
+    return conditions
 
 
 class ObjectURLUnavailable(Exception):
@@ -122,6 +225,7 @@ class RecipeRepository:
         query: str | None = None,
         sort: DiscoverSort = DiscoverSort.POPULAR,
         max_total_minutes: int | None = None,
+        filters: DiscoverFilter | None = None,
         seen_before: datetime | None = None,
         seen_since: datetime | None = None,
     ) -> DiscoverPageDTO:
@@ -136,6 +240,13 @@ class RecipeRepository:
         Discover's shelves are this same page under a different order or
         filter — `sort=newest` and `max_total_minutes` — rather than their own
         endpoint, so a shelf and the list beneath it return one DTO.
+
+        `filters` narrows the *savers' rows* before they are grouped, the way
+        `query` already does. A source therefore survives when some saved copy
+        of it carries the tags asked for, and `saved_count` counts the copies
+        that matched. Both follow from tags coming off one extraction template,
+        so every copy of a source agrees — but it is the reason the filter is
+        cheap: no join is added to the ranking, only a test on the row.
 
         `seen_before` is the moment the caller started this paging session.
         Sources this cook was last shown between `seen_since` and that moment
@@ -174,6 +285,7 @@ class RecipeRepository:
                     Recipe.creator_name.ilike(pattern, escape="\\"),
                 )
             )
+        conditions.extend(_filter_conditions(filters or DiscoverFilter()))
 
         saved_count = func.count(distinct(Recipe.user_id)).label("saved_count")
         latest_save = func.max(Recipe.updated_at).label("latest_save")
@@ -448,6 +560,7 @@ class RecipeRepository:
             )
         }
         self._delete_graph(database, stored.id)
+        self._replace_tags(database, stored=stored, recipe=recipe)
 
         database.add_all(
             self._replacement_image(
@@ -555,6 +668,53 @@ class RecipeRepository:
                 for nutrient in nutrition.other_nutrients
             )
 
+    def _replace_tags(
+        self,
+        database: Session,
+        *,
+        stored: Recipe,
+        recipe: RecipeDTO,
+    ) -> None:
+        """Write the tag families the recipe actually carried an answer for.
+
+        A null family is left exactly as it is. Tags come from extraction and
+        the app returns the whole recipe on every edit, so a build released
+        before tags existed sends no tag keys at all — and taking that silence
+        for "clear them" would strip a library of its tags one rename at a
+        time. An explicit empty list still clears, which is how a cook removes
+        a wrong one.
+        """
+
+        provided = {
+            "diet": recipe.diets,
+            "cuisine": recipe.cuisines,
+            "keyword": recipe.keywords,
+        }
+        families = [family for family, values in provided.items() if values is not None]
+        if families:
+            database.execute(
+                delete(RecipeTag).where(
+                    RecipeTag.recipe_id == stored.id,
+                    RecipeTag.family.in_(families),
+                )
+            )
+            database.add_all(
+                RecipeTag(recipe_id=stored.id, family=family, value=value.value)
+                for family in families
+                for value in provided[family] or ()
+            )
+        if recipe.keyword_proposals is not None:
+            database.execute(
+                delete(RecipeKeywordProposal).where(
+                    RecipeKeywordProposal.recipe_id == stored.id
+                )
+            )
+            database.add_all(
+                RecipeKeywordProposal(recipe_id=stored.id, value=value)
+                for value in recipe.keyword_proposals
+            )
+        database.flush()
+
     def to_dto(self, database: Session, stored: Recipe) -> RecipeDTO:
         return self.to_dtos(database, [stored])[stored.id]
 
@@ -607,6 +767,20 @@ class RecipeRepository:
             select(FieldUncertainty).where(FieldUncertainty.recipe_id.in_(recipe_ids))
         ):
             uncertainties[value.recipe_id].append(value)
+        tags: dict[UUID, dict[str, set[str]]] = defaultdict(
+            lambda: {family: set() for family in TAG_FAMILIES}
+        )
+        for tag in database.scalars(
+            select(RecipeTag).where(RecipeTag.recipe_id.in_(recipe_ids))
+        ):
+            tags[tag.recipe_id][tag.family].add(tag.value)
+        proposals: dict[UUID, list[str]] = defaultdict(list)
+        for proposal in database.scalars(
+            select(RecipeKeywordProposal)
+            .where(RecipeKeywordProposal.recipe_id.in_(recipe_ids))
+            .order_by(RecipeKeywordProposal.recipe_id, RecipeKeywordProposal.value)
+        ):
+            proposals[proposal.recipe_id].append(proposal.value)
         nutrition = {
             row.recipe_id: row
             for row in database.scalars(
@@ -644,6 +818,8 @@ class RecipeRepository:
                 nutrition=nutrition.get(stored.id),
                 other_nutrients=other_nutrients[stored.id],
                 approximate=stored.id in approximate,
+                tags=tags[stored.id],
+                keyword_proposals=proposals[stored.id],
             )
             for stored in recipes
         }
@@ -661,6 +837,8 @@ class RecipeRepository:
         nutrition: Nutrition | None,
         other_nutrients: list[OtherNutrient],
         approximate: bool,
+        tags: dict[str, set[str]],
+        keyword_proposals: list[str],
     ) -> RecipeDTO:
         ingredient_uncertainty = {
             value.ingredient_id: value
@@ -723,6 +901,12 @@ class RecipeRepository:
                 for step in steps
             ],
             nutrition=self._nutrition_dto(nutrition, other_nutrients, approximate),
+            # Always lists, never null: null on the wire is an old client
+            # saying nothing, and the server is never the one saying it.
+            diets=_tag_values(DietTag, tags["diet"]),
+            cuisines=_tag_values(CuisineTag, tags["cuisine"]),
+            keywords=_tag_values(RecipeKeyword, tags["keyword"]),
+            keyword_proposals=keyword_proposals,
             is_favorite=stored.favorite,
             review_status=RecipeReviewStatus(stored.review_status),
             uncertainties=[
