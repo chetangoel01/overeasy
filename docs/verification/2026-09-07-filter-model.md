@@ -95,6 +95,13 @@ rather than left beside it. There is one filter control in the app.
   sheet with a menu. Diet, cuisine and keyword are all multi-select, which a
   menu does with toggles; the only thing a menu cannot host is a text field,
   and that is one alert.
+- **The Collections card ignores the diet, and counts through it.** It
+  hides itself while a filter is on, which was right when every filter died
+  with the session. A diet survives launches, so choosing one would have
+  taken "Ready in 30 minutes", "Favorited" and "Haven't cooked yet" away for
+  good. It now hides on the *browsing* filters only — and every list the
+  Recipes tab draws reads the shared filter, not just the main grid, or a
+  row would promise three recipes and open on two.
 - **"Clear filters" clears the diet too.** The persistence is there so a diet
   survives *neglect*, not so it survives being cleared. Opening a collection
   is the other way round: `showCollection` drops the browsing filters and
@@ -171,20 +178,26 @@ and `testOpeningACollectionKeepsTheDietAndDropsTheBrowsingFilters` in
 being killed part-way — and every case in the bundle passed:
 
 ```
-RecipesFilterMenuUITests/testADietChosenOnRecipesIsAlreadyAppliedOnDiscover
-  passed (22.645 seconds)
-DiscoverInteractionUITests + testFilteringByTime...    8 passed
-RecipesFilterMenuUITests/testAnIngredientTerm...      Selected tests passed
-StateScenarioUITests + ProfileSheetUITests           20 passed
+RecipesFilterMenuUITests                             4 passed (108.806s)
+DiscoverInteractionUITests + testFilteringByTime...  8 passed
+StateScenarioUITests + ProfileSheetUITests          20 passed
 ```
 
-Two of those are new. `testADietChosenOnRecipesIsAlreadyAppliedOnDiscover`
-chooses Vegetarian on Recipes, watches the library go from six recipes to
-four, crosses to Discover and finds the same pill and a feed without the
-meat dish. `testAnIngredientTermIsTypedIntoTheControlAndNarrowsDiscover`
-drives the alert from Discover's toolbar — the harder of the two placements,
-and the one thing about the control no unit test can reach — types
-"gochujang", and watches the feed come back with one source.
+Three of those are new.
+
+- `testADietChosenOnRecipesIsAlreadyAppliedOnDiscover` chooses Vegetarian on
+  Recipes, watches the library go from six recipes to four, crosses to
+  Discover and finds the same pill and a feed without the meat dish.
+- `testAnIngredientTermIsTypedIntoTheControlAndNarrowsDiscover` drives the
+  alert from Discover's **toolbar**, types "gochujang", and watches the feed
+  come back with one source.
+- `testTheControlAndItsAlertAlsoWorkFromWatchsOverlay` drives the same alert
+  from Watch's **overlay**, which is a different presentation context and
+  the one path nothing else covers, then clears the filter from the empty
+  state it produced.
+
+The alert is the only part of the control no unit test can reach, which is
+why both placements are driven rather than one.
 
 The whitespace check is clean on every commit.
 
