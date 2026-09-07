@@ -526,7 +526,9 @@ final class DiscoverSaveModel {
         // Stored before the flip: the library has to be holding the recipe by
         // the time the favourite and options controls appear for it.
         didSave(saved)
-        access = .saved
+        withAnimation(.snappy) {
+            access = .saved
+        }
         return saved
     }
 }

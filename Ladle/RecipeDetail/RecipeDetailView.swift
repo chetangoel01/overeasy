@@ -187,16 +187,18 @@ struct RecipeDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
         .toolbar {
-            if allowsLibraryEdits {
-                ToolbarItemGroup(placement: .primaryAction) {
+            // One slot, one story: Save until the recipe is the cook's, then
+            // the heart in exactly that place, so the button reads as having
+            // become the favourite rather than been swapped for it.
+            ToolbarItemGroup(placement: .primaryAction) {
+                if allowsLibraryEdits {
                     favoriteButton
+                        .transition(.scale.combined(with: .opacity))
                     optionsMenu
-                }
-            } else if let discoverSave {
-                // Save sits where the heart and menu will sit once it lands:
-                // the same top-right group, so the page's actions never move.
-                ToolbarItem(placement: .primaryAction) {
+                        .transition(.opacity)
+                } else if let discoverSave {
                     saveButton(discoverSave)
+                        .transition(.scale.combined(with: .opacity))
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {
@@ -386,8 +388,10 @@ struct RecipeDetailView: View {
     private func save(through model: DiscoverSaveModel) {
         Task {
             guard let saved = await model.save() else { return }
-            displayedRecipe = saved.recipe
-            isFavorite = saved.recipe.isFavorite
+            withAnimation(.snappy) {
+                displayedRecipe = saved.recipe
+                isFavorite = saved.recipe.isFavorite
+            }
         }
     }
 
