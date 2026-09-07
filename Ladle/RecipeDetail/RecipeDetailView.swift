@@ -46,6 +46,10 @@ struct RecipeDetailView: View {
 
     @State private var displayedRecipe: Recipe
     @State private var isFavorite: Bool
+    /// The count this cook is reading the recipe at. It lives here and
+    /// nowhere else: no repository, no sync, no field on the recipe. Leaving
+    /// the page destroys the state, which is the whole of the undo.
+    @State private var scaling: RecipeScaling
     @State private var isNutritionPresented = false
     @State private var isReimportPresented = false
     @State private var isVideoPresented = false
@@ -101,6 +105,9 @@ struct RecipeDetailView: View {
             initialValue: recipe.reviewStatus == .needsReview
                 || statusText == "Check details"
         )
+        _scaling = State(
+            initialValue: RecipeScaling(baseServings: recipe.servings)
+        )
     }
 
     var body: some View {
@@ -109,7 +116,10 @@ struct RecipeDetailView: View {
                 VStack(alignment: .leading, spacing: LadleTheme.Layout.sectionGap) {
                     heroImage
                     recipeHeader
-                    RecipeMetadataBand(recipe: displayedRecipe)
+                    RecipeMetadataBand(
+                        recipe: displayedRecipe,
+                        scaling: $scaling
+                    )
                     if let nutrition = displayedRecipe.nutrition {
                         RecipeNutritionSummary(nutrition: nutrition) {
                             isNutritionPresented = true
@@ -311,7 +321,8 @@ struct RecipeDetailView: View {
         case .ingredients:
             IngredientList(
                 ingredients: displayedRecipe.orderedIngredients,
-                showsIcons: true
+                showsIcons: true,
+                scaledBy: scaling.multiplier
             )
         case .method:
             MethodList(steps: displayedRecipe.orderedSteps)
@@ -466,6 +477,10 @@ struct RecipeDetailView: View {
     private func applyChangedRecipe(_ recipe: Recipe) {
         displayedRecipe = recipe
         isFavorite = recipe.isFavorite
+        // An edit or a reimport can change the yield the recipe claims, and a
+        // ratio against the old one would be meaningless. The scaling starts
+        // again from what the recipe now says.
+        scaling = RecipeScaling(baseServings: recipe.servings)
         recipeDidChange(recipe)
     }
 
@@ -485,7 +500,8 @@ struct RecipeDetailView: View {
         case .ready:
             Button("Start Cooking") {
                 cookingViewModel = CookingViewModel(
-                    recipe: displayedRecipe
+                    recipe: displayedRecipe,
+                    scaling: scaling
                 )
             }
             .buttonStyle(LadleButtonStyle(role: .primary))

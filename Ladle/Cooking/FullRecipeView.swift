@@ -88,11 +88,25 @@ struct FullRecipeView: View {
     }
 
     private var recipeHeader: some View {
-        Text(viewModel.recipe.title)
-            .ladleFont(.title)
-            .foregroundStyle(LadleTheme.Label.primary)
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(.top, 12)
+        VStack(alignment: .leading, spacing: LadleTheme.Spacing.compact) {
+            Text(viewModel.recipe.title)
+                .ladleFont(.title)
+                .foregroundStyle(LadleTheme.Label.primary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            // The control is back on the recipe page, so this screen has to
+            // say which amounts it is showing rather than leave a cook to
+            // work it out from the numbers.
+            if let scaledYieldText = viewModel.scaledYieldText {
+                Label(
+                    "Scaled to \(scaledYieldText)",
+                    systemImage: "person.2"
+                )
+                .ladleFont(.metadata)
+                .foregroundStyle(LadleTheme.Label.secondary)
+            }
+        }
+        .padding(.top, 12)
     }
 
     private var cookingControls: some View {
@@ -231,12 +245,29 @@ struct FullRecipeView: View {
         } label: {
             HStack(spacing: LadleTheme.Layout.iconGap) {
                 completionIcon(isCompleted: isCompleted)
-                Text(ingredient.cookingDetailText)
+                VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
+                    Text(
+                        ingredient.cookingDetailText(
+                            scaledBy: viewModel.multiplier
+                        )
+                    )
                     .ladleFont(.body)
                     .foregroundStyle(
                         LadleTheme.Label.primary.opacity(isCompleted ? 0.48 : 1)
                     )
                     .strikethrough(isCompleted)
+
+                    // The kitchen is where a missed line costs something, so
+                    // the marker follows the row into Cook mode.
+                    if viewModel.multiplier != nil, !ingredient.isScalable {
+                        Label(
+                            "Not scaled",
+                            systemImage: "exclamationmark.circle"
+                        )
+                        .ladleFont(.metadata)
+                        .foregroundStyle(LadleTheme.Label.secondary)
+                    }
+                }
                 Spacer(minLength: 0)
             }
             .padding(.vertical, LadleTheme.Spacing.medium)

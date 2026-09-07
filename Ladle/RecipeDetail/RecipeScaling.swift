@@ -68,4 +68,20 @@ struct RecipeScaling: Equatable {
     mutating func reset() {
         servings = baseServings
     }
+
+    /// The count the cook chose, said plainly: "6 servings".
+    var chosenYieldText: String {
+        Self.yieldText(servings)
+    }
+
+    /// What the recipe claims, said the same way. `Recipe.ladleYieldText`
+    /// hedges an uncertain yield with "About" or replaces it with "Yield
+    /// unknown", neither of which can follow the words "Scaled from".
+    var baseYieldText: String {
+        Self.yieldText(baseServings)
+    }
+
+    private static func yieldText(_ value: Decimal) -> String {
+        "\(ladleNumber(value)) \(value == 1 ? "serving" : "servings")"
+    }
 }

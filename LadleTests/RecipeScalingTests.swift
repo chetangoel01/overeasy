@@ -80,4 +80,27 @@ final class RecipeScalingTests: XCTestCase {
     func testAStatedYieldOffersTheControl() {
         XCTAssertTrue(RecipeScaling(baseServings: 4).isAvailable)
     }
+
+    /// The band says "Scaled from …" under the chosen count, so both halves
+    /// have to read as a phrase and count their own noun.
+    func testTheYieldPhrasesCountTheirNoun() {
+        var scaling = RecipeScaling(baseServings: 4)
+        scaling.setServings(1)
+
+        XCTAssertEqual(scaling.chosenYieldText, "1 serving")
+        XCTAssertEqual(scaling.baseYieldText, "4 servings")
+    }
+
+    /// The stepper's arrows disable themselves at the ends of the range.
+    func testTheStepperStopsAtEachEndOfTheRange() {
+        var scaling = RecipeScaling(baseServings: 1)
+
+        XCTAssertFalse(scaling.canDecrease)
+        XCTAssertTrue(scaling.canIncrease)
+
+        scaling.setServings(RecipeContractLimits.maximumServings)
+
+        XCTAssertFalse(scaling.canIncrease)
+        XCTAssertTrue(scaling.canDecrease)
+    }
 }
