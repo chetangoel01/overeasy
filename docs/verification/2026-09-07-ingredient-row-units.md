@@ -52,9 +52,12 @@ a recipe, the checklist in Cook mode:
   a quarter cup is an amount somebody measures, and 0.25 rounding to "0.3"
   would be wrong in the kitchen. This barely shows today — the fallback is
   rare — and matters when #100 starts dividing by three.
-- **Blank strings read as absent.** The wire contract types every one of these
-  fields as an optional string and promises no trimming, so `""` has to mean
-  "no value" rather than an extra space in the row.
+- **Blank strings read as absent, and the verbatim text is trimmed.** The wire
+  contract types every one of these fields as an optional string and promises
+  no trimming, so `""` has to mean "no value" rather than an extra space in the
+  row. Stripping the whitespace around " 100 g " goes slightly beyond
+  "verbatim" — a decision the issue did not make, taken because the alternative
+  is a row that is visibly misaligned for no reason a cook can see.
 - **The demo fixtures were carrying the wrong shape and are corrected.**
   `PreviewFixtures` and `DemoImportService` both wrote a bare "1" into
   `quantityText` and "lb" into `unit`, which is not what an import looks like;
@@ -84,7 +87,7 @@ issue.
 - `Ladle/Data/PreviewFixtures.swift` — `orderedIngredients` composes the
   verbatim phrase.
 - `Ladle/Import/DemoImportService.swift` — the same, for demo imports.
-- Tests: `LadleTests/RecipePresentationTests.swift` (new).
+- Tests: `LadleTests/IngredientRowTextTests.swift` (new).
 
 ## Verification
 
@@ -107,6 +110,10 @@ the device model.
   does now.
 - `xcodebuild build -project Ladle.xcodeproj -scheme Ladle` — "** BUILD
   SUCCEEDED **", so the app and the Share Extension both compile.
+
+`LadleUITests` was not run. No UI test asserts an ingredient row's text, and
+the fixture change was written so the rendered strings do not move, so there
+is nothing there for this change to break.
 
 No simulator capture. The screenshot in the report is of an anonymous
 tester's recipe that cannot be reproduced, and the demo library's rows are
