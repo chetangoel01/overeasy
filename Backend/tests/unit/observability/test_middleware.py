@@ -82,3 +82,4 @@ def test_successful_uptime_probes_are_not_logged_but_failing_ones_are() -> None:
     assert is_loggable("/ops/metrics.json", 200) is False
     assert is_loggable("/ops/metrics.json", 500) is True
     assert is_loggable("/ops/requests.json", 200) is False
+    assert is_loggable("/ops/nutrition-misses.json", 200) is False

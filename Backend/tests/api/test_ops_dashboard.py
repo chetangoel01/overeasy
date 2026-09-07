@@ -35,6 +35,9 @@ def test_dashboard_and_its_data_are_hidden_without_the_token() -> None:
         assert client.get("/ops", params={"token": "wrong"}).status_code == 404
         assert client.get("/ops/metrics.json").status_code == 404
         assert client.get("/ops/readiness.json").status_code == 404
+        # The one dashboard read that touches the database. It refuses before
+        # it opens a session, so a scan costs a 404 and no query.
+        assert client.get("/ops/nutrition-misses.json").status_code == 404
 
 
 def test_token_in_the_query_moves_into_a_cookie_and_leaves_the_url() -> None:

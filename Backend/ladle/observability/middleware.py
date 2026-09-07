@@ -21,6 +21,7 @@ _POLLED = frozenset(
         "/ops/metrics.json",
         "/ops/readiness.json",
         "/ops/requests.json",
+        "/ops/nutrition-misses.json",
     }
 )
 
