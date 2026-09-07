@@ -134,14 +134,22 @@ final class DiscoverViewModel {
         !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    /// The rails the screen draws. Hidden entirely under a search, because
-    /// search replaces the feed and a rail of unsearched rows beside the
-    /// results would look like results. A rail with fewer than three cards
+    /// The shelves the screen draws. Hidden entirely under a search, because
+    /// search replaces the feed and a shelf of unsearched rows beside the
+    /// results would look like results. A shelf with fewer than three cards
     /// is dropped: it reads as a mistake next to the list below it.
+    ///
+    /// A keyword the cook is already filtering on is dropped too. Its shelf
+    /// would be the first few rows of the list underneath it, which is what
+    /// "See all" just took them to — the same reason search hides the lot.
     var visibleShelves: [DiscoverShelf] {
         guard !isSearching else { return [] }
-        return shelves.filter {
-            $0.recipes.count >= DiscoverShelf.minimumRecipes
+        return shelves.filter { shelf in
+            guard shelf.recipes.count >= DiscoverShelf.minimumRecipes else {
+                return false
+            }
+            guard let keyword = shelf.keyword else { return true }
+            return !filter.keywords.contains(keyword)
         }
     }
 
@@ -333,14 +341,36 @@ final class DiscoverViewModel {
         )
     }
 
-    /// Both rails, in the order they are drawn. Two `async let`s rather than
-    /// a loop over the cases: the requests are independent and a rail should
-    /// not wait on the one above it.
+    /// Every shelf, in the order they are drawn: the two curated rails, then
+    /// the keyword shelves the server composed. Independent `async let`s
+    /// rather than a loop, because none of them should wait on the one above
+    /// it — and the keyword shelves arrive as one request whatever their
+    /// number, since the server decides how many there are.
+    ///
+    /// The keywords go last on purpose. The rails are this app's own promises
+    /// about the feed and stay where a returning cook left them; how many
+    /// shelves follow depends on what the corpus holds that week.
     private func fetchShelves() async -> [DiscoverShelf] {
         guard loadsShelves, !isSearching else { return [] }
         async let arrivals = fetchShelf(.newToOvereasy)
         async let quick = fetchShelf(.quickDinners)
-        return await [arrivals, quick].compactMap { $0 }
+        async let keywords = fetchKeywordShelves()
+        return await [arrivals, quick].compactMap { $0 } + keywords
+    }
+
+    /// Empty when they could not be fetched. Silent for the same reason a
+    /// rail is: a shelf is decoration on top of the feed, and there is
+    /// nothing here for the reader to retry.
+    private func fetchKeywordShelves() async -> [DiscoverShelf] {
+        let shelves = try? await service.fetchKeywordShelves(
+            filter: filter,
+            limit: DiscoverPaging.shelfSize
+        )
+        return (shelves ?? []).map { shelf in
+            var shelf = shelf
+            shelf.recipes = shelf.recipes.filter { $0.savedRecipeID == nil }
+            return shelf
+        }
     }
 
     /// Nil when the rail could not be filled. A rail is decoration on top of
@@ -350,22 +380,22 @@ final class DiscoverViewModel {
     /// No `seenBefore`: "New to Overeasy" that hid what is new because the
     /// cook glanced at it, or a rail reordered by the list underneath it,
     /// would stop meaning what its title says.
-    private func fetchShelf(_ id: DiscoverShelf.ID) async -> DiscoverShelf? {
+    private func fetchShelf(_ rail: DiscoverRail) async -> DiscoverShelf? {
         guard let page = try? await service.fetchDiscoverPage(
             cursor: 0,
             query: "",
-            sort: id.sort,
+            sort: rail.sort,
             // A rail is the same feed under another order, so it answers
             // the same filter. A shelf of dishes the cook's diet rules out
             // would be an advertisement for food they cannot eat.
             filter: filter,
-            maxTotalMinutes: id.maxTotalMinutes,
+            maxTotalMinutes: rail.maxTotalMinutes,
             limit: DiscoverPaging.shelfSize,
             seenBefore: nil,
             recordsImpressions: false
         ) else { return nil }
         return DiscoverShelf(
-            id: id,
+            rail: rail,
             recipes: page.recipes.filter { $0.savedRecipeID == nil }
         )
     }
@@ -478,17 +508,16 @@ final class DiscoverViewModel {
                         recipes.filter { $0.sourceID != recipe.sourceID }
                     )
                 }
-                // A rail is the same feed, so a source saved from its context
-                // menu has to leave the rail as well as the list. Dropping to
-                // fewer than three cards hides the rail, which is the right
-                // outcome: it is no longer a shelf.
+                // A shelf is the same feed, so a source saved from its
+                // context menu has to leave the shelf as well as the list.
+                // Dropping to fewer than three cards hides the shelf, which
+                // is the right outcome: it is no longer one.
                 shelves = shelves.map { shelf in
-                    DiscoverShelf(
-                        id: shelf.id,
-                        recipes: shelf.recipes.filter {
-                            $0.sourceID != recipe.sourceID
-                        }
-                    )
+                    var shelf = shelf
+                    shelf.recipes.removeAll {
+                        $0.sourceID == recipe.sourceID
+                    }
+                    return shelf
                 }
             }
             return saved
@@ -859,7 +888,8 @@ struct DiscoverView: View {
                         isLoadingDetail: { viewModel.isLoadingDetail($0) },
                         isSaved: { viewModel.isSaved($0) },
                         open: open,
-                        save: save
+                        save: save,
+                        showAll: { filters.showAll(keyword: $0) }
                     )
                     .padding(.top, LadleTheme.Spacing.medium)
                 }
@@ -1084,22 +1114,18 @@ private extension View {
 /// that bleed past the screen margin so the next card is visibly cut off
 /// rather than sitting flush with the text above it.
 private struct DiscoverShelfView: View {
+    @Environment(\.ladleAccent) private var accent
+
     let shelf: DiscoverShelf
     let isLoadingDetail: (DiscoverRecipe) -> Bool
     let isSaved: (DiscoverRecipe) -> Bool
     let open: (DiscoverRecipe) -> Void
     let save: (DiscoverRecipe) -> Void
+    let showAll: (RecipeKeyword) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: LadleTheme.Spacing.medium) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(shelf.title)
-                    .ladleFont(.section)
-                    .foregroundStyle(LadleTheme.Label.primary)
-                Text(shelf.caption)
-                    .ladleFont(.metadata)
-                    .foregroundStyle(LadleTheme.Label.secondary)
-            }
+            header
 
             ScrollView(.horizontal) {
                 LazyHStack(alignment: .top, spacing: LadleTheme.Spacing.medium) {
@@ -1128,6 +1154,36 @@ private struct DiscoverShelfView: View {
         .padding(.bottom, LadleTheme.Layout.sectionGap)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(shelf.title)
+    }
+
+    /// The title, whatever it has to say for itself, and the way out of the
+    /// row. Only a keyword shelf has one: a keyword is a filter, so "See
+    /// all" has somewhere to go, while "New to Overeasy" is an ordering
+    /// nothing in the app can ask for a second time.
+    private var header: some View {
+        HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(shelf.title)
+                    .ladleFont(.section)
+                    .foregroundStyle(LadleTheme.Label.primary)
+                if let caption = shelf.caption {
+                    Text(caption)
+                        .ladleFont(.metadata)
+                        .foregroundStyle(LadleTheme.Label.secondary)
+                }
+            }
+            if let keyword = shelf.keyword {
+                Spacer(minLength: LadleTheme.Spacing.medium)
+                Button("See all") { showAll(keyword) }
+                    .ladleFont(.bodyStrong)
+                    .buttonStyle(.plain)
+                    .foregroundStyle(accent.intent)
+                    .accessibilityIdentifier(
+                        "discover.shelf.\(shelf.id.slug).see-all"
+                    )
+                    .accessibilityLabel("See all \(shelf.title)")
+            }
+        }
     }
 }
 
@@ -1197,7 +1253,7 @@ private struct DiscoverShelfCard: View {
             "\(recipe.title), \(recipe.creatorName ?? recipe.source.libraryTitle)"
         )
         .accessibilityIdentifier(
-            "discover.card.\(shelf.rawValue).\(recipe.originalURL.absoluteString)"
+            "discover.card.\(shelf.slug).\(recipe.originalURL.absoluteString)"
         )
     }
 
