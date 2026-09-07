@@ -50,15 +50,23 @@ the feed's view model, the `DiscoverRecipe` the page was opened from, and the
 
 `LibraryRecipeDestination` then carries the model to the page. That is not
 where it started: the first version kept it in a `@State` on `LibraryView` and
-matched it to the destination by id. Under load the UI test caught that
-version pushing a page with no Save control at all — persistently, for the five
-seconds the test kept looking. Both writes in `showDiscoverRecipe` are
-synchronous and adjacent, so what a stale destination closure sees is a race
-between the path change and the re-registered closure, and losing it once is
-permanent for that page. Carrying the model in the pushed value removes the
-race by construction: the page and the path it saves through arrive in one
-piece. It also deleted the `@State`, the state write, and the id guard, so the
-mechanism is smaller than the one it replaced.
+matched it to the destination by id, and the UI test failed once against it —
+a Discover page on screen for five seconds with no Save control on it.
+
+**What that failure was is not settled.** The accessibility snapshot it left
+(Account, Start Cooking, Ingredients, Method, no Save) is exactly what
+`main`'s Discover page looks like, so it cannot tell "my app with a nil state"
+from "another agent's build installed over mine on the shared simulator" — and
+the run before it proved cross-installs were happening (see below). It was
+never reproduced on a private simulator: one iteration passed there before the
+machine killed the loop, and the code changed after that.
+
+The design changed anyway, because carrying the model in the pushed value
+makes the question moot. The page and the path it saves through arrive in one
+piece, so there is no window in which the page can be built without it, whether
+or not a stale destination closure was ever the cause. It also deleted the
+`@State`, the state write, and the id guard: the mechanism is smaller than the
+one it replaced, which would be reason enough on its own.
 
 `LibraryRecipeDestination` is a navigation value and must stay `Hashable`, so
 the model takes no part in `==` or `hash(into:)`. A destination names a page,
@@ -145,10 +153,15 @@ mid-build. Two things follow, and both cost time to work out:
   `xcrun simctl create Ladle-88 "iPhone 17 Pro" …iOS-26-5`
   (`6311CC5C-18FD-499D-AE3D-77D8162ADB41`) — still the iOS 26.5 iPhone 17 Pro
   this project tests on, just one no other run knows the id of.
-- **The load was worth having.** It is what surfaced the `@State` race
-  described above, in this branch's own app: a Discover page pushed with no
-  Save control on it at all. That failure was real and is fixed by carrying the
-  model in the destination value. The cross-talk was not.
+- **One failure could not be attributed either way.** The single missing-Save
+  failure described under Decisions happened on the shared simulator, and a
+  cross-installed `main` build produces exactly the same screen. It was not
+  reproduced on the private clone. The plumbing was changed to a shape where
+  the failure is impossible rather than left resting on that distinction.
+
+The `Ladle-88` clone and `/tmp/ladle-dd-88` are both still on this machine.
+Neither is needed once this branch lands: `xcrun simctl delete Ladle-88` and
+`rm -rf /tmp/ladle-dd-88`.
 
 ### Results
 
