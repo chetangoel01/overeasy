@@ -194,6 +194,13 @@ final class LibraryViewModel {
             .filter(matchesSelectedCollection)
     }
 
+    /// Every list the Recipes tab draws reads the shared filter, not just
+    /// the main grid. A collection row that counted through the diet and
+    /// then opened without it would promise three recipes and show two.
+    private var filteredRecipes: [Recipe] {
+        filters.filter.apply(to: recipes)
+    }
+
     var savedThisWeek: [Recipe] {
         guard let week = Calendar.autoupdatingCurrent.dateInterval(
             of: .weekOfYear,
@@ -202,20 +209,22 @@ final class LibraryViewModel {
             return []
         }
         return RecipeQuery().apply(
-            to: recipes.filter { week.contains($0.createdAt) }
+            to: filteredRecipes.filter { week.contains($0.createdAt) }
         )
     }
 
     var quickRecipes: [Recipe] {
-        RecipeQuery(maximumTotalMinutes: 30).apply(to: recipes)
+        RecipeQuery(maximumTotalMinutes: 30).apply(to: filteredRecipes)
     }
 
     var favoriteRecipes: [Recipe] {
-        RecipeQuery(favoritesOnly: true).apply(to: recipes)
+        RecipeQuery(favoritesOnly: true).apply(to: filteredRecipes)
     }
 
     var uncookedRecipes: [Recipe] {
-        RecipeQuery().apply(to: recipes.filter { $0.lastCookedAt == nil })
+        RecipeQuery().apply(
+            to: filteredRecipes.filter { $0.lastCookedAt == nil }
+        )
     }
 
     var collectionRows: [LibraryCollectionRowPresentation] {
@@ -540,13 +549,23 @@ final class LibraryViewModel {
     /// The selected collection is navigation rather than a filter, so it is
     /// deliberately not counted here and the menu's Reset leaves it alone.
     var hasActiveFilters: Bool {
+        hasBrowsingFilters || filters.filter.hasDiet
+    }
+
+    /// The same, minus the diet.
+    ///
+    /// A diet is ambient — it survives launches — so anything that hides
+    /// itself while a filter is on has to ignore it, or choosing a diet
+    /// once would hide that thing forever. The Collections card is the one
+    /// that does: it stays, counted through the diet.
+    var hasBrowsingFilters: Bool {
         favoritesOnly
             || maximumTotalMinutes != nil
             || maximumCalories != nil
             || minimumProtein != nil
             || maximumCarbohydrates != nil
             || maximumFat != nil
-            || !filters.filter.isEmpty
+            || filters.filter.hasBrowsingFilters
     }
 
     /// Clears the diet along with the rest. It is asked for explicitly, from
