@@ -102,11 +102,22 @@ needs no PR at all. Merge #112 promptly after this one.
 
 ```
 swift test --package-path Packages/LadleCore
+  ✔ Test run with 62 tests in 10 suites passed
+
 xcodebuild test -project Ladle.xcodeproj -scheme LadleAllTests \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:LadleTests
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
+  Executed 465 tests, with 1 test skipped and 0 failures (0 unexpected)   # LadleTests
+  Executed 28 tests, with 0 failures (0 unexpected)                        # LadleUITests
+  ** TEST SUCCEEDED **
 ```
 
-Results are in the pull request. `Backend/` is untouched by this branch.
+Throwaway iPhone 17 Pro / iOS 26.5 simulators, deleted after. `Backend/` is
+untouched by this branch.
+
+`testFailedImportRecoveryActionsShareLabelOrigin` is the one to watch on any
+future change here: it drives the `.retryFirst` sheet and measures that the
+recovery labels share a left edge, which is what the restructured
+`ImportRecoveryActions` had to preserve.
 
 Tests added:
 
