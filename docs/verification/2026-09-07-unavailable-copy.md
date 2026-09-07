@@ -144,3 +144,11 @@ honest instruction and the cook can act on it, so it ships — but it is the
 reason Retry is not presented as a guarantee. Google's token has no such
 one-shot property, and the profile and deletion retries are plain idempotent
 writes.
+
+## Captures
+
+Left is `main`, right is this branch, on the seeded library.
+
+| Before | After |
+| --- | --- |
+| ![Before](captures/2026-09-07-unavailable-copy/before.png) | ![After](captures/2026-09-07-unavailable-copy/after.png) |
