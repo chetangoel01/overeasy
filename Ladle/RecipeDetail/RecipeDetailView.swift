@@ -31,6 +31,7 @@ private enum RecipeDetailSection: String, CaseIterable, Identifiable {
 struct RecipeDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.ladleAccent) private var accent
 
     let statusText: String
@@ -42,6 +43,9 @@ struct RecipeDetailView: View {
     let completeReview: (UUID) -> Recipe?
     let deleteRecipe: (UUID) -> Bool
     let access: LibraryRecipeAccess
+    /// The Discover feed's own save path, present only on a page opened as a
+    /// preview. Saving through it turns this page into the saved copy.
+    let discoverSave: DiscoverSaveModel?
     let openAccount: () -> Void
 
     @State private var displayedRecipe: Recipe
@@ -57,14 +61,22 @@ struct RecipeDetailView: View {
     @State private var reviewPresentation =
         ReviewCompletionPresentation()
 
-    private var allowsLibraryEdits: Bool { access == .saved }
+    /// The access the page has now, which is the access it was opened with
+    /// until a save on it lands.
+    private var currentAccess: LibraryRecipeAccess {
+        discoverSave?.access ?? access
+    }
+
+    private var allowsLibraryEdits: Bool { currentAccess == .saved }
 
     /// Which server object can re-sign the hero image's expired URL.
-    /// It follows the access the screen was opened with, never the id
-    /// alone: a Discover preview's recipe id IS the Discover sourceID,
-    /// which /v1/recipes/{id} answers with a 404.
+    /// It follows the page's access, never the id alone: a Discover
+    /// preview's recipe id IS the Discover sourceID, which /v1/recipes/{id}
+    /// answers with a 404. A save on the page moves both together — the
+    /// access becomes `.saved` and the displayed recipe becomes the saved
+    /// copy, whose id that endpoint does know.
     var artworkOwner: RemoteImageOwner {
-        switch access {
+        switch currentAccess {
         case .saved:
             .recipe(id: displayedRecipe.id)
         case .discover:
@@ -83,6 +95,7 @@ struct RecipeDetailView: View {
         completeReview: @escaping (UUID) -> Recipe? = { _ in nil },
         deleteRecipe: @escaping (UUID) -> Bool = { _ in false },
         access: LibraryRecipeAccess = .saved,
+        discoverSave: DiscoverSaveModel? = nil,
         openAccount: @escaping () -> Void
     ) {
         self.statusText = statusText
@@ -94,6 +107,7 @@ struct RecipeDetailView: View {
         self.completeReview = completeReview
         self.deleteRecipe = deleteRecipe
         self.access = access
+        self.discoverSave = discoverSave
         self.openAccount = openAccount
         _displayedRecipe = State(initialValue: recipe)
         _isFavorite = State(initialValue: recipe.isFavorite)
@@ -173,10 +187,18 @@ struct RecipeDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
         .toolbar {
-            if allowsLibraryEdits {
-                ToolbarItemGroup(placement: .primaryAction) {
+            // One slot, one story: Save until the recipe is the cook's, then
+            // the heart in exactly that place, so the button reads as having
+            // become the favourite rather than been swapped for it.
+            ToolbarItemGroup(placement: .primaryAction) {
+                if allowsLibraryEdits {
                     favoriteButton
+                        .transition(.scale.combined(with: .opacity))
                     optionsMenu
+                        .transition(.opacity)
+                } else if let discoverSave {
+                    saveButton(discoverSave)
+                        .transition(.scale.combined(with: .opacity))
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {
@@ -269,11 +291,24 @@ struct RecipeDetailView: View {
 
     private var recipeHeader: some View {
         VStack(alignment: .leading, spacing: LadleTheme.Spacing.medium) {
-            Text(displayedRecipe.title)
-                .ladleFont(.title)
-                .foregroundStyle(LadleTheme.Label.primary)
-                .fixedSize(horizontal: false, vertical: true)
+            recipeTitle
+            recipeByline
+            if let report = discoverSave?.failure {
+                saveFailureNotice(report)
+            }
+        }
+    }
 
+    private var recipeTitle: some View {
+        Text(displayedRecipe.title)
+            .ladleFont(.title)
+            .foregroundStyle(LadleTheme.Label.primary)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var recipeByline: some View {
+        VStack(alignment: .leading, spacing: LadleTheme.Spacing.medium) {
             HStack(spacing: LadleTheme.Spacing.compact) {
                 if let creatorName = displayedRecipe.creatorName {
                     Text(creatorName)
@@ -292,6 +327,70 @@ struct RecipeDetailView: View {
                     .ladleFont(.body)
                     .foregroundStyle(LadleTheme.Label.primary.opacity(0.7))
                     .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Save, in the top-right toolbar group beside the account button — the
+    /// spot the heart and the menu take over once the recipe is the cook's.
+    /// Same two words as the Discover card, drawn like its toolbar neighbours.
+    private func saveButton(_ model: DiscoverSaveModel) -> some View {
+        Button {
+            save(through: model)
+        } label: {
+            Group {
+                if model.isSaving {
+                    ProgressView()
+                        .controlSize(.small)
+                        .tint(accent.label)
+                } else {
+                    Label(
+                        model.isSaved ? "Saved" : "Save",
+                        systemImage: model.isSaved ? "checkmark" : "plus"
+                    )
+                    // The toolbar would keep only the glyph, and a bare plus
+                    // up here reads as "add a recipe", not "keep this one".
+                    .labelStyle(.titleAndIcon)
+                }
+            }
+            .ladleFont(.metadata)
+            .foregroundStyle(model.isSaved ? LadleTheme.Label.primary : accent.label)
+            .padding(.horizontal, LadleTheme.Spacing.compact)
+            .frame(minHeight: LadleTheme.Control.hitTarget)
+        }
+        .buttonStyle(LadlePressButtonStyle())
+        .disabled(model.isSaving || model.isSaved)
+        .accessibilityLabel(
+            model.isSaved
+                ? "\(displayedRecipe.title) saved"
+                : "Save \(displayedRecipe.title)"
+        )
+        .accessibilityIdentifier("recipe.save")
+    }
+
+    private func saveFailureNotice(
+        _ report: RemoteFailureReport
+    ) -> some View {
+        Label(
+            "Save: \(report.failure.title). \(report.failure.message)",
+            systemImage: report.failure.systemImage
+        )
+        .ladleFont(.metadata)
+        .foregroundStyle(accent.label)
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityIdentifier("recipe.save-failure")
+    }
+
+    /// The page becomes the recipe it just saved: the preview and the saved
+    /// copy are different rows on the server, and every edit affordance the
+    /// flip reveals works off the id.
+    private func save(through model: DiscoverSaveModel) {
+        Task {
+            guard let saved = await model.save() else { return }
+            withAnimation(.snappy) {
+                displayedRecipe = saved.recipe
+                isFavorite = saved.recipe.isFavorite
             }
         }
     }

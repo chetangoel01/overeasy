@@ -866,6 +866,109 @@ final class DiscoverViewModelTests: XCTestCase {
             .serviceUnavailable
         )
     }
+
+    // MARK: - Saving from the recipe page
+
+    /// The page pushed from a Discover card saves through the card's own
+    /// path — one request, the feed's own bookkeeping — and then stops being
+    /// a preview: access flips to `.saved` so the cook keeps reading the
+    /// recipe they now own.
+    func testRecipePageSaveRunsTheFeedsOwnPathAndFlipsAccess() async {
+        let recipe = discoveredRecipe()
+        let saved = SavedDiscoverRecipe(
+            recipe: PreviewFixtures.recipes[0],
+            revision: 3
+        )
+        let service = DiscoverTestService(
+            result: .success([recipe]),
+            savedResult: .success(saved)
+        )
+        let viewModel = DiscoverViewModel(service: service)
+        await viewModel.load()
+        let recorder = SaveRecorder()
+        let model = DiscoverSaveModel(
+            source: recipe,
+            viewModel: viewModel,
+            didSave: recorder.record
+        )
+
+        XCTAssertEqual(model.access, .discover)
+        XCTAssertFalse(model.isSaved)
+
+        let result = await model.save()
+
+        XCTAssertEqual(result, saved)
+        XCTAssertEqual(service.savedSourceIDs, [recipe.sourceID])
+        XCTAssertEqual(recorder.saved, [saved])
+        XCTAssertTrue(
+            viewModel.isSaved(recipe),
+            "The page saving has to leave the feed's own record of it"
+        )
+        XCTAssertEqual(model.access, .saved)
+        XCTAssertTrue(model.isSaved)
+        XCTAssertNil(model.failure)
+    }
+
+    /// A failed save leaves the page where it was — still a preview, with
+    /// the same report the card would have shown.
+    func testRecipePageSaveFailureLeavesThePageOnDiscover() async throws {
+        let recipe = discoveredRecipe()
+        let provider = try remoteError(code: .providerUnavailable)
+        let service = DiscoverTestService(
+            result: .success([recipe]),
+            savedResult: .failure(APIError.remote(provider))
+        )
+        let viewModel = DiscoverViewModel(service: service)
+        await viewModel.load()
+        let recorder = SaveRecorder()
+        let model = DiscoverSaveModel(
+            source: recipe,
+            viewModel: viewModel,
+            didSave: recorder.record
+        )
+
+        let result = await model.save()
+
+        XCTAssertNil(result)
+        XCTAssertEqual(service.savedSourceIDs, [recipe.sourceID])
+        XCTAssertTrue(recorder.saved.isEmpty)
+        XCTAssertEqual(model.access, .discover)
+        XCTAssertFalse(model.isSaved)
+        XCTAssertEqual(model.failure, viewModel.saveFailure(for: recipe))
+        XCTAssertEqual(model.failure?.failure, .serviceUnavailable)
+    }
+
+    /// Watch leaves a saved page in its feed, so a page can be opened for a
+    /// source that is already saved. The shared path drops a second save for
+    /// one, so the control has to read Saved rather than offer it.
+    func testRecipePageReadsSavedForASourceTheFeedAlreadyHas() async {
+        let recipe = discoveredRecipe(savedRecipeID: UUID())
+        let viewModel = DiscoverViewModel(
+            service: DiscoverTestService(result: .success([recipe]))
+        )
+        let model = DiscoverSaveModel(
+            source: recipe,
+            viewModel: viewModel,
+            didSave: { _ in }
+        )
+
+        XCTAssertTrue(model.isSaved)
+        XCTAssertEqual(
+            model.access,
+            .discover,
+            "Nothing was saved here, so the page has no saved copy to become"
+        )
+    }
+}
+
+/// What the library did with the saved copy the page handed it.
+@MainActor
+private final class SaveRecorder {
+    private(set) var saved: [SavedDiscoverRecipe] = []
+
+    func record(_ saved: SavedDiscoverRecipe) {
+        self.saved.append(saved)
+    }
 }
 
 private final class DiscoverTestService: DiscoverServing {
