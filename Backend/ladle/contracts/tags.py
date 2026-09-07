@@ -105,6 +105,52 @@ class RecipeKeyword(StrEnum):
     SALAD = "salad"
     PASTA = "pasta"
 
+    @property
+    def shelf_title(self) -> str:
+        """What a cook reads when this keyword is the heading of a shelf.
+
+        Not `title`: `StrEnum` is a `str`, and a property by that name would
+        quietly shadow `str.title()` for every caller of every tag.
+        """
+
+        return KEYWORD_TITLES[self]
+
+
+#: The words for each keyword, beside the vocabulary that names them.
+#:
+#: Discover's keyword shelves are titled by the server, so the client draws
+#: the heading it was handed rather than keeping a parallel list that would
+#: drift the first time a keyword is promoted. The spellings are the ones the
+#: app's filter menu already uses: tapping "See all" on a shelf turns it into
+#: a filter pill, and a shelf and its pill must not name the same thing twice.
+KEYWORD_TITLES: dict[RecipeKeyword, str] = {
+    RecipeKeyword.ONE_POT: "One pot",
+    RecipeKeyword.WEEKNIGHT: "Weeknight",
+    RecipeKeyword.MEAL_PREP: "Meal prep",
+    RecipeKeyword.HIGH_PROTEIN: "High protein",
+    RecipeKeyword.BUDGET: "Budget",
+    RecipeKeyword.COMFORT_FOOD: "Comfort food",
+    RecipeKeyword.AIR_FRYER: "Air fryer",
+    RecipeKeyword.SLOW_COOKER: "Slow cooker",
+    RecipeKeyword.PRESSURE_COOKER: "Pressure cooker",
+    RecipeKeyword.SHEET_PAN: "Sheet pan",
+    RecipeKeyword.NO_COOK: "No cook",
+    RecipeKeyword.BAKING: "Baking",
+    RecipeKeyword.GRILLING: "Grilling",
+    RecipeKeyword.FREEZER_FRIENDLY: "Freezer friendly",
+    RecipeKeyword.KID_FRIENDLY: "Kid friendly",
+    RecipeKeyword.PARTY_FOOD: "Party food",
+    RecipeKeyword.BREAKFAST: "Breakfast",
+    RecipeKeyword.BRUNCH: "Brunch",
+    RecipeKeyword.LUNCHBOX: "Lunchbox",
+    RecipeKeyword.DESSERT: "Dessert",
+    RecipeKeyword.SNACK: "Snack",
+    RecipeKeyword.SIDE_DISH: "Side dish",
+    RecipeKeyword.SOUP: "Soup",
+    RecipeKeyword.SALAD: "Salad",
+    RecipeKeyword.PASTA: "Pasta",
+}
+
 
 _NON_ALPHANUMERIC = re.compile(r"[^a-z0-9]+")
 

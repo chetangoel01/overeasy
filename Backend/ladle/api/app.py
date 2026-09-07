@@ -307,6 +307,8 @@ def create_app(
         clock=runtime_clock,
         repository=recipe_repository,
         discover_seen_window=timedelta(hours=configured.discover_seen_window_hours),
+        shelf_minimum_recipes=configured.discover_shelf_minimum_recipes,
+        shelf_maximum_count=configured.discover_shelf_maximum_count,
     )
     application.state.sync_service = RecipeSyncService(
         recipe_repository,
