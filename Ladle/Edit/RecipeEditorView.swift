@@ -684,8 +684,11 @@ struct RecipeEditorView: View {
     }
 
     private func ingredientQuantityField(at index: Int) -> some View {
+        // "Amount", not "Quantity": the field holds a number when a cook
+        // types one, and the creator's whole phrase — "2 16oz cans" — when a
+        // recipe was imported.
         compactField(
-            "Quantity",
+            "Amount",
             text: $viewModel.draft.ingredients[index].quantityText
         )
     }

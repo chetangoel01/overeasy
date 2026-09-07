@@ -36,6 +36,9 @@ a recipe, the checklist in Cook mode:
 - **An unquantified ingredient is just its name**: "flaky salt".
 - **The preparation still trails the row**, unchanged: "1 lb ground beef —
   80/20, in four loose balls".
+- **A recipe typed by hand reads the same way.** The editor's two fields are
+  saved as one phrase, so "2" in Amount and "cups" in Unit still reads
+  "2 cups flour" on the recipe. Nothing a cook types is lost or repeated.
 
 ## Decisions
 
@@ -67,17 +70,28 @@ a recipe, the checklist in Cook mode:
   reads exactly as it did before. `normalizedQuantity` is still unset in the
   demo data — the "½" rows make a half-hearted job of it, and #100 is the
   change that needs it.
+- **The editor writes the import shape now.** It had its own model — Quantity
+  is a number, Unit is a unit — and the display rule is right for the import
+  shape and wrong for that one: a cook who typed "2" and "cups" would have
+  read "2 flour". Rather than weaken the rule, `RecipeDraft.IngredientDraft`
+  composes: an amount field holding **nothing but a number**, beside a
+  non-empty unit, saves as `quantityText = "2 cups"` with
+  `normalizedQuantity = 2`. Anything else is a phrase the cook wrote and is
+  stored verbatim, with nothing appended.
 
-### Not covered by the issue, and left alone
-
-**The editor can still produce the shape this fix demotes.** `RecipeEditorView`
-offers separate "Quantity" and "Unit" fields (lines 689 and 696) and
-`RecipeDraft.recipe(updatedAt:)` saves them apart (lines 208-212). A cook who
-types "2" and "cups" now gets a row reading "2 flour" — the unit they typed is
-stored, and not shown. Whether the editor should offer one field, compose the
-verbatim text on save, or something else is a product decision that the issue's
-decisions do not settle, so nothing in the editor was touched. Worth its own
-issue.
+  That distinction is the whole point. "Append the unit unless the text
+  already ends in it" is a heuristic over arbitrary text, and it was rejected
+  on the issue; "a bare number and a unit are two halves of one phrase" is a
+  deterministic rule about a field that parses whole as a decimal.
+- **A phrase gives up its leading number.** "2 16oz cans" saves with
+  `normalizedQuantity = 2`, so a scaled render (#100) has something to
+  multiply. Only the first whitespace-separated word is examined, shortened
+  from the right until the locale's formatter takes it whole — scanning across
+  the space would let a French formatter read "2 16oz" as 216. An imported
+  phrase still keeps the importer's own number while its text is unedited.
+- **"Amount", not "Quantity".** The field holds a number when a cook types
+  one and a whole phrase when a recipe was imported, and "Quantity" promised
+  the first. Both fields stay; the editor was not redesigned.
 
 ## Affected files
 
@@ -87,7 +101,13 @@ issue.
 - `Ladle/Data/PreviewFixtures.swift` — `orderedIngredients` composes the
   verbatim phrase.
 - `Ladle/Import/DemoImportService.swift` — the same, for demo imports.
-- Tests: `LadleTests/IngredientRowTextTests.swift` (new).
+- `Ladle/Edit/RecipeDraft.swift` — `IngredientDraft.amount(locale:)` replaces
+  `normalizedQuantity(locale:)` and composes the pair; `EditorNumber.leadingDecimal`.
+- `Ladle/Edit/RecipeEditorView.swift` — the field is labelled "Amount".
+- Tests: `LadleTests/IngredientRowTextTests.swift` (new),
+  `LadleTests/RecipeEditorViewModelTests.swift` (five new round-trip cases; the
+  imported fixture now carries "2 cups" rather than a bare "2", which is what
+  an import actually sends).
 
 ## Verification
 
@@ -104,10 +124,15 @@ the device model.
   ("100 g flour")`, the tester's screenshot in one line.
 - Green, after: the same command — "Executed 8 tests, with 0 failures (0
   unexpected)", "** TEST SUCCEEDED **".
-- Whole unit suite, `-only-testing:LadleTests` — "Executed 469 tests, with 1
+- Red for the editor half, with the composition removed and everything else in
+  place: `-only-testing:LadleTests/RecipeEditorViewModelTests` — "Executed 23
+  tests, with 5 failures (0 unexpected)", among them the regression in one
+  line, `("2 flour") is not equal to ("2 cups flour")`.
+- Green after: the same, folded into the suite run below.
+- Whole unit suite, `-only-testing:LadleTests` — "Executed 474 tests, with 1
   test skipped and 0 failures (0 unexpected)". This is the run that checks the
-  fixture change; no test asserted a demo row's quantity text before, and one
-  does now.
+  fixture change and the editor's round trips; no test asserted a demo row's
+  quantity text before, and one does now.
 - `xcodebuild build -project Ladle.xcodeproj -scheme Ladle` — "** BUILD
   SUCCEEDED **", so the app and the Share Extension both compile.
 

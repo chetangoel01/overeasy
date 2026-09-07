@@ -27,6 +27,28 @@ enum EditorNumber {
         }
         return number.decimalValue
     }
+
+    /// The number a phrase begins with — the 2 in "2 16oz cans" — or nil if
+    /// it begins with something else.
+    ///
+    /// Only the first whitespace-separated word is considered, and it is
+    /// shortened from the right until the locale's own formatter accepts it
+    /// whole. Scanning across a space instead would let a French formatter
+    /// read "2 16oz" as 216, because a space is close enough to the group
+    /// separator it expects.
+    static func leadingDecimal(_ text: String, locale: Locale) -> Decimal? {
+        guard var word = text.split(whereSeparator: \.isWhitespace).first
+        else {
+            return nil
+        }
+        while !word.isEmpty {
+            if let value = decimal(String(word), locale: locale) {
+                return value
+            }
+            word = word.dropLast()
+        }
+        return nil
+    }
 }
 
 struct RecipeDraft: Equatable {
@@ -66,15 +88,38 @@ struct RecipeDraft: Equatable {
             importedNormalizedQuantity = nil
         }
 
-        /// The machine-readable amount to persist alongside
-        /// `quantityText`. An edited text re-derives it (nil when the
-        /// editor cannot parse it whole), so the pair can never
-        /// disagree; the richer imported value survives while the text
-        /// is unedited — or an edit is reverted.
-        func normalizedQuantity(locale: Locale) -> Decimal? {
-            quantityText == importedQuantityText
-                ? importedNormalizedQuantity
-                : EditorNumber.decimal(quantityText, locale: locale)
+        /// The pair to persist: the phrase a cook reads, and the number a
+        /// scale multiplies.
+        ///
+        /// The editor asks for the amount and the unit in two fields, but an
+        /// import writes one phrase — "2 cups" — with the unit as its
+        /// machine-readable split, and everything downstream reads it that
+        /// way. So two bare halves are composed into the phrase they are.
+        /// That is a rule about a field holding nothing but a number, not a
+        /// guess about text: an amount already reading "2 16oz cans" is a
+        /// phrase the cook wrote, and nothing is appended to it.
+        ///
+        /// The number follows the text. A composed pair states it outright.
+        /// A phrase keeps the importer's richer value while the text still
+        /// reads exactly as imported — including after an edit is reverted —
+        /// and otherwise gives up the number the phrase begins with, or none.
+        func amount(locale: Locale) -> (text: String?, quantity: Decimal?) {
+            let typed = quantityText
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let typedUnit = unit.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !typed.isEmpty else {
+                return (nil, nil)
+            }
+            if !typedUnit.isEmpty,
+               let quantity = EditorNumber.decimal(typed, locale: locale) {
+                return ("\(typed) \(typedUnit)", quantity)
+            }
+            return (
+                typed,
+                quantityText == importedQuantityText
+                    ? importedNormalizedQuantity
+                    : EditorNumber.leadingDecimal(typed, locale: locale)
+            )
         }
     }
 
@@ -203,12 +248,11 @@ struct RecipeDraft: Equatable {
             totalMinutes: preparation == nil && cooking == nil ? nil : total,
             servings: decimal(from: servings, locale: locale) ?? 1,
             ingredients: ingredients.enumerated().map { index, draft in
-                Ingredient(
+                let amount = draft.amount(locale: locale)
+                return Ingredient(
                     id: draft.id,
-                    quantityText: normalized(draft.quantityText),
-                    normalizedQuantity: draft.normalizedQuantity(
-                        locale: locale
-                    ),
+                    quantityText: amount.text,
+                    normalizedQuantity: amount.quantity,
                     unit: normalized(draft.unit),
                     name: normalized(draft.name) ?? "",
                     preparation: normalized(draft.preparation),

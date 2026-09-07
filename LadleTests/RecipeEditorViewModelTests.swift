@@ -312,7 +312,7 @@ final class RecipeEditorViewModelTests: XCTestCase {
         viewModel.draft.ingredients[0].quantityText = "1,5"
 
         let saved = try XCTUnwrap(viewModel.save())
-        XCTAssertEqual(saved.orderedIngredients[0].quantityText, "1,5")
+        XCTAssertEqual(saved.orderedIngredients[0].quantityText, "1,5 cups")
         XCTAssertEqual(
             saved.orderedIngredients[0].normalizedQuantity,
             Decimal(string: "1.5")
@@ -356,12 +356,127 @@ final class RecipeEditorViewModelTests: XCTestCase {
         )
 
         let reverted = makeViewModel(recipe: importedFlourRecipe())
-        reverted.draft.ingredients[0].quantityText = "4"
-        reverted.draft.ingredients[0].quantityText = "2"
+        reverted.draft.ingredients[0].quantityText = "4 cups"
+        reverted.draft.ingredients[0].quantityText = "2 cups"
         let savedReverted = try XCTUnwrap(reverted.save())
         XCTAssertEqual(
             savedReverted.orderedIngredients[0].normalizedQuantity,
             2
+        )
+    }
+
+    // MARK: - The editor writes the shape an import writes
+
+    /// The editor asks for the amount and the unit apart, but everything
+    /// downstream reads one phrase: `quantityText` is what a cook reads and
+    /// the split is the machine's copy of it. A bare number and a unit are
+    /// two halves of one phrase, so the editor composes them.
+    func testATypedAmountAndUnitAreSavedAsOnePhrase() throws {
+        let viewModel = makeViewModel(recipe: importedFlourRecipe())
+        viewModel.addIngredient()
+        let index = viewModel.draft.ingredients.count - 1
+        viewModel.draft.ingredients[index].quantityText = "2"
+        viewModel.draft.ingredients[index].unit = "cups"
+        viewModel.draft.ingredients[index].name = "flour"
+
+        let saved = try XCTUnwrap(viewModel.save())
+        let ingredient = saved.orderedIngredients[index]
+
+        XCTAssertEqual(ingredient.quantityText, "2 cups")
+        XCTAssertEqual(ingredient.normalizedQuantity, 2)
+        XCTAssertEqual(ingredient.unit, "cups")
+        XCTAssertEqual(ingredient.cookingDetailText, "2 cups flour")
+    }
+
+    func testATypedAmountWithNoUnitSavesTheNumberAlone() throws {
+        let viewModel = makeViewModel(recipe: importedFlourRecipe())
+        viewModel.addIngredient()
+        let index = viewModel.draft.ingredients.count - 1
+        viewModel.draft.ingredients[index].quantityText = "4"
+        viewModel.draft.ingredients[index].name = "potato rolls"
+
+        let saved = try XCTUnwrap(viewModel.save())
+        let ingredient = saved.orderedIngredients[index]
+
+        XCTAssertEqual(ingredient.quantityText, "4")
+        XCTAssertEqual(ingredient.normalizedQuantity, 4)
+        XCTAssertNil(ingredient.unit)
+        XCTAssertEqual(ingredient.cookingDetailText, "4 potato rolls")
+    }
+
+    /// Composition is for a bare number, not for arbitrary text. A cook who
+    /// writes the unit into the amount field has written the phrase
+    /// themselves, and nothing is appended to it.
+    func testATypedPhraseIsSavedVerbatimWithItsLeadingNumber() throws {
+        let viewModel = makeViewModel(recipe: importedFlourRecipe())
+        viewModel.addIngredient()
+        let index = viewModel.draft.ingredients.count - 1
+        viewModel.draft.ingredients[index].quantityText = "2 16oz cans"
+        viewModel.draft.ingredients[index].unit = "cans"
+        viewModel.draft.ingredients[index].name = "coconut milk"
+
+        let saved = try XCTUnwrap(viewModel.save())
+        let ingredient = saved.orderedIngredients[index]
+
+        XCTAssertEqual(ingredient.quantityText, "2 16oz cans")
+        XCTAssertEqual(ingredient.normalizedQuantity, 2)
+        XCTAssertEqual(
+            ingredient.cookingDetailText,
+            "2 16oz cans coconut milk"
+        )
+    }
+
+    func testAnImportedPhraseRoundTripsUnchanged() throws {
+        let recipe = Recipe(
+            title: "Imported Curry",
+            source: .other,
+            originalURL: URL(string: "https://example.com/curry")!,
+            servings: 4,
+            ingredients: [
+                Ingredient(
+                    quantityText: "2 16oz cans",
+                    normalizedQuantity: 2,
+                    unit: "cans",
+                    name: "coconut milk",
+                    orderIndex: 0
+                ),
+            ],
+            steps: [RecipeStep(orderIndex: 0, instruction: "Simmer.")]
+        )
+        let viewModel = makeViewModel(recipe: recipe)
+
+        XCTAssertEqual(
+            viewModel.draft.ingredients[0].quantityText,
+            "2 16oz cans"
+        )
+        XCTAssertEqual(viewModel.draft.ingredients[0].unit, "cans")
+
+        let saved = try XCTUnwrap(viewModel.save())
+        XCTAssertEqual(
+            saved.orderedIngredients[0],
+            recipe.orderedIngredients[0]
+        )
+    }
+
+    /// Saving a composed phrase again must not compose it a second time.
+    /// "2 cups" with `unit` "cups" is not a bare number, so it is left alone.
+    func testAComposedPhraseRoundTripsWithoutDrift() throws {
+        let first = makeViewModel(recipe: importedFlourRecipe())
+        first.addIngredient()
+        let index = first.draft.ingredients.count - 1
+        first.draft.ingredients[index].quantityText = "2"
+        first.draft.ingredients[index].unit = "cups"
+        first.draft.ingredients[index].name = "flour"
+        let saved = try XCTUnwrap(first.save())
+
+        let second = makeViewModel(recipe: saved)
+        XCTAssertEqual(second.draft.ingredients[index].quantityText, "2 cups")
+        XCTAssertEqual(second.draft.ingredients[index].unit, "cups")
+
+        let resaved = try XCTUnwrap(second.save())
+        XCTAssertEqual(
+            resaved.orderedIngredients[index],
+            saved.orderedIngredients[index]
         )
     }
 
@@ -420,7 +535,7 @@ final class RecipeEditorViewModelTests: XCTestCase {
             servings: 4,
             ingredients: [
                 Ingredient(
-                    quantityText: "2",
+                    quantityText: "2 cups",
                     normalizedQuantity: 2,
                     unit: "cups",
                     name: "flour",
