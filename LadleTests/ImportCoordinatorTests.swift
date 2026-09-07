@@ -2524,6 +2524,33 @@ final class ImportCoordinatorTests: XCTestCase {
         XCTAssertNotEqual(photo.message, generic.message)
     }
 
+    func testPhotoPostFailureLeadsWithTypingItInRatherThanRetrying() {
+        let jobID = UUID()
+        let photo = ImportOperationFailure(
+            jobID: jobID,
+            reason: .photoPostNeedsManualEntry
+        )
+
+        // Retrying a caption that held nothing reads the same nothing again,
+        // so paste and create lead. Retry is demoted, not withdrawn.
+        XCTAssertEqual(photo.recoveryLayout, .manualEntryFirst)
+        XCTAssertEqual(photo.retryAvailability(), .available)
+
+        for reason in [
+            ImportFailure.insufficientTextEvidence,
+            .parserUnavailable,
+            .unrecognized("someCodeFromALaterServer"),
+        ] {
+            XCTAssertEqual(
+                ImportOperationFailure(
+                    jobID: jobID,
+                    reason: reason
+                ).recoveryLayout,
+                .retryFirst
+            )
+        }
+    }
+
     private func makeCoordinator(
         repository: ImportTestRepository,
         accountSession: AccountSession = AccountSession(

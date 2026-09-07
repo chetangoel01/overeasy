@@ -45,6 +45,17 @@ enum ImportRetryAvailability: Equatable {
     }
 }
 
+/// Which recovery action a failure sheet leads with.
+///
+/// Retry leads on a failure that might not happen a second time. When the
+/// import already read everything the post holds, retrying reads the same
+/// nothing again, so the ways the cook can supply the recipe lead instead and
+/// retry stays on the sheet as a secondary row.
+enum ImportRecoveryLayout: Equatable {
+    case retryFirst
+    case manualEntryFirst
+}
+
 struct ImportOperationFailure: Equatable {
     let jobID: UUID
     let reason: ImportFailure
@@ -78,6 +89,12 @@ struct ImportOperationFailure: Equatable {
         default:
             .available
         }
+    }
+
+    var recoveryLayout: ImportRecoveryLayout {
+        reason == .photoPostNeedsManualEntry
+            ? .manualEntryFirst
+            : .retryFirst
     }
 
     var title: String {
