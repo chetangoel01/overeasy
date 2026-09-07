@@ -19,6 +19,7 @@ import httpx
 
 from ladle.acquisition.free.links import LinkFetcher, UnsafeURL
 from ladle.acquisition.models import (
+    MediaKind,
     MediaMetadata,
     SourceCounts,
     SourceVideoDescriptor,
@@ -39,6 +40,7 @@ class InstagramMedia:
     # Instagram publishes no transcript, so the media file is the only route to
     # what was actually said. It downloads without authentication.
     media_url: str | None = None
+    media_kind: MediaKind = MediaKind.VIDEO
 
 
 class InstagramEmbedClient:
@@ -110,7 +112,42 @@ def _media(media: dict[str, object]) -> InstagramMedia | None:
         ),
         observations=_observations(media),
         media_url=str(media.get("video_url") or "").strip() or None,
+        media_kind=_media_kind(media),
     )
+
+
+def _media_kind(media: dict[str, object]) -> MediaKind:
+    """Whether this post is stills only, which is what /p/ does not say.
+
+    Instagram serves single videos, image carousels and reel stacks from the
+    same /p/ shape, so the path cannot decide it. A stack holding even one
+    video keeps the transcript rungs: there is audio in there somewhere, and
+    calling it a photo post would silently give up on it.
+    """
+
+    typename = str(media.get("__typename") or "")
+    if typename == "GraphSidecar":
+        children = _sidecar_children(media)
+        if children and all(child.get("is_video") is not True for child in children):
+            return MediaKind.PHOTO
+        return MediaKind.VIDEO
+    if typename == "GraphImage":
+        return MediaKind.PHOTO
+    return MediaKind.VIDEO
+
+
+def _sidecar_children(media: dict[str, object]) -> list[dict[str, object]]:
+    edge = media.get("edge_sidecar_to_children")
+    if not isinstance(edge, dict):
+        return []
+    edges = edge.get("edges")
+    if not isinstance(edges, list):
+        return []
+    return [
+        entry["node"]
+        for entry in edges
+        if isinstance(entry, dict) and isinstance(entry.get("node"), dict)
+    ]
 
 
 def _edge_count(media: dict[str, object], key: str) -> int | None:

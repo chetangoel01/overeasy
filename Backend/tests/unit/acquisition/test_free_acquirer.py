@@ -5,7 +5,7 @@ from uuid import uuid4
 from ladle.acquisition.free.acquirer import FreeAcquirer
 from ladle.acquisition.free.tiktok import TikTokPageClient
 from ladle.acquisition.free.ytdlp import YtDlpClient
-from ladle.acquisition.models import SourceVideoDescriptor
+from ladle.acquisition.models import MediaKind, SourceVideoDescriptor
 
 COVERED_CAPTION = (
     "Add 2 cups of orzo and 400 g of chickpeas, then simmer for ten minutes."
@@ -217,3 +217,103 @@ Add the rice and simmer until tender.
     assert "freeMetadataUnavailable" in context.diagnostics
     assert "tiktokPageMetadataUsed" in context.diagnostics
     assert "tiktokAsrCaptionsUsed" in context.diagnostics
+
+
+PHOTO_ID = "7481234567890123456"
+
+
+def photo_source() -> SourceVideoDescriptor:
+    return SourceVideoDescriptor(
+        source_video_id=uuid4(),
+        platform="tiktok",
+        platform_video_id=PHOTO_ID,
+        canonical_url=f"https://www.tiktok.com/@creator/photo/{PHOTO_ID}",
+        source_revision="1",
+    )
+
+
+class ForbiddenRunner:
+    def __call__(
+        self, command: list[str], *, timeout: float
+    ) -> subprocess.CompletedProcess[str]:
+        del command, timeout
+        raise AssertionError("yt-dlp must not be run for a photo post")
+
+
+def photo_page(*, description: str, title: str = "Hot Honey Chicken Tacos") -> str:
+    payload = {
+        "__DEFAULT_SCOPE__": {
+            "webapp.video-detail": {
+                "itemInfo": {
+                    "itemStruct": {
+                        "desc": description,
+                        "author": {"nickname": "Creator"},
+                        "imagePost": {"title": title, "images": [{}, {}]},
+                        "video": {"duration": 0, "subtitleInfos": []},
+                        "stickersOnItem": [],
+                    }
+                }
+            }
+        }
+    }
+    return (
+        '<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__" '
+        f'type="application/json">{json.dumps(payload)}</script>'
+    )
+
+
+def test_a_photo_post_never_shells_out_to_ytdlp() -> None:
+    """yt-dlp answers a carousel with the licensed backing music.
+
+    Pointed at the /video/ form of a photo post it returns one audio-only m4a
+    — the song, not the creator — which Whisper would then transcribe and bill
+    for, and whose lyrics would become recipe evidence. The kind has to close
+    that door before the call is made, not after.
+    """
+
+    struct_url = f"https://www.tiktok.com/@creator/video/{PHOTO_ID}"
+    free = FreeAcquirer(
+        ytdlp=YtDlpClient(binary="yt-dlp", runner=ForbiddenRunner()),
+        tiktok=TikTokPageClient(
+            fetcher=ResponseFetcher(
+                {struct_url: photo_page(description=COVERED_CAPTION)}
+            )
+        ),
+    )
+
+    context = free.acquire(photo_source(), job_id=uuid4())
+
+    assert context.media_kind is MediaKind.PHOTO
+    assert context.audio_url is None
+    assert context.media_url is None
+    assert context.metadata is not None
+    assert context.metadata.description == COVERED_CAPTION
+    assert context.metadata.title == "Hot Honey Chicken Tacos"
+
+
+def test_a_photo_post_reads_its_page_even_with_subtitles_disabled() -> None:
+    """The page is the carousel's only metadata source, not a subtitle source."""
+
+    struct_url = f"https://www.tiktok.com/@creator/video/{PHOTO_ID}"
+    free = FreeAcquirer(
+        ytdlp=YtDlpClient(binary="yt-dlp", runner=ForbiddenRunner()),
+        tiktok=TikTokPageClient(
+            fetcher=ResponseFetcher(
+                {struct_url: photo_page(description=COVERED_CAPTION)}
+            )
+        ),
+        subtitles_enabled=False,
+    )
+
+    context = free.acquire(photo_source(), job_id=uuid4())
+
+    assert context.metadata is not None
+    assert context.metadata.description == COVERED_CAPTION
+
+
+def test_a_video_post_still_runs_ytdlp() -> None:
+    fetcher = SpyFetcher()
+    context = acquirer(COVERED_CAPTION, fetcher).acquire(source(), job_id=uuid4())
+
+    assert context.media_kind is MediaKind.VIDEO
+    assert "freeMetadataUsed" in context.diagnostics

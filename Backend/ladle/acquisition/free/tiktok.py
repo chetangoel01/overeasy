@@ -22,6 +22,7 @@ import httpx
 from ladle.acquisition.free.links import LinkFetcher, UnsafeURL
 from ladle.acquisition.free.ytdlp import parse_vtt
 from ladle.acquisition.models import (
+    MediaKind,
     MediaMetadata,
     SourceCounts,
     TextEvidence,
@@ -36,6 +37,7 @@ _BLOB = re.compile(
 )
 _ENGLISH = "eng"
 _MAX_STICKERS = 8
+_PHOTO_URL = re.compile(r"^(?P<profile>https://[^/]+/@[^/]+)/photo/(?P<id>[0-9]+)/?$")
 
 
 @dataclass
@@ -45,6 +47,7 @@ class TikTokPageEvidence:
     stickers: list[VisualEvidence] = field(default_factory=list)
     language: str | None = None
     title: str | None = None
+    media_kind: MediaKind = MediaKind.VIDEO
 
     @property
     def is_empty(self) -> bool:
@@ -58,17 +61,21 @@ class TikTokPageClient:
     def evidence(self, canonical_url: str) -> TikTokPageEvidence:
         """Best-effort. Any failure means the paid chain simply runs as before."""
         evidence = TikTokPageEvidence()
+        struct_url = _struct_url(canonical_url)
         try:
-            page = self._fetcher.fetch_raw(canonical_url)
+            page = self._fetcher.fetch_raw(struct_url)
         except (UnsafeURL, OSError, httpx.HTTPError) as error:
-            LOGGER.info("TikTok page unavailable for %s: %s", canonical_url, error)
+            LOGGER.info("TikTok page unavailable for %s: %s", struct_url, error)
             return evidence
         item = _item_struct(page)
         if item is None:
-            LOGGER.info("TikTok page carried no rehydration data: %s", canonical_url)
+            LOGGER.info("TikTok page carried no rehydration data: %s", struct_url)
             return evidence
 
-        evidence.title = _sticker_title(item)
+        image_post = item.get("imagePost")
+        if isinstance(image_post, dict):
+            evidence.media_kind = MediaKind.PHOTO
+        evidence.title = _sticker_title(item) or _image_post_title(image_post)
         evidence.metadata = _metadata(item, title=evidence.title)
         evidence.stickers = _stickers(item)
         track = _english_track(item)
@@ -93,6 +100,35 @@ class TikTokPageClient:
         if evidence.transcript:
             evidence.language = language
         return evidence
+
+
+def _struct_url(canonical_url: str) -> str:
+    """Where the item struct actually lives for this post.
+
+    A carousel is canonically /@user/photo/<id>, and that page serves no
+    rehydration blob at all. The identical item — caption, author, stats and
+    imagePost — is served at /@user/video/<id>, so the fetch goes there while
+    the URL the cook shared stays the one we store.
+    """
+
+    match = _PHOTO_URL.fullmatch(canonical_url)
+    if match is None:
+        return canonical_url
+    return f"{match.group('profile')}/video/{match.group('id')}"
+
+
+def _image_post_title(image_post: object) -> str | None:
+    """A carousel's own title, which is usually the dish.
+
+    Recipe carousels almost never carry stickers, so the on-screen title this
+    would normally prefer does not exist; imagePost.title is what is left, and
+    it beats the caption's opening hook.
+    """
+
+    if not isinstance(image_post, dict):
+        return None
+    title = re.sub(r"\s+", " ", str(image_post.get("title") or "")).strip()
+    return title[:120] if len(title) >= 3 else None
 
 
 def _metadata(item: dict[str, Any], *, title: str | None) -> MediaMetadata | None:

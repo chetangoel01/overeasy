@@ -17,6 +17,7 @@ from ladle.acquisition.free.acquirer import FreeAcquirer, FreeContext
 from ladle.acquisition.models import (
     AcquiredVideoContext,
     LinkedDocument,
+    MediaKind,
     MediaMetadata,
     SourceCounts,
     SourceVideoDescriptor,
@@ -109,7 +110,11 @@ class ProviderChain:
                 return False
             if free.has_metadata:
                 return True
-        if self._primary is None:
+            if free.media_kind is MediaKind.PHOTO:
+                # Nothing paid can read a carousel either, so a re-check that
+                # missed is not worth a metadata call.
+                return True
+        if self._primary is None or source.media_kind is MediaKind.PHOTO:
             return True
         primary = self._primary
         try:
@@ -147,6 +152,16 @@ class ProviderChain:
         diagnostics: list[str] = []
         free = self._free_context(source, job_id=job_id, diagnostics=diagnostics)
         documents = free.linked_documents
+
+        # TikTok names the kind in the URL; Instagram only reveals it once the
+        # embed has been read. Either is enough to stop here.
+        if MediaKind.PHOTO in {source.media_kind, free.media_kind}:
+            return self._photo_context(
+                source,
+                free=free,
+                documents=documents,
+                diagnostics=diagnostics,
+            )
 
         metadata = free.metadata
         if metadata is None and self._primary is not None:
@@ -274,6 +289,45 @@ class ProviderChain:
                     "creatorSearchUsed" if documents else "creatorSearchNoMatch"
                 )
         return result
+
+    def _photo_context(
+        self,
+        source: SourceVideoDescriptor,
+        *,
+        free: FreeContext,
+        documents: list[LinkedDocument],
+        diagnostics: list[str],
+    ) -> AcquiredVideoContext:
+        """A carousel's caption, and nothing bought on top of it.
+
+        Every remaining rung — Whisper, Supadata, SoScripted, the server
+        fallback, the creator search — is looking for narration or for the
+        audio behind it. A photo post has neither, so each one is a call that
+        is certain to fail, and together they were the whole cost of an
+        Instagram carousel import that failed anyway.
+        """
+
+        metadata = free.metadata
+        if metadata is None:
+            # An empty caption and an unreachable page look identical here.
+            # Only the first is the cook's to fix, so refusing to guess keeps
+            # a TikTok outage out of the "type it in yourself" hand-off.
+            raise ProviderUnavailable("photo post page unavailable")
+        diagnostics.append("photoPostCaptionOnly")
+        context = self._context(
+            source,
+            metadata=metadata,
+            transcript=None,
+            observations=[
+                value
+                for value in free.visual_observations
+                if value.provenance in _PLATFORM_TEXT_PROVENANCES
+            ],
+            documents=documents,
+            diagnostics=diagnostics,
+        )
+        context.media_kind = MediaKind.PHOTO
+        return context
 
     def _free_context(
         self,

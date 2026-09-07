@@ -1,6 +1,7 @@
 import json
 
 from ladle.acquisition.free.tiktok import TikTokPageClient
+from ladle.acquisition.models import MediaKind
 
 VTT = """WEBVTT
 
@@ -16,18 +17,18 @@ def page(
     *,
     subtitle_infos: list[dict[str, object]] | None = None,
     stickers: list[dict[str, object]] | None = None,
+    image_post: dict[str, object] | None = None,
+    description: str = "",
 ) -> str:
+    item: dict[str, object] = {
+        "desc": description,
+        "video": {"subtitleInfos": subtitle_infos or []},
+        "stickersOnItem": stickers or [],
+    }
+    if image_post is not None:
+        item["imagePost"] = image_post
     payload = {
-        "__DEFAULT_SCOPE__": {
-            "webapp.video-detail": {
-                "itemInfo": {
-                    "itemStruct": {
-                        "video": {"subtitleInfos": subtitle_infos or []},
-                        "stickersOnItem": stickers or [],
-                    }
-                }
-            }
-        }
+        "__DEFAULT_SCOPE__": {"webapp.video-detail": {"itemInfo": {"itemStruct": item}}}
     }
     return (
         '<html><script id="__UNIVERSAL_DATA_FOR_REHYDRATION__" type="application/json">'
@@ -139,3 +140,64 @@ def test_caption_url_that_is_not_vtt_is_rejected() -> None:
     evidence = TikTokPageClient(fetcher=fetcher).evidence(VIDEO_URL)
 
     assert evidence.transcript == []
+
+
+PHOTO_URL = "https://www.tiktok.com/@creator/photo/7481234567890123456"
+PHOTO_STRUCT_URL = "https://www.tiktok.com/@creator/video/7481234567890123456"
+
+
+def test_photo_post_struct_is_read_from_the_video_form_of_the_url() -> None:
+    # The /photo/ page carries no rehydration blob at all; the identical item
+    # is served at /video/<id>, imagePost included.
+    fetcher = Fetcher(
+        {
+            PHOTO_STRUCT_URL: page(
+                image_post={"title": "Hot Honey Garlic Chicken Tacos", "images": [{}]},
+                description="2 cups flour. Mix and bake.",
+            )
+        }
+    )
+
+    evidence = TikTokPageClient(fetcher=fetcher).evidence(PHOTO_URL)
+
+    assert fetcher.urls == [PHOTO_STRUCT_URL]
+    assert evidence.media_kind is MediaKind.PHOTO
+    assert evidence.metadata is not None
+    assert evidence.metadata.description == "2 cups flour. Mix and bake."
+
+
+def test_photo_post_title_comes_from_the_image_post() -> None:
+    fetcher = Fetcher(
+        {PHOTO_STRUCT_URL: page(image_post={"title": "Creamy Raisin Rice Pudding"})}
+    )
+
+    evidence = TikTokPageClient(fetcher=fetcher).evidence(PHOTO_URL)
+
+    # Carousels rarely carry stickers, and imagePost.title is a real dish name
+    # where the caption's first line is a hook.
+    assert evidence.title == "Creamy Raisin Rice Pudding"
+
+
+def test_sticker_title_still_wins_over_the_image_post_title() -> None:
+    fetcher = Fetcher(
+        {
+            PHOTO_STRUCT_URL: page(
+                image_post={"title": "a generic upload name"},
+                stickers=[{"stickerText": ["Feta Rice Paper Rolls"]}],
+            )
+        }
+    )
+
+    assert (
+        TikTokPageClient(fetcher=fetcher).evidence(PHOTO_URL).title
+        == "Feta Rice Paper Rolls"
+    )
+
+
+def test_a_video_post_is_never_reported_as_a_photo_post() -> None:
+    fetcher = Fetcher({VIDEO_URL: page(description="Add 2 cups flour.")})
+
+    evidence = TikTokPageClient(fetcher=fetcher).evidence(VIDEO_URL)
+
+    assert evidence.media_kind is MediaKind.VIDEO
+    assert fetcher.urls == [VIDEO_URL]

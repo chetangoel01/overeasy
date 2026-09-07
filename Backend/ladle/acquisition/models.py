@@ -1,11 +1,46 @@
+import re
 from datetime import datetime
 from decimal import Decimal
+from enum import StrEnum
 from uuid import UUID
 
 from pydantic import Field, model_validator
 
 from ladle.contracts.common import WireModel
 from ladle.db.models import SourceVideo
+
+
+class MediaKind(StrEnum):
+    """What the post is made of, which decides what can be read out of it.
+
+    A photo post carries no audio and no video, so every transcript rung is a
+    call that cannot succeed rather than a fallback that might. The caption is
+    the whole text record.
+    """
+
+    VIDEO = "video"
+    PHOTO = "photo"
+
+
+#: TikTok publishes a carousel at /@user/photo/<id>; the same post is also
+#: served at /video/<id>, so the path is the only thing that names the kind.
+_TIKTOK_PHOTO_URL = re.compile(r"^https://[^/]+/@[^/]+/photo/[0-9]+/?$")
+
+
+def media_kind_for_url(canonical_url: str) -> MediaKind:
+    """The kind as the canonical URL states it.
+
+    TikTok says it in the path, so a carousel is known before a single byte is
+    fetched. Instagram does not — /p/ serves image carousels, video carousels
+    and single videos from the same shape — so its kind is settled at fetch
+    time by the embed blob instead, and this returns VIDEO until then.
+    """
+
+    return (
+        MediaKind.PHOTO
+        if _TIKTOK_PHOTO_URL.fullmatch(canonical_url)
+        else MediaKind.VIDEO
+    )
 
 
 class SourceVideoDescriptor(WireModel):
@@ -24,6 +59,12 @@ class SourceVideoDescriptor(WireModel):
             canonical_url=source.canonical_url,
             source_revision=source.source_revision,
         )
+
+    @property
+    def media_kind(self) -> MediaKind:
+        """Derived, not stored: the canonical URL already carries the answer."""
+
+        return media_kind_for_url(self.canonical_url)
 
 
 class TextEvidence(WireModel):
@@ -148,6 +189,10 @@ class TranscriptResult(WireModel):
 class AcquiredVideoContext(WireModel):
     source: SourceVideoDescriptor
     is_public: bool
+    #: Photo posts have no narration to recover, so the caption in
+    #: `description` is the whole text record and the failure when it carries
+    #: no recipe is a different failure.
+    media_kind: MediaKind = MediaKind.VIDEO
     title: str | None = None
     description: str = Field(max_length=50_000)
     creator_name: str | None = None
