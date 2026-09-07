@@ -18,7 +18,11 @@ from ladle.nutrition.normalization import (
     NormalizedRecipe,
     NutritionNormalizationUnavailable,
 )
-from ladle.recipes.template_clone import RecipeTemplate, TemplateNutrition
+from ladle.recipes.template_clone import (
+    NutritionSkip,
+    RecipeTemplate,
+    TemplateNutrition,
+)
 
 
 class NutritionNormalizer(Protocol):
@@ -51,9 +55,11 @@ class RecipeNutritionService:
     ) -> RecipeTemplate:
         """Normalize the recipe and cost it, recording what it could not cost.
 
-        `uncounted` is filled on both paths — the recipe that keeps partial
-        totals and the one blocked for coverage — because the tuning script
-        has to weigh the same ingredients either way.
+        Nothing here voids a recipe over nutrition. An ingredient the
+        calculator cannot resolve is skipped and named; a recipe where
+        nothing resolved simply has no nutrition block, which is an empty
+        result rather than a failure. `uncounted` is filled either way,
+        because the refresh script weighs the same ingredients on both.
         """
         if (
             template.nutrition is not None
@@ -81,17 +87,17 @@ class RecipeNutritionService:
             return _blocked(normalized.template, "usdaUnavailable")
         except NutritionCalculationUnavailable as error:
             reason = error.code
-            if error.code == "insufficientCoverage" and uncounted:
-                names = ", ".join(value.name for value in uncounted)
-                reason += f" (not counted: {names})"
             if error.ingredient_index is not None:
                 reason += f" at ingredient {error.ingredient_index}"
             if error.ingredient_name is not None:
                 reason += f" ({error.ingredient_name})"
             return _blocked(normalized.template, reason)
 
-        evidence = _evidence(nutrition, normalized)
-        enriched = nutrition.model_copy(update={"evidence": evidence})
+        enriched = (
+            nutrition.model_copy(update={"evidence": _evidence(nutrition, normalized)})
+            if nutrition is not None
+            else None
+        )
         return _with_nutrition(normalized.template, enriched, uncounted)
 
 
@@ -110,6 +116,7 @@ def _owned(field: str) -> bool:
 def _cleared(template: RecipeTemplate) -> RecipeTemplate:
     return template.model_copy(
         update={
+            "nutrition_skips": [],
             "uncertainties": [
                 value for value in template.uncertainties if not _owned(value.field)
             ],
@@ -141,9 +148,16 @@ def _blocked(template: RecipeTemplate, reason: str) -> RecipeTemplate:
 
 def _with_nutrition(
     template: RecipeTemplate,
-    nutrition: TemplateNutrition,
+    nutrition: TemplateNutrition | None,
     uncounted: list[UncountedIngredient] | None = None,
 ) -> RecipeTemplate:
+    """The recipe with whatever was costed, and notes for what was not.
+
+    `nutrition` is None when no ingredient matched anything. That path
+    still runs through here rather than `_blocked`: nothing failed, there
+    was simply nothing to add up, and the recipe keeps its review status
+    and gains the same notes naming what went uncounted.
+    """
     records = uncounted or []
     cleared = _cleared(template)
     uncertainties = list(cleared.uncertainties)
@@ -178,6 +192,15 @@ def _with_nutrition(
     return cleared.model_copy(
         update={
             "nutrition": nutrition,
+            "nutrition_skips": [
+                NutritionSkip(
+                    index=record.index,
+                    name=record.name,
+                    code=record.code,
+                    estimated_grams=record.estimated_grams,
+                )
+                for record in records
+            ],
             "ingredients": ingredients,
             "review_status": (
                 RecipeReviewStatus.READY

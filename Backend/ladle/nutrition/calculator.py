@@ -60,9 +60,11 @@ class UncountedIngredient:
 
     Dropping one ingredient beats dropping the recipe: a cook told that the
     curry leaves were not counted still learns what the rest of the dish
-    costs. `estimated_grams` is the normalizer's own figure and is what the
-    coverage floor weighs, because an uncounted pinch of spice and an
-    uncounted chicken are not the same omission.
+    costs. There is no share of the dish that has to match — a stew where
+    only the onion matched shows the onion, and the marker beside the number
+    carries the doubt. `estimated_grams` is the normalizer's own figure,
+    kept because how much went uncounted is worth reporting even though
+    nothing is refused for it.
     """
 
     index: int
@@ -106,12 +108,9 @@ class NutritionCalculator:
         self,
         source: FoodDataSource,
         fallback: FoodDataSource | None = None,
-        *,
-        uncounted_mass_share_limit: Decimal = Decimal("0.25"),
     ) -> None:
         self._source = source
         self._fallback = fallback
-        self._share_limit = uncounted_mass_share_limit
 
     def calculate(self, template: RecipeTemplate) -> TemplateNutrition | None:
         try:
@@ -124,14 +123,18 @@ class NutritionCalculator:
         template: RecipeTemplate,
         *,
         uncounted: list[UncountedIngredient] | None = None,
-    ) -> TemplateNutrition:
+    ) -> TemplateNutrition | None:
         """Cost the recipe, appending what it could not cost to `uncounted`.
 
         The list is an out-parameter rather than part of the return value
         because `TemplateNutrition` goes on the wire, and a caller that does
         not care which ingredients were skipped should not have to unpack a
-        wrapper. It is filled before `insufficientCoverage` is raised, so the
-        blocked path can name the ingredients too.
+        wrapper. It is filled whichever way this ends.
+
+        `None` means nothing matched, so there was nothing to total — the
+        one empty result that is not a failure. The exceptions left are the
+        recipe's own: a yield no serving can be derived from and a recipe
+        with no material ingredients at all.
         """
         if (
             template.nutrition is not None
@@ -147,7 +150,6 @@ class NutritionCalculator:
         records = uncounted if uncounted is not None else []
         totals = [Decimal(0), Decimal(0), Decimal(0), Decimal(0)]
         foods: list[tuple[str, int]] = []
-        counted_grams = Decimal(0)
         material = material_ingredients(template)
         if not material:
             raise NutritionCalculationUnavailable("noMaterialIngredients")
@@ -166,7 +168,6 @@ class NutritionCalculator:
                     )
                 )
                 continue
-            counted_grams += grams
             scale = grams / Decimal(100)
             values = (
                 food.calories_per_100g,
@@ -180,7 +181,8 @@ class NutritionCalculator:
             ]
             foods.append((source_name, food.fdc_id))
 
-        self._require_coverage(records, counted_grams=counted_grams)
+        if not foods:
+            return None
         per_serving = [
             (value / template.servings).quantize(_QUANTUM, rounding=ROUND_HALF_UP)
             for value in totals
@@ -195,30 +197,13 @@ class NutritionCalculator:
             fat_grams=per_serving[3],
             serving_basis=Decimal(1),
             is_estimated=True,
+            # Approximate is not the same claim as estimated. Every
+            # calculated block is estimated; this one is also missing
+            # ingredients, which is what the marker beside the number says.
+            approximate=bool(records),
             basis="usdaCalculated",
             evidence=evidence,
         )
-
-    def _require_coverage(
-        self,
-        records: list[UncountedIngredient],
-        *,
-        counted_grams: Decimal,
-    ) -> None:
-        """Refuse a total that too little of the dish stands behind.
-
-        The measure is mass rather than a count of ingredients because a
-        pinch of curry leaves and half a chicken are not equally missing.
-        Nothing counted at all is refused outright: a recipe whose every
-        ingredient was skipped would otherwise present zero calories as a
-        finding.
-        """
-        uncounted_grams = sum((value.estimated_grams for value in records), Decimal(0))
-        total_grams = counted_grams + uncounted_grams
-        if counted_grams <= 0 or (
-            total_grams > 0 and uncounted_grams / total_grams > self._share_limit
-        ):
-            raise NutritionCalculationUnavailable("insufficientCoverage")
 
     def _matched(
         self,
@@ -381,15 +366,14 @@ def material_ingredients(
 def estimated_grams(ingredient: TemplateIngredient) -> Decimal:
     """The normalizer's own mass estimate, in grams.
 
-    Public because the coverage floor is a tuning decision: the refresh
-    script weighs the same quantity over the real library to report what a
-    given share would block.
+    Public because the refresh script reports how much of a real library
+    goes uncounted, and an ops panel counting misses is worth more when it
+    can say how heavy they were.
 
-    The coverage floor weighs ingredients nothing matched, so it cannot use
-    `_grams`: that needs a food's portion table, which an unmatched
-    ingredient has not got. Normalization writes grams for every ingredient
-    it keeps, and where it did not the ingredient weighs nothing rather than
-    guessing at it.
+    An unmatched ingredient cannot be weighed with `_grams`: that needs a
+    food's portion table, which nothing matched. Normalization writes grams
+    for every ingredient it keeps, and where it did not the ingredient
+    weighs nothing rather than guessing at it.
     """
     if ingredient.metric_amount is not None and ingredient.metric_unit == "g":
         return ingredient.metric_amount

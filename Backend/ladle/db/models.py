@@ -870,6 +870,48 @@ class Nutrition(Base):
     )
     serving_basis: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False)
     is_estimated: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    #: Ingredients were left out of these totals. Separate from
+    #: `is_estimated`, which every calculated panel is: this one says the
+    #: number is also incomplete, and the app marks it with a "≈".
+    approximate: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("false")
+    )
+
+
+class NutritionSkip(Base):
+    """One ingredient a recipe's nutrition could not account for.
+
+    A row per skip rather than a JSON column on `nutrition`, for two
+    reasons. The recipe that matched nothing at all has no `nutrition` row
+    to hang a column off, and that recipe is the most interesting one for
+    the panel this feeds. And the question the panel asks — which foods are
+    missed most often, and on whose recipes — is a `GROUP BY` over rows.
+
+    Rewritten whole for a recipe every time its nutrition is, so the table
+    describes what is missing now, not what ever was.
+    """
+
+    __tablename__ = "nutrition_skips"
+    __table_args__ = (
+        Index("ix_nutrition_skips_recipe_id", "recipe_id"),
+        # The panel's own read: the same food across every recipe.
+        Index("ix_nutrition_skips_ingredient_name", "ingredient_name"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    recipe_id: Mapped[UUID] = mapped_column(
+        Uuid, ForeignKey("recipes.id", ondelete="CASCADE"), nullable=False
+    )
+    ingredient_name: Mapped[str] = mapped_column(Text, nullable=False)
+    #: Which rung of the lookup gave up: `foodNotFound`,
+    #: `ambiguousFoodMatch`, `inconsistentNutrients` or `missingMass`.
+    code: Mapped[str] = mapped_column(String(64), nullable=False)
+    estimated_grams: Mapped[Decimal | None] = mapped_column(
+        Numeric(18, 6), nullable=True
+    )
+    recorded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
 
 
 class OtherNutrient(Base):

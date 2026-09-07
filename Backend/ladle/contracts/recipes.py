@@ -156,6 +156,10 @@ class NutritionDTO(WireModel):
     )
     serving_basis: PositiveRecipeDecimal
     is_estimated: bool
+    #: Some ingredient was left out of these totals. The app shows the
+    #: number with a "≈" and puts the ingredients on the nutrition sheet,
+    #: reading them from the uncertainty notes that already name them.
+    approximate: bool = False
 
 
 class RecipeDTO(WireModel):

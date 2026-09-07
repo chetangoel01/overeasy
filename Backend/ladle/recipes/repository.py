@@ -540,6 +540,7 @@ class RecipeRepository:
                     sodium_milligrams=nutrition.sodium_milligrams,
                     serving_basis=nutrition.serving_basis,
                     is_estimated=nutrition.is_estimated,
+                    approximate=nutrition.approximate,
                 )
             )
             database.flush()
@@ -819,6 +820,7 @@ class RecipeRepository:
             ],
             serving_basis=nutrition.serving_basis,
             is_estimated=nutrition.is_estimated,
+            approximate=nutrition.approximate,
         )
 
     def _image_url(self, image: RecipeImage) -> str:

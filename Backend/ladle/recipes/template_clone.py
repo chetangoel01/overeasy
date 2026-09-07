@@ -1,8 +1,10 @@
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Literal
 from uuid import UUID, uuid4
 
 from pydantic import Field, model_validator
+from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
 from ladle.clock import Clock
@@ -26,6 +28,7 @@ from ladle.db.models import (
     RecipeChange,
     RecipeImage,
 )
+from ladle.db.models import NutritionSkip as NutritionSkipRow
 from ladle.imports.reservations import ReservationService
 from ladle.recipes.repository import RecipeRepository
 from ladle.sync.sequence import allocate_sequence
@@ -67,6 +70,21 @@ class TemplateNutrient(WireModel):
     unit: str = Field(min_length=1)
 
 
+class NutritionSkip(WireModel):
+    """An ingredient the calculator could not cost, kept with the recipe.
+
+    The notes on the ingredient rows are for the cook and read as prose; a
+    panel counting which foods the pipeline keeps missing needs the same
+    facts as data. Carrying them on the template is what gets them from the
+    worker, which has no recipe yet, to the row writer, which does.
+    """
+
+    index: int = Field(ge=0)
+    name: str = Field(min_length=1)
+    code: str = Field(min_length=1)
+    estimated_grams: WireDecimal | None = None
+
+
 class TemplateNutrition(WireModel):
     calories: WireDecimal | None = None
     protein_grams: WireDecimal | None = None
@@ -79,6 +97,7 @@ class TemplateNutrition(WireModel):
     other_nutrients: list[TemplateNutrient] = Field(default_factory=list)
     serving_basis: WireDecimal
     is_estimated: bool
+    approximate: bool = False
     basis: Literal["creatorStated", "usdaCalculated", "unknown"]
     evidence: str | None = None
 
@@ -97,6 +116,7 @@ class RecipeTemplate(WireModel):
     ingredients: list[TemplateIngredient] = Field(default_factory=list)
     steps: list[TemplateStep] = Field(default_factory=list)
     nutrition: TemplateNutrition | None = None
+    nutrition_skips: list[NutritionSkip] = Field(default_factory=list)
     notes: list[str] = Field(default_factory=list)
     review_status: RecipeReviewStatus
     uncertainties: list[FieldUncertaintyDTO] = Field(default_factory=list)
@@ -194,6 +214,7 @@ class RecipeTemplate(WireModel):
                     ],
                     serving_basis=nutrition.serving_basis,
                     is_estimated=nutrition.is_estimated,
+                    approximate=nutrition.approximate,
                     basis=(
                         "usdaCalculated" if nutrition.is_estimated else "creatorStated"
                     ),
@@ -276,6 +297,7 @@ class RecipeTemplate(WireModel):
                     ],
                     serving_basis=nutrition.serving_basis,
                     is_estimated=nutrition.is_estimated,
+                    approximate=nutrition.approximate,
                 )
                 if nutrition is not None
                 else None
@@ -288,6 +310,34 @@ class RecipeTemplate(WireModel):
             created_at=now,
             updated_at=now,
         )
+
+
+def record_nutrition_skips(
+    database: Session,
+    *,
+    recipe_id: UUID,
+    skips: Sequence[NutritionSkip],
+) -> None:
+    """Replace what this recipe's nutrition could not account for.
+
+    Written here rather than with the rest of the graph because the recipe
+    id only exists once the recipe does, and the skips arrive on the
+    template from a worker that had no recipe yet. Replaced whole so a
+    re-import that finally matches an ingredient stops reporting it.
+    """
+    database.execute(
+        delete(NutritionSkipRow).where(NutritionSkipRow.recipe_id == recipe_id)
+    )
+    database.add_all(
+        NutritionSkipRow(
+            id=uuid4(),
+            recipe_id=recipe_id,
+            ingredient_name=skip.name,
+            code=skip.code,
+            estimated_grams=skip.estimated_grams,
+        )
+        for skip in skips
+    )
 
 
 class RecipeTemplateCloner:
@@ -335,6 +385,11 @@ class RecipeTemplateCloner:
         )
         stored.source_video_id = job.source_video_id
         stored.source_cache_id = cache_entry.id
+        record_nutrition_skips(
+            database,
+            recipe_id=recipe_id,
+            skips=template.nutrition_skips,
+        )
         self._attach_thumbnail(
             database,
             recipe_id=recipe_id,
@@ -380,6 +435,11 @@ class RecipeTemplateCloner:
             )
             stored.source_video_id = job.source_video_id
             stored.source_cache_id = None
+            record_nutrition_skips(
+                database,
+                recipe_id=recipe_id,
+                skips=template.nutrition_skips,
+            )
             self._attach_thumbnail(
                 database,
                 recipe_id=recipe_id,
@@ -457,6 +517,11 @@ class RecipeTemplateCloner:
             updated.source_cache_id = (
                 cache_entry.id if cache_entry is not None else None
             )
+            record_nutrition_skips(
+                database,
+                recipe_id=updated.id,
+                skips=template.nutrition_skips,
+            )
             self._attach_thumbnail(
                 database,
                 recipe_id=updated.id,
@@ -497,6 +562,11 @@ class RecipeTemplateCloner:
         stored_candidate.source_video_id = job.source_video_id
         stored_candidate.source_cache_id = (
             cache_entry.id if cache_entry is not None else None
+        )
+        record_nutrition_skips(
+            database,
+            recipe_id=candidate_id,
+            skips=candidate_template.nutrition_skips,
         )
         self._attach_thumbnail(
             database,

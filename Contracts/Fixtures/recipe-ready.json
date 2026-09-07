@@ -34,6 +34,7 @@
   ],
   "isFavorite": false,
   "nutrition": {
+    "approximate": false,
     "calories": "540",
     "carbohydrateGrams": "82.5",
     "fatGrams": "14",

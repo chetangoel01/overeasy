@@ -50,7 +50,7 @@ from ladle.nutrition.service import RecipeNutritionService
 from ladle.nutrition.store import DatabaseUSDAPayloadStore
 from ladle.nutrition.usda import USDAClient
 from ladle.recipes.repository import RecipeRepository
-from ladle.recipes.template_clone import RecipeTemplate
+from ladle.recipes.template_clone import RecipeTemplate, record_nutrition_skips
 from ladle.sync.sequence import allocate_sequence
 
 #: Fields this script owns. Everything else a recipe carries — amount
@@ -91,7 +91,6 @@ def _service(settings: Settings, sessions) -> RecipeNutritionService:
                 store=DatabaseUSDAPayloadStore(session_factory=sessions),
             ),
             fallback=None,
-            uncounted_mass_share_limit=(settings.nutrition_uncounted_mass_share_limit),
         ),
     )
 
@@ -171,8 +170,14 @@ def _replace_nutrition(
                 sodium_milligrams=value.sodium_milligrams,
                 serving_basis=value.serving_basis,
                 is_estimated=value.is_estimated,
+                approximate=value.approximate,
             )
         )
+    record_nutrition_skips(
+        database,
+        recipe_id=recipe_id,
+        skips=template.nutrition_skips,
+    )
     # A note about one ingredient is stored against that ingredient's row,
     # which is what puts it under the row in the app. The template addresses
     # ingredients by position, so the stored ids are read back in the same
@@ -327,12 +332,12 @@ def _coverage(
     template: RecipeTemplate,
     uncounted: list[UncountedIngredient],
 ) -> str:
-    """Counted against uncounted mass, and the share that decides the block.
+    """Counted against uncounted mass, and the share that went missing.
 
-    This is what tunes `nutrition_uncounted_mass_share_limit`: run the dry
-    run over a real library and read the share column. Dropping weak matches
-    enlarges the uncounted set, so a recipe that has calories today can lose
-    them under a strict floor, and this is where that shows up.
+    Nothing is refused for a bad share any more — a recipe is never voided
+    for nutrition reasons. The column is still the honest measure of how
+    much of a library the totals actually describe, which is what says
+    whether the curated table is worth growing.
     """
     skipped = {value.index for value in uncounted}
     counted = sum(
