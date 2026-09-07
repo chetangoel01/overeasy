@@ -74,6 +74,166 @@ enum ProfileEditFailure {
     }
 }
 
+/// The profile edits that go over the wire, and what happens when one fails.
+///
+/// Lifted out of the header so that "the cook can try that again" is an
+/// object with behaviour rather than a button inside an `.alert`. Each
+/// failure carries the request that produced it, so Retry re-issues that
+/// exact save instead of asking the cook to find the control again — and
+/// carries no request where there is nothing to re-issue, which is the case
+/// for a picture the phone could not even open.
+@MainActor
+@Observable
+final class ProfileEditor {
+    struct Failure {
+        let message: String
+        /// Nil when repeating the request could not help: nothing was sent,
+        /// or the answer would be the same one.
+        let retry: (@MainActor () async -> Void)?
+    }
+
+    private let accountSession: AccountSession
+    private let authClient: AuthClient?
+
+    var nameFailure: Failure?
+    var photoFailure: Failure?
+    private(set) var isSavingName = false
+    private(set) var isSavingPhoto = false
+    /// The picture the cook just chose, drawn while it uploads and kept
+    /// afterwards. Kept, because the answer is a URL for the same photo and
+    /// swapping to it would flash the monogram while `AsyncImage` fetched it.
+    private(set) var pendingPhoto: UIImage?
+
+    init(accountSession: AccountSession, authClient: AuthClient?) {
+        self.accountSession = accountSession
+        self.authClient = authClient
+    }
+
+    func saveName(_ name: String) async {
+        guard let authClient else {
+            // Demo and UI-test builds have no backend, the way the sign-in
+            // flow has none; the header still edits.
+            applyLocally(
+                displayName: name.isEmpty ? nil : name,
+                avatarURL: accountSession.profile?.avatarURL,
+                avatarIsCustom: accountSession.profile?.avatarIsCustom
+                    ?? false
+            )
+            return
+        }
+        isSavingName = true
+        defer { isSavingName = false }
+        do {
+            try await authClient.updateProfile(displayName: name)
+            nameFailure = nil
+        } catch {
+            // The name shown comes from the session, which the failed
+            // request never touched, so it has already reverted.
+            nameFailure = Failure(
+                message: ProfileEditFailure.name(error),
+                retry: Self.retry(after: error) { [weak self] in
+                    await self?.saveName(name)
+                }
+            )
+        }
+    }
+
+    /// Show the picture, then send it.
+    ///
+    /// The picture appears at once and the upload runs behind it: a cook who
+    /// has just chosen a photo should not watch the old one for a round trip.
+    /// A failure puts the old one back, which is what the alert says happened.
+    func savePhoto(_ jpeg: Data, showing image: UIImage) async {
+        pendingPhoto = image
+        guard let authClient else {
+            // The photo lands on the session from a file, so the whole menu
+            // — Remove Photo included — is still walkable without a backend.
+            applyPhotoLocally(jpeg)
+            return
+        }
+        isSavingPhoto = true
+        defer { isSavingPhoto = false }
+        do {
+            try await authClient.uploadAvatar(jpeg)
+            photoFailure = nil
+        } catch {
+            pendingPhoto = nil
+            photoFailure = Failure(
+                message: ProfileEditFailure.photo(error),
+                retry: Self.retry(after: error) { [weak self] in
+                    await self?.savePhoto(jpeg, showing: image)
+                }
+            )
+        }
+    }
+
+    func removePhoto() async {
+        let restored = pendingPhoto
+        pendingPhoto = nil
+        guard let authClient else {
+            applyLocally(
+                displayName: accountSession.profile?.displayName,
+                avatarURL: nil,
+                avatarIsCustom: false
+            )
+            return
+        }
+        isSavingPhoto = true
+        defer { isSavingPhoto = false }
+        do {
+            try await authClient.removeAvatar()
+            photoFailure = nil
+        } catch {
+            pendingPhoto = restored
+            photoFailure = Failure(
+                message: ProfileEditFailure.photo(error),
+                retry: Self.retry(after: error) { [weak self] in
+                    await self?.removePhoto()
+                }
+            )
+        }
+    }
+
+    /// A picture that never reached the network: one in iCloud that would not
+    /// download, a format no `UIImage` can read, or one JPEG encoding refused.
+    func reportUnusablePicture(_ message: String) {
+        photoFailure = Failure(message: message, retry: nil)
+    }
+
+    private static func retry(
+        after error: any Error,
+        _ operation: @escaping @MainActor () async -> Void
+    ) -> (@MainActor () async -> Void)? {
+        RemoteFailure(error).canRetry() ? operation : nil
+    }
+
+    private func applyPhotoLocally(_ jpeg: Data) {
+        let file = URL.temporaryDirectory
+            .appending(path: "profile-photo-\(UUID().uuidString).jpg")
+        try? jpeg.write(to: file, options: .atomic)
+        applyLocally(
+            displayName: accountSession.profile?.displayName,
+            avatarURL: file,
+            avatarIsCustom: true
+        )
+    }
+
+    private func applyLocally(
+        displayName: String?,
+        avatarURL: URL?,
+        avatarIsCustom: Bool
+    ) {
+        accountSession.applyProfile(
+            AccountProfile(
+                displayName: displayName,
+                avatarURL: avatarURL,
+                avatarIsCustom: avatarIsCustom,
+                createdAt: accountSession.profile?.createdAt
+            )
+        )
+    }
+}
+
 /// The cook, at the top of Profile.
 ///
 /// iOS puts the person first — the Apple ID row is the first thing in
@@ -114,22 +274,15 @@ struct AccountHeaderView: View {
     var authClient: AuthClient?
 
     @State private var flow: AccountSignInFlow
+    @State private var editor: ProfileEditor
     @State private var isSignInPresented = false
     @State private var isEditingName = false
     @State private var draftName = ""
-    @State private var isSavingName = false
-    @State private var nameFailure: String?
     @FocusState private var isNameFocused: Bool
 
     @State private var isChoosingPhoto = false
     @State private var isTakingPhoto = false
     @State private var pickedItem: PhotosPickerItem?
-    /// The picture the cook just chose, drawn while it uploads and kept
-    /// afterwards. Kept, because the answer is a URL for the same photo and
-    /// swapping to it would flash the monogram while `AsyncImage` fetched it.
-    @State private var pendingPhoto: UIImage?
-    @State private var isSavingPhoto = false
-    @State private var photoFailure: String?
 
     init(
         accountSession: AccountSession,
@@ -147,6 +300,12 @@ struct AccountHeaderView: View {
                 authClient: authClient,
                 googleSignIn: googleSignIn,
                 onAuthenticated: onAuthenticated
+            )
+        )
+        _editor = State(
+            initialValue: ProfileEditor(
+                accountSession: accountSession,
+                authClient: authClient
             )
         )
     }
@@ -181,27 +340,36 @@ struct AccountHeaderView: View {
                 isSignInPresented = false
             }
         }
+        // Try Again re-sends the save that failed. Offered only where that
+        // could help — a 5xx from us — and always beside the way out, so an
+        // alert is never the end of the road it used to be.
         .alert(
             "Name couldn’t be saved",
             isPresented: Binding(
-                get: { nameFailure != nil },
-                set: { if !$0 { nameFailure = nil } }
+                get: { editor.nameFailure != nil },
+                set: { if !$0 { editor.nameFailure = nil } }
             )
         ) {
+            if let retry = editor.nameFailure?.retry {
+                Button("Try Again") { Task { await retry() } }
+            }
             Button("OK", role: .cancel) {}
         } message: {
-            Text(nameFailure ?? "Please try again.")
+            Text(editor.nameFailure?.message ?? "Please try again.")
         }
         .alert(
             "Photo couldn’t be saved",
             isPresented: Binding(
-                get: { photoFailure != nil },
-                set: { if !$0 { photoFailure = nil } }
+                get: { editor.photoFailure != nil },
+                set: { if !$0 { editor.photoFailure = nil } }
             )
         ) {
+            if let retry = editor.photoFailure?.retry {
+                Button("Try Again") { Task { await retry() } }
+            }
             Button("OK", role: .cancel) {}
         } message: {
-            Text(photoFailure ?? "Please try again.")
+            Text(editor.photoFailure?.message ?? "Please try again.")
         }
         .photosPicker(
             isPresented: $isChoosingPhoto,
@@ -221,8 +389,9 @@ struct AccountHeaderView: View {
                 else {
                     // A picture in iCloud that would not download, or a
                     // format no `UIImage` can read.
-                    photoFailure =
+                    editor.reportUnusablePicture(
                         "Your photo is unchanged. That picture couldn’t be opened."
+                    )
                     return
                 }
                 choosePhoto(image)
@@ -324,13 +493,13 @@ struct AccountHeaderView: View {
                                 ? LadleTheme.Label.secondary
                                 : LadleTheme.Label.primary
                         )
-                    if isSavingName {
+                    if editor.isSavingName {
                         ProgressView()
                     }
                 }
             }
             .buttonStyle(.plain)
-            .disabled(isSavingName)
+            .disabled(editor.isSavingName)
             .accessibilityIdentifier("account.profile.name")
             .accessibilityHint("Edit the name shown on your account")
         }
@@ -376,7 +545,7 @@ struct AccountHeaderView: View {
             avatar
         }
         .buttonStyle(.plain)
-        .disabled(isSavingPhoto)
+        .disabled(editor.isSavingPhoto)
         .accessibilityLabel("Profile picture options")
         .accessibilityIdentifier("account.profile.avatar")
     }
@@ -385,7 +554,7 @@ struct AccountHeaderView: View {
         Group {
             if avatarStyle != AvatarStyle.photo.rawValue {
                 monogram
-            } else if let pendingPhoto {
+            } else if let pendingPhoto = editor.pendingPhoto {
                 circle(Image(uiImage: pendingPhoto))
             } else if let photoURL {
                 AsyncImage(url: photoURL) { image in
@@ -398,7 +567,7 @@ struct AccountHeaderView: View {
             }
         }
         .overlay {
-            if isSavingPhoto {
+            if editor.isSavingPhoto {
                 ProgressView()
                     .frame(
                         width: Self.avatarDiameter,
@@ -498,14 +667,15 @@ struct AccountHeaderView: View {
     }
 
     private var hasPhoto: Bool {
-        pendingPhoto != nil || photoURL != nil
+        editor.pendingPhoto != nil || photoURL != nil
     }
 
     /// Whether the picture on screen is one the cook chose rather than one a
     /// provider supplied. `pendingPhoto` counts: they have just picked it, and
     /// the offer to take it away must not wait for a round trip.
     private var isPhotoTheCooks: Bool {
-        pendingPhoto != nil || accountSession.profile?.avatarIsCustom == true
+        editor.pendingPhoto != nil
+            || accountSession.profile?.avatarIsCustom == true
     }
 
     private var displayedName: String {
@@ -517,78 +687,23 @@ struct AccountHeaderView: View {
         isEditingName = true
     }
 
-    /// Crop, downscale, show, then send.
-    ///
-    /// The picture appears at once and the upload runs behind it: a cook who
-    /// has just chosen a photo should not watch the old one for a round trip.
-    /// A failure puts the old one back, which is what the alert says happened.
+    /// Crop, downscale, then hand it to the editor, which shows it and sends
+    /// it.
     private func choosePhoto(_ image: UIImage) {
         guard let jpeg = ProfilePhoto.jpeg(from: image) else {
-            photoFailure =
+            editor.reportUnusablePicture(
                 "Your photo is unchanged. That picture couldn’t be prepared."
+            )
             return
         }
-        pendingPhoto = image
         // A cook showing initials who then picks a photo means to see it;
         // leaving the toggle alone would look like nothing happened.
         avatarStyle = AvatarStyle.photo.rawValue
-        guard let authClient else {
-            // Demo and UI-test builds have no backend, the way the sign-in
-            // flow has none. The photo lands on the session from a file, so
-            // the whole menu — Remove Photo included — is still walkable.
-            applyPhotoLocally(jpeg)
-            return
-        }
-        isSavingPhoto = true
-        Task { @MainActor in
-            defer { isSavingPhoto = false }
-            do {
-                try await authClient.uploadAvatar(jpeg)
-            } catch {
-                pendingPhoto = nil
-                photoFailure = ProfileEditFailure.photo(error)
-            }
-        }
+        Task { await editor.savePhoto(jpeg, showing: image) }
     }
 
     private func removePhoto() {
-        let restored = pendingPhoto
-        pendingPhoto = nil
-        guard let authClient else {
-            accountSession.applyProfile(
-                AccountProfile(
-                    displayName: accountSession.profile?.displayName,
-                    avatarURL: nil,
-                    avatarIsCustom: false,
-                    createdAt: accountSession.profile?.createdAt
-                )
-            )
-            return
-        }
-        isSavingPhoto = true
-        Task { @MainActor in
-            defer { isSavingPhoto = false }
-            do {
-                try await authClient.removeAvatar()
-            } catch {
-                pendingPhoto = restored
-                photoFailure = ProfileEditFailure.photo(error)
-            }
-        }
-    }
-
-    private func applyPhotoLocally(_ jpeg: Data) {
-        let file = URL.temporaryDirectory
-            .appending(path: "profile-photo-\(UUID().uuidString).jpg")
-        try? jpeg.write(to: file, options: .atomic)
-        accountSession.applyProfile(
-            AccountProfile(
-                displayName: accountSession.profile?.displayName,
-                avatarURL: file,
-                avatarIsCustom: true,
-                createdAt: accountSession.profile?.createdAt
-            )
-        )
+        Task { await editor.removePhoto() }
     }
 
     private func submitName() {
@@ -600,30 +715,6 @@ struct AccountHeaderView: View {
         guard trimmed != (accountSession.profile?.displayName ?? "") else {
             return
         }
-        guard let authClient else {
-            // Demo and UI-test builds have no backend, the way the sign-in
-            // flow has none; the header still edits.
-            accountSession.applyProfile(
-                AccountProfile(
-                    displayName: trimmed.isEmpty ? nil : trimmed,
-                    avatarURL: photoURL,
-                    avatarIsCustom:
-                        accountSession.profile?.avatarIsCustom ?? false,
-                    createdAt: accountSession.profile?.createdAt
-                )
-            )
-            return
-        }
-        isSavingName = true
-        Task { @MainActor in
-            defer { isSavingName = false }
-            do {
-                try await authClient.updateProfile(displayName: trimmed)
-            } catch {
-                // The name shown comes from the session, which the failed
-                // request never touched, so it has already reverted.
-                nameFailure = ProfileEditFailure.name(error)
-            }
-        }
+        Task { await editor.saveName(trimmed) }
     }
 }
