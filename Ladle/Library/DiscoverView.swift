@@ -480,10 +480,63 @@ final class DiscoverViewModel {
 
 }
 
+/// The recipe page's handle on the Discover card's save path. The page is
+/// pushed by the library, which cannot see the feed's view model, so the feed
+/// hands this up with the recipe: the same `save`, the same optimistic
+/// bookkeeping, the same failure report — plus the one thing the page adds,
+/// which is that a landed save turns the preview into the saved copy the cook
+/// goes on reading.
+@MainActor
+@Observable
+final class DiscoverSaveModel {
+    /// The feed row this page was opened from. A Discover preview's recipe id
+    /// is this `sourceID`, which is how the library matches the two up.
+    let source: DiscoverRecipe
+
+    private let viewModel: DiscoverViewModel
+    private let didSave: (SavedDiscoverRecipe) -> Void
+
+    /// `.discover` until the save lands. The page follows this rather than the
+    /// access it was pushed with.
+    private(set) var access: LibraryRecipeAccess = .discover
+
+    init(
+        source: DiscoverRecipe,
+        viewModel: DiscoverViewModel,
+        didSave: @escaping (SavedDiscoverRecipe) -> Void
+    ) {
+        self.source = source
+        self.viewModel = viewModel
+        self.didSave = didSave
+    }
+
+    var isSaving: Bool { viewModel.isSaving(source) }
+
+    /// Watch leaves a saved page in its feed, so a page can open for a source
+    /// that is already saved. The shared path drops a second save for one, so
+    /// the control says Saved rather than offering a request that goes
+    /// nowhere.
+    var isSaved: Bool { access == .saved || viewModel.isSaved(source) }
+
+    var failure: RemoteFailureReport? { viewModel.saveFailure(for: source) }
+
+    @discardableResult
+    func save() async -> SavedDiscoverRecipe? {
+        guard let saved = await viewModel.save(source) else { return nil }
+        // Stored before the flip: the library has to be holding the recipe by
+        // the time the favourite and options controls appear for it.
+        didSave(saved)
+        access = .saved
+        return saved
+    }
+}
+
 struct DiscoverView: View {
     @State private var viewModel: DiscoverViewModel
     let saveRecipe: (SavedDiscoverRecipe) -> Void
-    let openRecipe: (Recipe) -> Void
+    /// The detail page goes up with the save path behind it, because the page
+    /// is pushed by the library and Save there has to be this feed's Save.
+    let openRecipe: (Recipe, DiscoverSaveModel) -> Void
     /// Discover owns its view model, so the library above it cannot watch
     /// the feed. This reports the one thing it needs: the first page never
     /// arrived, and there is nothing cached to show instead.
@@ -502,7 +555,7 @@ struct DiscoverView: View {
     init(
         service: any DiscoverServing,
         saveRecipe: @escaping (SavedDiscoverRecipe) -> Void,
-        openRecipe: @escaping (Recipe) -> Void,
+        openRecipe: @escaping (Recipe, DiscoverSaveModel) -> Void,
         onInitialLoadFailed: @escaping () -> Void = {}
     ) {
         _viewModel = State(
@@ -683,7 +736,14 @@ struct DiscoverView: View {
     private func open(_ recipe: DiscoverRecipe) {
         Task {
             if let detail = await viewModel.detail(for: recipe) {
-                openRecipe(detail)
+                openRecipe(
+                    detail,
+                    DiscoverSaveModel(
+                        source: recipe,
+                        viewModel: viewModel,
+                        didSave: saveRecipe
+                    )
+                )
             }
         }
     }

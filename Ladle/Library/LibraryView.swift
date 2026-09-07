@@ -431,12 +431,8 @@ struct LibraryView: View {
             discoverService: discoverService,
             refreshVersion: watchRefreshVersion,
             openSavedRecipe: openRecipe,
-            openDiscoverRecipe: { recipe in
-                showRecipe(
-                    recipe,
-                    statusText: "Discover recipe",
-                    access: .discover
-                )
+            openDiscoverRecipe: { recipe, save in
+                showDiscoverRecipe(recipe, save: save)
             },
             saveRecipe: { saved in
                 viewModel.storeDiscoveredRecipe(saved)
@@ -487,12 +483,8 @@ struct LibraryView: View {
             saveRecipe: { saved in
                 viewModel.storeDiscoveredRecipe(saved)
             },
-            openRecipe: { recipe in
-                showRecipe(
-                    recipe,
-                    statusText: "Discover recipe",
-                    access: .discover
-                )
+            openRecipe: { recipe, save in
+                showDiscoverRecipe(recipe, save: save)
             },
             onInitialLoadFailed: fallBackToRecipesIfNeeded
         )
@@ -561,6 +553,7 @@ struct LibraryView: View {
             completeReview: viewModel.completeReview,
             deleteRecipe: viewModel.deleteRecipe,
             access: destination.access,
+            discoverSave: destination.discoverSave,
             openAccount: { isAccountPresented = true }
         )
     }
@@ -574,17 +567,31 @@ struct LibraryView: View {
         showRecipe(recipe, statusText: "Saved recipe")
     }
 
+    private func showDiscoverRecipe(
+        _ recipe: Recipe,
+        save: DiscoverSaveModel
+    ) {
+        showRecipe(
+            recipe,
+            statusText: "Discover recipe",
+            access: .discover,
+            discoverSave: save
+        )
+    }
+
     private func showRecipe(
         _ recipe: Recipe,
         statusText: String,
-        access: LibraryRecipeAccess = .saved
+        access: LibraryRecipeAccess = .saved,
+        discoverSave: DiscoverSaveModel? = nil
     ) {
         navigation.open(
             .recipe(
                 .init(
                     recipe: recipe,
                     statusText: statusText,
-                    access: access
+                    access: access,
+                    discoverSave: discoverSave
                 )
             )
         )
@@ -780,15 +787,41 @@ struct LibraryRecipeDestination: Hashable {
     let recipe: Recipe
     let statusText: String
     let access: LibraryRecipeAccess
+    /// The Discover feed's save path for this page, carried by the value the
+    /// stack pushes rather than looked up beside it: the page and the path it
+    /// saves through arrive in one piece, so the page can never be built
+    /// without it.
+    ///
+    /// It takes no part in equality or hashing. A destination names a page,
+    /// and the same page reached twice is the same destination however it
+    /// was reached.
+    let discoverSave: DiscoverSaveModel?
 
     init(
         recipe: Recipe,
         statusText: String,
-        access: LibraryRecipeAccess = .saved
+        access: LibraryRecipeAccess = .saved,
+        discoverSave: DiscoverSaveModel? = nil
     ) {
         self.recipe = recipe
         self.statusText = statusText
         self.access = access
+        self.discoverSave = discoverSave
+    }
+
+    static func == (
+        lhs: LibraryRecipeDestination,
+        rhs: LibraryRecipeDestination
+    ) -> Bool {
+        lhs.recipe == rhs.recipe
+            && lhs.statusText == rhs.statusText
+            && lhs.access == rhs.access
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(recipe)
+        hasher.combine(statusText)
+        hasher.combine(access)
     }
 }
 

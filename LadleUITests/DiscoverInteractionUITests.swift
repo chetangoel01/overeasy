@@ -60,6 +60,39 @@ final class DiscoverInteractionUITests: XCTestCase {
         let account = app.buttons["Account"]
         XCTAssertTrue(account.waitForExistence(timeout: 3))
         XCTAssertFalse(app.buttons["Recipe options"].exists)
+
+        // #88: the page carries the card's own Save, and saving on it stays
+        // on it. The read-only preview becomes the saved copy in place —
+        // the library's controls arrive without the cook going anywhere.
+        let save = app.buttons["recipe.save"]
+        XCTAssertTrue(save.waitForExistence(timeout: 2))
+        XCTAssertTrue(
+            save.label.hasPrefix("Save "),
+            "The control offers the save before it is made: \(save.label)"
+        )
+        save.tap()
+        XCTAssertTrue(
+            app.buttons["Recipe options"].waitForExistence(timeout: 3),
+            "A saved page carries the favourite and options controls"
+        )
+        XCTAssertTrue(
+            save.label.hasSuffix(" saved"),
+            "The control reads Saved once it is: \(save.label)"
+        )
+        XCTAssertFalse(save.isEnabled)
+        XCTAssertTrue(
+            account.exists,
+            "Saving leaves the cook on the recipe they were reading"
+        )
+        attachScreenshot(of: app, named: "Discover recipe saved in place")
+
+        // Each tab keeps its own stack, so a trip to Recipes and back returns
+        // to the same page — still the saved copy, not the preview again.
+        app.tabBars.buttons["Recipes"].tap()
+        app.tabBars.buttons["Discover"].tap()
+        XCTAssertTrue(save.waitForExistence(timeout: 2))
+        XCTAssertTrue(save.label.hasSuffix(" saved"))
+        XCTAssertTrue(app.buttons["Recipe options"].exists)
     }
 
     /// The header is the reason `-account-state` exists: until it did, no UI

@@ -34,7 +34,9 @@ struct WatchView: View {
     @Bindable var viewModel: LibraryViewModel
     let refreshVersion: Int
     let openSavedRecipe: (Recipe) -> Void
-    let openDiscoverRecipe: (Recipe) -> Void
+    /// The page goes up with the save path behind it, so Save on the pushed
+    /// recipe page is this feed's Save.
+    let openDiscoverRecipe: (Recipe, DiscoverSaveModel) -> Void
     let saveRecipe: (SavedDiscoverRecipe) -> Void
 
     @State private var discoverViewModel: DiscoverViewModel
@@ -50,7 +52,7 @@ struct WatchView: View {
         discoverService: any DiscoverServing,
         refreshVersion: Int,
         openSavedRecipe: @escaping (Recipe) -> Void,
-        openDiscoverRecipe: @escaping (Recipe) -> Void,
+        openDiscoverRecipe: @escaping (Recipe, DiscoverSaveModel) -> Void,
         saveRecipe: @escaping (SavedDiscoverRecipe) -> Void,
     ) {
         self.viewModel = viewModel
@@ -203,7 +205,14 @@ struct WatchView: View {
         }
         Task {
             if let detail = await discoverViewModel.detail(for: discovered) {
-                openDiscoverRecipe(detail)
+                openDiscoverRecipe(
+                    detail,
+                    DiscoverSaveModel(
+                        source: discovered,
+                        viewModel: discoverViewModel,
+                        didSave: saveRecipe
+                    )
+                )
             }
         }
     }
