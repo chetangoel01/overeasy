@@ -159,6 +159,13 @@ The red is sharper than the assertion it was written for. Before the fix the
 row could not name its own recipe, so the test never got as far as tapping
 it; `title(for:)` reads through the same `reviewRecipeID`.
 
+Full UI suite, because a needs-review row now renders and routes differently:
+
+```
+-only-testing:LadleUITests
+Executed 29 tests, with 0 failures (0 unexpected) in 555.396 seconds
+```
+
 ## Files
 
 | File | Change |
@@ -172,8 +179,10 @@ No file was added or removed, so `xcodegen generate` was not needed and
 
 ## How this was verified
 
-Debug builds of the `LadleAllTests` scheme on a clean iPhone 17 Pro, iOS 26.5
-simulator created for this run and deleted afterwards. The house simulator
-`54720038-6397-4145-B02F-8C9B639C69FE` is the same model and runtime, but two
-other agents were driving it at the time and the UI test died with "Test
-crashed with signal kill" until it had a device to itself.
+Debug builds of the `LadleAllTests` scheme. The unit red run and the first
+green run were on the house simulator
+`54720038-6397-4145-B02F-8C9B639C69FE` (iPhone 17 Pro, iOS 26.5). Every UI
+run and the full 466-test unit suite were on a clean iPhone 17 Pro, iOS 26.5
+simulator created for this work and deleted afterwards: two other agents were
+driving the house device at the time, and the UI test died with "Test crashed
+with signal kill" until it had a simulator to itself.
