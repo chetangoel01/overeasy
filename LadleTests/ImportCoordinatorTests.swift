@@ -2486,6 +2486,44 @@ final class ImportCoordinatorTests: XCTestCase {
         }
     }
 
+    func testUnknownFailureCodeWearsTheGenericFailuresWords() {
+        let unknown = ImportOperationFailure(
+            jobID: UUID(),
+            reason: .unrecognized("someCodeFromALaterServer")
+        )
+
+        XCTAssertEqual(
+            unknown.title,
+            ImportFailure.parserUnavailable.recoveryTitle
+        )
+        XCTAssertEqual(
+            unknown.message,
+            ImportFailure.parserUnavailable.recoveryMessage
+        )
+        XCTAssertEqual(unknown.retryAvailability(), .available)
+        XCTAssertFalse(unknown.message.contains("someCodeFromALaterServer"))
+    }
+
+    func testPhotoPostFailureAsksForTheRecipeRatherThanBlamingThePost() {
+        let jobID = UUID()
+        let photo = ImportOperationFailure(
+            jobID: jobID,
+            reason: .photoPostNeedsManualEntry
+        )
+        let generic = ImportOperationFailure(
+            jobID: jobID,
+            reason: .insufficientTextEvidence
+        )
+
+        XCTAssertEqual(photo.title, "The recipe is in the pictures")
+        XCTAssertEqual(
+            photo.message,
+            "Overeasy read the caption and it didn’t hold the recipe. Paste it from the post, or type it in."
+        )
+        XCTAssertNotEqual(photo.title, generic.title)
+        XCTAssertNotEqual(photo.message, generic.message)
+    }
+
     private func makeCoordinator(
         repository: ImportTestRepository,
         accountSession: AccountSession = AccountSession(

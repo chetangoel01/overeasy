@@ -1268,6 +1268,8 @@ extension ImportFailure {
             "Couldn't read the recipe"
         case .insufficientTextEvidence:
             "More recipe detail needed"
+        case .photoPostNeedsManualEntry:
+            "The recipe is in the pictures"
         case .quotaExceeded:
             "Processing limit reached"
         }
@@ -1289,6 +1291,8 @@ extension ImportFailure {
             "Overeasy couldn’t read the recipe. Retry, add a note, paste details, or create it manually."
         case .insufficientTextEvidence:
             "The post lacks enough written detail. Paste the recipe or create it manually."
+        case .photoPostNeedsManualEntry:
+            "Overeasy read the caption and it didn’t hold the recipe. Paste it from the post, or type it in."
         case .quotaExceeded:
             "Processing capacity is exhausted. Retry after your quota or provider capacity resets. The saved link is safe."
         }

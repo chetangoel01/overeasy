@@ -53,6 +53,14 @@ struct ImportJobTests {
     }
 
     @Test
+    func photoPostNeedsManualEntryHasAStableWireValue() {
+        #expect(
+            ImportFailure.photoPostNeedsManualEntry.rawValue
+                == "photoPostNeedsManualEntry"
+        )
+    }
+
+    @Test
     func aFailureCodeThisBuildDoesNotKnowDecodesInsteadOfThrowing() throws {
         let decoded = try JSONDecoder().decode(
             ImportFailure.self,
@@ -102,6 +110,7 @@ struct ImportJobTests {
         let known: [ImportFailure] = [
             .parserUnavailable,
             .insufficientTextEvidence,
+            .photoPostNeedsManualEntry,
             .privateOrDeleted,
             .unsupportedSource,
             .invalidURL,

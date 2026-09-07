@@ -13,6 +13,10 @@ import Foundation
 public enum ImportFailure: Codable, Error, Hashable, Sendable {
     case parserUnavailable
     case insufficientTextEvidence
+    /// A photo post whose caption held no recipe. Distinct from the general
+    /// case because the post is not the problem: the recipe is in pictures
+    /// nothing here reads, so the way out is the cook, not another attempt.
+    case photoPostNeedsManualEntry
     case privateOrDeleted
     case unsupportedSource
     case invalidURL
@@ -25,6 +29,7 @@ public enum ImportFailure: Codable, Error, Hashable, Sendable {
         switch self {
         case .parserUnavailable: "parserUnavailable"
         case .insufficientTextEvidence: "insufficientTextEvidence"
+        case .photoPostNeedsManualEntry: "photoPostNeedsManualEntry"
         case .privateOrDeleted: "privateOrDeleted"
         case .unsupportedSource: "unsupportedSource"
         case .invalidURL: "invalidURL"
@@ -39,6 +44,7 @@ public enum ImportFailure: Codable, Error, Hashable, Sendable {
         switch rawValue {
         case "parserUnavailable": self = .parserUnavailable
         case "insufficientTextEvidence": self = .insufficientTextEvidence
+        case "photoPostNeedsManualEntry": self = .photoPostNeedsManualEntry
         case "privateOrDeleted": self = .privateOrDeleted
         case "unsupportedSource": self = .unsupportedSource
         case "invalidURL": self = .invalidURL
