@@ -106,6 +106,41 @@ final class HealthExportViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.canRetry)
     }
 
+    func testAnIncompletePanelIsStillExportedAndStillSaysSo() async {
+        // Health keeps the number long after the recipe screen is closed, so
+        // the marker has to survive the scale that gets it there — but a
+        // total short by a spice blend is still the best figure anyone has,
+        // and the export is never blocked for it.
+        let service = FakeHealthService()
+        let viewModel = makeViewModel(
+            service: service,
+            nutrition: Nutrition(
+                calories: 520,
+                proteinGrams: 22,
+                servingBasis: 1,
+                isEstimated: true,
+                approximate: true
+            )
+        )
+
+        viewModel.selectedServings = 2
+        XCTAssertTrue(viewModel.payload.approximate)
+        XCTAssertEqual(viewModel.payload.amount(for: .calories), 1_040)
+
+        await viewModel.confirmExport()
+
+        let snapshot = await service.snapshot()
+        XCTAssertEqual(snapshot.writtenPayloads.count, 1)
+        XCTAssertEqual(snapshot.writtenPayloads.first?.approximate, true)
+    }
+
+    func testACompletePanelCarriesNoMarkerEvenWhenEstimated() async {
+        let viewModel = makeViewModel(service: FakeHealthService())
+
+        XCTAssertTrue(viewModel.payload.isEstimated)
+        XCTAssertFalse(viewModel.payload.approximate)
+    }
+
     private func makeViewModel(
         service: FakeHealthService,
         nutrition: Nutrition = Nutrition(

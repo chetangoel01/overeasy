@@ -8,11 +8,17 @@ struct HealthExportSheet: View {
 
     @State private var viewModel: HealthExportViewModel
 
+    /// What the totals leave out, in the nutrition sheet's own words. The
+    /// same string, not a second one written here.
+    private let uncountedNote: String?
+
     init(
         recipeTitle: String,
         nutrition: Nutrition,
+        uncountedNote: String? = nil,
         service: any HealthService
     ) {
+        self.uncountedNote = uncountedNote
         _viewModel = State(
             initialValue: HealthExportViewModel(
                 recipeTitle: recipeTitle,
@@ -59,6 +65,7 @@ struct HealthExportSheet: View {
                 header
                 servingPicker
                 exportPreview
+                approximateNote
                 permissionNote
 
                 Button {
@@ -167,6 +174,34 @@ struct HealthExportSheet: View {
             }
             .padding(.horizontal, LadleTheme.Layout.cardPadding)
             .ladleCard()
+        }
+    }
+
+    /// A panel missing an ingredient still exports — it is the best figure
+    /// anyone has, and refusing to write it would leave the day emptier than
+    /// it was. But Apple Health keeps a number long after the recipe screen
+    /// is closed, so the one place the export can be declined is the last
+    /// place the shortfall can be read.
+    @ViewBuilder
+    private var approximateNote: some View {
+        if viewModel.payload.approximate {
+            Label(
+                uncountedNote
+                    ?? "Some ingredients could not be counted, so these values are low.",
+                systemImage: "exclamationmark.circle"
+            )
+            .ladleFont(.metadata)
+            .foregroundStyle(LadleTheme.Label.primary.opacity(0.64))
+            .padding(LadleTheme.Layout.cardPadding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                LadleTheme.Surface.steel,
+                in: RoundedRectangle(
+                    cornerRadius: LadleTheme.Corner.card,
+                    style: .continuous
+                )
+            )
+            .accessibilityIdentifier("health.export.uncounted")
         }
     }
 
@@ -287,10 +322,10 @@ struct HealthExportSheet: View {
     }
 
     private func metricText(_ metric: HealthExportMetric) -> String {
-        let prefix = (
-            metric.kind == .calories && viewModel.payload.isEstimated
-        ) ? "≈ " : ""
-        return "\(prefix)\(decimalText(metric.amount)) \(metric.kind.unitSymbol)"
+        ladleApproximate(
+            "\(decimalText(metric.amount)) \(metric.kind.unitSymbol)",
+            when: metric.kind == .calories && viewModel.payload.approximate
+        )
     }
 
     private func decimalText(_ value: Decimal) -> String {
