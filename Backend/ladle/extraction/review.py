@@ -7,6 +7,7 @@ from ladle.contracts.recipes import (
     RecipeReviewStatus,
     RecipeSource,
 )
+from ladle.contracts.tags import split_keywords
 from ladle.extraction.models import RecipeExtraction
 from ladle.recipes.template_clone import (
     RecipeTemplate,
@@ -271,6 +272,11 @@ def build_reviewed_template(
         else None
     )
 
+    # The one place a keyword becomes either filterable or a proposal. Tags
+    # are never a reason to review: a wrong cuisine narrows a browse, it does
+    # not mislead somebody cooking from the recipe.
+    keywords, keyword_proposals = split_keywords(extraction.keywords)
+
     review_status = (
         RecipeReviewStatus.NEEDS_REVIEW if blocking else RecipeReviewStatus.READY
     )
@@ -288,6 +294,10 @@ def build_reviewed_template(
         ingredients=ingredients,
         steps=steps,
         nutrition=template_nutrition,
+        diets=list(extraction.diets),
+        cuisines=list(extraction.cuisines),
+        keywords=keywords,
+        keyword_proposals=keyword_proposals,
         notes=[note for note in (n.strip() for n in extraction.notes) if note],
         review_status=review_status,
         uncertainties=uncertainties,

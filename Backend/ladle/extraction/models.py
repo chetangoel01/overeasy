@@ -7,6 +7,7 @@ from pydantic import BeforeValidator, Field
 
 from ladle.contracts.common import WireModel
 from ladle.contracts.recipes import FieldUncertaintyDTO
+from ladle.contracts.tags import CuisineTag, DietTag, coerce_tags
 
 # "1/2", "2/3", "1 1/2" — how recipes are actually written, and so how models
 # write them back. Pydantic rejects them as decimals, and because a rejected
@@ -73,6 +74,19 @@ def _as_decimal(value: Fraction) -> Decimal:
 
 #: A decimal that also accepts the fractions recipes are written in.
 RecipeDecimal = Annotated[Decimal, BeforeValidator(_decimal_from_fraction)]
+
+#: Diets and cuisines as the model wrote them, folded onto the closed lists.
+#: A bare `list[DietTag]` would reject the payload over one invented tag, and
+#: an entire recipe is not worth a stray "keto" — the same trade the fraction
+#: parser above makes.
+ExtractedDiets = Annotated[
+    list[DietTag],
+    BeforeValidator(lambda value: coerce_tags(DietTag, value)),
+]
+ExtractedCuisines = Annotated[
+    list[CuisineTag],
+    BeforeValidator(lambda value: coerce_tags(CuisineTag, value)),
+]
 
 
 class ExtractedIngredient(WireModel):
@@ -166,6 +180,17 @@ class RecipeExtraction(WireModel):
     # reconstruct one. "inferred" always forces human review.
     method_provenance: MethodProvenance = "explicit"
     nutrition: ExtractedNutrition | None = None
+    # What the dish is, for the cook who is filtering rather than searching.
+    # Both are closed lists rendered into the prompt; anything else the model
+    # offers is dropped on the way in.
+    diets: ExtractedDiets = Field(default_factory=list)
+    cuisines: ExtractedCuisines = Field(default_factory=list)
+    # Free text on purpose. The prompt asks for the curated terms and permits
+    # a new one where none fits; splitting the answer into the canonical set
+    # and the proposals is the server's job, in `review.build_reviewed_
+    # template`, because a model asked to classify its own tags moves terms
+    # back and forth between the two on identical input.
+    keywords: list[str] = Field(default_factory=list, max_length=40)
     # Creator caveats, substitutions, storage, and "full recipe at my link"
     # pointers — context that belongs beside the recipe, not inside its
     # ingredient or step lists.

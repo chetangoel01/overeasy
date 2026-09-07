@@ -15,6 +15,7 @@ from ladle.contracts.recipes import (
     DetectedTimerDTO,
     FieldUncertaintyDTO,
     IngredientDTO,
+    KeywordProposal,
     NutrientDTO,
     NutritionDTO,
     RecipeDTO,
@@ -22,6 +23,7 @@ from ladle.contracts.recipes import (
     RecipeSource,
     RecipeStepDTO,
 )
+from ladle.contracts.tags import CuisineTag, DietTag, RecipeKeyword
 from ladle.db.models import (
     ExtractionCache,
     ImportJob,
@@ -117,6 +119,13 @@ class RecipeTemplate(WireModel):
     steps: list[TemplateStep] = Field(default_factory=list)
     nutrition: TemplateNutrition | None = None
     nutrition_skips: list[NutritionSkip] = Field(default_factory=list)
+    # Absent on every template cached before tags existed, which is why all
+    # four default to empty rather than being required: a stale cache entry
+    # has to keep loading, and the tag backfill is what fills it in.
+    diets: list[DietTag] = Field(default_factory=list)
+    cuisines: list[CuisineTag] = Field(default_factory=list)
+    keywords: list[RecipeKeyword] = Field(default_factory=list)
+    keyword_proposals: list[KeywordProposal] = Field(default_factory=list)
     notes: list[str] = Field(default_factory=list)
     review_status: RecipeReviewStatus
     uncertainties: list[FieldUncertaintyDTO] = Field(default_factory=list)
@@ -223,6 +232,10 @@ class RecipeTemplate(WireModel):
                 if nutrition is not None
                 else None
             ),
+            diets=list(recipe.diets or []),
+            cuisines=list(recipe.cuisines or []),
+            keywords=list(recipe.keywords or []),
+            keyword_proposals=list(recipe.keyword_proposals or []),
             notes=list(recipe.notes),
             review_status=recipe.review_status,
             uncertainties=recipe.uncertainties,
@@ -302,6 +315,10 @@ class RecipeTemplate(WireModel):
                 if nutrition is not None
                 else None
             ),
+            diets=list(self.diets),
+            cuisines=list(self.cuisines),
+            keywords=list(self.keywords),
+            keyword_proposals=list(self.keyword_proposals),
             notes=self.recipe_notes(),
             is_favorite=False,
             review_status=self.review_status,
