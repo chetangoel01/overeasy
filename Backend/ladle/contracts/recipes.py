@@ -11,6 +11,13 @@ from ladle.contracts.common import (
     WireModel,
     WireUUID,
 )
+from ladle.contracts.tags import (
+    MAX_KEYWORD_PROPOSAL_LENGTH,
+    MAX_KEYWORD_PROPOSALS,
+    CuisineTag,
+    DietTag,
+    RecipeKeyword,
+)
 
 MAX_RECIPE_DECODE_DEPTH = 8
 MAX_RECIPE_DECODE_NODES = 10_000
@@ -55,6 +62,10 @@ ServingDecimal = Annotated[
 RecipeNote = Annotated[
     str,
     Field(min_length=1, max_length=MAX_RECIPE_NOTE_LENGTH),
+]
+KeywordProposal = Annotated[
+    str,
+    Field(min_length=1, max_length=MAX_KEYWORD_PROPOSAL_LENGTH),
 ]
 
 
@@ -193,6 +204,30 @@ class RecipeDTO(WireModel):
         default_factory=list,
         max_length=MAX_RECIPE_NOTES,
     )
+    #: The three tag families, and the keywords nobody has reviewed yet.
+    #:
+    #: Null means "leave whatever is stored"; an empty list means "clear it".
+    #: The distinction exists because tags arrive from extraction and the app
+    #: sends the whole recipe back on every edit: builds released before this
+    #: field encode no tag keys at all, and reading their silence as an empty
+    #: list would strip a recipe of its tags the first time somebody renamed
+    #: it. The server itself always sends lists, never null.
+    diets: list[DietTag] | None = Field(default=None, max_length=len(DietTag))
+    cuisines: list[CuisineTag] | None = Field(
+        default=None,
+        max_length=len(CuisineTag),
+    )
+    #: Only terms already on the curated list. A term the extraction model
+    #: invented travels in `keyword_proposals` until somebody promotes it,
+    #: which is what keeps the filterable vocabulary closed.
+    keywords: list[RecipeKeyword] | None = Field(
+        default=None,
+        max_length=len(RecipeKeyword),
+    )
+    keyword_proposals: list[KeywordProposal] | None = Field(
+        default=None,
+        max_length=MAX_KEYWORD_PROPOSALS,
+    )
     is_favorite: bool
     review_status: RecipeReviewStatus
     uncertainties: list[FieldUncertaintyDTO] = Field(
@@ -225,6 +260,13 @@ class RecipeDTO(WireModel):
 
     @model_validator(mode="after")
     def validate_graph(self) -> "RecipeDTO":
+        for name in ("diets", "cuisines", "keywords", "keyword_proposals"):
+            values = getattr(self, name)
+            # Each family is stored one row per value, keyed on the value.
+            # A repeat is a primary-key violation on the way in, so it is
+            # rejected here where it is still a 422 rather than a 500.
+            if values is not None and len(set(values)) != len(values):
+                raise ValueError(f"{name} must not repeat a value")
         ingredient_ids = {ingredient.id for ingredient in self.ingredients}
         collection_entries = (
             len(self.images)

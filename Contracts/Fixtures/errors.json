@@ -18,11 +18,16 @@
           "cookingMinutes": null,
           "createdAt": "2026-07-23T20:16:00.000Z",
           "creatorName": null,
+          "cuisines": [],
           "description": "Quantities were visible but not spoken.",
+          "diets": [],
           "id": "20000000-0000-4000-8000-000000000002",
           "images": [],
           "ingredients": [],
           "isFavorite": false,
+          "keywordProposals": [],
+          "keywords": [],
+          "notes": [],
           "nutrition": null,
           "originalURL": "https://www.instagram.com/reel/ladle-review/",
           "preparationMinutes": null,
@@ -34,8 +39,7 @@
           "title": "Tomato Toast",
           "totalMinutes": null,
           "uncertainties": [],
-          "updatedAt": "2026-07-23T20:19:00.000Z",
-          "notes": []
+          "updatedAt": "2026-07-23T20:19:00.000Z"
         },
         "currentRevision": 2
       },
