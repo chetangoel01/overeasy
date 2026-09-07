@@ -5,7 +5,7 @@ Issue: [#101](https://github.com/chetangoel01/recipe-app/issues/101), split
 out of [#87](https://github.com/chetangoel01/recipe-app/issues/87)
 Status: **built and verified on the review simulator.**
 
-Stacked on the iOS filter ([#120](docs/verification/2026-09-07-filter-model.md),
+Stacked on the iOS filter ([#120](2026-09-07-filter-model.md),
 `feat/filter-model`), which is stacked on the backend tags
 ([#105](2026-09-07-recipe-tags.md), `feat/recipe-tags`), which is stacked on
 the nutrition skips (#104). #105 gave a recipe its keywords and said what
@@ -126,8 +126,10 @@ client asks once and draws what it is handed.
   since #29.
 - **The demo service composes shelves itself.** In a UI run `DemoDiscoverService`
   *is* the server, so it applies the same floor, the same order and the
-  cook's filter first. Without that a UI run would show two rails and no
-  shelves, which is not the screen.
+  cook's filter first — and throws for the rate-limited scenario, because the
+  shelves endpoint is behind the same rate limit as the feed and a screen
+  where one is throttled and the other is not cannot happen. Without any of
+  that a UI run would show two rails and no shelves, which is not the screen.
 - **A shelf costs one query per shelf.** Six shelves is a count query plus
   six `discover` calls, each of which resolves its own cache rows. That is
   the same shape as a page of thirty and is fine at this size; batching the
@@ -185,9 +187,12 @@ being killed part-way:
 
 ```
 DiscoverInteractionUITests                 7 passed (123.711s)
-testSeeAllOnAKeywordShelfNarrowsTheList... 1 passed (11.613s)
-RecipesFilterMenuUITests + ProfileSheet…   see below
+testSeeAllOnAKeywordShelfNarrowsTheList…   1 passed  (11.613s)
+RecipesFilterMenuUITests + ProfileSheet…  11 passed (153.758s)
+StateScenarioUITests                      13 passed (145.926s)
 ```
+
+Every case in the bundle, and one of them is new.
 
 The new UI case is the one path no unit test reaches: the button in a
 shelf's header. It scrolls the Weeknight shelf onto the screen, taps "See
