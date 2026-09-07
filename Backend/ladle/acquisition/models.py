@@ -189,6 +189,10 @@ class TranscriptResult(WireModel):
 class AcquiredVideoContext(WireModel):
     source: SourceVideoDescriptor
     is_public: bool
+    #: Photo posts have no narration to recover, so the caption in
+    #: `description` is the whole text record and the failure when it carries
+    #: no recipe is a different failure.
+    media_kind: MediaKind = MediaKind.VIDEO
     title: str | None = None
     description: str = Field(max_length=50_000)
     creator_name: str | None = None

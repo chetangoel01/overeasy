@@ -2,7 +2,7 @@ import json
 from uuid import uuid4
 
 from ladle.acquisition.free.instagram import InstagramEmbedClient
-from ladle.acquisition.models import SourceVideoDescriptor
+from ladle.acquisition.models import MediaKind, SourceVideoDescriptor
 
 CAPTION = (
     "Creamy Tuscan Butter Salmon\n"
@@ -113,3 +113,60 @@ def test_shortcode_is_validated_before_building_a_url() -> None:
 
     assert media is None
     assert fetcher.urls == []
+
+
+def carousel(*, typename: str, child_is_video: list[bool]) -> str:
+    media: dict[str, object] = {
+        "__typename": typename,
+        "edge_media_to_caption": {"edges": [{"node": {"text": CAPTION}}]},
+        "owner": {"username": "serenagwolf"},
+        "is_video": False,
+        "edge_sidecar_to_children": {
+            "edges": [{"node": {"is_video": value}} for value in child_is_video]
+        },
+    }
+    blob = json.dumps(json.dumps({"gql_data": {"shortcode_media": media}}))
+    return (
+        '<html><script>window.__additionalData={"contextJSON":'
+        + blob
+        + "};</script></html>"
+    )
+
+
+def test_an_all_image_carousel_is_a_photo_post() -> None:
+    fetcher = Fetcher(
+        carousel(typename="GraphSidecar", child_is_video=[False, False, False])
+    )
+
+    media = InstagramEmbedClient(fetcher=fetcher).metadata(source("DVbn81xjyuP"))
+
+    assert media is not None
+    assert media.media_kind is MediaKind.PHOTO
+
+
+def test_a_carousel_holding_any_video_keeps_the_transcript_rungs() -> None:
+    # A reel stack still has audio somewhere, so it is not a caption-only post.
+    fetcher = Fetcher(
+        carousel(typename="GraphSidecar", child_is_video=[False, True, False])
+    )
+
+    media = InstagramEmbedClient(fetcher=fetcher).metadata(source("DZmEhxKjIYL"))
+
+    assert media is not None
+    assert media.media_kind is MediaKind.VIDEO
+
+
+def test_a_single_image_post_is_a_photo_post() -> None:
+    fetcher = Fetcher(carousel(typename="GraphImage", child_is_video=[]))
+
+    media = InstagramEmbedClient(fetcher=fetcher).metadata(source("DaSvZ5MnJKf"))
+
+    assert media is not None
+    assert media.media_kind is MediaKind.PHOTO
+
+
+def test_a_reel_stays_a_video_post() -> None:
+    media = InstagramEmbedClient(fetcher=Fetcher(page())).metadata(source())
+
+    assert media is not None
+    assert media.media_kind is MediaKind.VIDEO

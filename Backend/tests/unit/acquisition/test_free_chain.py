@@ -15,6 +15,7 @@ from ladle.acquisition.errors import (
 from ladle.acquisition.free.acquirer import FreeContext
 from ladle.acquisition.models import (
     LinkedDocument,
+    MediaKind,
     MediaMetadata,
     SourceVideoDescriptor,
     TextEvidence,
@@ -446,3 +447,154 @@ def test_check_public_uses_free_rung_before_billing() -> None:
 
     assert chain.check_public(source(), job_id=uuid4()) is True
     assert primary.calls == []
+
+
+def photo_source() -> SourceVideoDescriptor:
+    return SourceVideoDescriptor(
+        source_video_id=uuid4(),
+        platform="tiktok",
+        platform_video_id="7481234567890123456",
+        canonical_url="https://www.tiktok.com/@creator/photo/7481234567890123456",
+        source_revision="1",
+    )
+
+
+@dataclass
+class ServerFallback:
+    calls: int = 0
+
+    def acquire(self, source: SourceVideoDescriptor, *, job_id: UUID) -> object:
+        del source, job_id
+        self.calls += 1
+        raise AssertionError("the server fallback must not run for a photo post")
+
+
+@dataclass
+class Search:
+    calls: int = 0
+
+    def enrich(self, context: object, *, job_id: UUID) -> list[LinkedDocument]:
+        del context, job_id
+        self.calls += 1
+        raise AssertionError("creator search must not run for a photo post")
+
+
+def photo_free_context(*, media_kind: MediaKind = MediaKind.PHOTO) -> FreeContext:
+    return FreeContext(
+        metadata=MediaMetadata(
+            title="Hot Honey Garlic Chicken Tacos",
+            description=(
+                "2 chicken breasts, 1 cup hot honey. Sear the chicken, then "
+                "simmer the sauce until it thickens."
+            ),
+            creator_name="hollywoods_recipes",
+        ),
+        media_kind=media_kind,
+        diagnostics=["tiktokPageMetadataUsed"],
+    )
+
+
+def test_a_photo_post_pays_no_provider_to_look_for_audio_it_cannot_have() -> None:
+    """There is no soundtrack to find, so every transcript rung is a wasted call.
+
+    Whisper, Supadata, SoScripted and the server fallback are all searching
+    for narration; a carousel has none. Before this, an Instagram carousel
+    walked the entire paid chain and then failed anyway.
+    """
+
+    primary = Primary()
+    fallback = Fallback()
+    audio = Audio(whisper_transcript())
+    server = ServerFallback()
+    search = Search()
+    chain = ProviderChain(
+        primary=primary,
+        fallback=fallback,
+        free=Free(photo_free_context()),
+        audio=audio,
+        server_fallback=server,
+        search=search,
+    )
+
+    context = chain.acquire(photo_source(), job_id=uuid4())
+
+    assert audio.calls == []
+    assert primary.calls == []
+    assert fallback.calls == 0
+    assert server.calls == 0
+    assert search.calls == 0
+    assert context.media_kind is MediaKind.PHOTO
+    assert "photoPostCaptionOnly" in context.diagnostics
+    assert context.description.startswith("2 chicken breasts")
+
+
+def test_an_instagram_carousel_is_recognised_at_fetch_time() -> None:
+    """/p/ names no kind, so the embed blob has to be believed instead."""
+
+    audio = Audio(whisper_transcript())
+    chain = ProviderChain(
+        primary=Primary(),
+        fallback=Fallback(),
+        free=Free(photo_free_context()),
+        audio=audio,
+    )
+
+    context = chain.acquire(
+        SourceVideoDescriptor(
+            source_video_id=uuid4(),
+            platform="instagram",
+            platform_video_id="DVbn81xjyuP",
+            canonical_url="https://www.instagram.com/p/DVbn81xjyuP/",
+            source_revision="1",
+        ),
+        job_id=uuid4(),
+    )
+
+    assert audio.calls == []
+    assert context.media_kind is MediaKind.PHOTO
+
+
+def test_an_unreadable_photo_page_is_an_outage_not_an_empty_carousel() -> None:
+    """A page we could not fetch must not be reported as pictures we could not read.
+
+    Both arrive with an empty caption. Only one of them is the cook's problem,
+    and telling them to type the recipe in because TikTok was down would be a
+    lie they cannot act on.
+    """
+
+    chain = ProviderChain(
+        primary=None,
+        fallback=None,
+        free=Free(FreeContext(media_kind=MediaKind.PHOTO)),
+    )
+
+    with pytest.raises(ProviderUnavailable):
+        chain.acquire(photo_source(), job_id=uuid4())
+
+
+def test_a_photo_post_recheck_does_not_fall_through_to_a_paid_metadata_call() -> None:
+    primary = Primary()
+    chain = ProviderChain(
+        primary=primary,
+        fallback=Fallback(),
+        free=Free(FreeContext(media_kind=MediaKind.PHOTO)),
+    )
+
+    assert chain.check_public(photo_source(), job_id=uuid4())
+    assert primary.calls == []
+
+
+def test_a_video_post_still_reaches_the_audio_rung() -> None:
+    audio = Audio(whisper_transcript())
+    chain = ProviderChain(
+        primary=Primary(),
+        fallback=Fallback(),
+        free=Free(photo_free_context(media_kind=MediaKind.VIDEO)),
+        audio=audio,
+    )
+
+    context = chain.acquire(source(), job_id=uuid4())
+
+    assert len(audio.calls) == 1
+    assert context.media_kind is MediaKind.VIDEO
+    assert "photoPostCaptionOnly" not in context.diagnostics

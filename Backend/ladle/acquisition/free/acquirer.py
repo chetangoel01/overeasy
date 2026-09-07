@@ -26,6 +26,7 @@ from ladle.acquisition.free.tiktok import TikTokPageClient
 from ladle.acquisition.free.ytdlp import YtDlpClient
 from ladle.acquisition.models import (
     LinkedDocument,
+    MediaKind,
     MediaMetadata,
     SourceCounts,
     SourceVideoDescriptor,
@@ -48,6 +49,7 @@ class FreeContext:
     """What the free rung managed to gather. Any field may be empty."""
 
     metadata: MediaMetadata | None = None
+    media_kind: MediaKind = MediaKind.VIDEO
     transcript: list[TextEvidence] = field(default_factory=list)
     language: str | None = None
     linked_documents: list[LinkedDocument] = field(default_factory=list)
@@ -111,19 +113,27 @@ class FreeAcquirer:
         job_id: UUID,
     ) -> FreeContext:
         del job_id
-        context = FreeContext()
+        context = FreeContext(media_kind=source.media_kind)
 
         # Instagram refuses yt-dlp without browser cookies, so its embed
         # endpoint is the primary source there rather than a fallback.
         if source.platform == "instagram":
             self._apply_instagram_embed(source, context)
-        if not context.has_metadata:
+        # Nothing yt-dlp can return about a carousel is wanted. Asked for the
+        # /video/ form of one it hands back the licensed backing music as an
+        # audio-only stream, which the chain would then pay Whisper to
+        # transcribe into song lyrics posing as a recipe.
+        if not context.has_metadata and context.media_kind is not MediaKind.PHOTO:
             self._apply_ytdlp(source, context)
 
         # yt-dlp reports nothing for TikTok, but TikTok publishes its own ASR
         # track in the page. Worth a look whenever captions are still missing.
+        # For a carousel the same page is the only metadata there is, so it is
+        # read whether or not captions are wanted.
         if not context.transcript and source.platform == "tiktok":
             self._apply_tiktok_page(source.canonical_url, context)
+        if context.media_kind is MediaKind.PHOTO:
+            context.diagnostics.append("photoPostCaption")
         metadata = context.metadata
         if metadata is None:
             return context
@@ -227,6 +237,7 @@ class FreeAcquirer:
             context.diagnostics.append("instagramEmbedUnavailable")
             return
         context.metadata = media.metadata
+        context.media_kind = media.media_kind
         context.visual_observations = media.observations
         context.media_url = media.media_url
         context.audio_url = media.media_url
@@ -234,9 +245,12 @@ class FreeAcquirer:
         context.diagnostics.append("instagramEmbedUsed")
 
     def _apply_tiktok_page(self, canonical_url: str, context: FreeContext) -> None:
-        if self._tiktok is None or not self._subtitles_enabled:
+        photo = context.media_kind is MediaKind.PHOTO
+        if self._tiktok is None or not (self._subtitles_enabled or photo):
             return
         evidence = self._tiktok.evidence(canonical_url)
+        if evidence.media_kind is MediaKind.PHOTO:
+            context.media_kind = MediaKind.PHOTO
         if evidence.is_empty:
             context.diagnostics.append("tiktokPageEvidenceUnavailable")
             return
