@@ -251,16 +251,32 @@ buttons a different text origin per button.
   the complete shared extraction as a read-only recipe preview. Saving clones
   that already-resolved extraction into the current account. Neither action
   resubmits the video to the import, transcription, or model pipeline.
-- Two shelves sit above that ranked list, because Discover is the launch screen
-  and a list ordered by saves only turns over when someone saves something.
-  **New to Overeasy** is ordered by when a source arrived here, not when its
-  creator published it. **Quick dinners** keeps the sources a saver timed at
-  thirty minutes or less; a source nobody timed is left out rather than assumed
-  quick. Each rail is one short page of the same feed — no "See all", no
-  destination of its own — and the list beneath it is headed "All recipes".
-- A rail is decoration on top of the feed, so it fails quietly: a shelf that
+- Two curated rails sit above that ranked list, because Discover is the launch
+  screen and a list ordered by saves only turns over when someone saves
+  something. **New to Overeasy** is ordered by when a source arrived here, not
+  when its creator published it. **Quick dinners** keeps the sources a saver
+  timed at thirty minutes or less; a source nobody timed is left out rather
+  than assumed quick. Each rail is one short page of the same feed — no "See
+  all", no destination of its own, because neither ordering is something the
+  app can ask for a second time — and the list beneath is headed "All recipes".
+- **Keyword shelves follow the two rails**, composed by the server from the
+  keywords the recipes carry rather than from a list anybody maintains: the
+  keywords with enough sources behind them, best-stocked first, titled in
+  words a cook uses ("One pot", "Weeknight", "High protein") and never in a
+  raw tag. They are the part of the screen that changes as the corpus grows,
+  so they sit below the rails, which do not. A keyword shelf has no caption —
+  its title says what is on it — and it is the one shelf with a **See all**,
+  because a keyword is a filter: it puts that keyword in the filter every tab
+  reads, keeps the diet and cuisine the shelf was composed under, and the
+  ranked list below becomes the rest of the row. The shelf then hides itself
+  rather than repeating the list it just opened.
+- Every shelf is composed under the cook's filter, so a vegetarian is offered
+  vegetarian shelves rather than vegetarian cards under a title chosen for
+  somebody else — and a keyword with too little behind it once the diet
+  applies has no shelf at all.
+- A shelf is decoration on top of the feed, so it fails quietly: a shelf that
   does not load is absent rather than an error, and a shelf with fewer than
-  three cards is dropped instead of drawn short. Searching hides both rails
+  three cards is dropped instead of drawn short. Searching hides them all
   outright, because search replaces the feed and unsearched cards beside the
   results would read as results.
 - Scrolling back to the top of Discover fetches a fresh page 1 quietly and, if
