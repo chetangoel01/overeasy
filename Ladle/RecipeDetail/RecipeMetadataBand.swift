@@ -15,6 +15,7 @@ struct RecipeMetadataBand: View {
     var scaling: Binding<RecipeScaling>?
 
     @State private var isServingsPresented = false
+    @State private var servingsWhenOpened: Decimal?
 
     var body: some View {
         VStack(alignment: .leading, spacing: LadleTheme.Spacing.compact) {
@@ -69,6 +70,7 @@ struct RecipeMetadataBand: View {
     private var yieldItem: some View {
         if let scaling, scaling.wrappedValue.isAvailable {
             Button {
+                servingsWhenOpened = scaling.wrappedValue.servings
                 isServingsPresented = true
             } label: {
                 metadataItem(
@@ -83,16 +85,23 @@ struct RecipeMetadataBand: View {
             .accessibilityLabel("Servings")
             .accessibilityValue(yieldAccessibilityValue(scaling.wrappedValue))
             .accessibilityHint("Adjusts the serving count and scales the ingredients")
-            .sheet(isPresented: $isServingsPresented) {
+            // Announced when the sheet closes, not on every press of the
+            // stepper: the stepper reads its own value as it changes, and a
+            // cook stepping four to eight would otherwise hear each count
+            // twice. What VoiceOver needs is what the page settled on.
+            .sheet(
+                isPresented: $isServingsPresented,
+                onDismiss: {
+                    guard
+                        scaling.wrappedValue.servings != servingsWhenOpened
+                    else { return }
+                    AccessibilityNotification.Announcement(
+                        scaledAnnouncement(scaling.wrappedValue)
+                    )
+                    .post()
+                }
+            ) {
                 ServingsSheet(scaling: scaling)
-            }
-            // VoiceOver would otherwise have to go back and re-read the band
-            // to learn whether the stepper did anything.
-            .onChange(of: scaling.wrappedValue.servings) { _, _ in
-                AccessibilityNotification.Announcement(
-                    scaledAnnouncement(scaling.wrappedValue)
-                )
-                .post()
             }
         } else {
             metadataItem(
@@ -163,8 +172,10 @@ struct RecipeMetadataBand: View {
             Text(label)
                 .ladleFont(.metadata)
                 .foregroundStyle(LadleTheme.Label.primary.opacity(0.56))
-                .lineLimit(usesVerticalLayout ? 2 : 1)
-                .minimumScaleFactor(0.78)
+                // No line limit, as before: "Scaled from 4 servings" is
+                // longer than the labels this band was built for, and it
+                // wraps inside a half-width tile at large type rather than
+                // truncating to "Scaled from 4 ser…".
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
