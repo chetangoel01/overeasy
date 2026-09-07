@@ -498,6 +498,25 @@ final class LibraryViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.isComeBackToCollapsed)
     }
 
+    /// A capture or a review run pins an accent with `defaults write`,
+    /// which lands in a preference domain the app reads through but does
+    /// not own. `removeObject` cannot clear that one, so the reset writes
+    /// the default over it: the app's own domain outranks the seeded one.
+    func testResetPreferencesWritesTheDefaultAccentRatherThanRemovingIt() {
+        let preferences = LibraryTestPreferenceStore()
+        preferences.set(
+            LadleAccentColor.sage.rawValue,
+            forKey: LadleAccentColor.preferenceKey
+        )
+
+        LibraryViewModel.resetPreferences(in: preferences)
+
+        XCTAssertEqual(
+            preferences.string(forKey: LadleAccentColor.preferenceKey),
+            LadleAccentColor.tomato.rawValue
+        )
+    }
+
     func testTogglingFavoritePersistsAndUpdatesVisibleRecipes() {
         let repository = LibraryTestRepository(
             recipes: PreviewFixtures.recipes

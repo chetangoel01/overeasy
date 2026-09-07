@@ -70,12 +70,24 @@ struct AppBootstrap {
         makeBaseURL: @escaping BaseURLFactory = {
             try APIConfiguration().baseURL
         },
-        installationIdentity: InstallationIdentity = InstallationIdentity()
+        installationIdentity: InstallationIdentity = InstallationIdentity(),
+        preferenceStore: any PreferenceStoring = UserDefaults.standard
     ) {
         self.configuration = configuration
         self.makeEnvironment = makeEnvironment
         self.makeBaseURL = makeBaseURL
         self.installationIdentity = installationIdentity
+
+        // Not in `run()`. `LadleApp` builds the bootstrap in its own `init`
+        // and only calls `run()` from a `task`, so `run()` happens after
+        // the first frame — by then `@AppStorage` has already read the old
+        // accent and the launch opens in the wrong colour. Resetting here
+        // is the last point that is still before anything reads a
+        // preference. It also means a bootstrap retry does not reset a
+        // second time; the flag describes a launch, not an attempt.
+        if configuration.resetsLibraryPreferences {
+            LibraryViewModel.resetPreferences(in: preferenceStore)
+        }
     }
 
     func run() -> AppBootstrapResult {
@@ -189,9 +201,6 @@ final class LadleRuntime {
             store: accountStore,
             launchArguments: launchArguments
         )
-        if launchArguments.contains("-reset-library-preferences") {
-            LibraryViewModel.resetPreferences()
-        }
 
         let sharedQueueReconciler: SharedQueueReconciler?
         if !configuration.usesInMemoryStore, !resetsBackendSession {

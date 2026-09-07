@@ -34,6 +34,13 @@ struct LadleRuntimeConfiguration {
         usesInMemoryStore && demoScenario.seedsRecipes
     }
 
+    /// Whether this launch starts from the stock library presentation and
+    /// accent, so a UI run or a review capture is not reading whatever the
+    /// last one left behind.
+    var resetsLibraryPreferences: Bool {
+        launchArguments.contains("-reset-library-preferences")
+    }
+
     var usesAppAttest: Bool {
         guard
             let value = infoDictionary["LadleAppAttestEnabled"] as? String

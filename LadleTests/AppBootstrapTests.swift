@@ -166,6 +166,40 @@ final class AppBootstrapTests: XCTestCase {
         XCTAssertEqual(try repository.fetchRecipes().count, 1)
     }
 
+    /// The accent is read while the first frame is built, and that happens
+    /// before `run()` — `LadleApp` constructs the bootstrap in its own
+    /// `init` and only calls `run()` from a `task`. So the reset has to
+    /// land in the constructor, or the launch opens on the old accent.
+    func testResetLibraryPreferencesLandsBeforeTheBootstrapRuns() {
+        let preferences = BootstrapMemoryPreferenceStore()
+        preferences.set(
+            LadleAccentColor.sage.rawValue,
+            forKey: LadleAccentColor.preferenceKey
+        )
+
+        _ = AppBootstrap(
+            configuration: LadleRuntimeConfiguration(
+                launchArguments: [
+                    "-ui-testing",
+                    "-reset-library-preferences",
+                ],
+                environment: [:]
+            ),
+            makeEnvironment: { _ in
+                try AppEnvironment(isStoredInMemoryOnly: true)
+            },
+            installationIdentity: InstallationIdentity(
+                store: BootstrapMemoryPreferenceStore()
+            ),
+            preferenceStore: preferences
+        )
+
+        XCTAssertEqual(
+            preferences.string(forKey: LadleAccentColor.preferenceKey),
+            LadleAccentColor.tomato.rawValue
+        )
+    }
+
     private var testConfiguration: LadleRuntimeConfiguration {
         LadleRuntimeConfiguration(
             launchArguments: ["-ui-testing", "-empty-library"],
