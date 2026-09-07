@@ -71,7 +71,8 @@ both the list and the totals.
 **Sixty seconds, not five.** This is the only dashboard read that reaches
 Postgres. It sits on the readiness poll's timer, is excluded from the request
 log (`observability/middleware.py`) and from the dashboard's own traffic
-charts (`OPS_ROUTES`), the same way the other three polls are.
+charts (`OPS_ROUTES`), the same way the counter and readiness polls are — see
+the last section for the one that is not.
 
 ## The endpoint
 
