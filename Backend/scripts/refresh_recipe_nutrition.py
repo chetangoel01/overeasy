@@ -42,6 +42,7 @@ from ladle.nutrition.calculator import (
     estimated_grams,
     material_ingredients,
 )
+from ladle.nutrition.curated import curated_food_table
 from ladle.nutrition.normalization import (
     OpenRouterNutritionNormalizationClient,
     RecipeNutritionNormalizer,
@@ -91,6 +92,7 @@ def _service(settings: Settings, sessions) -> RecipeNutritionService:
                 store=DatabaseUSDAPayloadStore(session_factory=sessions),
             ),
             fallback=None,
+            curated=curated_food_table(),
         ),
     )
 
