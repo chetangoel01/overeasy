@@ -74,6 +74,7 @@ struct FailedImportSheet: View {
                     ImportRecoveryActions(
                         isRetrying: isRetrying,
                         retryAvailability: currentFailure.retryAvailability(),
+                        layout: currentFailure.recoveryLayout,
                         retry: { runRetry() },
                         chooseInput: { recoveryInputMode = $0 }
                     )

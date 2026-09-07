@@ -76,6 +76,37 @@ struct RemoteContractTests {
     }
 
     @Test
+    func aFailureCodeThisBuildDoesNotKnowStillPollsAsAFailedJob() throws {
+        // The reason travels inside the poll response, so a strict decode
+        // would throw on the whole payload — every job stuck parsing, not
+        // just the one that failed — the first time the server learns a code
+        // before the app does.
+        let payload = Data(
+            """
+            {
+              "jobID": "10000000-0000-4000-8000-000000000001",
+              "status": "failed",
+              "failureReason": "someCodeFromALaterServer",
+              "recipeID": null,
+              "retryCount": 0,
+              "createdAt": "2026-08-27T12:00:00.000Z",
+              "updatedAt": "2026-08-27T12:00:00.000Z"
+            }
+            """.utf8
+        )
+
+        let dto = try RemoteContractJSON.decoder().decode(
+            RemoteImportJobDTO.self,
+            from: payload
+        )
+
+        #expect(
+            try dto.importStatus()
+                == .failed(.unrecognized("someCodeFromALaterServer"))
+        )
+    }
+
+    @Test
     func importFixturesMapFlatStatusesIntoDomainEnum() throws {
         let ready: RemoteImportJobDTO = try decodeFixture("import-ready")
         let review: RemoteImportJobDTO = try decodeFixture("import-needs-review")
@@ -88,6 +119,7 @@ struct RemoteContractTests {
             .privateOrDeleted,
             .unsupportedSource,
             .insufficientTextEvidence,
+            .photoPostNeedsManualEntry,
             .invalidURL,
             .networkUnavailable,
             .quotaExceeded,
@@ -97,6 +129,7 @@ struct RemoteContractTests {
             .failed(.privateOrDeleted),
             .failed(.unsupportedSource),
             .failed(.insufficientTextEvidence),
+            .failed(.photoPostNeedsManualEntry),
             .failed(.invalidURL),
             .failed(.networkUnavailable),
             .failed(.quotaExceeded),

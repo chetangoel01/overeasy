@@ -481,6 +481,7 @@ struct AddRecipeSheet: View {
                 ImportRecoveryActions(
                     isRetrying: isRetrying,
                     retryAvailability: failure.retryAvailability(),
+                    layout: failure.recoveryLayout,
                     retry: { runRetry(jobID: jobID) },
                     chooseInput: { recoveryInputMode = $0 }
                 )

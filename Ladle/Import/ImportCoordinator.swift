@@ -45,6 +45,17 @@ enum ImportRetryAvailability: Equatable {
     }
 }
 
+/// Which recovery action a failure sheet leads with.
+///
+/// Retry leads on a failure that might not happen a second time. When the
+/// import already read everything the post holds, retrying reads the same
+/// nothing again, so the ways the cook can supply the recipe lead instead and
+/// retry stays on the sheet as a secondary row.
+enum ImportRecoveryLayout: Equatable {
+    case retryFirst
+    case manualEntryFirst
+}
+
 struct ImportOperationFailure: Equatable {
     let jobID: UUID
     let reason: ImportFailure
@@ -78,6 +89,12 @@ struct ImportOperationFailure: Equatable {
         default:
             .available
         }
+    }
+
+    var recoveryLayout: ImportRecoveryLayout {
+        reason == .photoPostNeedsManualEntry
+            ? .manualEntryFirst
+            : .retryFirst
     }
 
     var title: String {
@@ -1265,10 +1282,14 @@ extension ImportFailure {
             "You're offline"
         case .authenticationExpired:
             "Sign in again"
-        case .parserUnavailable:
+        // A code this build doesn't know says nothing this build can explain,
+        // so it wears the generic failure's words and its recovery options.
+        case .parserUnavailable, .unrecognized:
             "Couldn't read the recipe"
         case .insufficientTextEvidence:
             "More recipe detail needed"
+        case .photoPostNeedsManualEntry:
+            "The recipe is in the pictures"
         case .quotaExceeded:
             "Processing limit reached"
         }
@@ -1286,12 +1307,26 @@ extension ImportFailure {
             "The connection dropped. The saved link is safe to retry."
         case .authenticationExpired:
             "Sign in again before retrying. The saved link is safe."
-        case .parserUnavailable:
+        case .parserUnavailable, .unrecognized:
             "Overeasy couldn’t read the recipe. Retry, add a note, paste details, or create it manually."
         case .insufficientTextEvidence:
             "The post lacks enough written detail. Paste the recipe or create it manually."
+        case .photoPostNeedsManualEntry:
+            "Overeasy read the caption and it didn’t hold the recipe. Paste it from the post, or type it in."
         case .quotaExceeded:
             "Processing capacity is exhausted. Retry after your quota or provider capacity resets. The saved link is safe."
+        }
+    }
+
+    /// The Inbox row's status pill, which has room for three words. Every
+    /// failure reads "Import failed" except the one whose way out is the cook
+    /// rather than another attempt — including a code this build cannot name.
+    var inboxStatusLabel: String {
+        switch self {
+        case .photoPostNeedsManualEntry:
+            "Type it in"
+        default:
+            "Import failed"
         }
     }
 }

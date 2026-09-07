@@ -135,8 +135,8 @@ struct PendingImportCard: View {
             "Parsing"
         case .needsReview:
             "Check details"
-        case .failed:
-            "Import failed"
+        case let .failed(reason):
+            reason.inboxStatusLabel
         case .ready:
             "Ready"
         }

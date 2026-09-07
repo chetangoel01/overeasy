@@ -2840,6 +2840,87 @@ final class ImportCoordinatorTests: XCTestCase {
         }
     }
 
+    func testUnknownFailureCodeWearsTheGenericFailuresWords() {
+        let unknown = ImportOperationFailure(
+            jobID: UUID(),
+            reason: .unrecognized("someCodeFromALaterServer")
+        )
+
+        XCTAssertEqual(
+            unknown.title,
+            ImportFailure.parserUnavailable.recoveryTitle
+        )
+        XCTAssertEqual(
+            unknown.message,
+            ImportFailure.parserUnavailable.recoveryMessage
+        )
+        XCTAssertEqual(unknown.retryAvailability(), .available)
+        XCTAssertFalse(unknown.message.contains("someCodeFromALaterServer"))
+    }
+
+    func testPhotoPostFailureAsksForTheRecipeRatherThanBlamingThePost() {
+        let jobID = UUID()
+        let photo = ImportOperationFailure(
+            jobID: jobID,
+            reason: .photoPostNeedsManualEntry
+        )
+        let generic = ImportOperationFailure(
+            jobID: jobID,
+            reason: .insufficientTextEvidence
+        )
+
+        XCTAssertEqual(photo.title, "The recipe is in the pictures")
+        XCTAssertEqual(
+            photo.message,
+            "Overeasy read the caption and it didn’t hold the recipe. Paste it from the post, or type it in."
+        )
+        XCTAssertNotEqual(photo.title, generic.title)
+        XCTAssertNotEqual(photo.message, generic.message)
+    }
+
+    func testPhotoPostFailureLeadsWithTypingItInRatherThanRetrying() {
+        let jobID = UUID()
+        let photo = ImportOperationFailure(
+            jobID: jobID,
+            reason: .photoPostNeedsManualEntry
+        )
+
+        // Retrying a caption that held nothing reads the same nothing again,
+        // so paste and create lead. Retry is demoted, not withdrawn.
+        XCTAssertEqual(photo.recoveryLayout, .manualEntryFirst)
+        XCTAssertEqual(photo.retryAvailability(), .available)
+
+        for reason in [
+            ImportFailure.insufficientTextEvidence,
+            .parserUnavailable,
+            .unrecognized("someCodeFromALaterServer"),
+        ] {
+            XCTAssertEqual(
+                ImportOperationFailure(
+                    jobID: jobID,
+                    reason: reason
+                ).recoveryLayout,
+                .retryFirst
+            )
+        }
+    }
+
+    func testInboxLabelsAPhotoPostFailureByWhatItNeeds() {
+        XCTAssertEqual(
+            ImportFailure.photoPostNeedsManualEntry.inboxStatusLabel,
+            "Type it in"
+        )
+        XCTAssertEqual(
+            ImportFailure.insufficientTextEvidence.inboxStatusLabel,
+            "Import failed"
+        )
+        XCTAssertEqual(
+            ImportFailure.unrecognized("someCodeFromALaterServer")
+                .inboxStatusLabel,
+            "Import failed"
+        )
+    }
+
     private func makeCoordinator(
         repository: ImportTestRepository,
         accountSession: AccountSession = AccountSession(

@@ -1,14 +1,71 @@
 import Foundation
 
-public enum ImportFailure: String, Codable, Error, Hashable, Sendable {
+/// Why an import ended in `failed`.
+///
+/// The server can learn a code before this build does, and the code arrives
+/// inside the import poll's response — so a strict decode would throw on the
+/// whole payload and leave every job in the response stuck parsing, not just
+/// the one that failed. An unknown code therefore decodes as `unrecognized`,
+/// which the app presents as a generic failure. The string rides along rather
+/// than being discarded: the job is persisted as encoded JSON, so dropping it
+/// would lose the real reason for good, and a later build that knows the code
+/// reads the stored row correctly.
+public enum ImportFailure: Codable, Error, Hashable, Sendable {
     case parserUnavailable
     case insufficientTextEvidence
+    /// A photo post whose caption held no recipe. Distinct from the general
+    /// case because the post is not the problem: the recipe is in pictures
+    /// nothing here reads, so the way out is the cook, not another attempt.
+    case photoPostNeedsManualEntry
     case privateOrDeleted
     case unsupportedSource
     case invalidURL
     case networkUnavailable
     case authenticationExpired
     case quotaExceeded
+    case unrecognized(String)
+
+    public var rawValue: String {
+        switch self {
+        case .parserUnavailable: "parserUnavailable"
+        case .insufficientTextEvidence: "insufficientTextEvidence"
+        case .photoPostNeedsManualEntry: "photoPostNeedsManualEntry"
+        case .privateOrDeleted: "privateOrDeleted"
+        case .unsupportedSource: "unsupportedSource"
+        case .invalidURL: "invalidURL"
+        case .networkUnavailable: "networkUnavailable"
+        case .authenticationExpired: "authenticationExpired"
+        case .quotaExceeded: "quotaExceeded"
+        case let .unrecognized(code): code
+        }
+    }
+
+    public init(rawValue: String) {
+        switch rawValue {
+        case "parserUnavailable": self = .parserUnavailable
+        case "insufficientTextEvidence": self = .insufficientTextEvidence
+        case "photoPostNeedsManualEntry": self = .photoPostNeedsManualEntry
+        case "privateOrDeleted": self = .privateOrDeleted
+        case "unsupportedSource": self = .unsupportedSource
+        case "invalidURL": self = .invalidURL
+        case "networkUnavailable": self = .networkUnavailable
+        case "authenticationExpired": self = .authenticationExpired
+        case "quotaExceeded": self = .quotaExceeded
+        default: self = .unrecognized(rawValue)
+        }
+    }
+
+    /// Written by hand so the value stays the bare string every persisted job
+    /// payload and every server response already carries.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        self.init(rawValue: try container.decode(String.self))
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
 }
 
 public enum ImportStatus: Codable, Hashable, Sendable {
