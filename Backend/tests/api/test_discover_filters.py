@@ -360,6 +360,14 @@ def test_a_value_outside_the_vocabulary_is_refused(discover) -> None:
 
 
 @pytest.mark.integration
+def test_an_oversized_ingredient_term_is_refused(discover) -> None:
+    """One enormous term would otherwise become one enormous LIKE pattern."""
+
+    assert discover(f"?ingredient={'chicken' * 100}").status_code == 422
+    assert discover("?" + "&".join(["ingredient=egg"] * 11)).status_code == 422
+
+
+@pytest.mark.integration
 def test_an_unreviewed_proposal_cannot_be_filtered_on(discover) -> None:
     """`cookout` is stored against Smash Burgers, and is not a keyword."""
 
