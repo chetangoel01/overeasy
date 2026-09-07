@@ -2,7 +2,9 @@
   "cookingMinutes": 25,
   "createdAt": "2026-07-23T20:15:00.000Z",
   "creatorName": "Mia",
+  "cuisines": [],
   "description": "A weeknight curry with a spice blend nothing could cost.",
+  "diets": [],
   "id": "20000000-0000-4000-8000-000000000004",
   "images": [],
   "ingredients": [
@@ -32,6 +34,8 @@
     }
   ],
   "isFavorite": false,
+  "keywordProposals": [],
+  "keywords": [],
   "notes": [],
   "nutrition": {
     "approximate": true,
