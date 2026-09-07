@@ -273,3 +273,11 @@ simulator created for that work and deleted afterwards; the repair's runs
 were on a second one, created and deleted the same way. Two other agents were
 driving the house device at the time, and the UI test died with "Test crashed
 with signal kill" until it had a simulator to itself.
+
+## Captures
+
+Left is `main`, right is this branch, on the seeded library.
+
+| Before | After |
+| --- | --- |
+| ![Before](captures/2026-09-07-inbox-row-after-review/before.png) | ![After](captures/2026-09-07-inbox-row-after-review/after.png) |
