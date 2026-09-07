@@ -132,18 +132,33 @@ final class LibraryViewModel {
         load()
     }
 
+    /// Put a launch back on the stock library presentation and accent.
+    ///
+    /// The defaults are written, not removed. `removeObject` only clears
+    /// the app's own preference domain, and the way a review run or a
+    /// capture pins an accent — `xcrun simctl spawn <udid> defaults write
+    /// com.ladle.ios …` — lands in the simulator's device-level domain
+    /// instead. The app reads through to that one but cannot delete from
+    /// it, so a removal left the seeded value showing. A written value
+    /// wins, because the app's own domain outranks the seeded one.
+    ///
+    /// `ladle.library.inbox-dismissed` is here and nowhere else: no code
+    /// reads it any more, but a container that ran an older build still
+    /// carries it, so the reset keeps clearing it.
     static func resetPreferences(
         in preferenceStore: PreferenceStoring = UserDefaults.standard
     ) {
-        [
-            PreferenceKey.displayMode,
-            "ladle.library.inbox-dismissed",
-            PreferenceKey.savedCollapsed,
-            PreferenceKey.comeBackCollapsed,
-            LadleAccentColor.preferenceKey,
-        ].forEach {
-            preferenceStore.removeObject(forKey: $0)
-        }
+        preferenceStore.set(
+            LibraryDisplayMode.grid.rawValue,
+            forKey: PreferenceKey.displayMode
+        )
+        preferenceStore.set(false, forKey: "ladle.library.inbox-dismissed")
+        preferenceStore.set(false, forKey: PreferenceKey.savedCollapsed)
+        preferenceStore.set(false, forKey: PreferenceKey.comeBackCollapsed)
+        preferenceStore.set(
+            LadleAccentColor.tomato.rawValue,
+            forKey: LadleAccentColor.preferenceKey
+        )
     }
 
     var visibleRecipes: [Recipe] {
