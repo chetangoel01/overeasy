@@ -231,6 +231,60 @@ final class StateScenarioUITests: XCTestCase {
         attachScreenshot(of: app, named: "Cooking - focus mode")
     }
 
+    /// Issue #91. The import that needs review is the one whose row used to
+    /// outlive its own review, and tapping the leftover row opened the
+    /// failed-import sheet because the job named no recipe at all.
+    @MainActor
+    func testReviewedImportLeavesTheInbox() {
+        let app = launchApp(scenario: "standard", startingOn: "Recipes")
+
+        app.buttons["Add recipe"].tap()
+        let link = app.textFields["Recipe link"]
+        XCTAssertTrue(link.waitForExistence(timeout: 3))
+        link.tap()
+        link.typeText("https://www.instagram.com/reel/needs-review-ragu")
+        app.buttons["Import from link"].tap()
+
+        // Leave by the door that keeps the tab bar: the point of the test is
+        // the Inbox row, not the sheet's own shortcut to the recipe.
+        let backToRecipes = app.buttons["Back to recipes"]
+        XCTAssertTrue(backToRecipes.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Check a few details"].exists)
+        backToRecipes.tap()
+
+        app.tabBars.buttons["Inbox"].tap()
+        let row = app.descendants(matching: .any).matching(
+            NSPredicate(format: "label CONTAINS 'Sunday Tomato Ragu'")
+        ).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        let rowIdentifier = row.identifier
+        attachScreenshot(of: app, named: "Inbox - import awaiting review")
+
+        row.tap()
+        let markReviewed = app.buttons["recipe.complete-review"]
+        for _ in 0..<6 where !markReviewed.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(
+            markReviewed.waitForExistence(timeout: 5),
+            "The Inbox row should open the recipe for review, not a sheet"
+        )
+        // Completing a review pops back by itself, to the Inbox while any
+        // import is still actionable.
+        markReviewed.tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["library.import-inbox.root"]
+                .waitForExistence(timeout: 5)
+        )
+
+        let leftover = app.descendants(matching: .any)[rowIdentifier]
+        XCTAssertTrue(
+            leftover.waitForNonExistence(timeout: 5),
+            "A reviewed import should not keep its Inbox row"
+        )
+        attachScreenshot(of: app, named: "Inbox - reviewed import cleared")
+    }
+
     /// A launch lands on Discover, so a test about another tab has to ask
     /// for it rather than assume the first screen is its own.
     @MainActor

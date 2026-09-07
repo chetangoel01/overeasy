@@ -1082,7 +1082,10 @@ final class ImportCoordinator {
             } else {
                 try repository.save(recipe)
             }
-            job = try job.transitioning(to: .needsReview)
+            // The job has to name the recipe it is waiting on, or
+            // completing the review cannot find the row to close and the
+            // Inbox keeps it forever.
+            job = try job.awaitingReview(recipeID: recipe.id)
             try repository.save(job)
             if owns(jobID: job.id) {
                 completedRecipe = recipe

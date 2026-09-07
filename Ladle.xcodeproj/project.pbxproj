@@ -30,6 +30,7 @@
 		224F559012E7DF26C228AF43 /* APIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC34B6B51E6AF6B47D8FC45D /* APIClientTests.swift */; };
 		24197E5B542EB0789077028F /* PrivacyDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F27EE9D08B4AD704ED77330A /* PrivacyDetailView.swift */; };
 		248BCFB9AB72089B7292B552 /* ShareConfirmationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B36C84213DD9529722DAE189 /* ShareConfirmationView.swift */; };
+		28C924DD91897EEC099C4C17 /* ImportReviewLinkRepair.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54CA28BA63A6BE2EBEAA8EB9 /* ImportReviewLinkRepair.swift */; };
 		292CA6391C0A45751E5542C2 /* StoredRecipe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27E622AAB3FB89F99BAD6CAE /* StoredRecipe.swift */; };
 		2AA5078390DE33D02030335E /* RemoteImportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4507355A7CFAE19690B7D70 /* RemoteImportService.swift */; };
 		2AED269B9C6BFDDBB4DFE5B9 /* NotificationServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2027095EF76748A9CC4DE10F /* NotificationServiceTests.swift */; };
@@ -225,6 +226,7 @@
 		46580B3879F912E78BF1629C /* SharedQueueReconciler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedQueueReconciler.swift; sourceTree = "<group>"; };
 		480030F07BD940462128F4AE /* GuestLimitView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuestLimitView.swift; sourceTree = "<group>"; };
 		49EB0A8621F79A4E7F769532 /* HealthKitService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitService.swift; sourceTree = "<group>"; };
+		54CA28BA63A6BE2EBEAA8EB9 /* ImportReviewLinkRepair.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportReviewLinkRepair.swift; sourceTree = "<group>"; };
 		57ED21827A8B76FEB98FDB19 /* SharedQueueReconcilerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedQueueReconcilerTests.swift; sourceTree = "<group>"; };
 		58A808844E9A9278B9DBE227 /* DiscoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscoverView.swift; sourceTree = "<group>"; };
 		595643DC966138C3BC7DA2FC /* InstallationIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstallationIdentity.swift; sourceTree = "<group>"; };
@@ -638,6 +640,7 @@
 				E773EEC85D6B10B47798F46E /* FailedImportSheet.swift */,
 				FCE40C1144201ECA9A36E8BC /* ImportCoordinator.swift */,
 				F165E4B6E30D83BFDFE33A13 /* ImportRecoveryActions.swift */,
+				54CA28BA63A6BE2EBEAA8EB9 /* ImportReviewLinkRepair.swift */,
 				BC911C7C9A9D3FDBABF02BB9 /* ImportService.swift */,
 				0944ED2DF428DE0518FF8422 /* ReimportPresentation.swift */,
 				D4507355A7CFAE19690B7D70 /* RemoteImportService.swift */,
@@ -895,6 +898,7 @@
 				B8C07A83B04420D104948A91 /* ImportCoordinator.swift in Sources */,
 				63AD334E56D71D43FB7A1EC6 /* ImportInboxView.swift in Sources */,
 				E2BE83969345FF4BDBE3CA69 /* ImportRecoveryActions.swift in Sources */,
+				28C924DD91897EEC099C4C17 /* ImportReviewLinkRepair.swift in Sources */,
 				AE645C3991B22C20AF387561 /* ImportService.swift in Sources */,
 				30267813D7EFF356A6505425 /* IngredientIconCatalogue.swift in Sources */,
 				45E74A311BE405D4B399A2B5 /* IngredientIconResolver.swift in Sources */,
