@@ -1,6 +1,6 @@
 from collections import defaultdict
 from collections.abc import Callable, Collection, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
@@ -25,6 +25,8 @@ from ladle.contracts.recipes import (
     DetectedTimerDTO,
     DiscoverPageDTO,
     DiscoverRecipeDTO,
+    DiscoverShelfDTO,
+    DiscoverShelvesDTO,
     DiscoverSort,
     FieldUncertaintyDTO,
     IngredientDTO,
@@ -95,9 +97,20 @@ class DiscoverFilter:
     cuisines: tuple[CuisineTag, ...] = ()
     keywords: tuple[RecipeKeyword, ...] = ()
     ingredients: tuple[str, ...] = ()
+    #: One more keyword that must hold *as well as* `keywords`. Only the
+    #: shelf query sets it: a shelf is the cook's own filter narrowed to one
+    #: keyword, and folding that keyword into the disjunctive `keywords`
+    #: would widen the feed at the moment it is meant to narrow.
+    required_keyword: RecipeKeyword | None = None
 
     def __bool__(self) -> bool:
-        return bool(self.diets or self.cuisines or self.keywords or self.ingredients)
+        return bool(
+            self.diets
+            or self.cuisines
+            or self.keywords
+            or self.ingredients
+            or self.required_keyword
+        )
 
 
 def _tag_values[TagT: StrEnum](vocabulary: type[TagT], stored: set[str]) -> list[TagT]:
@@ -158,7 +171,55 @@ def _filter_conditions(filters: DiscoverFilter) -> list[ColumnElement[bool]]:
         conditions.append(_carries_tag("cuisine", filters.cuisines))
     if filters.keywords:
         conditions.append(_carries_tag("keyword", filters.keywords))
+    if filters.required_keyword is not None:
+        conditions.append(_carries_tag("keyword", [filters.required_keyword]))
     conditions.extend(_carries_ingredient(term) for term in filters.ingredients)
+    return conditions
+
+
+def _discover_conditions(
+    *,
+    user_id: UUID,
+    query: str | None,
+    filters: DiscoverFilter | None,
+) -> list[ColumnElement[bool]]:
+    """Which saved rows a cook is allowed to be shown, before any ranking.
+
+    Shared by the ranked page and by the shelf query that decides which
+    keywords have enough behind them to be worth a shelf. They have to agree:
+    a keyword counted over rows the feed would not serve — a source this cook
+    already saved, an extraction that never became ready — makes a shelf that
+    arrives one card short of the floor it was supposed to clear.
+    """
+
+    saved_recipe = aliased(Recipe)
+    saved_source_ids = select(saved_recipe.source_video_id).where(
+        saved_recipe.user_id == user_id,
+        saved_recipe.source_video_id.is_not(None),
+    )
+    conditions = [
+        Recipe.user_id != user_id,
+        Recipe.deleted_at.is_(None),
+        Recipe.review_status == RecipeReviewStatus.READY.value,
+        Recipe.source != RecipeSource.OTHER.value,
+        Recipe.source_video_id.is_not(None),
+        Recipe.source_cache_id.is_not(None),
+        Recipe.source_video_id.not_in(saved_source_ids),
+    ]
+    if query:
+        # Search the saved recipes' own columns rather than the cached
+        # template JSON: those are real indexable columns, and the rows being
+        # ranked are exactly these. A saver who renamed their private copy can
+        # therefore surface a source whose displayed title differs from what
+        # matched, which is an acceptable trade for a searchable column.
+        pattern = f"%{_escape_like(query.strip())}%"
+        conditions.append(
+            or_(
+                Recipe.title.ilike(pattern, escape="\\"),
+                Recipe.creator_name.ilike(pattern, escape="\\"),
+            )
+        )
+    conditions.extend(_filter_conditions(filters or DiscoverFilter()))
     return conditions
 
 
@@ -257,35 +318,11 @@ class RecipeRepository:
         arguments are absent for the shelves and for Watch, which leaves the
         ranking exactly as it was before any of this existed.
         """
-        saved_recipe = aliased(Recipe)
-        saved_source_ids = select(saved_recipe.source_video_id).where(
-            saved_recipe.user_id == user_id,
-            saved_recipe.source_video_id.is_not(None),
+        conditions = _discover_conditions(
+            user_id=user_id,
+            query=query,
+            filters=filters,
         )
-        conditions = [
-            Recipe.user_id != user_id,
-            Recipe.deleted_at.is_(None),
-            Recipe.review_status == RecipeReviewStatus.READY.value,
-            Recipe.source != RecipeSource.OTHER.value,
-            Recipe.source_video_id.is_not(None),
-            Recipe.source_cache_id.is_not(None),
-            Recipe.source_video_id.not_in(saved_source_ids),
-        ]
-        if query:
-            # Search the saved recipes' own columns rather than the cached
-            # template JSON: those are real indexable columns, and the rows
-            # being ranked are exactly these. A saver who renamed their private
-            # copy can therefore surface a source whose displayed title differs
-            # from what matched, which is an acceptable trade for a searchable
-            # column.
-            pattern = f"%{_escape_like(query.strip())}%"
-            conditions.append(
-                or_(
-                    Recipe.title.ilike(pattern, escape="\\"),
-                    Recipe.creator_name.ilike(pattern, escape="\\"),
-                )
-            )
-        conditions.extend(_filter_conditions(filters or DiscoverFilter()))
 
         saved_count = func.count(distinct(Recipe.user_id)).label("saved_count")
         latest_save = func.max(Recipe.updated_at).label("latest_save")
@@ -437,6 +474,93 @@ class RecipeRepository:
             next_cursor=cursor + len(consumed),
             has_more=has_more,
         )
+
+    def discover_shelves(
+        self,
+        database: Session,
+        *,
+        user_id: UUID,
+        limit: int,
+        filters: DiscoverFilter | None = None,
+        minimum_recipes: int,
+        maximum_shelves: int,
+    ) -> DiscoverShelvesDTO:
+        """The keywords worth a shelf, and one bounded page of each.
+
+        Two steps. The first counts the *sources* behind every curated
+        keyword, over exactly the rows the ranked list would serve this cook
+        and under exactly the filter they are browsing under, and keeps the
+        keywords that clear `minimum_recipes`. The second asks `discover` for
+        each survivor's own first page, so a shelf is ranked, deduplicated by
+        source and resolved through the extraction cache by the same code as
+        the list beneath it.
+
+        Proposals cannot appear here and it takes no work to keep them out:
+        an unreviewed term lives in `recipe_keyword_proposals`, which this
+        query never touches. That is the whole reason the two are separate
+        tables rather than a fourth `family`.
+
+        Ordering is by count and then by vocabulary, which is how every other
+        list of tags in this codebase is ordered. Counting first means the
+        shelves follow the corpus — as recipes arrive, the shelves a cook is
+        offered change without anybody editing a list.
+        """
+
+        # Aliased because the filter's own conditions are correlated EXISTS
+        # clauses over `recipe_tags`: sharing the table with this join would
+        # let them correlate onto it and lose their FROM entirely.
+        shelf_tag = aliased(RecipeTag)
+        keyword_sources = func.count(distinct(Recipe.source_video_id))
+        counted = database.execute(
+            select(shelf_tag.value, keyword_sources)
+            .select_from(Recipe)
+            .join(shelf_tag, shelf_tag.recipe_id == Recipe.id)
+            .where(
+                shelf_tag.family == "keyword",
+                *_discover_conditions(user_id=user_id, query=None, filters=filters),
+            )
+            .group_by(shelf_tag.value)
+            .having(keyword_sources >= minimum_recipes)
+        ).all()
+
+        vocabulary = {member.value: rank for rank, member in enumerate(RecipeKeyword)}
+        # Sorted here rather than in SQL: there are at most twenty-five rows,
+        # and a CASE expression spelling out the vocabulary order would be a
+        # second copy of the enum. A value the vocabulary no longer holds is
+        # dropped rather than raised, the same way a stored tag is read.
+        qualifying = sorted(
+            (
+                (RecipeKeyword(value), count)
+                for value, count in counted
+                if value in vocabulary
+            ),
+            key=lambda pair: (-pair[1], vocabulary[pair[0].value]),
+        )[:maximum_shelves]
+
+        shelves: list[DiscoverShelfDTO] = []
+        for keyword, _count in qualifying:
+            page = self.discover(
+                database,
+                user_id=user_id,
+                limit=limit,
+                filters=replace(
+                    filters or DiscoverFilter(),
+                    required_keyword=keyword,
+                ),
+            )
+            # The count is over ranked rows; a source whose cache went stale
+            # is ranked and then dropped, so a shelf can still come back
+            # short. Empty is the only case the server settles — the client
+            # already hides a rail with too few cards to read as a shelf.
+            if page.items:
+                shelves.append(
+                    DiscoverShelfDTO(
+                        keyword=keyword,
+                        title=keyword.shelf_title,
+                        items=page.items,
+                    )
+                )
+        return DiscoverShelvesDTO(shelves=shelves)
 
     def record_discover_impressions(
         self,

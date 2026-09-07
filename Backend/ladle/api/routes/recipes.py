@@ -19,6 +19,7 @@ from ladle.contracts.errors import (
 from ladle.contracts.recipes import (
     MAX_RECIPE_MINUTES,
     DiscoverPageDTO,
+    DiscoverShelvesDTO,
     DiscoverSort,
     RecipeDTO,
     SyncPageDTO,
@@ -62,6 +63,77 @@ def _rate_limits(request: Request) -> RateLimitService:
 
 def _rate_limit_policies(request: Request) -> RateLimitPolicies:
     return cast(RateLimitPolicies, request.app.state.rate_limit_policies)
+
+
+#: The tag filter, spelled once. The ranked feed and the keyword shelves take
+#: the same four parameters and mean the same thing by them — the shelves are
+#: the feed cut a different way, so a cook's diet has to reach both.
+DietQuery = Annotated[
+    list[DietTag] | None,
+    Query(
+        description=(
+            "Keep only sources that satisfy every diet listed. Repeat the "
+            "parameter to add one: somebody who avoids gluten and meat wants "
+            "dishes that are both, so these narrow rather than widen. A value "
+            "outside the vocabulary is refused rather than ignored, because a "
+            "filter that silently matched everything would read as an empty "
+            "library."
+        ),
+    ),
+]
+CuisineQuery = Annotated[
+    list[CuisineTag] | None,
+    Query(
+        description=(
+            "Keep sources belonging to any cuisine listed. Repeating it "
+            "widens: two cuisines are two shelves, not an impossible dish "
+            "that is both."
+        ),
+    ),
+]
+KeywordQuery = Annotated[
+    list[RecipeKeyword] | None,
+    Query(
+        description=(
+            "Keep sources carrying any keyword listed. Only curated keywords "
+            "are accepted; a term the extraction model proposed is not "
+            "filterable until somebody promotes it."
+        ),
+    ),
+]
+IngredientQuery = Annotated[
+    # The bound belongs on each term as well as on the list: `max_length` on a
+    # list parameter counts entries, so without the inner constraint one
+    # enormous query string becomes one enormous LIKE pattern.
+    list[Annotated[str, StringConstraints(max_length=100)]] | None,
+    Query(
+        max_length=10,
+        description=(
+            '"Only recipes with chicken in them". Matched against the '
+            "ingredient names of the saved copies, and repeating the "
+            "parameter requires all of them."
+        ),
+    ),
+]
+
+
+def _discover_filter(
+    diet: list[DietTag] | None,
+    cuisine: list[CuisineTag] | None,
+    keyword: list[RecipeKeyword] | None,
+    ingredient: list[str] | None,
+) -> DiscoverFilter:
+    return DiscoverFilter(
+        diets=tuple(diet or ()),
+        cuisines=tuple(cuisine or ()),
+        keywords=tuple(keyword or ()),
+        # Blank entries would each add a "%%" match that keeps everything,
+        # which reads to the cook as a filter that did nothing rather than
+        # one they mistyped.
+        ingredients=tuple(
+            stripped for value in ingredient or () if (stripped := value.strip())
+        ),
+    )
 
 
 def _conflict_response(request: Request, conflict: SyncConflict) -> JSONResponse:
@@ -128,53 +200,10 @@ def discover_recipes(
             ),
         ),
     ] = None,
-    diet: Annotated[
-        list[DietTag] | None,
-        Query(
-            description=(
-                "Keep only sources that satisfy every diet listed. Repeat the "
-                "parameter to add one: somebody who avoids gluten and meat "
-                "wants dishes that are both, so these narrow rather than "
-                "widen. A value outside the vocabulary is refused rather than "
-                "ignored, because a filter that silently matched everything "
-                "would read as an empty library."
-            ),
-        ),
-    ] = None,
-    cuisine: Annotated[
-        list[CuisineTag] | None,
-        Query(
-            description=(
-                "Keep sources belonging to any cuisine listed. Repeating it "
-                "widens: two cuisines are two shelves, not an impossible "
-                "dish that is both."
-            ),
-        ),
-    ] = None,
-    keyword: Annotated[
-        list[RecipeKeyword] | None,
-        Query(
-            description=(
-                "Keep sources carrying any keyword listed. Only curated "
-                "keywords are accepted; a term the extraction model proposed "
-                "is not filterable until somebody promotes it."
-            ),
-        ),
-    ] = None,
-    ingredient: Annotated[
-        # The bound belongs on each term as well as on the list: `max_length`
-        # on a list parameter counts entries, so without the inner constraint
-        # one enormous query string becomes one enormous LIKE pattern.
-        list[Annotated[str, StringConstraints(max_length=100)]] | None,
-        Query(
-            max_length=10,
-            description=(
-                '"Only recipes with chicken in them". Matched against the '
-                "ingredient names of the saved copies, and repeating the "
-                "parameter requires all of them."
-            ),
-        ),
-    ] = None,
+    diet: DietQuery = None,
+    cuisine: CuisineQuery = None,
+    keyword: KeywordQuery = None,
+    ingredient: IngredientQuery = None,
     seen_before: Annotated[
         datetime | None,
         Query(
@@ -223,21 +252,35 @@ def discover_recipes(
             query=q,
             sort=sort,
             max_total_minutes=max_total_minutes,
-            filters=DiscoverFilter(
-                diets=tuple(diet or ()),
-                cuisines=tuple(cuisine or ()),
-                keywords=tuple(keyword or ()),
-                # Blank entries would each add a "%%" match that keeps
-                # everything, which reads to the cook as a filter that did
-                # nothing rather than one they mistyped.
-                ingredients=tuple(
-                    stripped
-                    for value in ingredient or ()
-                    if (stripped := value.strip())
-                ),
-            ),
+            filters=_discover_filter(diet, cuisine, keyword, ingredient),
             seen_before=seen_before,
             record_impressions=record_impressions,
+        )
+
+
+# Declared before `/discover/{source_video_id}`: FastAPI matches in
+# declaration order, and the other way round "shelves" is read as a source ID
+# and the route answers 422 for a path that exists.
+@router.get("/discover/shelves", response_model=DiscoverShelvesDTO)
+def discover_shelves(
+    request: Request,
+    limit: Annotated[PositiveInt, Query(le=30)] = 10,
+    diet: DietQuery = None,
+    cuisine: CuisineQuery = None,
+    keyword: KeywordQuery = None,
+    ingredient: IngredientQuery = None,
+    authorization: Annotated[str | None, Header()] = None,
+) -> DiscoverShelvesDTO:
+    claims = access_claims(request, authorization)
+    _rate_limits(request).enforce(
+        _rate_limit_policies(request).sync_poll(str(claims.user_id))
+    )
+    with database(request) as current_database:
+        return _recipes(request).discover_shelves(
+            current_database,
+            user_id=claims.user_id,
+            limit=limit,
+            filters=_discover_filter(diet, cuisine, keyword, ingredient),
         )
 
 

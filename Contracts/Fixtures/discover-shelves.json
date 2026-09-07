@@ -1,0 +1,52 @@
+{
+  "shelves": [
+    {
+      "items": [
+        {
+          "creatorName": "@mia_cooks",
+          "description": "Creamy lemon orzo with spinach.",
+          "imageURL": "https://images.ladle.example/discover/lemon-orzo.jpg",
+          "likeCount": 48210,
+          "originalURL": "https://www.tiktok.com/@mia_cooks/video/1234567890",
+          "savedCount": 12,
+          "savedRecipeID": null,
+          "source": "tiktok",
+          "sourceID": "90000000-0000-4000-8000-000000000001",
+          "title": "Lemon Orzo"
+        },
+        {
+          "creatorName": "@sagrika",
+          "description": "Chickpeas simmered in coconut milk.",
+          "imageURL": null,
+          "likeCount": null,
+          "originalURL": "https://www.instagram.com/reel/chickpea-curry",
+          "savedCount": 7,
+          "savedRecipeID": null,
+          "source": "instagram",
+          "sourceID": "90000000-0000-4000-8000-000000000002",
+          "title": "Chickpea Curry"
+        }
+      ],
+      "keyword": "onePot",
+      "title": "One pot"
+    },
+    {
+      "items": [
+        {
+          "creatorName": "@mia_cooks",
+          "description": "Creamy lemon orzo with spinach.",
+          "imageURL": "https://images.ladle.example/discover/lemon-orzo.jpg",
+          "likeCount": 48210,
+          "originalURL": "https://www.tiktok.com/@mia_cooks/video/1234567890",
+          "savedCount": 12,
+          "savedRecipeID": null,
+          "source": "tiktok",
+          "sourceID": "90000000-0000-4000-8000-000000000001",
+          "title": "Lemon Orzo"
+        }
+      ],
+      "keyword": "highProtein",
+      "title": "High protein"
+    }
+  ]
+}
