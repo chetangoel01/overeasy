@@ -58,6 +58,23 @@ final class ProfileSheetUITests: XCTestCase {
         for footer in [
             "Your recipes stay synced across your devices.",
             "Tints buttons, favorites, and the selected tab.",
+        ] {
+            XCTAssertFalse(
+                app.staticTexts[footer].exists,
+                "Footer still present: \(footer)"
+            )
+        }
+        XCTAssertTrue(app.staticTexts["Appearance"].exists)
+
+        // The icon picker sits between Appearance and the rest, which put
+        // the last two sections below the fold. A `Form` does not render
+        // what is off screen, so saying what is *not* there is only worth
+        // anything once they are on it.
+        app.swipeUp()
+        XCTAssertTrue(
+            app.staticTexts["Account"].waitForExistence(timeout: 3)
+        )
+        for footer in [
             "What Overeasy stores, and what it never does.",
             "Signing out keeps your synced library in Overeasy. Deleting removes it permanently.",
         ] {
@@ -66,10 +83,6 @@ final class ProfileSheetUITests: XCTestCase {
                 "Footer still present: \(footer)"
             )
         }
-
-        // The headers stay, and the last one is renamed.
-        XCTAssertTrue(app.staticTexts["Appearance"].exists)
-        XCTAssertTrue(app.staticTexts["Account"].exists)
         XCTAssertFalse(app.staticTexts["Account actions"].exists)
     }
 
@@ -209,10 +222,15 @@ final class ProfileSheetUITests: XCTestCase {
         }
     }
 
-    /// iOS puts up its own notice when an icon changes. It is deliberately
-    /// not suppressed, so a run that meets one dismisses it — but the iOS
-    /// 26.5 simulator does not show one, measured, so its absence is not a
-    /// failure either.
+    /// iOS puts up its own notice when an icon changes — "You have changed
+    /// the icon for Overeasy" — and it is deliberately not suppressed. The
+    /// notice belongs to SpringBoard rather than to the app, which is where
+    /// it is answered from here; leaving it up would block the next tap.
+    ///
+    /// Not asserted: it arrives on its own schedule, sometimes after the tap
+    /// that caused it has already returned, and a run that has not met it
+    /// yet has still switched the icon. What proves the switch is the
+    /// selection, below.
     @MainActor
     private func dismissIconChangeNotice() {
         let springboard = XCUIApplication(
