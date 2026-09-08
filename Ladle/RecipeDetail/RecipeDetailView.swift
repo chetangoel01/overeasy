@@ -330,7 +330,7 @@ struct RecipeDetailView: View {
                 Text(displayedRecipe.source.libraryTitle)
             }
             .ladleFont(.metadata)
-            .foregroundStyle(LadleTheme.Label.primary.opacity(0.58))
+            .foregroundStyle(LadleTheme.Label.secondary)
 
             if !displayedRecipe.description.isEmpty {
                 Text(displayedRecipe.description)
@@ -467,7 +467,7 @@ struct RecipeDetailView: View {
                     "Values are estimated from the imported recipe and may vary by ingredients or serving size."
                 )
                 .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.Label.primary.opacity(0.62))
+                .foregroundStyle(LadleTheme.Label.secondary)
             }
         }
         .padding(16)

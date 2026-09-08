@@ -47,7 +47,7 @@ struct GuestLimitView: View {
                         .multilineTextAlignment(.center)
                     Text(message)
                         .ladleFont(.body)
-                        .foregroundStyle(LadleTheme.Label.primary.opacity(0.65))
+                        .foregroundStyle(LadleTheme.Label.secondary)
                         .multilineTextAlignment(.center)
                 }
 

@@ -273,10 +273,9 @@ struct AccountHeaderView: View {
     let accountSession: AccountSession
     let library: LibraryViewModel
     var authClient: AuthClient?
+    let onSignIn: () -> Void
 
-    @State private var flow: AccountSignInFlow
     @State private var editor: ProfileEditor
-    @State private var isSignInPresented = false
     @State private var isEditingName = false
     @State private var draftName = ""
     @FocusState private var isNameFocused: Bool
@@ -289,20 +288,12 @@ struct AccountHeaderView: View {
         accountSession: AccountSession,
         library: LibraryViewModel,
         authClient: AuthClient?,
-        googleSignIn: (any GoogleSignInProviding)?,
-        onAuthenticated: @escaping @MainActor () async -> Void
+        onSignIn: @escaping () -> Void
     ) {
         self.accountSession = accountSession
         self.library = library
         self.authClient = authClient
-        _flow = State(
-            initialValue: AccountSignInFlow(
-                accountSession: accountSession,
-                authClient: authClient,
-                googleSignIn: googleSignIn,
-                onAuthenticated: onAuthenticated
-            )
-        )
+        self.onSignIn = onSignIn
         _editor = State(
             initialValue: ProfileEditor(
                 accountSession: accountSession,
@@ -319,7 +310,7 @@ struct AccountHeaderView: View {
             } else {
                 guestIdentity
 
-                Button("Sign in") { isSignInPresented = true }
+                Button("Sign in", action: onSignIn)
                     .buttonStyle(LadleButtonStyle(role: .secondary))
                     .padding(.horizontal, LadleTheme.Layout.sheetMargin)
                     .accessibilityIdentifier("account.profile.sign-in")
@@ -331,16 +322,6 @@ struct AccountHeaderView: View {
         // one; adding 24 of ours on top of it is what left the sheet opening
         // on a band of nothing.
         .padding(.bottom, LadleTheme.Layout.sectionGap)
-        .sheet(isPresented: $isSignInPresented) {
-            signInSheet
-        }
-        .onChange(of: accountSession.state) { _, state in
-            // `onAuthenticated` runs up in the library, so nothing else here
-            // would ever close this sheet after a successful sign-in.
-            if isSignInPresented, state != .guest, state != .undecided {
-                isSignInPresented = false
-            }
-        }
         // Try Again re-sends the save that failed. Offered only where that
         // could help — a 5xx from us — and always beside the way out, so an
         // alert is never the end of the road it used to be.
@@ -670,45 +651,6 @@ struct AccountHeaderView: View {
         }
         .frame(width: Self.avatarDiameter, height: Self.avatarDiameter)
         .background(LadleTheme.Surface.badge, in: Circle())
-    }
-
-    // MARK: - Guest
-
-    private var signInSheet: some View {
-        NavigationStack {
-            VStack(spacing: LadleTheme.Spacing.generous) {
-                Text("Keep your recipes in sync")
-                    .ladleFont(.title)
-                    .foregroundStyle(LadleTheme.Label.primary)
-                    .multilineTextAlignment(.center)
-
-                Text(
-                    "Signing in keeps everything you have saved and lifts the 10-recipe guest limit."
-                )
-                .ladleFont(.body)
-                .foregroundStyle(LadleTheme.Label.secondary)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-
-                SignInOptionsView(flow: flow, identifierPrefix: "account")
-
-            }
-            .padding(LadleTheme.Layout.sheetMargin)
-            // Centred rather than pinned to the top. The content is a title,
-            // a sentence and two buttons; against a fixed medium detent that
-            // left a half-sheet of empty paper hanging beneath it.
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(LadleTheme.Surface.porcelain)
-            .navigationTitle("Sign in")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { isSignInPresented = false }
-                }
-            }
-        }
-        .presentationDetents([.medium])
-        .presentationDragIndicator(.visible)
     }
 
     // MARK: - Editing

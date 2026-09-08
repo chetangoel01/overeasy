@@ -381,7 +381,7 @@ struct FullRecipeView: View {
             } else if let number {
                 Text("\(number)")
                     .ladleFont(.metadata)
-                    .foregroundStyle(LadleTheme.Label.primary.opacity(0.58))
+                    .foregroundStyle(LadleTheme.Label.secondary)
             }
         }
         .frame(

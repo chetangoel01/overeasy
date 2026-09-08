@@ -52,17 +52,17 @@ struct NutritionView: View {
                     }
                 }
             }
+            .navigationDestination(isPresented: $isHealthExportPresented) {
+                HealthExportSheet(
+                    recipeTitle: recipeTitle,
+                    nutrition: nutrition,
+                    uncountedNote: uncountedNote,
+                    service: healthService
+                )
+            }
         }
         .presentationDetents([.large])
         .presentationBackground(LadleTheme.Surface.porcelain)
-        .sheet(isPresented: $isHealthExportPresented) {
-            HealthExportSheet(
-                recipeTitle: recipeTitle,
-                nutrition: nutrition,
-                uncountedNote: uncountedNote,
-                service: healthService
-            )
-        }
     }
 
     private var calorieHero: some View {
@@ -72,7 +72,7 @@ struct NutritionView: View {
                 .foregroundStyle(LadleTheme.Label.primary)
             Text("Calories")
                 .ladleFont(.bodyStrong)
-                .foregroundStyle(LadleTheme.Label.primary.opacity(0.58))
+                .foregroundStyle(LadleTheme.Label.secondary)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 24)
@@ -158,14 +158,14 @@ struct NutritionView: View {
                     "Set a valid serving basis before using these values or exporting them."
                 )
                 .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.Label.primary.opacity(0.64))
+                .foregroundStyle(LadleTheme.Label.secondary)
             } else if displayedNutrition.isEstimated {
                 Label(
                     "Nutrition is estimated from the imported recipe.",
                     systemImage: "info.circle"
                 )
                 .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.Label.primary.opacity(0.64))
+                .foregroundStyle(LadleTheme.Label.secondary)
             }
 
             // A total that leaves an ingredient out has to say so where the
@@ -173,7 +173,7 @@ struct NutritionView: View {
             if hasValidServingBasis, let uncountedNote {
                 Label(uncountedNote, systemImage: "exclamationmark.circle")
                     .ladleFont(.metadata)
-                    .foregroundStyle(LadleTheme.Label.primary.opacity(0.64))
+                    .foregroundStyle(LadleTheme.Label.secondary)
                     .accessibilityIdentifier("nutrition.uncounted")
             }
         }
@@ -217,7 +217,7 @@ struct NutritionView: View {
                 .foregroundStyle(LadleTheme.Label.primary)
             Text(name)
                 .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.Label.primary.opacity(0.58))
+                .foregroundStyle(LadleTheme.Label.secondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.72)
         }

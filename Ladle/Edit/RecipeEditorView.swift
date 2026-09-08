@@ -10,6 +10,7 @@ struct RecipeEditorView: View {
     let didSave: (Recipe) -> Void
 
     @State private var selectedSection: RecipeEditorSection = .basics
+    @State private var isDiscardPresented = false
 
     var body: some View {
         NavigationStack {
@@ -27,6 +28,7 @@ struct RecipeEditorView: View {
                         .padding(.vertical, LadleTheme.Spacing.regular)
                         .padding(.bottom, LadleTheme.Layout.scrollTail)
                 }
+                .id(selectedSection)
                 .scrollDismissesKeyboard(.interactively)
                 .scrollIndicators(.hidden)
             }
@@ -37,8 +39,8 @@ struct RecipeEditorView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
-                        viewModel.discardChanges()
-                        dismiss()
+                        if viewModel.hasChanges { isDiscardPresented = true }
+                        else { dismiss() }
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
@@ -59,7 +61,10 @@ struct RecipeEditorView: View {
         }
         .presentationDetents([.large])
         .presentationBackground(LadleTheme.Surface.porcelain)
-        .interactiveDismissDisabled(viewModel.hasChanges)
+        .discardChangesConfirmation(isPresented: $isDiscardPresented, hasChanges: viewModel.hasChanges) {
+            viewModel.discardChanges()
+            dismiss()
+        }
     }
 
     @ViewBuilder
@@ -115,6 +120,7 @@ struct RecipeEditorView: View {
                             )
                     }
                     .accessibilityLabel("\(section.rawValue) section")
+                    .accessibilityAddTraits(selectedSection == section ? .isSelected : [])
                 }
             }
             .padding(.horizontal, LadleTheme.Spacing.regular)
@@ -215,7 +221,7 @@ struct RecipeEditorView: View {
             VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
                 Text("Original source")
                     .ladleFont(.metadata)
-                    .foregroundStyle(LadleTheme.Label.primary.opacity(0.56))
+                    .foregroundStyle(LadleTheme.Label.secondary)
                 Text(viewModel.draft.originalURL.absoluteString)
                     .ladleFont(.body)
                     .foregroundStyle(LadleTheme.Label.primary)
@@ -527,7 +533,7 @@ struct RecipeEditorView: View {
                     .foregroundStyle(LadleTheme.Label.primary)
                 Text(message)
                     .ladleFont(.body)
-                    .foregroundStyle(LadleTheme.Label.primary.opacity(0.62))
+                    .foregroundStyle(LadleTheme.Label.secondary)
             }
 
             content()
@@ -584,7 +590,7 @@ struct RecipeEditorView: View {
         VStack(alignment: .leading, spacing: LadleTheme.Spacing.compact) {
             Text(title)
                 .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.Label.primary.opacity(0.58))
+                .foregroundStyle(LadleTheme.Label.secondary)
             TextField(title, text: text)
                 .ladleFont(.body)
                 .keyboardType(keyboardType)
