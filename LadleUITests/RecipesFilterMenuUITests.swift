@@ -50,53 +50,98 @@ final class RecipesFilterMenuUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Remove filter: 30 min or less"].exists)
     }
 
-    /// The point of the shared model: a diet chosen on Recipes is already
-    /// true on Discover, without a second control and without choosing it
-    /// again. Recipes answers it from its own decoded tags; Discover asks
-    /// the server. Neither is visible from here — only that they agree.
+    /// The point of the shared model, and of asking the question once: a
+    /// diet given during onboarding is already true on every tab, without a
+    /// second control and without choosing it again. Recipes answers it from
+    /// its own decoded tags; Discover asks the server. Neither is visible
+    /// from here — only that they agree.
     @MainActor
-    func testADietChosenOnRecipesIsAlreadyAppliedOnDiscover() throws {
-        let app = launchApp(startingOn: "Recipes")
-        defer { clearFilters(in: app) }
+    func testADietChosenDuringOnboardingIsAlreadyOnEveryTab() throws {
+        let app = launchOnboardingDietStep()
+        chooseVegetarian(in: app)
 
-        XCTAssertTrue(
-            app.staticTexts["6 recipes"].waitForExistence(timeout: 5),
-            "The demo library starts at six recipes"
-        )
-
-        app.buttons["Filters"].tap()
-        let vegetarian = app.buttons["Vegetarian"]
-        XCTAssertTrue(
-            vegetarian.waitForExistence(timeout: 2),
-            "Diet is the first section of the menu, not behind a submenu"
-        )
-        vegetarian.tap()
-
-        // Four of the demo's six dishes are vegetarian.
-        XCTAssertTrue(
-            app.staticTexts["4 recipes"].waitForExistence(timeout: 3),
-            "The library narrows on the tags it already holds"
-        )
-        XCTAssertTrue(
-            app.buttons["Remove filter: Vegetarian diet"].exists,
-            "A diet outlives the launch, so it says so on screen"
-        )
-
-        app.tabBars.buttons["Discover"].tap()
-
+        // The launch lands on Discover, which asked the server with the diet
+        // the cook had given it a second earlier.
         XCTAssertTrue(
             app.buttons["Remove filter: Vegetarian diet"]
-                .waitForExistence(timeout: 3),
-            "Discover reads the same filter, so it shows the same pill"
+                .waitForExistence(timeout: 5),
+            "Discover reads the diet the onboarding step wrote"
         )
-        let burger = app.staticTexts["Crispy Chili Oil Smash Burgers"]
         XCTAssertFalse(
-            burger.waitForExistence(timeout: 2),
+            app.staticTexts["Crispy Chili Oil Smash Burgers"]
+                .waitForExistence(timeout: 2),
             "The feed came back filtered; the meat dish is not in it"
         )
         XCTAssertTrue(
             app.staticTexts["One-Pot Lemon Orzo with Feta"].exists,
             "The vegetarian sources are still there"
+        )
+
+        app.tabBars.buttons["Recipes"].tap()
+
+        // Four of the demo's six dishes are vegetarian.
+        XCTAssertTrue(
+            app.staticTexts["4 recipes"].waitForExistence(timeout: 5),
+            "The library narrows on the tags it already holds"
+        )
+    }
+
+    /// What the filter menu may still do to a diet: put it down for the
+    /// evening. It is the one filter that comes back by itself, because the
+    /// cook did not set it there and should not have to remember to.
+    @MainActor
+    func testPausingTheDietShowsEverythingAndItIsBackNextLaunch() throws {
+        let app = launchOnboardingDietStep()
+        chooseVegetarian(in: app)
+        openRecipes(in: app)
+
+        XCTAssertTrue(
+            app.staticTexts["4 recipes"].waitForExistence(timeout: 5)
+        )
+
+        filterMenu(in: app).tap()
+        let onRow = app.buttons["Vegetarian diet · On"]
+        XCTAssertTrue(
+            onRow.waitForExistence(timeout: 3),
+            "The menu says which diet is on rather than offering five to pick"
+        )
+        onRow.tap()
+
+        XCTAssertTrue(
+            app.staticTexts["6 recipes"].waitForExistence(timeout: 3),
+            "A paused diet shows the whole library again"
+        )
+        XCTAssertFalse(
+            app.buttons["Remove filter: Vegetarian diet"].exists,
+            "Nothing is narrowing the library, so there is no pill"
+        )
+
+        filterMenu(in: app).tap()
+        let offRow = app.buttons["Vegetarian diet · Off, showing everything"]
+        XCTAssertTrue(
+            offRow.waitForExistence(timeout: 3),
+            "The row still names the diet, so the pause can be lifted"
+        )
+        offRow.tap()
+        XCTAssertTrue(
+            app.staticTexts["4 recipes"].waitForExistence(timeout: 3)
+        )
+
+        // Put it down again, then relaunch without the preferences reset:
+        // the diet is stored, the pause is not.
+        filterMenu(in: app).tap()
+        app.buttons["Vegetarian diet · On"].tap()
+        XCTAssertTrue(
+            app.staticTexts["6 recipes"].waitForExistence(timeout: 3)
+        )
+
+        app.launchArguments = ["-ui-testing", "-onboarding-complete"]
+        app.launch()
+        openRecipes(in: app)
+
+        XCTAssertTrue(
+            app.staticTexts["4 recipes"].waitForExistence(timeout: 5),
+            "A pause dies with the launch; the diet does not"
         )
     }
 
@@ -197,15 +242,55 @@ final class RecipesFilterMenuUITests: XCTestCase {
         )
     }
 
-    /// The diet is written to preferences, so a run that left one on would
-    /// hand it to the next test on the same simulator.
+    /// The one launch that is stopped by the diet question. Every other test
+    /// in the bundle passes `-onboarding-complete` alone, which answers it.
     @MainActor
-    private func clearFilters(in app: XCUIApplication) {
-        guard app.state == .runningForeground else { return }
-        let pill = app.buttons["Remove filter: Vegetarian diet"].firstMatch
-        if pill.waitForExistence(timeout: 1) {
-            pill.tap()
-        }
+    private func launchOnboardingDietStep() -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-ui-testing",
+            "-onboarding-complete",
+            "-diet-step-pending",
+            "-reset-library-preferences",
+        ]
+        app.launch()
+        XCTAssertTrue(
+            app.staticTexts["Do you follow a diet?"]
+                .waitForExistence(timeout: 5),
+            "A new cook is asked about their diet before the library"
+        )
+        return app
+    }
+
+    @MainActor
+    private func chooseVegetarian(in app: XCUIApplication) {
+        app.buttons["diet-step.option.vegetarian"].tap()
+        app.buttons["diet-step.continue"].tap()
+    }
+
+    /// Onboarding fades the library in underneath itself, so for a moment
+    /// there are two tab bars on screen and the query behind a bare
+    /// subscript matches twice. Wait for the feed the launch lands on, then
+    /// take the first.
+    @MainActor
+    private func openRecipes(in app: XCUIApplication) {
+        XCTAssertTrue(
+            app.descendants(matching: .any)["library.discover"]
+                .waitForExistence(timeout: 10),
+            "Answering the diet question lands the cook in the app"
+        )
+        app.tabBars.firstMatch.buttons["Recipes"].tap()
+    }
+
+    /// The filter button's label carries how many filters are on, so a diet
+    /// changes it. Matched on the word rather than the count.
+    @MainActor
+    private func filterMenu(in app: XCUIApplication) -> XCUIElement {
+        let menu = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH 'Filters'")
+        ).firstMatch
+        XCTAssertTrue(menu.waitForExistence(timeout: 3))
+        return menu
     }
 
     /// The submenu's label carries its current value, so it is matched on its
