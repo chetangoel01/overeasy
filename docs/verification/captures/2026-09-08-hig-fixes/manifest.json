@@ -1,0 +1,156 @@
+[
+  {
+    "name": "Share confirmation \u2014 failure, accessibility",
+    "file": "share-confirmation-failure-accessibility.png",
+    "test": "ShareConfirmationViewTests/testFailureConfirmationRendersAtAccessibilitySize()",
+    "run": "green-1",
+    "device": "Overeasy-HIG-Fixes"
+  },
+  {
+    "name": "Share confirmation \u2014 loading, accessibility",
+    "file": "share-confirmation-loading-accessibility.png",
+    "test": "ShareConfirmationViewTests/testLoadingConfirmationRendersAtAccessibilitySize()",
+    "run": "green-1",
+    "device": "Overeasy-HIG-Fixes"
+  },
+  {
+    "name": "Share confirmation \u2014 success",
+    "file": "share-confirmation-success.png",
+    "test": "ShareConfirmationViewTests/testSuccessConfirmationRendersAtShareSheetSize()",
+    "run": "green-1",
+    "device": "Overeasy-HIG-Fixes"
+  },
+  {
+    "name": "Share confirmation \u2014 success, dark",
+    "file": "share-confirmation-success-dark.png",
+    "test": "ShareConfirmationViewTests/testSuccessConfirmationRendersInDarkMode()",
+    "run": "green-1",
+    "device": "Overeasy-HIG-Fixes"
+  },
+  {
+    "name": "HIG discard confirmation",
+    "file": "hig-discard-confirmation.png",
+    "test": "HIGRegressionUITests/testEditorCancelOffersKeepEditingAndDiscard()",
+    "run": "green-2",
+    "device": "Overeasy-HIG-Fixes"
+  },
+  {
+    "name": "HIG editor section reset",
+    "file": "hig-editor-section-reset.png",
+    "test": "HIGRegressionUITests/testEditorSectionStartsAtItsHeading()",
+    "run": "green-2",
+    "device": "Overeasy-HIG-Fixes"
+  },
+  {
+    "name": "HIG health export Back",
+    "file": "hig-health-export-back.png",
+    "test": "HIGRegressionUITests/testHealthExportReturnsToNutritionWithinTheSheet()",
+    "run": "green-2",
+    "device": "Overeasy-HIG-Fixes"
+  },
+  {
+    "name": "HIG profile sign in",
+    "file": "hig-profile-sign-in.png",
+    "test": "HIGRegressionUITests/testProfileSignInUsesBackWithinOneSheet()",
+    "run": "sign-in-final",
+    "device": "Overeasy-HIG-Fixes"
+  },
+  {
+    "name": "HIG recovery returned to import",
+    "file": "hig-recovery-returned-to-import.png",
+    "test": "HIGRegressionUITests/testRecoveryUsesBackAndProtectsAllThreeDrafts()",
+    "run": "green-2",
+    "device": "Overeasy-HIG-Fixes"
+  },
+  {
+    "name": "HIG servings AX5",
+    "file": "hig-servings-ax5.png",
+    "test": "HIGRegressionUITests/testServingsResetIsReachableAtLargestTextSize()",
+    "run": "green-2",
+    "device": "Overeasy-HIG-Fixes"
+  },
+  {
+    "name": "HIG Watch recipes AX5",
+    "file": "hig-watch-recipes-ax5.png",
+    "test": "HIGRegressionUITests/testWatchActionsStackAtLargestTextSize()",
+    "run": "green-2",
+    "device": "Overeasy-HIG-Fixes"
+  },
+  {
+    "name": "HIG Watch discover AX5",
+    "file": "hig-watch-discover-ax5.png",
+    "test": "HIGRegressionUITests/testWatchActionsStackAtLargestTextSize()",
+    "run": "green-2",
+    "device": "Overeasy-HIG-Fixes"
+  },
+  {
+    "name": "Scaled list with a to-taste row",
+    "file": "scaled-list-with-a-to-taste-row.png",
+    "test": "RecipeScalingUITests/testChangingTheYieldRewritesTheIngredientAmounts()",
+    "run": "green-3",
+    "device": "Overeasy-HIG-Fixes"
+  },
+  {
+    "name": "Recipe scaled to 8 servings",
+    "file": "recipe-scaled-to-8-servings.png",
+    "test": "RecipeScalingUITests/testChangingTheYieldRewritesTheIngredientAmounts()",
+    "run": "green-3",
+    "device": "Overeasy-HIG-Fixes"
+  },
+  {
+    "name": "Servings stepper at 8",
+    "file": "servings-stepper-at-8.png",
+    "test": "RecipeScalingUITests/testChangingTheYieldRewritesTheIngredientAmounts()",
+    "run": "green-3",
+    "device": "Overeasy-HIG-Fixes"
+  },
+  {
+    "name": "Cooking - focus mode",
+    "file": "cooking-focus-mode.png",
+    "test": "StateScenarioUITests/testPrimaryJourneyCapturesInboxDetailAndCooking()",
+    "run": "green-3",
+    "device": "Overeasy-HIG-Fixes"
+  },
+  {
+    "name": "Cooking - full recipe",
+    "file": "cooking-full-recipe.png",
+    "test": "StateScenarioUITests/testPrimaryJourneyCapturesInboxDetailAndCooking()",
+    "run": "green-3",
+    "device": "Overeasy-HIG-Fixes"
+  },
+  {
+    "name": "Recipe detail",
+    "file": "recipe-detail.png",
+    "test": "StateScenarioUITests/testPrimaryJourneyCapturesInboxDetailAndCooking()",
+    "run": "green-3",
+    "device": "Overeasy-HIG-Fixes"
+  },
+  {
+    "name": "Inbox - active states",
+    "file": "inbox-active-states.png",
+    "test": "StateScenarioUITests/testPrimaryJourneyCapturesInboxDetailAndCooking()",
+    "run": "green-3",
+    "device": "Overeasy-HIG-Fixes"
+  },
+  {
+    "name": "Launch - Discover first",
+    "file": "launch-discover-first.png",
+    "test": "StateScenarioUITests/testPrimaryJourneyCapturesInboxDetailAndCooking()",
+    "run": "green-3",
+    "device": "Overeasy-HIG-Fixes"
+  },
+  {
+    "name": "HIG custom sign in AX5",
+    "file": "hig-custom-sign-in-ax5.png",
+    "test": "HIGRegressionUITests/testCustomSignInButtonsFitAtLargestTextSize()",
+    "run": "sign-in-ax5",
+    "device": "Overeasy-HIG-Fixes"
+  },
+  {
+    "name": "HIG welcome actions AX5",
+    "file": "hig-welcome-actions-ax5.png",
+    "test": "HIGRegressionUITests/testWelcomeProviderButtonsFitAtLargestTextSize()",
+    "run": "sign-in-ax5",
+    "device": "Overeasy-HIG-Fixes"
+  }
+]

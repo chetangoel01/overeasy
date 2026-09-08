@@ -123,6 +123,7 @@ struct AccountSheet: View {
     @State private var isSignOutConfirmationPresented = false
     @State private var isDeleteConfirmationPresented = false
     @State private var isSigningOut = false
+    @State private var isSignInPresented = false
     @State private var deletion = AccountDeleter()
 
     var body: some View {
@@ -159,6 +160,14 @@ struct AccountSheet: View {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close", action: dismiss.callAsFunction)
                 }
+            }
+            .navigationDestination(isPresented: $isSignInPresented) {
+                AccountSignInView(
+                    accountSession: accountSession,
+                    authClient: authClient,
+                    googleSignIn: googleSignIn,
+                    onAuthenticated: onAuthenticated
+                )
             }
             .confirmationDialog(
                 "Sign out of Overeasy?",
@@ -228,8 +237,7 @@ struct AccountSheet: View {
                 accountSession: accountSession,
                 library: library,
                 authClient: authClient,
-                googleSignIn: googleSignIn,
-                onAuthenticated: onAuthenticated
+                onSignIn: { isSignInPresented = true }
             )
             .listRowBackground(Color.clear)
             .listRowInsets(EdgeInsets())

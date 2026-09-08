@@ -24,6 +24,14 @@ struct FailedImportSheet: View {
                         .disabled(isRetrying || isOwnedImporting)
                 }
             }
+            .navigationDestination(item: $recoveryInputMode) { mode in
+                CorrectionNotesView(mode: mode) { notes, pastedText in
+                    runRetry(
+                        correctionNotes: notes,
+                        pastedRecipeText: pastedText
+                    )
+                }
+            }
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
@@ -36,14 +44,6 @@ struct FailedImportSheet: View {
         // the screen — a swipe-down runs no other cleanup. Inert for a
         // plain import row (no recipe to present).
         .reimportPresentation(coordinator, for: job.currentRecipeID)
-        .sheet(item: $recoveryInputMode) { mode in
-            CorrectionNotesView(mode: mode) { notes, pastedText in
-                runRetry(
-                    correctionNotes: notes,
-                    pastedRecipeText: pastedText
-                )
-            }
-        }
     }
 
     @ViewBuilder
@@ -102,7 +102,7 @@ struct FailedImportSheet: View {
 
             Text(failureMessage)
                 .ladleFont(.body)
-                .foregroundStyle(LadleTheme.Label.primary.opacity(0.64))
+                .foregroundStyle(LadleTheme.Label.secondary)
         }
     }
 
@@ -110,7 +110,7 @@ struct FailedImportSheet: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Saved link")
                 .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.Label.primary.opacity(0.56))
+                .foregroundStyle(LadleTheme.Label.secondary)
             Text(job.sourceURL.absoluteString)
                 .ladleFont(.metadata)
                 .foregroundStyle(LadleTheme.Label.primary)

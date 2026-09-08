@@ -27,9 +27,9 @@ enum LadleAccentColor: String, CaseIterable, Identifiable {
         case .tomato:
             Color("Brick")
         case .orange:
-            Self.dynamicColor(light: 0xB85C00, dark: 0xC76600)
+            Self.dynamicColor(light: 0xAC5600, dark: 0xAC5600)
         case .sage:
-            Self.dynamicColor(light: 0x3C7650, dark: 0x47865C)
+            Self.dynamicColor(light: 0x3C7650, dark: 0x3F7952)
         case .blue:
             Self.dynamicColor(light: 0x2368AD, dark: 0x2A72BC)
         case .purple:
@@ -117,10 +117,10 @@ enum LadleTheme {
     static let paperHex = "#F7F4EF"
     static let oatHex = "#ECE7E1"
     static let inkHex = "#14181B"
-    static let brickHex = "#EE4B2F"
+    static let brickHex = "#C23B26"
     static let celeryHex = "#83A18A"
     static let ubeHex = "#E3DDD6"
-    static let mutedInkHex = "#64707A"
+    static let mutedInkHex = "#505B64"
     static let darkPaperHex = "#101214"
     static let darkOatHex = "#1C2024"
     static let darkInkHex = "#F2F4F5"
@@ -204,10 +204,14 @@ enum LadleTheme {
         /// Destructive actions. The system role, so it matches the platform's
         /// own delete affordances.
         static let destructive = Color.red
+        /// Filled destructive buttons need more contrast than the system tint.
+        static let destructiveFill = LadleAccentColor.tomato.intent
         /// Success and completion.
         static let success = LadleTheme.celery
-        /// Focus Mode progress and advance, fixed across appearances.
+        /// Focus Mode progress and icons, fixed across appearances.
         static let focus = LadleTheme.focusAccent
+        /// White-label action fill; the brighter focus color remains for indicators.
+        static let focusFill = LadleAccentColor.tomato.intent
         /// Fill behind a disabled control. A disabled control loses its accent
         /// entirely rather than wearing a faded version of it.
         static let disabledFill = LadleTheme.ube

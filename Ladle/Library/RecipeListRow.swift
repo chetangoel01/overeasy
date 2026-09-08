@@ -15,7 +15,7 @@ struct RecipeListRow: View {
             VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
                 Text(recipe.source.libraryTitle)
                     .ladleFont(.metadata)
-                    .foregroundStyle(LadleTheme.Label.primary.opacity(0.5))
+                    .foregroundStyle(LadleTheme.Label.secondary)
 
                 Text(recipe.title)
                     .ladleFont(.recipeTitle)
@@ -25,7 +25,7 @@ struct RecipeListRow: View {
                 if !recipe.libraryFacts.isEmpty {
                     Text(recipe.libraryFacts)
                         .ladleFont(.metadata)
-                        .foregroundStyle(LadleTheme.Label.primary.opacity(0.58))
+                        .foregroundStyle(LadleTheme.Label.secondary)
                         .lineLimit(1)
                 }
             }

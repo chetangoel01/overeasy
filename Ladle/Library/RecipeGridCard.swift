@@ -50,7 +50,7 @@ struct RecipeGridCard: View {
 
             Text(recipe.libraryFacts.isEmpty ? " " : recipe.libraryFacts)
                 .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.Label.primary.opacity(0.58))
+                .foregroundStyle(LadleTheme.Label.secondary)
                 .lineLimit(2)
                 .accessibilityHidden(recipe.libraryFacts.isEmpty)
         }

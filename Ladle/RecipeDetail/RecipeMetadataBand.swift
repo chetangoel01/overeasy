@@ -171,7 +171,7 @@ struct RecipeMetadataBand: View {
             }
             Text(label)
                 .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.Label.primary.opacity(0.56))
+                .foregroundStyle(LadleTheme.Label.secondary)
                 // No line limit, as before: "Scaled from 4 servings" is
                 // longer than the labels this band was built for, and it
                 // wraps inside a half-width tile at large type rather than
@@ -211,33 +211,33 @@ struct RecipeMetadataBand: View {
 /// here writes to the recipe.
 private struct ServingsSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @Binding var scaling: RecipeScaling
 
     var body: some View {
         NavigationStack {
-            VStack(alignment: .leading, spacing: LadleTheme.Layout.rowGap) {
-                stepperRow
+            ScrollView {
+                VStack(alignment: .leading, spacing: LadleTheme.Layout.rowGap) {
+                    stepperRow
 
-                Text(
-                    "Ingredient amounts are recalculated from the recipe’s \(scaling.baseYieldText). Nothing is saved — leaving the recipe puts it back."
-                )
-                .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.Label.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+                    Text(
+                        "Ingredient amounts are recalculated from the recipe’s \(scaling.baseYieldText). Nothing is saved — leaving the recipe puts it back."
+                    )
+                    .ladleFont(.metadata)
+                    .foregroundStyle(LadleTheme.Label.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                if scaling.isScaled {
-                    Button("Reset to \(scaling.baseYieldText)") {
-                        scaling.reset()
+                    if scaling.isScaled {
+                        Button("Reset to \(scaling.baseYieldText)") {
+                            scaling.reset()
+                        }
+                        .buttonStyle(LadleButtonStyle(role: .secondary))
+                        .accessibilityIdentifier("recipe.servings.reset")
                     }
-                    .buttonStyle(LadleButtonStyle(role: .secondary))
-                    .accessibilityIdentifier("recipe.servings.reset")
                 }
-
-                Spacer(minLength: 0)
+                .padding(LadleTheme.Spacing.regular)
             }
-            .padding(.horizontal, LadleTheme.Spacing.regular)
-            .padding(.top, LadleTheme.Spacing.regular)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(LadleTheme.Surface.porcelain)
             .navigationTitle("Cooking for")
@@ -249,22 +249,27 @@ private struct ServingsSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
+        .presentationDragIndicator(.visible)
         .presentationBackground(LadleTheme.Surface.porcelain)
     }
 
     private var stepperRow: some View {
-        HStack {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+            : AnyLayout(HStackLayout())
+        return layout {
             VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
                 Text("Servings")
                     .ladleFont(.metadata)
-                    .foregroundStyle(LadleTheme.Label.primary.opacity(0.58))
+                    .foregroundStyle(LadleTheme.Label.secondary)
                 Text(scaling.chosenYieldText)
                     .ladleFont(.recipeTitle)
                     .foregroundStyle(LadleTheme.Label.primary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
-            Spacer()
+            if !dynamicTypeSize.isAccessibilitySize { Spacer() }
 
             // The arrows disable themselves at the ends of the range instead
             // of silently refusing, which is what a native stepper does.

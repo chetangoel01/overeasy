@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<title>Overeasy · HIG fixes · September 8</title>
+<style>
+body{font:16px system-ui;margin:30px;background:#f7f4ef;color:#14181b}h1{font-size:28px}p{max-width:800px;line-height:1.5}input{font:inherit;padding:12px;max-width:500px;width:90%;margin-bottom:24px}main{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:24px}figure{margin:0}img{width:100%;border:1px solid #d8d3cd;border-radius:14px}figcaption{font-size:14px;margin:8px 0}figure[hidden]{display:none}
+</style>
+<h1>Overeasy · the nine HIG fixes</h1>
+<p><a href="../../2026-09-08-hig-fixes.md">Read the changes and verification</a> · <a href="../2026-09-08-ui-audit/index.html">Original audit</a></p>
+<p>Build 1.0 (20260908.1) · September 8, 2026 · iPhone simulator, iOS 26.5. These captures show the updated screens; AX5 means the largest accessibility text size. Share images are isolated component renders. Scroll positions show the controls under test.</p>
+<input aria-label="Filter updated screenshots" placeholder="Filter by screen, AX5, Share…" oninput="document.querySelectorAll('figure').forEach(f=>f.hidden=!f.dataset.label.includes(this.value.toLowerCase()))">
+<main>
+<figure data-label="share confirmation — failure, accessibility"><a href="share-confirmation-failure-accessibility.png"><img loading="lazy" src="share-confirmation-failure-accessibility.png" alt="Share confirmation — failure, accessibility"></a><figcaption>Share confirmation — failure, accessibility</figcaption></figure>
+<figure data-label="share confirmation — loading, accessibility"><a href="share-confirmation-loading-accessibility.png"><img loading="lazy" src="share-confirmation-loading-accessibility.png" alt="Share confirmation — loading, accessibility"></a><figcaption>Share confirmation — loading, accessibility</figcaption></figure>
+<figure data-label="share confirmation — success"><a href="share-confirmation-success.png"><img loading="lazy" src="share-confirmation-success.png" alt="Share confirmation — success"></a><figcaption>Share confirmation — success</figcaption></figure>
+<figure data-label="share confirmation — success, dark"><a href="share-confirmation-success-dark.png"><img loading="lazy" src="share-confirmation-success-dark.png" alt="Share confirmation — success, dark"></a><figcaption>Share confirmation — success, dark</figcaption></figure>
+<figure data-label="hig discard confirmation"><a href="hig-discard-confirmation.png"><img loading="lazy" src="hig-discard-confirmation.png" alt="HIG discard confirmation"></a><figcaption>HIG discard confirmation</figcaption></figure>
+<figure data-label="hig editor section reset"><a href="hig-editor-section-reset.png"><img loading="lazy" src="hig-editor-section-reset.png" alt="HIG editor section reset"></a><figcaption>HIG editor section reset</figcaption></figure>
+<figure data-label="hig health export back"><a href="hig-health-export-back.png"><img loading="lazy" src="hig-health-export-back.png" alt="HIG health export Back"></a><figcaption>HIG health export Back</figcaption></figure>
+<figure data-label="hig profile sign in"><a href="hig-profile-sign-in.png"><img loading="lazy" src="hig-profile-sign-in.png" alt="HIG profile sign in"></a><figcaption>HIG profile sign in</figcaption></figure>
+<figure data-label="hig recovery returned to import"><a href="hig-recovery-returned-to-import.png"><img loading="lazy" src="hig-recovery-returned-to-import.png" alt="HIG recovery returned to import"></a><figcaption>HIG recovery returned to import</figcaption></figure>
+<figure data-label="hig servings ax5"><a href="hig-servings-ax5.png"><img loading="lazy" src="hig-servings-ax5.png" alt="HIG servings AX5"></a><figcaption>HIG servings AX5</figcaption></figure>
+<figure data-label="hig watch recipes ax5"><a href="hig-watch-recipes-ax5.png"><img loading="lazy" src="hig-watch-recipes-ax5.png" alt="HIG Watch recipes AX5"></a><figcaption>HIG Watch recipes AX5</figcaption></figure>
+<figure data-label="hig watch discover ax5"><a href="hig-watch-discover-ax5.png"><img loading="lazy" src="hig-watch-discover-ax5.png" alt="HIG Watch discover AX5"></a><figcaption>HIG Watch discover AX5</figcaption></figure>
+<figure data-label="scaled list with a to-taste row"><a href="scaled-list-with-a-to-taste-row.png"><img loading="lazy" src="scaled-list-with-a-to-taste-row.png" alt="Scaled list with a to-taste row"></a><figcaption>Scaled list with a to-taste row</figcaption></figure>
+<figure data-label="recipe scaled to 8 servings"><a href="recipe-scaled-to-8-servings.png"><img loading="lazy" src="recipe-scaled-to-8-servings.png" alt="Recipe scaled to 8 servings"></a><figcaption>Recipe scaled to 8 servings</figcaption></figure>
+<figure data-label="servings stepper at 8"><a href="servings-stepper-at-8.png"><img loading="lazy" src="servings-stepper-at-8.png" alt="Servings stepper at 8"></a><figcaption>Servings stepper at 8</figcaption></figure>
+<figure data-label="cooking - focus mode"><a href="cooking-focus-mode.png"><img loading="lazy" src="cooking-focus-mode.png" alt="Cooking - focus mode"></a><figcaption>Cooking - focus mode</figcaption></figure>
+<figure data-label="cooking - full recipe"><a href="cooking-full-recipe.png"><img loading="lazy" src="cooking-full-recipe.png" alt="Cooking - full recipe"></a><figcaption>Cooking - full recipe</figcaption></figure>
+<figure data-label="recipe detail"><a href="recipe-detail.png"><img loading="lazy" src="recipe-detail.png" alt="Recipe detail"></a><figcaption>Recipe detail</figcaption></figure>
+<figure data-label="inbox - active states"><a href="inbox-active-states.png"><img loading="lazy" src="inbox-active-states.png" alt="Inbox - active states"></a><figcaption>Inbox - active states</figcaption></figure>
+<figure data-label="launch - discover first"><a href="launch-discover-first.png"><img loading="lazy" src="launch-discover-first.png" alt="Launch - Discover first"></a><figcaption>Launch - Discover first</figcaption></figure>
+<figure data-label="hig custom sign in ax5"><a href="hig-custom-sign-in-ax5.png"><img loading="lazy" src="hig-custom-sign-in-ax5.png" alt="HIG custom sign in AX5"></a><figcaption>HIG custom sign in AX5</figcaption></figure>
+<figure data-label="hig welcome actions ax5"><a href="hig-welcome-actions-ax5.png"><img loading="lazy" src="hig-welcome-actions-ax5.png" alt="HIG welcome actions AX5"></a><figcaption>HIG welcome actions AX5</figcaption></figure>
+</main></html>

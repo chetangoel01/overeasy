@@ -20,6 +20,7 @@ struct AddRecipeSheet: View {
     @State private var recoveryInputMode: RecoveryInputMode?
     @State private var isRetrying = false
     @State private var isCancelConfirmationPresented = false
+    @State private var isDiscardPresented = false
 
     init(
         coordinator: ImportCoordinator,
@@ -74,11 +75,26 @@ struct AddRecipeSheet: View {
             .background(LadleTheme.Surface.porcelain)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(action: close) {
+                    Button {
+                        if hasUnsavedInput { isDiscardPresented = true }
+                        else { close() }
+                    } label: {
                         Image(systemName: "xmark")
                             .frame(width: LadleTheme.Control.hitTarget, height: LadleTheme.Control.hitTarget)
                     }
                     .accessibilityLabel("Close")
+                }
+            }
+            .navigationDestination(item: $recoveryInputMode) { mode in
+                CorrectionNotesView(mode: mode) { notes, pastedText in
+                    guard case let .failed(jobID, _) = coordinator.state else {
+                        return
+                    }
+                    runRetry(
+                        jobID: jobID,
+                        correctionNotes: notes,
+                        pastedRecipeText: pastedText
+                    )
                 }
             }
         }
@@ -88,6 +104,7 @@ struct AddRecipeSheet: View {
         )
         .presentationDragIndicator(.visible)
         .presentationBackground(LadleTheme.Surface.porcelain)
+        .discardChangesConfirmation(isPresented: $isDiscardPresented, hasChanges: hasUnsavedInput, discard: close)
         .confirmationDialog(
             "Cancel this import?",
             isPresented: $isCancelConfirmationPresented,
@@ -99,18 +116,6 @@ struct AddRecipeSheet: View {
             Button("Keep Processing", role: .cancel) {}
         } message: {
             Text("The recipe will stop processing and disappear from Inbox.")
-        }
-        .sheet(item: $recoveryInputMode) { mode in
-            CorrectionNotesView(mode: mode) { notes, pastedText in
-                guard case let .failed(jobID, _) = coordinator.state else {
-                    return
-                }
-                runRetry(
-                    jobID: jobID,
-                    correctionNotes: notes,
-                    pastedRecipeText: pastedText
-                )
-            }
         }
         .onAppear {
             coordinator.prepareForNewImport()
@@ -193,7 +198,7 @@ struct AddRecipeSheet: View {
                         .foregroundStyle(accent.label)
                     Text("Tip: sharing a video to Overeasy is even faster.")
                         .ladleFont(.metadata)
-                        .foregroundStyle(LadleTheme.Label.primary.opacity(0.62))
+                        .foregroundStyle(LadleTheme.Label.secondary)
                 }
                 .padding(LadleTheme.Layout.cardPadding)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -293,7 +298,7 @@ struct AddRecipeSheet: View {
                     .foregroundStyle(LadleTheme.Label.primary)
                 Text("Overeasy is pulling out the useful parts. You can keep browsing while it works.")
                     .ladleFont(.body)
-                    .foregroundStyle(LadleTheme.Label.primary.opacity(0.64))
+                    .foregroundStyle(LadleTheme.Label.secondary)
                     .multilineTextAlignment(.center)
             }
 
@@ -326,7 +331,7 @@ struct AddRecipeSheet: View {
                     "This import was cancelled and removed from Inbox. Paste the link again if you still want the recipe."
                 )
                 .ladleFont(.body)
-                .foregroundStyle(LadleTheme.Label.primary.opacity(0.64))
+                .foregroundStyle(LadleTheme.Label.secondary)
                 .multilineTextAlignment(.center)
             }
 
@@ -365,7 +370,7 @@ struct AddRecipeSheet: View {
                         ?? "Your recipe is ready."
                 )
                 .ladleFont(.body)
-                .foregroundStyle(LadleTheme.Label.primary.opacity(0.64))
+                .foregroundStyle(LadleTheme.Label.secondary)
                 .multilineTextAlignment(.center)
             }
 
@@ -409,7 +414,7 @@ struct AddRecipeSheet: View {
                         ?? "This link has already been rescued."
                 )
                 .ladleFont(.body)
-                .foregroundStyle(LadleTheme.Label.primary.opacity(0.64))
+                .foregroundStyle(LadleTheme.Label.secondary)
                 .multilineTextAlignment(.center)
             }
 
@@ -475,7 +480,7 @@ struct AddRecipeSheet: View {
                     .foregroundStyle(LadleTheme.Label.primary)
                 Text(failure.message)
                     .ladleFont(.body)
-                    .foregroundStyle(LadleTheme.Label.primary.opacity(0.64))
+                    .foregroundStyle(LadleTheme.Label.secondary)
                     .multilineTextAlignment(.center)
 
                 ImportRecoveryActions(
@@ -548,7 +553,7 @@ struct AddRecipeSheet: View {
                 .foregroundStyle(LadleTheme.Label.primary)
             Text(message)
                 .ladleFont(.body)
-                .foregroundStyle(LadleTheme.Label.primary.opacity(0.64))
+                .foregroundStyle(LadleTheme.Label.secondary)
         }
     }
 
@@ -562,6 +567,16 @@ struct AddRecipeSheet: View {
         )
         .foregroundStyle(LadleTheme.Label.primary)
         .padding(LadleTheme.Spacing.generous)
+    }
+
+    private var hasUnsavedInput: Bool {
+        switch coordinator.state {
+        case .idle, .validationFailed, .persistenceFailed:
+            !manualTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                || !manualDetails.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        default:
+            false
+        }
     }
 
     private func close() {

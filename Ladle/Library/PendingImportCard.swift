@@ -48,7 +48,7 @@ struct PendingImportCard: View {
 
             Text(byline)
                 .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.Label.primary.opacity(0.56))
+                .foregroundStyle(LadleTheme.Label.secondary)
                 .lineLimit(usesStackedLayout ? 2 : 1)
                 .minimumScaleFactor(
                     usesStackedLayout ? 1 : 0.82

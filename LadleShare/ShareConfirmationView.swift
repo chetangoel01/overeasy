@@ -150,12 +150,11 @@ private struct SharePrimaryButtonStyle: ButtonStyle {
                 maxWidth: .infinity,
                 minHeight: ShareTheme.Control.primary
             )
-            .background(
-                ShareTheme.Intent.accent.opacity(
-                    configuration.isPressed ? 0.78 : 1
-                ),
-                in: RoundedRectangle(cornerRadius: 15)
-            )
+            .background {
+                RoundedRectangle(cornerRadius: 15)
+                    .fill(ShareTheme.Intent.accent)
+                    .brightness(configuration.isPressed ? -0.08 : 0)
+            }
     }
 }
 
@@ -215,8 +214,8 @@ private enum ShareTheme {
 
     enum Intent {
         static let accent = adaptive(
-            light: (0.933, 0.294, 0.184),
-            dark: (1.0, 0.404, 0.306)
+            light: (0.761, 0.231, 0.149),
+            dark: (0.761, 0.231, 0.149)
         )
     }
 
