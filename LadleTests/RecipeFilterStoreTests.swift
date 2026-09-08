@@ -4,18 +4,19 @@ import XCTest
 @testable import Ladle
 
 /// One filter, three tabs, and one of its four families outliving the
-/// launch. These pin which family that is, and that clearing it clears it
-/// everywhere a launch could read it from.
+/// launch. These pin which family that is, that the filter menu can only
+/// put it down rather than change it, and that a reset clears it everywhere
+/// a launch could read it from.
 @MainActor
 final class RecipeFilterStoreTests: XCTestCase {
     func testTheDietComesBackAndTheBrowsingFiltersDoNot() {
         let store = FilterStorePreferences()
         let first = RecipeFilterStore(preferenceStore: store)
 
-        first.filter.diets = [.vegan, .glutenFree]
-        first.filter.cuisines = [.korean]
-        first.filter.keywords = [.weeknight]
-        first.filter.addIngredient("chicken")
+        first.diets = [.vegan, .glutenFree]
+        first.browsingFilter.cuisines = [.korean]
+        first.browsingFilter.keywords = [.weeknight]
+        first.browsingFilter.addIngredient("chicken")
 
         let second = RecipeFilterStore(preferenceStore: store)
 
@@ -32,7 +33,7 @@ final class RecipeFilterStoreTests: XCTestCase {
         let store = FilterStorePreferences()
         let filters = RecipeFilterStore(preferenceStore: store)
 
-        filters.filter.diets = [.dairyFree, .vegan]
+        filters.diets = [.dairyFree, .vegan]
 
         XCTAssertEqual(
             store.string(forKey: RecipeFilterStore.dietPreferenceKey),
@@ -49,7 +50,7 @@ final class RecipeFilterStoreTests: XCTestCase {
 
         let filters = RecipeFilterStore(preferenceStore: store)
 
-        XCTAssertEqual(filters.filter.diets, [.vegan])
+        XCTAssertEqual(filters.diets, [.vegan])
     }
 
     /// `-reset-library-preferences` has to leave a launch on no diet. The
@@ -68,8 +69,83 @@ final class RecipeFilterStoreTests: XCTestCase {
             "A removed key would leave a seeded value showing"
         )
         XCTAssertTrue(
-            RecipeFilterStore(preferenceStore: store).filter.diets.isEmpty
+            RecipeFilterStore(preferenceStore: store).diets.isEmpty
         )
+    }
+
+    /// The pause is the whole point of the filter menu's one diet row: it
+    /// takes the diet off the screens without taking it off the cook, and it
+    /// never reaches the preference.
+    func testPausingTheDietHidesItFromTheFilterButKeepsIt() {
+        let store = FilterStorePreferences()
+        let filters = RecipeFilterStore(preferenceStore: store)
+        filters.diets = [.vegetarian]
+
+        filters.isDietPaused = true
+
+        XCTAssertTrue(
+            filters.filter.diets.isEmpty,
+            "Every tab reads `filter`, so a pause shows them everything"
+        )
+        XCTAssertEqual(filters.diets, [.vegetarian])
+        XCTAssertTrue(
+            filters.hasDiet,
+            "The row that lifts the pause has to stay on screen"
+        )
+        XCTAssertEqual(
+            store.string(forKey: RecipeFilterStore.dietPreferenceKey),
+            "vegetarian",
+            "A pause belongs to this launch, so it never persists"
+        )
+    }
+
+    /// Like the cuisines and keywords beside it, and unlike the diet itself:
+    /// a cook who put their diet down for one evening should not have to
+    /// remember to put it back.
+    func testAPausedDietIsBackOnTheNextLaunch() {
+        let store = FilterStorePreferences()
+        let filters = RecipeFilterStore(preferenceStore: store)
+        filters.diets = [.pescatarian]
+        filters.isDietPaused = true
+
+        let relaunched = RecipeFilterStore(preferenceStore: store)
+
+        XCTAssertFalse(relaunched.isDietPaused)
+        XCTAssertEqual(relaunched.filter.diets, [.pescatarian])
+    }
+
+    /// Clear filters is how a cook empties a screen a filter emptied, and
+    /// the diet may be what emptied it — but the diet is set in Profile, so
+    /// this puts it down rather than throwing it away.
+    func testClearingTheFiltersPausesTheDietRatherThanDeletingIt() {
+        let store = FilterStorePreferences()
+        let filters = RecipeFilterStore(preferenceStore: store)
+        filters.diets = [.vegan]
+        filters.browsingFilter.cuisines = [.korean]
+
+        filters.clearFilters()
+
+        XCTAssertTrue(filters.filter.isEmpty)
+        XCTAssertEqual(filters.diets, [.vegan])
+        XCTAssertEqual(
+            store.string(forKey: RecipeFilterStore.dietPreferenceKey),
+            "vegan"
+        )
+    }
+
+    /// A diet changed in Profile after a pause has to show up at once, or
+    /// the Profile row would read as a control that did nothing.
+    func testChangingTheDietLiftsAPause() {
+        let filters = RecipeFilterStore(
+            preferenceStore: FilterStorePreferences()
+        )
+        filters.diets = [.vegan]
+        filters.isDietPaused = true
+
+        filters.diets = [.vegetarian]
+
+        XCTAssertFalse(filters.isDietPaused)
+        XCTAssertEqual(filters.filter.diets, [.vegetarian])
     }
 
     func testTheLibraryResetClearsTheDietWithEverythingElse() {
@@ -79,7 +155,7 @@ final class RecipeFilterStoreTests: XCTestCase {
         LibraryViewModel.resetPreferences(in: store)
 
         XCTAssertTrue(
-            RecipeFilterStore(preferenceStore: store).filter.diets.isEmpty
+            RecipeFilterStore(preferenceStore: store).diets.isEmpty
         )
     }
 }

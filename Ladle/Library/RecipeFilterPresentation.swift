@@ -15,11 +15,19 @@ extension DietTag {
         case .dairyFree: "Dairy-free"
         }
     }
+}
 
-    /// A diet pill stands alone under a header and outlives the session, so
-    /// it says what kind of thing it is rather than leaving "Vegan" to be
-    /// read as a cuisine.
-    var pillTitle: String { "\(title) diet" }
+/// The whole diet as one phrase — "Vegetarian diet", "Vegetarian and
+/// gluten-free diet". A diet stands alone under a header and outlives the
+/// session, so it says what kind of thing it is rather than leaving "Vegan"
+/// to be read as a cuisine; and it is one thing rather than a list, because
+/// the cook set it once and pauses it all at once.
+extension Set<DietTag> {
+    var dietTitle: String {
+        DietTag.ordered(self)
+            .map(\.title)
+            .formatted(.list(type: .and)) + " diet"
+    }
 }
 
 extension CuisineTag {
@@ -83,10 +91,7 @@ extension RecipeFilter {
     var summary: String {
         var parts: [String] = []
         if !diets.isEmpty {
-            parts.append(
-                orderedDiets.map(\.title)
-                    .formatted(.list(type: .and)) + " diet"
-            )
+            parts.append(diets.dietTitle)
         }
         if !cuisines.isEmpty {
             parts.append(
@@ -112,37 +117,47 @@ extension RecipeFilter {
 }
 
 extension LibraryFilterChip {
-    /// The shared tag filter as pills, in vocabulary order and with diet
-    /// first — the same order the menu offers them in, so removing one is
-    /// the reverse of choosing it.
+    /// The shared tag filter as pills, in vocabulary order and with the diet
+    /// first — the same order the menu lists them in, so taking one off is
+    /// the reverse of putting it on.
+    ///
+    /// The diet is one pill however many diets it holds, and its ✕ *pauses*
+    /// it rather than deleting it: the diet is not something this control
+    /// owns. The hint says where it is owned, because a pill that came back
+    /// after a relaunch is otherwise a mystery.
     @MainActor
     static func chips(for filters: RecipeFilterStore) -> [LibraryFilterChip] {
         var chips: [LibraryFilterChip] = []
-        for diet in filters.filter.orderedDiets {
+        if !filters.isDietPaused, filters.hasDiet {
             chips.append(
-                LibraryFilterChip(title: diet.pillTitle) {
-                    filters.filter.diets.remove(diet)
-                }
+                LibraryFilterChip(
+                    title: filters.diets.dietTitle,
+                    hint: """
+                        Turns your diet off until the next launch. \
+                        Your diet is set in Profile.
+                        """,
+                    remove: { filters.isDietPaused = true }
+                )
             )
         }
-        for cuisine in filters.filter.orderedCuisines {
+        for cuisine in filters.browsingFilter.orderedCuisines {
             chips.append(
                 LibraryFilterChip(title: cuisine.title) {
-                    filters.filter.cuisines.remove(cuisine)
+                    filters.browsingFilter.cuisines.remove(cuisine)
                 }
             )
         }
-        for keyword in filters.filter.orderedKeywords {
+        for keyword in filters.browsingFilter.orderedKeywords {
             chips.append(
                 LibraryFilterChip(title: keyword.title) {
-                    filters.filter.keywords.remove(keyword)
+                    filters.browsingFilter.keywords.remove(keyword)
                 }
             )
         }
-        for term in filters.filter.ingredients {
+        for term in filters.browsingFilter.ingredients {
             chips.append(
                 LibraryFilterChip(title: "With \(term)") {
-                    filters.filter.removeIngredient(term)
+                    filters.browsingFilter.removeIngredient(term)
                 }
             )
         }

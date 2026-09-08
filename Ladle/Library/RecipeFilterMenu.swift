@@ -9,10 +9,11 @@ import SwiftUI
 /// submenu's label carries its own current value, which is what lets the
 /// whole filter read without opening anything.
 ///
-/// Diet comes first and is not behind a submenu. It is the only family that
-/// survives the launch, so it is the one a cook needs to see the state of
-/// without hunting; the other three are this session's browsing and sit
-/// under labels that say how much of each is on.
+/// Diet comes first, as one row rather than five toggles, because it is no
+/// longer chosen here: a cook answers it once during onboarding and changes
+/// it in Profile. What this row does is put it down for the evening. The
+/// other three families are this session's browsing and sit under labels
+/// that say how much of each is on.
 struct RecipeFilterMenu<Label: View, Extra: View>: View {
     @Bindable var filters: RecipeFilterStore
     /// Rows that belong to one tab only — the library's favorites, time and
@@ -28,14 +29,20 @@ struct RecipeFilterMenu<Label: View, Extra: View>: View {
 
     var body: some View {
         Menu {
-            Section("Diet") {
-                ForEach(DietTag.allCases, id: \.self) { diet in
-                    Toggle(diet.title, isOn: dietBinding(diet))
+            // Absent when there is no diet: a row that pauses nothing
+            // would only be a second, emptier place to look for a choice
+            // that is made in Profile.
+            if filters.hasDiet {
+                Section("Diet · set in Profile") {
+                    Toggle(dietRowTitle, isOn: dietAppliedBinding)
                 }
             }
 
             Menu(
-                sectionTitle("Cuisine", count: filters.filter.cuisines.count)
+                sectionTitle(
+                    "Cuisine",
+                    count: filters.browsingFilter.cuisines.count
+                )
             ) {
                 ForEach(CuisineTag.allCases, id: \.self) { cuisine in
                     Toggle(cuisine.title, isOn: cuisineBinding(cuisine))
@@ -43,7 +50,10 @@ struct RecipeFilterMenu<Label: View, Extra: View>: View {
             }
 
             Menu(
-                sectionTitle("Keywords", count: filters.filter.keywords.count)
+                sectionTitle(
+                    "Keywords",
+                    count: filters.browsingFilter.keywords.count
+                )
             ) {
                 ForEach(RecipeKeyword.allCases, id: \.self) { keyword in
                     Toggle(keyword.title, isOn: keywordBinding(keyword))
@@ -53,7 +63,7 @@ struct RecipeFilterMenu<Label: View, Extra: View>: View {
             Menu(
                 sectionTitle(
                     "Ingredients",
-                    count: filters.filter.ingredients.count
+                    count: filters.browsingFilter.ingredients.count
                 )
             ) {
                 // Terms are added one at a time and removed the same way:
@@ -62,19 +72,22 @@ struct RecipeFilterMenu<Label: View, Extra: View>: View {
                 // pill. A `Toggle` rather than a button carrying its own
                 // glyph, so iOS draws the checkmark column and the row is
                 // the same shape as the tag toggles above it.
-                ForEach(filters.filter.ingredients, id: \.self) { term in
+                ForEach(
+                    filters.browsingFilter.ingredients,
+                    id: \.self
+                ) { term in
                     Toggle(
                         term,
                         isOn: Binding(
                             get: { true },
                             set: { isOn in
                                 guard !isOn else { return }
-                                filters.filter.removeIngredient(term)
+                                filters.browsingFilter.removeIngredient(term)
                             }
                         )
                     )
                 }
-                if filters.filter.ingredients.count
+                if filters.browsingFilter.ingredients.count
                     < RecipeFilter.maximumIngredientTerms {
                     Button("Add ingredient…") {
                         ingredientTerm = ""
@@ -103,7 +116,7 @@ struct RecipeFilterMenu<Label: View, Extra: View>: View {
                 .autocorrectionDisabled()
             Button("Cancel", role: .cancel) {}
             Button("Add") {
-                filters.filter.addIngredient(ingredientTerm)
+                filters.browsingFilter.addIngredient(ingredientTerm)
                 ingredientTerm = ""
             }
         } message: {
@@ -122,27 +135,31 @@ struct RecipeFilterMenu<Label: View, Extra: View>: View {
         count == 0 ? "\(name) · Any" : "\(name) · \(count)"
     }
 
-    private func dietBinding(_ diet: DietTag) -> Binding<Bool> {
+    /// The row says which diet and whether it is holding, because a cook
+    /// who turned it off an hour ago has to be able to see that from the
+    /// menu rather than from a library that looks wrong.
+    private var dietRowTitle: String {
+        let diet = filters.diets.dietTitle
+        return filters.isDietPaused
+            ? "\(diet) · Off, showing everything"
+            : "\(diet) · On"
+    }
+
+    private var dietAppliedBinding: Binding<Bool> {
         Binding(
-            get: { filters.filter.diets.contains(diet) },
-            set: { isOn in
-                if isOn {
-                    filters.filter.diets.insert(diet)
-                } else {
-                    filters.filter.diets.remove(diet)
-                }
-            }
+            get: { !filters.isDietPaused },
+            set: { filters.isDietPaused = !$0 }
         )
     }
 
     private func cuisineBinding(_ cuisine: CuisineTag) -> Binding<Bool> {
         Binding(
-            get: { filters.filter.cuisines.contains(cuisine) },
+            get: { filters.browsingFilter.cuisines.contains(cuisine) },
             set: { isOn in
                 if isOn {
-                    filters.filter.cuisines.insert(cuisine)
+                    filters.browsingFilter.cuisines.insert(cuisine)
                 } else {
-                    filters.filter.cuisines.remove(cuisine)
+                    filters.browsingFilter.cuisines.remove(cuisine)
                 }
             }
         )
@@ -150,12 +167,12 @@ struct RecipeFilterMenu<Label: View, Extra: View>: View {
 
     private func keywordBinding(_ keyword: RecipeKeyword) -> Binding<Bool> {
         Binding(
-            get: { filters.filter.keywords.contains(keyword) },
+            get: { filters.browsingFilter.keywords.contains(keyword) },
             set: { isOn in
                 if isOn {
-                    filters.filter.keywords.insert(keyword)
+                    filters.browsingFilter.keywords.insert(keyword)
                 } else {
-                    filters.filter.keywords.remove(keyword)
+                    filters.browsingFilter.keywords.remove(keyword)
                 }
             }
         )
@@ -173,7 +190,7 @@ extension RecipeFilterMenu where Extra == EmptyView {
             filters: filters,
             extraSections: { EmptyView() },
             hasActiveFilters: !filters.filter.isEmpty,
-            clearFilters: { filters.filter.clear() },
+            clearFilters: { filters.clearFilters() },
             label: label
         )
     }
@@ -198,6 +215,7 @@ struct RecipeFilterChipsRow: View {
                         }
                         .buttonStyle(LadlePressButtonStyle())
                         .accessibilityLabel("Remove filter: \(chip.title)")
+                        .accessibilityHint(chip.hint ?? "")
                     }
                 }
             }

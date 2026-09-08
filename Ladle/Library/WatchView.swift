@@ -310,7 +310,7 @@ struct WatchView: View {
     }
 
     private var clearFiltersAction: (() -> Void)? {
-        filters.filter.isEmpty ? nil : { filters.filter.clear() }
+        filters.filter.isEmpty ? nil : { filters.clearFilters() }
     }
 
     private func emptyState(
