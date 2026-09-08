@@ -212,3 +212,11 @@ The whitespace check is clean on every commit.
 - **The shelves are not part of a deep link.** "See all" sets the filter in
   the running app; nothing outside it can open Discover on a shelf.
 - **Six shelves is six ranked queries.** See the cost note above.
+
+## Captures
+
+Left is `main`, right is this branch, on the seeded library.
+
+| Before | After |
+| --- | --- |
+| ![Before](captures/2026-09-07-keyword-shelves/before.png) | ![After](captures/2026-09-07-keyword-shelves/after.png) |
