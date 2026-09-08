@@ -433,6 +433,7 @@ struct RecipeEditorView: View {
                     ingredientUnitField(at: index)
                 }
             }
+            ingredientToTasteToggle(at: index)
             editorField(
                 title: "Ingredient name",
                 text: $viewModel.draft.ingredients[index].name
@@ -447,10 +448,17 @@ struct RecipeEditorView: View {
                 validationText("Add an ingredient name.")
             }
             if viewModel.hasIssue(
+                .ingredientQuantityRequired(ingredient.id)
+            ) {
+                validationText(
+                    "Enter a number, or turn on “To taste”."
+                )
+            }
+            if viewModel.hasIssue(
                 .ingredientFieldTooLong(ingredient.id)
             ) {
                 validationText(
-                    "Shorten this ingredient’s quantity, unit, name, or preparation."
+                    "Shorten this ingredient’s unit, name, or preparation."
                 )
             }
         }
@@ -570,7 +578,8 @@ struct RecipeEditorView: View {
 
     private func compactField(
         _ title: String,
-        text: Binding<String>
+        text: Binding<String>,
+        keyboardType: UIKeyboardType = .default
     ) -> some View {
         VStack(alignment: .leading, spacing: LadleTheme.Spacing.compact) {
             Text(title)
@@ -578,6 +587,7 @@ struct RecipeEditorView: View {
                 .foregroundStyle(LadleTheme.Label.primary.opacity(0.58))
             TextField(title, text: text)
                 .ladleFont(.body)
+                .keyboardType(keyboardType)
                 .padding(.horizontal, 12)
                 .frame(minHeight: LadleTheme.Control.field)
                 .background(
@@ -686,8 +696,10 @@ struct RecipeEditorView: View {
     private func ingredientQuantityField(at index: Int) -> some View {
         compactField(
             "Quantity",
-            text: $viewModel.draft.ingredients[index].quantityText
+            text: $viewModel.draft.ingredients[index].quantity,
+            keyboardType: .decimalPad
         )
+        .disabled(viewModel.draft.ingredients[index].isToTaste)
     }
 
     private func ingredientUnitField(at index: Int) -> some View {
@@ -695,6 +707,19 @@ struct RecipeEditorView: View {
             "Unit",
             text: $viewModel.draft.ingredients[index].unit
         )
+        .disabled(viewModel.draft.ingredients[index].isToTaste)
+    }
+
+    /// Seasoning a cook adds by eye. The row is its name, and the two
+    /// fields above have nothing to hold, so they go quiet rather than
+    /// inviting a number that would be made up.
+    private func ingredientToTasteToggle(at index: Int) -> some View {
+        Toggle(
+            "To taste",
+            isOn: $viewModel.draft.ingredients[index].isToTaste
+        )
+        .ladleFont(.bodyStrong)
+        .tint(accent.intent)
     }
 
     private func validationText(_ message: String) -> some View {

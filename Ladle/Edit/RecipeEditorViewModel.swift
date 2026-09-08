@@ -14,6 +14,7 @@ enum RecipeDraftValidationIssue: Hashable {
     case tooManyIngredients
     case tooManySteps
     case ingredientNameRequired(UUID)
+    case ingredientQuantityRequired(UUID)
     case ingredientFieldTooLong(UUID)
     case stepInstructionRequired(UUID)
     case stepInstructionTooLong(UUID)
@@ -57,6 +58,7 @@ enum RecipeEditorSection: String, CaseIterable, Identifiable {
             .timing
         case .tooManyIngredients,
              .ingredientNameRequired,
+             .ingredientQuantityRequired,
              .ingredientFieldTooLong:
             .ingredients
         case .tooManySteps,
@@ -129,7 +131,7 @@ final class RecipeEditorViewModel: Identifiable {
             @escaping @MainActor @Sendable () async -> Void = {}
     ) {
         originalRecipe = recipe
-        draft = RecipeDraft(recipe: recipe)
+        draft = RecipeDraft(recipe: recipe, locale: locale)
         self.repository = repository
         self.now = now
         self.locale = locale
@@ -137,7 +139,7 @@ final class RecipeEditorViewModel: Identifiable {
     }
 
     var hasChanges: Bool {
-        draft != RecipeDraft(recipe: originalRecipe)
+        draft != RecipeDraft(recipe: originalRecipe, locale: locale)
     }
 
     func addIngredient() {
@@ -185,7 +187,7 @@ final class RecipeEditorViewModel: Identifiable {
         do {
             try repository.save(recipe)
             originalRecipe = recipe
-            draft = RecipeDraft(recipe: recipe)
+            draft = RecipeDraft(recipe: recipe, locale: locale)
             state = .saved(recipe)
             Task {
                 await didSave()
@@ -198,7 +200,7 @@ final class RecipeEditorViewModel: Identifiable {
     }
 
     func discardChanges() {
-        draft = RecipeDraft(recipe: originalRecipe)
+        draft = RecipeDraft(recipe: originalRecipe, locale: locale)
         validationIssues = []
         state = .editing
     }
@@ -262,10 +264,14 @@ final class RecipeEditorViewModel: Identifiable {
             if normalized(ingredient.name) == nil {
                 issues.insert(.ingredientNameRequired(ingredient.id))
             }
+            // A row is rendered from the number, so an ingredient either has
+            // one or says it has none. There is no third state where the
+            // amount is somewhere else.
+            if !ingredient.isToTaste,
+               ingredient.normalizedQuantity(locale: locale) == nil {
+                issues.insert(.ingredientQuantityRequired(ingredient.id))
+            }
             if exceeds(
-                normalized(ingredient.quantityText),
-                RecipeContractLimits.quantityCharacters
-            ) || exceeds(
                 normalized(ingredient.unit),
                 RecipeContractLimits.unitCharacters
             ) || exceeds(

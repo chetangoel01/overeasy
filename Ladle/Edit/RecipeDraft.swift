@@ -27,54 +27,102 @@ enum EditorNumber {
         }
         return number.decimalValue
     }
+
+    /// A stored amount written the way the field it goes into is read.
+    ///
+    /// `NSDecimalNumber.stringValue` is not locale-aware and would put a
+    /// French cook's "0,5" on screen as "0.5", which their own decimal pad
+    /// then cannot reproduce — the next save would drop the amount. Six
+    /// fraction digits is the scale the backend stores.
+    static func text(_ value: Decimal, locale: Locale) -> String {
+        let formatter = NumberFormatter()
+        formatter.locale = locale
+        formatter.numberStyle = .decimal
+        formatter.usesGroupingSeparator = false
+        formatter.minimumFractionDigits = 0
+        formatter.maximumFractionDigits = 6
+        return formatter.string(from: NSDecimalNumber(decimal: value))
+            ?? NSDecimalNumber(decimal: value).stringValue
+    }
+}
+
+private extension String {
+    /// Trimmed, or nothing at all when that leaves it empty.
+    var editorNormalized: String? {
+        let value = trimmingCharacters(in: .whitespacesAndNewlines)
+        return value.isEmpty ? nil : value
+    }
 }
 
 struct RecipeDraft: Equatable {
+    /// An ingredient as the editor holds it: a number, a unit, a name.
+    ///
+    /// There is no field for the creator's phrase. It is carried untouched
+    /// so a saved recipe keeps the note it arrived with, but nothing reads
+    /// it back — a row is rendered from the quantity and the unit, and a
+    /// cook editing the phrase would be editing something invisible.
     struct IngredientDraft: Equatable, Identifiable {
         let id: UUID
-        var quantityText: String
+        /// A number and nothing else, written in the editor's locale.
+        var quantity: String
         var unit: String
         var name: String
         var preparation: String
+        /// The ingredient has no amount to measure. Both fields above are
+        /// disabled while it is on, and saving clears them.
+        var isToTaste: Bool
         var uncertainty: FieldUncertainty?
 
-        /// The imported quantity pair. The machine-readable amount came
-        /// from the importer's parsing of exactly this text, so it is
-        /// only trustworthy while `quantityText` still reads that way.
-        private let importedQuantityText: String
-        private let importedNormalizedQuantity: Decimal?
+        /// What the creator said, carried and never edited.
+        private let quantityText: String?
 
-        init(_ ingredient: Ingredient) {
+        init(_ ingredient: Ingredient, locale: Locale = .current) {
             id = ingredient.id
-            quantityText = ingredient.quantityText ?? ""
+            // A row that reached the device without a quantity cannot be
+            // rendered as one, so the editor opens on the truth about it
+            // rather than blocking the save behind a number the cook was
+            // never given.
+            isToTaste = ingredient.isToTaste || ingredient.normalizedQuantity == nil
+            quantity = ingredient.normalizedQuantity
+                .map { EditorNumber.text($0, locale: locale) } ?? ""
             unit = ingredient.unit ?? ""
             name = ingredient.name
             preparation = ingredient.preparation ?? ""
             uncertainty = ingredient.uncertainty
-            importedQuantityText = ingredient.quantityText ?? ""
-            importedNormalizedQuantity = ingredient.normalizedQuantity
+            quantityText = ingredient.quantityText
         }
 
         init(id: UUID = UUID()) {
             self.id = id
-            quantityText = ""
+            quantity = ""
             unit = ""
             name = ""
             preparation = ""
+            isToTaste = false
             uncertainty = nil
-            importedQuantityText = ""
-            importedNormalizedQuantity = nil
+            quantityText = nil
         }
 
-        /// The machine-readable amount to persist alongside
-        /// `quantityText`. An edited text re-derives it (nil when the
-        /// editor cannot parse it whole), so the pair can never
-        /// disagree; the richer imported value survives while the text
-        /// is unedited — or an edit is reverted.
+        /// The amount to persist: nil when the ingredient has none, and nil
+        /// when the editor cannot parse the field whole — which validation
+        /// has already refused to save.
         func normalizedQuantity(locale: Locale) -> Decimal? {
-            quantityText == importedQuantityText
-                ? importedNormalizedQuantity
-                : EditorNumber.decimal(quantityText, locale: locale)
+            isToTaste ? nil : EditorNumber.decimal(quantity, locale: locale)
+        }
+
+        func ingredient(orderIndex: Int, locale: Locale) -> Ingredient {
+            let amount = normalizedQuantity(locale: locale)
+            return Ingredient(
+                id: id,
+                quantityText: quantityText,
+                normalizedQuantity: amount,
+                unit: isToTaste ? nil : unit.editorNormalized,
+                name: name.editorNormalized ?? "",
+                preparation: preparation.editorNormalized,
+                isToTaste: isToTaste || amount == nil,
+                orderIndex: orderIndex,
+                uncertainty: uncertainty
+            )
         }
     }
 
@@ -177,7 +225,7 @@ struct RecipeDraft: Equatable {
     let keywords: [RecipeKeyword]
     let keywordProposals: [String]
 
-    init(recipe: Recipe) {
+    init(recipe: Recipe, locale: Locale = .current) {
         id = recipe.id
         source = recipe.source
         originalURL = recipe.originalURL
@@ -192,7 +240,9 @@ struct RecipeDraft: Equatable {
         preparationMinutes = recipe.preparationMinutes.map(String.init) ?? ""
         cookingMinutes = recipe.cookingMinutes.map(String.init) ?? ""
         servings = NSDecimalNumber(decimal: recipe.servings).stringValue
-        ingredients = recipe.orderedIngredients.map(IngredientDraft.init)
+        ingredients = recipe.orderedIngredients.map {
+            IngredientDraft($0, locale: locale)
+        }
         steps = recipe.orderedSteps.map(StepDraft.init)
         nutrition = NutritionDraft(recipe.nutrition)
         diets = recipe.diets
@@ -221,18 +271,7 @@ struct RecipeDraft: Equatable {
             totalMinutes: preparation == nil && cooking == nil ? nil : total,
             servings: decimal(from: servings, locale: locale) ?? 1,
             ingredients: ingredients.enumerated().map { index, draft in
-                Ingredient(
-                    id: draft.id,
-                    quantityText: normalized(draft.quantityText),
-                    normalizedQuantity: draft.normalizedQuantity(
-                        locale: locale
-                    ),
-                    unit: normalized(draft.unit),
-                    name: normalized(draft.name) ?? "",
-                    preparation: normalized(draft.preparation),
-                    orderIndex: index,
-                    uncertainty: draft.uncertainty
-                )
+                draft.ingredient(orderIndex: index, locale: locale)
             },
             steps: steps.enumerated().map { index, draft in
                 RecipeStep(
@@ -293,8 +332,7 @@ struct RecipeDraft: Equatable {
     }
 
     private func normalized(_ text: String) -> String? {
-        let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        return value.isEmpty ? nil : value
+        text.editorNormalized
     }
 
     private func integer(from text: String) -> Int? {
