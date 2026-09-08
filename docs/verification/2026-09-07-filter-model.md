@@ -210,3 +210,11 @@ The whitespace check is clean on every commit.
   card cannot show why it matched. Only the detail does.
 - **The filter is not part of a Discover deep link or a shared URL.** Nothing
   outside the app can set it.
+
+## Captures
+
+Left is `main`, right is this branch, on the seeded library.
+
+| Before | After |
+| --- | --- |
+| ![Before](captures/2026-09-07-filter-model/before.png) | ![After](captures/2026-09-07-filter-model/after.png) |
