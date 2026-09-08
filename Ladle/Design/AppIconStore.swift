@@ -160,3 +160,35 @@ final class AppIconStore {
         preferenceStore.set(false, forKey: offerPreferenceKey)
     }
 }
+
+extension View {
+    /// The one question the app asks about the icon.
+    ///
+    /// Attached in two places, because the diet is set in two: the Profile
+    /// sheet, where the question follows the tap that raised it, and the
+    /// library, which is where a cook who answered the question at
+    /// onboarding lands. `isEnabled` is how the library stands down while
+    /// Profile is open — one alert, presented by whichever of the two is in
+    /// front, rather than both trying at once.
+    func plantBasedIconOffer(
+        _ store: AppIconStore,
+        isEnabled: Bool = true
+    ) -> some View {
+        alert(
+            "Prefer an icon without the egg?",
+            isPresented: Binding(
+                get: { isEnabled && store.isOfferPresented },
+                set: { if !$0 { store.isOfferPresented = false } }
+            )
+        ) {
+            Button("Use it") {
+                Task { await store.acceptOffer() }
+            }
+            Button("Keep the egg", role: .cancel) {}
+        } message: {
+            Text(
+                "Overeasy is named after an egg. Either icon can be chosen in Profile at any time."
+            )
+        }
+    }
+}

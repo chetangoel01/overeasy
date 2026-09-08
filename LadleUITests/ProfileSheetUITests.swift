@@ -252,6 +252,17 @@ final class ProfileSheetUITests: XCTestCase {
         XCTAssertTrue(vegetarian.waitForExistence(timeout: 3))
         vegetarian.tap()
 
+        // The diet is what raises the icon question, and this is the other
+        // place it can be set: the offer follows the answer that caused it,
+        // in the sheet the cook is standing in. Declined here — the diet is
+        // what this test is about, and nothing switches on its own.
+        let offer = app.alerts["Prefer an icon without the egg?"]
+        XCTAssertTrue(
+            offer.waitForExistence(timeout: 5),
+            "A diet set in Profile raises the icon question there"
+        )
+        offer.buttons["Keep the egg"].tap()
+
         XCTAssertEqual(
             app.descendants(matching: .any)["account.profile.diet"]
                 .value as? String,

@@ -139,6 +139,13 @@ struct AccountSheet: View {
             }
             .listRowBackground(LadleTheme.Surface.raised)
             .scrollContentBackground(.hidden)
+            // The diet is changed in the menu under the cook's name, so the
+            // question about the icon is asked here, where the answer that
+            // raised it was given.
+            .onChange(of: library.filters.diets) { _, diets in
+                appIcon.offerIfNeeded(for: diets)
+            }
+            .plantBasedIconOffer(appIcon)
             // The form's own first-section inset, replaced by the system's
             // ordinary one. Left alone it opened the sheet on a band of
             // nothing between the bar and the cook's face; the header
