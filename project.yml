@@ -40,6 +40,15 @@ targets:
         INFOPLIST_FILE: Config/Ladle-Info.plist
         CODE_SIGN_ENTITLEMENTS: Config/Ladle.entitlements
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        # The plant-based icon a vegetarian or vegan cook can choose. Naming
+        # the set here is the whole declaration: actool writes the
+        # `CFBundleIcons` / `CFBundleAlternateIcons` entry that
+        # `setAlternateIconName` looks the name up in, and merges it into
+        # `Config/Ladle-Info.plist`. The artwork behind the name is a
+        # placeholder: replacing it is replacing the PNG in
+        # `AppIcon-PlantBased.appiconset` (and its drawable twin in
+        # `OvereasyMarkPlantBased.imageset`), and nothing here moves.
+        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: AppIcon-PlantBased
         PRODUCT_NAME: Ladle
         TARGETED_DEVICE_FAMILY: "1"
     dependencies:

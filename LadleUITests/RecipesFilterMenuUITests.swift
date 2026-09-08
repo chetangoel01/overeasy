@@ -276,6 +276,17 @@ final class RecipesFilterMenuUITests: XCTestCase {
     private func chooseVegetarian(in app: XCUIApplication) {
         app.buttons["diet-step.option.vegetarian"].tap()
         app.buttons["diet-step.continue"].tap()
+
+        // A cook who has just said they are vegetarian is asked, once,
+        // whether they would rather not carry an egg. Every launch here
+        // resets preferences, so the question is always waiting when the
+        // library arrives; these tests are about the diet, and keep the egg.
+        let offer = app.alerts["Prefer an icon without the egg?"]
+        XCTAssertTrue(
+            offer.waitForExistence(timeout: 10),
+            "A vegetarian diet raises the icon question on the way in"
+        )
+        offer.buttons["Keep the egg"].tap()
     }
 
     /// Onboarding fades the library in underneath itself, so for a moment

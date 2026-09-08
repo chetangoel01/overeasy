@@ -113,6 +113,7 @@ struct AccountSheet: View {
     let accountSession: AccountSession
     let library: LibraryViewModel
     let syncStatus: SyncStatus
+    var appIcon = AppIconStore()
     var authClient: AuthClient?
     var googleSignIn: (any GoogleSignInProviding)?
     var onAuthenticated: @MainActor () async -> Void = {}
@@ -130,11 +131,21 @@ struct AccountSheet: View {
                 accountSection
                 librarySection
                 appearanceSection
+                if appIcon.canChooseAnIcon {
+                    appIconSection
+                }
                 privacySection
                 accountActionsSection
             }
             .listRowBackground(LadleTheme.Surface.raised)
             .scrollContentBackground(.hidden)
+            // The diet is changed in the menu under the cook's name, so the
+            // question about the icon is asked here, where the answer that
+            // raised it was given.
+            .onChange(of: library.filters.diets) { _, diets in
+                appIcon.offerIfNeeded(for: diets)
+            }
+            .plantBasedIconOffer(appIcon)
             // The form's own first-section inset, replaced by the system's
             // ordinary one. Left alone it opened the sheet on a band of
             // nothing between the bar and the cook's face; the header
@@ -296,6 +307,85 @@ struct AccountSheet: View {
         }
         .sensoryFeedback(.selection, trigger: accentColor)
     }
+
+    /// The same row as the accent, one step down: a row of choices, the one
+    /// in use carrying a check, and no confirmation of our own — iOS puts up
+    /// its own notice when an icon changes, and a second one in front of it
+    /// would only be us asking whether the cook meant the tap they just made.
+    ///
+    /// Independent of the diet offer. This is where any cook changes their
+    /// mind, in either direction, whatever they eat.
+    private var appIconSection: some View {
+        Section {
+            HStack(spacing: LadleTheme.Spacing.compact) {
+                ForEach(LadleAppIcon.allCases) { option in
+                    Button {
+                        Task { await appIcon.select(option) }
+                    } label: {
+                        iconTile(option)
+                    }
+                    .buttonStyle(LadlePressButtonStyle())
+                    .accessibilityLabel(option.title)
+                    .accessibilityValue(
+                        appIcon.icon == option ? "Selected" : ""
+                    )
+                    .accessibilityIdentifier(option.accessibilityIdentifier)
+                }
+            }
+            .padding(.vertical, LadleTheme.Spacing.tight)
+        } header: {
+            Text("App icon")
+        }
+        .sensoryFeedback(.selection, trigger: appIcon.icon)
+    }
+
+    private func iconTile(_ option: LadleAppIcon) -> some View {
+        Image(option.markImageName)
+            .resizable()
+            .scaledToFill()
+            .frame(
+                width: Self.appIconTileSize,
+                height: Self.appIconTileSize
+            )
+            .clipShape(
+                RoundedRectangle(
+                    cornerRadius: LadleTheme.Corner.thumbnail,
+                    style: .continuous
+                )
+            )
+            .overlay {
+                if appIcon.icon == option {
+                    RoundedRectangle(
+                        cornerRadius: LadleTheme.Corner.thumbnail,
+                        style: .continuous
+                    )
+                    .strokeBorder(selectedAccent.actionColor, lineWidth: 3)
+                }
+            }
+            .overlay(alignment: .bottomTrailing) {
+                if appIcon.icon == option {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(
+                            .system(
+                                size: LadleTheme.IconSize.large,
+                                weight: .bold
+                            )
+                        )
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(
+                            LadleTheme.Label.onAccent,
+                            selectedAccent.actionColor
+                        )
+                        .offset(x: LadleTheme.Spacing.tight, y: LadleTheme.Spacing.tight)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+    }
+
+    /// A home-screen icon, near enough: big enough to recognise the mark,
+    /// small enough that two of them are a row rather than a gallery.
+    private static let appIconTileSize: CGFloat = 60
 
     private var privacySection: some View {
         Section {
