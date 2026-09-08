@@ -319,14 +319,14 @@ enum PreviewFixtures {
         switch slug {
         case "smash-burgers":
             let ingredients = orderedIngredients([
-                ("1", "lb", "ground beef", "80/20, in four loose balls"),
-                ("4", nil, "potato rolls", "split"),
-                ("4", "slices", "American cheese", nil),
-                ("3", "tbsp", "chili crisp", nil),
-                ("2", "tbsp", "mayonnaise", nil),
-                ("½", nil, "small white onion", "shaved thin"),
-                ("1", "tsp", "kosher salt", nil),
-                ("1", "tbsp", "neutral oil", "for the griddle"),
+                (1, "lb", "ground beef", "80/20, in four loose balls"),
+                (4, nil, "potato rolls", "split"),
+                (4, "slices", "American cheese", nil),
+                (3, "tbsp", "chili crisp", nil),
+                (2, "tbsp", "mayonnaise", nil),
+                (0.5, nil, "small white onion", "shaved thin"),
+                (1, "tsp", "kosher salt", nil),
+                (1, "tbsp", "neutral oil", "for the griddle"),
             ])
             return RecipeContent(
                 description:
@@ -362,12 +362,12 @@ enum PreviewFixtures {
 
         case "lemon-orzo":
             let ingredients = orderedIngredients([
-                ("1", "cup", "orzo", nil),
-                ("2", "cloves", "garlic", "finely chopped"),
-                ("2", "cups", "vegetable stock", nil),
-                ("1", nil, "lemon", "zested and juiced"),
-                ("½", "cup", "crumbled feta", nil),
-                ("2", "tbsp", "extra-virgin olive oil", nil),
+                (1, "cup", "orzo", nil),
+                (2, "cloves", "garlic", "finely chopped"),
+                (2, "cups", "vegetable stock", nil),
+                (1, nil, "lemon", "zested and juiced"),
+                (0.5, "cup", "crumbled feta", nil),
+                (2, "tbsp", "extra-virgin olive oil", nil),
             ])
             return RecipeContent(
                 description:
@@ -403,14 +403,14 @@ enum PreviewFixtures {
 
         case "garlic-udon":
             let ingredients = orderedIngredients([
-                ("14", "oz", "frozen udon", "two blocks"),
-                ("3", "tbsp", "unsalted butter", nil),
-                ("4", "cloves", "garlic", "minced"),
-                ("1", "tbsp", "soy sauce", nil),
-                ("2", "tsp", "oyster sauce", nil),
-                ("2", nil, "scallions", "sliced thin"),
-                ("1", "pinch", "chili flakes", nil),
-                ("1", nil, "soft-boiled egg", "optional"),
+                (14, "oz", "frozen udon", "two blocks"),
+                (3, "tbsp", "unsalted butter", nil),
+                (4, "cloves", "garlic", "minced"),
+                (1, "tbsp", "soy sauce", nil),
+                (2, "tsp", "oyster sauce", nil),
+                (2, nil, "scallions", "sliced thin"),
+                (nil, nil, "chili flakes", nil),
+                (1, nil, "soft-boiled egg", "optional"),
             ])
             return RecipeContent(
                 description:
@@ -446,15 +446,15 @@ enum PreviewFixtures {
 
         case "gochujang-chicken":
             let ingredients = orderedIngredients([
-                ("2", "lb", "boneless skin-on chicken thighs", nil),
-                ("3", "tbsp", "gochujang", nil),
-                ("2", "tbsp", "honey", nil),
-                ("1", "tbsp", "soy sauce", nil),
-                ("1", "tbsp", "rice vinegar", nil),
-                ("2", "tsp", "toasted sesame oil", nil),
-                ("3", "cloves", "garlic", "grated"),
-                ("1", "bunch", "scallions", "cut into two-inch pieces"),
-                ("4", "cups", "steamed rice", "to serve"),
+                (2, "lb", "boneless skin-on chicken thighs", nil),
+                (3, "tbsp", "gochujang", nil),
+                (2, "tbsp", "honey", nil),
+                (1, "tbsp", "soy sauce", nil),
+                (1, "tbsp", "rice vinegar", nil),
+                (2, "tsp", "toasted sesame oil", nil),
+                (3, "cloves", "garlic", "grated"),
+                (1, "bunch", "scallions", "cut into two-inch pieces"),
+                (4, "cups", "steamed rice", "to serve"),
             ])
             return RecipeContent(
                 description:
@@ -490,13 +490,13 @@ enum PreviewFixtures {
 
         case "ricotta-toast":
             let ingredients = orderedIngredients([
-                ("4", "slices", "sourdough", "cut thick"),
-                ("1", "cup", "whole-milk ricotta", nil),
-                ("2", "tbsp", "olive oil", "plus more for the pan"),
-                ("1½", "tbsp", "hot honey", nil),
-                ("1", "pinch", "flaky salt", nil),
-                ("1", "tsp", "fresh thyme leaves", nil),
-                ("1", "pinch", "black pepper", nil),
+                (4, "slices", "sourdough", "cut thick"),
+                (1, "cup", "whole-milk ricotta", nil),
+                (2, "tbsp", "olive oil", "plus more for the pan"),
+                (1.5, "tbsp", "hot honey", nil),
+                (nil, nil, "flaky salt", nil),
+                (1, "tsp", "fresh thyme leaves", nil),
+                (nil, nil, "black pepper", nil),
             ])
             return RecipeContent(
                 description:
@@ -532,14 +532,14 @@ enum PreviewFixtures {
 
         case "miso-cookies":
             let ingredients = orderedIngredients([
-                ("1", "cup", "unsalted butter", nil),
-                ("2", "tbsp", "white miso", nil),
-                ("1¼", "cups", "brown sugar", "packed"),
-                ("1", nil, "egg", "plus one yolk"),
-                ("2", "cups", "all-purpose flour", nil),
-                ("1", "tsp", "baking soda", nil),
-                ("½", "tsp", "fine salt", nil),
-                ("¼", "cup", "granulated sugar", "for rolling"),
+                (1, "cup", "unsalted butter", nil),
+                (2, "tbsp", "white miso", nil),
+                (1.25, "cups", "brown sugar", "packed"),
+                (1, nil, "egg", "plus one yolk"),
+                (2, "cups", "all-purpose flour", nil),
+                (1, "tsp", "baking soda", nil),
+                (0.5, "tsp", "fine salt", nil),
+                (0.25, "cup", "granulated sugar", "for rolling"),
             ])
             return RecipeContent(
                 description:
@@ -578,15 +578,21 @@ enum PreviewFixtures {
         }
     }
 
+    /// Amount, unit, name, preparation — the shape a row is rendered from.
+    ///
+    /// A nil amount is an ingredient that has none, which is exactly what
+    /// the backend flags: a pinch of flaky salt is seasoning to taste, and
+    /// the row is its name.
     private static func orderedIngredients(
-        _ rows: [(String?, String?, String, String?)]
+        _ rows: [(Decimal?, String?, String, String?)]
     ) -> [Ingredient] {
         rows.enumerated().map { index, row in
             Ingredient(
-                quantityText: row.0,
+                normalizedQuantity: row.0,
                 unit: row.1,
                 name: row.2,
                 preparation: row.3,
+                isToTaste: row.0 == nil,
                 orderIndex: index
             )
         }
