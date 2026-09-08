@@ -7,6 +7,15 @@ import Observation
 final class CookingViewModel: Identifiable {
     let id = UUID()
     let recipe: Recipe
+
+    /// The serving count the recipe page was showing when cooking started.
+    ///
+    /// Cook mode is opened from the recipe page and built from what that page
+    /// is displaying, so it cooks the amounts the cook was just reading. It is
+    /// a snapshot rather than a shared object because the control is not on
+    /// this screen: nothing here can change it, and the page underneath is
+    /// covered while it is open.
+    let scaling: RecipeScaling?
     private(set) var session: CookingSession
     private(set) var timers: [UUID: RecipeTimer]
     private(set) var keepsScreenAwake = false
@@ -22,6 +31,7 @@ final class CookingViewModel: Identifiable {
 
     init(
         recipe: Recipe,
+        scaling: RecipeScaling? = nil,
         clock: CookingClock = SystemCookingClock(),
         notificationScheduler: TimerNotificationScheduling =
             LocalTimerNotificationScheduler(),
@@ -29,6 +39,7 @@ final class CookingViewModel: Identifiable {
             ScreenAwakeController()
     ) {
         self.recipe = recipe
+        self.scaling = scaling
         self.clock = clock
         self.notificationScheduler = notificationScheduler
         self.screenAwakeController = screenAwakeController
@@ -44,6 +55,18 @@ final class CookingViewModel: Identifiable {
 
     var mode: CookingMode {
         session.mode
+    }
+
+    /// The factor every ingredient row on this screen is rendered through.
+    var multiplier: Decimal? {
+        scaling?.multiplier
+    }
+
+    /// The line under the title on a scaled session, and `nil` when the
+    /// recipe is being cooked as written.
+    var scaledYieldText: String? {
+        guard let scaling, scaling.isScaled else { return nil }
+        return scaling.chosenYieldText
     }
 
     var currentStepIndex: Int {

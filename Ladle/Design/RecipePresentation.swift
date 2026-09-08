@@ -164,6 +164,18 @@ extension Ingredient {
         row(amountText)
     }
 
+    /// Whether a multiplier can reach this row. Salt to taste cannot be
+    /// doubled, and a scaled list has to say so rather than leave a cook to
+    /// notice that one line did not move.
+    ///
+    /// It follows the render rule rather than restating it: a row with no
+    /// amount to print is a row with no amount to multiply, whether it is
+    /// flagged to taste or reached the device from a library stored before
+    /// the split was guaranteed.
+    var isScalable: Bool {
+        amountText != nil
+    }
+
     /// The row as a recipe scaled by `factor` prints it: the same amount,
     /// multiplied, in the same form. An ingredient with no quantity — salt
     /// to taste — scales to itself, because a pinch does not double.

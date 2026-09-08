@@ -169,4 +169,108 @@ final class IngredientRowTextTests: XCTestCase {
             "4 potato rolls — split"
         )
     }
+
+    // MARK: - Scaled rows
+
+    /// Plain decimals, no unit conversion: four times 1½ tsp is 6 tsp, and
+    /// the app does not decide that a cook would rather read a tablespoon.
+    func testScalingNeverConvertsUnits() {
+        let ingredient = Ingredient(
+            normalizedQuantity: Decimal(string: "1.5"),
+            unit: "tsp",
+            name: "kosher salt",
+            orderIndex: 0
+        )
+
+        XCTAssertEqual(
+            ingredient.cookingDetailText(scaledBy: 4),
+            "6 tsp kosher salt"
+        )
+    }
+
+    /// A third of a cup is an amount somebody measures, so a scaled row
+    /// keeps the two fraction digits `measuredAmount` renders rather than
+    /// rounding to a tenth.
+    func testAThirdOfARowKeepsTwoFractionDigits() {
+        let ingredient = Ingredient(
+            normalizedQuantity: 1,
+            unit: "cup",
+            name: "orzo",
+            orderIndex: 0
+        )
+
+        XCTAssertEqual(
+            ingredient.cookingDetailText(scaledBy: Decimal(1) / Decimal(3)),
+            "0.33 cup orzo"
+        )
+    }
+
+    func testAScaledRowStillTrailsItsPreparation() {
+        let ingredient = Ingredient(
+            normalizedQuantity: 1,
+            unit: "lb",
+            name: "ground beef",
+            preparation: "in four loose balls",
+            orderIndex: 0
+        )
+
+        XCTAssertEqual(
+            ingredient.cookingDetailText(scaledBy: 2),
+            "2 lb ground beef — in four loose balls"
+        )
+    }
+
+    /// A row with an amount can be multiplied; a row that has none — the
+    /// salt a cook seasons to taste — cannot, and the list marks it so the
+    /// cook can see which line did not move.
+    func testOnlyARowWithAnAmountIsScalable() {
+        let beef = Ingredient(
+            normalizedQuantity: 1,
+            unit: "lb",
+            name: "ground beef",
+            orderIndex: 0
+        )
+        let salt = Ingredient(
+            name: "kosher salt",
+            isToTaste: true,
+            orderIndex: 1
+        )
+
+        XCTAssertTrue(beef.isScalable)
+        XCTAssertFalse(salt.isScalable)
+    }
+
+    /// A library stored before the split was guaranteed can hold a row with
+    /// a unit and no number. It renders as its name, so it has nothing to
+    /// multiply either, whatever the flag says.
+    func testARowWithNoNumberIsNotScalable() {
+        let ingredient = Ingredient(
+            unit: "cups",
+            name: "flour",
+            orderIndex: 0
+        )
+
+        XCTAssertFalse(ingredient.isScalable)
+        XCTAssertEqual(ingredient.cookingDetailText(scaledBy: 2), "flour")
+    }
+
+    /// The demo library is what a reviewer, a screenshot and the UI test
+    /// see, so doubling it has to come out the way a cook would write it.
+    func testTheDemoLibraryScales() {
+        let smashBurgers = PreviewFixtures.recipes[0]
+
+        XCTAssertEqual(
+            smashBurgers.orderedIngredients[0].cookingDetailText(scaledBy: 2),
+            "2 lb ground beef — 80/20, in four loose balls"
+        )
+        XCTAssertEqual(
+            smashBurgers.orderedIngredients[1].cookingDetailText(scaledBy: 2),
+            "8 potato rolls — split"
+        )
+        // Half a small onion, doubled, is a whole one — and no ".00".
+        XCTAssertEqual(
+            smashBurgers.orderedIngredients[5].cookingDetailText(scaledBy: 2),
+            "1 small white onion — shaved thin"
+        )
+    }
 }
