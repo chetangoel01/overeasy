@@ -127,8 +127,14 @@ struct DietStepView: View {
                     }
                 }
 
-                Divider()
-                    .overlay(LadleTheme.Label.primary.opacity(0.1))
+                // A drawn line rather than `Divider()`: six rows of a
+                // fractional height put the hairlines on subpixel
+                // boundaries, and two of the five vanished on the device
+                // while three survived, which read as a grouping nobody
+                // meant.
+                Rectangle()
+                    .fill(LadleTheme.Label.primary.opacity(0.1))
+                    .frame(height: 1)
             }
 
             optionRow(

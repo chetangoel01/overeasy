@@ -116,6 +116,16 @@ final class RecipesFilterMenuUITests: XCTestCase {
             "Nothing is narrowing the library, so there is no pill"
         )
 
+        // "Showing everything" has to be true of the tabs that ask the
+        // server too, not only of the library that answers locally.
+        app.tabBars.firstMatch.buttons["Discover"].tap()
+        XCTAssertTrue(
+            app.staticTexts["Crispy Chili Oil Smash Burgers"]
+                .waitForExistence(timeout: 5),
+            "A pause is a filter change: Discover fetched again without it"
+        )
+        app.tabBars.firstMatch.buttons["Recipes"].tap()
+
         filterMenu(in: app).tap()
         let offRow = app.buttons["Vegetarian diet · Off, showing everything"]
         XCTAssertTrue(

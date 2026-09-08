@@ -111,8 +111,15 @@ extension RecipeFilter {
 
     /// How many pills the filter is worth. The control's label carries it,
     /// so the state reads without opening the menu.
+    ///
+    /// The diet counts once however many diets it holds: it is one pill, one
+    /// row in the menu and one thing to turn off, so counting it twice would
+    /// have promised a control that is not there.
     var activeCount: Int {
-        diets.count + cuisines.count + keywords.count + ingredients.count
+        (diets.isEmpty ? 0 : 1)
+            + cuisines.count
+            + keywords.count
+            + ingredients.count
     }
 }
 
