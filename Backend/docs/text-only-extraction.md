@@ -44,6 +44,10 @@ linked documents, never its visual observations. The prompt version changes
 whenever this evidence contract changes so old cached extractions cannot be
 served as though the new boundary produced them.
 
+Photo posts stop after free acquisition: their caption and free linked text
+are the evidence. They do not invoke audio transcription, paid transcript
+providers, server fallback, creator search, or visual extraction.
+
 If those rungs still lack a quantified ingredient and a cooking action in a
 transcript or linked page, the worker issues up to three exact searches based
 on creator, dish title, canonical post URL, and platform post identity. The
@@ -67,16 +71,21 @@ respectively. Search runs with no image or video understanding parameters.
 `LADLE_CREATOR_SEARCH_MAXIMUM_RESULTS` bound latency and response size, not
 price. Enabling this rung in a live worker requires an OpenRouter key.
 
-After all text enrichment and user corrections, an evidence gate accepts a
-transcript or creator-linked page containing both a quantified ingredient and
-a cooking action. It also accepts a recipe-dense creator caption with at least
-three quantified ingredient mentions when the combined caption and transcript
-contain a cooking action. This covers complete written captions and captions
-whose ingredient amounts complement the spoken method without treating a
-single promo amount as a recipe. Titles and platform sticker/alt text cannot
-satisfy the gate. A rejection happens before thumbnail download and model
-extraction, persists no recipe, and completes the import as
-`failed(insufficientTextEvidence)` with the same diagnostic code.
+After all text enrichment and user corrections, the evidence gate requires a
+cooking action in the caption, transcript, or linked text. Missing quantities
+alone do not reject a recipe: extraction preserves what was stated and marks
+what was not. Titles and platform sticker/alt text cannot satisfy the gate.
+A rejection happens before thumbnail download and model extraction, persists
+no recipe, and completes a video import as `failed(insufficientTextEvidence)`.
+A photo post without a written cooking method instead reports
+`photoPostNeedsManualEntry`.
+
+The acquisition coverage check remains stricter than this final gate: it seeks
+both amounts and method before skipping further video enrichment. A transient
+provider failure still allows independent fallbacks. If the resulting text
+cannot pass the final gate, that transient error reaches Celery's retry path
+instead of being presented as missing recipe content. See
+[worker reliability](import-worker-reliability.md).
 
 The iOS recovery surfaces this as missing written recipe detail and directs the
 cook to paste the recipe or create it manually. This is distinct from an
@@ -90,16 +99,16 @@ and malformed successful output retains its separate one-repeat policy.
 
 ## Nutrition provenance
 
-Prompt version `recipe-2026-08-24-v12` requires the extraction model to return
+The current prompt in `ladle/extraction/prompt.py` requires extraction to return
 nutrition as null. It cannot estimate nutrition, claim that it ran USDA
 calculations, invent a serving count to divide totals, or copy a publisher
 panel into another field. Explicit panels and missing values are handled only
-by the deterministic nutrition stages below.
+by the separate nutrition stages below.
 
 The review boundary retains backward compatibility for old cached model
 output: only `creatorStated` nutrition can survive, while `unknown` and
-`usdaCalculated` claims are discarded. New v12 extraction calls always return
-nutrition null. Only the deterministic stages assign `creatorStated` or
+`usdaCalculated` claims are discarded. New extraction calls return nutrition
+null. Only the nutrition stages assign `creatorStated` or
 `usdaCalculated`, preserving the internal basis and evidence without changing
 the public iOS nutrition contract.
 
@@ -125,33 +134,35 @@ normalized USDA search phrase derived from the ingredient name and preparation
 state. These fields survive extraction review for deterministic matching but
 are not exposed as creator claims in the public recipe DTO.
 
-When creator-stated nutrition is absent, a live worker queries USDA FoodData
-Central through its search and food-detail endpoints. It prefers Foundation,
-SR Legacy, and FNDDS generic foods over branded results, then requires an
-unambiguous ingredient-description match. The client accepts only the
-documented kcal energy nutrients (preferring specific then general Atwater
-energy) and gram-valued protein, carbohydrate, and fat nutrients. Complete
-normalized query results are cached in-process.
+When creator-stated nutrition is absent, a separate OpenRouter normalization
+call supplies grams and USDA search terms. It preserves stated yield and may
+estimate an unstated serving count, recording confidence, rationale, and amount
+assumptions. These nutrition estimates do not rewrite the creator's displayed
+ingredient quantities. The live path requires its OpenRouter key when
+normalization is enabled.
 
-The calculator converts source grams and standard mass units directly. Cups,
-spoons, counts, and milliliters require a matching USDA portion with an
-explicit gram weight; it never invents density or item size. Every material
-ingredient must have a quantity, match one complete USDA record, and pass a
-broad calorie-versus-macros consistency check. To-taste seasonings are omitted.
-The whole-recipe totals are divided only by a creator-stated serving count,
-then stored as `usdaCalculated` / `isEstimated=true` with the contributing FDC
-IDs retained as internal evidence. Because the stored numeric values describe
-one serving, their `servingBasis` is `1`; consumers recover a whole-recipe
-total by multiplying by recipe servings. This matches the iOS scaling
-contract and prevents a second accidental division by the recipe yield.
+The calculator checks the curated food table before USDA FoodData Central.
+USDA search and food-detail payloads are stored in PostgreSQL for reuse across
+workers. Matching prefers generic foods and tries ranked candidates for usable
+nutrients and portions. It accepts kcal energy and gram-valued macros, with
+consistency checks. Standard mass units convert directly; other amounts need
+explicit portion weights or the normalizer's separately recorded gram estimate.
 
-Any missing quantity, unsupported portion, ambiguous food match, incomplete
-macro record, unknown serving count, or implausible nutrient record produces
-no calculated nutrition. The recipe completes as `needsReview` with an
-actionable nutrition uncertainty. USDA authentication, quota, transport, and
-service failures follow the same non-terminal behavior; creator-stated
-nutrition remains untouched and never calls USDA. Live workers require
-`LADLE_USDA_API_KEY` when `LADLE_USDA_NUTRITION_ENABLED` is true.
+Unresolvable material ingredients are skipped individually and recorded in
+`nutrition_skips`, ingredient/recipe uncertainty notes, and the operator misses
+panel. Partial totals have `approximate=true`; there is no minimum coverage
+floor. If no ingredient can be counted, nutrition is absent. Excluded or
+to-taste ingredients do not contribute to the total. The calculator divides by
+a valid stated or estimated serving count and stores per-serving values with
+`servingBasis=1`, `isEstimated=true`, and source evidence.
+
+Nutrition failure alone does not fail the import or force `needsReview`.
+Normalization failures, invalid yield, or an unavailable provider leave no
+nutrition and add an uncertainty while preserving the recipe's review status.
+Creator-stated nutrition bypasses normalization and USDA. Live workers require
+`LADLE_USDA_API_KEY` when `LADLE_USDA_NUTRITION_ENABLED` is true. The detailed
+skip contract and operator workflow are in the
+[integration reference](integration-reference.md#recipes).
 
 ## Targeted verification
 

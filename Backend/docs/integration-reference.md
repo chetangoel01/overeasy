@@ -4,7 +4,10 @@ This is the practical map for running the backend, connecting the iOS app,
 calling the HTTP API, configuring providers, and inspecting or changing the
 PostgreSQL schema.
 
-The implementation described here is on branch `codex/ladle-backend`.
+For the current architectural overview, see
+[backend architecture](../../docs/backend-design.md). Historical plans and
+verification records describe their dated snapshots rather than the current
+deployment.
 
 ## Repository paths
 
@@ -29,7 +32,7 @@ The implementation described here is on branch `codex/ladle-backend`.
 | Account deletion and cleanup | `Backend/docs/account-deletion.md` |
 | Import/cache orchestration | `Backend/ladle/imports/`, `Backend/ladle/cache/` |
 | Provider adapters | `Backend/ladle/acquisition/` |
-| Claude extraction | `Backend/ladle/extraction/` |
+| OpenRouter and Anthropic extraction | `Backend/ladle/extraction/` |
 | Local containers | `Backend/docker-compose.yml` |
 | Environment template | `Backend/.env.example` |
 | iOS API base URLs | `Config/Debug.xcconfig`, `Config/Release.xcconfig` |
@@ -38,12 +41,6 @@ The implementation described here is on branch `codex/ladle-backend`.
 | iOS import client | `Ladle/Import/RemoteImportService.swift` |
 | iOS recipe sync | `Ladle/Sync/RecipeSyncService.swift` |
 | Shared Python/Swift fixtures | `Contracts/Fixtures/` |
-
-The feature worktree used to build this branch is:
-
-```text
-/Users/chetangoel/Desktop/Repositories/recipe-app/.worktrees/ladle-backend
-```
 
 ## Runtime addresses
 
@@ -205,6 +202,7 @@ Canonical recipe payloads are available in:
 | `POST /v1/imports/{jobID}/retry` | Bearer | `202` | Retry with optional correction or pasted text |
 | `GET /v1/recipes/sync?cursor=&limit=` | Bearer | `200` | Read ordered recipe upserts and tombstones |
 | `GET /v1/recipes/discover?limit=&cursor=&q=&sort=&max_total_minutes=&seen_before=&record_impressions=` | Bearer | `200` | Rank unsaved public recipe-video sources; `sort` is `popular` (default), `newest`, `mostLiked` or `alphabetical`, `max_total_minutes` keeps only timed sources at or under that total, and `seen_before` pins a paging session — sources shown to this account before it and inside the seen window sort last, and the page served is recorded unless `record_impressions=false` asks for the ranking without the write |
+| `GET /v1/recipes/discover/shelves?limit=&diet=&cuisine=&keyword=&ingredient=` | Bearer | `200` | Return keyword shelves under the same filters as the feed, without recording impressions |
 | `GET /v1/recipes/discover/{sourceVideoID}` | Bearer | `200` | Read the current shared recipe as a non-owned Discover preview |
 | `POST /v1/recipes/discover/{sourceVideoID}/save` | Bearer | `200` | Idempotently clone a ready shared extraction into the account |
 | `GET /v1/recipes/{recipeID}` | Bearer | `200` | Fetch one current recipe |
@@ -228,14 +226,25 @@ an import job or rerun acquisition, transcription, or extraction. Reading an
 individual Discover source returns the same current shared extraction for a
 read-only detail screen without creating or changing an account recipe.
 
-Discover's two shelves are this same endpoint under a different order or
-filter, not a section resource of their own — so a shelf, the ranked list and
-a search all return `DiscoverPageDTO` and page the same way:
+The ranked feed returns `DiscoverPageDTO`. It supports alternate sort and time
+filters, for example:
 
 ```
 GET /v1/recipes/discover?sort=newest&limit=10
 GET /v1/recipes/discover?sort=popular&max_total_minutes=30&limit=10
 ```
+
+The feed and `/v1/recipes/discover/shelves` also accept repeated `diet`,
+`cuisine`, `keyword`, and `ingredient` parameters. All requested diets and
+ingredient terms must match; cuisines and keywords each match any requested
+value. Tags use the closed vocabularies in `ladle/contracts/tags.py` and reject
+unknown values with `422`. Ingredient filtering matches saved ingredient names,
+with at most ten terms of 100 characters each.
+
+The shelves endpoint returns `DiscoverShelvesDTO`, grouping available sources
+by curated keyword under those filters. Its minimum recipe count and maximum
+shelf count are configured by `LADLE_DISCOVER_SHELF_MINIMUM_RECIPES` and
+`LADLE_DISCOVER_SHELF_MAXIMUM_COUNT`. Shelves do not record impressions.
 
 `sort=newest` orders by when the source arrived in Overeasy
 (`source_videos.created_at`), not by when its creator published it:
@@ -247,7 +256,7 @@ excluded rather than assumed quick.
 
 `seen_before` is a UTC timestamp: the moment the client began this paging
 session. It governs both halves of the recently-seen behaviour, and only
-appears on the ranked list — the two shelves omit it, so a rail stays a
+appears on the ranked list — shelves omit it, so a rail stays a
 ranking rather than a reading position.
 
 - **Demotion.** A source whose latest `discover_impressions.seen_at` for this
@@ -256,9 +265,10 @@ ranking rather than a reading position.
   Each group keeps the ranking it would otherwise have had, so nothing is
   removed from the feed and a cook who has seen the whole corpus simply gets
   the plain order back rather than a short page.
-- **Recording.** Every item on the served page is upserted with
-  `seen_at = now`, in the request's own transaction. Ranked rows dropped for a
-  stale extraction cache are not recorded: they never reached the reader.
+- **Recording.** Every item on the served page is upserted in the request's own
+  transaction. The stamp is the later of `now` and the session pin, capped at
+  one seen-window beyond `now` to bound a device clock running fast. Rows dropped
+  for a stale extraction cache are not recorded: they never reached the reader.
 
 Because impressions are written at request time and demotion only considers
 `seen_at < seen_before`, the rows one session writes cannot re-rank the pages
@@ -563,6 +573,7 @@ Codes are:
 - `guestRecipeLimitReached`
 - `authenticationRequired`
 - `syncConflict`
+- `syncResetRequired`
 - `providerUnavailable`
 - `quotaExceeded`
 - `rateLimited`
@@ -588,8 +599,19 @@ With `LADLE_WORKER_PROVIDER_MODE=live`, the worker follows this order:
    request, which
    performs its own native-first/generated-fallback policy.
 4. If configured and no transcript is available, SoScripted transcription.
-5. Structured recipe and nutrition extraction from the collected text.
-6. Review gating and transactional recipe/cache completion.
+5. If needed and configured, server text fallback and independently validated
+   creator search, followed by the final cooking-method evidence gate.
+6. Structured recipe extraction and review. The extraction model returns
+   nutrition as null.
+7. Explicit creator facts, separate nutrition normalization, curated/USDA
+   calculation, and targeted verification before transactional completion.
+
+Photo posts use free caption/linked text and skip the paid acquisition rungs.
+No images enter the extraction model. The
+[text-only extraction guide](text-only-extraction.md) is the canonical evidence
+and nutrition reference. Transient outages that prevent usable evidence reach
+the [worker retry path](import-worker-reliability.md); successful independent
+fallbacks still let the import finish.
 
 Outbound adapter paths:
 
@@ -638,7 +660,8 @@ Supadata and SoScripted keys are optional. Without them the chain remains:
 
 ```text
 permitted free evidence -> temporary media download -> Whisper
--> structured recipe extraction
+-> optional text enrichment -> evidence gate -> structured recipe extraction
+-> nutrition and verification
 ```
 
 For a personal session that public extraction cannot reach, set
@@ -773,7 +796,7 @@ concurrent requests.
 | --- | --- |
 | `recipes` | `id uuid PK`; owner/source/cache FKs; title/description/creator/source/original URL; preparation/cooking/total minutes; `servings numeric(18,6)`; favorite; review status; soft-delete timestamp; positive revision; created/updated timestamps |
 | `recipe_images` | `id uuid PK`; `recipe_id uuid FK`; exactly one of `object_key` or `remote_url`; unique `order_index` per recipe |
-| `ingredients` | `id uuid PK`; recipe FK; quantity text; normalized quantity `numeric(18,6)`; unit/name/preparation; unique order per recipe |
+| `ingredients` | `id uuid PK`; recipe FK; quantity text; normalized quantity `numeric(18,6)`; unit/name/preparation; `is_to_taste` for no stated amount; unique order per recipe |
 | `recipe_steps` | `id uuid PK`; recipe FK; unique order per recipe; instruction |
 | `step_ingredients` | Composite PK `(recipe_id, step_id, ingredient_id)` with composite FKs that guarantee the step and ingredient belong to the same recipe |
 | `detected_timers` | `id uuid PK`; step FK; label; positive duration enforced by the API contract |
@@ -863,21 +886,10 @@ sudo /opt/ladle/app/Backend/deploy/vps/manage.sh backfill-times
 
 ## Migrations and schema inspection
 
-The current migration chain is:
-
-```text
-0001_initial_schema
-  -> 0002_support_remote_recipe_images
-  -> 0003_add_negative_extraction_cache
-  -> 0004_add_recipe_notes_and_step_timing
-  -> 0005_add_app_attest_state
-  -> 0006_store_apple_refresh_token
-  -> 0007_add_google_identity
-  -> 0008_add_quota_and_provider_budgets
-  -> 0009_add_import_dispatch_outbox
-  -> 0010_add_account_deletion_audit
-  -> 0011_add_sync_retention_floor
-```
+The current head is `0026` (ingredient quantity state). The full chain is in
+[`alembic/versions`](../alembic/versions/); inspect it with
+`uv run alembic history` from `Backend/`. Keep the readiness probe's expected
+revision in `ladle/api/routes/health.py` aligned with the migration head.
 
 Alembic also owns the small `alembic_version` table that records the currently
 applied revision; application code must not modify it directly.
