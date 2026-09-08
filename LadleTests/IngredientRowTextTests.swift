@@ -272,5 +272,10 @@ final class IngredientRowTextTests: XCTestCase {
             smashBurgers.orderedIngredients[5].cookingDetailText(scaledBy: 2),
             "1 small white onion — shaved thin"
         )
+        // The one row a multiplier cannot reach.
+        XCTAssertEqual(
+            smashBurgers.orderedIngredients[6].cookingDetailText(scaledBy: 2),
+            "kosher salt"
+        )
     }
 }

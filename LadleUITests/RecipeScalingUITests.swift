@@ -27,6 +27,14 @@ final class RecipeScalingUITests: XCTestCase {
         ]
         XCTAssertTrue(asWritten.waitForExistence(timeout: 3))
 
+        // The salt is seasoned by eye, so it has no amount to multiply. It
+        // reads as its name at any count, and says nothing about scaling
+        // until the page is scaled.
+        let notScaled = app.descendants(matching: .any).matching(
+            NSPredicate(format: "label BEGINSWITH 'Not scaled'")
+        ).firstMatch
+        XCTAssertFalse(notScaled.exists)
+
         let yield = app.buttons["recipe.yield"]
         XCTAssertTrue(yield.waitForExistence(timeout: 3))
         for _ in 0..<4 where !yield.isHittable {
@@ -53,6 +61,15 @@ final class RecipeScalingUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Scaled from 4 servings"].exists)
 
         attachScreenshot(of: app, named: "Recipe scaled to 8 servings")
+
+        // The row a multiplier could not reach says so, rather than leaving
+        // a cook to notice that one line did not move.
+        XCTAssertTrue(notScaled.waitForExistence(timeout: 3))
+        XCTAssertTrue(app.staticTexts["kosher salt"].exists)
+        for _ in 0..<6 where !notScaled.isHittable {
+            app.swipeUp()
+        }
+        attachScreenshot(of: app, named: "Scaled list with a to-taste row")
     }
 
     private func launchApp(startingOn tab: String) -> XCUIApplication {
