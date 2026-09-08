@@ -143,6 +143,89 @@ final class ProfileSheetUITests: XCTestCase {
         avatar.tap()
     }
 
+    // MARK: - The app icon
+
+    /// The picker beside the accent, switching the icon for real.
+    ///
+    /// Which icon is on at the start is not assumed: the installed icon
+    /// belongs to the device and outlives the app's container, so the test
+    /// reads the selection, taps the other one, and puts it back — which
+    /// also exercises both directions.
+    ///
+    /// iOS confirms an icon change with an alert of its own. It is not
+    /// suppressed, so dismissing it is part of the flow.
+    @MainActor
+    func testTheIconIsSwitchedInProfileAndBothWaysBack() {
+        let app = launchSignedIn()
+
+        app.buttons["Profile"].tap()
+        XCTAssertTrue(
+            app.navigationBars["Profile"].waitForExistence(timeout: 3)
+        )
+
+        let egg = app.descendants(matching: .any)["account.app-icon.egg"]
+        let plantBased = app.descendants(matching: .any)[
+            "account.app-icon.plant-based"
+        ]
+        XCTAssertTrue(
+            egg.waitForExistence(timeout: 3),
+            "Profile offers the two icons beside the accent"
+        )
+        XCTAssertTrue(plantBased.exists)
+        if !egg.isHittable {
+            app.swipeUp()
+        }
+
+        let startedOnTheEgg = egg.value as? String == "Selected"
+        let other = startedOnTheEgg ? plantBased : egg
+        let original = startedOnTheEgg ? egg : plantBased
+
+        other.tap()
+        dismissIconChangeNotice()
+        waitForSelection(of: other)
+        XCTAssertNotEqual(original.value as? String, "Selected")
+
+        // Put the device back the way it was found: the icon survives the
+        // app, so a test that switched it would hand the next one a
+        // different starting point.
+        original.tap()
+        dismissIconChangeNotice()
+        waitForSelection(of: original)
+    }
+
+    /// The selection is the icon iOS reports as installed, read back after
+    /// the switch, so it arrives a moment after the tap.
+    @MainActor
+    private func waitForSelection(of tile: XCUIElement) {
+        expectation(
+            for: NSPredicate(format: "value == %@", "Selected"),
+            evaluatedWith: tile
+        )
+        waitForExpectations(timeout: 10) { error in
+            XCTAssertNil(
+                error,
+                "\(tile.label) was tapped but is not the installed icon"
+            )
+        }
+    }
+
+    /// iOS puts up its own notice when an icon changes. It is deliberately
+    /// not suppressed, so a run that meets one dismisses it — but the iOS
+    /// 26.5 simulator does not show one, measured, so its absence is not a
+    /// failure either.
+    @MainActor
+    private func dismissIconChangeNotice() {
+        let springboard = XCUIApplication(
+            bundleIdentifier: "com.apple.springboard"
+        )
+        let notice = springboard.alerts.firstMatch
+        guard notice.waitForExistence(timeout: 2) else { return }
+        let confirmation = notice.buttons["OK"]
+        (confirmation.exists
+            ? confirmation
+            : notice.buttons.firstMatch).tap()
+    }
+
     // MARK: - The diet
 
     /// The one place a diet changes after onboarding, and it has to be

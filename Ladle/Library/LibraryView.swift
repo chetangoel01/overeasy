@@ -150,6 +150,7 @@ struct LibraryView: View {
     @State private var failedImportJob: ImportJob?
     @State private var pendingDestination: LibraryRecipeDestination?
     @State private var watchRefreshVersion = 0
+    @State private var appIcon = AppIconStore()
     @State private var discoverFallback = DiscoverLaunchFallback()
 
     var body: some View {
@@ -168,6 +169,7 @@ struct LibraryView: View {
                     accountSession: accountSession,
                     library: viewModel,
                     syncStatus: syncStatus,
+                    appIcon: appIcon,
                     authClient: authClient,
                     googleSignIn: googleSignIn,
                     onAuthenticated: onAuthenticated,
