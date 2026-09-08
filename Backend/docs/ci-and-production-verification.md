@@ -41,6 +41,12 @@ Pytest is constrained to 9.0.3 or newer; the current lock selects 9.1.1.
 The test client uses Starlette's maintained HTTPX2 path, avoiding the deprecated
 legacy HTTPX adapter.
 
+The September 8 merge gate found five advisories in the locked HTTPX2 and
+HTTPCore2 2.9.1 packages. `uv.lock` now selects 2.12.0 for both; the frozen
+all-groups dependency audit reports no known vulnerabilities. All 1,107 backend
+tests, Ruff formatting/lint, and strict mypy pass with the updated lock. Existing
+API and provider tests cover this dependency-only update, so it adds no new test.
+
 ## Scheduled capacity and chaos checks
 
 `load/k6-production.js` exercises four independent scenarios: guest creation,
