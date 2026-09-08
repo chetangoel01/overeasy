@@ -258,10 +258,10 @@ final class DesignTokenTests: XCTestCase {
         XCTAssertEqual(LadleTheme.paperHex, "#F7F4EF")
         XCTAssertEqual(LadleTheme.oatHex, "#ECE7E1")
         XCTAssertEqual(LadleTheme.inkHex, "#14181B")
-        XCTAssertEqual(LadleTheme.brickHex, "#EE4B2F")
+        XCTAssertEqual(LadleTheme.brickHex, "#C23B26")
         XCTAssertEqual(LadleTheme.celeryHex, "#83A18A")
         XCTAssertEqual(LadleTheme.ubeHex, "#E3DDD6")
-        XCTAssertEqual(LadleTheme.mutedInkHex, "#64707A")
+        XCTAssertEqual(LadleTheme.mutedInkHex, "#505B64")
     }
 
     func testDarkPaletteUsesNeutralGraphiteSurfaces() {
@@ -463,7 +463,7 @@ final class DesignTokenTests: XCTestCase {
             LadleButtonRole.tertiary.fill(accent),
             "A tertiary button carries no fill"
         )
-        XCTAssertEqual(LadleButtonRole.destructive.fill(accent), Color.red)
+        XCTAssertEqual(LadleButtonRole.destructive.fill(accent), LadleTheme.Intent.destructiveFill)
         XCTAssertEqual(
             LadleButtonRole.primary.label(accent),
             LadleTheme.Label.onAccent
@@ -502,7 +502,7 @@ final class DesignTokenTests: XCTestCase {
     /// The roles that do *not* carry the accent must be indifferent to it.
     func testNeutralRolesIgnoreTheAccent() {
         for accent in LadleAccentColor.allCases {
-            XCTAssertEqual(LadleButtonRole.destructive.fill(accent), Color.red)
+            XCTAssertEqual(LadleButtonRole.destructive.fill(accent), LadleTheme.Intent.destructiveFill)
             XCTAssertEqual(
                 LadleButtonRole.secondary.fill(accent),
                 LadleTheme.Surface.raised

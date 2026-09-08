@@ -1,6 +1,6 @@
 import SwiftUI
 
-enum RecoveryInputMode: String, Identifiable {
+enum RecoveryInputMode: String, Identifiable, Hashable {
     case correctionNotes
     case pastedDetails
     case manual
@@ -16,40 +16,25 @@ struct CorrectionNotesView: View {
 
     @State private var title = ""
     @State private var text = ""
+    @State private var isDiscardPresented = false
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: LadleTheme.Layout.sectionGap) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(mode.title)
-                            .ladleFont(.title)
-                            .foregroundStyle(LadleTheme.Label.primary)
-                        Text(mode.message)
-                            .ladleFont(.body)
-                            .foregroundStyle(LadleTheme.Label.primary.opacity(0.64))
-                    }
-
-                    if mode == .manual {
-                        TextField("Recipe title", text: $title)
-                            .ladleFont(.body)
-                            .padding(.horizontal, LadleTheme.Layout.cardPadding)
-                            .frame(minHeight: LadleTheme.Control.primary)
-                            .background(
-                                LadleTheme.Surface.raised,
-                                in: RoundedRectangle(
-                                    cornerRadius: LadleTheme.Corner.control,
-                                    style: .continuous
-                                )
-                            )
-                            .accessibilityLabel("Recipe title")
-                    }
-
-                    TextEditor(text: $text)
+        ScrollView {
+            VStack(alignment: .leading, spacing: LadleTheme.Layout.sectionGap) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(mode.title)
+                        .ladleFont(.title)
+                        .foregroundStyle(LadleTheme.Label.primary)
+                    Text(mode.message)
                         .ladleFont(.body)
-                        .scrollContentBackground(.hidden)
-                        .padding(LadleTheme.Spacing.medium)
-                        .frame(minHeight: 180)
+                        .foregroundStyle(LadleTheme.Label.secondary)
+                }
+
+                if mode == .manual {
+                    TextField("Recipe title", text: $title)
+                        .ladleFont(.body)
+                        .padding(.horizontal, LadleTheme.Layout.cardPadding)
+                        .frame(minHeight: LadleTheme.Control.primary)
                         .background(
                             LadleTheme.Surface.raised,
                             in: RoundedRectangle(
@@ -57,46 +42,70 @@ struct CorrectionNotesView: View {
                                 style: .continuous
                             )
                         )
-                        .accessibilityLabel(mode.fieldLabel)
-
-                    Button(mode.buttonTitle) {
-                        switch mode {
-                        case .correctionNotes:
-                            submit(text, nil)
-                        case .pastedDetails:
-                            submit(nil, text)
-                        case .manual:
-                            submit(nil, "\(title)\n\(text)")
-                        }
-                        dismiss()
-                    }
-                    .buttonStyle(LadleButtonStyle(role: .primary))
-                    .disabled(
-                        text.trimmingCharacters(
-                            in: .whitespacesAndNewlines
-                        ).isEmpty
-                            || (
-                                mode == .manual
-                                    && title.trimmingCharacters(
-                                        in: .whitespacesAndNewlines
-                                    ).isEmpty
-                            )
-                    )
+                        .accessibilityLabel("Recipe title")
                 }
-                .padding(LadleTheme.Spacing.generous)
-            }
-            .scrollIndicators(.hidden)
-            .background(LadleTheme.Surface.porcelain)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
+
+                TextEditor(text: $text)
+                    .ladleFont(.body)
+                    .scrollContentBackground(.hidden)
+                    .padding(LadleTheme.Spacing.medium)
+                    .frame(minHeight: 180)
+                    .background(
+                        LadleTheme.Surface.raised,
+                        in: RoundedRectangle(
+                            cornerRadius: LadleTheme.Corner.control,
+                            style: .continuous
+                        )
+                    )
+                    .accessibilityLabel(mode.fieldLabel)
+
+                Button(mode.buttonTitle) {
+                    switch mode {
+                    case .correctionNotes:
+                        submit(text, nil)
+                    case .pastedDetails:
+                        submit(nil, text)
+                    case .manual:
+                        submit(nil, "\(title)\n\(text)")
                     }
+                    dismiss()
+                }
+                .buttonStyle(LadleButtonStyle(role: .primary))
+                .disabled(
+                    text.trimmingCharacters(
+                        in: .whitespacesAndNewlines
+                    ).isEmpty
+                        || (
+                            mode == .manual
+                                && title.trimmingCharacters(
+                                    in: .whitespacesAndNewlines
+                                ).isEmpty
+                        )
+                )
+            }
+            .padding(LadleTheme.Spacing.generous)
+        }
+        .scrollIndicators(.hidden)
+        .background(LadleTheme.Surface.porcelain)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Back", systemImage: "chevron.left") {
+                    if hasChanges { isDiscardPresented = true }
+                    else { dismiss() }
                 }
             }
         }
-        .presentationDetents([.large])
-        .presentationBackground(LadleTheme.Surface.porcelain)
+        .navigationTitle(mode.title)
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(true)
+        .discardChangesConfirmation(isPresented: $isDiscardPresented, hasChanges: hasChanges) {
+            dismiss()
+        }
+    }
+
+    private var hasChanges: Bool {
+        !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }
 

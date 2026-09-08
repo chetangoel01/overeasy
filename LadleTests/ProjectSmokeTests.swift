@@ -1,6 +1,7 @@
 import XCTest
 import LadleCore
 import SwiftUI
+import UIKit
 @testable import Ladle
 
 @MainActor
@@ -225,6 +226,78 @@ final class ProjectSmokeTests: XCTestCase {
             ),
             "Review 2 changes"
         )
+    }
+
+    /// The alternate icon has to reach the bundle, not only the asset
+    /// catalogue: `setAlternateIconName` fails on a name iOS cannot find,
+    /// and the picker in Profile draws its two tiles by the same names. The
+    /// artwork behind the name is a placeholder, so this pins the wiring
+    /// rather than the drawing — and it is what would go red if the
+    /// `ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES` declaration were lost
+    /// in a regenerated project.
+    func testPlantBasedAlternateIconIsDeclaredInTheBundle() throws {
+        let icons = try XCTUnwrap(
+            Bundle.main.object(forInfoDictionaryKey: "CFBundleIcons")
+                as? [String: Any]
+        )
+        let alternates = try XCTUnwrap(
+            icons["CFBundleAlternateIcons"] as? [String: Any]
+        )
+        let plantBased = try XCTUnwrap(
+            alternates["AppIcon-PlantBased"] as? [String: Any]
+        )
+
+        XCTAssertEqual(
+            plantBased["CFBundleIconName"] as? String,
+            "AppIcon-PlantBased"
+        )
+        XCTAssertNotNil(
+            UIImage(named: "OvereasyMark"),
+            "The egg tile has nothing to draw"
+        )
+        XCTAssertNotNil(
+            UIImage(named: "OvereasyMarkPlantBased"),
+            "The plant-based tile has nothing to draw"
+        )
+    }
+
+    /// The picker cannot draw an app icon: an `appiconset` is compiled into
+    /// `Assets.car` as an icon rather than an image, and `UIImage(named:)`
+    /// does not find it — measured, with `--include-all-app-icons` on. So
+    /// each icon keeps a drawable twin in an `imageset`, which is what
+    /// `OvereasyMark` has always been for the egg.
+    ///
+    /// The twins are the same file, byte for byte, and this is the test that
+    /// says so. Replacing the placeholder plant-based artwork means copying
+    /// the new 1024 into *both* sets; forgetting the second one leaves a
+    /// picker offering yesterday's icon, and that failure would otherwise
+    /// only be visible to somebody looking at the screen.
+    func testEachAppIconKeepsADrawableTwinWithTheSameArtwork() throws {
+        let assets = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Ladle/Resources/Assets.xcassets")
+
+        for (icon, mark) in [
+            ("AppIcon.appiconset/AppIcon", "OvereasyMark.imageset/OvereasyMark"),
+            (
+                "AppIcon-PlantBased.appiconset/AppIcon-PlantBased",
+                "OvereasyMarkPlantBased.imageset/OvereasyMarkPlantBased"
+            ),
+        ] {
+            let iconData = try Data(
+                contentsOf: assets.appendingPathComponent("\(icon).png")
+            )
+            let markData = try Data(
+                contentsOf: assets.appendingPathComponent("\(mark).png")
+            )
+
+            XCTAssertEqual(
+                iconData,
+                markData,
+                "\(mark).png is no longer the artwork in \(icon).png"
+            )
+        }
     }
 
     func testLaunchScreenUsesThePaperSurface() {

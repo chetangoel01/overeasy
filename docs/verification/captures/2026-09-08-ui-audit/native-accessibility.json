@@ -1,0 +1,157 @@
+{
+  "note": "Diagnostic output, manually triaged. Text below tab bars and labels inside large recipe buttons can trigger false positives. Findings in the report require visual or source verification. No full VoiceOver certification is implied.",
+  "screens": [
+    {
+      "screen": "Native accessibility - Nutrition",
+      "reports": [
+        {
+          "message": "1: Contrast nearly passed | Contrast is not high enough for SwiftUI.AccessibilityNode unless font size is larger.",
+          "element_label": "Calories"
+        },
+        {
+          "message": "1: Contrast nearly passed | Contrast is not high enough for SwiftUI.AccessibilityNode unless font size is larger.",
+          "element_label": null
+        },
+        {
+          "message": "1: Contrast nearly passed | Contrast is not high enough for SwiftUI.AccessibilityNode unless font size is larger.",
+          "element_label": null
+        },
+        {
+          "message": "1: Contrast nearly passed | Contrast is not high enough for SwiftUI.AccessibilityNode unless font size is larger.",
+          "element_label": null
+        }
+      ]
+    },
+    {
+      "screen": "Native accessibility - Servings",
+      "reports": [
+        {
+          "message": "1: Contrast nearly passed | Contrast is not high enough for SwiftUI.AccessibilityNode unless font size is larger.",
+          "element_label": null
+        },
+        {
+          "message": "131072: Text clipped | Text of this element may be clipped at larger Dynamic Type sizes.",
+          "element_label": null
+        },
+        {
+          "message": "131072: Text clipped | Text of this element may be clipped at larger Dynamic Type sizes.",
+          "element_label": null
+        },
+        {
+          "message": "131072: Text clipped | Text of this element may be clipped at larger Dynamic Type sizes.",
+          "element_label": null
+        }
+      ]
+    },
+    {
+      "screen": "Native accessibility - Recipe detail",
+      "reports": [
+        {
+          "message": "1: Contrast nearly passed | Contrast is not high enough for SwiftUI.AccessibilityNode unless font size is larger.",
+          "element_label": "@thecopperpan"
+        },
+        {
+          "message": "1: Contrast nearly passed | Contrast is not high enough for SwiftUI.AccessibilityNode unless font size is larger.",
+          "element_label": "TikTok"
+        },
+        {
+          "message": "1: Contrast nearly passed | Contrast is not high enough for SwiftUI.AccessibilityNode unless font size is larger.",
+          "element_label": null
+        },
+        {
+          "message": "1: Contrast nearly passed | Contrast is not high enough for SwiftUI.AccessibilityNode unless font size is larger.",
+          "element_label": null
+        },
+        {
+          "message": "1: Contrast failed | Contrast failed for SwiftUI.AccessibilityNode",
+          "element_label": "Nutrition per serving"
+        },
+        {
+          "message": "1: Contrast failed | Contrast failed for SwiftUI.AccessibilityNode",
+          "element_label": "Estimated"
+        },
+        {
+          "message": "1: Contrast failed | Contrast failed for SwiftUI.AccessibilityNode",
+          "element_label": null
+        },
+        {
+          "message": "1: Contrast failed | Contrast failed for SwiftUI.AccessibilityNode",
+          "element_label": null
+        },
+        {
+          "message": "1: Contrast failed | Contrast failed for SwiftUI.AccessibilityNode",
+          "element_label": null
+        },
+        {
+          "message": "1: Contrast failed | Contrast failed for SwiftUI.AccessibilityNode",
+          "element_label": null
+        },
+        {
+          "message": "1: Contrast failed | Contrast failed for SwiftUI.AccessibilityNode",
+          "element_label": null
+        },
+        {
+          "message": "1: Contrast failed | Contrast failed for SwiftUI.AccessibilityNode",
+          "element_label": null
+        },
+        {
+          "message": "1: Contrast failed | Contrast failed for SwiftUI.AccessibilityNode",
+          "element_label": null
+        }
+      ]
+    },
+    {
+      "screen": "Native accessibility - Recipes",
+      "reports": [
+        {
+          "message": "4: Hit area is too small | The size of this SwiftUI.AccessibilityNode is too small for user to interact.",
+          "element_label": "210 cal \u00b7 3g protein"
+        },
+        {
+          "message": "4: Hit area is too small | The size of this SwiftUI.AccessibilityNode is too small for user to interact.",
+          "element_label": "340 cal \u00b7 14g protein"
+        },
+        {
+          "message": "1: Contrast nearly passed | Contrast is not high enough for SwiftUI.AccessibilityNode unless font size is larger.",
+          "element_label": "210 cal \u00b7 3g protein"
+        },
+        {
+          "message": "1: Contrast nearly passed | Contrast is not high enough for SwiftUI.AccessibilityNode unless font size is larger.",
+          "element_label": "340 cal \u00b7 14g protein"
+        },
+        {
+          "message": "1: Contrast failed | Contrast failed for SwiftUI.AccessibilityNode",
+          "element_label": "Sheet-Pan Gochujang Chicken"
+        },
+        {
+          "message": "1: Contrast failed | Contrast failed for SwiftUI.AccessibilityNode",
+          "element_label": "560 cal \u00b7 42g protein"
+        },
+        {
+          "message": "1: Contrast failed | Contrast failed for SwiftUI.AccessibilityNode",
+          "element_label": "15-Minute Garlic Butter Udon"
+        },
+        {
+          "message": "1: Contrast failed | Contrast failed for SwiftUI.AccessibilityNode",
+          "element_label": "610 cal \u00b7 14g protein"
+        },
+        {
+          "message": "131072: Text clipped | Text of this SwiftUI.AccessibilityNode may be clipped at larger Dynamic Type sizes.",
+          "element_label": "15-Minute Garlic Butter Udon"
+        },
+        {
+          "message": "131072: Text clipped | Text of this SwiftUI.AccessibilityNode may be clipped at larger Dynamic Type sizes.",
+          "element_label": "Sheet-Pan Gochujang Chicken"
+        },
+        {
+          "message": "131072: Text clipped | Text of this SwiftUI.AccessibilityNode may be clipped at larger Dynamic Type sizes.",
+          "element_label": "Whipped Ricotta Toast, Hot Honey"
+        },
+        {
+          "message": "131072: Text clipped | Text of this UISearchBarTextField may be clipped at larger Dynamic Type sizes.",
+          "element_label": "Search recipes"
+        }
+      ]
+    }
+  ]
+}

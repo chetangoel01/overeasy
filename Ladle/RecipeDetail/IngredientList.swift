@@ -13,6 +13,12 @@ struct IngredientList: View {
     /// pictures down the side is noise. Recipe detail turns it on.
     var showsIcons = false
 
+    /// The cook-time multiplier while the page is scaled. `nil` is the
+    /// recipe at the count it claims, which is every other place this list
+    /// appears; the rows read the same either way, and what `nil` really
+    /// withholds is the marker on a row that could not follow.
+    var scaledBy: Decimal?
+
     /// The leading art is a fixed square whatever it holds — a painting, a
     /// pantry container, or the badge that stands in where the set has no
     /// art. Fixed, and shared by all three, so a row cannot change height
@@ -55,11 +61,29 @@ struct IngredientList: View {
                         leading(for: ingredient)
                             .accessibilityHidden(true)
 
-                        Text(ingredient.cookingDetailText)
+                        Text(
+                            ingredient.cookingDetailText(
+                                scaledBy: scaledBy ?? 1
+                            )
+                        )
                             .ladleFont(.body)
                             .foregroundStyle(LadleTheme.Label.primary)
 
                         Spacer(minLength: 0)
+                    }
+
+                    // Quieter than the uncertainty note below it, and on the
+                    // same origin: this is an aside about one row, not a
+                    // warning about the recipe. A cook halving a recipe has
+                    // to be able to see which line did not halve.
+                    if scaledBy != nil, !ingredient.isScalable {
+                        Label("Not scaled", systemImage: "exclamationmark.circle")
+                            .ladleFont(.metadata)
+                            .foregroundStyle(LadleTheme.Label.secondary)
+                            .padding(.leading, labelOrigin)
+                            .accessibilityLabel(
+                                "Not scaled: this line has no amount to multiply"
+                            )
                     }
 
                     if let uncertainty = ingredient.uncertainty {

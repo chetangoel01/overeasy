@@ -150,6 +150,7 @@ struct LibraryView: View {
     @State private var failedImportJob: ImportJob?
     @State private var pendingDestination: LibraryRecipeDestination?
     @State private var watchRefreshVersion = 0
+    @State private var appIcon = AppIconStore()
     @State private var discoverFallback = DiscoverLaunchFallback()
 
     var body: some View {
@@ -163,11 +164,21 @@ struct LibraryView: View {
                 }
                 openNotificationRecipeIfNeeded()
             }
+            // A diet answered at onboarding was written before this screen
+            // existed, so there was no change here to notice: the question
+            // about the icon is put when the cook lands in the app instead.
+            // It stands down while Profile is open, because the sheet asks
+            // it there.
+            .task {
+                appIcon.offerIfNeeded(for: viewModel.filters.diets)
+            }
+            .plantBasedIconOffer(appIcon, isEnabled: !isAccountPresented)
             .sheet(isPresented: $isAccountPresented) {
                 AccountSheet(
                     accountSession: accountSession,
                     library: viewModel,
                     syncStatus: syncStatus,
+                    appIcon: appIcon,
                     authClient: authClient,
                     googleSignIn: googleSignIn,
                     onAuthenticated: onAuthenticated,

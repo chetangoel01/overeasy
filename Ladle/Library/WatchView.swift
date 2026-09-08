@@ -511,6 +511,8 @@ private extension DiscoverRecipe {
 }
 
 private struct WatchRecipePage: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     let recipe: Recipe
     let viewportSize: CGSize
     let safeAreaInsets: UIEdgeInsets
@@ -593,7 +595,12 @@ private struct WatchRecipePage: View {
 
             VStack(spacing: 0) {
                 Spacer(minLength: 120)
-                playbackRecipePanel
+                if dynamicTypeSize.isAccessibilitySize {
+                    ScrollView { playbackRecipePanel }
+                        .background(LadleTheme.Surface.graphite.opacity(0.88))
+                } else {
+                    playbackRecipePanel
+                }
             }
             .frame(
                 width: viewportSize.width,
@@ -655,7 +662,8 @@ private struct WatchRecipePage: View {
                 Text(metadata)
                     .ladleFont(.metadata)
                     .foregroundStyle(LadleTheme.Label.onAccent.opacity(0.78))
-                    .lineLimit(1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             if let openFailure {
@@ -680,9 +688,11 @@ private struct WatchRecipePage: View {
 
     /// The open-recipe action carries the per-page identifier, so page
     /// identity stays queryable now that playback controls are shared.
-    @ViewBuilder
     private var playbackActions: some View {
-        HStack(spacing: LadleTheme.Spacing.compact) {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: LadleTheme.Spacing.compact))
+            : AnyLayout(HStackLayout(spacing: LadleTheme.Spacing.compact))
+        return layout {
             if discoverRecipe != nil {
                 Button(action: save) {
                     Group {

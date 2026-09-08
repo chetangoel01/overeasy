@@ -93,7 +93,7 @@ struct ReimportSheet: View {
                 VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
                     Text("Original source")
                         .ladleFont(.metadata)
-                        .foregroundStyle(LadleTheme.Label.primary.opacity(0.56))
+                        .foregroundStyle(LadleTheme.Label.secondary)
                     Text(currentRecipe.originalURL.absoluteString)
                         .ladleFont(.body)
                         .foregroundStyle(LadleTheme.Label.primary)
@@ -130,7 +130,7 @@ struct ReimportSheet: View {
                         "Optional: mention anything the first import missed or misunderstood."
                     )
                     .ladleFont(.metadata)
-                    .foregroundStyle(LadleTheme.Label.primary.opacity(0.56))
+                    .foregroundStyle(LadleTheme.Label.secondary)
                 }
 
                 Button("Start safe re-import") {
@@ -160,7 +160,7 @@ struct ReimportSheet: View {
                 "\(currentRecipe.title) is still saved and ready to use while Overeasy checks the source."
             )
             .ladleFont(.body)
-            .foregroundStyle(LadleTheme.Label.primary.opacity(0.64))
+            .foregroundStyle(LadleTheme.Label.secondary)
             .multilineTextAlignment(.center)
         }
         .padding(LadleTheme.Spacing.generous)
@@ -238,7 +238,7 @@ struct ReimportSheet: View {
                 .multilineTextAlignment(.center)
             Text(message)
                 .ladleFont(.body)
-                .foregroundStyle(LadleTheme.Label.primary.opacity(0.64))
+                .foregroundStyle(LadleTheme.Label.secondary)
                 .multilineTextAlignment(.center)
             Button(buttonTitle, action: action)
                 .buttonStyle(LadleButtonStyle(role: .primary))
@@ -262,7 +262,7 @@ struct ReimportSheet: View {
                 .foregroundStyle(LadleTheme.Label.primary)
             Text(message)
                 .ladleFont(.body)
-                .foregroundStyle(LadleTheme.Label.primary.opacity(0.64))
+                .foregroundStyle(LadleTheme.Label.secondary)
         }
     }
 
@@ -388,7 +388,7 @@ struct ReimportDecisionView: View {
                 "Your current recipe stays available until you accept this candidate."
             )
             .ladleFont(.body)
-            .foregroundStyle(LadleTheme.Label.primary.opacity(0.64))
+            .foregroundStyle(LadleTheme.Label.secondary)
         }
     }
 

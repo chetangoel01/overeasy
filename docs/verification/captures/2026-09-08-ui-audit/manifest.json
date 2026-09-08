@@ -1,0 +1,1042 @@
+[
+  {
+    "name": "Share confirmation \u2014 failure, accessibility",
+    "test": "ShareConfirmationViewTests/testFailureConfirmationRendersAtAccessibilitySize()",
+    "file": "001-share-confirmation-failure-accessibility.jpg"
+  },
+  {
+    "name": "Share confirmation \u2014 loading, accessibility",
+    "test": "ShareConfirmationViewTests/testLoadingConfirmationRendersAtAccessibilitySize()",
+    "file": "002-share-confirmation-loading-accessibility.jpg"
+  },
+  {
+    "name": "Share confirmation \u2014 success",
+    "test": "ShareConfirmationViewTests/testSuccessConfirmationRendersAtShareSheetSize()",
+    "file": "003-share-confirmation-success.jpg"
+  },
+  {
+    "name": "Share confirmation \u2014 success, dark",
+    "test": "ShareConfirmationViewTests/testSuccessConfirmationRendersInDarkMode()",
+    "file": "004-share-confirmation-success-dark.jpg"
+  },
+  {
+    "name": "Discover loaded results",
+    "test": "DiscoverInteractionUITests/testDiscoverRecipeSupportsTapAndLongPress()",
+    "file": "005-discover-loaded-results.jpg"
+  },
+  {
+    "name": "Discover recipe saved in place",
+    "test": "DiscoverInteractionUITests/testDiscoverRecipeSupportsTapAndLongPress()",
+    "file": "006-discover-recipe-saved-in-place.jpg"
+  },
+  {
+    "name": "Failed import recovery alignment",
+    "test": "DiscoverInteractionUITests/testFailedImportRecoveryActionsShareLabelOrigin()",
+    "file": "007-failed-import-recovery-alignment.jpg"
+  },
+  {
+    "name": "Settings accent colors",
+    "test": "DiscoverInteractionUITests/testProfileAccentAndRecipeViewPreferencesAreReachable()",
+    "file": "008-settings-accent-colors.jpg"
+  },
+  {
+    "name": "Recipe grid view",
+    "test": "DiscoverInteractionUITests/testProfileAccentAndRecipeViewPreferencesAreReachable()",
+    "file": "009-recipe-grid-view.jpg"
+  },
+  {
+    "name": "Recipe list view",
+    "test": "DiscoverInteractionUITests/testProfileAccentAndRecipeViewPreferencesAreReachable()",
+    "file": "010-recipe-list-view.jpg"
+  },
+  {
+    "name": "Profile header",
+    "test": "DiscoverInteractionUITests/testProfileHeaderShowsTheSignedInCook()",
+    "file": "011-profile-header.jpg"
+  },
+  {
+    "name": "Recipe options destructive action",
+    "test": "DiscoverInteractionUITests/testRecipeOptionsExposeTheDeleteAction()",
+    "file": "012-recipe-options-destructive-action.jpg"
+  },
+  {
+    "name": "Discover keyword shelf",
+    "test": "DiscoverInteractionUITests/testSeeAllOnAKeywordShelfNarrowsTheListBeneathIt()",
+    "file": "013-discover-keyword-shelf.jpg"
+  },
+  {
+    "name": "Watch full-screen feed",
+    "test": "DiscoverInteractionUITests/testWatchDefaultsToInlinePlayerWithPlaybackControls()",
+    "file": "014-watch-full-screen-feed.jpg"
+  },
+  {
+    "name": "Servings stepper at 8",
+    "test": "RecipeScalingUITests/testChangingTheYieldRewritesTheIngredientAmounts()",
+    "file": "015-servings-stepper-at-8.jpg"
+  },
+  {
+    "name": "Recipe scaled to 8 servings",
+    "test": "RecipeScalingUITests/testChangingTheYieldRewritesTheIngredientAmounts()",
+    "file": "016-recipe-scaled-to-8-servings.jpg"
+  },
+  {
+    "name": "Scaled list with a to-taste row",
+    "test": "RecipeScalingUITests/testChangingTheYieldRewritesTheIngredientAmounts()",
+    "file": "017-scaled-list-with-a-to-taste-row.jpg"
+  },
+  {
+    "name": "Audit - welcome - light",
+    "test": "ScreenAuditUITests/test01Onboarding()",
+    "file": "018-audit-welcome-light.jpg"
+  },
+  {
+    "name": "Audit - diet - light",
+    "test": "ScreenAuditUITests/test01Onboarding()",
+    "file": "019-audit-diet-light.jpg"
+  },
+  {
+    "name": "Audit - diet-scrolled - light",
+    "test": "ScreenAuditUITests/test01Onboarding()",
+    "file": "020-audit-diet-scrolled-light.jpg"
+  },
+  {
+    "name": "Audit - walkthrough-share - light",
+    "test": "ScreenAuditUITests/test01Onboarding()",
+    "file": "021-audit-walkthrough-share-light.jpg"
+  },
+  {
+    "name": "Audit - walkthrough-review - light",
+    "test": "ScreenAuditUITests/test01Onboarding()",
+    "file": "022-audit-walkthrough-review-light.jpg"
+  },
+  {
+    "name": "Audit - walkthrough-cook - light",
+    "test": "ScreenAuditUITests/test01Onboarding()",
+    "file": "023-audit-walkthrough-cook-light.jpg"
+  },
+  {
+    "name": "Audit - name-empty-keyboard - light",
+    "test": "ScreenAuditUITests/test02NameStep()",
+    "file": "024-audit-name-empty-keyboard-light.jpg"
+  },
+  {
+    "name": "Audit - name-filled-keyboard - light",
+    "test": "ScreenAuditUITests/test02NameStep()",
+    "file": "025-audit-name-filled-keyboard-light.jpg"
+  },
+  {
+    "name": "Audit - discover-top - light",
+    "test": "ScreenAuditUITests/test03LibraryAndProfile()",
+    "file": "026-audit-discover-top-light.jpg"
+  },
+  {
+    "name": "Audit - recipes-grid - light",
+    "test": "ScreenAuditUITests/test03LibraryAndProfile()",
+    "file": "027-audit-recipes-grid-light.jpg"
+  },
+  {
+    "name": "Audit - recipe-view-menu - light",
+    "test": "ScreenAuditUITests/test03LibraryAndProfile()",
+    "file": "028-audit-recipe-view-menu-light.jpg"
+  },
+  {
+    "name": "Audit - recipes-gallery - light",
+    "test": "ScreenAuditUITests/test03LibraryAndProfile()",
+    "file": "029-audit-recipes-gallery-light.jpg"
+  },
+  {
+    "name": "Audit - profile-top - light",
+    "test": "ScreenAuditUITests/test03LibraryAndProfile()",
+    "file": "030-audit-profile-top-light.jpg"
+  },
+  {
+    "name": "Audit - profile-name-edit - light",
+    "test": "ScreenAuditUITests/test03LibraryAndProfile()",
+    "file": "031-audit-profile-name-edit-light.jpg"
+  },
+  {
+    "name": "Audit - profile-appearance - light",
+    "test": "ScreenAuditUITests/test03LibraryAndProfile()",
+    "file": "032-audit-profile-appearance-light.jpg"
+  },
+  {
+    "name": "Audit - privacy - light",
+    "test": "ScreenAuditUITests/test03LibraryAndProfile()",
+    "file": "033-audit-privacy-light.jpg"
+  },
+  {
+    "name": "Audit - privacy-scrolled - light",
+    "test": "ScreenAuditUITests/test03LibraryAndProfile()",
+    "file": "034-audit-privacy-scrolled-light.jpg"
+  },
+  {
+    "name": "Audit - profile-guest - light",
+    "test": "ScreenAuditUITests/test04GuestProfile()",
+    "file": "035-audit-profile-guest-light.jpg"
+  },
+  {
+    "name": "Audit - account-sign-in - light",
+    "test": "ScreenAuditUITests/test04GuestProfile()",
+    "file": "036-audit-account-sign-in-light.jpg"
+  },
+  {
+    "name": "Audit - recipe-top - light",
+    "test": "ScreenAuditUITests/test05RecipeEditorAndNutrition()",
+    "file": "037-audit-recipe-top-light.jpg"
+  },
+  {
+    "name": "Audit - servings-sheet - light",
+    "test": "ScreenAuditUITests/test05RecipeEditorAndNutrition()",
+    "file": "038-audit-servings-sheet-light.jpg"
+  },
+  {
+    "name": "Audit - servings-sheet-scaled - light",
+    "test": "ScreenAuditUITests/test05RecipeEditorAndNutrition()",
+    "file": "039-audit-servings-sheet-scaled-light.jpg"
+  },
+  {
+    "name": "Audit - recipe-scaled - light",
+    "test": "ScreenAuditUITests/test05RecipeEditorAndNutrition()",
+    "file": "040-audit-recipe-scaled-light.jpg"
+  },
+  {
+    "name": "Audit - recipe-options - light",
+    "test": "ScreenAuditUITests/test05RecipeEditorAndNutrition()",
+    "file": "041-audit-recipe-options-light.jpg"
+  },
+  {
+    "name": "Audit - editor-basics - light",
+    "test": "ScreenAuditUITests/test21EditorVariants()",
+    "file": "042-audit-editor-basics-light.jpg"
+  },
+  {
+    "name": "Audit - editor-timing - light",
+    "test": "ScreenAuditUITests/test21EditorVariants()",
+    "file": "043-audit-editor-timing-light.jpg"
+  },
+  {
+    "name": "Audit - editor-ingredients - light",
+    "test": "ScreenAuditUITests/test21EditorVariants()",
+    "file": "044-audit-editor-ingredients-light.jpg"
+  },
+  {
+    "name": "Audit - editor-ingredients-scrolled - light",
+    "test": "ScreenAuditUITests/test21EditorVariants()",
+    "file": "045-audit-editor-ingredients-scrolled-light.jpg"
+  },
+  {
+    "name": "Audit - editor-method - light",
+    "test": "ScreenAuditUITests/test21EditorVariants()",
+    "file": "046-audit-editor-method-light.jpg"
+  },
+  {
+    "name": "Audit - reimport-intro - light",
+    "test": "ScreenAuditUITests/test06Reimport()",
+    "file": "047-audit-reimport-intro-light.jpg"
+  },
+  {
+    "name": "Audit - reimport-candidate - light",
+    "test": "ScreenAuditUITests/test06Reimport()",
+    "file": "048-audit-reimport-candidate-light.jpg"
+  },
+  {
+    "name": "Audit - reimport-candidate-scrolled - light",
+    "test": "ScreenAuditUITests/test06Reimport()",
+    "file": "049-audit-reimport-candidate-scrolled-light.jpg"
+  },
+  {
+    "name": "Audit - add-link-medium - light",
+    "test": "ScreenAuditUITests/test07AddAndManual()",
+    "file": "050-audit-add-link-medium-light.jpg"
+  },
+  {
+    "name": "Audit - manual-entry - light",
+    "test": "ScreenAuditUITests/test07AddAndManual()",
+    "file": "051-audit-manual-entry-light.jpg"
+  },
+  {
+    "name": "Audit - manual-entry-keyboard - light",
+    "test": "ScreenAuditUITests/test07AddAndManual()",
+    "file": "052-audit-manual-entry-keyboard-light.jpg"
+  },
+  {
+    "name": "Audit - import-failed-parser - light",
+    "test": "ScreenAuditUITests/test08FailedImportAndRecovery()",
+    "file": "053-audit-import-failed-parser-light.jpg"
+  },
+  {
+    "name": "Audit - correction-notes - light",
+    "test": "ScreenAuditUITests/test08FailedImportAndRecovery()",
+    "file": "054-audit-correction-notes-light.jpg"
+  },
+  {
+    "name": "Audit - paste-recipe - light",
+    "test": "ScreenAuditUITests/test08FailedImportAndRecovery()",
+    "file": "055-audit-paste-recipe-light.jpg"
+  },
+  {
+    "name": "Audit - manual-recovery - light",
+    "test": "ScreenAuditUITests/test08FailedImportAndRecovery()",
+    "file": "056-audit-manual-recovery-light.jpg"
+  },
+  {
+    "name": "Audit - import-failed-private - light",
+    "test": "ScreenAuditUITests/test08FailedImportAndRecovery()",
+    "file": "057-audit-import-failed-private-light.jpg"
+  },
+  {
+    "name": "Audit - import-failed-network - light",
+    "test": "ScreenAuditUITests/test08FailedImportAndRecovery()",
+    "file": "058-audit-import-failed-network-light.jpg"
+  },
+  {
+    "name": "Audit - cooking-overview - light",
+    "test": "ScreenAuditUITests/test09Cooking()",
+    "file": "059-audit-cooking-overview-light.jpg"
+  },
+  {
+    "name": "Audit - cooking-method - light",
+    "test": "ScreenAuditUITests/test09Cooking()",
+    "file": "060-audit-cooking-method-light.jpg"
+  },
+  {
+    "name": "Audit - focus-first-step - light",
+    "test": "ScreenAuditUITests/test09Cooking()",
+    "file": "061-audit-focus-first-step-light.jpg"
+  },
+  {
+    "name": "Audit - focus-later-step - light",
+    "test": "ScreenAuditUITests/test09Cooking()",
+    "file": "062-audit-focus-later-step-light.jpg"
+  },
+  {
+    "name": "Audit - recipe-top - dark",
+    "test": "ScreenAuditUITests/test10DarkRecipe()",
+    "file": "063-audit-recipe-top-dark.jpg"
+  },
+  {
+    "name": "Audit - servings-sheet - dark",
+    "test": "ScreenAuditUITests/test10DarkRecipe()",
+    "file": "064-audit-servings-sheet-dark.jpg"
+  },
+  {
+    "name": "Audit - servings-sheet-scaled - dark",
+    "test": "ScreenAuditUITests/test10DarkRecipe()",
+    "file": "065-audit-servings-sheet-scaled-dark.jpg"
+  },
+  {
+    "name": "Audit - recipe-scaled - dark",
+    "test": "ScreenAuditUITests/test10DarkRecipe()",
+    "file": "066-audit-recipe-scaled-dark.jpg"
+  },
+  {
+    "name": "Audit - recipe-options - dark",
+    "test": "ScreenAuditUITests/test10DarkRecipe()",
+    "file": "067-audit-recipe-options-dark.jpg"
+  },
+  {
+    "name": "Audit - editor-basics - dark",
+    "test": "ScreenAuditUITests/test21EditorVariants()",
+    "file": "068-audit-editor-basics-dark.jpg"
+  },
+  {
+    "name": "Audit - editor-timing - dark",
+    "test": "ScreenAuditUITests/test21EditorVariants()",
+    "file": "069-audit-editor-timing-dark.jpg"
+  },
+  {
+    "name": "Audit - editor-ingredients - dark",
+    "test": "ScreenAuditUITests/test21EditorVariants()",
+    "file": "070-audit-editor-ingredients-dark.jpg"
+  },
+  {
+    "name": "Audit - editor-ingredients-scrolled - dark",
+    "test": "ScreenAuditUITests/test21EditorVariants()",
+    "file": "071-audit-editor-ingredients-scrolled-dark.jpg"
+  },
+  {
+    "name": "Audit - editor-method - dark",
+    "test": "ScreenAuditUITests/test21EditorVariants()",
+    "file": "072-audit-editor-method-dark.jpg"
+  },
+  {
+    "name": "Audit - discover-top - dark",
+    "test": "ScreenAuditUITests/test11DarkLibrary()",
+    "file": "073-audit-discover-top-dark.jpg"
+  },
+  {
+    "name": "Audit - recipes-grid - dark",
+    "test": "ScreenAuditUITests/test11DarkLibrary()",
+    "file": "074-audit-recipes-grid-dark.jpg"
+  },
+  {
+    "name": "Audit - recipe-view-menu - dark",
+    "test": "ScreenAuditUITests/test11DarkLibrary()",
+    "file": "075-audit-recipe-view-menu-dark.jpg"
+  },
+  {
+    "name": "Audit - recipes-gallery - dark",
+    "test": "ScreenAuditUITests/test11DarkLibrary()",
+    "file": "076-audit-recipes-gallery-dark.jpg"
+  },
+  {
+    "name": "Audit - profile-top - dark",
+    "test": "ScreenAuditUITests/test11DarkLibrary()",
+    "file": "077-audit-profile-top-dark.jpg"
+  },
+  {
+    "name": "Audit - profile-name-edit - dark",
+    "test": "ScreenAuditUITests/test11DarkLibrary()",
+    "file": "078-audit-profile-name-edit-dark.jpg"
+  },
+  {
+    "name": "Audit - profile-appearance - dark",
+    "test": "ScreenAuditUITests/test11DarkLibrary()",
+    "file": "079-audit-profile-appearance-dark.jpg"
+  },
+  {
+    "name": "Audit - privacy - dark",
+    "test": "ScreenAuditUITests/test11DarkLibrary()",
+    "file": "080-audit-privacy-dark.jpg"
+  },
+  {
+    "name": "Audit - privacy-scrolled - dark",
+    "test": "ScreenAuditUITests/test11DarkLibrary()",
+    "file": "081-audit-privacy-scrolled-dark.jpg"
+  },
+  {
+    "name": "Audit - welcome - AX5",
+    "test": "ScreenAuditUITests/test12AccessibilityOnboarding()",
+    "file": "082-audit-welcome-ax5.jpg"
+  },
+  {
+    "name": "Audit - diet - AX5",
+    "test": "ScreenAuditUITests/test12AccessibilityOnboarding()",
+    "file": "083-audit-diet-ax5.jpg"
+  },
+  {
+    "name": "Audit - diet-scrolled - AX5",
+    "test": "ScreenAuditUITests/test12AccessibilityOnboarding()",
+    "file": "084-audit-diet-scrolled-ax5.jpg"
+  },
+  {
+    "name": "Audit - walkthrough-share - AX5",
+    "test": "ScreenAuditUITests/test12AccessibilityOnboarding()",
+    "file": "085-audit-walkthrough-share-ax5.jpg"
+  },
+  {
+    "name": "Audit - walkthrough-review - AX5",
+    "test": "ScreenAuditUITests/test12AccessibilityOnboarding()",
+    "file": "086-audit-walkthrough-review-ax5.jpg"
+  },
+  {
+    "name": "Audit - walkthrough-cook - AX5",
+    "test": "ScreenAuditUITests/test12AccessibilityOnboarding()",
+    "file": "087-audit-walkthrough-cook-ax5.jpg"
+  },
+  {
+    "name": "Audit - discover-top - AX5",
+    "test": "ScreenAuditUITests/test14AccessibilityProfile()",
+    "file": "088-audit-discover-top-ax5.jpg"
+  },
+  {
+    "name": "Audit - recipes-grid - AX5",
+    "test": "ScreenAuditUITests/test14AccessibilityProfile()",
+    "file": "089-audit-recipes-grid-ax5.jpg"
+  },
+  {
+    "name": "Audit - recipe-view-menu - AX5",
+    "test": "ScreenAuditUITests/test14AccessibilityProfile()",
+    "file": "090-audit-recipe-view-menu-ax5.jpg"
+  },
+  {
+    "name": "Audit - recipes-gallery - AX5",
+    "test": "ScreenAuditUITests/test14AccessibilityProfile()",
+    "file": "091-audit-recipes-gallery-ax5.jpg"
+  },
+  {
+    "name": "Audit - profile-top - AX5",
+    "test": "ScreenAuditUITests/test14AccessibilityProfile()",
+    "file": "092-audit-profile-top-ax5.jpg"
+  },
+  {
+    "name": "Audit - profile-appearance - AX5",
+    "test": "ScreenAuditUITests/test14AccessibilityProfile()",
+    "file": "093-audit-profile-appearance-ax5.jpg"
+  },
+  {
+    "name": "Audit - privacy - AX5",
+    "test": "ScreenAuditUITests/test14AccessibilityProfile()",
+    "file": "094-audit-privacy-ax5.jpg"
+  },
+  {
+    "name": "Audit - privacy-scrolled - AX5",
+    "test": "ScreenAuditUITests/test14AccessibilityProfile()",
+    "file": "095-audit-privacy-scrolled-ax5.jpg"
+  },
+  {
+    "name": "Audit - add-link-medium - AX5",
+    "test": "ScreenAuditUITests/test15AccessibilityImport()",
+    "file": "096-audit-add-link-medium-ax5.jpg"
+  },
+  {
+    "name": "Audit - manual-entry - AX5",
+    "test": "ScreenAuditUITests/test15AccessibilityImport()",
+    "file": "097-audit-manual-entry-ax5.jpg"
+  },
+  {
+    "name": "Audit - manual-entry-keyboard - AX5",
+    "test": "ScreenAuditUITests/test15AccessibilityImport()",
+    "file": "098-audit-manual-entry-keyboard-ax5.jpg"
+  },
+  {
+    "name": "Scenario - authentication expired",
+    "test": "StateScenarioUITests/testAuthenticationExpiredScenario()",
+    "file": "099-scenario-authentication-expired.jpg"
+  },
+  {
+    "name": "Scenario - Discover empty",
+    "test": "StateScenarioUITests/testDiscoverEmptyScenario()",
+    "file": "100-scenario-discover-empty.jpg"
+  },
+  {
+    "name": "Launch - Discover failure falls back",
+    "test": "StateScenarioUITests/testDiscoverFailureOnLaunchFallsBackToRecipes()",
+    "file": "101-launch-discover-failure-falls-back.jpg"
+  },
+  {
+    "name": "Scenario - Discover rate limited",
+    "test": "StateScenarioUITests/testDiscoverFailureOnLaunchFallsBackToRecipes()",
+    "file": "102-scenario-discover-rate-limited.jpg"
+  },
+  {
+    "name": "Scenario - empty library",
+    "test": "StateScenarioUITests/testEmptyLibraryAndInboxBothOfferAnImport()",
+    "file": "103-scenario-empty-library.jpg"
+  },
+  {
+    "name": "Inbox - empty with add recipe",
+    "test": "StateScenarioUITests/testEmptyLibraryAndInboxBothOfferAnImport()",
+    "file": "104-inbox-empty-with-add-recipe.jpg"
+  },
+  {
+    "name": "Scenario - import quota",
+    "test": "StateScenarioUITests/testImportQuotaScenario()",
+    "file": "105-scenario-import-quota.jpg"
+  },
+  {
+    "name": "Scenario - import rate limited",
+    "test": "StateScenarioUITests/testImportRateLimitedScenario()",
+    "file": "106-scenario-import-rate-limited.jpg"
+  },
+  {
+    "name": "Scenario - store failure",
+    "test": "StateScenarioUITests/testInitialStoreFailureScenario()",
+    "file": "107-scenario-store-failure.jpg"
+  },
+  {
+    "name": "Scenario - large library XXX Large",
+    "test": "StateScenarioUITests/testLargeLibraryAtXXXLargeUsesOneReadableColumn()",
+    "file": "108-scenario-large-library-xxx-large.jpg"
+  },
+  {
+    "name": "Scenario - large library",
+    "test": "StateScenarioUITests/testLargeLibraryScenario()",
+    "file": "109-scenario-large-library.jpg"
+  },
+  {
+    "name": "Scenario - offline with recipes",
+    "test": "StateScenarioUITests/testOfflineContentScenarioPreservesRecipes()",
+    "file": "110-scenario-offline-with-recipes.jpg"
+  },
+  {
+    "name": "Scenario - offline empty",
+    "test": "StateScenarioUITests/testOfflineEmptyScenarioExplainsBothStates()",
+    "file": "111-scenario-offline-empty.jpg"
+  },
+  {
+    "name": "Launch - Discover first",
+    "test": "StateScenarioUITests/testPrimaryJourneyCapturesInboxDetailAndCooking()",
+    "file": "112-launch-discover-first.jpg"
+  },
+  {
+    "name": "Inbox - active states",
+    "test": "StateScenarioUITests/testPrimaryJourneyCapturesInboxDetailAndCooking()",
+    "file": "113-inbox-active-states.jpg"
+  },
+  {
+    "name": "Recipe detail",
+    "test": "StateScenarioUITests/testPrimaryJourneyCapturesInboxDetailAndCooking()",
+    "file": "114-recipe-detail.jpg"
+  },
+  {
+    "name": "Cooking - full recipe",
+    "test": "StateScenarioUITests/testPrimaryJourneyCapturesInboxDetailAndCooking()",
+    "file": "115-cooking-full-recipe.jpg"
+  },
+  {
+    "name": "Cooking - focus mode",
+    "test": "StateScenarioUITests/testPrimaryJourneyCapturesInboxDetailAndCooking()",
+    "file": "116-cooking-focus-mode.jpg"
+  },
+  {
+    "name": "Inbox - import awaiting review",
+    "test": "StateScenarioUITests/testReviewedImportLeavesTheInbox()",
+    "file": "117-inbox-import-awaiting-review.jpg"
+  },
+  {
+    "name": "Inbox - reviewed import cleared",
+    "test": "StateScenarioUITests/testReviewedImportLeavesTheInbox()",
+    "file": "118-inbox-reviewed-import-cleared.jpg"
+  },
+  {
+    "name": "Welcome - accessibility XXX Large",
+    "test": "StateScenarioUITests/testWelcomeAtAccessibilitySizeRemainsReachable()",
+    "file": "119-welcome-accessibility-xxx-large.jpg"
+  },
+  {
+    "name": "Isolated - sync-conflicts-light",
+    "test": "ScreenAuditRenderTests/testRareScreensAtPhoneSizes()",
+    "file": "120-isolated-sync-conflicts-light.jpg"
+  },
+  {
+    "name": "Isolated - last-guest-save-light",
+    "test": "ScreenAuditRenderTests/testRareScreensAtPhoneSizes()",
+    "file": "121-isolated-last-guest-save-light.jpg"
+  },
+  {
+    "name": "Isolated - guest-limit-light",
+    "test": "ScreenAuditRenderTests/testRareScreensAtPhoneSizes()",
+    "file": "122-isolated-guest-limit-light.jpg"
+  },
+  {
+    "name": "Isolated - recovery-correctionNotes-light",
+    "test": "ScreenAuditRenderTests/testRareScreensAtPhoneSizes()",
+    "file": "123-isolated-recovery-correctionnotes-light.jpg"
+  },
+  {
+    "name": "Isolated - recovery-pastedDetails-light",
+    "test": "ScreenAuditRenderTests/testRareScreensAtPhoneSizes()",
+    "file": "124-isolated-recovery-pasteddetails-light.jpg"
+  },
+  {
+    "name": "Isolated - recovery-manual-light",
+    "test": "ScreenAuditRenderTests/testRareScreensAtPhoneSizes()",
+    "file": "125-isolated-recovery-manual-light.jpg"
+  },
+  {
+    "name": "Isolated - nutrition-unavailable-light",
+    "test": "ScreenAuditRenderTests/testRareScreensAtPhoneSizes()",
+    "file": "126-isolated-nutrition-unavailable-light.jpg"
+  },
+  {
+    "name": "Isolated - sync-conflicts-dark",
+    "test": "ScreenAuditRenderTests/testRareScreensAtPhoneSizes()",
+    "file": "127-isolated-sync-conflicts-dark.jpg"
+  },
+  {
+    "name": "Isolated - last-guest-save-dark",
+    "test": "ScreenAuditRenderTests/testRareScreensAtPhoneSizes()",
+    "file": "128-isolated-last-guest-save-dark.jpg"
+  },
+  {
+    "name": "Isolated - guest-limit-dark",
+    "test": "ScreenAuditRenderTests/testRareScreensAtPhoneSizes()",
+    "file": "129-isolated-guest-limit-dark.jpg"
+  },
+  {
+    "name": "Isolated - recovery-correctionNotes-dark",
+    "test": "ScreenAuditRenderTests/testRareScreensAtPhoneSizes()",
+    "file": "130-isolated-recovery-correctionnotes-dark.jpg"
+  },
+  {
+    "name": "Isolated - recovery-pastedDetails-dark",
+    "test": "ScreenAuditRenderTests/testRareScreensAtPhoneSizes()",
+    "file": "131-isolated-recovery-pasteddetails-dark.jpg"
+  },
+  {
+    "name": "Isolated - recovery-manual-dark",
+    "test": "ScreenAuditRenderTests/testRareScreensAtPhoneSizes()",
+    "file": "132-isolated-recovery-manual-dark.jpg"
+  },
+  {
+    "name": "Isolated - nutrition-unavailable-dark",
+    "test": "ScreenAuditRenderTests/testRareScreensAtPhoneSizes()",
+    "file": "133-isolated-nutrition-unavailable-dark.jpg"
+  },
+  {
+    "name": "Isolated - sync-conflicts-small-AX5",
+    "test": "ScreenAuditRenderTests/testRareScreensAtPhoneSizes()",
+    "file": "134-isolated-sync-conflicts-small-ax5.jpg"
+  },
+  {
+    "name": "Isolated - last-guest-save-small-AX5",
+    "test": "ScreenAuditRenderTests/testRareScreensAtPhoneSizes()",
+    "file": "135-isolated-last-guest-save-small-ax5.jpg"
+  },
+  {
+    "name": "Isolated - guest-limit-small-AX5",
+    "test": "ScreenAuditRenderTests/testRareScreensAtPhoneSizes()",
+    "file": "136-isolated-guest-limit-small-ax5.jpg"
+  },
+  {
+    "name": "Isolated - recovery-correctionNotes-small-AX5",
+    "test": "ScreenAuditRenderTests/testRareScreensAtPhoneSizes()",
+    "file": "137-isolated-recovery-correctionnotes-small-ax5.jpg"
+  },
+  {
+    "name": "Isolated - recovery-pastedDetails-small-AX5",
+    "test": "ScreenAuditRenderTests/testRareScreensAtPhoneSizes()",
+    "file": "138-isolated-recovery-pasteddetails-small-ax5.jpg"
+  },
+  {
+    "name": "Isolated - recovery-manual-small-AX5",
+    "test": "ScreenAuditRenderTests/testRareScreensAtPhoneSizes()",
+    "file": "139-isolated-recovery-manual-small-ax5.jpg"
+  },
+  {
+    "name": "Isolated - nutrition-unavailable-small-AX5",
+    "test": "ScreenAuditRenderTests/testRareScreensAtPhoneSizes()",
+    "file": "140-isolated-nutrition-unavailable-small-ax5.jpg"
+  },
+  {
+    "name": "Isolated - focus-timer-running",
+    "test": "ScreenAuditRenderTests/testTimerStates()",
+    "file": "141-isolated-focus-timer-running.jpg"
+  },
+  {
+    "name": "Isolated - focus-timer-paused",
+    "test": "ScreenAuditRenderTests/testTimerStates()",
+    "file": "142-isolated-focus-timer-paused.jpg"
+  },
+  {
+    "name": "Isolated - focus-timer-finished",
+    "test": "ScreenAuditRenderTests/testTimerStates()",
+    "file": "143-isolated-focus-timer-finished.jpg"
+  },
+  {
+    "name": "Audit - watch-discover - dark",
+    "test": "ScreenAuditUITests/test17WatchVariants()",
+    "file": "144-audit-watch-discover-dark.jpg"
+  },
+  {
+    "name": "Audit - watch-my-recipes - dark",
+    "test": "ScreenAuditUITests/test17WatchVariants()",
+    "file": "145-audit-watch-my-recipes-dark.jpg"
+  },
+  {
+    "name": "Audit - watch-filter - dark",
+    "test": "ScreenAuditUITests/test17WatchVariants()",
+    "file": "146-audit-watch-filter-dark.jpg"
+  },
+  {
+    "name": "Audit - watch-discover - AX5",
+    "test": "ScreenAuditUITests/test17WatchVariants()",
+    "file": "147-audit-watch-discover-ax5.jpg"
+  },
+  {
+    "name": "Audit - watch-my-recipes - AX5",
+    "test": "ScreenAuditUITests/test17WatchVariants()",
+    "file": "148-audit-watch-my-recipes-ax5.jpg"
+  },
+  {
+    "name": "Audit - watch-filter - AX5",
+    "test": "ScreenAuditUITests/test17WatchVariants()",
+    "file": "149-audit-watch-filter-ax5.jpg"
+  },
+  {
+    "name": "Audit - editor-media - light",
+    "test": "ScreenAuditUITests/test21EditorVariants()",
+    "file": "150-audit-editor-media-light.jpg"
+  },
+  {
+    "name": "Audit - original-video-sheet - light",
+    "test": "ScreenAuditUITests/test19EditorMediaAndSearch()",
+    "file": "151-audit-original-video-sheet-light.jpg"
+  },
+  {
+    "name": "Audit - nutrition-top - light",
+    "test": "ScreenAuditUITests/test20NutritionVariants()",
+    "file": "152-audit-nutrition-top-light.jpg"
+  },
+  {
+    "name": "Audit - nutrition-details - light",
+    "test": "ScreenAuditUITests/test20NutritionVariants()",
+    "file": "153-audit-nutrition-details-light.jpg"
+  },
+  {
+    "name": "Audit - health-export - light",
+    "test": "ScreenAuditUITests/test20NutritionVariants()",
+    "file": "154-audit-health-export-light.jpg"
+  },
+  {
+    "name": "Audit - health-export-scrolled - light",
+    "test": "ScreenAuditUITests/test20NutritionVariants()",
+    "file": "155-audit-health-export-scrolled-light.jpg"
+  },
+  {
+    "name": "Audit - nutrition-top - dark",
+    "test": "ScreenAuditUITests/test20NutritionVariants()",
+    "file": "156-audit-nutrition-top-dark.jpg"
+  },
+  {
+    "name": "Audit - nutrition-details - dark",
+    "test": "ScreenAuditUITests/test20NutritionVariants()",
+    "file": "157-audit-nutrition-details-dark.jpg"
+  },
+  {
+    "name": "Audit - health-export - dark",
+    "test": "ScreenAuditUITests/test20NutritionVariants()",
+    "file": "158-audit-health-export-dark.jpg"
+  },
+  {
+    "name": "Audit - health-export-scrolled - dark",
+    "test": "ScreenAuditUITests/test20NutritionVariants()",
+    "file": "159-audit-health-export-scrolled-dark.jpg"
+  },
+  {
+    "name": "Audit - editor-media-scrolled - light",
+    "test": "ScreenAuditUITests/test21EditorVariants()",
+    "file": "160-audit-editor-media-scrolled-light.jpg"
+  },
+  {
+    "name": "Audit - editor-timing-scrolled - light",
+    "test": "ScreenAuditUITests/test21EditorVariants()",
+    "file": "161-audit-editor-timing-scrolled-light.jpg"
+  },
+  {
+    "name": "Audit - editor-method-scrolled - light",
+    "test": "ScreenAuditUITests/test21EditorVariants()",
+    "file": "162-audit-editor-method-scrolled-light.jpg"
+  },
+  {
+    "name": "Audit - recipes-sort-menu - light",
+    "test": "ScreenAuditUITests/test22SearchAndPreview()",
+    "file": "163-audit-recipes-sort-menu-light.jpg"
+  },
+  {
+    "name": "Audit - recipes-search-empty-keyboard - light",
+    "test": "ScreenAuditUITests/test22SearchAndPreview()",
+    "file": "164-audit-recipes-search-empty-keyboard-light.jpg"
+  },
+  {
+    "name": "Audit - import-processing - light",
+    "test": "ScreenAuditUITests/test23ImportStates()",
+    "file": "165-audit-import-processing-light.jpg"
+  },
+  {
+    "name": "Audit - import-cancel-confirmation - light",
+    "test": "ScreenAuditUITests/test23ImportStates()",
+    "file": "166-audit-import-cancel-confirmation-light.jpg"
+  },
+  {
+    "name": "Audit - import-complete-needs-review-ragu - light",
+    "test": "ScreenAuditUITests/test23ImportStates()",
+    "file": "167-audit-import-complete-needs-review-ragu-light.jpg"
+  },
+  {
+    "name": "Audit - import-complete-new-soup - light",
+    "test": "ScreenAuditUITests/test23ImportStates()",
+    "file": "168-audit-import-complete-new-soup-light.jpg"
+  },
+  {
+    "name": "Audit - welcome-actions - AX5",
+    "test": "ScreenAuditUITests/test12AccessibilityOnboarding()",
+    "file": "169-audit-welcome-actions-ax5.jpg"
+  },
+  {
+    "name": "Audit - walkthrough-share-text - AX5",
+    "test": "ScreenAuditUITests/test12AccessibilityOnboarding()",
+    "file": "170-audit-walkthrough-share-text-ax5.jpg"
+  },
+  {
+    "name": "Audit - walkthrough-review-text - AX5",
+    "test": "ScreenAuditUITests/test12AccessibilityOnboarding()",
+    "file": "171-audit-walkthrough-review-text-ax5.jpg"
+  },
+  {
+    "name": "Audit - walkthrough-cook-text - AX5",
+    "test": "ScreenAuditUITests/test12AccessibilityOnboarding()",
+    "file": "172-audit-walkthrough-cook-text-ax5.jpg"
+  },
+  {
+    "name": "Audit - recipe-top - AX5",
+    "test": "ScreenAuditUITests/test13AccessibilityRecipe()",
+    "file": "173-audit-recipe-top-ax5.jpg"
+  },
+  {
+    "name": "Audit - servings-sheet - AX5",
+    "test": "ScreenAuditUITests/test13AccessibilityRecipe()",
+    "file": "174-audit-servings-sheet-ax5.jpg"
+  },
+  {
+    "name": "Audit - servings-sheet-scaled - AX5",
+    "test": "ScreenAuditUITests/test13AccessibilityRecipe()",
+    "file": "175-audit-servings-sheet-scaled-ax5.jpg"
+  },
+  {
+    "name": "Audit - recipe-scaled - AX5",
+    "test": "ScreenAuditUITests/test13AccessibilityRecipe()",
+    "file": "176-audit-recipe-scaled-ax5.jpg"
+  },
+  {
+    "name": "Audit - recipe-options - AX5",
+    "test": "ScreenAuditUITests/test13AccessibilityRecipe()",
+    "file": "177-audit-recipe-options-ax5.jpg"
+  },
+  {
+    "name": "Audit - editor-basics - AX5",
+    "test": "ScreenAuditUITests/test13AccessibilityRecipe()",
+    "file": "178-audit-editor-basics-ax5.jpg"
+  },
+  {
+    "name": "Audit - editor-media - AX5",
+    "test": "ScreenAuditUITests/test13AccessibilityRecipe()",
+    "file": "179-audit-editor-media-ax5.jpg"
+  },
+  {
+    "name": "Audit - cooking-overview - AX5",
+    "test": "ScreenAuditUITests/test16AccessibilityCooking()",
+    "file": "180-audit-cooking-overview-ax5.jpg"
+  },
+  {
+    "name": "Audit - cooking-method - AX5",
+    "test": "ScreenAuditUITests/test16AccessibilityCooking()",
+    "file": "181-audit-cooking-method-ax5.jpg"
+  },
+  {
+    "name": "Audit - focus-first-step - AX5",
+    "test": "ScreenAuditUITests/test16AccessibilityCooking()",
+    "file": "182-audit-focus-first-step-ax5.jpg"
+  },
+  {
+    "name": "Audit - focus-later-step - AX5",
+    "test": "ScreenAuditUITests/test16AccessibilityCooking()",
+    "file": "183-audit-focus-later-step-ax5.jpg"
+  },
+  {
+    "name": "Audit - editor-nutrition - light",
+    "test": "ScreenAuditUITests/test21EditorVariants()",
+    "file": "184-audit-editor-nutrition-light.jpg"
+  },
+  {
+    "name": "Audit - editor-nutrition-scrolled - light",
+    "test": "ScreenAuditUITests/test21EditorVariants()",
+    "file": "185-audit-editor-nutrition-scrolled-light.jpg"
+  },
+  {
+    "name": "Audit - editor-media - dark",
+    "test": "ScreenAuditUITests/test21EditorVariants()",
+    "file": "186-audit-editor-media-dark.jpg"
+  },
+  {
+    "name": "Audit - editor-media-scrolled - dark",
+    "test": "ScreenAuditUITests/test21EditorVariants()",
+    "file": "187-audit-editor-media-scrolled-dark.jpg"
+  },
+  {
+    "name": "Audit - editor-timing-scrolled - dark",
+    "test": "ScreenAuditUITests/test21EditorVariants()",
+    "file": "188-audit-editor-timing-scrolled-dark.jpg"
+  },
+  {
+    "name": "Audit - editor-method-scrolled - dark",
+    "test": "ScreenAuditUITests/test21EditorVariants()",
+    "file": "189-audit-editor-method-scrolled-dark.jpg"
+  },
+  {
+    "name": "Audit - editor-nutrition - dark",
+    "test": "ScreenAuditUITests/test21EditorVariants()",
+    "file": "190-audit-editor-nutrition-dark.jpg"
+  },
+  {
+    "name": "Audit - editor-nutrition-scrolled - dark",
+    "test": "ScreenAuditUITests/test21EditorVariants()",
+    "file": "191-audit-editor-nutrition-scrolled-dark.jpg"
+  },
+  {
+    "name": "Audit - discover-readonly-preview - light",
+    "test": "ScreenAuditUITests/test22SearchAndPreview()",
+    "file": "192-audit-discover-readonly-preview-light.jpg"
+  },
+  {
+    "name": "Audit - import-result-parser-failed - AX5",
+    "test": "ScreenAuditUITests/test24AccessibilityImportResults()",
+    "file": "193-audit-import-result-parser-failed-ax5.jpg"
+  },
+  {
+    "name": "Audit - import-result-parser-failed-scrolled - AX5",
+    "test": "ScreenAuditUITests/test24AccessibilityImportResults()",
+    "file": "194-audit-import-result-parser-failed-scrolled-ax5.jpg"
+  },
+  {
+    "name": "Audit - import-result-new-soup - AX5",
+    "test": "ScreenAuditUITests/test24AccessibilityImportResults()",
+    "file": "195-audit-import-result-new-soup-ax5.jpg"
+  },
+  {
+    "name": "Audit - import-result-new-soup-scrolled - AX5",
+    "test": "ScreenAuditUITests/test24AccessibilityImportResults()",
+    "file": "196-audit-import-result-new-soup-scrolled-ax5.jpg"
+  },
+  {
+    "name": "Audit - watch-discover-empty - light",
+    "test": "ScreenAuditUITests/test25WatchEmptyAndFailure()",
+    "file": "197-audit-watch-discover-empty-light.jpg"
+  },
+  {
+    "name": "Audit - watch-discover-rate-limited - light",
+    "test": "ScreenAuditUITests/test25WatchEmptyAndFailure()",
+    "file": "198-audit-watch-discover-rate-limited-light.jpg"
+  },
+  {
+    "name": "Audit - watch-empty - light",
+    "test": "ScreenAuditUITests/test25WatchEmptyAndFailure()",
+    "file": "199-audit-watch-empty-light.jpg"
+  },
+  {
+    "name": "Audit - editor-timing - AX5",
+    "test": "ScreenAuditUITests/test13AccessibilityRecipe()",
+    "file": "200-audit-editor-timing-ax5.jpg"
+  },
+  {
+    "name": "Audit - editor-ingredients - AX5",
+    "test": "ScreenAuditUITests/test13AccessibilityRecipe()",
+    "file": "201-audit-editor-ingredients-ax5.jpg"
+  },
+  {
+    "name": "Audit - editor-ingredients-scrolled - AX5",
+    "test": "ScreenAuditUITests/test13AccessibilityRecipe()",
+    "file": "202-audit-editor-ingredients-scrolled-ax5.jpg"
+  },
+  {
+    "name": "Audit - editor-method - AX5",
+    "test": "ScreenAuditUITests/test13AccessibilityRecipe()",
+    "file": "203-audit-editor-method-ax5.jpg"
+  },
+  {
+    "name": "Audit - editor-nutrition - AX5",
+    "test": "ScreenAuditUITests/test13AccessibilityRecipe()",
+    "file": "204-audit-editor-nutrition-ax5.jpg"
+  },
+  {
+    "name": "Audit - editor-nutrition-scrolled - AX5",
+    "test": "ScreenAuditUITests/test13AccessibilityRecipe()",
+    "file": "205-audit-editor-nutrition-scrolled-ax5.jpg"
+  },
+  {
+    "name": "Audit - nutrition-top - AX5",
+    "test": "ScreenAuditUITests/test13AccessibilityRecipe()",
+    "file": "206-audit-nutrition-top-ax5.jpg"
+  },
+  {
+    "name": "Audit - health-export - AX5",
+    "test": "ScreenAuditUITests/test13AccessibilityRecipe()",
+    "file": "207-audit-health-export-ax5.jpg"
+  },
+  {
+    "name": "Audit - health-export-scrolled - AX5",
+    "test": "ScreenAuditUITests/test13AccessibilityRecipe()",
+    "file": "208-audit-health-export-scrolled-ax5.jpg"
+  }
+]

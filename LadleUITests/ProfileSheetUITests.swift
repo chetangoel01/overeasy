@@ -58,6 +58,23 @@ final class ProfileSheetUITests: XCTestCase {
         for footer in [
             "Your recipes stay synced across your devices.",
             "Tints buttons, favorites, and the selected tab.",
+        ] {
+            XCTAssertFalse(
+                app.staticTexts[footer].exists,
+                "Footer still present: \(footer)"
+            )
+        }
+        XCTAssertTrue(app.staticTexts["Appearance"].exists)
+
+        // The icon picker sits between Appearance and the rest, which put
+        // the last two sections below the fold. A `Form` does not render
+        // what is off screen, so saying what is *not* there is only worth
+        // anything once they are on it.
+        app.swipeUp()
+        XCTAssertTrue(
+            app.staticTexts["Account"].waitForExistence(timeout: 3)
+        )
+        for footer in [
             "What Overeasy stores, and what it never does.",
             "Signing out keeps your synced library in Overeasy. Deleting removes it permanently.",
         ] {
@@ -66,10 +83,6 @@ final class ProfileSheetUITests: XCTestCase {
                 "Footer still present: \(footer)"
             )
         }
-
-        // The headers stay, and the last one is renamed.
-        XCTAssertTrue(app.staticTexts["Appearance"].exists)
-        XCTAssertTrue(app.staticTexts["Account"].exists)
         XCTAssertFalse(app.staticTexts["Account actions"].exists)
     }
 
@@ -143,6 +156,94 @@ final class ProfileSheetUITests: XCTestCase {
         avatar.tap()
     }
 
+    // MARK: - The app icon
+
+    /// The picker beside the accent, switching the icon for real.
+    ///
+    /// Which icon is on at the start is not assumed: the installed icon
+    /// belongs to the device and outlives the app's container, so the test
+    /// reads the selection, taps the other one, and puts it back — which
+    /// also exercises both directions.
+    ///
+    /// iOS confirms an icon change with an alert of its own. It is not
+    /// suppressed, so dismissing it is part of the flow.
+    @MainActor
+    func testTheIconIsSwitchedInProfileAndBothWaysBack() {
+        let app = launchSignedIn()
+
+        app.buttons["Profile"].tap()
+        XCTAssertTrue(
+            app.navigationBars["Profile"].waitForExistence(timeout: 3)
+        )
+
+        let egg = app.descendants(matching: .any)["account.app-icon.egg"]
+        let plantBased = app.descendants(matching: .any)[
+            "account.app-icon.plant-based"
+        ]
+        XCTAssertTrue(
+            egg.waitForExistence(timeout: 3),
+            "Profile offers the two icons beside the accent"
+        )
+        XCTAssertTrue(plantBased.exists)
+        if !egg.isHittable {
+            app.swipeUp()
+        }
+
+        let startedOnTheEgg = egg.value as? String == "Selected"
+        let other = startedOnTheEgg ? plantBased : egg
+        let original = startedOnTheEgg ? egg : plantBased
+
+        other.tap()
+        dismissIconChangeNotice()
+        waitForSelection(of: other)
+        XCTAssertNotEqual(original.value as? String, "Selected")
+
+        // Put the device back the way it was found: the icon survives the
+        // app, so a test that switched it would hand the next one a
+        // different starting point.
+        original.tap()
+        dismissIconChangeNotice()
+        waitForSelection(of: original)
+    }
+
+    /// The selection is the icon iOS reports as installed, read back after
+    /// the switch, so it arrives a moment after the tap.
+    @MainActor
+    private func waitForSelection(of tile: XCUIElement) {
+        expectation(
+            for: NSPredicate(format: "value == %@", "Selected"),
+            evaluatedWith: tile
+        )
+        waitForExpectations(timeout: 10) { error in
+            XCTAssertNil(
+                error,
+                "\(tile.label) was tapped but is not the installed icon"
+            )
+        }
+    }
+
+    /// iOS puts up its own notice when an icon changes — "You have changed
+    /// the icon for Overeasy" — and it is deliberately not suppressed. The
+    /// notice belongs to SpringBoard rather than to the app, which is where
+    /// it is answered from here; leaving it up would block the next tap.
+    ///
+    /// Not asserted: it arrives on its own schedule, sometimes after the tap
+    /// that caused it has already returned, and a run that has not met it
+    /// yet has still switched the icon. What proves the switch is the
+    /// selection, below.
+    @MainActor
+    private func dismissIconChangeNotice() {
+        let springboard = XCUIApplication(
+            bundleIdentifier: "com.apple.springboard"
+        )
+        let notice = springboard.alerts.firstMatch
+        guard notice.waitForExistence(timeout: 2) else { return }
+        let confirmation = notice.buttons["OK"]
+        (confirmation.exists
+            ? confirmation
+            : notice.buttons.firstMatch).tap()
+    }
+
     // MARK: - The diet
 
     /// The one place a diet changes after onboarding, and it has to be
@@ -168,6 +269,17 @@ final class ProfileSheetUITests: XCTestCase {
         let vegetarian = app.buttons["Vegetarian"]
         XCTAssertTrue(vegetarian.waitForExistence(timeout: 3))
         vegetarian.tap()
+
+        // The diet is what raises the icon question, and this is the other
+        // place it can be set: the offer follows the answer that caused it,
+        // in the sheet the cook is standing in. Declined here — the diet is
+        // what this test is about, and nothing switches on its own.
+        let offer = app.alerts["Prefer an icon without the egg?"]
+        XCTAssertTrue(
+            offer.waitForExistence(timeout: 5),
+            "A diet set in Profile raises the icon question there"
+        )
+        offer.buttons["Keep the egg"].tap()
 
         XCTAssertEqual(
             app.descendants(matching: .any)["account.profile.diet"]

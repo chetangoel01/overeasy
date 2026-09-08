@@ -124,7 +124,7 @@ enum LadleButtonRole {
         case .secondary:
             LadleTheme.Surface.raised
         case .destructive:
-            LadleTheme.Intent.destructive
+            LadleTheme.Intent.destructiveFill
         case .tertiary:
             nil
         }
@@ -221,10 +221,11 @@ struct LadleButtonStyle: ButtonStyle {
                             style: .continuous
                         )
                         .fill(fill)
+                        .brightness(configuration.isPressed ? -0.08 : 0)
                     }
                 }
                 .contentShape(Rectangle())
-                .opacity(configuration.isPressed ? 0.86 : 1)
+                .opacity(configuration.isPressed && role == .tertiary ? 0.86 : 1)
                 .scaleEffect(
                     reduceMotion || !isEnabled
                         ? 1
@@ -306,7 +307,7 @@ struct EstimateLabel: View {
     var body: some View {
         Label("Estimated", systemImage: "info.circle")
             .ladleFont(.metadata)
-            .foregroundStyle(LadleTheme.Label.primary.opacity(0.62))
+            .foregroundStyle(LadleTheme.Label.secondary)
             .accessibilityHint(
                 "Nutrition and uncertain imported values may be estimates."
             )

@@ -137,8 +137,7 @@ struct WelcomeView: View {
         VStack(spacing: 0) {
             SignInOptionsView(
                 flow: flow,
-                identifierPrefix: "welcome",
-                surface: .graphite
+                identifierPrefix: "welcome"
             )
 
             guestSeparator

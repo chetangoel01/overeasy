@@ -530,13 +530,13 @@ struct AppBootstrapFailureView: View {
                     .foregroundStyle(LadleTheme.Label.primary)
                 Text(failure.message)
                     .ladleFont(.body)
-                    .foregroundStyle(LadleTheme.Label.primary.opacity(0.64))
+                    .foregroundStyle(LadleTheme.Label.secondary)
                     .multilineTextAlignment(.center)
             }
 
             Text("Diagnostic: \(failure.diagnosticIdentifier)")
                 .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.Label.primary.opacity(0.56))
+                .foregroundStyle(LadleTheme.Label.secondary)
                 .textSelection(.enabled)
                 .accessibilityIdentifier("bootstrap.diagnostic")
 

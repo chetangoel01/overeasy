@@ -223,7 +223,7 @@ struct FocusModeView: View {
                     .foregroundStyle(LadleTheme.Label.onAccent)
                     .frame(maxWidth: .infinity, minHeight: LadleTheme.Control.primary)
                     .background(
-                        LadleTheme.Intent.focus,
+                        LadleTheme.Intent.focusFill,
                         in: RoundedRectangle(
                             cornerRadius: LadleTheme.Corner.control,
                             style: .continuous

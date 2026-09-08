@@ -38,20 +38,21 @@ name a call site may use.
 
 | Role | Semantic name | Palette name | Light | Dark | Use |
 | --- | --- | --- | --- | --- | --- |
-| Porcelain | `Surface.porcelain` | `paper` | `#F2F4F6` | `#101214` | Primary surface |
-| Raised neutral | `Surface.raised` | `oat` | `#E3E7EA` | `#1C2024` | Fields and quiet grouping |
-| Steel | `Surface.steel` | `ube` | `#D7DDE2` | `#252A2F` | Inactive and review surfaces |
+| Porcelain | `Surface.porcelain` | `paper` | `#F7F4EF` | `#101214` | Primary surface |
+| Raised neutral | `Surface.raised` | `oat` | `#ECE7E1` | `#1C2024` | Fields and quiet grouping |
+| Steel | `Surface.steel` | `ube` | `#E3DDD6` | `#252A2F` | Inactive and review surfaces |
 | Graphite ground | `Surface.graphite` | `plum` | `#14181B` | `#101214` | Welcome and Focus Mode |
 | Badge | `Surface.badge` | — | `#CDD5DC` | `#303840` | Icon badge on a raised card |
 | Graphite ink | `Label.primary` | `ink` | `#14181B` | `#F2F4F5` | Primary text and controls |
-| Secondary ink | `Label.secondary` | `mutedInk` | `#64707A` | `#A6AFB7` | Metadata |
+| Secondary ink | `Label.secondary` | `mutedInk` | `#505B64` | `#A6AFB7` | Metadata |
 | On-signal | `Label.onAccent` | `onAccent` | `#FAFBFC` fixed | same | Content on accent or graphite |
 | Fixed graphite | `Label.onFixedPale` | `fixedInk` | `#14181B` fixed | same | Content on fixed pale surfaces |
 | Accessible accent text | `Label.accent` | `accentText` | `#C73924` default | `#FF7562` default | Favorites and tinted icons |
-| Selected accent fill | `Intent.accent` | `brick` | `#EE4B2F` default | `#FF674E` default | Primary action and active state |
+| Selected accent fill | `Intent.accent` | `brick` | `#C23B26` default | `#C23B26` default | Primary action and active state |
 | Destructive | `Intent.destructive` | — | system red | system red | Delete and discard |
 | Sage success | `Intent.success` | `celery` | `#83A18A` | `#294233` | Success state |
-| Focus signal | `Intent.focus` | `focusAccent` | `#FF5A3D` fixed | same | Focus progress and advance |
+| Focus signal | `Intent.focus` | `focusAccent` | `#FF5A3D` fixed | same | Focus progress and icons |
+| Focus / destructive button fill | `Intent.focusFill` / `Intent.destructiveFill` | `#C23B26` fixed | same | White-label actions |
 | Disabled | `Intent.disabledFill` / `disabledLabel` | — | steel / secondary ink | same | Any disabled control |
 
 `Surface.badge` exists because `Surface.steel` sits about four percent off
@@ -65,7 +66,11 @@ entry is removed as well.
 
 Accent fills always carry `onAccent`. Settings offers Tomato, Orange, Sage,
 Blue, and Purple. The selected value is local and persistent. Focus Mode keeps
-its fixed `focusAccent`, and errors use the system destructive role.
+its bright fixed `focusAccent` for progress and its darker `focusFill` for the
+Next button. Errors and native destructive controls use system red; filled
+destructive buttons use `destructiveFill`. All five selected accent fills and
+secondary text on paper, raised, and steel meet 4.5:1 in light and dark mode.
+Supporting recipe facts use `Label.secondary` without reducing its opacity.
 
 ## Typography
 
@@ -146,7 +151,7 @@ and a font.
 | --- | --- | --- | --- |
 | `primary` | `Intent.accent` | `Label.onAccent` | The one action the screen exists to perform |
 | `secondary` | `Surface.raised` | `Label.primary` | A real alternative shown beside the primary |
-| `destructive` | `Intent.destructive` | `Label.onAccent` | Deletes or discards |
+| `destructive` | `Intent.destructiveFill` | `Label.onAccent` | Deletes or discards |
 | `tertiary` | none | `Label.accent` | Low-commitment action, often an escape |
 
 Primary, secondary and destructive span their container, so a column of them
@@ -154,7 +159,8 @@ shares one width and one left edge. Tertiary hugs its label.
 
 Disabled controls drop their fill rather than fading it. A faded accent still
 reads as an accent button, and at the opacity that made it look disabled its
-label fell near two to one against its own fill.
+label fell near two to one against its own fill. Pressed filled buttons darken
+the fill without fading their label.
 
 Icon-only controls are `LadleIconButton`, always on a 44-point target however
 small the glyph.
@@ -184,6 +190,15 @@ buttons a different text origin per button.
   destination onto the recipe navigation path.
 - Recipe detail remains a pushed destination. Import and account flows remain
   native sheets.
+- Related steps stay in one sheet: Profile → Sign in, Nutrition → Apple Health,
+  and failed import → correction notes, pasted details, or manual recovery.
+  Back returns to the previous step.
+- Recipe editor sections open at the top when selected. Cancel or a sheet swipe
+  with unsaved edits shows Keep Editing and Discard Changes. The same protection
+  covers manual recipe entry and all recovery forms; unchanged forms close
+  immediately. Recovery Back also protects changes.
+- Servings uses a scrollable sheet, opens large at accessibility text sizes, and
+  stacks its value above the stepper so Reset remains reachable.
 - Account management stays in the top-right toolbar on Recipes, Discover,
   Watch, and Inbox. Add Recipe sits beside it on Recipes and Inbox, the two
   tabs where a link arrives; Discover and Watch are consumption surfaces and
@@ -208,6 +223,9 @@ buttons a different text origin per button.
 - Video recipes are shuffled once when the library session loads. Refreshes
   preserve the active order so favorite and sync updates never move content
   beneath the user.
+- At accessibility text sizes, Watch stacks its action buttons vertically and
+  lets its recipe panel scroll over a dark legibility background. Both Save
+  and View recipe, or Open recipe and Start cooking, retain full-width targets.
 - Do not reproduce recipe detail inside segmented card panels.
 - Inbox is a plain native list. Empty copy is one short sentence. Recovery and
   review actions remain explicit when an import needs attention.
@@ -304,6 +322,15 @@ buttons a different text origin per button.
   question is never asked twice. Afterwards the diet is changed in one place
   only — under the name in the Profile header — and the filter menu can only
   put it down for the launch.
+
+Provider sign-in controls share custom white buttons with black labels. Apple
+uses the unmodified vector logo from Apple Design Resources, including its
+padding. Its type is 43% of button height, with at least 8% trailing clearance.
+Buttons grow with Dynamic Type as width permits while preserving these brand
+proportions and the full provider name; they remain at least 44 points tall.
+The system Apple control continues to handle authorization and accessibility.
+Failure text can grow and scroll instead of being clipped into a fixed slot.
+See the [HIG fixes and artwork attribution](docs/verification/2026-09-08-hig-fixes.md).
 
 ## Accessibility and verification
 
