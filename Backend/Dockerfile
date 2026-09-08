@@ -4,7 +4,7 @@ COPY --from=ghcr.io/astral-sh/uv:0.8.22@sha256:9874eb7afe5ca16c363fe80b294fe700e
 
 # yt-dlp reads public metadata and captions; ffmpeg downsamples audio before
 # it is sent for transcription, which is most of what keeps that call cheap.
-ARG DEBIAN_SNAPSHOT=20260901T000000Z
+ARG DEBIAN_SNAPSHOT=20260907T000000Z
 ARG CA_CERTIFICATES_VERSION=20230311+deb12u1
 ARG FFMPEG_VERSION=7:5.1.9-0+deb12u1
 # libexpat1 only enters this image as an ffmpeg dependency, and bookworm ships
