@@ -178,7 +178,7 @@ class RecipeTemplate(WireModel):
                     unit=value.unit,
                     name=value.name,
                     preparation=value.preparation,
-                    is_to_taste=False,
+                    is_to_taste=value.is_to_taste,
                     order_index=value.order_index,
                     uncertainty=value.uncertainty,
                 )
@@ -264,6 +264,7 @@ class RecipeTemplate(WireModel):
                     unit=value.unit,
                     name=value.name,
                     preparation=value.preparation,
+                    is_to_taste=value.is_to_taste,
                     order_index=value.order_index,
                     uncertainty=value.uncertainty,
                 )

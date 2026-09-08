@@ -320,6 +320,9 @@ public struct RemoteIngredientDTO: Codable, Hashable, Sendable {
     public let unit: String?
     public let name: String
     public let preparation: String?
+    /// The ingredient has no amount at all. A server that predates the flag
+    /// omits it, and its rows are read as having one.
+    public let isToTaste: Bool?
     public let orderIndex: Int
     public let uncertainty: RemoteFieldUncertaintyDTO?
 
@@ -330,6 +333,7 @@ public struct RemoteIngredientDTO: Codable, Hashable, Sendable {
         unit = value.unit
         name = value.name
         preparation = value.preparation
+        isToTaste = value.isToTaste
         orderIndex = value.orderIndex
         uncertainty = value.uncertainty.map(RemoteFieldUncertaintyDTO.init)
     }
@@ -344,6 +348,7 @@ public struct RemoteIngredientDTO: Codable, Hashable, Sendable {
             unit: unit,
             name: name,
             preparation: preparation,
+            isToTaste: isToTaste ?? false,
             orderIndex: orderIndex,
             uncertainty: uncertainty?.uncertainty()
         )

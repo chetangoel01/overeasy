@@ -147,9 +147,56 @@ struct RemoteContractTests {
 
         #expect(recipe.reviewStatus == .needsReview)
         #expect(recipe.servings == 1)
+        // No amount was recoverable, so the row says so outright rather
+        // than arriving as a quantity nobody can render.
         #expect(recipe.ingredients[0].normalizedQuantity == nil)
+        #expect(recipe.ingredients[0].isToTaste)
         #expect(recipe.ingredients[0].uncertainty?.confidence == 0.2)
         #expect(recipe.nutrition == nil)
+    }
+
+    @Test
+    func aQuantifiedFixtureRowIsNotFlaggedAsHavingNoAmount() throws {
+        let dto: RemoteRecipeDTO = try decodeFixture("recipe-ready")
+        let recipe = try dto.recipe()
+
+        #expect(recipe.ingredients[0].normalizedQuantity == 2)
+        #expect(recipe.ingredients[0].unit == "cup")
+        #expect(recipe.ingredients[0].isToTaste == false)
+    }
+
+    @Test
+    func aServerWithoutTheToTasteKeyMeansTheRowHasAnAmount() throws {
+        // Older deployments never send the field. Their rows all carry a
+        // quantity, which is exactly what its absence has to mean.
+        var stripped = try fixtureObject("recipe-ready")
+        var ingredients = try #require(
+            stripped["ingredients"] as? [[String: Any]]
+        )
+        ingredients[0].removeValue(forKey: "isToTaste")
+        stripped["ingredients"] = ingredients
+
+        let dto = try RemoteContractJSON.decoder().decode(
+            RemoteRecipeDTO.self,
+            from: JSONSerialization.data(withJSONObject: stripped)
+        )
+
+        #expect(try dto.recipe().ingredients[0].isToTaste == false)
+    }
+
+    @Test
+    func anIngredientWithNoAmountGoesBackUpSayingSo() throws {
+        let ingredient = Ingredient(
+            name: "flaky salt",
+            isToTaste: true,
+            orderIndex: 0
+        )
+
+        let object = try JSONSerialization.jsonObject(
+            with: RemoteContractJSON.encode(RemoteIngredientDTO(ingredient))
+        ) as? [String: Any]
+
+        #expect(object?["isToTaste"] as? Bool == true)
     }
 
     @Test

@@ -297,3 +297,65 @@ def test_discover_returns_aggregated_public_source_data(
     with Session(engine) as database:
         assert database.scalar(select(func.count()).select_from(ImportJob)) == 0
     engine.dispose()
+
+
+@pytest.mark.integration
+def test_an_edit_that_states_an_amount_only_as_a_phrase_comes_back_split(
+    clean_postgres_url: str,
+) -> None:
+    """The editor's write point.
+
+    The app sends a quantity and a unit as separate fields, but an older
+    build — or anything replaying a stored recipe — can still put the amount
+    in the phrase alone. The row it gets back is renderable either way, and
+    the one with no amount at all says so instead of arriving blank.
+    """
+
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    engine = build_engine(clean_postgres_url)
+    app = create_app(
+        session_factory=sessionmaker(engine, expire_on_commit=False),
+        attestation=AttestationService(enforced=False),
+    )
+    recipe_id = uuid4()
+    recipe = json.loads(FIXTURE.read_text())
+    recipe.update(
+        {
+            "id": str(recipe_id),
+            "source": "other",
+            "originalURL": f"https://manual.ladle.local/{recipe_id}",
+        }
+    )
+    recipe["ingredients"][0].update(
+        {"quantityText": "2 cups", "normalizedQuantity": None, "unit": None}
+    )
+    recipe["ingredients"][1].update(
+        {
+            "name": "flaky salt",
+            "quantityText": None,
+            "normalizedQuantity": None,
+            "unit": None,
+        }
+    )
+
+    with TestClient(app) as client:
+        guest = client.post(
+            "/v1/auth/guest",
+            json={"installationID": "strict-ingredient-test", "attestation": None},
+        ).json()
+        saved = client.put(
+            f"/v1/recipes/{recipe_id}",
+            json={"baseRevision": 0, "recipe": recipe},
+            headers={"Authorization": f"Bearer {guest['accessToken']}"},
+        )
+
+    assert saved.status_code == 200
+    ingredients = saved.json()["ingredients"]
+    # Stored at the column's own scale, which is what a read returns.
+    assert Decimal(ingredients[0]["normalizedQuantity"]) == 2
+    assert ingredients[0]["unit"] == "cups"
+    assert ingredients[0]["isToTaste"] is False
+    assert ingredients[1]["isToTaste"] is True
+    assert ingredients[1]["normalizedQuantity"] is None
+
+    engine.dispose()

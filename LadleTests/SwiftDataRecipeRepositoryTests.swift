@@ -707,14 +707,14 @@ final class SwiftDataRecipeRepositoryTests: XCTestCase {
             ingredients: [
                 Ingredient(
                     id: lemonID,
-                    quantityText: "1",
+                    normalizedQuantity: 1,
                     unit: nil,
                     name: "lemon",
                     orderIndex: 1
                 ),
                 Ingredient(
                     id: orzoID,
-                    quantityText: "1",
+                    normalizedQuantity: 1,
                     unit: "cup",
                     name: "orzo",
                     orderIndex: 0

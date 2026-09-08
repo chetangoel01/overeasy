@@ -5,7 +5,7 @@ from typing import Any
 from ladle.acquisition.models import AcquiredVideoContext
 from ladle.contracts.tags import CuisineTag, DietTag, RecipeKeyword
 
-PROMPT_VERSION = "recipe-2026-09-07-v15"
+PROMPT_VERSION = "recipe-2026-09-08-v16"
 
 
 def _vocabulary(values: type[StrEnum]) -> str:
@@ -55,7 +55,16 @@ SYSTEM_PROMPT = (
     "of the amount: keep quantityText as the amount they start with and put "
     "the contingency in notes, where it reads as the advice it is.\n"
     "- normalizedQuantity and unit are the machine-readable split of that "
-    "text. Leave both null rather than guessing a number.\n"
+    "text, and the app renders the row from them alone: quantityText is "
+    "never printed. Whenever the creator gave an amount at all, the split "
+    "is required — '2 cups' is 2 and 'cups', '100 g' is 100 and 'g', "
+    "'2 16oz cans' is 2 with a null unit, because it counts cans of a "
+    "stated size. Give the low end of a range ('2-3 cloves' is 2) and keep "
+    "the range itself in quantityText.\n"
+    "- unit is null for a count of whole things ('4 potato rolls' is 4 with "
+    "no unit). Never repeat the ingredient's own name as its unit.\n"
+    "- Where the creator gave no amount, leave all three null rather than "
+    "guessing a number.\n"
     "- metricAmount and metricUnit are the total mass (g) or volume (ml) "
     "this line contributes. Use the creator's own parenthetical when given "
     "('(450g)' -> 450 g). Otherwise convert only standard measures you are "

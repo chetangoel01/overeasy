@@ -10,6 +10,7 @@
   "ingredients": [
     {
       "id": "22000000-0000-4000-8000-000000000011",
+      "isToTaste": false,
       "name": "chicken thighs",
       "normalizedQuantity": "600",
       "orderIndex": 0,
@@ -20,6 +21,7 @@
     },
     {
       "id": "22000000-0000-4000-8000-000000000012",
+      "isToTaste": false,
       "name": "garam masala",
       "normalizedQuantity": "2",
       "orderIndex": 1,

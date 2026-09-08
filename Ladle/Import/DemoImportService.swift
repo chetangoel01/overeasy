@@ -155,7 +155,7 @@ actor DemoImportService: ImportService {
         let details = details(for: kind, pastedRecipeText: pastedRecipeText)
         let uncertainty = kind == .ragu
             ? FieldUncertainty(
-                field: "ingredients[0].quantityText",
+                field: "ingredients[0].quantity",
                 reason: "The quantity was not spoken clearly.",
                 confidence: 0.58
             )
@@ -168,10 +168,11 @@ actor DemoImportService: ImportService {
                     details.identifierPrefix,
                     suffix: String(format: "%02d", 10 + index)
                 ),
-                quantityText: row.quantity,
+                normalizedQuantity: row.quantity,
                 unit: row.unit,
                 name: row.name,
                 preparation: row.preparation,
+                isToTaste: row.quantity == nil,
                 orderIndex: index,
                 uncertainty: index == 0 ? uncertainty : nil
             )
@@ -262,15 +263,15 @@ actor DemoImportService: ImportService {
                 fatGrams: 24,
                 sodiumMilligrams: 940,
                 ingredients: [
-                    .init("3", "tbsp", "green curry paste", nil),
-                    .init("1", "can", "coconut milk", "14 oz, unshaken"),
-                    .init("1", "lb", "chicken thighs", "sliced thin"),
-                    .init("1", "cup", "green beans", "trimmed"),
-                    .init("1", nil, "red bell pepper", "sliced"),
-                    .init("1", "tbsp", "fish sauce", nil),
-                    .init("1", "tsp", "brown sugar", nil),
-                    .init("1", "handful", "Thai basil", nil),
-                    .init("4", "cups", "jasmine rice", "steamed, to serve"),
+                    .init(3, "tbsp", "green curry paste", nil),
+                    .init(1, "can", "coconut milk", "14 oz, unshaken"),
+                    .init(1, "lb", "chicken thighs", "sliced thin"),
+                    .init(1, "cup", "green beans", "trimmed"),
+                    .init(1, nil, "red bell pepper", "sliced"),
+                    .init(1, "tbsp", "fish sauce", nil),
+                    .init(1, "tsp", "brown sugar", nil),
+                    .init(1, "handful", "Thai basil", nil),
+                    .init(4, "cups", "jasmine rice", "steamed, to serve"),
                 ],
                 steps: [
                     .init(
@@ -311,13 +312,13 @@ actor DemoImportService: ImportService {
                 sodiumMilligrams: 1040,
                 ingredients: [
                     .init(nil, nil, "crushed tomatoes", nil),
-                    .init("1", "lb", "ground pork and beef", "mixed"),
-                    .init("1", nil, "yellow onion", "diced"),
-                    .init("3", "cloves", "garlic", "minced"),
-                    .init("2", "tbsp", "tomato paste", nil),
-                    .init("½", "cup", "red wine", nil),
-                    .init("1", nil, "parmesan rind", "optional"),
-                    .init("1", "tsp", "kosher salt", "plus more to taste"),
+                    .init(1, "lb", "ground pork and beef", "mixed"),
+                    .init(1, nil, "yellow onion", "diced"),
+                    .init(3, "cloves", "garlic", "minced"),
+                    .init(2, "tbsp", "tomato paste", nil),
+                    .init(0.5, "cup", "red wine", nil),
+                    .init(1, nil, "parmesan rind", "optional"),
+                    .init(1, "tsp", "kosher salt", "plus more to taste"),
                 ],
                 steps: [
                     .init(
@@ -362,12 +363,12 @@ actor DemoImportService: ImportService {
                 fatGrams: 22,
                 sodiumMilligrams: 890,
                 ingredients: [
-                    .init("1", "cup", "orzo", nil),
-                    .init("2", "cloves", "garlic", "finely chopped"),
-                    .init("2", "cups", "vegetable stock", nil),
-                    .init("1", nil, "lemon", "zested and juiced"),
-                    .init("½", "cup", "crumbled feta", nil),
-                    .init("2", "tbsp", "extra-virgin olive oil", nil),
+                    .init(1, "cup", "orzo", nil),
+                    .init(2, "cloves", "garlic", "finely chopped"),
+                    .init(2, "cups", "vegetable stock", nil),
+                    .init(1, nil, "lemon", "zested and juiced"),
+                    .init(0.5, "cup", "crumbled feta", nil),
+                    .init(2, "tbsp", "extra-virgin olive oil", nil),
                 ],
                 steps: [
                     .init(
@@ -407,7 +408,7 @@ actor DemoImportService: ImportService {
                 fatGrams: 21,
                 sodiumMilligrams: 640,
                 ingredients: [
-                    .init("1", "batch", "ingredients from your pasted text", nil),
+                    .init(1, "batch", "ingredients from your pasted text", nil),
                 ],
                 steps: [
                     .init(
@@ -440,14 +441,17 @@ actor DemoImportService: ImportService {
 }
 
 private struct DemoRecipeDetails {
+    /// Amount, unit, name, preparation — the shape a row is rendered from.
+    /// A nil amount is an ingredient that has none, which is what the
+    /// backend flags rather than leaving a row with a phantom quantity.
     struct IngredientRow {
-        let quantity: String?
+        let quantity: Decimal?
         let unit: String?
         let name: String
         let preparation: String?
 
         init(
-            _ quantity: String?,
+            _ quantity: Decimal?,
             _ unit: String?,
             _ name: String,
             _ preparation: String?

@@ -132,14 +132,60 @@ extension ImportJob {
 }
 
 extension Ingredient {
+    /// The measured amount — "2 cups", or "4" for something counted.
+    ///
+    /// It takes the number rather than reading the field, because a scaled
+    /// recipe renders `normalizedQuantity` times the factor through this
+    /// same seam and there is no second formatter for it.
+    ///
+    /// Two fraction digits, not the one `ladleNumber` defaults to. A tenth
+    /// of a gram is false precision on a nutrition panel, but a quarter of a
+    /// cup is an amount somebody measures, and rounding 0.25 to "0.3" would
+    /// be wrong in the kitchen.
+    func measuredAmount(_ quantity: Decimal) -> String {
+        [ladleNumber(quantity, maximumFractionDigits: 2), unit?.nonEmpty]
+            .compactMap(\.self)
+            .joined(separator: " ")
+    }
+
+    /// The amount at the head of a row, or nothing when the ingredient has
+    /// none to show.
+    ///
+    /// Only the split is read. `quantityText` is the creator's phrase — it
+    /// holds the same amount in their own spelling, and printing it beside
+    /// the unit is what had a row saying "100 g g flour". The server
+    /// guarantees the split whenever an amount was given at all, so the
+    /// phrase adds nothing a row needs.
+    var amountText: String? {
+        isToTaste ? nil : normalizedQuantity.map(measuredAmount)
+    }
+
     var cookingDetailText: String {
-        var parts = [quantityText, unit]
-            .compactMap { $0 }
-            .filter { !$0.isEmpty }
-        parts.append(name)
-        if let preparation, !preparation.isEmpty {
+        row(amountText)
+    }
+
+    /// The row as a recipe scaled by `factor` prints it: the same amount,
+    /// multiplied, in the same form. An ingredient with no quantity — salt
+    /// to taste — scales to itself, because a pinch does not double.
+    func cookingDetailText(scaledBy factor: Decimal) -> String {
+        row(isToTaste ? nil : normalizedQuantity.map { measuredAmount($0 * factor) })
+    }
+
+    private func row(_ amount: String?) -> String {
+        var parts = [amount, name.nonEmpty].compactMap(\.self)
+        if let preparation = preparation?.nonEmpty {
             parts.append("— \(preparation)")
         }
         return parts.joined(separator: " ")
+    }
+}
+
+private extension String {
+    /// A field that is present but blank. The wire contract types most of
+    /// these as optional strings and promises no trimming, so an empty one
+    /// has to read as absent rather than as an extra space in the row.
+    var nonEmpty: String? {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }

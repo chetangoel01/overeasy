@@ -704,6 +704,7 @@ class RecipeRepository:
                 unit=ingredient.unit,
                 name=ingredient.name,
                 preparation=ingredient.preparation,
+                is_to_taste=ingredient.is_to_taste,
                 order_index=ingredient.order_index,
             )
             for ingredient in recipe.ingredients
@@ -997,6 +998,7 @@ class RecipeRepository:
                     unit=ingredient.unit,
                     name=ingredient.name,
                     preparation=ingredient.preparation,
+                    is_to_taste=ingredient.is_to_taste,
                     order_index=ingredient.order_index,
                     uncertainty=self._uncertainty_dto(
                         ingredient_uncertainty.get(ingredient.id)

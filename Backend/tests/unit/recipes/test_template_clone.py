@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4
 
-from ladle.contracts.recipes import RecipeSource
+from ladle.contracts.recipes import RecipeDTO, RecipeSource
 from ladle.recipes.template_clone import (
     RecipeTemplate,
     TemplateIngredient,
@@ -114,3 +114,73 @@ def test_instantiate_drops_notes_a_recipe_could_never_hold() -> None:
     assert len(recipe.notes) == 100
     assert recipe.notes[0] == "x" * 2_000
     assert recipe.notes[1] == "note 0"
+
+
+def strict_template(*ingredients: TemplateIngredient) -> RecipeTemplate:
+    return RecipeTemplate(
+        title="Lemon Orzo",
+        description="Bright and weeknight friendly.",
+        creator_name="Cook",
+        source=RecipeSource.TIKTOK,
+        original_url="https://www.tiktok.com/@cook/video/1234567890",
+        servings=Decimal("2"),
+        ingredients=list(ingredients),
+        steps=[],
+        review_status="ready",
+    )
+
+
+def instantiate(*ingredients: TemplateIngredient) -> RecipeDTO:
+    return strict_template(*ingredients).instantiate(
+        recipe_id=uuid4(),
+        now=datetime(2026, 9, 8, 12, 0, tzinfo=UTC),
+    )
+
+
+def test_an_import_lands_with_the_split_left_inside_the_phrase() -> None:
+    """The first write point: extraction's template becoming a recipe.
+
+    A model that wrote only "2 cups" used to store a row with no number at
+    all, which the app can no longer render.
+    """
+
+    recipe = instantiate(
+        TemplateIngredient(quantity_text="2 cups", name="orzo", order_index=0)
+    )
+
+    assert recipe.ingredients[0].normalized_quantity == Decimal("2")
+    assert recipe.ingredients[0].unit == "cups"
+    assert recipe.ingredients[0].is_to_taste is False
+
+
+def test_an_import_with_nothing_to_parse_says_it_has_no_quantity() -> None:
+    recipe = instantiate(
+        TemplateIngredient(
+            quantity_text="a splash",
+            name="olive oil",
+            order_index=0,
+        )
+    )
+
+    assert recipe.ingredients[0].is_to_taste is True
+    assert recipe.ingredients[0].normalized_quantity is None
+    # The phrase survives as the note it is.
+    assert recipe.ingredients[0].quantity_text == "a splash"
+
+
+def test_the_extractions_own_to_taste_answer_reaches_the_recipe() -> None:
+    recipe = instantiate(
+        TemplateIngredient(name="flaky salt", is_to_taste=True, order_index=0)
+    )
+
+    assert recipe.ingredients[0].is_to_taste is True
+
+
+def test_re_templating_a_stored_recipe_keeps_its_missing_quantity() -> None:
+    """`from_recipe` hardcoded False, losing the answer on every clone."""
+
+    recipe = instantiate(
+        TemplateIngredient(name="flaky salt", is_to_taste=True, order_index=0)
+    )
+
+    assert RecipeTemplate.from_recipe(recipe).ingredients[0].is_to_taste is True

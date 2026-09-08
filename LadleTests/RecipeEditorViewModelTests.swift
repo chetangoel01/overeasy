@@ -142,6 +142,7 @@ final class RecipeEditorViewModelTests: XCTestCase {
             .preparationMinutesInvalid, .cookingMinutesInvalid,
             .totalMinutesInvalid, .tooManyIngredients, .tooManySteps,
             .ingredientNameRequired(identifier),
+            .ingredientQuantityRequired(identifier),
             .ingredientFieldTooLong(identifier),
             .stepInstructionRequired(identifier),
             .stepInstructionTooLong(identifier),
@@ -203,8 +204,6 @@ final class RecipeEditorViewModelTests: XCTestCase {
         viewModel.draft.preparationMinutes = "43201"
         viewModel.draft.cookingMinutes = "43201"
         viewModel.draft.servings = "10001"
-        viewModel.draft.ingredients[0].quantityText =
-            String(repeating: "x", count: 101)
         viewModel.draft.ingredients[0].unit =
             String(repeating: "x", count: 51)
         viewModel.draft.ingredients[0].name =
@@ -290,79 +289,140 @@ final class RecipeEditorViewModelTests: XCTestCase {
             repository: repository
         )
         viewModel.draft.title = "Creamy Lemon Orzo"
-        viewModel.draft.ingredients[0].quantityText = "1½"
+        viewModel.draft.ingredients[0].quantity = "1.5"
 
         let saved = try XCTUnwrap(viewModel.save())
 
         XCTAssertEqual(saved.id, recipe.id)
         XCTAssertEqual(saved.createdAt, recipe.createdAt)
         XCTAssertEqual(saved.title, "Creamy Lemon Orzo")
-        XCTAssertEqual(saved.orderedIngredients[0].quantityText, "1½")
+        XCTAssertEqual(
+            saved.orderedIngredients[0].normalizedQuantity,
+            Decimal(string: "1.5")
+        )
         XCTAssertEqual(repository.recipes, [saved])
         XCTAssertEqual(repository.saveCount, 1)
     }
 
-    func testEditedQuantityRederivesTheNormalizedAmountInLocale() throws {
+    func testAnImportedIngredientLoadsAsTwoTypedFields() {
+        let viewModel = makeViewModel(recipe: importedFlourRecipe())
+
+        XCTAssertEqual(viewModel.draft.ingredients[0].quantity, "2")
+        XCTAssertEqual(viewModel.draft.ingredients[0].unit, "cups")
+        XCTAssertFalse(viewModel.draft.ingredients[0].isToTaste)
+    }
+
+    /// Opening the editor and saving must not move a single value, and the
+    /// creator's phrase is part of that even though nothing edits it.
+    func testSavingAnUntouchedIngredientRoundTripsItExactly() throws {
         let recipe = importedFlourRecipe()
+        let viewModel = makeViewModel(recipe: recipe)
+
+        let saved = try XCTUnwrap(viewModel.save())
+
+        XCTAssertEqual(saved.orderedIngredients[0], recipe.orderedIngredients[0])
+    }
+
+    func testTypingAQuantityAndAUnitSavesBoth() throws {
+        let viewModel = makeViewModel(recipe: importedFlourRecipe())
+
+        viewModel.draft.ingredients[0].quantity = "3"
+        viewModel.draft.ingredients[0].unit = "tbsp"
+
+        let saved = try XCTUnwrap(viewModel.save())
+        XCTAssertEqual(saved.orderedIngredients[0].normalizedQuantity, 3)
+        XCTAssertEqual(saved.orderedIngredients[0].unit, "tbsp")
+        XCTAssertFalse(saved.orderedIngredients[0].isToTaste)
+    }
+
+    func testAQuantityIsReadInTheEditorsOwnLocale() throws {
         let viewModel = makeViewModel(
-            recipe: recipe,
+            recipe: importedFlourRecipe(),
             locale: Locale(identifier: "fr_FR")
         )
 
-        viewModel.draft.ingredients[0].quantityText = "1,5"
+        // The .decimalPad renders this locale's separator, so this is what
+        // the comma key produces.
+        viewModel.draft.ingredients[0].quantity = "1,5"
 
         let saved = try XCTUnwrap(viewModel.save())
-        XCTAssertEqual(saved.orderedIngredients[0].quantityText, "1,5")
         XCTAssertEqual(
             saved.orderedIngredients[0].normalizedQuantity,
             Decimal(string: "1.5")
         )
     }
 
-    func testClearedQuantityDropsTheStaleNormalizedAmount() throws {
-        let viewModel = makeViewModel(recipe: importedFlourRecipe())
+    /// A French cook's field has to read back the way their pad writes it,
+    /// or the next save drops the amount entirely.
+    func testAStoredAmountIsWrittenIntoTheFieldInTheEditorsLocale() {
+        var recipe = importedFlourRecipe()
+        recipe.ingredients[0].normalizedQuantity = Decimal(string: "0.5")
+        let viewModel = makeViewModel(
+            recipe: recipe,
+            locale: Locale(identifier: "fr_FR")
+        )
 
-        viewModel.draft.ingredients[0].quantityText = ""
-
-        let saved = try XCTUnwrap(viewModel.save())
-        XCTAssertNil(saved.orderedIngredients[0].quantityText)
-        XCTAssertNil(saved.orderedIngredients[0].normalizedQuantity)
+        XCTAssertEqual(viewModel.draft.ingredients[0].quantity, "0,5")
     }
 
-    func testNonNumericQuantityEditDropsTheStaleNormalizedAmount() throws {
+    func testToTasteSavesAnIngredientWithNoQuantityAtAll() throws {
         let viewModel = makeViewModel(recipe: importedFlourRecipe())
 
-        viewModel.draft.ingredients[0].quantityText = "a splash"
+        viewModel.draft.ingredients[0].isToTaste = true
 
         let saved = try XCTUnwrap(viewModel.save())
-        XCTAssertEqual(
-            saved.orderedIngredients[0].quantityText,
-            "a splash"
-        )
+        XCTAssertTrue(saved.orderedIngredients[0].isToTaste)
         XCTAssertNil(saved.orderedIngredients[0].normalizedQuantity)
+        XCTAssertNil(saved.orderedIngredients[0].unit)
     }
 
-    func testUntouchedAndRevertedQuantityKeepTheImportedAmount() throws {
-        // The imported machine-readable amount can be richer than the
-        // editor's own parser derives (the server reads "2" here, but
-        // fractions like "2 1/2" too), so it survives while the text
-        // still reads exactly as imported — including after an edit is
-        // reverted.
-        let untouched = makeViewModel(recipe: importedFlourRecipe())
-        let savedUntouched = try XCTUnwrap(untouched.save())
-        XCTAssertEqual(
-            savedUntouched.orderedIngredients[0].normalizedQuantity,
-            2
+    func testAnIngredientWithoutANumberIsRejectedUnlessItIsToTaste() {
+        let repository = EditorTestRepository(recipes: [importedFlourRecipe()])
+        let viewModel = makeViewModel(
+            recipe: importedFlourRecipe(),
+            repository: repository
         )
+        let ingredientID = viewModel.draft.ingredients[0].id
 
-        let reverted = makeViewModel(recipe: importedFlourRecipe())
-        reverted.draft.ingredients[0].quantityText = "4"
-        reverted.draft.ingredients[0].quantityText = "2"
-        let savedReverted = try XCTUnwrap(reverted.save())
-        XCTAssertEqual(
-            savedReverted.orderedIngredients[0].normalizedQuantity,
-            2
+        viewModel.draft.ingredients[0].quantity = ""
+
+        XCTAssertNil(viewModel.save())
+        XCTAssertTrue(
+            viewModel.validationIssues.contains(
+                .ingredientQuantityRequired(ingredientID)
+            )
         )
+        XCTAssertEqual(repository.saveCount, 0)
+
+        viewModel.draft.ingredients[0].isToTaste = true
+        XCTAssertNotNil(viewModel.save())
+    }
+
+    func testAQuantityThatIsNotAWholeNumberIsRejectedRatherThanTruncated() {
+        let viewModel = makeViewModel(recipe: importedFlourRecipe())
+        let ingredientID = viewModel.draft.ingredients[0].id
+
+        viewModel.draft.ingredients[0].quantity = "1.2.3"
+
+        XCTAssertNil(viewModel.save())
+        XCTAssertTrue(
+            viewModel.validationIssues.contains(
+                .ingredientQuantityRequired(ingredientID)
+            )
+        )
+    }
+
+    /// A library synced before the guarantee can hold a row with no amount
+    /// and no flag. The editor opens on the truth about it rather than
+    /// blocking every save behind a number the cook was never given.
+    func testALegacyRowWithNoAmountOpensAsToTaste() {
+        var recipe = importedFlourRecipe()
+        recipe.ingredients[0].normalizedQuantity = nil
+        recipe.ingredients[0].unit = nil
+        let viewModel = makeViewModel(recipe: recipe)
+
+        XCTAssertTrue(viewModel.draft.ingredients[0].isToTaste)
+        XCTAssertNotNil(viewModel.save())
     }
 
     func testCommaDecimalLocaleSavesTheYieldTheUserTyped() throws {
@@ -420,7 +480,9 @@ final class RecipeEditorViewModelTests: XCTestCase {
             servings: 4,
             ingredients: [
                 Ingredient(
-                    quantityText: "2",
+                    // The phrase the creator wrote, which the server keeps
+                    // as a note and no row prints.
+                    quantityText: "2 cups",
                     normalizedQuantity: 2,
                     unit: "cups",
                     name: "flour",
