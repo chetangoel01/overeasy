@@ -2,7 +2,8 @@
 
 Date: September 8, 2026
 Issue: [#90](https://github.com/chetangoel01/overeasy/issues/90)
-Status: **shipped on `feat/strict-ingredient-model`.**
+Status: **built and verified on `feat/strict-ingredient-model`, red-green on
+a simulator and against the local stack. Not deployed.**
 
 ## What this is
 
@@ -122,10 +123,35 @@ On a simulator created for this task and deleted after
 (`Ladle-Strict-Ingredient`, iPhone 17 Pro, iOS 26.5), because the shared
 iOS 26.5 device is contended.
 
+## Deployment order
+
+The app always sends `isToTaste` and `IngredientDTO` forbids unknown fields,
+so a build of this app against the current production backend would fail
+every recipe save. **Backend first, then the app**, then
+`python -m ladle.admin.backfill_ingredient_quantities --apply` over the ~40
+production recipes.
+
 ## Left open
 
-- The backfill has been dry-run against the local stack only. Production
-  (~40 recipes) is a separate, deliberate step.
+- The backfill has been dry-run against the local stack only. Production is
+  a separate, deliberate step, after the backend deploys.
+- The local dev database is now at 0026, while the containers still running
+  from the old image pin `expected_revision="0025"` and will report unready
+  until the stack is rebuilt from this branch (or from main after merge):
+  `docker compose -p backend up -d --build api worker beat`.
+- `scripts/refresh_recipe_nutrition.py` is the one caller of
+  `RecipeTemplate.from_recipe`, and it re-runs normalization. An ingredient
+  the contract has flagged as having no amount now reaches the normalizer
+  flagged, so a refresh may leave it out of the recalculated total where it
+  previously carried a guessed weight. That is the honest reading of "this
+  ingredient has no amount", the script is dry-run by default, and it prints
+  the before and after calories for every recipe — but a refresh run should
+  expect some totals to come back lower.
+- The editor carries `quantityText` untouched even when the cook changes the
+  quantity or the unit, so the note can end up reading "2 cups" beside a row
+  that now says 3. Round-tripping the note exactly was the requirement; a
+  stale note prints nowhere, and rewriting the creator's words to match an
+  edit would be worse.
 - `RecipeContractLimits.quantityCharacters` is now unread by the app: the
   phrase is never typed, only carried. It stays as a statement of what the
   wire allows.
