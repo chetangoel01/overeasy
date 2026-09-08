@@ -132,9 +132,9 @@ through but cannot be deleted.
 
 `-onboarding-complete` now finishes the diet step along with the name step
 and the walkthrough, so no seeded UI-test launch is ever stopped by the
-question, and no run leaves the next one stranded behind it. `-diet-step-
-pending` and `-diet-step-complete` force and skip it, read in the same order
-as the name step's pair so pending wins.
+question, and no run leaves the next one stranded behind it.
+`-diet-step-pending` and `-diet-step-complete` force and skip it, read in the
+same order as the name step's pair so pending wins.
 
 ## Verification
 
