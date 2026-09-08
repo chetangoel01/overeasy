@@ -3,6 +3,7 @@ import threading
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from decimal import Decimal
 from pathlib import Path
 from uuid import UUID, uuid4, uuid5
 
@@ -13,6 +14,7 @@ from sqlalchemy.orm import Session
 from alembic import command
 from ladle.contracts.recipes import RecipeDTO
 from ladle.db.models import (
+    Ingredient,
     Recipe,
     RecipeChange,
     RecipeImage,
@@ -388,5 +390,82 @@ def test_round_tripping_a_recipe_keeps_its_object_storage_image(
         assert image.id == image_id
         assert image.object_key == "thumbs/lemon-orzo"
         assert image.remote_url is None
+
+    engine.dispose()
+
+
+@pytest.mark.integration
+def test_an_edited_recipe_keeps_the_split_and_the_missing_quantity_flag(
+    clean_postgres_url: str,
+) -> None:
+    """The repository's own write points: a create, then a cook's edit.
+
+    Whether an ingredient has a quantity at all is a column now, so it can
+    be lost in either direction — written and never read, or read and not
+    written back on the next save. A row that came back as "flaky salt" with
+    a number again would be a phantom amount.
+    """
+
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    engine = build_engine(clean_postgres_url)
+    service = RecipeService(clock=FrozenClock(datetime(2026, 9, 8, 12, 0, tzinfo=UTC)))
+    recipe_id = uuid4()
+    original = manual_recipe(recipe_id)
+    ingredients = list(original.ingredients)
+    ingredients[0] = ingredients[0].model_copy(
+        update={
+            "quantity_text": "1 1/2 tsp",
+            "normalized_quantity": None,
+            "unit": None,
+        }
+    )
+    ingredients[1] = ingredients[1].model_copy(
+        update={
+            "name": "flaky salt",
+            "quantity_text": "to taste",
+            "normalized_quantity": None,
+            "unit": None,
+        }
+    )
+    # `model_copy` does not revalidate, so this is genuinely the shape a
+    # client can send: an amount stated only as a phrase.
+    written = RecipeDTO.model_validate(
+        original.model_copy(update={"ingredients": ingredients}).model_dump()
+    )
+
+    with Session(engine) as database, database.begin():
+        user_id = seed_user(database)
+        created = service.upsert(
+            database,
+            user_id=user_id,
+            recipe=written,
+            base_revision=0,
+        )
+
+    assert created.ingredients[0].normalized_quantity == Decimal("1.5")
+    assert created.ingredients[0].unit == "tsp"
+    assert created.ingredients[1].is_to_taste is True
+
+    with Session(engine) as database:
+        rows = list(
+            database.scalars(
+                select(Ingredient)
+                .where(Ingredient.recipe_id == recipe_id)
+                .order_by(Ingredient.order_index)
+            )
+        )
+        assert [row.is_to_taste for row in rows] == [False, True]
+        assert rows[0].normalized_quantity == Decimal("1.5")
+
+    with Session(engine) as database, database.begin():
+        edited = service.upsert(
+            database,
+            user_id=user_id,
+            recipe=created.model_copy(update={"title": "Edited"}),
+            base_revision=created.revision,
+        )
+
+    assert edited.ingredients[1].is_to_taste is True
+    assert edited.ingredients[1].normalized_quantity is None
 
     engine.dispose()
