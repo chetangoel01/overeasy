@@ -1,9 +1,11 @@
 from collections.abc import Callable
+from datetime import timedelta
 from typing import Annotated, Literal, cast
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Body, Header, HTTPException, Request, Response, status
 from pydantic import Field
+from sqlalchemy import delete, select
 
 from ladle.api.dependencies import clock as request_clock
 from ladle.api.dependencies import database
@@ -41,7 +43,7 @@ from ladle.auth.tokens import (
 )
 from ladle.contracts.common import WireDateTime, WireModel, WireUUID
 from ladle.crypto.private_text import PrivateTextCipher
-from ladle.db.models import AuthSession, Device, User
+from ladle.db.models import AuthSession, Device, ObjectDeletionQueue, User
 from ladle.infrastructure.object_storage import ObjectStorage
 from ladle.privacy.object_deletion import queue_object_deletion
 
@@ -506,12 +508,24 @@ def replace_avatar(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST)
 
     key = f"avatars/{claims.user_id}/{uuid4()}.jpg"
-    # Stored before the row is written on purpose. A failed commit then leaves
-    # an object nothing points at, which the bucket's lifecycle sweeps; the
-    # other order leaves a row pointing at nothing, which a cook sees.
+    # Commit cleanup intent before uploading: a lost upload response or failed
+    # profile commit must still leave the reaper a key. The grace lets the
+    # request finish; attaching the key withdraws cleanup in the same commit.
+    now = request_clock(request).now()
+    with database(request) as current_database, current_database.begin():
+        current_database.add(
+            ObjectDeletionQueue(
+                object_key=key,
+                reason="unreferencedAvatar",
+                available_at=now + timedelta(hours=1),
+                created_at=now,
+            )
+        )
     storage.put(key, body, content_type=AVATAR_CONTENT_TYPE)
     with database(request) as current_database, current_database.begin():
-        user = current_database.get(User, claims.user_id)
+        user = current_database.scalar(
+            select(User).where(User.id == claims.user_id).with_for_update()
+        )
         if user is None:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
         queue_object_deletion(
@@ -521,6 +535,9 @@ def replace_avatar(
             now=request_clock(request).now(),
         )
         user.avatar_object_key = key
+        current_database.execute(
+            delete(ObjectDeletionQueue).where(ObjectDeletionQueue.object_key == key)
+        )
         return _profile_response(user, _object_url(request))
 
 
@@ -538,7 +555,9 @@ def delete_avatar(
     """
     claims = access_claims(request, authorization)
     with database(request) as current_database, current_database.begin():
-        user = current_database.get(User, claims.user_id)
+        user = current_database.scalar(
+            select(User).where(User.id == claims.user_id).with_for_update()
+        )
         if user is None:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
         queue_object_deletion(

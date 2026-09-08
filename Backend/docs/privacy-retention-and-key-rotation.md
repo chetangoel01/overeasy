@@ -37,6 +37,14 @@ Celery Beat invokes `ladle.privacy.sweep` hourly. The task:
 4. Treats object deletion as idempotent, recording bounded exponential retry
    state on failure.
 
+Avatar uploads record a deletion intent before contacting storage, with a
+one-hour grace period. Saving the profile withdraws that intent in the same
+transaction that attaches the image. Interrupted uploads and failed profile
+commits therefore remain visible to the reaper, even when no user row ever
+references the uploaded key. Replacement and removal queue the previous key
+under a user-row lock. See the
+[profile-photo verification](../../docs/verification/2026-09-02-profile-photo.md#september-8-interrupted-upload-cleanup).
+
 The bucket lifecycle in `deploy/object-storage-lifecycle.json` expires temporary
 objects and incomplete uploads after one day and noncurrent object versions
 after 30 days. Compose bucket initialization enables versioning and imports

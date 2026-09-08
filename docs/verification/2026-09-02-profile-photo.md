@@ -181,6 +181,28 @@ every fifteen minutes — is the refresh mechanism.
 
 ## Verification
 
+### September 8: interrupted upload cleanup
+
+The upload route now commits an `unreferencedAvatar` deletion record before
+calling object storage. Its one-hour grace allows the request to finish. The
+transaction that attaches the image to the profile also removes that record;
+a failed upload response or profile commit leaves it for the existing hourly
+deletion processor. The bucket lifecycle only expires temporary objects and
+noncurrent versions, so it cannot substitute for this record. Profile-photo
+replacement and removal lock the user row so each queues the image it actually
+replaces.
+
+The two interrupted-upload regressions were observed failing before the fix.
+They cover storage accepting bytes before its response is lost, and a database
+commit failing after upload. Both check that the profile is unchanged, the
+object survives the grace period, and the existing reaper subsequently deletes
+it. Successful uploads also assert that no discard record remains. These tests
+use PostgreSQL and the existing fake object store; no migration or wire change
+is required. Changes are in `Backend/ladle/api/routes/auth.py` and
+`Backend/tests/api/test_avatar.py`.
+
+### Original feature verification
+
 Every test here was written before the behaviour it covers, but only two were
 actually watched fail: the backend suite was authored against routes that did
 not exist yet and first *run* after they did, so its fifteen cases were

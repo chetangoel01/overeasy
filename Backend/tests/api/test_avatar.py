@@ -10,10 +10,12 @@ again never takes the cook's picture back.
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from unittest.mock import patch
+from uuid import UUID
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import select
+from sqlalchemy import event, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from alembic import command
@@ -24,6 +26,7 @@ from ladle.auth.sessions import SessionService
 from ladle.auth.tokens import AccessTokenCodec, RefreshTokenCodec
 from ladle.db.models import ObjectDeletionQueue, User
 from ladle.db.session import build_engine
+from ladle.privacy.retention import ObjectDeletionProcessor
 from tests.fakes.object_storage import FakeObjectStorage
 from tests.integration.test_migrations import alembic_config
 
@@ -175,6 +178,58 @@ def test_uploading_a_photo_stores_it_and_serves_a_signed_url(
         expires_in=timedelta(hours=6),
     )
     assert GOOGLE_PICTURE not in profile["avatarURL"]
+    assert _queued(clean_postgres_url) == {}, "a saved avatar must not be reaped"
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("failure_at", ["upload", "commit"])
+def test_an_unfinished_avatar_upload_is_eventually_deleted(
+    clean_postgres_url: str,
+    failure_at: str,
+) -> None:
+    app, storage, _ = _build(clean_postgres_url)
+    with TestClient(app, raise_server_exceptions=False) as client:
+        tokens = _guest(client)
+        original_put = storage.put
+
+        def interrupted_put(key: str, data: bytes, *, content_type: str) -> None:
+            original_put(key, data, content_type=content_type)
+            if failure_at == "upload":
+                raise RuntimeError("upload response lost after storage accepted it")
+
+        def failed_commit(session: Session) -> None:
+            if failure_at == "commit" and any(
+                isinstance(value, User) and value.avatar_object_key is not None
+                for value in session.identity_map.values()
+            ):
+                raise RuntimeError("avatar commit failed")
+
+        event.listen(Session, "before_commit", failed_commit)
+        try:
+            with patch.object(storage, "put", side_effect=interrupted_put):
+                response = client.put(
+                    "/v1/auth/avatar",
+                    content=JPEG,
+                    headers={
+                        **JPEG_HEADERS,
+                        "Authorization": f"Bearer {tokens['accessToken']}",
+                    },
+                )
+        finally:
+            event.remove(Session, "before_commit", failed_commit)
+
+    assert response.status_code == 500
+    key = next(iter(storage.objects))
+    assert _queued(clean_postgres_url) == {key: "unreferencedAvatar"}
+    clock = app.state.clock
+    processor = ObjectDeletionProcessor(clock=clock, maximum_attempts=5)
+    with app.state.session_factory.begin() as database:
+        assert database.get(User, UUID(tokens["userID"])).avatar_object_key is None
+        assert processor.process(database, storage=storage) == 0
+    clock.value += timedelta(hours=2)
+    with app.state.session_factory.begin() as database:
+        assert processor.process(database, storage=storage) == 1
+    assert storage.objects == {}
 
 
 @pytest.mark.integration
