@@ -76,8 +76,15 @@ recipes          id, user_id, title, description, creator_name, source,
                  servings, review_status (ready|needs_review),
                  nutrition jsonb, uncertainties jsonb,
                  image_key (object storage), deleted_at, created_at, updated_at
-ingredients      id, recipe_id, order_index, quantity_text, unit, name,
+ingredients      id, recipe_id, order_index, normalized_quantity, unit,
+                 name, preparation, is_to_taste, quantity_text,
                  uncertainty jsonb
+                 an ingredient is a number, a unit and a name, and the app
+                 renders a row from those three. is_to_taste is the one
+                 honest exception — "salt to taste", or a caption that named
+                 a food and no amount — and is the only way a row reaches a
+                 cook without a number. quantity_text is what the creator
+                 said, kept as a note that nothing prints
 steps            id, recipe_id, order_index, instruction,
                  ingredient_ids uuid[], uncertainty jsonb
 recipe_tags      recipe_id, family (diet|cuisine|keyword), value
@@ -97,10 +104,25 @@ the extraction prompt is rendered from them, `RecipeDTO` is typed by them,
 and the Discover query parameters validate against them. Changing a list
 changes the prompt, so `PROMPT_VERSION` has to move with it.
 
-Field names on the wire are the `LadleCore` names (`quantityText`,
-`servingBasis`, `isEstimated`, `FieldUncertainty{field, reason, confidence}`,
-…). Generate the OpenAPI schema from Pydantic models copied 1:1 from
+Field names on the wire are the `LadleCore` names (`normalizedQuantity`,
+`isToTaste`, `servingBasis`, `isEstimated`,
+`FieldUncertainty{field, reason, confidence}`, …). Generate the OpenAPI
+schema from Pydantic models copied 1:1 from
 `Packages/LadleCore/Sources/LadleCore/*.swift` and keep them in lockstep.
+
+`IngredientDTO` enforces the ingredient's shape rather than trusting each
+writer to remember it (`ladle/contracts/recipes.py`, `enforce_quantity`).
+Every write passes through the type — extraction instantiating a template,
+the repository reading a row back, a cook's edit arriving as a PUT — so on
+the way in an amount stated only in `quantity_text` is split out of it
+(`ladle/contracts/quantities.py`, which also holds the fraction notation
+extraction accepts), and where nothing parses the ingredient is flagged
+`is_to_taste` rather than left with a phantom quantity. The templates the
+nutrition normalizer reads are deliberately outside this: flagging an
+unquantified ingredient there would drop it out of the calorie total, and
+having no amount to render is not a claim about what it weighs.
+`ladle.admin.backfill_ingredient_quantities` applies the same derivation to
+recipes stored before the rule.
 
 `canonical_url` = normalized URL (strip tracking params, resolve short links,
 lowercase host). Unique index on `(user_id, canonical_url)` powers the
@@ -184,8 +206,10 @@ Each stage writes progress to `import_jobs` so a crash resumes cleanly.
 7. **Nutrition estimate.** §8. Always `isEstimated: true`.
 8. **Review gate.** Any field confidence < 0.7, or missing quantities on >30%
    of ingredients → `needsReview` with `uncertainties[]` populated
-   (`FieldUncertainty(field: "ingredients[0].quantityText", reason, confidence)`
-   — same shape the editor already renders). Else `ready`.
+   (`FieldUncertainty(field: "ingredients[0].quantity", reason, confidence)`
+   — same shape the editor already renders). Else `ready`. The gate reads the
+   raw extraction, before `IngredientDTO` derives anything, so a missing
+   amount still counts as missing rather than being folded into `isToTaste`.
 8. **Persist** recipe + flip job status atomically.
 
 `correctionNotes` / `pastedText` (from `CorrectionNotesView`) get appended to
