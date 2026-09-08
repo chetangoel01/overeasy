@@ -554,10 +554,11 @@ final class LibraryViewModel {
 
     /// The same, minus the diet.
     ///
-    /// A diet is ambient — it survives launches — so anything that hides
-    /// itself while a filter is on has to ignore it, or choosing a diet
-    /// once would hide that thing forever. The Collections card is the one
-    /// that does: it stays, counted through the diet.
+    /// A diet is ambient — it is who the cook is, and it survives launches
+    /// — so anything that hides itself while a filter is on has to ignore
+    /// it, or answering the onboarding question would hide that thing
+    /// forever. The Collections card is the one that does: it stays,
+    /// counted through the diet.
     var hasBrowsingFilters: Bool {
         favoritesOnly
             || maximumTotalMinutes != nil
@@ -565,15 +566,16 @@ final class LibraryViewModel {
             || minimumProtein != nil
             || maximumCarbohydrates != nil
             || maximumFat != nil
-            || filters.filter.hasBrowsingFilters
+            || filters.browsingFilter.hasBrowsingFilters
     }
 
-    /// Clears the diet along with the rest. It is asked for explicitly, from
-    /// a destructive row the cook chose — the persistence is there so a diet
-    /// survives *neglect*, not so it survives being cleared.
+    /// Puts the diet down along with the rest, but does not throw it away.
+    /// Clear is how a cook empties a screen that a filter emptied, and the
+    /// diet may well be what emptied it — but the diet is set in Profile,
+    /// and a Clear that deleted it would make this a second place to set it.
     func resetFilters() {
         resetLibraryFilters()
-        filters.filter.clear()
+        filters.clearFilters()
     }
 
     private func resetLibraryFilters() {
@@ -593,7 +595,7 @@ final class LibraryViewModel {
         searchText = ""
         sort = .recentlyAdded
         resetLibraryFilters()
-        filters.filter.clearBrowsingFilters()
+        filters.browsingFilter.clear()
     }
 
     func clearOperationError() {

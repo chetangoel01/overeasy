@@ -116,7 +116,7 @@ final class LibraryViewModelTests: XCTestCase {
         viewModel.load()
         XCTAssertEqual(viewModel.visibleRecipes.count, 6)
 
-        viewModel.filters.filter.diets = [.vegetarian]
+        viewModel.filters.diets = [.vegetarian]
 
         XCTAssertEqual(
             viewModel.visibleRecipes.map(\.title),
@@ -143,13 +143,13 @@ final class LibraryViewModelTests: XCTestCase {
             "Quick, favorited and uncooked, all vegetarian"
         )
 
-        viewModel.filters.filter.cuisines = [.japanese]
+        viewModel.filters.browsingFilter.cuisines = [.japanese]
         XCTAssertEqual(
             viewModel.visibleRecipes.map(\.title),
             ["Brown Butter Miso Cookies", "15-Minute Garlic Butter Udon"]
         )
 
-        viewModel.filters.filter.addIngredient("miso")
+        viewModel.filters.browsingFilter.addIngredient("miso")
         XCTAssertEqual(
             viewModel.visibleRecipes.map(\.title),
             ["Brown Butter Miso Cookies"]
@@ -157,7 +157,8 @@ final class LibraryViewModelTests: XCTestCase {
     }
 
     /// Opening a collection is a fresh browse, not a fresh cook. The diet
-    /// stays; the reset row in the menu is the thing that takes it off.
+    /// stays — and stays even through Clear filters, which puts it down for
+    /// this launch rather than throwing away something set in Profile.
     func testOpeningACollectionKeepsTheDietAndDropsTheBrowsingFilters() {
         let viewModel = LibraryViewModel(
             repository: LibraryTestRepository(
@@ -166,8 +167,8 @@ final class LibraryViewModelTests: XCTestCase {
             preferenceStore: LibraryTestPreferenceStore()
         )
         viewModel.load()
-        viewModel.filters.filter.diets = [.vegetarian]
-        viewModel.filters.filter.keywords = [.dessert]
+        viewModel.filters.diets = [.vegetarian]
+        viewModel.filters.browsingFilter.keywords = [.dessert]
 
         viewModel.showCollection(.favorites)
 
@@ -176,7 +177,16 @@ final class LibraryViewModelTests: XCTestCase {
 
         viewModel.resetFilters()
 
-        XCTAssertTrue(viewModel.filters.filter.isEmpty)
+        XCTAssertTrue(
+            viewModel.filters.filter.isEmpty,
+            "Clear filters empties the screen's filter, diet included"
+        )
+        XCTAssertEqual(
+            viewModel.filters.diets,
+            [.vegetarian],
+            "But the cook still has a diet — it is only paused"
+        )
+        XCTAssertTrue(viewModel.filters.isDietPaused)
     }
 
     func testCollectionAndMacroFiltersComposeInAllRecipes() {

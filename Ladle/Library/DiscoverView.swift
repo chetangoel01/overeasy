@@ -720,7 +720,7 @@ struct DiscoverView: View {
             Text("Nothing in Discover matches \(filters.filter.summary).")
         } actions: {
             Button("Clear filters") {
-                filters.filter.clear()
+                filters.clearFilters()
             }
             .buttonStyle(LadleButtonStyle(role: .secondary))
         }

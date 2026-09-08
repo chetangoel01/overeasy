@@ -64,6 +64,14 @@ struct RootView: View {
                     accountSession.completeNameStep()
                 }
                 .transition(.opacity)
+            } else if accountSession.shouldPresentDietStep {
+                // After the name, before the walkthrough: the two questions
+                // about the cook come together, and the walkthrough that
+                // follows is about the app.
+                DietStepView(filters: libraryViewModel.filters) {
+                    accountSession.completeDietStep()
+                }
+                .transition(.opacity)
             } else if accountSession.shouldPresentWalkthrough {
                 OnboardingWalkthroughView {
                     accountSession.completeWalkthrough()
@@ -97,6 +105,10 @@ struct RootView: View {
         .animation(
             reduceMotion ? nil : .easeOut(duration: 0.2),
             value: accountSession.shouldPresentNameStep
+        )
+        .animation(
+            reduceMotion ? nil : .easeOut(duration: 0.2),
+            value: accountSession.shouldPresentDietStep
         )
         .animation(
             reduceMotion ? nil : .easeOut(duration: 0.2),

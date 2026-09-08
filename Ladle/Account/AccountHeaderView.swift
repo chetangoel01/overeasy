@@ -1,3 +1,4 @@
+import LadleCore
 import PhotosUI
 import SwiftUI
 
@@ -414,6 +415,8 @@ struct AccountHeaderView: View {
 
             factsLine
                 .padding(.top, LadleTheme.Spacing.tight)
+
+            dietControl
         }
         .padding(.horizontal, LadleTheme.Layout.sheetMargin)
     }
@@ -429,6 +432,11 @@ struct AccountHeaderView: View {
 
             factsLine
                 .padding(.top, LadleTheme.Spacing.tight)
+
+            // A guest eats the same way a signed-in cook does, and was asked
+            // the same question on the way in, so this is not one of the
+            // things that waits for an account.
+            dietControl
         }
         .padding(.horizontal, LadleTheme.Layout.sheetMargin)
     }
@@ -447,6 +455,58 @@ struct AccountHeaderView: View {
         .multilineTextAlignment(.center)
         .fixedSize(horizontal: false, vertical: true)
         .accessibilityIdentifier("account.profile.facts")
+    }
+
+    /// The cook's diet, under their name, because that is what it is: a fact
+    /// about them rather than a filter they are running. This is the only
+    /// place it changes after onboarding — the filter menu can put it down
+    /// for an evening and nothing more — so it offers the whole vocabulary,
+    /// the way the step that first asked did.
+    private var dietControl: some View {
+        Menu {
+            ForEach(DietTag.allCases, id: \.self) { diet in
+                Toggle(diet.title, isOn: dietBinding(diet))
+            }
+            if library.filters.hasDiet {
+                Divider()
+                Button("I eat everything") { library.filters.diets = [] }
+            }
+        } label: {
+            LadlePill(
+                text: dietTitle,
+                systemImage: "fork.knife",
+                tint: LadleTheme.Surface.badge
+            )
+            .frame(minHeight: LadleTheme.Control.hitTarget)
+            .contentShape(Rectangle())
+        }
+        .menuOrder(.fixed)
+        .buttonStyle(LadlePressButtonStyle())
+        .accessibilityLabel("Diet")
+        .accessibilityValue(dietTitle)
+        .accessibilityHint("Change the diet Overeasy keeps in mind")
+        .accessibilityIdentifier("account.profile.diet")
+    }
+
+    /// An invitation rather than "None": a cook who skipped the question on
+    /// the way in should be able to see that it is still open.
+    private var dietTitle: String {
+        library.filters.hasDiet
+            ? library.filters.diets.dietTitle
+            : "Add a diet"
+    }
+
+    private func dietBinding(_ diet: DietTag) -> Binding<Bool> {
+        Binding(
+            get: { library.filters.diets.contains(diet) },
+            set: { isOn in
+                if isOn {
+                    library.filters.diets.insert(diet)
+                } else {
+                    library.filters.diets.remove(diet)
+                }
+            }
+        )
     }
 
     @ViewBuilder
