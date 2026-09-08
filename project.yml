@@ -3,7 +3,7 @@ name: Ladle
 options:
   minimumXcodeGenVersion: 2.46.0
   deploymentTarget:
-    iOS: "26.5"
+    iOS: "26.0"
   groupSortPosition: top
 
 settings:
