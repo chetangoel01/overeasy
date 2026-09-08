@@ -238,8 +238,10 @@ cannot construct contradictory product states.
   item's attributed text. The backend canonicalizes the direct and share-link
   forms emitted by Instagram, TikTok, and YouTube.
 
-See [the Ladle v1 verification record](docs/verification/2026-07-23-ladle-v1.md)
-for the command results and screen-by-screen visual review.
+See [the September 8 UI audit](docs/verification/2026-09-08-ui-audit.md)
+for the current screen coverage, prioritized findings, and screenshot gallery.
+The [Ladle v1 verification record](docs/verification/2026-07-23-ladle-v1.md)
+preserves the initial command results and visual review.
 
 See the
 [production backend verification record](docs/verification/2026-07-23-ladle-backend.md)
