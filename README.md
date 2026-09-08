@@ -239,7 +239,8 @@ cannot construct contradictory product states.
   forms emitted by Instagram, TikTok, and YouTube.
 
 See [the September 8 UI audit](docs/verification/2026-09-08-ui-audit.md)
-for the current screen coverage, prioritized findings, and screenshot gallery.
+for the current screen coverage, prioritized findings, Apple HIG assessment,
+and screenshot gallery.
 The [Ladle v1 verification record](docs/verification/2026-07-23-ladle-v1.md)
 preserves the initial command results and visual review.
 
