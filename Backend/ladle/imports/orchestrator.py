@@ -11,7 +11,6 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from ladle.acquisition.errors import (
     PrivateOrDeleted,
-    ProviderTransientError,
     ProviderUnavailable,
 )
 from ladle.acquisition.models import (
@@ -41,6 +40,7 @@ from ladle.extraction.evidence_gate import (
 )
 from ladle.extraction.protocol import RecipeExtractor, RecipeVerifier
 from ladle.extraction.verification import verification_evidence
+from ladle.imports.failures import is_retryable_import_failure
 from ladle.imports.thumbnails import OEmbedThumbnailFetcher, ThumbnailAsset
 from ladle.imports.transitions import ImportTransitionService
 from ladle.nutrition.creator import apply_creator_facts
@@ -259,6 +259,8 @@ class ImportOrchestrator:
                         job_id=job_id,
                     )
             except (ProviderUnavailable, UsageLimitExceeded) as error:
+                if is_retryable_import_failure(error):
+                    raise
                 if self._transitions is None:
                     raise
                 self._fail_terminal(
@@ -386,14 +388,77 @@ class ImportOrchestrator:
                         and context.thumbnail_url.startswith("https://")
                         else None
                     )
-        except (
-            ExtractionUnavailable,
-            InsufficientTextEvidence,
-            PrivateOrDeleted,
-            ProviderUnavailable,
-            UsageLimitExceeded,
-        ) as error:
-            if self._transitions is None:
+            with self._sessions.begin() as database:
+                if bypass_cache:
+                    assert self._private_completion is not None
+                    job = database.execute(
+                        select(ImportJob)
+                        .where(ImportJob.id == job_id)
+                        .with_for_update()
+                    ).scalar_one()
+                    if job.status != "parsing":
+                        return self._outcome(
+                            ProcessOutcome.ALREADY_COMPLETED,
+                            status=job.status,
+                            source=job.source,
+                        )
+                    promoted = self._private_completion.complete_private_for_job(
+                        database,
+                        job=job,
+                        template=template,
+                        thumbnail_object_key=thumbnail_key,
+                        thumbnail_remote_url=thumbnail_remote_url,
+                    )
+                    self._cancel_thumbnail_discard(database, thumbnail_key)
+                    return self._outcome(
+                        (
+                            ProcessOutcome.PRIVATE_COMPLETED
+                            if promoted
+                            else ProcessOutcome.PRIVATE_NEEDS_REVIEW
+                        ),
+                        status=job.status,
+                        source=job.source,
+                    )
+                self._maintenance.confirm_public(
+                    database,
+                    source_video_id=descriptor.source_video_id,
+                )
+                assert claim is not None
+                self._cache.complete_shared(
+                    database,
+                    claim=claim,
+                    template=template,
+                    contract_version=self._extractor.contract_version,
+                    prompt_version=self._extractor.prompt_version,
+                    model_id=self._extractor.model_id,
+                    thumbnail_object_key=thumbnail_key,
+                    thumbnail_remote_url=thumbnail_remote_url,
+                    counts=context.counts,
+                )
+                self._cancel_thumbnail_discard(database, thumbnail_key)
+            return self._outcome(
+                ProcessOutcome.COMPLETED,
+                status=template.review_status.value,
+                source=descriptor.platform,
+            )
+        except Exception as error:
+            terminal = isinstance(
+                error,
+                (
+                    ExtractionUnavailable,
+                    InsufficientTextEvidence,
+                    PrivateOrDeleted,
+                    ProviderUnavailable,
+                    UsageLimitExceeded,
+                ),
+            ) and not is_retryable_import_failure(error)
+            if not terminal or self._transitions is None:
+                # A retry must acquire a fresh claim, not become a follower of
+                # the attempt that just stopped. The lease version prevents
+                # this cleanup from releasing a successor's claim.
+                if isinstance(claim, ClaimLease):
+                    with self._sessions.begin() as database:
+                        self._cache.abandon_claim(database, claim)
                 raise
             self._fail_terminal(
                 job_id=job_id,
@@ -407,58 +472,6 @@ class ImportOrchestrator:
                 status="failed",
                 source=descriptor.platform,
             )
-
-        with self._sessions.begin() as database:
-            if bypass_cache:
-                assert self._private_completion is not None
-                job = database.execute(
-                    select(ImportJob).where(ImportJob.id == job_id).with_for_update()
-                ).scalar_one()
-                if job.status != "parsing":
-                    return self._outcome(
-                        ProcessOutcome.ALREADY_COMPLETED,
-                        status=job.status,
-                        source=job.source,
-                    )
-                promoted = self._private_completion.complete_private_for_job(
-                    database,
-                    job=job,
-                    template=template,
-                    thumbnail_object_key=thumbnail_key,
-                    thumbnail_remote_url=thumbnail_remote_url,
-                )
-                self._cancel_thumbnail_discard(database, thumbnail_key)
-                return self._outcome(
-                    (
-                        ProcessOutcome.PRIVATE_COMPLETED
-                        if promoted
-                        else ProcessOutcome.PRIVATE_NEEDS_REVIEW
-                    ),
-                    status=job.status,
-                    source=job.source,
-                )
-            self._maintenance.confirm_public(
-                database,
-                source_video_id=descriptor.source_video_id,
-            )
-            assert claim is not None
-            self._cache.complete_shared(
-                database,
-                claim=claim,
-                template=template,
-                contract_version=self._extractor.contract_version,
-                prompt_version=self._extractor.prompt_version,
-                model_id=self._extractor.model_id,
-                thumbnail_object_key=thumbnail_key,
-                thumbnail_remote_url=thumbnail_remote_url,
-                counts=context.counts,
-            )
-            self._cancel_thumbnail_discard(database, thumbnail_key)
-        return self._outcome(
-            ProcessOutcome.COMPLETED,
-            status=template.review_status.value,
-            source=descriptor.platform,
-        )
 
     def _outcome(
         self,
@@ -550,9 +563,6 @@ class ImportOrchestrator:
             diagnostic_code = "insufficientTextEvidence"
         elif isinstance(error, UsageLimitExceeded):
             failure_reason = "quotaExceeded"
-            diagnostic_code = type(error).__name__
-        elif isinstance(error, ProviderTransientError):
-            failure_reason = "networkUnavailable"
             diagnostic_code = type(error).__name__
         else:
             failure_reason = "parserUnavailable"

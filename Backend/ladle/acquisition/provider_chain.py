@@ -25,6 +25,10 @@ from ladle.acquisition.models import (
     VisualEvidence,
 )
 from ladle.acquisition.search import SparseTextEnricher
+from ladle.extraction.evidence_gate import (
+    InsufficientTextEvidence,
+    require_recipe_evidence,
+)
 from ladle.observability.metrics import MetricsRegistry
 from ladle.observability.structured_logging import log_context
 from ladle.usage.circuit import CircuitBreaker, CircuitOpen
@@ -150,12 +154,17 @@ class ProviderChain:
         job_id: UUID,
     ) -> AcquiredVideoContext:
         diagnostics: list[str] = []
-        free = self._free_context(source, job_id=job_id, diagnostics=diagnostics)
+        failures: list[ProviderUnavailable] = []
+        free = self._free_context(
+            source, job_id=job_id, diagnostics=diagnostics, failures=failures
+        )
         documents = free.linked_documents
 
         # TikTok names the kind in the URL; Instagram only reveals it once the
         # embed has been read. Either is enough to stop here.
         if MediaKind.PHOTO in {source.media_kind, free.media_kind}:
+            if free.metadata is None and failures:
+                raise failures[-1]
             return self._photo_context(
                 source,
                 free=free,
@@ -173,7 +182,8 @@ class ProviderChain:
                 )
             except PrivateOrDeleted:
                 raise
-            except (CircuitOpen, ProviderUnavailable):
+            except ProviderUnavailable as error:
+                failures.append(error)
                 metadata = MediaMetadata(description="")
                 diagnostics.append("metadataUnavailable")
         if metadata is None:
@@ -218,6 +228,7 @@ class ProviderChain:
                 media_url=free.audio_url or free.media_url,
                 media_headers=free.audio_headers,
                 diagnostics=diagnostics,
+                failures=failures,
             )
             if transcript is not None:
                 context = self._context(
@@ -238,6 +249,7 @@ class ProviderChain:
                 mode="auto",
                 diagnostic="supadataTranscriptUnavailable",
                 diagnostics=diagnostics,
+                failures=failures,
             )
         if transcript is None and self._fallback is not None:
             fallback = self._fallback
@@ -251,7 +263,8 @@ class ProviderChain:
                 )
             except PrivateOrDeleted:
                 raise
-            except ProviderUnavailable:
+            except ProviderUnavailable as error:
+                failures.append(error)
                 diagnostics.append("soscriptedUnavailable")
 
         result = self._context(
@@ -268,7 +281,8 @@ class ProviderChain:
         ):
             try:
                 server = self._server_fallback.acquire(source, job_id=job_id)
-            except ProviderUnavailable:
+            except ProviderUnavailable as error:
+                failures.append(error)
                 result.diagnostics.append("serverFallbackUnavailable")
             else:
                 result.transcript.extend(server.transcript)
@@ -281,13 +295,25 @@ class ProviderChain:
                     "openrouterSearch",
                     lambda: search.enrich(result, job_id=job_id),
                 )
-            except (CircuitOpen, ProviderUnavailable):
+            except ProviderUnavailable as error:
+                failures.append(error)
                 result.diagnostics.append("creatorSearchUnavailable")
             else:
                 result.linked_documents.extend(documents)
                 result.diagnostics.append(
                     "creatorSearchUsed" if documents else "creatorSearchNoMatch"
                 )
+        transient = next(
+            (error for error in failures if isinstance(error, ProviderTransientError)),
+            None,
+        )
+        if transient is not None:
+            try:
+                # Use the actual gate: a caption without quantities may still
+                # carry a method and should survive an optional provider outage.
+                require_recipe_evidence(result)
+            except InsufficientTextEvidence:
+                raise transient from None
         return result
 
     def _photo_context(
@@ -335,6 +361,7 @@ class ProviderChain:
         *,
         job_id: UUID,
         diagnostics: list[str],
+        failures: list[ProviderUnavailable],
     ) -> FreeContext:
         if self._free is None:
             return FreeContext()
@@ -342,7 +369,8 @@ class ProviderChain:
             free = self._free.acquire(source, job_id=job_id)
         except PrivateOrDeleted:
             raise
-        except ProviderUnavailable:
+        except ProviderUnavailable as error:
+            failures.append(error)
             diagnostics.append("freeAcquirerUnavailable")
             return FreeContext()
         diagnostics.extend(free.diagnostics)
@@ -358,6 +386,7 @@ class ProviderChain:
         media_url: str | None,
         media_headers: Mapping[str, str] | None,
         diagnostics: list[str],
+        failures: list[ProviderUnavailable],
     ) -> TranscriptResult | None:
         if self._audio is None:
             return None
@@ -374,7 +403,9 @@ class ProviderChain:
             )
         except PrivateOrDeleted:
             raise
-        except (CircuitOpen, TranscriptUnavailable, ProviderUnavailable):
+        except (TranscriptUnavailable, ProviderUnavailable) as error:
+            if isinstance(error, ProviderUnavailable):
+                failures.append(error)
             diagnostics.append("audioTranscriptionUnavailable")
             return None
         diagnostics.append("audioTranscriptionUsed")
@@ -388,6 +419,7 @@ class ProviderChain:
         mode: str,
         diagnostic: str,
         diagnostics: list[str],
+        failures: list[ProviderUnavailable],
     ) -> TranscriptResult | None:
         if self._primary is None:
             return None
@@ -403,7 +435,9 @@ class ProviderChain:
             )
         except PrivateOrDeleted:
             raise
-        except (CircuitOpen, TranscriptUnavailable, ProviderUnavailable):
+        except (TranscriptUnavailable, ProviderUnavailable) as error:
+            if isinstance(error, ProviderUnavailable):
+                failures.append(error)
             diagnostics.append(diagnostic)
             return None
 
@@ -416,9 +450,9 @@ class ProviderChain:
         if self._circuits is not None:
             try:
                 self._circuits.before_call(provider)
-            except CircuitOpen:
+            except CircuitOpen as error:
                 self._record_provider(provider, "circuitOpen")
-                raise
+                raise ProviderTransientError("provider circuit is open") from error
         with log_context(provider=provider):
             try:
                 result = operation()
