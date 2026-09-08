@@ -129,6 +129,17 @@ struct RecipeNutritionSummary: View {
                             .padding(.vertical, 4)
                             .background(LadleTheme.Surface.steel, in: Capsule())
                     }
+                    if displayed.approximate {
+                        // The estimate is also short by an ingredient; the
+                        // sheet names which.
+                        Text("Partial")
+                            .ladleFont(.metadata)
+                            .foregroundStyle(accent.label)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(LadleTheme.Surface.steel, in: Capsule())
+                            .accessibilityLabel("Partial: some ingredients were not counted")
+                    }
                     Spacer()
                     Image(systemName: "chevron.right")
                         .font(.system(size: LadleTheme.IconSize.small, weight: .semibold))

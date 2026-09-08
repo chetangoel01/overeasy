@@ -324,7 +324,8 @@ struct HealthExportSheet: View {
     private func metricText(_ metric: HealthExportMetric) -> String {
         ladleApproximate(
             "\(decimalText(metric.amount)) \(metric.kind.unitSymbol)",
-            when: metric.kind == .calories && viewModel.payload.approximate
+            when: metric.kind == .calories
+                && (viewModel.payload.isEstimated || viewModel.payload.approximate)
         )
     }
 

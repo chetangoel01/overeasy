@@ -103,6 +103,9 @@ final class NutritionNoteTests: XCTestCase {
 
     func testAnEstimateThatCountedEverythingKeepsABareFigure() {
         XCTAssertEqual(estimated.ladleCalorieText, "520")
+        // The sheet, Health export and Watch feed keep the marker on every
+        // estimate, as they always did; cards reserve it for a short count.
+        XCTAssertEqual(estimated.ladleEstimatedCalorieText, "≈ 520")
     }
 
     func testThereIsNoFigureToMarkWithoutCalories() {

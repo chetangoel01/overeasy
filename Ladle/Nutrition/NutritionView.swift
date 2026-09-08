@@ -289,7 +289,7 @@ struct NutritionView: View {
     }
 
     private var calorieText: String {
-        displayedNutrition.ladleCalorieText ?? "—"
+        displayedNutrition.ladleEstimatedCalorieText ?? "—"
     }
 
     /// The hero read aloud. VoiceOver announces "≈" as a symbol, so the
@@ -300,7 +300,7 @@ struct NutritionView: View {
             return "Calories unavailable"
         }
         let number = ladleNumber(calories, maximumFractionDigits: 0)
-        return displayedNutrition.approximate
+        return displayedNutrition.isEstimated || displayedNutrition.approximate
             ? "About \(number) calories"
             : "\(number) calories"
     }

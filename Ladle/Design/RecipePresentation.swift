@@ -6,8 +6,9 @@ extension Nutrition {
         servingBasis > 0 ? scaled(toServings: 1) : nil
     }
 
-    /// The calorie figure as every surface prints it: whole, and marked when
-    /// the totals left an ingredient out.
+    /// The calorie figure as a card or the metadata band prints it: whole,
+    /// and marked only when the totals left an ingredient out. Cards never
+    /// carried the estimate marker, and a marker on every card says nothing.
     var ladleCalorieText: String? {
         calories.map {
             ladleApproximate(
@@ -16,16 +17,29 @@ extension Nutrition {
             )
         }
     }
+
+    /// The calorie figure as the nutrition sheet, the Health export and the
+    /// Watch feed print it: marked whenever the number is an estimate at
+    /// all, which is how those surfaces have always read.
+    var ladleEstimatedCalorieText: String? {
+        calories.map {
+            ladleApproximate(
+                ladleNumber($0, maximumFractionDigits: 0),
+                when: isEstimated || approximate
+            )
+        }
+    }
 }
 
-/// Marks a figure whose totals are incomplete.
+/// Marks a figure the cook should not take as exact.
 ///
-/// "≈" says the number is short by an ingredient the pipeline could not
-/// cost — not that it is an estimate. Every calculated panel is an estimate,
-/// so a marker for *that* would sit on all of them and say nothing; the word
-/// "Estimated" carries it on the detail band and the nutrition sheet
-/// instead. Only calories take the marker: it is the number people scan for,
-/// and one caveat on a line reads as a caveat where four read as noise.
+/// "≈" keeps its everyday meaning — an estimate. The sheet, the Health
+/// export and the Watch feed put it on every calculated panel, as they did
+/// before; cards and the metadata band only reach for it when the totals
+/// are also *incomplete*, so a clean card still means a complete count and
+/// the "Partial" pill on the band says which kind of doubt this is. Only
+/// calories take the marker: it is the number people scan for, and one
+/// caveat on a line reads as a caveat where four read as noise.
 ///
 /// The names of what was skipped are not here. They live on the ingredient
 /// rows and in one line on the nutrition sheet, both drawn from the
