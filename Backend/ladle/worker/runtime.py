@@ -509,7 +509,6 @@ def runtime_object_storage() -> S3ObjectStorage | None:
     )
 
 
-@lru_cache(maxsize=1)
 def runtime_acquirer(
     settings: Settings,
     *,
@@ -604,6 +603,7 @@ def runtime_extractor(
     )
 
 
+@lru_cache(maxsize=1)
 def runtime_orchestrator() -> ImportOrchestrator:
     settings = Settings()
     if settings.worker_provider_mode == "disabled":
