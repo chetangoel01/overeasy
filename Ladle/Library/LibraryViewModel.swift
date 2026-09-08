@@ -173,6 +173,9 @@ final class LibraryViewModel {
         // *contains* rather than how it looks, so a run that skipped it
         // would open on a thinned library and blame the seeding.
         RecipeFilterStore.resetPreferences(in: preferenceStore)
+        // And the diet's one consequence: whether this cook has already
+        // been asked about the plant-based icon.
+        AppIconStore.resetPreferences(in: preferenceStore)
     }
 
     var visibleRecipes: [Recipe] {
