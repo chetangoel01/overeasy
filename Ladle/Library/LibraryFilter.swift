@@ -75,9 +75,22 @@ enum LibraryFilter: CaseIterable {
 /// for the value, and the way to take it off again.
 struct LibraryFilterChip: Identifiable {
     let title: String
+    /// What tapping the ✕ actually does, where that is not simply "takes
+    /// this filter off" — the diet, which is paused rather than deleted.
+    var hint: String?
     let remove: () -> Void
 
     var id: String { title }
+
+    init(
+        title: String,
+        hint: String? = nil,
+        remove: @escaping () -> Void
+    ) {
+        self.title = title
+        self.hint = hint
+        self.remove = remove
+    }
 
     /// Built here rather than in the view so the menu's wording and the
     /// pills' wording are testable as the one thing they are.
@@ -100,6 +113,13 @@ struct LibraryFilterChip: Identifiable {
                 )
             )
         }
+        // Diet first, ahead of the library's own dimensions: it is the one
+        // filter that was still on when the app opened, so it is the one a
+        // cook is most likely to be looking for an explanation of.
+        chips.insert(
+            contentsOf: Self.chips(for: viewModel.filters),
+            at: 0
+        )
         for (filter, value, remove) in numericFilters(of: viewModel) {
             guard let value else { continue }
             chips.append(

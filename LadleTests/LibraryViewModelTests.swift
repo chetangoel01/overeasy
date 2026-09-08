@@ -103,6 +103,92 @@ final class LibraryViewModelTests: XCTestCase {
         )
     }
 
+    /// Recipes narrows on the tags that travelled with each recipe. There
+    /// is no request here and there must never be one: the library is
+    /// already on the phone.
+    func testTheSharedTagFilterNarrowsTheLibraryLocally() {
+        let viewModel = LibraryViewModel(
+            repository: LibraryTestRepository(
+                recipes: PreviewFixtures.recipes
+            ),
+            preferenceStore: LibraryTestPreferenceStore()
+        )
+        viewModel.load()
+        XCTAssertEqual(viewModel.visibleRecipes.count, 6)
+
+        viewModel.filters.diets = [.vegetarian]
+
+        XCTAssertEqual(
+            viewModel.visibleRecipes.map(\.title),
+            [
+                "Brown Butter Miso Cookies",
+                "Whipped Ricotta Toast, Hot Honey",
+                "15-Minute Garlic Butter Udon",
+                "One-Pot Lemon Orzo with Feta",
+            ]
+        )
+        XCTAssertTrue(viewModel.hasActiveFilters)
+
+        // Watch's "My Recipes" feed is the same library, so it answers the
+        // same filter rather than being the one screen that ignores it.
+        XCTAssertEqual(viewModel.watchRecipes.count, 4)
+
+        // The collections stay — a diet is ambient, not a browse — and they
+        // count through it, or a row would promise recipes its own screen
+        // then refused to show.
+        XCTAssertFalse(viewModel.hasBrowsingFilters)
+        XCTAssertEqual(
+            viewModel.collectionRows.map(\.count),
+            [2, 1, 4],
+            "Quick, favorited and uncooked, all vegetarian"
+        )
+
+        viewModel.filters.browsingFilter.cuisines = [.japanese]
+        XCTAssertEqual(
+            viewModel.visibleRecipes.map(\.title),
+            ["Brown Butter Miso Cookies", "15-Minute Garlic Butter Udon"]
+        )
+
+        viewModel.filters.browsingFilter.addIngredient("miso")
+        XCTAssertEqual(
+            viewModel.visibleRecipes.map(\.title),
+            ["Brown Butter Miso Cookies"]
+        )
+    }
+
+    /// Opening a collection is a fresh browse, not a fresh cook. The diet
+    /// stays — and stays even through Clear filters, which puts it down for
+    /// this launch rather than throwing away something set in Profile.
+    func testOpeningACollectionKeepsTheDietAndDropsTheBrowsingFilters() {
+        let viewModel = LibraryViewModel(
+            repository: LibraryTestRepository(
+                recipes: PreviewFixtures.recipes
+            ),
+            preferenceStore: LibraryTestPreferenceStore()
+        )
+        viewModel.load()
+        viewModel.filters.diets = [.vegetarian]
+        viewModel.filters.browsingFilter.keywords = [.dessert]
+
+        viewModel.showCollection(.favorites)
+
+        XCTAssertEqual(viewModel.filters.filter.diets, [.vegetarian])
+        XCTAssertTrue(viewModel.filters.filter.keywords.isEmpty)
+
+        viewModel.resetFilters()
+
+        XCTAssertTrue(
+            viewModel.filters.filter.isEmpty,
+            "Clear filters empties the screen's filter, diet included"
+        )
+        XCTAssertEqual(
+            viewModel.filters.diets,
+            [.vegetarian],
+            "But the cook still has a diet — it is only paused"
+        )
+        XCTAssertTrue(viewModel.filters.isDietPaused)
+    }
+
     func testCollectionAndMacroFiltersComposeInAllRecipes() {
         var cookedBurger = PreviewFixtures.recipes[0]
         cookedBurger.lastCookedAt = .now

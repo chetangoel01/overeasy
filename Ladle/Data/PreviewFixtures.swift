@@ -163,6 +163,7 @@ enum PreviewFixtures {
         favorite: Bool = false,
         uncountedIngredient: Int? = nil
     ) -> Recipe {
+        let tags = demoTags(for: slug)
         let recipeID = UUID(uuidString: id)!
         let content = recipeContent(for: slug)
         let (ingredients, uncertainties) = uncounted(
@@ -200,6 +201,9 @@ enum PreviewFixtures {
             ingredients: ingredients,
             steps: content.steps,
             nutrition: content.nutrition,
+            diets: tags.diets,
+            cuisines: tags.cuisines,
+            keywords: tags.keywords,
             isFavorite: favorite,
             uncertainties: uncertainties + timeNotes,
             createdAt: baseDate.addingTimeInterval(
@@ -207,6 +211,33 @@ enum PreviewFixtures {
             ),
             updatedAt: baseDate
         )
+    }
+
+    /// What extraction would have tagged each demo dish with.
+    ///
+    /// The demo service filters on these the way the server filters on the
+    /// real ones, so a UI run that chooses a diet sees the feed actually
+    /// narrow rather than a control that changes nothing. Four of the six
+    /// are vegetarian, which is what makes the choice visible.
+    private static func demoTags(
+        for slug: String
+    ) -> (diets: [DietTag], cuisines: [CuisineTag], keywords: [RecipeKeyword]) {
+        switch slug {
+        case "smash-burgers":
+            ([], [.american], [.comfortFood, .grilling, .highProtein])
+        case "lemon-orzo":
+            ([.vegetarian], [.mediterranean], [.onePot, .weeknight, .pasta])
+        case "garlic-udon":
+            ([.vegetarian], [.japanese], [.weeknight, .budget])
+        case "gochujang-chicken":
+            ([], [.korean], [.sheetPan, .weeknight, .highProtein])
+        case "ricotta-toast":
+            ([.vegetarian], [.italian], [.brunch, .snack, .noCook])
+        case "miso-cookies":
+            ([.vegetarian], [.japanese], [.baking, .dessert])
+        default:
+            ([], [], [])
+        }
     }
 
     /// The notes a recipe carries when its totals skip an ingredient.

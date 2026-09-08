@@ -61,6 +61,86 @@ struct RemoteContractTests {
     }
 
     @Test
+    func taggedFixtureCarriesAllThreeFamiliesAndItsProposals() throws {
+        let dto: RemoteRecipeDTO = try decodeFixture("recipe-ready")
+        let recipe = try dto.recipe()
+
+        #expect(recipe.diets == [.vegetarian])
+        #expect(recipe.cuisines == [.mediterranean])
+        #expect(recipe.keywords == [.onePot, .weeknight])
+        // A proposal is text, not vocabulary, and stays that way on the
+        // client: nothing can filter on it.
+        #expect(recipe.keywordProposals == ["lemony"])
+    }
+
+    @Test
+    func untaggedFixturesArriveEmptyRatherThanUnfiltered() throws {
+        let review: RemoteRecipeDTO = try decodeFixture("recipe-needs-review")
+        let approximate: RemoteRecipeDTO = try decodeFixture(
+            "recipe-approximate-nutrition"
+        )
+
+        for dto in [review, approximate] {
+            let recipe = try dto.recipe()
+            #expect(recipe.diets.isEmpty)
+            #expect(recipe.cuisines.isEmpty)
+            #expect(recipe.keywords.isEmpty)
+            #expect(recipe.keywordProposals.isEmpty)
+        }
+    }
+
+    /// The three ways a tag family can arrive, and the one meaning the
+    /// client takes from all of them. A build that shipped before the
+    /// server grew a keyword must lose the keyword, not the recipe, and a
+    /// response from a server that predates tags entirely must still decode.
+    @Test
+    func absentNullAndUnknownTagsAllDecodeIntoWhatIsKnown() throws {
+        let dto: RemoteRecipeDTO = try decodeFixture("recipe-ready")
+        let encoded = try RemoteContractJSON.encoder().encode(dto)
+        var object = try #require(
+            try JSONSerialization.jsonObject(with: encoded) as? [String: Any]
+        )
+
+        object["diets"] = nil
+        object["cuisines"] = NSNull()
+        object["keywords"] = ["onePot", "tagFromALaterRelease"]
+        object["keywordProposals"] = nil
+
+        let decoded = try RemoteContractJSON.decoder().decode(
+            RemoteRecipeDTO.self,
+            from: try JSONSerialization.data(withJSONObject: object)
+        )
+        let recipe = try decoded.recipe()
+
+        #expect(recipe.diets.isEmpty)
+        #expect(recipe.cuisines.isEmpty)
+        #expect(recipe.keywords == [.onePot])
+        #expect(recipe.keywordProposals.isEmpty)
+    }
+
+    /// The client never edits tags, and the server reads a missing list as
+    /// "leave what is stored". Sending the four keys as explicit nulls is
+    /// what stops a rename — which PUTs the whole recipe — from stripping a
+    /// library of the tags extraction gave it.
+    @Test
+    func writingARecipeSendsNullForEveryTagFamily() throws {
+        let source: RemoteRecipeDTO = try decodeFixture("recipe-ready")
+        let outgoing = RemoteRecipeDTO(
+            recipe: try source.recipe(),
+            revision: source.revision
+        )
+
+        let encoded = try RemoteContractJSON.encode(outgoing)
+        let object = try #require(
+            try JSONSerialization.jsonObject(with: encoded) as? [String: Any]
+        )
+
+        for key in ["diets", "cuisines", "keywords", "keywordProposals"] {
+            #expect(object[key] is NSNull, "\(key) must travel as null")
+        }
+    }
+
+    @Test
     func needsReviewFixturePreservesUncertainty() throws {
         let dto: RemoteRecipeDTO = try decodeFixture("recipe-needs-review")
         let recipe = try dto.recipe()

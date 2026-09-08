@@ -80,6 +80,18 @@ final class DiscoverViewModel {
         }
     }
 
+    /// The shared tag filter, mirrored from `RecipeFilterStore`. Discover
+    /// cannot narrow a page it has already fetched — the server returns
+    /// whole pages and thinning one would break paging — so a change here is
+    /// a new first page, exactly like changing the sort.
+    var filter: RecipeFilter = .none {
+        didSet {
+            guard filter != oldValue else { return }
+            criteriaChanged()
+            scheduleReload(after: .zero)
+        }
+    }
+
     /// Reloading belongs to the criteria changing, not to the view appearing.
     /// It used to hang off `.task(id:)`, which SwiftUI also runs every time
     /// the view comes back — so every switch back to Discover threw the feed
@@ -102,11 +114,13 @@ final class DiscoverViewModel {
 
     init(
         service: any DiscoverServing,
+        filter: RecipeFilter = .none,
         removesSavedRecipeImmediately: Bool = true,
         loadsShelves: Bool = true,
         recordsSeenSources: Bool = true,
         now: @escaping @MainActor () -> Date = { Date() }
     ) {
+        self.filter = filter
         self.service = service
         self.removesSavedRecipeImmediately = removesSavedRecipeImmediately
         self.loadsShelves = loadsShelves
@@ -176,6 +190,7 @@ final class DiscoverViewModel {
                     cursor: 0,
                     query: query,
                     sort: sort,
+                    filter: filter,
                     seenBefore: sessionStartedAt
                 )
             )
@@ -245,6 +260,7 @@ final class DiscoverViewModel {
             cursor: 0,
             query: query,
             sort: sort,
+            filter: filter,
             seenBefore: startedAt,
             recordsImpressions: false
         ) else { return }
@@ -298,6 +314,7 @@ final class DiscoverViewModel {
             cursor: 0,
             query: query,
             sort: sort,
+            filter: filter,
             seenBefore: applied.pin,
             recordsImpressions: true
         )
@@ -338,6 +355,10 @@ final class DiscoverViewModel {
             cursor: 0,
             query: "",
             sort: id.sort,
+            // A rail is the same feed under another order, so it answers
+            // the same filter. A shelf of dishes the cook's diet rules out
+            // would be an advertisement for food they cannot eat.
+            filter: filter,
             maxTotalMinutes: id.maxTotalMinutes,
             limit: DiscoverPaging.shelfSize,
             seenBefore: nil,
@@ -363,6 +384,7 @@ final class DiscoverViewModel {
                 cursor: nextCursor,
                 query: query,
                 sort: sort,
+                filter: filter,
                 // The session's own timestamp, not this moment: a fresh one
                 // here would re-rank against the rows page 1 just recorded
                 // and hand the cook repeats.
@@ -535,6 +557,9 @@ final class DiscoverSaveModel {
 
 struct DiscoverView: View {
     @State private var viewModel: DiscoverViewModel
+    /// The state; the view model holds only a mirror of it, so the feed can
+    /// be tested without a preference store behind it.
+    @Bindable var filters: RecipeFilterStore
     let saveRecipe: (SavedDiscoverRecipe) -> Void
     /// The detail page goes up with the save path behind it, because the page
     /// is pushed by the library and Save there has to be this feed's Save.
@@ -556,13 +581,21 @@ struct DiscoverView: View {
 
     init(
         service: any DiscoverServing,
+        filters: RecipeFilterStore,
         saveRecipe: @escaping (SavedDiscoverRecipe) -> Void,
         openRecipe: @escaping (Recipe, DiscoverSaveModel) -> Void,
         onInitialLoadFailed: @escaping () -> Void = {}
     ) {
+        // Seeded rather than assigned after the fact: a diet held from the
+        // last launch has to be part of the first request, not a reload of
+        // a page that was already wrong.
         _viewModel = State(
-            initialValue: DiscoverViewModel(service: service)
+            initialValue: DiscoverViewModel(
+                service: service,
+                filter: filters.filter
+            )
         )
+        self.filters = filters
         self.saveRecipe = saveRecipe
         self.openRecipe = openRecipe
         self.onInitialLoadFailed = onInitialLoadFailed
@@ -588,14 +621,20 @@ struct DiscoverView: View {
         .textInputAutocapitalization(.never)
         .autocorrectionDisabled()
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
                 sortMenu
+                filterMenu
             }
         }
         .task {
             if viewModel.state == .idle {
                 await viewModel.load()
             }
+        }
+        // The state lives in the store and the feed follows it, so a diet
+        // chosen on Recipes is already applied when Discover comes forward.
+        .onChange(of: filters.filter) { _, filter in
+            viewModel.filter = filter
         }
         .onChange(of: viewModel.state) { _, state in
             reportInitialLoad(state)
@@ -628,12 +667,24 @@ struct DiscoverView: View {
                 }
             }
         } label: {
-            Label(
-                "Sort Discover",
-                systemImage: "line.3.horizontal.decrease"
-            )
+            // Not the filter glyph it used to borrow: there is a real
+            // filter control beside it now, and two lots of the same icon
+            // would say the two buttons did the same thing.
+            Label("Sort Discover", systemImage: "arrow.up.arrow.down")
         }
         .accessibilityIdentifier("discover.sort")
+    }
+
+    private var filterMenu: some View {
+        RecipeFilterMenu(filters: filters) {
+            Label(
+                "Filters",
+                systemImage: filters.filter.isEmpty
+                    ? "line.3.horizontal.decrease"
+                    : "line.3.horizontal.decrease.circle.fill"
+            )
+        }
+        .accessibilityIdentifier("discover.filter")
     }
 
     private var loadingContent: some View {
@@ -662,14 +713,33 @@ struct DiscoverView: View {
         .foregroundStyle(LadleTheme.Label.primary)
     }
 
+    private var filteredOutContent: some View {
+        ContentUnavailableView {
+            SwiftUI.Label("No matching recipes", systemImage: "line.3.horizontal.decrease")
+        } description: {
+            Text("Nothing in Discover matches \(filters.filter.summary).")
+        } actions: {
+            Button("Clear filters") {
+                filters.clearFilters()
+            }
+            .buttonStyle(LadleButtonStyle(role: .secondary))
+        }
+        .foregroundStyle(LadleTheme.Label.primary)
+        .accessibilityIdentifier("discover.no-filter-results")
+    }
+
     @ViewBuilder
     private func loadedContent(_ recipes: [DiscoverRecipe]) -> some View {
         Group {
             if recipes.isEmpty {
-                // The server already applied the query, so an empty page
-                // under an active search is a no-results state, not an
-                // empty feed.
-                if !viewModel.isSearching {
+                // The server already applied both, so an empty page under a
+                // search or a filter is a no-results state rather than an
+                // empty feed — and it has to say which of the two emptied
+                // it, because a diet held from the last launch is invisible
+                // otherwise.
+                if !filters.filter.isEmpty {
+                    filteredOutContent
+                } else if !viewModel.isSearching {
                     emptyContent
                 } else {
                     ContentUnavailableView.search(text: viewModel.query)
@@ -679,6 +749,13 @@ struct DiscoverView: View {
             } else {
                 recipeList(recipes)
             }
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            RecipeFilterChipsRow(
+                chips: LibraryFilterChip.chips(for: filters)
+            )
+            .padding(.horizontal, LadleTheme.Spacing.regular)
+            .padding(.bottom, LadleTheme.Spacing.tight)
         }
         .safeAreaInset(edge: .top, spacing: 0) {
             // One bar, never two. A page waiting to be taken supersedes a

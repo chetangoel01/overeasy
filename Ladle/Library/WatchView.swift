@@ -32,6 +32,11 @@ private struct WatchViewport {
 
 struct WatchView: View {
     @Bindable var viewModel: LibraryViewModel
+    /// The same store the library and Discover read. Watch owns neither
+    /// feed's filtering — "My Recipes" is answered locally by
+    /// `viewModel.watchRecipes`, Discover by the server — but both answer
+    /// this.
+    @Bindable var filters: RecipeFilterStore
     let refreshVersion: Int
     let openSavedRecipe: (Recipe) -> Void
     /// The page goes up with the save path behind it, so Save on the pushed
@@ -50,12 +55,14 @@ struct WatchView: View {
     init(
         viewModel: LibraryViewModel,
         discoverService: any DiscoverServing,
+        filters: RecipeFilterStore,
         refreshVersion: Int,
         openSavedRecipe: @escaping (Recipe) -> Void,
         openDiscoverRecipe: @escaping (Recipe, DiscoverSaveModel) -> Void,
         saveRecipe: @escaping (SavedDiscoverRecipe) -> Void,
     ) {
         self.viewModel = viewModel
+        self.filters = filters
         self.refreshVersion = refreshVersion
         self.openSavedRecipe = openSavedRecipe
         self.openDiscoverRecipe = openDiscoverRecipe
@@ -63,6 +70,7 @@ struct WatchView: View {
         _discoverViewModel = State(
             initialValue: DiscoverViewModel(
                 service: discoverService,
+                filter: filters.filter,
                 removesSavedRecipeImmediately: false,
                 // Watch is a full-screen video feed with no room for a rail
                 // and nothing that would draw one. Loading shelves here would
@@ -85,8 +93,13 @@ struct WatchView: View {
                     discoverContent
                 } else if viewModel.watchRecipes.isEmpty {
                     emptyState(
-                        title: "No saved videos",
-                        message: "Saved video recipes appear here."
+                        title: filters.filter.isEmpty
+                            ? "No saved videos"
+                            : "No matching videos",
+                        message: filteredMessage(
+                            otherwise: "Saved video recipes appear here."
+                        ),
+                        clearFilters: clearFiltersAction
                     )
                 } else {
                     recipeFeed(viewModel.watchRecipes)
@@ -115,6 +128,9 @@ struct WatchView: View {
         .task(id: refreshVersion) {
             await discoverViewModel.load()
         }
+        .onChange(of: filters.filter) { _, filter in
+            discoverViewModel.filter = filter
+        }
         .onChange(of: feed) { _, newFeed in
             visibleRecipeID = nil
             if newFeed == .discover {
@@ -141,8 +157,13 @@ struct WatchView: View {
             )
         case let .loaded(recipes) where recipes.isEmpty:
             emptyState(
-                title: "Nothing new to watch",
-                message: "Saved discoveries stay out of your feed."
+                title: filters.filter.isEmpty
+                    ? "Nothing new to watch"
+                    : "No matching videos",
+                message: filteredMessage(
+                    otherwise: "Saved discoveries stay out of your feed."
+                ),
+                clearFilters: clearFiltersAction
             )
         case let .loaded(recipes):
             recipeFeed(recipes.map(\.watchPreview))
@@ -280,11 +301,24 @@ struct WatchView: View {
         visibleRecipeID ?? recipes.first?.id
     }
 
+    /// An empty feed under a filter has to say so. Watch has no header to
+    /// hang a pill from, so the message is the only place the state shows.
+    private func filteredMessage(otherwise: String) -> String {
+        filters.filter.isEmpty
+            ? otherwise
+            : "Nothing here matches \(filters.filter.summary)."
+    }
+
+    private var clearFiltersAction: (() -> Void)? {
+        filters.filter.isEmpty ? nil : { filters.clearFilters() }
+    }
+
     private func emptyState(
         title: String,
         message: String,
         systemImage: String = "play.rectangle",
-        retry: (() -> Void)? = nil
+        retry: (() -> Void)? = nil,
+        clearFilters: (() -> Void)? = nil
     ) -> some View {
         VStack(spacing: LadleTheme.Spacing.medium) {
             ContentUnavailableView(
@@ -298,6 +332,11 @@ struct WatchView: View {
                     .buttonStyle(
                         LadleButtonStyle(role: .secondary)
                     )
+            }
+
+            if let clearFilters {
+                Button("Clear filters", action: clearFilters)
+                    .buttonStyle(LadleButtonStyle(role: .secondary))
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -363,6 +402,8 @@ struct WatchView: View {
 
             Spacer(minLength: LadleTheme.Spacing.compact)
 
+            filterMenu
+
             if hasPlayableVideo {
                 LadleIconButton(
                     systemImage: isPlaybackPaused ? "play.fill" : "pause.fill",
@@ -401,6 +442,38 @@ struct WatchView: View {
             radius: 6,
             y: 1
         )
+    }
+
+    /// The same control as the other two tabs, drawn for chrome that sits
+    /// on video: a filled glyph when anything is on, which is the only
+    /// indicator a full-screen feed has room for.
+    private var filterMenu: some View {
+        RecipeFilterMenu(filters: filters) {
+            Image(
+                systemName: filters.filter.isEmpty
+                    ? "line.3.horizontal.decrease"
+                    : "line.3.horizontal.decrease.circle.fill"
+            )
+            .font(
+                .system(
+                    size: LadleTheme.IconSize.small,
+                    weight: .semibold
+                )
+            )
+            .frame(
+                width: LadleTheme.Control.hitTarget,
+                height: LadleTheme.Control.hitTarget
+            )
+            .background(
+                .black.opacity(hasPlayableVideo ? 0.48 : 0),
+                in: Circle()
+            )
+        }
+        // `library.watch.…`, not `watch.…`: a page's action button is
+        // `watch.<slug>`, and the UI test that walks the feed finds a page
+        // by that prefix. A control in the same namespace would be the
+        // first thing it found.
+        .accessibilityIdentifier("library.watch.filter")
     }
 
     private var feedPicker: some View {

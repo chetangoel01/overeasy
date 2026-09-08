@@ -104,6 +104,10 @@ final class DiscoverInteractionUITests: XCTestCase {
         app.launchArguments = [
             "-ui-testing",
             "-onboarding-complete",
+            // The one launch here that had no reset. A diet left in the
+            // simulator by another run now survives launches, and the facts
+            // line this asserts counts a filtered library.
+            "-reset-library-preferences",
             "-account-state",
             "signedInWithGoogle",
             "-account-display-name",

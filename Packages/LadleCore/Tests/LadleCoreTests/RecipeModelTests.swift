@@ -4,6 +4,51 @@ import Testing
 
 @Suite("Recipe models")
 struct RecipeModelTests {
+    /// The local library is a stored blob of this type, so its decoder is
+    /// what a build upgrade actually runs. A recipe saved before tags
+    /// existed has to load untagged, and one saved by a build that knew a
+    /// keyword this one does not has to load without it.
+    @Test
+    func storedRecipesLoadAcrossAVocabularyChange() throws {
+        let tagged = Recipe(
+            title: "Stored",
+            source: .tiktok,
+            originalURL: URL(string: "https://example.com/stored")!,
+            servings: 2,
+            diets: [.vegan],
+            keywords: [.onePot],
+            keywordProposals: ["lemony"]
+        )
+
+        let encoded = try JSONEncoder().encode(tagged)
+        var object = try #require(
+            try JSONSerialization.jsonObject(with: encoded) as? [String: Any]
+        )
+        object["keywords"] = ["onePot", "tagFromALaterRelease"]
+        let widened = try JSONDecoder().decode(
+            Recipe.self,
+            from: try JSONSerialization.data(withJSONObject: object)
+        )
+
+        #expect(widened.keywords == [.onePot])
+        #expect(widened.diets == [.vegan])
+        #expect(widened.keywordProposals == ["lemony"])
+
+        object["diets"] = nil
+        object["cuisines"] = nil
+        object["keywords"] = nil
+        object["keywordProposals"] = nil
+        let untagged = try JSONDecoder().decode(
+            Recipe.self,
+            from: try JSONSerialization.data(withJSONObject: object)
+        )
+
+        #expect(untagged.diets.isEmpty)
+        #expect(untagged.cuisines.isEmpty)
+        #expect(untagged.keywords.isEmpty)
+        #expect(untagged.keywordProposals.isEmpty)
+    }
+
     @Test
     func recipeNeedingReviewCannotStartCooking() {
         let recipe = Recipe(

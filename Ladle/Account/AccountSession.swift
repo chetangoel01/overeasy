@@ -70,6 +70,8 @@ final class AccountSession {
         static let walkthroughPending = "ladle.walkthrough.pending"
         static let nameStepComplete = "ladle.nameStep.complete"
         static let nameStepPending = "ladle.nameStep.pending"
+        static let dietStepComplete = "ladle.dietStep.complete"
+        static let dietStepPending = "ladle.dietStep.pending"
         static let accountState = "ladle.account.state"
     }
 
@@ -102,6 +104,12 @@ final class AccountSession {
     /// skipped never is. Only an Apple or Google sign-up is asked: a guest
     /// has no account to put a name on.
     private(set) var shouldPresentNameStep: Bool
+    /// Whether the new cook is still owed the question about their diet.
+    ///
+    /// Kept the way the name step is, and asked of everybody: a guest eats
+    /// the same way a signed-in cook does, and the answer lives on the
+    /// device rather than on an account.
+    private(set) var shouldPresentDietStep: Bool
     private(set) var shouldPresentWalkthrough: Bool
     private(set) var isRemoteSessionReady = false
     private(set) var profile: AccountProfile?
@@ -127,6 +135,8 @@ final class AccountSession {
             store.removeObject(forKey: Key.walkthroughPending)
             store.removeObject(forKey: Key.nameStepComplete)
             store.removeObject(forKey: Key.nameStepPending)
+            store.removeObject(forKey: Key.dietStepComplete)
+            store.removeObject(forKey: Key.dietStepPending)
             store.removeObject(forKey: Key.accountState)
         }
 
@@ -140,6 +150,8 @@ final class AccountSession {
             store.set(false, forKey: Key.walkthroughPending)
             store.set(true, forKey: Key.nameStepComplete)
             store.set(false, forKey: Key.nameStepPending)
+            store.set(true, forKey: Key.dietStepComplete)
+            store.set(false, forKey: Key.dietStepPending)
             if store.string(forKey: Key.accountState) == nil {
                 store.set(
                     AccountState.guest.rawValue,
@@ -160,6 +172,16 @@ final class AccountSession {
             store.set(true, forKey: Key.nameStepPending)
         }
 
+        // The same pair for the diet step, and read in the same order.
+        if launchArguments.contains("-diet-step-complete") {
+            store.set(true, forKey: Key.dietStepComplete)
+            store.set(false, forKey: Key.dietStepPending)
+        }
+        if launchArguments.contains("-diet-step-pending") {
+            store.set(false, forKey: Key.dietStepComplete)
+            store.set(true, forKey: Key.dietStepPending)
+        }
+
         if let pinnedState {
             store.set(pinnedState.rawValue, forKey: Key.accountState)
         }
@@ -177,6 +199,9 @@ final class AccountSession {
             Self.asksForName(resolvedState)
             && store.bool(forKey: Key.nameStepPending)
             && !store.bool(forKey: Key.nameStepComplete)
+        shouldPresentDietStep =
+            store.bool(forKey: Key.dietStepPending)
+            && !store.bool(forKey: Key.dietStepComplete)
     }
 
     /// Only a real account is asked for a name. A guest has nothing to put
@@ -302,6 +327,7 @@ final class AccountSession {
         shouldPresentWelcome = true
         shouldPresentWalkthrough = false
         shouldPresentNameStep = false
+        shouldPresentDietStep = false
         isRemoteSessionReady = false
         // Whoever uses this device next is not the cook who just left.
         profile = nil
@@ -313,6 +339,9 @@ final class AccountSession {
         // cook and gets asked their own.
         store.set(false, forKey: Key.nameStepComplete)
         store.set(false, forKey: Key.nameStepPending)
+        // The diet belongs to the cook too, not to the phone they left it on.
+        store.set(false, forKey: Key.dietStepComplete)
+        store.set(false, forKey: Key.dietStepPending)
     }
 
     /// Answered or skipped — both end the step for good, because a cook
@@ -321,6 +350,14 @@ final class AccountSession {
         shouldPresentNameStep = false
         store.set(true, forKey: Key.nameStepComplete)
         store.set(false, forKey: Key.nameStepPending)
+    }
+
+    /// Answered or skipped, both for good — and "No, I eat everything" is an
+    /// answer, so a cook is never asked twice.
+    func completeDietStep() {
+        shouldPresentDietStep = false
+        store.set(true, forKey: Key.dietStepComplete)
+        store.set(false, forKey: Key.dietStepPending)
     }
 
     func completeWalkthrough() {
@@ -346,12 +383,20 @@ final class AccountSession {
             // ...but a relaunch part-way through the step resumes it, and
             // that relaunch is a restore rather than a sign-in.
             && (isNewSignIn || store.bool(forKey: Key.nameStepPending))
+        // Every cook is asked about a diet, guests included — but only on
+        // the way in. The `isNewSignIn` guard is what keeps a cook who was
+        // already using Overeasy before the question existed from being
+        // stopped by it on their next cold launch.
+        shouldPresentDietStep =
+            !store.bool(forKey: Key.dietStepComplete)
+            && (isNewSignIn || store.bool(forKey: Key.dietStepPending))
         shouldPresentWalkthrough = !store.bool(
             forKey: Key.walkthroughComplete
         )
         store.set(state.rawValue, forKey: Key.accountState)
         store.set(true, forKey: Key.onboardingComplete)
         store.set(shouldPresentNameStep, forKey: Key.nameStepPending)
+        store.set(shouldPresentDietStep, forKey: Key.dietStepPending)
         store.set(
             shouldPresentWalkthrough,
             forKey: Key.walkthroughPending

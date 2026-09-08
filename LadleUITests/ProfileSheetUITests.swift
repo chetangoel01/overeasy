@@ -143,6 +143,51 @@ final class ProfileSheetUITests: XCTestCase {
         avatar.tap()
     }
 
+    // MARK: - The diet
+
+    /// The one place a diet changes after onboarding, and it has to be
+    /// believable from the library: choose it beside the name, close the
+    /// sheet, and the recipes are already narrowed.
+    @MainActor
+    func testTheDietIsChangedBesideTheNameAndTheLibraryFollows() {
+        let app = launchSignedIn()
+
+        app.buttons["Profile"].tap()
+        XCTAssertTrue(
+            app.navigationBars["Profile"].waitForExistence(timeout: 3)
+        )
+
+        let diet = app.descendants(matching: .any)["account.profile.diet"]
+        XCTAssertTrue(
+            diet.waitForExistence(timeout: 3),
+            "A cook who has no diet yet is still offered one, beside the name"
+        )
+        XCTAssertEqual(diet.value as? String, "Add a diet")
+        diet.tap()
+
+        let vegetarian = app.buttons["Vegetarian"]
+        XCTAssertTrue(vegetarian.waitForExistence(timeout: 3))
+        vegetarian.tap()
+
+        XCTAssertEqual(
+            app.descendants(matching: .any)["account.profile.diet"]
+                .value as? String,
+            "Vegetarian diet"
+        )
+
+        app.buttons["Close"].tap()
+        app.tabBars.firstMatch.buttons["Recipes"].tap()
+
+        // Four of the demo's six dishes are vegetarian.
+        XCTAssertTrue(
+            app.staticTexts["4 recipes"].waitForExistence(timeout: 5),
+            "A diet set in Profile is on everywhere at once"
+        )
+        XCTAssertTrue(
+            app.buttons["Remove filter: Vegetarian diet"].exists
+        )
+    }
+
     // MARK: - The name step
 
     /// Google always sends a name, so the field arrives filled in and the

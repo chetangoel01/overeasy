@@ -55,6 +55,77 @@ final class DiscoverViewModelTests: XCTestCase {
         }
     }
 
+    // MARK: - Filters
+
+    /// Every request the feed makes carries the filter — the first page, the
+    /// pages after it, the rails, and the quiet page held behind the pill.
+    /// A request that dropped it would hand back rows the cook has already
+    /// said they do not eat, and paging would walk a different corpus from
+    /// the one on screen.
+    func testTheFilterRidesOnEveryFetchIncludingTheShelvesAndTheNextPage() async {
+        let service = DiscoverTestService(
+            result: .success((1...8).map { paged($0) })
+        )
+        // Small pages so `loadMore` has somewhere to walk to.
+        service.pageSize = 4
+        let viewModel = DiscoverViewModel(service: service)
+        let filter = RecipeFilter(diets: [.vegan], cuisines: [.korean])
+
+        viewModel.filter = filter
+        await viewModel.load()
+        await viewModel.loadMore()
+
+        XCTAssertFalse(service.requests.isEmpty)
+        XCTAssertFalse(service.shelfRequests.isEmpty)
+        XCTAssertTrue(
+            service.requests.allSatisfy { $0.filter == filter },
+            "Every feed page has to ask the same question"
+        )
+        XCTAssertTrue(
+            service.shelfRequests.allSatisfy { $0.filter == filter },
+            "A rail is the same feed under another order"
+        )
+    }
+
+    /// A filter is not a page of the current feed, it is a different feed.
+    /// Setting one restarts paging rather than appending to what is there.
+    func testChangingTheFilterStartsANewFirstPage() async {
+        let service = DiscoverTestService(
+            result: .success((1...4).map { paged($0) })
+        )
+        let viewModel = DiscoverViewModel(service: service)
+        await viewModel.load()
+        let before = service.requests.count
+
+        viewModel.filter = RecipeFilter(keywords: [.dessert])
+        await viewModel.load()
+
+        XCTAssertGreaterThan(service.requests.count, before)
+        XCTAssertEqual(service.requests.last?.cursor, 0)
+        XCTAssertEqual(
+            service.requests.last?.filter,
+            RecipeFilter(keywords: [.dessert])
+        )
+    }
+
+    /// The demo feed stands in for the server in every UI run, so it has to
+    /// answer the filter or a chosen diet would change nothing on screen.
+    func testTheDemoFeedAnswersTheFilterTheWayTheServerWould() async throws {
+        let service = DemoDiscoverService()
+
+        let page = try await service.fetchDiscoverPage(
+            cursor: 0,
+            query: "",
+            sort: .popular,
+            filter: RecipeFilter(diets: [.vegetarian])
+        )
+
+        XCTAssertEqual(page.recipes.count, 4)
+        XCTAssertFalse(
+            page.recipes.contains { $0.title.contains("Smash Burgers") }
+        )
+    }
+
     // MARK: - Shelves
 
     func testLoadFillsBothShelvesBesideTheFirstPage() async {
@@ -1002,6 +1073,7 @@ private final class DiscoverTestService: DiscoverServing {
         let cursor: Int
         let query: String
         let sort: DiscoverSort
+        var filter: RecipeFilter = .none
         var maxTotalMinutes: Int?
         var limit: Int = DiscoverPaging.pageSize
         var seenBefore: Date?
@@ -1030,6 +1102,7 @@ private final class DiscoverTestService: DiscoverServing {
         cursor: Int,
         query: String,
         sort: DiscoverSort,
+        filter: RecipeFilter,
         maxTotalMinutes: Int?,
         limit: Int,
         seenBefore: Date?,
@@ -1039,6 +1112,7 @@ private final class DiscoverTestService: DiscoverServing {
             cursor: cursor,
             query: query,
             sort: sort,
+            filter: filter,
             maxTotalMinutes: maxTotalMinutes,
             limit: limit,
             seenBefore: seenBefore,

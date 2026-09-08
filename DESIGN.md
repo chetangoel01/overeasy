@@ -282,6 +282,12 @@ buttons a different text origin per button.
 - A new Apple or Google account is asked its name once, on a full screen
   between the welcome and the walkthrough, with the keyboard already up. Skip
   always works and a failed save never blocks entry. Guests are not asked.
+- Every new cook, guests included, is asked about a diet once, on the screen
+  after the name and in the same register: five diets, multi-select, and
+  "No, I eat everything" selected on arrival. Skip always works and the
+  question is never asked twice. Afterwards the diet is changed in one place
+  only — under the name in the Profile header — and the filter menu can only
+  put it down for the launch.
 
 ## Accessibility and verification
 

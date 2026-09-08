@@ -231,6 +231,123 @@ final class AccountSessionTests: XCTestCase {
         XCTAssertFalse(guest.shouldPresentNameStep)
     }
 
+    // MARK: - The diet step
+
+    /// Everybody is asked, guests included: a guest eats the same way a
+    /// signed-in cook does, and the answer lives on the device rather than
+    /// on an account.
+    func testEveryNewCookIsAskedAboutADietOnceIncludingAGuest() {
+        let store = InMemoryPreferenceStore()
+        let session = AccountSession(store: store)
+
+        session.continueAsGuest()
+        XCTAssertTrue(session.shouldPresentDietStep)
+
+        session.completeDietStep()
+        XCTAssertFalse(session.shouldPresentDietStep)
+        XCTAssertFalse(AccountSession(store: store).shouldPresentDietStep)
+    }
+
+    /// The question comes after the name, so a cook who is owed both is
+    /// shown the name first and the diet only once that is behind them.
+    func testTheDietIsAskedAfterTheName() {
+        let session = AccountSession(store: InMemoryPreferenceStore())
+
+        session.signInWithGoogle()
+        XCTAssertTrue(session.shouldPresentNameStep)
+        XCTAssertTrue(session.shouldPresentDietStep)
+
+        session.completeNameStep()
+        XCTAssertFalse(session.shouldPresentNameStep)
+        XCTAssertTrue(session.shouldPresentDietStep)
+    }
+
+    /// Quitting mid-step is not answering it, and answering it after a
+    /// relaunch ends it for good.
+    func testAnUnfinishedDietStepResumesAfterRelaunch() {
+        let store = InMemoryPreferenceStore()
+        let session = AccountSession(store: store)
+        session.continueAsGuest()
+
+        XCTAssertTrue(AccountSession(store: store).shouldPresentDietStep)
+
+        session.completeDietStep()
+        XCTAssertFalse(AccountSession(store: store).shouldPresentDietStep)
+    }
+
+    /// The nag this must not become: a cook who was using Overeasy before
+    /// the question existed opens the app, the session is restored rather
+    /// than signed in, and nothing stops them.
+    func testACookWhoAlreadyFinishedOnboardingIsNotAskedOnUpgrade() {
+        let store = InMemoryPreferenceStore()
+        let existing = AccountSession(store: store)
+        existing.continueAsGuest()
+        existing.completeWalkthrough()
+        // The build they were running knew nothing about a diet, so neither
+        // flag was ever written.
+        store.removeObject(forKey: "ladle.dietStep.pending")
+        store.removeObject(forKey: "ladle.dietStep.complete")
+
+        let relaunched = AccountSession(store: store)
+        XCTAssertFalse(relaunched.shouldPresentDietStep)
+
+        // A cold launch restores the session rather than signing in, and a
+        // restore must not stop them on the way into their own library.
+        relaunched.applyRemoteAccount(kind: "guest")
+        XCTAssertFalse(relaunched.shouldPresentDietStep)
+    }
+
+    /// Whoever signs in next is a different cook and eats their own way.
+    func testSigningOutAsksTheNextCookAboutTheirOwnDiet() {
+        let store = InMemoryPreferenceStore()
+        let session = AccountSession(store: store)
+        session.signInWithApple()
+        session.completeDietStep()
+
+        session.signOut()
+        session.signInWithApple()
+
+        XCTAssertTrue(session.shouldPresentDietStep)
+    }
+
+    func testDietStepArgumentsSkipAndForceTheStep() {
+        XCTAssertFalse(
+            AccountSession(
+                store: InMemoryPreferenceStore(),
+                launchArguments: [
+                    "-ui-testing",
+                    "-onboarding-complete",
+                    "-account-state",
+                    "guest",
+                ]
+            )
+            .shouldPresentDietStep,
+            "A seeded UI-test launch is never stopped by the question"
+        )
+
+        // The force is read last, so it wins over `-onboarding-complete`.
+        let forced = AccountSession(
+            store: InMemoryPreferenceStore(),
+            launchArguments: [
+                "-ui-testing",
+                "-onboarding-complete",
+                "-diet-step-pending",
+                "-account-state",
+                "guest",
+            ]
+        )
+        XCTAssertTrue(forced.shouldPresentDietStep)
+
+        let skipped = AccountSession(
+            store: InMemoryPreferenceStore(),
+            launchArguments: ["-diet-step-complete", "-diet-step-pending"]
+        )
+        XCTAssertTrue(
+            skipped.shouldPresentDietStep,
+            "Pending is read last, the way the name step reads it"
+        )
+    }
+
     func testGuestSaveDecisionWarnsBeforeTenthRecipe() {
         let session = AccountSession(store: InMemoryPreferenceStore())
         session.continueAsGuest()
