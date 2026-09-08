@@ -79,6 +79,13 @@ class Settings(BaseSettings):
     # Short enough that a day's corpus turns over, long enough that opening
     # the app twice in an afternoon is not the same feed twice.
     discover_seen_window_hours: int = Field(default=24, ge=1, le=720)
+    # How many sources a keyword needs behind it before it is worth a shelf
+    # on Discover, and how many shelves a cook is offered at once. A shelf of
+    # one recipe reads as a mistake, and a screen of shelves is a filing
+    # cabinet rather than something to browse — both numbers are judgements
+    # about the size of the corpus, so they move as it grows.
+    discover_shelf_minimum_recipes: int = Field(default=3, ge=1, le=50)
+    discover_shelf_maximum_count: int = Field(default=6, ge=0, le=25)
     retention_maintenance_interval_seconds: int = Field(
         default=3600,
         ge=300,

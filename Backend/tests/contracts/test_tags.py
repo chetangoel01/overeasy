@@ -13,6 +13,7 @@ from ladle.contracts.recipes import (
     RecipeSource,
 )
 from ladle.contracts.tags import (
+    KEYWORD_TITLES,
     MAX_KEYWORD_PROPOSALS,
     CuisineTag,
     DietTag,
@@ -138,3 +139,25 @@ def test_recipe_rejects_repeated_tags() -> None:
         recipe(diets=[DietTag.VEGAN, DietTag.VEGAN])
     with pytest.raises(ValidationError):
         recipe(keyword_proposals=["picnic", "picnic"])
+
+
+def test_every_keyword_has_words_for_a_cook() -> None:
+    """A promoted keyword without a title must fail here, not on a shelf.
+
+    Discover titles its keyword shelves from this map, so a keyword added to
+    the vocabulary and nowhere else would take out the whole shelves response
+    the first time a recipe carried it.
+    """
+
+    assert list(KEYWORD_TITLES) == list(RecipeKeyword)
+    assert all(
+        title.strip() and title[0].isupper() for title in KEYWORD_TITLES.values()
+    )
+    assert [keyword.shelf_title for keyword in RecipeKeyword] == list(
+        KEYWORD_TITLES.values()
+    )
+
+
+def test_a_keyword_title_is_not_its_raw_value() -> None:
+    assert RecipeKeyword.ONE_POT.shelf_title == "One pot"
+    assert RecipeKeyword.HIGH_PROTEIN.shelf_title == "High protein"

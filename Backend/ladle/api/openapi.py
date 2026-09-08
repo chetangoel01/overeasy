@@ -130,10 +130,12 @@ _REQUEST_EXAMPLES: dict[tuple[str, str], dict[str, dict[str, object]]] = {
 # pipeline, so they do not renumber it.
 _OPERATION_DESCRIPTIONS = {
     ("/v1/recipes/discover", "get"): (
-        "The public feed. Discover's two shelves are this same operation "
-        "under a different order or filter rather than resources of their "
-        "own, so a shelf, the ranked list and a search all return "
-        "`DiscoverPageDTO`:\n\n"
+        "The public feed. Discover's two curated rails are this same "
+        "operation under a different order or filter rather than resources of "
+        "their own, so a rail, the ranked list and a search all return "
+        "`DiscoverPageDTO`. The keyword shelves beneath them are composed by "
+        "the server and have their own operation, "
+        "`/v1/recipes/discover/shelves`:\n\n"
         "- **New to Overeasy** — `?sort=newest&limit=10`. Ordered by when the "
         "source arrived in Overeasy, not when its creator published it: "
         "`publishedAt` is absent for Instagram and would drop that platform "
@@ -174,6 +176,29 @@ _OPERATION_DESCRIPTIONS = {
         "```\n\n"
         "It is ignored when `seen_before` is absent, which records nothing "
         "either way."
+    ),
+    ("/v1/recipes/discover/shelves", "get"): (
+        "The keyword shelves above the feed, composed from the tags the "
+        "extraction model gave each recipe rather than from a list anybody "
+        "maintains.\n\n"
+        "A curated keyword earns a shelf once enough distinct sources carry "
+        "it — `LADLE_DISCOVER_SHELF_MINIMUM_RECIPES`, three by default — and "
+        "the best-stocked "
+        "`LADLE_DISCOVER_SHELF_MAXIMUM_COUNT` of them are returned, ties "
+        "broken by the order of the keyword vocabulary. Each shelf carries "
+        "one bounded page of its own recipes and the words to head it with, "
+        "so a client that has never heard of a promoted keyword can still "
+        "draw the shelf.\n\n"
+        "The same `diet`, `cuisine`, `keyword` and `ingredient` parameters as "
+        "the ranked feed, and they apply twice over: to which keywords have "
+        "enough behind them to be worth a shelf, and to what is on each one. "
+        "A vegetarian is offered vegetarian shelves, not vegetarian cards on "
+        "a shelf whose title was chosen for somebody else.\n\n"
+        "```\n"
+        "GET /v1/recipes/discover/shelves?limit=10&diet=vegetarian\n"
+        "```\n\n"
+        "Unreviewed keyword proposals can never appear: they live in a "
+        "different table, which this query does not touch."
     ),
 }
 

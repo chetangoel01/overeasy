@@ -26,7 +26,7 @@ from ladle.contracts.errors import (
     ErrorEnvelope,
 )
 from ladle.contracts.imports import ImportFailure, ImportJobResponse, ImportStatus
-from ladle.contracts.recipes import RecipeDTO, SyncPageDTO
+from ladle.contracts.recipes import DiscoverShelvesDTO, RecipeDTO, SyncPageDTO
 from ladle.extraction.review import ESTIMATED_TOTAL_REASON
 
 FIXTURE_ROOT = Path(__file__).parents[3] / "Contracts" / "Fixtures"
@@ -55,6 +55,7 @@ def canonical_json(value: Any) -> str:
         ("recipe-needs-review.json", TypeAdapter(RecipeDTO)),
         ("recipe-estimated-time.json", TypeAdapter(RecipeDTO)),
         ("recipe-approximate-nutrition.json", TypeAdapter(RecipeDTO)),
+        ("discover-shelves.json", TypeAdapter(DiscoverShelvesDTO)),
         ("sync-page.json", TypeAdapter(SyncPageDTO)),
         ("errors.json", TypeAdapter(list[ErrorEnvelope])),
         ("auth-tokens.json", TypeAdapter(AuthTokensResponse)),

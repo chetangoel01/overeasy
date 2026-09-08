@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from ladle.clock import Clock
 from ladle.contracts.recipes import (
     DiscoverPageDTO,
+    DiscoverShelvesDTO,
     DiscoverSort,
     RecipeDTO,
     RecipeImageDTO,
@@ -52,10 +53,14 @@ class RecipeService:
         clock: Clock,
         repository: RecipeRepository | None = None,
         discover_seen_window: timedelta = timedelta(hours=24),
+        shelf_minimum_recipes: int = 3,
+        shelf_maximum_count: int = 6,
     ) -> None:
         self._clock = clock
         self._repository = repository or RecipeRepository()
         self._discover_seen_window = discover_seen_window
+        self._shelf_minimum_recipes = shelf_minimum_recipes
+        self._shelf_maximum_count = shelf_maximum_count
 
     def get(
         self,
@@ -127,6 +132,35 @@ class RecipeService:
                 seen_at=self._impression_stamp(now, seen_before),
             )
         return page
+
+    def discover_shelves(
+        self,
+        database: Session,
+        *,
+        user_id: UUID,
+        limit: int,
+        filters: DiscoverFilter | None = None,
+    ) -> DiscoverShelvesDTO:
+        """The keyword shelves above the feed, under the cook's own filter.
+
+        No paging pin and no impressions, for the reason the two curated
+        rails send neither: a shelf is a ranking, not a reading position, and
+        a "One pot" rail that hid what the cook glanced at would stop meaning
+        what its title says.
+
+        The floor and the cap are configuration rather than constants because
+        they are judgements about a corpus, and this one is still small
+        enough that both will want moving before the shelves read well.
+        """
+
+        return self._repository.discover_shelves(
+            database,
+            user_id=user_id,
+            limit=limit,
+            filters=filters,
+            minimum_recipes=self._shelf_minimum_recipes,
+            maximum_shelves=self._shelf_maximum_count,
+        )
 
     def _impression_stamp(self, now: datetime, seen_before: datetime) -> datetime:
         """Never earlier than the pin, and never far beyond it.

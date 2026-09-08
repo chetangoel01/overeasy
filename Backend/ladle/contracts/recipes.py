@@ -330,6 +330,30 @@ class DiscoverPageDTO(WireModel):
     has_more: bool
 
 
+class DiscoverShelfDTO(WireModel):
+    """One keyword's worth of the feed, named for a cook rather than a query.
+
+    The raw keyword and the words for it both travel: the client needs the
+    value to put in the shared filter when the cook asks to see all of a
+    shelf, and it needs the title because the vocabulary is the server's and
+    a shipped build must be able to draw a shelf for a keyword it has never
+    heard of.
+
+    No cursor. A shelf is a bounded first page — the ranked list below it is
+    where paging happens, and "See all" is how a cook gets there.
+    """
+
+    keyword: RecipeKeyword
+    title: str = Field(min_length=1, max_length=60)
+    items: list[DiscoverRecipeDTO] = Field(min_length=1, max_length=100)
+
+
+class DiscoverShelvesDTO(WireModel):
+    """Every shelf the corpus currently supports, best-stocked first."""
+
+    shelves: list[DiscoverShelfDTO] = Field(max_length=len(RecipeKeyword))
+
+
 class SyncChangeKind(StrEnum):
     UPSERT = "upsert"
     DELETE = "delete"

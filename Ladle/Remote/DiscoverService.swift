@@ -50,50 +50,119 @@ enum DiscoverSort: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
-/// One rail above the ranked list. A shelf is a first page of the same feed
-/// under a different order or filter, which is why none of them needs a wire
-/// model, an endpoint, or a cursor of its own.
+/// The two curated rails. Each is a first page of the same feed under a
+/// different order or filter, which is why neither needs a wire model, an
+/// endpoint, or a cursor of its own.
+enum DiscoverRail: CaseIterable, Sendable {
+    case newToOvereasy
+    case quickDinners
+
+    var id: DiscoverShelf.ID {
+        switch self {
+        case .newToOvereasy: .newToOvereasy
+        case .quickDinners: .quickDinners
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .newToOvereasy: "New to Overeasy"
+        case .quickDinners: "Quick dinners"
+        }
+    }
+
+    /// A rail's title is a promise about an ordering, so it needs a line
+    /// saying what the promise is. A keyword shelf's title says what is on
+    /// it, and has no caption.
+    var caption: String {
+        switch self {
+        case .newToOvereasy: "The videos that arrived here most recently."
+        case .quickDinners: "Thirty minutes or less, start to finish."
+        }
+    }
+
+    var sort: DiscoverSort {
+        switch self {
+        case .newToOvereasy: .newest
+        case .quickDinners: .popular
+        }
+    }
+
+    /// Nil keeps every source. A value drops the ones no saver timed —
+    /// an unknown total is not a fast one.
+    var maxTotalMinutes: Int? {
+        switch self {
+        case .newToOvereasy: nil
+        case .quickDinners: 30
+        }
+    }
+}
+
+/// One horizontal shelf above the ranked list.
+///
+/// Two kinds, drawn the same way. The curated rails are named here because
+/// they are orderings this app chose; a keyword shelf is named by the server,
+/// because the keyword vocabulary is the server's and a shelf for a keyword
+/// this build has never heard of still has to be drawable.
 struct DiscoverShelf: Identifiable, Equatable, Sendable {
-    enum ID: String, CaseIterable, Sendable {
+    enum ID: Hashable, Sendable {
         case newToOvereasy
         case quickDinners
+        /// Keyed on the raw wire value rather than the decoded keyword, so
+        /// two shelves stay distinct even when this build can name neither.
+        case keyword(String)
 
-        var title: String {
+        /// The stable part of a card's accessibility identifier.
+        var slug: String {
             switch self {
-            case .newToOvereasy: "New to Overeasy"
-            case .quickDinners: "Quick dinners"
-            }
-        }
-
-        var caption: String {
-            switch self {
-            case .newToOvereasy: "The videos that arrived here most recently."
-            case .quickDinners: "Thirty minutes or less, start to finish."
-            }
-        }
-
-        var sort: DiscoverSort {
-            switch self {
-            case .newToOvereasy: .newest
-            case .quickDinners: .popular
-            }
-        }
-
-        /// Nil keeps every source. A value drops the ones no saver timed —
-        /// an unknown total is not a fast one.
-        var maxTotalMinutes: Int? {
-            switch self {
-            case .newToOvereasy: nil
-            case .quickDinners: 30
+            case .newToOvereasy: "newToOvereasy"
+            case .quickDinners: "quickDinners"
+            case let .keyword(value): "keyword-\(value)"
             }
         }
     }
 
     let id: ID
-    let recipes: [DiscoverRecipe]
+    let title: String
+    let caption: String?
+    /// The keyword this shelf was composed from, when this build knows it.
+    /// Nil on the curated rails, which no filter reproduces, and on a shelf
+    /// for a keyword promoted after this build shipped. It is what "See all"
+    /// puts in the shared filter, so nil is also what hides that button.
+    let keyword: RecipeKeyword?
+    var recipes: [DiscoverRecipe]
 
-    var title: String { id.title }
-    var caption: String { id.caption }
+    init(
+        id: ID,
+        title: String,
+        caption: String? = nil,
+        keyword: RecipeKeyword? = nil,
+        recipes: [DiscoverRecipe]
+    ) {
+        self.id = id
+        self.title = title
+        self.caption = caption
+        self.keyword = keyword
+        self.recipes = recipes
+    }
+
+    init(rail: DiscoverRail, recipes: [DiscoverRecipe]) {
+        self.init(
+            id: rail.id,
+            title: rail.title,
+            caption: rail.caption,
+            recipes: recipes
+        )
+    }
+
+    init(shelf: RemoteDiscoverShelfDTO) {
+        self.init(
+            id: .keyword(shelf.keyword),
+            title: shelf.title,
+            keyword: shelf.recipeKeyword,
+            recipes: shelf.recipes
+        )
+    }
 
     /// Below this a rail reads as an accident rather than a shelf, and the
     /// full-width list underneath already carries the same rows.
@@ -103,8 +172,10 @@ struct DiscoverShelf: Identifiable, Equatable, Sendable {
 enum DiscoverPaging {
     /// Mirrors the server's default page size.
     static let pageSize = 30
-    /// A rail carries enough to cover its own window and no more: there is
-    /// no "See all", so anything past the end of a swipe is never reached.
+    /// A shelf carries enough to cover its own window and no more. Past the
+    /// end of a swipe there is nothing to reach: a curated rail has no
+    /// destination at all, and a keyword shelf's "See all" opens the ranked
+    /// list under that keyword rather than continuing the row.
     static let shelfSize = 10
     /// Begin the next page this many rows before the end, so scrolling does
     /// not stop at a spinner.
@@ -143,6 +214,14 @@ protocol DiscoverServing {
         seenBefore: Date?,
         recordsImpressions: Bool
     ) async throws -> DiscoverPage
+    /// The shelves the server composed from the keyword tags, already
+    /// ordered and titled. The client draws what it is handed and composes
+    /// nothing: which keywords are worth a shelf is a fact about the whole
+    /// corpus, and a page of thirty rows cannot answer it.
+    func fetchKeywordShelves(
+        filter: RecipeFilter,
+        limit: Int
+    ) async throws -> [DiscoverShelf]
     func fetchDiscoverRecipe(sourceID: UUID) async throws -> Recipe
     func saveDiscoverRecipe(
         sourceID: UUID
@@ -262,6 +341,25 @@ struct RemoteDiscoverService: DiscoverServing {
         )
     }
 
+    func fetchKeywordShelves(
+        filter: RecipeFilter,
+        limit: Int
+    ) async throws -> [DiscoverShelf] {
+        var components = URLComponents()
+        components.path = "/v1/recipes/discover/shelves"
+        // The same filter the feed answers. A shelf composed for everybody
+        // and shown to a vegetarian would be a row of food they cannot eat
+        // under a title chosen for somebody else.
+        components.queryItems =
+            [URLQueryItem(name: "limit", value: String(limit))]
+            + Self.filterItems(filter)
+        let shelves: RemoteDiscoverShelvesDTO = try await api.request(
+            path: components.url?.absoluteString
+                ?? "/v1/recipes/discover/shelves"
+        )
+        return shelves.shelves.map { DiscoverShelf(shelf: $0) }
+    }
+
     /// One repeated parameter per chosen tag, in vocabulary order.
     ///
     /// The families mean different things to the server — every `diet` and
@@ -347,9 +445,7 @@ struct DemoDiscoverService: DiscoverServing {
         if scenario == .discoverRateLimited {
             throw DemoRemoteError.rateLimited
         }
-        // Enumerated before filtering, so a fixture's save and like counts
-        // stay put whatever the time filter removes.
-        let all = PreviewFixtures.recipes.enumerated().filter { _, recipe in
+        let all = PreviewFixtures.recipes.filter { recipe in
             // The tag filter is the server's work in a real build, so the
             // demo has to do it here or a UI run would show a filter that
             // changes nothing.
@@ -360,25 +456,7 @@ struct DemoDiscoverService: DiscoverServing {
             // cook time is judged on that.
             guard let time = recipe.displayedTime else { return false }
             return time.minutes <= maxTotalMinutes
-        }.map { index, recipe in
-            DiscoverRecipe(
-                sourceID: recipe.id,
-                title: recipe.title,
-                description: recipe.description,
-                creatorName: recipe.creatorName,
-                source: recipe.source,
-                originalURL: recipe.originalURL,
-                imageURL: recipe.images.first?.remoteURL,
-                savedCount: max(2, 18 - (index * 3)),
-                // Deliberately not the save order, so Most liked is visibly
-                // a different ranking in the demo. The last fixture has none,
-                // standing in for a video imported before counts existed.
-                likeCount: index == PreviewFixtures.recipes.count - 1
-                    ? nil
-                    : (index + 1) * 12_400,
-                savedRecipeID: nil
-            )
-        }
+        }.map(Self.card)
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         let matched = trimmed.isEmpty
             ? all
@@ -419,6 +497,72 @@ struct DemoDiscoverService: DiscoverServing {
             recipes: Array(ordered[start..<end]),
             nextCursor: end,
             hasMore: end < ordered.count
+        )
+    }
+
+    /// Composes the shelves the way the server composes them, because in a
+    /// demo run this *is* the server: the same floor, the same order, and
+    /// the cook's filter applied before anything is counted. Without it a UI
+    /// run would show two rails and no shelves, which is not the screen.
+    func fetchKeywordShelves(
+        filter: RecipeFilter,
+        limit: Int
+    ) async throws -> [DiscoverShelf] {
+        if scenario == .discoverEmpty {
+            return []
+        }
+        if scenario == .discoverRateLimited {
+            // The real endpoint is behind the same rate limit as the feed,
+            // so a demo where the feed is throttled and the shelves are not
+            // would be a screen that cannot happen.
+            throw DemoRemoteError.rateLimited
+        }
+        let matching = PreviewFixtures.recipes.filter(filter.matches)
+        let counted = RecipeKeyword.allCases.enumerated().map { rank, keyword in
+            (rank, keyword, matching.filter { $0.keywords.contains(keyword) })
+        }
+        return counted
+            .filter { $0.2.count >= DiscoverShelf.minimumRecipes }
+            // Count first, then the vocabulary, which is the server's order
+            // and the only one that does not move between launches.
+            .sorted { left, right in
+                left.2.count == right.2.count
+                    ? left.0 < right.0
+                    : left.2.count > right.2.count
+            }
+            .map { _, keyword, recipes in
+                DiscoverShelf(
+                    id: .keyword(keyword.rawValue),
+                    title: keyword.title,
+                    keyword: keyword,
+                    recipes: recipes.prefix(limit).map(Self.card)
+                )
+            }
+    }
+
+    /// A fixture recipe as a Discover card.
+    ///
+    /// Keyed on fixture position rather than on where the recipe landed in
+    /// the result, so a dish keeps its save and like counts whatever a filter
+    /// removed and whichever shelf it is drawn on.
+    private static func card(_ recipe: Recipe) -> DiscoverRecipe {
+        let index = arrivalOrder[recipe.id, default: 0]
+        return DiscoverRecipe(
+            sourceID: recipe.id,
+            title: recipe.title,
+            description: recipe.description,
+            creatorName: recipe.creatorName,
+            source: recipe.source,
+            originalURL: recipe.originalURL,
+            imageURL: recipe.images.first?.remoteURL,
+            savedCount: max(2, 18 - (index * 3)),
+            // Deliberately not the save order, so Most liked is visibly a
+            // different ranking in the demo. The last fixture has none,
+            // standing in for a video imported before counts existed.
+            likeCount: index == PreviewFixtures.recipes.count - 1
+                ? nil
+                : (index + 1) * 12_400,
+            savedRecipeID: nil
         )
     }
 
