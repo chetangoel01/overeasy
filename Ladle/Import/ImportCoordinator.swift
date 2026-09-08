@@ -92,9 +92,12 @@ struct ImportOperationFailure: Equatable {
     }
 
     var recoveryLayout: ImportRecoveryLayout {
-        reason == .photoPostNeedsManualEntry
-            ? .manualEntryFirst
-            : .retryFirst
+        switch reason {
+        case .insufficientTextEvidence, .photoPostNeedsManualEntry:
+            .manualEntryFirst
+        default:
+            .retryFirst
+        }
     }
 
     var title: String {
@@ -1287,7 +1290,7 @@ extension ImportFailure {
         case .parserUnavailable, .unrecognized:
             "Couldn't read the recipe"
         case .insufficientTextEvidence:
-            "More recipe detail needed"
+            "No recipe instructions found"
         case .photoPostNeedsManualEntry:
             "The recipe is in the pictures"
         case .quotaExceeded:
@@ -1310,7 +1313,7 @@ extension ImportFailure {
         case .parserUnavailable, .unrecognized:
             "Overeasy couldn’t read the recipe. Retry, add a note, paste details, or create it manually."
         case .insufficientTextEvidence:
-            "The post lacks enough written detail. Paste the recipe or create it manually."
+            "We couldn’t find cooking instructions in the post’s caption, audio, or linked pages. Paste the recipe, or create it manually."
         case .photoPostNeedsManualEntry:
             "Overeasy read the caption and it didn’t hold the recipe. Paste it from the post, or type it in."
         case .quotaExceeded:
@@ -1318,13 +1321,14 @@ extension ImportFailure {
         }
     }
 
-    /// The Inbox row's status pill, which has room for three words. Every
-    /// failure reads "Import failed" except the one whose way out is the cook
-    /// rather than another attempt — including a code this build cannot name.
+    /// Missing recipe text names what the cook can supply; other failures,
+    /// including unknown server codes, keep the general Inbox label.
     var inboxStatusLabel: String {
         switch self {
         case .photoPostNeedsManualEntry:
             "Type it in"
+        case .insufficientTextEvidence:
+            "Needs recipe text"
         default:
             "Import failed"
         }

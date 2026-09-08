@@ -87,9 +87,12 @@ cannot pass the final gate, that transient error reaches Celery's retry path
 instead of being presented as missing recipe content. See
 [worker reliability](import-worker-reliability.md).
 
-The iOS recovery surfaces this as missing written recipe detail and directs the
-cook to paste the recipe or create it manually. This is distinct from an
-unsupported host or a provider outage.
+The iOS recovery shows “No recipe instructions found” for video imports and
+“Needs recipe text” in Inbox. Both import sheets lead with “Paste recipe
+details”, followed by manual creation; Retry remains a secondary action.
+Photo posts retain their picture-specific explanation. This is distinct from
+an unsupported host or a provider outage. See the
+[client recovery record](../../docs/verification/2026-09-07-photo-post-failure-copy.md).
 
 Structured OpenRouter extraction treats HTTP 429 as transient. It honors a
 numeric `Retry-After` value up to 60 seconds; without one it retries after 2,

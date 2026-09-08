@@ -124,6 +124,9 @@ actor DemoImportService: ImportService {
         if slug.contains("photo") {
             return .failed(.photoPostNeedsManualEntry)
         }
+        if slug.contains("no-instructions") {
+            return .failed(.insufficientTextEvidence)
+        }
         if slug.contains("parser") || slug.contains("failed") {
             return .failed(.parserUnavailable)
         }
