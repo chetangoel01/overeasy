@@ -325,7 +325,11 @@ enum PreviewFixtures {
                 (3, "tbsp", "chili crisp", nil),
                 (2, "tbsp", "mayonnaise", nil),
                 (0.5, nil, "small white onion", "shaved thin"),
-                (1, "tsp", "kosher salt", nil),
+                // The step says "season with salt", which is the honest
+                // amount: a cook salts a patty by eye. It is also the recipe
+                // the scaling UI test drives, so the "Not scaled" marker can
+                // be asserted in the same flow as the doubled beef row.
+                (nil, nil, "kosher salt", nil),
                 (1, "tbsp", "neutral oil", "for the griddle"),
             ])
             return RecipeContent(

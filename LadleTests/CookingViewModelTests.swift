@@ -356,8 +356,37 @@ final class CookingViewModelTests: XCTestCase {
         return found
     }
 
+    /// Cook mode is opened from the recipe page and built from what that page
+    /// is showing, so the count the cook chose there comes with it. There is
+    /// no control on this screen and nothing is stored, so a session carries
+    /// the snapshot it was started with.
+    func testAScaledSessionCooksTheScaledAmounts() {
+        let recipe = PreviewFixtures.recipes[0]
+        var scaling = RecipeScaling(baseServings: recipe.servings)
+        scaling.setServings(recipe.servings * 2)
+        let viewModel = makeViewModel(recipe: recipe, scaling: scaling)
+
+        XCTAssertEqual(viewModel.multiplier, 2)
+        XCTAssertEqual(viewModel.scaledYieldText, "8 servings")
+        XCTAssertEqual(
+            recipe.orderedIngredients[0]
+                .cookingDetailText(scaledBy: viewModel.multiplier ?? 1),
+            "2 lb ground beef — 80/20, in four loose balls"
+        )
+    }
+
+    func testAnUnscaledSessionCooksTheRecipeAsWritten() {
+        let viewModel = makeViewModel(
+            scaling: RecipeScaling(baseServings: 4)
+        )
+
+        XCTAssertNil(viewModel.multiplier)
+        XCTAssertNil(viewModel.scaledYieldText)
+    }
+
     private func makeViewModel(
         recipe: Recipe = PreviewFixtures.recipes[1],
+        scaling: RecipeScaling? = nil,
         clock: CookingClock = TestCookingClock(),
         notifications: TimerNotificationScheduling =
             TestTimerNotificationScheduler(),
@@ -368,6 +397,7 @@ final class CookingViewModelTests: XCTestCase {
     ) -> CookingViewModel {
         CookingViewModel(
             recipe: recipe,
+            scaling: scaling,
             clock: clock,
             notificationScheduler: notifications,
             screenAwakeController: screenAwakeController
