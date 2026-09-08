@@ -251,6 +251,49 @@ final class DiscoverInteractionUITests: XCTestCase {
     }
 
     @MainActor
+    func testMissingInstructionsExplainsFailureAndRecoversFromInbox() throws {
+        let app = launchApp(startingOn: "Recipes")
+
+        app.buttons["Add recipe"].tap()
+        let link = app.textFields["Recipe link"]
+        XCTAssertTrue(link.waitForExistence(timeout: 3))
+        link.tap()
+        link.typeText("https://www.youtube.com/shorts/no-instructions")
+        app.buttons["Import from link"].tap()
+
+        let title = app.staticTexts["No recipe instructions found"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        let paste = app.staticTexts["import.recovery.pastedDetails.label"]
+        let retry = app.staticTexts["import.recovery.retry.label"]
+        XCTAssertTrue(paste.exists)
+        XCTAssertTrue(retry.exists)
+        XCTAssertLessThan(paste.frame.minY, retry.frame.minY)
+        attachScreenshot(of: app, named: "Missing instructions - Add recipe")
+
+        app.buttons["Back to recipes"].tap()
+        app.tabBars.buttons["Inbox"].tap()
+        let row = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS 'Needs recipe text'")
+        ).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 3))
+        attachScreenshot(of: app, named: "Missing instructions - Inbox")
+        row.tap()
+
+        XCTAssertTrue(title.waitForExistence(timeout: 3))
+        XCTAssertLessThan(paste.frame.minY, retry.frame.minY)
+        attachScreenshot(of: app, named: "Missing instructions - Recovery")
+        paste.tap()
+        let details = app.textViews["Pasted recipe details"]
+        XCTAssertTrue(details.waitForExistence(timeout: 3))
+        details.tap()
+        details.typeText("Lemon chickpeas\nAdd 2 cans chickpeas and simmer for 10 minutes.")
+        app.buttons["Use pasted details"].tap()
+
+        XCTAssertTrue(app.staticTexts["Lemon chickpeas"].waitForExistence(timeout: 5))
+        XCTAssertFalse(title.exists)
+    }
+
+    @MainActor
     func testRecipeOptionsExposeTheDeleteAction() throws {
         let app = launchApp(startingOn: "Recipes")
 

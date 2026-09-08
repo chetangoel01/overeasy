@@ -1,332 +1,167 @@
-# Ladle Backend — Design Guideline (v1)
+# Ladle backend architecture
 
-Rough framework for the real backend that replaces `DemoImportService` and the
-local-only account state. Written to be executed on a separate branch while UI
-work continues on `main`. The iOS client's domain contract (`LadleCore`) is the
-source of truth — the backend serializes to it, not the other way around.
+This describes the implemented backend as of September 8, 2026. The detailed
+API contract, provider configuration, and database dictionary live in the
+[backend integration reference](../Backend/docs/integration-reference.md).
+Local setup and verification commands live in the
+[backend README](../Backend/README.md).
 
-## 1. Scope
+## Runtime and responsibilities
 
-**In scope (v1):**
-- Import pipeline: social-video URL → fetched media/caption → transcript →
-  structured recipe with per-field uncertainty → nutrition estimate.
-- Auth: Sign in with Apple, Google OAuth, anonymous guest identity, and
-  guest→account merge.
-- Recipe storage + simple sync (client stays offline-first with SwiftData).
-- Re-import from source, correction-notes re-parse, pasted-text fallback.
+| Component | Responsibility |
+| --- | --- |
+| Python 3.12 / FastAPI | Authentication, import admission and polling, recipe edits, sync, Discover, operator endpoints |
+| PostgreSQL 16 / SQLAlchemy / Alembic | Owned recipes, import jobs, shared extraction templates, dispatch intent, quotas, sync sequences, and cleanup records |
+| Celery / Redis | Background imports, retries, scheduled recovery and retention; Redis also holds rate limits and operational counters |
+| S3-compatible storage / MinIO | Private thumbnails and profile photos served through signed URLs |
+| Compose / shared Caddy | Local services and the single-host VPS deployment |
 
-**Out of scope (v1):** social features, image generation, search service,
-push-based sync, web app. Timers/notifications/HealthKit stay fully on-device.
+The API and worker share domain services and contracts in `Backend/ladle`.
+Blocking API work runs in synchronous routes. iOS remains offline-first with
+SwiftData, polls import jobs, and applies the server's recipe change feed.
+The Share Extension queues links for the main app to submit. Timers,
+notifications, and HealthKit remain on-device.
 
-## 2. Stack recommendation
+The VPS uses separate API and worker containers, with Beat embedded in its
+worker container, alongside PostgreSQL, Redis, and MinIO. Local Compose uses a
+separate Beat service. Deployment settings and the guarded internal TestFlight
+exception are documented in the [VPS guide](../Backend/docs/deployment/vps.md).
 
-| Layer | Choice | Why |
-|---|---|---|
-| API | **Python 3.12 + FastAPI** | The ingestion ecosystem (yt-dlp, faster-whisper) is Python-native; async fits the polling API; matches the digest project you already run |
-| DB | **Postgres 16** | Relational core + `jsonb` for uncertainties; one DB for jobs and recipes |
-| Queue/worker | **Redis + Celery** | Import jobs are long-running (fetch + ASR + LLM); API must return immediately |
-| Media fetch | **yt-dlp** | One tool covers YouTube/TikTok/Instagram; also yields caption/description metadata |
-| ASR | **faster-whisper** (local, `small`/`medium`) with an API fallback | Cheap, private; recipe videos are short |
-| Extraction LLM | **Claude `claude-opus-4-8`**, structured outputs via `client.messages.parse` | Schema-guaranteed JSON; adaptive thinking; see §7 |
-| Object storage | S3-compatible (Cloudflare R2 / MinIO locally) | Thumbnails must be copied — CDN URLs from social platforms expire |
-| Deploy | One VPS with Compose and shared Caddy | Five persistent services comfortably cover the first ~100 users |
+## Import flow and ownership
 
-The application remains two processes: `api` and `worker`, sharing PostgreSQL,
-Redis, and MinIO. They run with those data services in one Compose project;
-shared Caddy is the only public listener. No microservices or private platform
-control plane.
+1. **Admit.** Validate and canonicalize the social URL, detect duplicates,
+   enforce per-user quotas and guest recipe capacity, then commit the job,
+   reservation, and dispatch outbox together. Send to Celery after commit;
+   maintenance can recover an undelivered outbox record.
+2. **Route through the cache.** Shared extraction templates are keyed by source
+   ID, source revision, contract version, prompt version, and model ID. A
+   versioned claim lets one worker extract while other jobs wait. Cache hits
+   clone separately owned recipes; stale public-access checks run before reuse.
+3. **Acquire written evidence.** Try free platform metadata, captions, linked
+   pages, and published sticker/accessibility text. Video imports may then use
+   temporary audio transcription through OpenRouter Whisper, optional Supadata
+   and SoScripted, a configured server fallback, and validated creator search.
+   Photo posts use their caption and free linked text without buying audio or
+   visual extraction.
+4. **Gate and extract.** A caption, transcript, or linked page must describe
+   cooking. Missing quantities alone do not reject a recipe. Titles and
+   sticker/alt text cannot satisfy the gate. The configured extraction model
+   produces a validated recipe with uncertainty; images never enter extraction.
+5. **Enrich and verify.** Apply explicit creator facts, normalize amounts for
+   nutrition, calculate from food records, and run targeted checks. Only
+   disputed fields are sent for additional model verification.
+6. **Complete.** Persist the recipe graph and sync change, consume its reserved
+   slot, and finish the job transactionally. Shared followers receive their own
+   copies. Thumbnails are stored for display, with cleanup for abandoned uploads.
 
-## 3. Architecture
+`parsing`, `ready`, `needsReview`, `failed`, and `cancelled` are the stored job
+states. A sparse video fails with `insufficientTextEvidence`; a photo post with
+no cooking method in its caption fails with `photoPostNeedsManualEntry`.
 
-```
-iOS app ──HTTPS──► FastAPI (api)
-                     │  POST /v1/imports          → insert job (status=parsing), enqueue
-                     │  GET  /v1/imports/{id}     → job status (client polls w/ backoff)
-                     │  GET  /v1/recipes …        → sync surface
-                     │  POST /v1/auth/*           → Sign in with Apple / guest
-                     ▼
-                   Redis queue ──► worker (arq)
-                                     1. resolve + fetch (yt-dlp)
-                                     2. transcript (caption? else ASR)
-                                     3. extract (Claude structured output)
-                                     4. nutrition estimate
-                                     5. dedupe check
-                                     6. write recipe + job status
-                   Postgres ◄──────┘        └──► R2/MinIO (thumbnail copy)
-```
+Pasted text and correction notes are encrypted and bypass the public cache.
+Pasted text replaces acquisition; correction notes join the available text.
+Private re-parses cannot change a shared template. A re-parse replaces the
+owned recipe only when its base revision still matches; otherwise it preserves
+the cook's edits and holds a candidate for review.
 
-Client keeps its existing polling model (`ImportCoordinator` already polls the
-demo service); no websockets needed for v1. APNs "import ready" push is a v2
-nicety — the app already schedules a local notification on completion.
+Transient failures preserve the job and its inputs for bounded Celery retries.
+An attempt releases its own claim before retrying, including when completion
+fails. Independent provider fallbacks still run; an outage that prevents usable
+text from being acquired remains retryable. See
+[worker reliability](../Backend/docs/import-worker-reliability.md) and
+[dispatch recovery](../Backend/docs/import-dispatch-recovery.md).
 
-## 4. Data model (Postgres)
+## Extraction and nutrition
 
-```
-users            id, apple_sub (nullable, unique), created_at
-devices          id, user_id, anon_device_id (for guest identity)
-import_jobs      id (uuid, client-generated ok), user_id, source_url,
-                 canonical_url, source (tiktok|instagram|youtube|manual),
-                 status (parsing|ready|needs_review|failed),
-                 failure_reason (parser_unavailable|private_or_deleted|
-                                 unsupported_source|invalid_url|network_unavailable),
-                 pasted_text, correction_notes,
-                 recipe_id (nullable), created_at, updated_at
-recipes          id, user_id, title, description, creator_name, source,
-                 original_url, prep_minutes, cook_minutes, total_minutes,
-                 servings, review_status (ready|needs_review),
-                 nutrition jsonb, uncertainties jsonb,
-                 image_key (object storage), deleted_at, created_at, updated_at
-ingredients      id, recipe_id, order_index, normalized_quantity, unit,
-                 name, preparation, is_to_taste, quantity_text,
-                 uncertainty jsonb
-                 an ingredient is a number, a unit and a name, and the app
-                 renders a row from those three. is_to_taste is the one
-                 honest exception — "salt to taste", or a caption that named
-                 a food and no amount — and is the only way a row reaches a
-                 cook without a number. quantity_text is what the creator
-                 said, kept as a note that nothing prints
-steps            id, recipe_id, order_index, instruction,
-                 ingredient_ids uuid[], uncertainty jsonb
-recipe_tags      recipe_id, family (diet|cuisine|keyword), value
-                 pk (recipe_id, family, value); three closed vocabularies in
-                 one table because the filter asks each of them the same
-                 question, and the key is that question
-recipe_keyword_proposals
-                 recipe_id, value    pk (recipe_id, value)
-                 keywords the extraction model invented. A separate table, so
-                 "not filterable until promoted" is a fact about the schema
-                 rather than a rule in the query — the Discover filter joins
-                 recipe_tags and cannot reach these rows
-```
+The default extraction adapter is OpenRouter; Anthropic remains an alternative.
+The current model defaults live in `Backend/ladle/config.py` and the prompt and
+its version in `Backend/ladle/extraction/prompt.py`. The extraction model must
+not invent ingredient quantities or nutrition. Serving and cooking-time
+estimates carry provenance and uncertainty.
 
-The three vocabularies live in `ladle/contracts/tags.py` and nowhere else:
-the extraction prompt is rendered from them, `RecipeDTO` is typed by them,
-and the Discover query parameters validate against them. Changing a list
-changes the prompt, so `PROMPT_VERSION` has to move with it.
+Explicit, complete creator nutrition panels take precedence. Otherwise a
+separate normalization stage estimates grams, search terms, and unstated yield
+with recorded assumptions. The calculator checks the curated food table before
+USDA FoodData Central. USDA responses are stored in PostgreSQL for reuse.
 
-Field names on the wire are the `LadleCore` names (`normalizedQuantity`,
-`isToTaste`, `servingBasis`, `isEstimated`,
-`FieldUncertainty{field, reason, confidence}`, …). Generate the OpenAPI
-schema from Pydantic models copied 1:1 from
-`Packages/LadleCore/Sources/LadleCore/*.swift` and keep them in lockstep.
+Nutrition degrades per ingredient: unresolvable ingredients are named and
+omitted, and partial totals carry `approximate=true`. There is no minimum
+coverage floor. If nothing matches, nutrition is absent. Calculated values are
+per serving with `servingBasis=1` and `isEstimated=true`. Nutrition failure
+alone does not fail the recipe import. See the
+[text-only extraction guide](../Backend/docs/text-only-extraction.md) for the
+evidence boundary, normalization, provenance, and verification rules.
 
-`IngredientDTO` enforces the ingredient's shape rather than trusting each
-writer to remember it (`ladle/contracts/recipes.py`, `enforce_quantity`).
-Every write passes through the type — extraction instantiating a template,
-the repository reading a row back, a cook's edit arriving as a PUT — so on
-the way in an amount stated only in `quantity_text` is split out of it
-(`ladle/contracts/quantities.py`, which also holds the fraction notation
-extraction accepts), and where nothing parses the ingredient is flagged
-`is_to_taste` rather than left with a phantom quantity. The templates the
-nutrition normalizer reads are deliberately outside this: flagging an
-unquantified ingredient there would drop it out of the calorie total, and
-having no amount to render is not a claim about what it weighs.
-`ladle.admin.backfill_ingredient_quantities` applies the same derivation to
-recipes stored before the rule.
+## Recipe contracts
 
-`canonical_url` = normalized URL (strip tracking params, resolve short links,
-lowercase host). Unique index on `(user_id, canonical_url)` powers the
-duplicate flow the client already has ("Already in your recipes" / "Import
-another copy" — a second copy gets a `copy_of` suffix or a nulled canonical).
+Python's Pydantic contracts and `Packages/LadleCore` share golden fixtures in
+`Contracts/Fixtures`. The wire uses camel-case keys, UUIDs, UTC dates, and
+string-encoded decimals. Graph sizes and field lengths are bounded.
 
-## 5. API contract
+An ingredient is a quantity, a unit, and a name. `isToTaste` marks the exception:
+an ingredient with no amount to render. `quantityText` preserves the creator's
+phrase as an unprinted note. `IngredientDTO.enforce_quantity` recovers a missing
+number/unit from that note and marks an unparseable missing amount as
+`isToTaste`. Fraction parsing is shared in `ladle/contracts/quantities.py`.
 
-All under `/v1`, JSON, bearer token auth (guest or account).
+Extraction review and nutrition operate on internal templates before that
+public DTO derivation: a missing stated amount is still missing, while a
+nutrition estimate is a separate claim about weight. The
+`ladle.admin.backfill_ingredient_quantities` command applies the derivation to
+older stored recipes. See the
+[strict ingredient record](verification/2026-09-08-strict-ingredient-model.md).
 
-```
-POST /v1/auth/guest              → { token }            anonymous device identity
-POST /v1/auth/apple              → { token, userID }    verify identityToken server-side
-POST /v1/auth/merge              → guest recipes fold into the Apple account
+Diet, cuisine, and keyword vocabularies live in `ladle/contracts/tags.py`.
+The prompt, DTOs, and Discover parameters use those same lists. A vocabulary
+change must bump the prompt version. Curated tags are stored in `recipe_tags`;
+unreviewed keywords are separate `recipe_keyword_proposals` rows and cannot
+enter the filter query.
 
-POST /v1/imports                 { sourceURL | pastedText, correctionNotes? }
-                                 → 202 { jobID, status: "parsing" }
-GET  /v1/imports/{id}            → { status, failureReason?, recipe? }
-POST /v1/imports/{id}/retry      { correctionNotes?, pastedText? }   (re-import / fix-up)
+`diets`, `cuisines`, `keywords`, and `keywordProposals` are tri-state on writes:
+missing/null preserves stored values; an empty list clears them. Responses
+always contain lists, allowing the app to filter its synced library locally.
 
-GET  /v1/recipes?updatedSince=   → delta sync (includes tombstones via deletedAt)
-PUT  /v1/recipes/{id}            → client edit wins (last-write-wins on updatedAt)
-DELETE /v1/recipes/{id}          → soft delete
+## Sync, Discover, and accounts
 
-GET  /v1/recipes/discover        → the Discover list, its shelves and Watch
-     ?diet=…&diet=…              every diet listed must hold (they narrow)
-     ?cuisine=…&cuisine=…        any cuisine listed (they widen)
-     ?keyword=…&keyword=…        any curated keyword listed (they widen)
-     ?ingredient=chicken         a name match over the saved copies'
-                                 ingredients; repeating it requires all of
-                                 them. Max 10 terms of 100 characters.
-```
+- **Sync:** `GET /v1/recipes/sync` pages changes by a per-user sequence and
+  includes deletion tombstones. Recipe writes carry `baseRevision`; stale edits
+  receive `409 syncConflict` with the current recipe. Expired cursors require a
+  snapshot reset. This preserves concurrent edits rather than comparing client
+  timestamps.
+- **Discover:** lists and previews represent shared public sources. Saving a
+  preview clones the shared template without a new extraction. Filters run on
+  the server before paging: all requested diets and ingredient terms must
+  match, while cuisines and keywords each match any requested value. Keyword
+  shelves use `/v1/recipes/discover/shelves`; Watch uses the ranked feed without
+  a `seen_before` session pin. The integration reference defines paging and
+  impression recording.
+- **Accounts:** guests use a device installation identity; Apple and Google
+  sign-in merge guest data into the account. Sessions use short-lived access
+  tokens and rotating refresh tokens. Production validates provider credentials
+  and requires App Attest. Profile names and photos travel with refreshed
+  account information.
 
-The filter is server-side because the feed is paged: a client thinning a
-fetched page would show three results and look like the end of the corpus.
-Watch is this same endpoint without `seenBefore`. Off-vocabulary values are
-422 rather than ignored — a filter that silently matched everything reads to
-a cook as an app with nothing in it.
+## Operations and verification
 
-`RecipeDTO` carries `diets`, `cuisines`, `keywords` and `keywordProposals`,
-which is what lets the Recipes tab filter its synced library locally without
-a network call. All four are **tri-state**: the server always sends lists,
-but `null` on the way *in* means "leave what is stored" and `[]` means
-"clear it". Builds released before tags existed encode no tag keys at all,
-and reading their silence as an empty list would strip a recipe of its tags
-the first time somebody renamed it. Only curated keywords appear in
-`keywords`; a proposal travels in `keywordProposals` and is not filterable.
+Import quotas and atomic provider reservations bound abuse and outstanding
+spend. Dollar costs are recorded separately from billed-unit admission limits.
+Outbound URL validation pins public DNS targets and checks redirects. Production
+startup checks configuration and schema; readiness checks the database, Redis,
+worker, and storage. Operator endpoints expose bounded metrics and redacted
+request/provider diagnostics.
 
-Status values and failure reasons map 1:1 to `ImportStatus` /
-`ImportFailure` in LadleCore (`parsing`, `ready`, `needsReview`, `failed` +
-`parserUnavailable`, `insufficientTextEvidence`, `photoPostNeedsManualEntry`,
-`privateOrDeleted`, `unsupportedSource`, `invalidURL`, `networkUnavailable`).
-The client's state machine
-(`StoredImportJob.transitioning(to:)`) doesn't change.
+The [retention policy](../Backend/docs/privacy-retention-and-key-rotation.md)
+covers all terminal import states, including cancellation. Avatar uploads
+commit cleanup intent before contacting storage and withdraw it only when the
+profile save commits. Account deletion and object cleanup have their own durable
+records. Backups, restore checks, and rollback remain documented in the
+[VPS operations guide](../Backend/docs/deployment/vps.md).
 
-Guest limit: enforced client-side today; the server should also enforce it
-(HTTP 402/409 with a typed error) so the limit survives reinstalls.
+The September 8 recovery changes were verified with failing regressions followed
+by passing focused tests and the complete backend suite: **1,107 passed**.
+Lint, formatting, and strict typing also passed. These checks use disposable
+infrastructure and fake providers; they do not establish the deployed VPS's
+health or current live-provider extraction accuracy.
 
-## 6. Import pipeline (worker)
-
-Each stage writes progress to `import_jobs` so a crash resumes cleanly.
-
-1. **Validate + canonicalize.** Unknown host → `failed(unsupportedSource)`;
-   malformed → `failed(invalidURL)`. Resolve redirects/short links.
-2. **Dedupe early.** Canonical URL already imported → return the duplicate
-   outcome before spending money.
-3. **Fetch (yt-dlp).** Pull metadata (title, uploader, description/caption,
-   thumbnail) + audio track. Private/removed → `failed(privateOrDeleted)`;
-   network/timeouts → `failed(networkUnavailable)` (retry ×2 with backoff
-   first). Copy thumbnail to object storage.
-4. **Transcript.** Prefer platform captions/description if they contain the
-   recipe (many creators paste it — check before running ASR). Else
-   faster-whisper on the audio. No usable audio/caption →
-   `failed(parserUnavailable)`.
-5. **Evidence gate.** If neither transcript nor a creator-linked page contains
-   a quantified ingredient and cooking action →
-   `failed(insufficientTextEvidence)` without invoking extraction. For a photo
-   post, where the caption is the only text there is, the same gate fails with
-   `photoPostNeedsManualEntry` instead, so the client can offer manual entry.
-6. **Extract (Claude).** §7. Output includes per-field confidence.
-7. **Nutrition estimate.** §8. Always `isEstimated: true`.
-8. **Review gate.** Any field confidence < 0.7, or missing quantities on >30%
-   of ingredients → `needsReview` with `uncertainties[]` populated
-   (`FieldUncertainty(field: "ingredients[0].quantity", reason, confidence)`
-   — same shape the editor already renders). Else `ready`. The gate reads the
-   raw extraction, before `IngredientDTO` derives anything, so a missing
-   amount still counts as missing rather than being folded into `isToTaste`.
-8. **Persist** recipe + flip job status atomically.
-
-`correctionNotes` / `pastedText` (from `CorrectionNotesView`) get appended to
-the extraction prompt on retry — pasted text skips stages 3–4 entirely, which
-is also the reliable path when platforms block fetching (see §11).
-
-## 7. LLM extraction
-
-One call per import, structured outputs so the response is schema-valid by
-construction (no JSON repair code):
-
-```python
-from anthropic import Anthropic
-
-client = Anthropic()
-
-resp = client.messages.parse(
-    model="claude-opus-4-8",
-    max_tokens=16000,
-    output_config={"effort": "medium"},   # extraction is routine; bump if quality lags
-    system=EXTRACTION_SYSTEM_PROMPT,      # frozen — enables prompt caching
-    messages=[{"role": "user", "content": build_context(meta, transcript, notes)}],
-    output_format=ExtractedRecipe,        # Pydantic model mirroring LadleCore.Recipe
-)
-recipe = resp.parsed_output
-```
-
-- `ExtractedRecipe` mirrors `Recipe`/`Ingredient`/`RecipeStep` plus a
-  `confidence: float` and optional `uncertaintyReason: str` per field the
-  client tracks uncertainty on. The prompt instructs: never invent
-  quantities — emit low confidence with a reason instead ("The quantity was
-  not spoken clearly" style, which the app already displays).
-- **Prompt caching:** keep the system prompt byte-stable and put
-  `cache_control: {"type": "ephemeral"}` on it; per-video content goes in the
-  user turn.
-- **Cost control:** cap transcript length (~15 min of speech), per-user daily
-  import quota, and log `usage` per job into `import_jobs` for a cost column.
-- **Refusals/errors:** treat API errors after SDK retries as
-  `failed(parserUnavailable)` — same recoverable path the UI already handles.
-
-## 8. Nutrition
-
-v1: ask for the estimate in the same extraction call (per-serving calories,
-protein, carbs, fat, satFat, fiber, sugar, sodium, `servingBasis`), always
-flagged `isEstimated: true` — the UI already displays the "estimated"
-disclaimers prominently, so LLM-grade accuracy is acceptable for v1.
-v2: resolve ingredients against USDA FoodData Central and compute, keeping the
-LLM only for quantity normalization.
-
-## 9. Auth
-
-- **Guest:** `POST /v1/auth/guest` with a client-generated UUID (stored in
-  Keychain so it survives reinstall) → server mints a JWT bound to that device
-  identity. This replaces nothing visible — `AccountSession` just gains a real
-  token.
-- **Sign in with Apple:** client sends the `identityToken`; server verifies
-  the JWS against Apple's JWKS (`iss`, `aud` = bundle ID, `exp`), upserts the
-  user on `apple_sub`, returns tokens. Access token short-lived (1h) +
-  refresh token; both in Keychain.
-- **Google OAuth:** the native Google SDK obtains an ID token for the Web/server
-  OAuth client audience; the backend verifies Google's signature and audience,
-  then performs the same guest-account merge.
-- **Merge:** on first sign-in from a guest device, reassign the guest's
-  recipes/jobs to the account — this is the "keep your 10 recipes" promise the
-  welcome screen makes.
-
-No passwords or email flows. Every production deployment configures both
-identity providers already visible in the current UI.
-
-## 10. Sync
-
-Keep the app offline-first; the server is durability + import brains, not the
-live source of truth:
-
-- Client pulls `GET /v1/recipes?updatedSince=` on foreground + after imports;
-  applies upserts/tombstones into SwiftData.
-- Client edits push `PUT` with `updatedAt`; conflict policy is last-write-wins
-  (single-user data — real conflicts are rare; don't build CRDTs for v1).
-- Existing Share-Extension queue keeps working: the main app drains the App
-  Group queue by calling `POST /v1/imports`, replacing the demo path inside
-  `ImportCoordinator`. **The `ImportService` protocol is the seam** — write a
-  `RemoteImportService: ImportService` and the rest of the app doesn't change.
-
-## 11. Reality check: fetching social video
-
-TikTok/Instagram actively resist scraping, and doing it violates their ToS —
-expect breakage and design for it rather than around it:
-
-- YouTube is the reliable lane (captions API / yt-dlp works).
-- Instagram/TikTok: try oEmbed + yt-dlp best-effort; when blocked, fail into
-  `needsReview`/`failed(parserUnavailable)` and lean on the **paste-the-caption
-  flow you already built** — that UX is the moat, keep it first-class.
-- Never proxy fetches through user credentials; isolate the fetcher so a ban
-  only degrades one source.
-
-## 12. Local dev
-
-Per the global Caddy convention (`41XY`, X = project index, Y = role; digest
-holds X=9): Ladle shares index 1; the API publishes on host port **4112**
-(container-internal 4111 — study-app-api already holds host 4111).
-
-- `Caddyfile`: `http://api.ladle.localhost { reverse_proxy 127.0.0.1:4112 }`
-  then `caddy reload --config /opt/homebrew/etc/Caddyfile`.
-- Run: `uvicorn app.main:app --port 4111` (pinned; never auto-pick) +
-  `arq app.worker.WorkerSettings`; `docker compose` for Postgres/Redis/MinIO.
-- iOS Debug builds point at `http://api.ladle.localhost` via an xcconfig
-  value; simulator resolves `*.localhost` natively.
-
-## 13. Phases
-
-1. **Contract parity** — stand up API + Postgres + auth; port
-   `DemoImportService`'s deterministic outcomes behind the real endpoints.
-   Swap the app to `RemoteImportService`. Nothing user-visible changes; the
-   client/server contract is proven.
-2. **Real pipeline (YouTube only)** — yt-dlp + captions/whisper + Claude
-   extraction + nutrition. Fixture recipes die here.
-3. **Hard sources + hardening** — TikTok/Instagram best-effort, paste-flow
-   polish, quotas, cost dashboards, APNs completion push.
-
-Each phase is shippable; the app runs against phase 1 immediately.
+The Debug simulator build of the Ladle app and embedded Share Extension also
+succeeded with code signing disabled. No deployment was performed.

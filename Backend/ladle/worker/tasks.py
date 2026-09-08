@@ -5,31 +5,15 @@ from random import SystemRandom
 from time import perf_counter
 from uuid import UUID
 
-import httpx
-from billiard.exceptions import SoftTimeLimitExceeded  # type: ignore[import-untyped]
 from celery import Task
-from kombu.exceptions import (  # type: ignore[import-untyped]
-    OperationalError as KombuOperationalError,
-)
-from redis.exceptions import RedisError
-from sqlalchemy.exc import (
-    InterfaceError as SQLAlchemyInterfaceError,
-)
-from sqlalchemy.exc import (
-    OperationalError as SQLAlchemyOperationalError,
-)
-from sqlalchemy.exc import (
-    TimeoutError as SQLAlchemyTimeoutError,
-)
 
-from ladle.acquisition.errors import ProviderTransientError
-from ladle.cache.claims import ClaimLost
 from ladle.clock import SystemClock
 from ladle.config import Settings
 from ladle.imports.dispatcher import (
     PROCESS_IMPORT_TASK,
     CeleryImportDispatcher,
 )
+from ladle.imports.failures import is_retryable_import_failure
 from ladle.imports.maintenance import RELEASE_EXPIRED_RESERVATIONS_TASK
 from ladle.observability.structured_logging import log_context
 from ladle.privacy.retention import RETENTION_SWEEP_TASK
@@ -48,19 +32,6 @@ from ladle.worker.runtime import (
 
 _RANDOM = SystemRandom()
 LOGGER = logging.getLogger(__name__)
-_RETRYABLE_IMPORT_FAILURES = (
-    TimeoutError,
-    ConnectionError,
-    SoftTimeLimitExceeded,
-    httpx.TransportError,
-    RedisError,
-    KombuOperationalError,
-    SQLAlchemyInterfaceError,
-    SQLAlchemyOperationalError,
-    SQLAlchemyTimeoutError,
-    ProviderTransientError,
-    ClaimLost,
-)
 
 
 def retry_countdown(
@@ -78,19 +49,6 @@ def retry_countdown(
         else float(_RANDOM.uniform(0, jitter_seconds))
     )
     return int(exponential + round(jitter_value))
-
-
-def is_retryable_import_failure(error: BaseException) -> bool:
-    """Classify only operational failures that can succeed without code changes."""
-
-    current: BaseException | None = error
-    seen: set[int] = set()
-    while current is not None and id(current) not in seen:
-        seen.add(id(current))
-        if isinstance(current, _RETRYABLE_IMPORT_FAILURES):
-            return True
-        current = current.__cause__ or current.__context__
-    return False
 
 
 @celery_app.task(  # type: ignore[untyped-decorator]

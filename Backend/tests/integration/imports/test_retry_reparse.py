@@ -2,8 +2,10 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from inspect import signature
+from unittest.mock import patch
 from uuid import UUID, uuid4
 
+import httpx
 import pytest
 from pydantic import SecretStr
 from sqlalchemy import func, select
@@ -26,6 +28,7 @@ from ladle.contracts.recipes import (
 from ladle.crypto.private_text import LocalPrivateTextCipher
 from ladle.db.models import (
     ExtractionCache,
+    ExtractionClaim,
     FieldUncertainty,
     ImportJob,
     NegativeExtractionCache,
@@ -33,9 +36,11 @@ from ladle.db.models import (
     ObjectDeletionQueue,
     Recipe,
     RecipeImage,
+    RecipeSlotReservation,
     SourceVideo,
 )
 from ladle.db.session import build_engine
+from ladle.extraction.claude import ExtractionUnavailable
 from ladle.extraction.verification import VerificationEvidence
 from ladle.imports.admission import AdmissionService
 from ladle.imports.orchestrator import ImportOrchestrator, ProcessOutcome
@@ -188,6 +193,96 @@ def services(
         acquirer,
         extractor,
     )
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    "phase", ["acquisition", "extraction", "completion", "publicRecheck", "private"]
+)
+def test_a_transient_failure_keeps_the_job_retryable_and_the_next_attempt_completes(
+    clean_postgres_url: str,
+    phase: str,
+) -> None:
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    clock = FrozenClock(datetime(2026, 9, 8, 12, 0, tzinfo=UTC))
+    sessions, orchestrator, retry, acquirer, extractor = services(
+        clean_postgres_url,
+        clock,
+        template=RecipeTemplate.from_recipe(manual_recipe(uuid4())),
+    )
+    with sessions.begin() as database:
+        source_id = uuid4()
+        database.add(
+            SourceVideo(
+                id=source_id,
+                platform="youtube",
+                platform_video_id="retry-recovery",
+                canonical_url="https://www.youtube.com/watch?v=retry-recovery",
+                source_revision="1",
+                source_metadata={},
+            )
+        )
+        job_id = seed_import(database, source_id=source_id, suffix="recovery")
+    if phase in {"publicRecheck", "private"}:
+        assert orchestrator.process(job_id) == ProcessOutcome.COMPLETED
+        with sessions.begin() as database:
+            if phase == "publicRecheck":
+                clock.value += timedelta(days=8)
+                job_id = seed_import(database, source_id=source_id, suffix="recheck")
+            else:
+                job = database.get(ImportJob, job_id)
+                retry.retry(
+                    database,
+                    user_id=job.user_id,
+                    job_id=job_id,
+                    correction_notes="Use lemon zest.",
+                    pasted_text=None,
+                )
+
+    failure = ProviderTransientError("provider timed out")
+    if phase == "extraction":
+        failure = ExtractionUnavailable("extraction unavailable")
+        failure.__cause__ = httpx.ReadTimeout("provider timed out")
+    target, method = (
+        (orchestrator._cache, "complete_shared")
+        if phase == "completion"
+        else (extractor, "extract")
+        if phase == "extraction"
+        else (acquirer, "check_public" if phase == "publicRecheck" else "acquire")
+    )
+    with (
+        patch.object(target, method, side_effect=failure),
+        pytest.raises(type(failure)),
+    ):
+        orchestrator.process(job_id)
+
+    with sessions() as database:
+        job = database.get(ImportJob, job_id)
+        assert job.status == "parsing"
+        assert job.failure_reason is None
+        assert (
+            database.scalar(
+                select(ExtractionClaim.id).where(
+                    ExtractionClaim.owner_job_id == job_id,
+                    ExtractionClaim.released_at.is_(None),
+                )
+            )
+            is None
+        )
+        reservation = database.scalar(
+            select(RecipeSlotReservation).where(
+                RecipeSlotReservation.import_job_id == job_id,
+            )
+        )
+        assert reservation.state == ("consumed" if phase == "private" else "reserved")
+        if phase == "private":
+            assert job.correction_notes_encrypted is not None
+
+    expected = {
+        "publicRecheck": ProcessOutcome.CACHE_HIT,
+        "private": ProcessOutcome.PRIVATE_COMPLETED,
+    }.get(phase, ProcessOutcome.COMPLETED)
+    assert orchestrator.process(job_id) == expected
 
 
 @pytest.mark.integration

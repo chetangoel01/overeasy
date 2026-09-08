@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from unittest.mock import Mock
 from uuid import UUID, uuid4
 
 import pytest
@@ -17,6 +18,10 @@ from ladle.acquisition.models import (
     TranscriptResult,
 )
 from ladle.acquisition.provider_chain import ProviderChain
+from ladle.extraction.evidence_gate import (
+    InsufficientTextEvidence,
+    require_recipe_evidence,
+)
 from ladle.observability.metrics import MetricsRegistry
 from ladle.usage.circuit import CircuitBreaker, CircuitOpen
 
@@ -405,3 +410,68 @@ def test_creator_search_failure_is_diagnostic_and_never_adds_visual_evidence() -
     assert result.visual_observations == []
     assert result.linked_documents == []
     assert "creatorSearchUnavailable" in result.diagnostics
+
+
+@pytest.mark.parametrize(
+    "rung", ["free", "primary", "audio", "fallback", "server", "search"]
+)
+def test_an_outage_without_recipe_evidence_remains_retryable(rung: str) -> None:
+    failure = ProviderTransientError("provider timed out")
+    provider = Mock()
+    provider.acquire.side_effect = failure
+    provider.metadata.side_effect = failure
+    provider.transcript.side_effect = failure
+    provider.enrich.side_effect = failure
+    chain = ProviderChain(
+        primary=provider if rung == "primary" else None,
+        fallback=provider if rung == "fallback" else None,
+        free=provider if rung == "free" else None,
+        audio=provider if rung == "audio" else None,
+        server_fallback=provider if rung == "server" else None,
+        search=provider if rung == "search" else None,
+    )
+
+    with pytest.raises(ProviderTransientError):
+        chain.acquire(source(), job_id=uuid4())
+
+
+def test_transient_failure_still_allows_an_independent_fallback_to_succeed() -> None:
+    primary = Primary(
+        native=TranscriptUnavailable(),
+        generated=ProviderTransientError("provider timed out"),
+        description="Full recipe in bio.",
+    )
+    fallback = Fallback(transcript("Add flour and bake.", "soscripted"))
+    result = ProviderChain(primary=primary, fallback=fallback).acquire(
+        source(), job_id=uuid4()
+    )
+
+    require_recipe_evidence(result)
+    assert fallback.calls == 1
+    assert result.transcript[0].provenance == "soscripted"
+
+
+def test_missing_transcript_without_an_outage_still_reaches_the_evidence_gate() -> None:
+    primary = Primary(
+        native=TranscriptUnavailable(),
+        generated=TranscriptUnavailable(),
+        description="Full recipe in bio.",
+    )
+    result = ProviderChain(primary=primary, fallback=None).acquire(
+        source(), job_id=uuid4()
+    )
+
+    with pytest.raises(InsufficientTextEvidence):
+        require_recipe_evidence(result)
+
+
+def test_an_open_provider_circuit_is_retryable_during_a_public_recheck() -> None:
+    circuits = Mock()
+    circuits.before_call.side_effect = CircuitOpen("supadata")
+    primary = Mock()
+    chain = ProviderChain(primary=primary, fallback=None, circuits=circuits)
+
+    with pytest.raises(ProviderTransientError):
+        chain.check_public(source(), job_id=uuid4())
+
+    primary.metadata.assert_not_called()

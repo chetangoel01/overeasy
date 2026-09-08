@@ -2891,7 +2891,7 @@ final class ImportCoordinatorTests: XCTestCase {
         XCTAssertEqual(photo.retryAvailability(), .available)
 
         for reason in [
-            ImportFailure.insufficientTextEvidence,
+            ImportFailure.networkUnavailable,
             .parserUnavailable,
             .unrecognized("someCodeFromALaterServer"),
         ] {
@@ -2905,14 +2905,29 @@ final class ImportCoordinatorTests: XCTestCase {
         }
     }
 
-    func testInboxLabelsAPhotoPostFailureByWhatItNeeds() {
+    func testMissingRecipeInstructionsAsksForTextBeforeRetrying() {
+        let failure = ImportOperationFailure(
+            jobID: UUID(),
+            reason: .insufficientTextEvidence
+        )
+
+        XCTAssertEqual(failure.title, "No recipe instructions found")
+        XCTAssertEqual(
+            failure.message,
+            "We couldn’t find cooking instructions in the post’s caption, audio, or linked pages. Paste the recipe, or create it manually."
+        )
+        XCTAssertEqual(failure.recoveryLayout, .manualEntryFirst)
+        XCTAssertEqual(failure.retryAvailability(), .available)
+    }
+
+    func testInboxLabelsMissingRecipeTextByWhatItNeeds() {
         XCTAssertEqual(
             ImportFailure.photoPostNeedsManualEntry.inboxStatusLabel,
             "Type it in"
         )
         XCTAssertEqual(
             ImportFailure.insufficientTextEvidence.inboxStatusLabel,
-            "Import failed"
+            "Needs recipe text"
         )
         XCTAssertEqual(
             ImportFailure.unrecognized("someCodeFromALaterServer")

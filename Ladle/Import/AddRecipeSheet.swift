@@ -478,6 +478,7 @@ struct AddRecipeSheet: View {
                 Text(failure.title)
                     .ladleFont(.title)
                     .foregroundStyle(LadleTheme.Label.primary)
+                    .multilineTextAlignment(.center)
                 Text(failure.message)
                     .ladleFont(.body)
                     .foregroundStyle(LadleTheme.Label.secondary)

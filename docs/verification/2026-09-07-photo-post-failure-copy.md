@@ -6,6 +6,10 @@ Scope: iOS only. The backend half is
 [#112](https://github.com/chetangoel01/overeasy/pull/112) —
 `docs/verification/2026-09-07-photo-post-imports.md`.
 
+Updated 2026-09-08: missing instructions in video imports now use the same
+paste-first recovery order. The current copy is recorded below; the original
+wire compatibility and deployment notes remain historical context.
+
 ## Why
 
 The decision recorded on #39 on 2026-09-07 is that a photo post whose caption
@@ -49,11 +53,12 @@ The case, the `Contracts/Fixtures/import-failures.json` entry, and coverage in
 
 ### 3. Failure sheet copy and action order
 
-| | Generic (`insufficientTextEvidence`) | Photo post |
+| | Missing instructions (`insufficientTextEvidence`) | Photo post |
 | --- | --- | --- |
-| Title | More recipe detail needed | The recipe is in the pictures |
-| Message | The post lacks enough written detail. Paste the recipe or create it manually. | Overeasy read the caption and it didn’t hold the recipe. Paste it from the post, or type it in. |
-| Leads with | Retry import | Paste recipe details |
+| Title | No recipe instructions found | The recipe is in the pictures |
+| Message | We couldn’t find cooking instructions in the post’s caption, audio, or linked pages. Paste the recipe, or create it manually. | Overeasy read the caption and it didn’t hold the recipe. Paste it from the post, or type it in. |
+| Leads with | Paste recipe details | Paste recipe details |
+| Inbox label | Needs recipe text | Type it in |
 
 `ImportRecoveryLayout` (`Ladle/Import/ImportCoordinator.swift`) is the whole
 mechanism: `.retryFirst` for every failure that might not happen twice,
@@ -73,7 +78,8 @@ post fails while the add sheet is still open.
 `PendingImportCard`'s status pill says **Type it in** rather than "Import
 failed", in the register of the other short labels on that row ("Sign in again",
 "Limit reached"). It is the same string VoiceOver reads, and the byline beneath
-carries the message above.
+carries the message above. Video imports missing a cooking method instead say
+**Needs recipe text**, including in their VoiceOver label.
 
 ## Deploy order
 
@@ -143,3 +149,51 @@ Left is `main`, right is this branch, on the seeded library.
 | Before | After |
 | --- | --- |
 | ![Before](captures/2026-09-07-photo-post-failure-copy/before.png) | ![After](captures/2026-09-07-photo-post-failure-copy/after.png) |
+
+## 2026-09-08: missing instructions in a YouTube Short
+
+The reported [YouTube Short](https://www.youtube.com/shorts/OIwC6Jv55Hk) was
+accepted and canonicalized correctly. Its live job failed with
+`insufficientTextEvidence`. A bounded diagnostic check confirmed that YouTube
+blocked the server's free yt-dlp request, but Supadata successfully supplied
+metadata and six transcript segments. The 13-second clip introduces a series
+of quick healthy recipes; the returned narration gives no cooking method, and
+its description contains a creator homepage and hashtags. This case does not
+show that Shorts links or transcription are unsupported.
+
+The approved change is to explain that outcome in the existing UI. Previously,
+the video failure said “More recipe detail needed”, led with Retry, and appeared
+as “Import failed” in Inbox. Both `AddRecipeSheet` and `FailedImportSheet` now
+read the copy and `.manualEntryFirst` layout from `ImportOperationFailure`.
+`ImportRecoveryActions` already implements that layout, so no new screen or
+control is needed. Connection, parser, and unknown failures still lead with
+Retry. The backend evidence gate and API contract are unchanged.
+
+`DemoImportService` recognizes a `no-instructions` URL for deterministic UI
+verification; it returns the same failure until recipe text is supplied.
+`ImportCoordinatorTests` covers the message, action order, available secondary
+retry, and Inbox label. The UI test
+`testMissingInstructionsExplainsFailureAndRecoversFromInbox` checks both sheets,
+the Inbox label, and recovery through the existing pasted-text editor.
+
+Verification on the iOS 26.5 simulator:
+
+- Two focused regression tests failed on the old copy, Inbox label, and action
+  order before implementation. The assertions completed; the red run's runner
+  was stopped after it remained open following test completion.
+- 103 app tests passed across `ImportCoordinatorTests`, `DemoImportServiceTests`,
+  and `ProjectSmokeTests`.
+- Both UI tests passed: the existing recovery-label alignment check and the new
+  missing-instructions flow through Inbox and pasted-text recovery.
+- The new recovery flow also passed at extra-large text in light mode and
+  accessibility-medium text in dark mode. Captures were inspected for wrapping
+  and reachable actions. The Add recipe heading now centers when it wraps.
+- 53 backend URL, evidence-gate, and coverage tests passed during diagnosis.
+- The full Ladle app and embedded Share Extension build passed, along with
+  `git diff --check` and the edited documents' relative-link check.
+
+Current captures:
+[Add recipe, extra-large text](captures/2026-09-08-missing-recipe-instructions/add-recipe-extra-large.png),
+[Inbox](captures/2026-09-08-missing-recipe-instructions/inbox.png),
+[recovery](captures/2026-09-08-missing-recipe-instructions/recovery.png), and
+[dark accessibility recovery](captures/2026-09-08-missing-recipe-instructions/recovery-dark-accessibility.png).

@@ -18,7 +18,9 @@ limits remain enabled.
 5. Start the API and worker.
 6. Require API readiness and a Celery worker ping.
 
-The API checks migration revision `0012`, database, Redis roles, MinIO, worker,
-and configuration. A failed build, configuration check, or migration leaves the
+The API checks the expected migration revision defined by
+`DatabaseReadinessProbe` in `ladle/api/routes/health.py`, database, Redis roles,
+MinIO, worker, and configuration. That revision must match Alembic's head. A
+failed build, configuration check, or migration leaves the
 previous containers running. Rollback redeploys a known-good Git revision;
 database downgrades require explicit compatibility review.
