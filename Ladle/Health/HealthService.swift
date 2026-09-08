@@ -56,6 +56,10 @@ struct HealthExportPayload: Equatable, Sendable {
     let recipeTitle: String
     let servings: Decimal
     let isEstimated: Bool
+    /// Whether these totals are missing an ingredient. Health takes the
+    /// numbers either way — a panel short by a spice blend is still the best
+    /// figure anyone has — but the sheet has to say so before it writes.
+    let approximate: Bool
     let metrics: [HealthExportMetric]
 
     init(
@@ -67,6 +71,7 @@ struct HealthExportPayload: Equatable, Sendable {
         self.recipeTitle = recipeTitle
         self.servings = servings
         isEstimated = nutrition.isEstimated
+        approximate = nutrition.approximate
         metrics = [
             scaled.calories.map {
                 HealthExportMetric(kind: .calories, amount: $0)

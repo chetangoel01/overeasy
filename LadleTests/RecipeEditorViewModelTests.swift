@@ -433,6 +433,30 @@ final class RecipeEditorViewModelTests: XCTestCase {
         )
     }
 
+    func testEditingTheCaloriesDoesNotClearWhatThePipelineCouldNotCount() throws {
+        // The editor has no field for it and a cook has no way to answer it.
+        // Without carrying the flag through the draft, fixing a typo in the
+        // calories would quietly declare the total complete while the
+        // ingredient rows went on naming what is missing from it.
+        var recipe = PreviewFixtures.recipes[1]
+        recipe.nutrition = Nutrition(
+            calories: 520,
+            proteinGrams: 21,
+            servingBasis: 1,
+            isEstimated: true,
+            approximate: true
+        )
+        let viewModel = makeViewModel(recipe: recipe)
+
+        XCTAssertTrue(viewModel.draft.nutrition.approximate)
+        viewModel.draft.nutrition.calories = "530"
+
+        let saved = try XCTUnwrap(viewModel.save())
+
+        XCTAssertEqual(saved.nutrition?.calories, 530)
+        XCTAssertEqual(saved.nutrition?.approximate, true)
+    }
+
     private func makeViewModel(
         recipe: Recipe = PreviewFixtures.recipes[1],
         repository: EditorTestRepository? = nil,

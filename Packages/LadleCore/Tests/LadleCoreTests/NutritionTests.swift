@@ -50,4 +50,56 @@ struct NutritionTests {
         #expect(scaled.proteinGrams == nil)
         #expect(scaled.sodiumMilligrams == nil)
     }
+
+    @Test
+    func scalingCarriesTheApproximateMarker() {
+        // Every figure the app prints goes through `perServing`, which is a
+        // freshly constructed value: a marker the scale drops is a marker
+        // no screen ever sees.
+        let nutrition = Nutrition(
+            calories: 500,
+            servingBasis: 4,
+            isEstimated: true,
+            approximate: true
+        )
+
+        #expect(nutrition.scaled(toServings: 1).approximate)
+    }
+
+    @Test
+    func anOlderRecipeWithoutTheKeyDecodesAsComplete() throws {
+        // Recipes already in the local store were encoded before the field
+        // existed, and an older server never sends it.
+        let payload = Data(
+            """
+            {
+              "otherNutrients": [],
+              "calories": 500,
+              "servingBasis": 1,
+              "isEstimated": true
+            }
+            """.utf8
+        )
+
+        let nutrition = try JSONDecoder().decode(Nutrition.self, from: payload)
+
+        #expect(nutrition.approximate == false)
+    }
+
+    @Test
+    func theApproximateMarkerSurvivesALocalRoundTrip() throws {
+        let nutrition = Nutrition(
+            calories: 500,
+            servingBasis: 1,
+            isEstimated: true,
+            approximate: true
+        )
+
+        let restored = try JSONDecoder().decode(
+            Nutrition.self,
+            from: JSONEncoder().encode(nutrition)
+        )
+
+        #expect(restored.approximate)
+    }
 }

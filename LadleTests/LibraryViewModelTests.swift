@@ -428,21 +428,53 @@ final class LibraryViewModelTests: XCTestCase {
         XCTAssertEqual(recipe.libraryFacts, "")
     }
 
-    func testDenseArchiveFactsOnlyMarkEstimatedCaloriesApproximate() {
+    func testDenseArchiveFactsMarkATotalThatIsMissingAnIngredient() {
+        // The marker and nothing else: a card says the number is short, the
+        // nutrition sheet says by what.
         let recipe = Recipe(
-            title: "Labelled Soup",
+            title: "Weeknight Curry",
             source: .other,
-            originalURL: URL(string: "https://example.com/labelled-soup")!,
+            originalURL: URL(string: "https://example.com/curry")!,
             servings: 2,
             nutrition: Nutrition(
                 calories: 600,
                 proteinGrams: 40,
                 servingBasis: 2,
-                isEstimated: false
+                isEstimated: true,
+                approximate: true
             )
         )
 
-        XCTAssertEqual(recipe.libraryFacts, "300 cal · 20g protein")
+        XCTAssertEqual(recipe.libraryFacts, "≈ 300 cal · 20g protein")
+    }
+
+    func testDenseArchiveFactsLeaveAnEstimateThatCountedEverythingUnmarked() {
+        // Every calculated panel is an estimate. "≈" is reserved for the
+        // narrower claim that something was left out of the total.
+        let estimated = Nutrition(
+            calories: 600,
+            proteinGrams: 40,
+            servingBasis: 2,
+            isEstimated: true
+        )
+        let labelled = Nutrition(
+            calories: 600,
+            proteinGrams: 40,
+            servingBasis: 2,
+            isEstimated: false
+        )
+
+        for nutrition in [estimated, labelled] {
+            let recipe = Recipe(
+                title: "Labelled Soup",
+                source: .other,
+                originalURL: URL(string: "https://example.com/labelled-soup")!,
+                servings: 2,
+                nutrition: nutrition
+            )
+
+            XCTAssertEqual(recipe.libraryFacts, "300 cal · 20g protein")
+        }
     }
 
     func testDisplayModePersistsAcrossViewModels() {

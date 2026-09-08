@@ -695,12 +695,7 @@ private struct WatchRecipePage: View {
                 : "Saved by \(discoverRecipe.savedCount) cooks"
         }
         return [
-            recipe.libraryNutrition?.calories.map {
-                let prefix = recipe.libraryNutrition?.isEstimated == true
-                    ? "≈ "
-                    : ""
-                return "\(prefix)\(ladleNumber($0, maximumFractionDigits: 0)) cal"
-            },
+            recipe.libraryNutrition?.ladleEstimatedCalorieText.map { "\($0) cal" },
             recipe.libraryNutrition?.proteinGrams.map {
                 "\(ladleNumber($0)) g protein"
             },

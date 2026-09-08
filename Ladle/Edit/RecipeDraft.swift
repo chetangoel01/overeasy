@@ -115,6 +115,10 @@ struct RecipeDraft: Equatable {
         var otherNutrients: [Nutrient]
         var servingBasis: String
         var isEstimated: Bool
+        /// Carried, never edited. The pipeline's record of what it could not
+        /// count, which a cook fixing a typo in the calories has no way to
+        /// answer and no business clearing.
+        var approximate: Bool
 
         init(_ nutrition: Nutrition?) {
             isIncluded = nutrition != nil
@@ -137,6 +141,7 @@ struct RecipeDraft: Equatable {
                 Self.text($0.servingBasis)
             } ?? "1"
             isEstimated = nutrition?.isEstimated ?? true
+            approximate = nutrition?.approximate ?? false
         }
 
         private static func text(_ value: Decimal?) -> String {
@@ -265,7 +270,8 @@ struct RecipeDraft: Equatable {
                 from: nutrition.servingBasis,
                 locale: locale
             ) ?? 1,
-            isEstimated: nutrition.isEstimated
+            isEstimated: nutrition.isEstimated,
+            approximate: nutrition.approximate
         )
     }
 

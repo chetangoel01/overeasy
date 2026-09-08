@@ -31,6 +31,14 @@ public struct Nutrition: Codable, Hashable, Sendable {
     public let otherNutrients: [Nutrient]
     public let servingBasis: Decimal
     public let isEstimated: Bool
+    /// Whether ingredients were left out of these totals.
+    ///
+    /// Distinct from `isEstimated`, which every calculated panel is: this
+    /// one is also *incomplete*. The pipeline skips an ingredient no food
+    /// record describes rather than voiding the whole recipe, so the number
+    /// is honest about what it counted and short by what it could not.
+    /// Which ingredients, and why, travel separately as uncertainties.
+    public let approximate: Bool
 
     public init(
         calories: Decimal? = nil,
@@ -43,7 +51,8 @@ public struct Nutrition: Codable, Hashable, Sendable {
         sodiumMilligrams: Decimal? = nil,
         otherNutrients: [Nutrient] = [],
         servingBasis: Decimal,
-        isEstimated: Bool
+        isEstimated: Bool,
+        approximate: Bool = false
     ) {
         self.calories = calories
         self.proteinGrams = proteinGrams
@@ -56,6 +65,53 @@ public struct Nutrition: Codable, Hashable, Sendable {
         self.otherNutrients = otherNutrients
         self.servingBasis = servingBasis
         self.isEstimated = isEstimated
+        self.approximate = approximate
+    }
+
+    /// Hand-written only for `approximate`, which is absent from every
+    /// recipe encoded into the local store before the field existed and
+    /// from anything an older server sends. Absent means complete.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        calories = try container.decodeIfPresent(
+            Decimal.self,
+            forKey: .calories
+        )
+        proteinGrams = try container.decodeIfPresent(
+            Decimal.self,
+            forKey: .proteinGrams
+        )
+        carbohydrateGrams = try container.decodeIfPresent(
+            Decimal.self,
+            forKey: .carbohydrateGrams
+        )
+        fatGrams = try container.decodeIfPresent(Decimal.self, forKey: .fatGrams)
+        saturatedFatGrams = try container.decodeIfPresent(
+            Decimal.self,
+            forKey: .saturatedFatGrams
+        )
+        fiberGrams = try container.decodeIfPresent(
+            Decimal.self,
+            forKey: .fiberGrams
+        )
+        sugarGrams = try container.decodeIfPresent(
+            Decimal.self,
+            forKey: .sugarGrams
+        )
+        sodiumMilligrams = try container.decodeIfPresent(
+            Decimal.self,
+            forKey: .sodiumMilligrams
+        )
+        otherNutrients = try container.decode(
+            [Nutrient].self,
+            forKey: .otherNutrients
+        )
+        servingBasis = try container.decode(Decimal.self, forKey: .servingBasis)
+        isEstimated = try container.decode(Bool.self, forKey: .isEstimated)
+        approximate = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .approximate
+        ) ?? false
     }
 
     public func scaled(toServings servings: Decimal) -> Self {
@@ -78,7 +134,8 @@ public struct Nutrition: Codable, Hashable, Sendable {
                 )
             },
             servingBasis: servings,
-            isEstimated: isEstimated
+            isEstimated: isEstimated,
+            approximate: approximate
         )
     }
 }

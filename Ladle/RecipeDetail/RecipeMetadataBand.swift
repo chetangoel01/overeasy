@@ -129,6 +129,17 @@ struct RecipeNutritionSummary: View {
                             .padding(.vertical, 4)
                             .background(LadleTheme.Surface.steel, in: Capsule())
                     }
+                    if displayed.approximate {
+                        // The estimate is also short by an ingredient; the
+                        // sheet names which.
+                        Text("Partial")
+                            .ladleFont(.metadata)
+                            .foregroundStyle(accent.label)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(LadleTheme.Surface.steel, in: Capsule())
+                            .accessibilityLabel("Partial: some ingredients were not counted")
+                    }
                     Spacer()
                     Image(systemName: "chevron.right")
                         .font(.system(size: LadleTheme.IconSize.small, weight: .semibold))
@@ -165,12 +176,7 @@ struct RecipeNutritionSummary: View {
 
     @ViewBuilder
     private var nutritionItems: some View {
-        nutritionItem(
-            value: displayed.calories.map {
-                ladleNumber($0, maximumFractionDigits: 0)
-            },
-            label: "Calories"
-        )
+        nutritionItem(value: displayed.ladleCalorieText, label: "Calories")
         nutritionItem(value: grams(displayed.proteinGrams), label: "Protein")
         nutritionItem(value: grams(displayed.carbohydrateGrams), label: "Carbs")
         nutritionItem(value: grams(displayed.fatGrams), label: "Fat")
@@ -195,7 +201,11 @@ struct RecipeNutritionSummary: View {
 
     private var displayed: Nutrition {
         nutrition.perServing
-            ?? Nutrition(servingBasis: 1, isEstimated: nutrition.isEstimated)
+            ?? Nutrition(
+                servingBasis: 1,
+                isEstimated: nutrition.isEstimated,
+                approximate: nutrition.approximate
+            )
     }
 }
 
