@@ -10,6 +10,7 @@
   "ingredients": [
     {
       "id": "22000000-0000-4000-8000-000000000020",
+      "isToTaste": false,
       "name": "rice noodles",
       "normalizedQuantity": "200",
       "orderIndex": 0,
@@ -20,6 +21,7 @@
     },
     {
       "id": "22000000-0000-4000-8000-000000000021",
+      "isToTaste": false,
       "name": "firm tofu",
       "normalizedQuantity": "1",
       "orderIndex": 1,

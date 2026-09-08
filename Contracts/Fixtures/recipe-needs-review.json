@@ -10,6 +10,7 @@
   "ingredients": [
     {
       "id": "22000000-0000-4000-8000-000000000010",
+      "isToTaste": true,
       "name": "tomatoes",
       "normalizedQuantity": null,
       "orderIndex": 0,

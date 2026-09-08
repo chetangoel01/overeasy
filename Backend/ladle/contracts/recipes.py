@@ -11,6 +11,7 @@ from ladle.contracts.common import (
     WireModel,
     WireUUID,
 )
+from ladle.contracts.quantities import split_quantity
 from ladle.contracts.tags import (
     MAX_KEYWORD_PROPOSAL_LENGTH,
     MAX_KEYWORD_PROPOSALS,
@@ -98,14 +99,63 @@ class RecipeImageDTO(WireModel):
 
 
 class IngredientDTO(WireModel):
+    """A quantity, a unit and a name — or an ingredient with no quantity.
+
+    Every row a cook reads is rendered from `normalized_quantity`, `unit` and
+    `name`. `quantity_text` is the creator's phrase kept as a note beside
+    them; nothing prints it, and no client should. `is_to_taste` says the
+    ingredient has no amount to render at all ("salt to taste", or a caption
+    that named a food and no quantity), which is the only way a row is
+    allowed to reach a cook without a number.
+    """
+
     id: WireUUID
+    #: What the creator said, verbatim ("2 16oz cans"). A note, not a
+    #: rendering source: `enforce_quantity` mines it for the split when the
+    #: writer left one empty, and nothing else reads it.
     quantity_text: str | None = Field(default=None, max_length=100)
     normalized_quantity: NonnegativeRecipeDecimal | None = None
     unit: str | None = Field(default=None, max_length=50)
     name: str = Field(min_length=1, max_length=300)
     preparation: str | None = Field(default=None, max_length=500)
+    is_to_taste: bool = False
     order_index: int = Field(ge=0, le=10_000)
     uncertainty: FieldUncertaintyDTO | None = None
+
+    @model_validator(mode="after")
+    def enforce_quantity(self) -> "IngredientDTO":
+        """Guarantee the split, or say the ingredient has no quantity.
+
+        Every writer goes through this type — extraction instantiating a
+        template, the repository reading a row back, a cook's own edit
+        arriving as a PUT — so the invariant is a property of the contract
+        rather than a rule each of them has to remember.
+
+        An amount the writer expressed only as a phrase is recovered from
+        it. Where nothing recovers, the ingredient is flagged as having no
+        quantity, because a row with a phantom amount would render as a bare
+        name while still claiming a number the cook never gave.
+        """
+
+        if self.is_to_taste:
+            return self
+        number, unit = split_quantity(self.quantity_text)
+        if self.normalized_quantity is None:
+            self.normalized_quantity = number
+        # "1/2 lemon" beside the name "lemon" is a count of the ingredient,
+        # not a unit of it: taking the word would render "0.5 lemon lemon".
+        if unit is not None and self.name.strip().lower().startswith(unit.lower()):
+            unit = None
+        if (
+            unit is not None
+            and not (self.unit or "").strip()
+            and number is not None
+            and number == self.normalized_quantity
+        ):
+            self.unit = unit
+        if self.normalized_quantity is None:
+            self.is_to_taste = True
+        return self
 
 
 class DetectedTimerDTO(WireModel):

@@ -28,13 +28,25 @@ public struct RecipeImage: Codable, Hashable, Identifiable, Sendable {
     }
 }
 
+/// A quantity, a unit and a name — or an ingredient with no quantity.
+///
+/// Rows render from `normalizedQuantity`, `unit` and `name`, and from
+/// nothing else. `quantityText` is the creator's phrase, kept as a note
+/// beside them: the server guarantees the split whenever an amount was
+/// given at all, so a row that prints the phrase would be printing the same
+/// amount a second time in the creator's spelling.
+///
+/// `isToTaste` is the one honest way to have no amount — "salt to taste",
+/// or a caption that named a food and no quantity. Such a row is its name.
 public struct Ingredient: Codable, Hashable, Identifiable, Sendable {
     public let id: UUID
+    /// What the creator said, verbatim. A note; no row prints it.
     public var quantityText: String?
     public var normalizedQuantity: Decimal?
     public var unit: String?
     public var name: String
     public var preparation: String?
+    public var isToTaste: Bool
     public var orderIndex: Int
     public var uncertainty: FieldUncertainty?
 
@@ -45,6 +57,7 @@ public struct Ingredient: Codable, Hashable, Identifiable, Sendable {
         unit: String? = nil,
         name: String,
         preparation: String? = nil,
+        isToTaste: Bool = false,
         orderIndex: Int,
         uncertainty: FieldUncertainty? = nil
     ) {
@@ -54,8 +67,41 @@ public struct Ingredient: Codable, Hashable, Identifiable, Sendable {
         self.unit = unit
         self.name = name
         self.preparation = preparation
+        self.isToTaste = isToTaste
         self.orderIndex = orderIndex
         self.uncertainty = uncertainty
+    }
+
+    /// Recipes are persisted on the device as encoded `Recipe` values, so a
+    /// library written before this flag existed has to keep decoding. An
+    /// old row says nothing about having no quantity; the sync that follows
+    /// brings the server's answer.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        quantityText = try container.decodeIfPresent(
+            String.self,
+            forKey: .quantityText
+        )
+        normalizedQuantity = try container.decodeIfPresent(
+            Decimal.self,
+            forKey: .normalizedQuantity
+        )
+        unit = try container.decodeIfPresent(String.self, forKey: .unit)
+        name = try container.decode(String.self, forKey: .name)
+        preparation = try container.decodeIfPresent(
+            String.self,
+            forKey: .preparation
+        )
+        isToTaste = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .isToTaste
+        ) ?? false
+        orderIndex = try container.decode(Int.self, forKey: .orderIndex)
+        uncertainty = try container.decodeIfPresent(
+            FieldUncertainty.self,
+            forKey: .uncertainty
+        )
     }
 }
 

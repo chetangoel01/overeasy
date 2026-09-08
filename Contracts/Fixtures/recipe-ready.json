@@ -19,6 +19,7 @@
   "ingredients": [
     {
       "id": "22000000-0000-4000-8000-000000000001",
+      "isToTaste": false,
       "name": "orzo",
       "normalizedQuantity": "2",
       "orderIndex": 0,
@@ -29,6 +30,7 @@
     },
     {
       "id": "22000000-0000-4000-8000-000000000002",
+      "isToTaste": false,
       "name": "lemon",
       "normalizedQuantity": "0.5",
       "orderIndex": 1,

@@ -1,84 +1,16 @@
-import re
-from decimal import Decimal, InvalidOperation
-from fractions import Fraction
-from typing import Annotated, Any, Literal
+from typing import Annotated, Literal
 
 from pydantic import BeforeValidator, Field
 
 from ladle.contracts.common import WireModel
+from ladle.contracts.quantities import RecipeDecimal
 from ladle.contracts.recipes import FieldUncertaintyDTO
 from ladle.contracts.tags import CuisineTag, DietTag, coerce_tags
 
-# "1/2", "2/3", "1 1/2" — how recipes are actually written, and so how models
-# write them back. Pydantic rejects them as decimals, and because a rejected
-# field fails the whole payload, one "2/3 cup" used to discard an entire
-# extraction: every ingredient, every step, over a notation choice.
-_FRACTION = re.compile(r"^(?:(\d+)\s+)?(\d+)\s*/\s*(\d+)$")
-_VULGAR = {
-    "¼": Fraction(1, 4),
-    "½": Fraction(1, 2),
-    "¾": Fraction(3, 4),
-    "⅐": Fraction(1, 7),
-    "⅓": Fraction(1, 3),
-    "⅔": Fraction(2, 3),
-    "⅕": Fraction(1, 5),
-    "⅖": Fraction(2, 5),
-    "⅗": Fraction(3, 5),
-    "⅘": Fraction(4, 5),
-    "⅙": Fraction(1, 6),
-    "⅚": Fraction(5, 6),
-    "⅛": Fraction(1, 8),
-    "⅜": Fraction(3, 8),
-    "⅝": Fraction(5, 8),
-    "⅞": Fraction(7, 8),
-}
-
-
-def _decimal_from_fraction(value: Any) -> Any:
-    """Accept a fraction where a decimal is expected; pass anything else on.
-
-    Left for pydantic to reject when it is neither, so genuinely bad input
-    still fails rather than being coerced into a plausible number.
-    """
-
-    if not isinstance(value, str):
-        return value
-    text = value.strip()
-    if not text:
-        return value
-    if text in _VULGAR:
-        return _as_decimal(_VULGAR[text])
-    # "1½"
-    if len(text) > 1 and text[-1] in _VULGAR:
-        whole = text[:-1].strip()
-        if whole.isdigit():
-            return _as_decimal(int(whole) + _VULGAR[text[-1]])
-    match = _FRACTION.match(text)
-    if match is None:
-        return value
-    whole_part, numerator, denominator = match.groups()
-    if int(denominator) == 0:
-        return value
-    total = Fraction(int(numerator), int(denominator))
-    if whole_part is not None:
-        total += int(whole_part)
-    return _as_decimal(total)
-
-
-def _as_decimal(value: Fraction) -> Decimal:
-    try:
-        return round(Decimal(value.numerator) / Decimal(value.denominator), 6)
-    except (InvalidOperation, ZeroDivisionError):  # pragma: no cover - guarded above
-        return Decimal(0)
-
-
-#: A decimal that also accepts the fractions recipes are written in.
-RecipeDecimal = Annotated[Decimal, BeforeValidator(_decimal_from_fraction)]
-
 #: Diets and cuisines as the model wrote them, folded onto the closed lists.
 #: A bare `list[DietTag]` would reject the payload over one invented tag, and
-#: an entire recipe is not worth a stray "keto" — the same trade the fraction
-#: parser above makes.
+#: an entire recipe is not worth a stray "keto" — the same trade
+#: `contracts.quantities` makes for fraction notation.
 ExtractedDiets = Annotated[
     list[DietTag],
     BeforeValidator(lambda value: coerce_tags(DietTag, value)),

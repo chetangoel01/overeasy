@@ -838,6 +838,11 @@ class Ingredient(Base):
     unit: Mapped[str | None] = mapped_column(String(64), nullable=True)
     name: Mapped[str] = mapped_column(Text, nullable=False)
     preparation: Mapped[str | None] = mapped_column(Text, nullable=True)
+    #: The ingredient has no amount to render: "salt to taste", or a caption
+    #: that named a food and no quantity. Every other row carries a number.
+    is_to_taste: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("false")
+    )
     order_index: Mapped[int] = mapped_column(Integer, nullable=False)
 
 
