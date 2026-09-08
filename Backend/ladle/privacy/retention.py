@@ -92,7 +92,7 @@ class RetentionService:
         terminal_import_jobs = _delete_count(
             database,
             delete(ImportJob).where(
-                ImportJob.status.in_(("ready", "needsReview", "failed")),
+                ImportJob.status.in_(("ready", "needsReview", "failed", "cancelled")),
                 ImportJob.completed_at
                 <= now - timedelta(days=self._policy.terminal_import_days),
             ),
@@ -115,7 +115,9 @@ class RetentionService:
         private_jobs = list(
             database.scalars(
                 select(ImportJob).where(
-                    ImportJob.status.in_(("ready", "needsReview", "failed")),
+                    ImportJob.status.in_(
+                        ("ready", "needsReview", "failed", "cancelled")
+                    ),
                     ImportJob.completed_at <= private_cutoff,
                     or_(
                         ImportJob.correction_notes_encrypted.is_not(None),

@@ -51,8 +51,10 @@ class RecordingStorage:
 
 
 @pytest.mark.integration
+@pytest.mark.parametrize("terminal_status", ["failed", "cancelled"])
 def test_retention_removes_expired_private_operational_data_and_queues_objects(
     clean_postgres_url: str,
+    terminal_status: str,
 ) -> None:
     command.upgrade(alembic_config(clean_postgres_url), "head")
     engine = build_engine(clean_postgres_url)
@@ -197,9 +199,11 @@ def test_retention_removes_expired_private_operational_data_and_queues_objects(
                     source_url="https://youtu.be/retention",
                     canonical_url="https://www.youtube.com/watch?v=retention",
                     source="youtube",
-                    status="failed",
-                    stage="failed",
-                    failure_reason="parserUnavailable",
+                    status=terminal_status,
+                    stage=terminal_status,
+                    failure_reason=(
+                        "parserUnavailable" if terminal_status == "failed" else None
+                    ),
                     retry_count=0,
                     bypass_cache=False,
                     correction_notes_encrypted=b"private-correction",

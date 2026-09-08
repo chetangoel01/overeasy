@@ -10,8 +10,10 @@ ciphertext unreadable.
 
 - Encrypted pasted text and correction notes are erased 24 hours after a
   terminal import.
-- Terminal import jobs are retained for 30 days; provider-attempt accounting is
-  retained for 90 days.
+- Terminal import jobs (`ready`, `needsReview`, `failed`, and `cancelled`) are
+  retained for 30 days; provider-attempt accounting is retained for 90 days.
+  Cancellation already erases private text immediately. The terminal-text
+  sweep also covers cancelled records as a backstop.
 - Expired or revoked refresh-token hashes are removed after seven days.
 - Expired negative caches are removed immediately. Invalid extraction caches
   and their orphaned thumbnails are removed after 30 days.
@@ -100,6 +102,11 @@ refresh-token revocation remains possible before resuming account deletion.
 
 - Integration coverage seeds each retained data class, runs a sweep, confirms
   the retained/current records remain, and processes an orphaned object.
+- The September 8 regression runs that scenario for both failed and cancelled
+  imports. It was observed failing for cancelled records before the fix; both
+  cases now pass, including retention of recent jobs and removal of any expired
+  private text. The change uses the existing retention policy and needs no
+  migration.
 - Crypto tests cover randomized encryption, key IDs, active-key rotation,
   legacy decryption, unknown IDs, and UTF-8 byte limits.
 - Backend sync tests reject an expired cursor. iOS tests prove the client
