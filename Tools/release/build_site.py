@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import html
 import re
+import shutil
 from datetime import date
 from pathlib import Path
 
@@ -124,6 +125,9 @@ PAGE = """<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{title}</title>
+<link rel="icon" href="./favicon.ico?v=20260909" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="./favicon-32x32.png?v=20260909">
+<link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png?v=20260909">
 <meta name="description" content="{description}">
 <meta name="color-scheme" content="light dark">
 <style>{style}</style>
@@ -294,6 +298,9 @@ def main() -> None:
 
     out = (ROOT / args.out).resolve()
     out.mkdir(parents=True, exist_ok=True)
+
+    for icon in (ROOT / "Tools" / "release" / "site-icons").iterdir():
+        shutil.copy2(icon, out / icon.name)
 
     (out / "index.html").write_text(index_page(), encoding="utf-8")
     (out / "privacy.html").write_text(privacy_page(), encoding="utf-8")
