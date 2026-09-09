@@ -1,4 +1,4 @@
-{$LADLE_PUBLIC_HOSTNAME} {
+api.overeasy.chetangoel.me, {$LADLE_PUBLIC_HOSTNAME} {
 	route {
 		header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
 

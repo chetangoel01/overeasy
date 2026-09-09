@@ -154,6 +154,23 @@ Git.
 
 ## Shared Caddy route
 
+The canonical production API is `https://api.overeasy.chetangoel.me` (Porkbun A
+record to `135.148.42.60`). Release builds use this address. The existing
+`vps-8b0be574.vps.ovh.us` address remains an alias for installed builds and
+previously issued media URLs. Both names use the same API authentication and
+private-media routing; `/ops` remains protected.
+
+`/opt/ladle/.env` sets `LADLE_PUBLIC_HOSTNAME=api.overeasy.chetangoel.me` so new
+signed media URLs use the canonical domain. The gateway's separate
+`/etc/platform/gateway.env` retains `LADLE_PUBLIC_HOSTNAME=vps-8b0be574.vps.ovh.us`
+to serve the compatibility alias alongside the explicit canonical hostname.
+Keep that alias until installed clients and old media links no longer need it.
+
+Verified 2026-09-09: both hostnames passed readiness checks; a signed existing
+media object returned 200 through the new hostname and its unsigned URL returned
+403. All 1,107 selected backend tests passed, and the Release simulator build
+included both the app and Share Extension with the new API URL in the app plist.
+
 The shared gateway environment must already provide `LADLE_PUBLIC_HOSTNAME`
 and `LADLE_TUNNEL_ACCESS_KEY`. After the new application is healthy, `push.sh`
 installs the checked-in Ladle route into `/opt/platform/gateway/routes/`,
@@ -171,9 +188,9 @@ sudo docker compose --project-name platform-gateway \
   exec gateway caddy reload --config /etc/caddy/Caddyfile
 ```
 
-Only ports 22, 80, and 443 should be public. The Caddy route hides ordinary API
-requests behind `X-Ladle-Tunnel-Key`; MinIO still validates its own signed
-thumbnail URLs.
+Only ports 22, 80, and 443 should be public. The API enforces its bearer-token,
+guest-bootstrap, and rate-limit rules; Caddy strips the obsolete
+`X-Ladle-Tunnel-Key` header. MinIO validates its own signed thumbnail URLs.
 
 ## Deploy and operate
 
