@@ -125,6 +125,7 @@ struct AccountSheet: View {
     @State private var isSigningOut = false
     @State private var isSignInPresented = false
     @State private var deletion = AccountDeleter()
+    @ScaledMetric(relativeTo: .footnote) private var appIconColumnWidth: CGFloat = 84
 
     var body: some View {
         NavigationStack {
@@ -316,21 +317,27 @@ struct AccountSheet: View {
         .sensoryFeedback(.selection, trigger: accentColor)
     }
 
-    /// The same row as the accent, one step down: a row of choices, the one
-    /// in use carrying a check, and no confirmation of our own — iOS puts up
-    /// its own notice when an icon changes, and a second one in front of it
-    /// would only be us asking whether the cook meant the tap they just made.
-    ///
-    /// Independent of the diet offer. This is where any cook changes their
-    /// mind, in either direction, whatever they eat.
+    /// Wrap choices to fit the available width and text size. Any cook can
+    /// choose any icon, independently of the one-time diet offer.
     private var appIconSection: some View {
         Section {
-            HStack(spacing: LadleTheme.Spacing.compact) {
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: appIconColumnWidth))],
+                spacing: LadleTheme.Layout.rowGap
+            ) {
                 ForEach(LadleAppIcon.allCases) { option in
                     Button {
                         Task { await appIcon.select(option) }
                     } label: {
-                        iconTile(option)
+                        VStack(spacing: LadleTheme.Spacing.compact) {
+                            iconTile(option)
+                            Text(option.title)
+                                .ladleFont(.metadata)
+                                .foregroundStyle(LadleTheme.Label.primary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(LadlePressButtonStyle())
                     .accessibilityLabel(option.title)
@@ -391,8 +398,7 @@ struct AccountSheet: View {
             .contentShape(Rectangle())
     }
 
-    /// A home-screen icon, near enough: big enough to recognise the mark,
-    /// small enough that two of them are a row rather than a gallery.
+    /// Match the familiar home-screen icon size.
     private static let appIconTileSize: CGFloat = 60
 
     private var privacySection: some View {

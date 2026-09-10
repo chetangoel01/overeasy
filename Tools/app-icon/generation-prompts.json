@@ -1,0 +1,89 @@
+{
+  "tool": "Built-in image_gen",
+  "generated": "2026-09-08",
+  "approved": "2026-09-10",
+  "export": "Original opaque 1254x1254 PNGs resized to 1024x1024 with sips -z 1024 1024; no crop or redraw. Identical PNG copied to the appiconset and picker imageset.",
+  "promptAssembly": "Concatenate the named style prompt and subject prompt. References are style references, not edit targets.",
+  "stylePrompts": {
+    "initial": "Use case: logo-brand. Create a completely fresh, beautifully designed 1024x1024 iOS alternate app icon concept for Overeasy, a recipe app. The attached fried egg image is a STYLE REFERENCE ONLY, never an object to reproduce. Match its quiet plum-aubergine full-bleed square ground (#4B3A45 to #3D2F38 with a very subtle lift), confident large organic silhouette, smooth flat color shapes, restrained offset contact shadow, and one small warm highlight. Warm and appetising, distinctive at 60px. A considered app identity, not clip art, a sticker, a wellness logo, a photograph, or a glossy 3D emoji. One main subject occupying about 65-70% of the canvas; generous even negative space and optical centering. No text, no lettering, no border, no pre-rounded corners, no outside margin, no eggs. Do not make a contact sheet or include the reference image. Output one finished square icon. ",
+    "expanded": "Use case: logo-brand. Generate ONE new 1024x1024 alternate app icon concept for Overeasy, an iPhone recipe app. The two attached images, an avocado and tomato, are STYLE REFERENCES ONLY: invent the new subject below, never reproduce the avocado or tomato. This must belong to exactly the same icon family: full-bleed square dark warm plum-aubergine background around #4B3A45 / #3D2F38 with barely perceptible illumination, a big plump organic food silhouette occupying roughly 65-70% of the canvas, clean beautifully controlled flat color shapes with very restrained soft tonal modelling, slightly offset darker contact shapes, one soft grounded shadow and a single creamy highlight. Endearing through shape and proportions, not a cartoon character. Sophisticated, playful, appetising, bold enough to remain immediately recognisable at 60px. Optically balanced, generous negative space. The icon must feel like a designed brand mark, not a stock emoji, detailed painting, photo, sticker, or shiny 3D render. No text, no faces, eyes, limbs, outlines, borders, baked rounded corners, eggs, bowls, decorative sparkles or scene props. No contact sheet. Output one finished square icon only. "
+  },
+  "icons": [
+    {
+      "name": "avocado",
+      "style": "initial",
+      "references": [
+        "Original egg"
+      ],
+      "original": "exec-117a21a4-23c2-4ef6-832c-7a7d4f1aa6fb.png",
+      "subject": "Subject: a single freshly cut avocado half, full face visible with a gentle diagonal tilt. A generous, broad asymmetrical pear shape with a short recognisable neck, beautiful deep forest-green rind, warm fresh yellow-green flesh, and a large chestnut-BROWN stone seated in the lower bulb. Only a few broad nested organic shapes; the pit is brown, NEVER orange or yolk-like. A single small soft cream highlight on the stone and a subtle darker contact crescent underneath it, echoing the reference's construction. The outer shape is plump and inviting, not a skinny pointed teardrop. Flat graphic finish; no veins, hatching, texture, or realistic surface detail.",
+      "originalSHA256": "a90b8e57cc7c1bfb07f0630f0fdaf1dc94480f09b09a7abd586602d704322ddd",
+      "exportPath": "Ladle/Resources/Assets.xcassets/AppIcon-PlantBased.appiconset/AppIcon-PlantBased.png",
+      "exportSHA256": "8325b921f50728452f6860246cfccd2253baee0d332495c36c17019103b36eb9"
+    },
+    {
+      "name": "tomato",
+      "style": "initial",
+      "references": [
+        "Original egg"
+      ],
+      "original": "exec-d8ba97e4-38af-4a60-9a42-8984eb39db6d.png",
+      "subject": "Subject: one ripe, softly irregular tomato with rounded shoulders, in warm tomato red/vermilion, crowned by a short simple dark-green stem and two broad fresh basil leaves swept diagonally to the upper right. The leaves form one strong expressive gesture; tomato and leaves read as a unified appetising silhouette. The tomato is whole, not cut, with no seeds or cross section. A modest cream highlight at the upper left, one darker red offset shape for contact depth at the bottom. Let this feel like a cherished food icon, with the visual wit and simplicity of the reference egg. Avoid outlines, cute faces, tiny stems, detailed leaf veins, complex shading, 3D rendering, or a generic stock tomato symbol.",
+      "originalSHA256": "4e04ff3a514e8a4ded2956fb1e85b21b9fb1101a7285f98c7c9694cb07c5b8c1",
+      "exportPath": "Ladle/Resources/Assets.xcassets/AppIcon-Tomato.appiconset/AppIcon-Tomato.png",
+      "exportSHA256": "cffd36dd9ecf6219ca0e35cd30f70e166731009a98c102820c04ba3076e6b9e8"
+    },
+    {
+      "name": "strawberry",
+      "style": "expanded",
+      "references": [
+        "avocado",
+        "tomato"
+      ],
+      "original": "exec-86c643e5-e7e4-405a-8dd6-7cc349e49187.png",
+      "subject": "Subject: one ripe strawberry, plump and broad at the shoulders with a soft tapered rounded tip, a subtle playful lean, warm deep strawberry-red body, crowned with just three or four broad lively sage/forest-green leaves. Six or seven well-spaced small but robust warm cream teardrop seeds, deliberately sparse so the fruit reads at tiny scale; avoid a field of dots. The seeds follow the berry's curvature subtly. One small warm cream highlight on the upper-left shoulder, and a simple deeper red contact crescent along the lower edge. The strawberry should look juicy, charming, delicious and unmistakable, with an original relaxed silhouette.",
+      "originalSHA256": "49ab665c63a2211fbbb3f5aa24abea8d4665b074f40a5f8c6bd02487672cd503",
+      "exportPath": "Ladle/Resources/Assets.xcassets/AppIcon-Strawberry.appiconset/AppIcon-Strawberry.png",
+      "exportSHA256": "fb54d0e54ab2d907c8a263a25c53a7496235f1461999f8679f1dd860564c099c"
+    },
+    {
+      "name": "cherries",
+      "style": "expanded",
+      "references": [
+        "avocado",
+        "tomato"
+      ],
+      "original": "exec-c615ff80-ee16-4009-a531-47ec7ee9d87c.png",
+      "subject": "Subject: a pair of plump ripe cherries attached by two graceful substantial green stems meeting at the top, with one broad softly curved leaf beside the join. One cherry sits slightly higher and behind the other, giving a compact charming asymmetric composition. Deep juicy cherry red with warm burgundy contact depth; use vibrant red faces so they contrast clearly with the plum ground. Each cherry has a small creamy oval highlight, sharing the same light direction. Stems must be thick and smooth enough to survive at 60px, not hairlines; the combined silhouette is compact, not tall and spindly. No bow, heart symbol, extra fruit, realistic grooves or busy shading. A pair of cherries that feels warm, fun and elegant.",
+      "originalSHA256": "ec1d8d03400d105b55969191650ee84b3cb81b72a4ad88167ba18b99071e02c7",
+      "exportPath": "Ladle/Resources/Assets.xcassets/AppIcon-Cherries.appiconset/AppIcon-Cherries.png",
+      "exportSHA256": "f8927faf38d5bf459430d638b3125e374d685898e29a09eda1fc0fe4e0f90174"
+    },
+    {
+      "name": "carrot",
+      "style": "expanded",
+      "references": [
+        "avocado",
+        "tomato"
+      ],
+      "original": "exec-6e35f3c5-abc0-4e20-b59d-569131b62d32.png",
+      "subject": "Subject: one short, chubby carrot angled from lower left to upper right, with a gently rounded taper and three chunky green leafy shapes at the top. Warm vivid carrot orange echoes the original Overeasy egg's warm orange; a slightly darker burnt-orange offset shape adds the same minimal depth as the references. Just two short broad darker-orange indent marks, and one small creamy elongated highlight. Leaves form a compact loose fan with distinct rounded ends; no lacy foliage or hairline stems. The carrot is plump and friendly, not a long sharp triangle; the leaves are leafy, not a rabbit's ears. Balance the orange body and green crown into one immediately readable, playful food silhouette.",
+      "originalSHA256": "25c7046722b0c39b31f9bd3ae1d21eabd0d2a6849d800cb05d0ea7b2e44ed12b",
+      "exportPath": "Ladle/Resources/Assets.xcassets/AppIcon-Carrot.appiconset/AppIcon-Carrot.png",
+      "exportSHA256": "79c2740de9b99ac4b7548c5d28fb20a3e6c51bc4053f661f3320e83ebceaa90a"
+    },
+    {
+      "name": "mushroom",
+      "style": "expanded",
+      "references": [
+        "avocado",
+        "tomato"
+      ],
+      "original": "exec-334711d0-7fd6-4845-82c9-0265278bd2dc.png",
+      "subject": "Subject: one charming edible chestnut mushroom with a generously domed warm chestnut-brown cap and a short, sturdy, slightly curved warm-porcelain stem, at a small jaunty tilt. The wide rounded cap overhangs the stem, with a simple deep warm-brown crescent under its front lip indicating the underside. The thick cream stem bulges softly near the base, making the whole shape welcoming, compact and sculptural. One creamy highlight ellipse on the upper-left cap. Warm honey/chestnut palette with clear contrast against the dark plum background. Evoke an appetising button or cremini mushroom used in cooking, NOT a red white-spotted fairy toadstool. No cap spots, gills, grassy ground, speckles, faces or additional mushrooms. Keep the cap and stem wonderfully simple and recognisable.",
+      "originalSHA256": "77dc32a0a5b55d36c0b284182f10cecfb060d62e0b30bcd8a1e16d3a2db50c5c",
+      "exportPath": "Ladle/Resources/Assets.xcassets/AppIcon-Mushroom.appiconset/AppIcon-Mushroom.png",
+      "exportSHA256": "096e975199a3ac30a3e24ed1f3f697f2424d153972fafd91270944840dc69754"
+    }
+  ]
+}

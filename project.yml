@@ -14,7 +14,7 @@ settings:
     DEVELOPMENT_TEAM: P48VDW72LU
     CODE_SIGN_STYLE: Automatic
     MARKETING_VERSION: "1.0"
-    CURRENT_PROJECT_VERSION: "20260908.1"
+    CURRENT_PROJECT_VERSION: "20260910.1"
 
 packages:
   GoogleSignIn:
@@ -40,15 +40,9 @@ targets:
         INFOPLIST_FILE: Config/Ladle-Info.plist
         CODE_SIGN_ENTITLEMENTS: Config/Ladle.entitlements
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
-        # The plant-based icon a vegetarian or vegan cook can choose. Naming
-        # the set here is the whole declaration: actool writes the
-        # `CFBundleIcons` / `CFBundleAlternateIcons` entry that
-        # `setAlternateIconName` looks the name up in, and merges it into
-        # `Config/Ladle-Info.plist`. The artwork behind the name is a
-        # placeholder: replacing it is replacing the PNG in
-        # `AppIcon-PlantBased.appiconset` (and its drawable twin in
-        # `OvereasyMarkPlantBased.imageset`), and nothing here moves.
-        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: AppIcon-PlantBased
+        # actool generates CFBundleAlternateIcons. PlantBased retains the
+        # installed bowl selection while replacing its artwork with avocado.
+        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: "AppIcon-PlantBased AppIcon-Tomato AppIcon-Strawberry AppIcon-Cherries AppIcon-Carrot AppIcon-Mushroom"
         PRODUCT_NAME: Ladle
         TARGETED_DEVICE_FAMILY: "1"
     dependencies:

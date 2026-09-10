@@ -158,52 +158,60 @@ final class ProfileSheetUITests: XCTestCase {
 
     // MARK: - The app icon
 
-    /// The picker beside the accent, switching the icon for real.
-    ///
-    /// Which icon is on at the start is not assumed: the installed icon
-    /// belongs to the device and outlives the app's container, so the test
-    /// reads the selection, taps the other one, and puts it back — which
-    /// also exercises both directions.
-    ///
-    /// iOS confirms an icon change with an alert of its own. It is not
-    /// suppressed, so dismissing it is part of the flow.
+    /// Exercise every bundled icon through the real system switch, then
+    /// relaunch to verify persistence and restore the original selection.
     @MainActor
-    func testTheIconIsSwitchedInProfileAndBothWaysBack() {
+    func testEveryIconCanBeChosenAndPersistsAfterRelaunch() {
         let app = launchSignedIn()
-
         app.buttons["Profile"].tap()
-        XCTAssertTrue(
-            app.navigationBars["Profile"].waitForExistence(timeout: 3)
-        )
+        XCTAssertTrue(app.navigationBars["Profile"].waitForExistence(timeout: 3))
 
-        let egg = app.descendants(matching: .any)["account.app-icon.egg"]
-        let plantBased = app.descendants(matching: .any)[
-            "account.app-icon.plant-based"
-        ]
-        XCTAssertTrue(
-            egg.waitForExistence(timeout: 3),
-            "Profile offers the two icons beside the accent"
-        )
-        XCTAssertTrue(plantBased.exists)
-        if !egg.isHittable {
-            app.swipeUp()
+        let choices = ["egg", "avocado", "tomato", "strawberry", "cherries", "carrot", "mushroom"]
+        var original = "egg"
+        for choice in choices {
+            let tile = revealIcon(choice, in: app)
+            if tile.value as? String == "Selected" { original = choice }
+        }
+        let gallery = XCTAttachment(screenshot: app.screenshot())
+        gallery.name = "All seven app icons"
+        gallery.lifetime = .keepAlways
+        add(gallery)
+
+        for choice in choices {
+            let tile = revealIcon(choice, in: app)
+            XCTAssertGreaterThanOrEqual(tile.frame.width, 44)
+            XCTAssertGreaterThanOrEqual(tile.frame.height, 44)
+            XCTAssertGreaterThanOrEqual(tile.frame.minX, app.frame.minX)
+            XCTAssertLessThanOrEqual(tile.frame.maxX, app.frame.maxX)
+            tile.tap()
+            dismissIconChangeNotice()
+            waitForSelection(of: tile)
         }
 
-        let startedOnTheEgg = egg.value as? String == "Selected"
-        let other = startedOnTheEgg ? plantBased : egg
-        let original = startedOnTheEgg ? egg : plantBased
+        app.terminate()
+        app.launch()
+        app.buttons["Profile"].tap()
+        waitForSelection(of: revealIcon("mushroom", in: app))
 
-        other.tap()
+        let originalTile = revealIcon(original, in: app)
+        originalTile.tap()
         dismissIconChangeNotice()
-        waitForSelection(of: other)
-        XCTAssertNotEqual(original.value as? String, "Selected")
+        waitForSelection(of: originalTile)
+    }
 
-        // Put the device back the way it was found: the icon survives the
-        // app, so a test that switched it would hand the next one a
-        // different starting point.
-        original.tap()
-        dismissIconChangeNotice()
-        waitForSelection(of: original)
+    @MainActor
+    private func revealIcon(_ name: String, in app: XCUIApplication) -> XCUIElement {
+        let tile = app.buttons["account.app-icon.\(name)"]
+        for _ in 0..<6 {
+            if tile.exists && tile.isHittable { return tile }
+            if tile.exists && tile.frame.midY < app.frame.midY {
+                app.swipeDown()
+            } else {
+                app.swipeUp()
+            }
+        }
+        XCTAssertTrue(tile.isHittable, "Icon is not reachable: \(name)")
+        return tile
     }
 
     /// The selection is the icon iOS reports as installed, read back after
@@ -279,6 +287,7 @@ final class ProfileSheetUITests: XCTestCase {
             offer.waitForExistence(timeout: 5),
             "A diet set in Profile raises the icon question there"
         )
+        XCTAssertTrue(offer.buttons["Use avocado"].exists)
         offer.buttons["Keep the egg"].tap()
 
         XCTAssertEqual(
