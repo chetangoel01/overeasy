@@ -1,5 +1,38 @@
 # Overeasy goes to TestFlight
 
+## September 10: icon options
+
+Version **1.0 (20260910.1)** contains the original egg plus avocado, tomato,
+strawberry, cherries, carrot, and mushroom. [PR #136](https://github.com/chetangoel01/overeasy/pull/136)
+merged as `950f4be9a88657de4426f01bebf14da9a709fc97`; its tree exactly matches
+verified source commit `c712ee1751940e9ae926966d217caa20b6bac352`.
+
+The full Release archive embeds the Share Extension with the same version and
+build number. All six alternate icons are declared in the built app. The
+[feature verification](2026-09-08-plant-based-icon.md#september-10-verification)
+records the tests, generated artwork provenance, and screenshots.
+
+Xcode was initially signed out, so distribution export reported `No Accounts`.
+After Chetan signed in, the App Store export succeeded with the Apple
+Distribution identity for team `P48VDW72LU`; deep signature verification passed.
+The existing Xcode account also authenticates the upload, with no new API key.
+
+Upload uses `xcodebuild -exportArchive -allowProvisioningUpdates` with the
+existing `Config/ExportOptions.plist` settings and `destination` changed to
+`upload` in an ignored temporary copy. `manageAppVersionAndBuildNumber` remains
+false. This preserves build `20260910.1` and does not mark it as restricted to
+internal-only testing.
+
+**Uploaded successfully on September 10 at 21:18:24 UTC.** Xcode reported
+`Uploaded package is processing`, `Upload succeeded`, and `EXPORT SUCCEEDED`.
+Apple's processing had started; availability to tester groups was not yet
+verified. The upload log is `/tmp/overeasy-icons-upload.log`.
+
+The superseded draft artwork PR #114 was closed after #136 merged. The selected
+original icon was restored on both test simulators, which were shut down.
+
+## Historical record: September 2
+
 Date: September 2, 2026
 Status: **uploaded. Build 1.0 (20260902.1) reached App Store Connect on
 September 2 through Xcode's Organizer. The scripted upload path is written but
