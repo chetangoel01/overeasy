@@ -1,8 +1,18 @@
 {
   "images": [
     {
+      "filename": "OvereasyMarkStrawberry.png",
+      "idiom": "universal"
+    },
+    {
+      "filename": "OvereasyMarkStrawberryDark.png",
       "idiom": "universal",
-      "filename": "OvereasyMarkStrawberry.png"
+      "appearances": [
+        {
+          "appearance": "luminosity",
+          "value": "dark"
+        }
+      ]
     }
   ],
   "info": {

@@ -228,13 +228,7 @@ final class ProjectSmokeTests: XCTestCase {
         )
     }
 
-    /// The alternate icon has to reach the bundle, not only the asset
-    /// catalogue: `setAlternateIconName` fails on a name iOS cannot find,
-    /// and the picker in Profile draws its two tiles by the same names. The
-    /// artwork behind the name is a placeholder, so this pins the wiring
-    /// rather than the drawing — and it is what would go red if the
-    /// `ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES` declaration were lost
-    /// in a regenerated project.
+    /// Icon switching requires every alternate name in the compiled bundle.
     func testEveryAlternateIconIsDeclaredInTheBundle() throws {
         let icons = try XCTUnwrap(
             Bundle.main.object(forInfoDictionaryKey: "CFBundleIcons")
@@ -256,45 +250,49 @@ final class ProjectSmokeTests: XCTestCase {
         }
     }
 
-    /// The picker cannot draw an app icon: an `appiconset` is compiled into
-    /// `Assets.car` as an icon rather than an image, and `UIImage(named:)`
-    /// does not find it — measured, with `--include-all-app-icons` on. So
-    /// each icon keeps a drawable twin in an `imageset`, which is what
-    /// `OvereasyMark` has always been for the egg.
-    ///
-    /// The twins are the same file, byte for byte, and this is the test that
-    /// says so. Replacing the placeholder plant-based artwork means copying
-    /// the new 1024 into *both* sets; forgetting the second one leaves a
-    /// picker offering yesterday's icon, and that failure would otherwise
-    /// only be visible to somebody looking at the screen.
-    func testEachAppIconKeepsADrawableTwinWithTheSameArtwork() throws {
-        let assets = URL(fileURLWithPath: #filePath)
+    /// A flattened opaque foreground silently loses Liquid Glass depth and
+    /// Clear appearance. Every option needs an independent background and
+    /// transparent artwork, including the primary egg and legacy avocado name.
+    func testEveryAppIconHasTransparentArtworkForLiquidGlass() throws {
+        let resources = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-            .appendingPathComponent("Ladle/Resources/Assets.xcassets")
+            .appendingPathComponent("Ladle/Resources")
 
         for option in LadleAppIcon.allCases {
-            let icon = option.alternateIconName ?? "AppIcon"
-            let mark = option.markImageName
-            let iconData = try Data(
-                contentsOf: assets.appendingPathComponent("\(icon).appiconset/\(icon).png")
+            let name = option.alternateIconName ?? "AppIcon"
+            let package = resources.appendingPathComponent("AppIcons/\(name).icon")
+            let document = try XCTUnwrap(
+                JSONSerialization.jsonObject(
+                    with: Data(contentsOf: package.appendingPathComponent("icon.json"))
+                ) as? [String: Any], name
             )
-            let markData = try Data(
-                contentsOf: assets.appendingPathComponent("\(mark).imageset/\(mark).png")
-            )
+            XCTAssertNotNil(document["fill"], "\(name) needs a separate background")
+            let groups = try XCTUnwrap(document["groups"] as? [[String: Any]], name)
+            let layers = groups.flatMap { $0["layers"] as? [[String: Any]] ?? [] }
+            XCTAssertFalse(layers.isEmpty, name)
 
-            XCTAssertEqual(
-                iconData,
-                markData,
-                "\(mark).png is no longer the artwork in \(icon).png"
-            )
-            let image = try XCTUnwrap(UIImage(data: iconData)?.cgImage)
-            XCTAssertEqual(image.width, 1024, icon)
-            XCTAssertEqual(image.height, 1024, icon)
-            XCTAssertTrue(
-                [.none, .noneSkipFirst, .noneSkipLast].contains(image.alphaInfo),
-                "\(icon) must not contain an alpha channel"
-            )
+            for layer in layers {
+                let filename = try XCTUnwrap(layer["image-name"] as? String, name)
+                let data = try Data(contentsOf: package.appendingPathComponent("Assets/\(filename)"))
+                let image = try XCTUnwrap(UIImage(data: data)?.cgImage, name)
+                XCTAssertEqual(image.width, 1024, name)
+                XCTAssertEqual(image.height, 1024, name)
+                let context = try XCTUnwrap(CGContext(
+                    data: nil, width: 1024, height: 1024, bitsPerComponent: 8,
+                    bytesPerRow: 1024 * 4, space: CGColorSpaceCreateDeviceRGB(),
+                    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+                ))
+                context.draw(image, in: CGRect(x: 0, y: 0, width: 1024, height: 1024))
+                let pixels = try XCTUnwrap(context.data).assumingMemoryBound(to: UInt8.self)
+                let alpha = stride(from: 3, to: 1024 * 1024 * 4, by: 4).map { pixels[$0] }
+                XCTAssertEqual(alpha[0], 0, "\(name) must leave its background transparent")
+                XCTAssertTrue(alpha.contains { $0 > 240 }, "\(name) has no visible artwork")
+            }
+
+            let preview = try XCTUnwrap(UIImage(named: option.markImageName)?.cgImage, name)
+            XCTAssertGreaterThanOrEqual(preview.width, 288, name)
+            XCTAssertEqual(preview.width, preview.height, name)
         }
     }
 

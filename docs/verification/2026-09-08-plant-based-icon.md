@@ -2,7 +2,7 @@
 
 Updated: September 10, 2026
 
-Branch: `codex/icon-options`
+Branch: `codex/liquid-glass-icons`
 
 Original issue: [#92](https://github.com/chetangoel01/overeasy/issues/92)
 
@@ -15,7 +15,7 @@ carrot, and mushroom. The bowl was explicitly rejected and is replaced.
 These are the generated images approved in the conversation, not the older
 code-drawn candidates in draft [PR #114](https://github.com/chetangoel01/overeasy/pull/114).
 
-| Option | App icon set | Picker image |
+| Option | Native icon name | Picker image |
 | --- | --- | --- |
 | Egg | `AppIcon` | `OvereasyMark` |
 | Avocado | `AppIcon-PlantBased` | `OvereasyMarkPlantBased` |
@@ -32,10 +32,12 @@ used the approved avocado and tomato. All share a plum ground, a large food
 silhouette, a small cream highlight, and restrained shadows. No faces, text,
 ornamental borders, or rounded corners are baked into the files.
 
-The approved 1254 × 1254 RGB PNGs were downsampled to 1024 × 1024 with `sips`,
-without cropping or redrawing. Every final icon has no alpha channel. Its
-picker PNG is an identical copy. Both live in
-[`Ladle/Resources/Assets.xcassets`](../../Ladle/Resources/Assets.xcassets).
+The approved 1254 × 1254 RGB PNGs were downsampled to 1024 × 1024 with `sips`.
+Those original exports are preserved byte-for-byte in
+[`Tools/app-icon/originals`](../../Tools/app-icon/originals). They are source
+artwork, not the installed icons. The first release used flattened PNGs; the
+current version separates the original food shapes from the plum background
+so iOS can apply its native Liquid Glass materials.
 
 ## What the cook sees
 
@@ -83,28 +85,108 @@ while Profile is open. No second presentation flow was introduced.
 
 ## Asset declarations and affected components
 
-`project.yml` lists all six alternate sets under
+`project.yml` names the primary `AppIcon` and lists all six alternates under
 `ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES`. XcodeGen updates the project,
 and the asset compiler synthesizes `CFBundleAlternateIcons` into the built
 Info.plist. The hand-written plist needs no icon entries. The Share Extension
 has no home-screen icon of its own.
 
-An `appiconset` cannot be loaded with `UIImage(named:)` as a normal image,
-so each keeps a byte-identical `imageset` for the picker. Update both files
-when replacing artwork.
+Each icon is a native `.icon` package in
+[`Ladle/Resources/AppIcons`](../../Ladle/Resources/AppIcons), with a separate
+background and two or three transparent foreground groups. Xcode compiles
+these into the asset catalog, including Default, Dark, Clear Light, Clear
+Dark, Tinted Light, and Tinted Dark appearances. The minimum OS remains iOS 26.
+Existing installed names are unchanged, so selections survive an update.
+
+The picker and onboarding use ordinary `imageset` assets rendered from these
+same packages by Apple's `ictool`. Default and Dark previews are 512 pixels,
+covering the largest 96-point in-app mark on a 3x display. The Home Screen
+uses the compiled native layers, including for alternates.
+
+### Rebuild the artwork through code
+
+From the repository root on a Mac with Xcode 26 and Icon Composer installed:
+
+```sh
+uv run Tools/app-icon/build_icons.py
+# Optional: inspect all six native appearances for every icon.
+uv run Tools/app-icon/build_icons.py --gallery .artifacts/glass-gallery
+xcodegen generate
+```
+
+The script pins its Python dependencies through `uv`, extracts color regions
+from the approved originals, and preserves their silhouettes and placement.
+It removes baked lighting, separates meaningful food parts, and writes flat
+color layers with antialiased transparent edges. Small seed, groove, and leaf
+details remain. Each foreground PNG is 1024 pixels; groups are stored front to
+back as Icon Composer requires. Native materials supply highlights, shadows,
+and appearance adaptation. The script's masks are specific to this seven-icon
+family; this is not a general image tracing framework.
+
+Generated packages and previews are checked in. Normal app builds do not run
+Python or need an image-generation service. Icon Composer is optional for
+interactive editing and inspection. No regenerated conversion prototypes are
+shipped. Chetan explicitly requested this code-based conversion workflow.
+
+Apple references: [Icon Composer](https://developer.apple.com/icon-composer/),
+[creating icons](https://developer.apple.com/documentation/xcode/creating-your-app-icon-using-icon-composer),
+and [alternate icon configuration](https://developer.apple.com/documentation/xcode/configuring-your-app-to-use-alternate-app-icons).
 
 - `Ladle/Design/AppIconStore.swift`: seven choices, stable installed avocado
   name, image names, and explicit avocado offer text.
 - `Ladle/Account/AccountSheet.swift`: adaptive named icon grid.
-- `Ladle/Resources/Assets.xcassets`: approved artwork and drawable twins.
+- `Ladle/Resources/AppIcons`: seven native layered icon packages.
+- `Ladle/Resources/Assets.xcassets`: native Default and Dark picker previews.
+- `Tools/app-icon/build_icons.py`, `originals`, and `generation-prompts.json`: repeatable conversion and original artwork provenance.
 - `project.yml`, `Ladle.xcodeproj`: six alternate icon declarations.
 - `AppIconStoreTests`: complete selection/restoration mapping and offer gate.
-- `ProjectSmokeTests`: compiled declarations, drawable assets, matching PNGs,
-  1024-pixel dimensions, and absence of alpha.
+- `ProjectSmokeTests`: compiled declarations, drawable previews, separate
+  backgrounds, visible 1024-pixel foreground layers, and transparent exteriors.
 - `ProfileSheetUITests`: actual switching through all seven choices, relaunch
   persistence, reachable tap targets, and restoration of the original icon.
 
-## September 10 verification
+## September 10 Liquid Glass verification
+
+The new layer contract failed before native packages existed, in
+`/tmp/overeasy-glass-red-retry.xcresult`. XCTest reported the missing
+`AppIcon.icon/icon.json`; the runner was subsequently stopped after stalling
+while collecting failure diagnostics. Later runs disable that optional
+collection. The first conversion run passed all seven real icon switches and
+relaunch persistence, but its 32-pixel alpha sample missed the small strawberry
+seeds. The check now inspects original-resolution pixels.
+
+The [native appearance matrix](captures/2026-09-10-liquid-glass-icons/all-appearances.png)
+shows all seven icons in all six appearances. These are Apple's renderer
+exports, not screenshots of the Home Screen. The carrot grooves, cherry
+boundary, and mushroom underside were checked and refined against the original
+artwork. Final verification:
+
+- **37 app tests and the real seven-icon switching UI test passed** on
+  iPhone 17 / iOS 26.5: `/tmp/overeasy-glass-final.xcresult`.
+- The **full Release archive with Share Extension and App Store export passed**
+  for **1.0 (20260910.2)**. Both bundles use the matching build number; all six
+  alternate names are present. Deep signature verification passed.
+- `assetutil` inspection of the exported IPA confirms an `IconImageStack` for
+  every option in each of the three compiled appearance families, plus native
+  foreground groups. This checks the shipping binary, not just source files.
+- The appearance matrix covers all six native renderer appearances. Actual
+  Home Screen captures are listed below; Clear and Tinted are renderer checks.
+- The small simulator initially displayed placeholder icons for several Apple
+  apps and Overeasy. Restarting that dedicated simulator resolved its cache;
+  the installed egg then rendered normally.
+- Original artwork checksums, documentation links, and `git diff --check` pass.
+  No backend or shared-domain changes require their suites.
+
+[Installed egg, Default appearance](captures/2026-09-10-liquid-glass-icons/home-egg-default.png)
+was captured on iPhone 13 mini / iOS 26.5 after the simulator restart.
+
+The archive and export are preserved under `build/release-liquid-glass`,
+separate from the previously uploaded flattened-icon build in `build/release`.
+The new exported IPA is 52,940,029 bytes (previously 38,161,551); the native
+appearance resources account for additional packaging. Picker exports were
+reduced to 512 pixels to avoid unnecessary source image weight.
+
+## Historical verification: September 10, flattened icon options
 
 The selection test was added before production changes. It failed on the old
 `Egg, Plant-based` list and each missing approved icon. The first run is
@@ -237,7 +319,7 @@ what proves the switch is the picker's selection, read back from iOS.
 **The installed icon outlives the app's container.** `-reset-library-preferences`
 cannot put it back — it is not a preference of ours — and neither does
 reinstalling from a test run. A simulator left on the plant-based icon makes
-the two diet UI tests fail, because a cook already carrying the bowl is not
+the two diet UI tests fail, because a cook already carrying an alternate is not
 offered it: `xcrun simctl uninstall <udid> com.ladle.ios` is the reset. The
 picker's own UI test therefore reads which icon it started on and puts that
 one back.

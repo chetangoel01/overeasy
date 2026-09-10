@@ -1,21 +1,22 @@
 {
-  "images" : [
+  "images": [
     {
-      "filename" : "OvereasyMark.png",
-      "idiom" : "universal",
-      "scale" : "1x"
+      "filename": "OvereasyMark.png",
+      "idiom": "universal"
     },
     {
-      "idiom" : "universal",
-      "scale" : "2x"
-    },
-    {
-      "idiom" : "universal",
-      "scale" : "3x"
+      "filename": "OvereasyMarkDark.png",
+      "idiom": "universal",
+      "appearances": [
+        {
+          "appearance": "luminosity",
+          "value": "dark"
+        }
+      ]
     }
   ],
-  "info" : {
-    "author" : "xcode",
-    "version" : 1
+  "info": {
+    "author": "xcode",
+    "version": 1
   }
 }
