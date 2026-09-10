@@ -2,7 +2,9 @@
   "images": [
     {
       "idiom": "universal",
-      "filename": "OvereasyMarkPlantBased.png"
+      "platform": "ios",
+      "size": "1024x1024",
+      "filename": "AppIcon-Cherries.png"
     }
   ],
   "info": {

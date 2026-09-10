@@ -235,7 +235,7 @@ final class ProjectSmokeTests: XCTestCase {
     /// rather than the drawing — and it is what would go red if the
     /// `ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES` declaration were lost
     /// in a regenerated project.
-    func testPlantBasedAlternateIconIsDeclaredInTheBundle() throws {
+    func testEveryAlternateIconIsDeclaredInTheBundle() throws {
         let icons = try XCTUnwrap(
             Bundle.main.object(forInfoDictionaryKey: "CFBundleIcons")
                 as? [String: Any]
@@ -243,22 +243,17 @@ final class ProjectSmokeTests: XCTestCase {
         let alternates = try XCTUnwrap(
             icons["CFBundleAlternateIcons"] as? [String: Any]
         )
-        let plantBased = try XCTUnwrap(
-            alternates["AppIcon-PlantBased"] as? [String: Any]
-        )
-
         XCTAssertEqual(
-            plantBased["CFBundleIconName"] as? String,
-            "AppIcon-PlantBased"
+            Set(alternates.keys),
+            Set(LadleAppIcon.allCases.compactMap(\.alternateIconName))
         )
-        XCTAssertNotNil(
-            UIImage(named: "OvereasyMark"),
-            "The egg tile has nothing to draw"
-        )
-        XCTAssertNotNil(
-            UIImage(named: "OvereasyMarkPlantBased"),
-            "The plant-based tile has nothing to draw"
-        )
+        for icon in LadleAppIcon.allCases {
+            if let name = icon.alternateIconName {
+                let entry = try XCTUnwrap(alternates[name] as? [String: Any])
+                XCTAssertEqual(entry["CFBundleIconName"] as? String, name)
+            }
+            XCTAssertNotNil(UIImage(named: icon.markImageName), icon.title)
+        }
     }
 
     /// The picker cannot draw an app icon: an `appiconset` is compiled into
@@ -278,24 +273,27 @@ final class ProjectSmokeTests: XCTestCase {
             .deletingLastPathComponent()
             .appendingPathComponent("Ladle/Resources/Assets.xcassets")
 
-        for (icon, mark) in [
-            ("AppIcon.appiconset/AppIcon", "OvereasyMark.imageset/OvereasyMark"),
-            (
-                "AppIcon-PlantBased.appiconset/AppIcon-PlantBased",
-                "OvereasyMarkPlantBased.imageset/OvereasyMarkPlantBased"
-            ),
-        ] {
+        for option in LadleAppIcon.allCases {
+            let icon = option.alternateIconName ?? "AppIcon"
+            let mark = option.markImageName
             let iconData = try Data(
-                contentsOf: assets.appendingPathComponent("\(icon).png")
+                contentsOf: assets.appendingPathComponent("\(icon).appiconset/\(icon).png")
             )
             let markData = try Data(
-                contentsOf: assets.appendingPathComponent("\(mark).png")
+                contentsOf: assets.appendingPathComponent("\(mark).imageset/\(mark).png")
             )
 
             XCTAssertEqual(
                 iconData,
                 markData,
                 "\(mark).png is no longer the artwork in \(icon).png"
+            )
+            let image = try XCTUnwrap(UIImage(data: iconData)?.cgImage)
+            XCTAssertEqual(image.width, 1024, icon)
+            XCTAssertEqual(image.height, 1024, icon)
+            XCTAssertTrue(
+                [.none, .noneSkipFirst, .noneSkipLast].contains(image.alphaInfo),
+                "\(icon) must not contain an alpha channel"
             )
         }
     }

@@ -2,7 +2,7 @@ import LadleCore
 import XCTest
 @testable import Ladle
 
-/// Two icons, and the one time the app asks about them.
+/// Icon selection, and the one time the app asks about it.
 ///
 /// The switching itself is iOS's, so what is worth pinning here is the part
 /// that is ours: which name is set for which icon, that the question is
@@ -10,17 +10,39 @@ import XCTest
 /// reset puts the question back.
 @MainActor
 final class AppIconStoreTests: XCTestCase {
-    func testChoosingThePlantBasedIconNamesIt() async {
-        let application = FakeAlternateIcons()
-        let store = AppIconStore(
-            application: application,
-            preferenceStore: IconPreferences()
-        )
+    func testEveryShippedIconCanBeSelectedAndRestored() async {
+        let expected: [(title: String, name: String?)] = [
+            ("Egg", nil),
+            ("Avocado", "AppIcon-PlantBased"),
+            ("Tomato", "AppIcon-Tomato"),
+            ("Strawberry", "AppIcon-Strawberry"),
+            ("Cherries", "AppIcon-Cherries"),
+            ("Carrot", "AppIcon-Carrot"),
+            ("Mushroom", "AppIcon-Mushroom"),
+        ]
+        XCTAssertEqual(LadleAppIcon.allCases.map(\.title), expected.map(\.title))
 
-        await store.select(.plantBased)
+        for (title, name) in expected {
+            guard let icon = LadleAppIcon.allCases.first(where: { $0.title == title }) else {
+                XCTFail("Missing icon: \(title)")
+                continue
+            }
+            let application = FakeAlternateIcons()
+            let store = AppIconStore(
+                application: application,
+                preferenceStore: IconPreferences()
+            )
 
-        XCTAssertEqual(application.requests, ["AppIcon-PlantBased"])
-        XCTAssertEqual(store.icon, .plantBased)
+            await store.select(icon)
+
+            XCTAssertEqual(application.alternateIconName, name, title)
+            XCTAssertEqual(store.icon, icon, title)
+            let reopened = AppIconStore(
+                application: application,
+                preferenceStore: IconPreferences()
+            )
+            XCTAssertEqual(reopened.icon, icon, title)
+        }
     }
 
     /// `nil` is how iOS spells "the icon the app shipped with".
@@ -53,7 +75,7 @@ final class AppIconStoreTests: XCTestCase {
             preferenceStore: IconPreferences()
         )
 
-        XCTAssertEqual(plantBased.icon, .plantBased)
+        XCTAssertEqual(plantBased.icon, .avocado)
         XCTAssertEqual(egg.icon, .egg)
     }
 
@@ -67,7 +89,7 @@ final class AppIconStoreTests: XCTestCase {
             preferenceStore: IconPreferences()
         )
 
-        await store.select(.plantBased)
+        await store.select(.avocado)
 
         XCTAssertEqual(store.icon, .egg)
     }
@@ -153,7 +175,7 @@ final class AppIconStoreTests: XCTestCase {
         await store.acceptOffer()
 
         XCTAssertFalse(store.isOfferPresented)
-        XCTAssertEqual(store.icon, .plantBased)
+        XCTAssertEqual(store.icon, .avocado)
         XCTAssertEqual(application.requests, ["AppIcon-PlantBased"])
     }
 
@@ -173,24 +195,22 @@ final class AppIconStoreTests: XCTestCase {
         XCTAssertTrue(application.requests.isEmpty)
     }
 
-    /// A cook already carrying the plant-based icon is not asked to choose
+    /// A cook already carrying any alternate icon is not asked to choose
     /// what they are already using, and the question is left unspent for
     /// whenever they go back to the egg.
-    func testACookAlreadyOnThePlantBasedIconIsNotAsked() {
-        let preferences = IconPreferences()
-        let store = AppIconStore(
-            application: FakeAlternateIcons(
-                alternateIconName: "AppIcon-PlantBased"
-            ),
-            preferenceStore: preferences
-        )
+    func testACookAlreadyOnAnyAlternateIconIsNotAsked() {
+        for icon in LadleAppIcon.allCases where icon != .egg {
+            let preferences = IconPreferences()
+            let store = AppIconStore(
+                application: FakeAlternateIcons(alternateIconName: icon.alternateIconName),
+                preferenceStore: preferences
+            )
 
-        store.offerIfNeeded(for: [.vegan])
+            store.offerIfNeeded(for: [.vegan])
 
-        XCTAssertFalse(store.isOfferPresented)
-        XCTAssertFalse(
-            preferences.bool(forKey: AppIconStore.offerPreferenceKey)
-        )
+            XCTAssertFalse(store.isOfferPresented, icon.title)
+            XCTAssertFalse(preferences.bool(forKey: AppIconStore.offerPreferenceKey))
+        }
     }
 
     /// A device that cannot change its icon is never asked about it.

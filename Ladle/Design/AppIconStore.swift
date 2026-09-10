@@ -3,35 +3,28 @@ import Observation
 import SwiftUI
 import UIKit
 
-/// The two icons Overeasy ships with.
-///
-/// The app is named after an egg, and a cook who does not eat eggs should
-/// not have to carry one on their home screen. That is the whole feature:
-/// the egg the app shipped with, and one plant-based alternate.
-///
-/// The plant-based artwork is a **placeholder** — the Bowl candidate from
-/// the icon-candidate board, as rendered. Replacing it is replacing the PNG
-/// in `AppIcon-PlantBased.appiconset` and its drawable twin in
-/// `OvereasyMarkPlantBased.imageset`; no code here moves with it.
+/// The original egg and six food icons, available to every cook.
 enum LadleAppIcon: String, CaseIterable, Identifiable {
     case egg
-    case plantBased
+    case avocado
+    case tomato
+    case strawberry
+    case cherries
+    case carrot
+    case mushroom
 
     var id: String { rawValue }
+    var title: String { rawValue.capitalized }
+
+    /// Keep the installed alternate name when replacing the old bowl with
+    /// avocado, so an upgrade preserves the cook's existing selection.
+    private var assetSuffix: String {
+        self == .avocado ? "PlantBased" : rawValue.capitalized
+    }
 
     /// What iOS calls this icon. `nil` is how it spells the primary one.
     var alternateIconName: String? {
-        switch self {
-        case .egg: nil
-        case .plantBased: "AppIcon-PlantBased"
-        }
-    }
-
-    var title: String {
-        switch self {
-        case .egg: "Egg"
-        case .plantBased: "Plant-based"
-        }
+        self == .egg ? nil : "AppIcon-\(assetSuffix)"
     }
 
     /// The picker cannot draw an `appiconset`: it is compiled into
@@ -39,17 +32,11 @@ enum LadleAppIcon: String, CaseIterable, Identifiable {
     /// does not find it. Each icon therefore keeps a byte-identical twin in
     /// an `imageset`, and this is its name.
     var markImageName: String {
-        switch self {
-        case .egg: "OvereasyMark"
-        case .plantBased: "OvereasyMarkPlantBased"
-        }
+        self == .egg ? "OvereasyMark" : "OvereasyMark\(assetSuffix)"
     }
 
     var accessibilityIdentifier: String {
-        switch self {
-        case .egg: "account.app-icon.egg"
-        case .plantBased: "account.app-icon.plant-based"
-        }
+        "account.app-icon.\(rawValue)"
     }
 
     init(alternateIconName: String?) {
@@ -126,7 +113,7 @@ final class AppIconStore {
     /// cook answers it. The flag is spent on asking rather than on the
     /// answer, so an app that dies with the alert up has still asked.
     ///
-    /// A cook already carrying the plant-based icon is not asked to choose
+    /// A cook already carrying any alternate icon is not asked to choose
     /// what they already have, and their question is left unspent for
     /// whenever they go back to the egg.
     func offerIfNeeded(for diets: Set<DietTag>) {
@@ -143,7 +130,7 @@ final class AppIconStore {
 
     func acceptOffer() async {
         isOfferPresented = false
-        await select(.plantBased)
+        await select(.avocado)
     }
 
     /// Put the question back for the next launch.
@@ -181,13 +168,13 @@ extension View {
                 set: { if !$0 { store.isOfferPresented = false } }
             )
         ) {
-            Button("Use it") {
+            Button("Use avocado") {
                 Task { await store.acceptOffer() }
             }
             Button("Keep the egg", role: .cancel) {}
         } message: {
             Text(
-                "Overeasy is named after an egg. Either icon can be chosen in Profile at any time."
+                "Switch to the avocado icon. You can choose any icon in Profile at any time."
             )
         }
     }

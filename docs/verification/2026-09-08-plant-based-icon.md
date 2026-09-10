@@ -1,144 +1,153 @@
-# An icon without the egg, offered once
+# App icons, chosen in Profile
 
-Date: September 8, 2026
-Branch: `feat/plant-based-icon`
-Issue: [#92](https://github.com/chetangoel01/recipe-app/issues/92)
-Status: **built and verified on a simulator created for the run.**
+Updated: September 10, 2026
 
-## Purpose
+Branch: `codex/icon-options`
 
-The note said "change the logo". The reason behind it is the interesting
-part: the app is named after an egg, and a vegetarian or vegan cook should
-not have to carry one on their home screen. So the alternate icon is a
-product point rather than decoration, and the shape of the feature follows
-from that — the app *asks*, once, and never switches anything by itself.
+Original issue: [#92](https://github.com/chetangoel01/overeasy/issues/92)
 
-## The artwork is a placeholder
+## Purpose and approved artwork
 
-`AppIcon-PlantBased.appiconset` holds the **Bowl candidate from
-[#114](https://github.com/chetangoel01/recipe-app/pull/114) exactly as it
-was rendered** (`design/board/icon-candidates/02-bowl.png`, 1024×1024,
-copied byte for byte, not redrawn). It is a placeholder: the real
-plant-based direction is still being chosen, and replacing it is replacing
-one PNG — plus its drawable twin, below. Nothing else in this change moves
-with the artwork, which is why the set is named for what it *is* rather
-than for what is currently drawn in it.
+Every cook can choose the app icon they want to carry on their home screen.
+The original egg remains the default. On September 10, Chetan approved all six
+new ImageGen food icons as options: avocado, tomato, strawberry, cherries,
+carrot, and mushroom. The bowl was explicitly rejected and is replaced.
+These are the generated images approved in the conversation, not the older
+code-drawn candidates in draft [PR #114](https://github.com/chetangoel01/overeasy/pull/114).
+
+| Option | App icon set | Picker image |
+| --- | --- | --- |
+| Egg | `AppIcon` | `OvereasyMark` |
+| Avocado | `AppIcon-PlantBased` | `OvereasyMarkPlantBased` |
+| Tomato | `AppIcon-Tomato` | `OvereasyMarkTomato` |
+| Strawberry | `AppIcon-Strawberry` | `OvereasyMarkStrawberry` |
+| Cherries | `AppIcon-Cherries` | `OvereasyMarkCherries` |
+| Carrot | `AppIcon-Carrot` | `OvereasyMarkCarrot` |
+| Mushroom | `AppIcon-Mushroom` | `OvereasyMarkMushroom` |
+
+The six originals were generated on September 8 with the built-in ImageGen
+tool. The [generation prompts](../../Tools/app-icon/generation-prompts.json) record
+the source images and exact prompt assembly. Avocado and tomato used the egg as a style reference; the other four
+used the approved avocado and tomato. All share a plum ground, a large food
+silhouette, a small cream highlight, and restrained shadows. No faces, text,
+ornamental borders, or rounded corners are baked into the files.
+
+The approved 1254 × 1254 RGB PNGs were downsampled to 1024 × 1024 with `sips`,
+without cropping or redrawing. Every final icon has no alpha channel. Its
+picker PNG is an identical copy. Both live in
+[`Ladle/Resources/Assets.xcassets`](../../Ladle/Resources/Assets.xcassets).
 
 ## What the cook sees
 
-- **Two icons.** The egg the app shipped with, and one plant-based
-  alternate. No per-accent variants.
-- **A picker in Profile, under Appearance.** Two tiles, the installed one
-  ringed and checked in the cook's accent. It is deliberately independent of
-  the diet: a cook who eats everything may still prefer the bowl, and a
-  vegan who likes the egg keeps it. Either way, at any time.
-- **One question, once.** When the stored diet first includes vegetarian or
-  vegan, the app asks "Prefer an icon without the egg?" — *Use it* or *Keep
-  the egg* — and never asks again. It is asked where the answer that raised
-  it was given: in Profile when the diet is changed there, on the library
-  when the diet came from onboarding.
-- **Nothing changes on its own.** The offer only raises the question. A cook
-  who keeps the egg keeps it, and a cook already carrying the bowl is not
-  asked about it at all.
-- **iOS confirms the change itself** — "You have changed the icon for
-  Overeasy" — and that notice is left alone. The picker adds no confirmation
-  of its own in front of it; a second alert would only be the app asking
-  whether the cook meant the tap they had just made.
+- Profile has an **App icon** section below Appearance. A grid shows all
+  seven named options, with a ring and checkmark on the installed icon.
+- Columns adapt to the screen width and Dynamic Type. Icons stay 60 points
+  square, labels use the app's footnote style, and each choice has a named
+  VoiceOver button with a selected value.
+- Every icon is available to everyone, regardless of diet. Tapping switches
+  the home-screen icon through the existing iOS API. iOS owns its confirmation
+  notice and persists the selection across launches.
+- The app reads the actual installed name after a switch. A refused switch
+  leaves the picker showing the previous icon.
 
-## How the offer is gated
+## Existing bowl selections become avocado
 
-`AppIconStore.offerIfNeeded(for:)` is the whole rule, and every clause of it
-is a decision:
+The avocado deliberately keeps the installed alternate name
+`AppIcon-PlantBased` and its drawable twin `OvereasyMarkPlantBased`. A cook
+who already selected the temporary bowl stays on the alternate when updating,
+with the approved avocado artwork replacing the placeholder. The Swift case
+and visible label are now `avocado` and **Avocado**. This requires no migration
+flag or extra persisted setting.
 
-| Clause | Why |
-|---|---|
-| `application.supportsAlternateIcons` | a device that cannot change its icon is never asked about it |
-| `icon == .egg` | nobody is offered what they are already carrying; their question is left unspent for whenever they go back |
-| `diets.contains(.vegetarian) \|\| diets.contains(.vegan)` | pescatarian, gluten-free and dairy-free cooks eat eggs |
-| `!preferenceStore.bool(forKey: "ladle.appearance.plant-based-icon-offered")` | once, ever |
+## The one-time diet offer
 
-The flag is written **when the question is shown**, not when it is answered:
-an app that dies with the alert up has still asked. `-reset-library-preferences`
-writes it `false` — written, not removed, for the same reason the accent is
-written (a value seeded into the simulator's device-level domain by `simctl
-spawn defaults write` is read through but cannot be deleted from the app's
-own domain). The *installed icon* is not reset with it: that belongs to the
-home screen, not to our preferences.
+A cook on the egg who first chooses a vegetarian or vegan diet is asked
+**Prefer an icon without the egg?**, with **Use avocado** and **Keep the egg**.
+The message identifies the avocado and points to Profile for all other choices.
+Accepting selects avocado. Nothing changes before the cook accepts.
 
-Two views call it, because the diet is set in two places:
+The existing gate remains in `AppIconStore.offerIfNeeded(for:)`:
 
-- `AccountSheet` — `.onChange(of: library.filters.diets)`. The diet menu
-  lives under the cook's name in this sheet, so the question follows the tap
-  that raised it.
-- `LibraryView` — `.task`. A diet answered at onboarding is written before
-  the library exists, so there is no change here to notice; the question is
-  put when the cook lands in the app. This also means an existing
-  vegetarian cook is asked once on the first launch after updating, which
-  is what "when the stored diet first includes vegetarian or vegan" means
-  for a library that already has one.
+| Condition | Reason |
+| --- | --- |
+| iOS supports alternate icons | Unsupported devices have no picker or offer |
+| The installed icon is egg | Any alternate already satisfies the choice |
+| Diet includes vegetarian or vegan | Other diets do not trigger the offer |
+| `ladle.appearance.plant-based-icon-offered` is false | The offer appears once |
 
-One alert, though, not two: `plantBasedIconOffer(_:isEnabled:)` is attached
-in both places and the library's copy stands down while Profile is open, so
-whichever view is in front is the one that asks.
+The flag is written when the question is shown, not when answered. Choosing
+another icon does not reset it. `-reset-library-preferences` writes it false;
+the installed icon belongs to iOS and is not reset. Profile presents the offer
+when diet changes there; Library presents it after onboarding and stands down
+while Profile is open. No second presentation flow was introduced.
 
-## The asset and plist mechanics
+## Asset declarations and affected components
 
-`project.yml` declares the alternate on the `Ladle` target:
+`project.yml` lists all six alternate sets under
+`ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES`. XcodeGen updates the project,
+and the asset compiler synthesizes `CFBundleAlternateIcons` into the built
+Info.plist. The hand-written plist needs no icon entries. The Share Extension
+has no home-screen icon of its own.
 
-```yaml
-ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: AppIcon-PlantBased
-```
+An `appiconset` cannot be loaded with `UIImage(named:)` as a normal image,
+so each keeps a byte-identical `imageset` for the picker. Update both files
+when replacing artwork.
 
-That one line is the whole declaration. `actool` compiles the set and writes
-the entry into its partial `Info.plist`, which is merged into the manually
-maintained `Config/Ladle-Info.plist` — no `CFBundleIcons` is hand-written.
-Measured in the built app:
+- `Ladle/Design/AppIconStore.swift`: seven choices, stable installed avocado
+  name, image names, and explicit avocado offer text.
+- `Ladle/Account/AccountSheet.swift`: adaptive named icon grid.
+- `Ladle/Resources/Assets.xcassets`: approved artwork and drawable twins.
+- `project.yml`, `Ladle.xcodeproj`: six alternate icon declarations.
+- `AppIconStoreTests`: complete selection/restoration mapping and offer gate.
+- `ProjectSmokeTests`: compiled declarations, drawable assets, matching PNGs,
+  1024-pixel dimensions, and absence of alpha.
+- `ProfileSheetUITests`: actual switching through all seven choices, relaunch
+  persistence, reachable tap targets, and restoration of the original icon.
 
-```
-CFBundleIcons
-  CFBundlePrimaryIcon   → CFBundleIconName AppIcon,   CFBundleIconFiles [AppIcon60x60]
-  CFBundleAlternateIcons
-    AppIcon-PlantBased  → CFBundleIconName AppIcon-PlantBased
-```
+## September 10 verification
 
-`setAlternateIconName("AppIcon-PlantBased")` looks the name up there;
-`nil` goes back to the egg. The share extension is untouched — it has no
-home-screen icon to change.
+The selection test was added before production changes. It failed on the old
+`Egg, Plant-based` list and each missing approved icon. The first run is
+recorded in `/tmp/overeasy-icons-red.xcresult` (one test, seven expected failures).
 
-### Why each icon has a twin in an `imageset`
+- **37 app tests and 9 Profile UI tests passed** in
+  `/tmp/overeasy-icons-green.xcresult` on iPhone 17 / iOS 26.5. This includes
+  actual switching through every icon, persistence after relaunch, and return
+  to the original selection.
+- The icon-switching and onboarding-diet tests both passed again in dark mode
+  with accessibility-medium text on **iPhone 17 and iPhone 13 mini**. Results:
+  `/tmp/overeasy-icons-accessibility.xcresult` and
+  `/tmp/overeasy-icons-small-accessibility-retry.xcresult`. The first small-phone
+  run was stopped during simulator startup, before any test ran; restarting
+  the simulator allowed its initial data migration to finish and the retry
+  passed without code changes.
+- The full **Release archive with Share Extension passed**, version
+  **1.0 (20260910.1)**. Both bundles have matching build numbers. The archive
+  contains all six alternate declarations and the configured Google sign-in
+  identifiers.
+- The **App Store distribution export passed**, signed as Apple Distribution
+  for team `P48VDW72LU`; deep signature verification passed. Initial export
+  reported `No Accounts`; Chetan signed in to Xcode and the retry succeeded.
+- `git diff --check` and local documentation links passed. Existing unrelated
+  warnings remain for an unused `WatchView.viewport` and skipped App Intents
+  metadata extraction.
 
-The picker draws its tiles from `OvereasyMark` and
-`OvereasyMarkPlantBased`, not from the icon sets. An `appiconset` is
-compiled into `Assets.car` as an *icon* rather than an image, and
-`UIImage(named: "AppIcon-PlantBased")` does not find it — measured, and
-still nil with `ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS` on, which
-writes loose files only for the primary icon's synthesised sizes. The egg
-already had exactly this twin (`OvereasyMark`, byte-identical to
-`AppIcon.png`, used by Welcome and the walkthrough); the plant-based icon
-now has one too.
+Screenshots were inspected at normal and accessibility text sizes. Every choice
+is reachable and at least 44 points in both dimensions, with readable labels
+and no horizontal overflow. The existing simulator's light/large settings and
+original icon were restored; the new small-phone simulator was shut down.
 
-`ProjectSmokeTests.testEachAppIconKeepsADrawableTwinWithTheSameArtwork`
-compares the two pairs byte for byte, because the failure mode of replacing
-the placeholder in one set and not the other is a picker quietly offering
-yesterday's icon.
+| Screenshot | Coverage |
+| --- | --- |
+| [Profile, light](captures/2026-09-10-icon-options/profile-light.png) | All seven options and selected state |
+| [Profile, dark accessibility](captures/2026-09-10-icon-options/profile-dark-accessibility.png) | Two-column layout and larger labels |
+| [iPhone 13 mini, dark accessibility](captures/2026-09-10-icon-options/profile-small-dark-accessibility.png) | Smaller screen with all choices reachable |
 
-## Affected components
+The signed archive is at `build/release/Ladle.xcarchive`; the exported package
+is `build/release/export/Ladle.ipa` in the icon-options checkout. TestFlight
+upload is the remaining release step.
 
-| File | Change |
-|------|--------|
-| `Ladle/Resources/Assets.xcassets/AppIcon-PlantBased.appiconset` | new: the placeholder Bowl artwork, single 1024 iOS icon |
-| `Ladle/Resources/Assets.xcassets/OvereasyMarkPlantBased.imageset` | new: the same PNG, as something the picker can draw |
-| `project.yml`, `Ladle.xcodeproj` | `ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES`, regenerated |
-| `Ladle/Design/AppIconStore.swift` | new: `LadleAppIcon`, `AlternateAppIconSetting`, `AppIconStore`, and the offer alert as a `View` modifier |
-| `Ladle/Account/AccountSheet.swift` | the App icon section, and the offer where the diet is changed |
-| `Ladle/Library/LibraryView.swift` | owns the store, and asks the question for the onboarding path |
-| `Ladle/Library/LibraryViewModel.swift` | `-reset-library-preferences` writes the offer flag false |
-| `LadleTests/AppIconStoreTests.swift` | new: 13 tests over the store and the gate |
-| `LadleTests/ProjectSmokeTests.swift` | new: the alternate is in the bundle; the twins match |
-| `LadleUITests/ProfileSheetUITests.swift` | new: the picker switches both ways; the Profile diet raises the offer |
-| `LadleUITests/RecipesFilterMenuUITests.swift` | the onboarding diet raises the offer on the way in |
-
-## Verification
+## Historical verification: September 8, two-icon placeholder
 
 ### The tests, red first
 
