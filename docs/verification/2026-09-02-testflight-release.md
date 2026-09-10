@@ -1,5 +1,39 @@
 # Overeasy goes to TestFlight
 
+## September 10: native Liquid Glass icons
+
+Version **1.0 (20260910.2)** replaces the flattened food icons with native
+layered `.icon` packages for the egg and all six alternates. The approved
+artwork and installed selection names are preserved. A code-based conversion
+pipeline generates the packages and native picker previews; Xcode handles
+Default, Dark, Clear, and Tinted appearances.
+
+[PR #138](https://github.com/chetangoel01/overeasy/pull/138) merged as
+`dc04452a42b771df728af9f9f9c7dbf30034b13f`, with a tree identical to verified
+source commit `5d232e8b2b83ac72310266964a9f743f1b829e27`. The
+[Liquid Glass verification](2026-09-08-plant-based-icon.md#september-10-liquid-glass-verification)
+contains the rebuild command, native appearance matrix, actual Home Screen
+capture, and small-phone picker capture. Clear/Tinted visual checks use
+Apple's renderer exports; the captured Home Screen shows Default appearance.
+
+- **37 app tests and the seven-icon switching/relaunch UI test passed** on
+  iPhone 17; the same UI test passed again on iPhone 13 mini in dark mode with
+  accessibility text. Each test restores the original installed icon.
+- The **full Release archive, Share Extension, signed App Store export, and
+  deep signature verification passed**. Both bundles are build `20260910.2`.
+  The exported asset catalog contains native icon stacks for every option.
+- The archive and exported IPA are at
+  `build/release-liquid-glass/Ladle.xcarchive` and
+  `build/release-liquid-glass/export/Ladle.ipa` in the icon-options checkout.
+  The previously uploaded `.1` archive and export remain in `build/release`.
+- Upload uses the existing Xcode account and an ignored copy of the export
+  options with `destination=upload`, preserving the explicit build number.
+
+**Uploaded successfully on September 10 at 22:37:59 UTC.** Xcode reported
+`Uploaded package is processing`, `Upload succeeded`, and `EXPORT SUCCEEDED`.
+Apple's processing had started; availability to tester groups was not yet
+verified. The upload log is `/tmp/overeasy-glass-upload.log`.
+
 ## September 10: icon options
 
 Version **1.0 (20260910.1)** contains the original egg plus avocado, tomato,
@@ -9,7 +43,7 @@ verified source commit `c712ee1751940e9ae926966d217caa20b6bac352`.
 
 The full Release archive embeds the Share Extension with the same version and
 build number. All six alternate icons are declared in the built app. The
-[feature verification](2026-09-08-plant-based-icon.md#september-10-verification)
+[feature verification](2026-09-08-plant-based-icon.md#historical-verification-september-10-flattened-icon-options)
 records the tests, generated artwork provenance, and screenshots.
 
 Xcode was initially signed out, so distribution export reported `No Accounts`.
