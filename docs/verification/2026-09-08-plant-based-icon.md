@@ -163,6 +163,12 @@ artwork. Final verification:
 
 - **37 app tests and the real seven-icon switching UI test passed** on
   iPhone 17 / iOS 26.5: `/tmp/overeasy-glass-final.xcresult`.
+- The seven-icon switching/relaunch test also passed on **iPhone 13 mini**,
+  in dark mode at the existing accessibility text size:
+  `/tmp/overeasy-glass-small.xcresult`. The
+  [captured picker](captures/2026-09-10-liquid-glass-icons/profile-small-dark.png)
+  shows all seven native Dark previews with readable labels. Both dedicated
+  test simulators were left on the original egg and shut down.
 - The **full Release archive with Share Extension and App Store export passed**
   for **1.0 (20260910.2)**. Both bundles use the matching build number; all six
   alternate names are present. Deep signature verification passed.
@@ -179,6 +185,11 @@ artwork. Final verification:
 
 [Installed egg, Default appearance](captures/2026-09-10-liquid-glass-icons/home-egg-default.png)
 was captured on iPhone 13 mini / iOS 26.5 after the simulator restart.
+
+[PR #138](https://github.com/chetangoel01/overeasy/pull/138) is merged. Build
+**1.0 (20260910.2)** uploaded successfully at **22:37:59 UTC**; Apple reported
+that processing had started. See the
+[release record](2026-09-02-testflight-release.md#september-10-native-liquid-glass-icons).
 
 The archive and export are preserved under `build/release-liquid-glass`,
 separate from the previously uploaded flattened-icon build in `build/release`.
