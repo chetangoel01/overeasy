@@ -144,8 +144,8 @@ original icon were restored; the new small-phone simulator was shut down.
 | [iPhone 13 mini, dark accessibility](captures/2026-09-10-icon-options/profile-small-dark-accessibility.png) | Smaller screen with all choices reachable |
 
 The signed archive is at `build/release/Ladle.xcarchive`; the exported package
-is `build/release/export/Ladle.ipa` in the icon-options checkout. TestFlight
-upload is the remaining release step.
+is `build/release/export/Ladle.ipa` in the icon-options checkout. Distribution status is recorded in the
+[September 10 release entry](2026-09-02-testflight-release.md#september-10-icon-options).
 
 ## Historical verification: September 8, two-icon placeholder
 
