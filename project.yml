@@ -14,7 +14,7 @@ settings:
     DEVELOPMENT_TEAM: P48VDW72LU
     CODE_SIGN_STYLE: Automatic
     MARKETING_VERSION: "1.0"
-    CURRENT_PROJECT_VERSION: "20260910.1"
+    CURRENT_PROJECT_VERSION: "20260910.2"
 
 packages:
   GoogleSignIn:
@@ -39,9 +39,10 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.ladle.ios
         INFOPLIST_FILE: Config/Ladle-Info.plist
         CODE_SIGN_ENTITLEMENTS: Config/Ladle.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
-        # actool generates CFBundleAlternateIcons. PlantBased retains the
-        # installed bowl selection while replacing its artwork with avocado.
+        # actool compiles the Icon Composer files and generates the icon keys.
+        # PlantBased preserves the installed avocado (previously bowl) selection.
         ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: "AppIcon-PlantBased AppIcon-Tomato AppIcon-Strawberry AppIcon-Cherries AppIcon-Carrot AppIcon-Mushroom"
         PRODUCT_NAME: Ladle
         TARGETED_DEVICE_FAMILY: "1"

@@ -1,8 +1,18 @@
 {
   "images": [
     {
+      "filename": "OvereasyMarkCherries.png",
+      "idiom": "universal"
+    },
+    {
+      "filename": "OvereasyMarkCherriesDark.png",
       "idiom": "universal",
-      "filename": "OvereasyMarkCherries.png"
+      "appearances": [
+        {
+          "appearance": "luminosity",
+          "value": "dark"
+        }
+      ]
     }
   ],
   "info": {

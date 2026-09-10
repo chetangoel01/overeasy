@@ -1,8 +1,18 @@
 {
   "images": [
     {
+      "filename": "OvereasyMarkTomato.png",
+      "idiom": "universal"
+    },
+    {
+      "filename": "OvereasyMarkTomatoDark.png",
       "idiom": "universal",
-      "filename": "OvereasyMarkTomato.png"
+      "appearances": [
+        {
+          "appearance": "luminosity",
+          "value": "dark"
+        }
+      ]
     }
   ],
   "info": {

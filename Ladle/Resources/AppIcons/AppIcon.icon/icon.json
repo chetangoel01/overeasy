@@ -1,0 +1,46 @@
+{
+  "fill": {
+    "linear-gradient": [
+      "extended-srgb:0.29412,0.22745,0.27059,1.00000",
+      "extended-srgb:0.23922,0.18431,0.21961,1.00000"
+    ]
+  },
+  "groups": [
+    {
+      "layers": [
+        {
+          "image-name": "Yolk.png",
+          "name": "Yolk"
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.3
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.3
+      }
+    },
+    {
+      "layers": [
+        {
+          "image-name": "White.png",
+          "name": "White"
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.3
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.3
+      }
+    }
+  ],
+  "supported-platforms": {
+    "squares": "shared",
+    "circles": []
+  }
+}
