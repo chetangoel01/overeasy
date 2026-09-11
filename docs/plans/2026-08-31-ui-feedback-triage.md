@@ -6,6 +6,11 @@ running list. Items 1–11 came from a spoken list on August 31; 12 and 13 were
 added on September 1 from a reimport on the phone; 14 and 15 came from a
 second pass on the phone the same day.
 
+Feedback from September 11 onward is tracked in GitHub issues
+[#140](https://github.com/chetangoel01/overeasy/issues/140)–[#153](https://github.com/chetangoel01/overeasy/issues/153),
+not here. Their screenshots live in
+`docs/verification/captures/2026-09-11-user-feedback/`.
+
 ## Purpose
 
 Chetan gave a spoken list of observations after using the app against the
