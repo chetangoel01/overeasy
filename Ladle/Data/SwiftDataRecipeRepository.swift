@@ -450,11 +450,18 @@ final class SwiftDataRecipeRepository:
         for change in page.changes {
             let stored = try storedRecipe(id: change.recipeID)
             if let stored,
-               change.recipeRevision <= stored.serverRevision {
+               change.recipeRevision < stored.serverRevision
+                || (change.recipeRevision == stored.serverRevision
+                    && stored.pendingMutationKey != nil) {
                 // Already incorporated — including the echo of this device's
                 // own acknowledged push, which must not read as a conflict.
                 continue
             }
+            // A clean row at the revision it already holds takes the
+            // server's copy again. The content is the same; what differs is
+            // whatever this build reads that the build which stored the row
+            // did not — the `sourceID` that a pull from the beginning of the
+            // log exists to deliver. The server bumps no revision for that.
             if let stored, stored.pendingMutationKey != nil {
                 switch change.kind {
                 case .upsert:

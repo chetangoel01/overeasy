@@ -200,6 +200,9 @@ struct RecipeDraft: Equatable {
     let id: UUID
     let source: RecipeSource
     let originalURL: URL
+    /// Carried for the reason the tags below are: a draft that dropped it
+    /// would cost the saved page its ratings until the next sync pull.
+    let sourceID: UUID?
     var images: [RecipeImage]
     let isFavorite: Bool
     let reviewStatus: RecipeReviewStatus
@@ -229,6 +232,7 @@ struct RecipeDraft: Equatable {
         id = recipe.id
         source = recipe.source
         originalURL = recipe.originalURL
+        sourceID = recipe.sourceID
         images = recipe.images
         isFavorite = recipe.isFavorite
         reviewStatus = recipe.reviewStatus
@@ -265,6 +269,7 @@ struct RecipeDraft: Equatable {
             creatorName: normalized(creatorName),
             source: source,
             originalURL: originalURL,
+            sourceID: sourceID,
             images: images,
             preparationMinutes: preparation,
             cookingMinutes: cooking,

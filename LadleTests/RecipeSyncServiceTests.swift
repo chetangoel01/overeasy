@@ -290,6 +290,69 @@ final class RecipeSyncServiceTests: XCTestCase {
         XCTAssertEqual(repository.reconciledSnapshots, [Set<UUID>()])
     }
 
+    func testReplaysTheLogOnceALaunchUntilAPullFromTheStartCarriesASourceID()
+        async throws
+    {
+        let cursors = Locked<[String?]>([])
+        let servesSourceIDs = Locked<Bool>(false)
+        let sourcedPage = try JSONSerialization.data(withJSONObject: [
+            "changes": [[
+                "sequence": 9,
+                "recipeID": "20000000-0000-4000-8000-000000000001",
+                "kind": "upsert",
+                "recipeRevision": 1,
+                "changedAt": "2026-08-27T12:00:00.000Z",
+                "recipe": try JSONSerialization.jsonObject(
+                    with: Self.fixture(named: "recipe-ready")
+                ),
+            ]],
+            "nextCursor": 9,
+            "hasMore": false,
+        ] as [String: Any])
+        URLProtocolStub.install { request in
+            let query = URLComponents(
+                url: request.url!,
+                resolvingAgainstBaseURL: false
+            )?.queryItems
+            cursors.withValue {
+                $0.append(query?.first { $0.name == "cursor" }?.value)
+            }
+            return (
+                Self.response(request),
+                servesSourceIDs.snapshot
+                    ? sourcedPage
+                    : Self.emptyPage(cursor: 7)
+            )
+        }
+        let store = InMemorySyncCursorStore(
+            value: 42,
+            hasLearnedSourceIDs: false
+        )
+        func launch() -> RecipeSyncService {
+            RecipeSyncService(
+                api: makeAPI(),
+                repository: SyncTestRepository(),
+                cursorStore: store
+            )
+        }
+
+        // A server that predates `sourceID`: the pull from the start teaches
+        // nothing, is not repeated within the launch, and is still owed.
+        let firstLaunch = launch()
+        try await firstLaunch.synchronize()
+        try await firstLaunch.synchronize()
+        XCTAssertFalse(store.hasLearnedSourceIDs)
+
+        // The next launch meets one that names sources, and no launch after
+        // it starts over.
+        servesSourceIDs.withValue { $0 = true }
+        try await launch().synchronize()
+        XCTAssertTrue(store.hasLearnedSourceIDs)
+        try await launch().synchronize()
+
+        XCTAssertEqual(cursors.snapshot, ["0", "7", "0", "9"])
+    }
+
     private func makeAPI() -> APIClient {
         APIClient(
             baseURL: URL(string: "https://api.ladle.test")!,
@@ -397,9 +460,19 @@ private final class InMemorySyncCursorStore:
     @unchecked Sendable
 {
     private let value: Locked<Int64>
+    private let learned: Locked<Bool>
 
-    init(value: Int64 = 0) {
+    /// Learned by default, so a test about anything else starts from the
+    /// cursor it set rather than from a replay.
+    init(value: Int64 = 0, hasLearnedSourceIDs: Bool = true) {
         self.value = Locked(value)
+        learned = Locked(hasLearnedSourceIDs)
+    }
+
+    var hasLearnedSourceIDs: Bool { learned.snapshot }
+
+    func markSourceIDsLearned() {
+        learned.withValue { $0 = true }
     }
 
     func load() throws -> Int64 {
