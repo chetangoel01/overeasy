@@ -164,6 +164,10 @@ struct RecipeRatingCard: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(LadlePressButtonStyle())
+                // The symbol names itself "Favorite". VoiceOver meets the
+                // row below and never a star, but whatever does meet one
+                // hears what it does.
+                .accessibilityLabel(countText(star, "star"))
             }
         }
         // The glyph sits inside its target, so the row steps back by that

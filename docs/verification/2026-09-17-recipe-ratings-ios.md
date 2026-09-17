@@ -33,7 +33,9 @@ saved.
   the Overeasy line closes up exactly as it was before ratings. A saved
   recipe that names its source holds that line's place from the first frame
   until the server answers, so the numbers arriving do not move the page; if
-  no answer comes, the place is given back.
+  no answer comes, the place is given back. The place is one line: where the
+  text is large enough to stack the stars over the saves, the numbers
+  arriving add the second.
 - **Rating card**, on a saved recipe that has a source, after the notes and
   above Start cooking: "Rate this recipe", five stars on 44-point targets,
   and "Counts toward the average other cooks see." Rated, it reads "Your
@@ -271,12 +273,14 @@ Read from the accessibility tree with a throwaway XCUITest, not listened to:
 the row is one element, "Your rating", whose value went "Not rated" → "4
 stars" → "Not rated" across a tap and a clear; "Clear rating" is a button
 with a 47.7-point-tall frame that exists only while rated; the header and
-Discover lines carry the spoken label. The five star buttons still appear
-under the row in XCUITest's snapshot, named "Favorite" by the symbol —
-with and without `accessibilityHidden` on them, so the snapshot does not
-show what `children: .ignore` hides. The row follows the servings stepper's
-pattern exactly; whether VoiceOver can land on a star was **not** checked by
-ear.
+Discover lines carry the spoken label. XCUITest's snapshot still lists the
+five star buttons under the row — with and without `accessibilityHidden` on
+them — and in the same run it lists "Decrease servings" and "Increase
+servings" under the servings stepper, whose modifiers the row copies: the
+snapshot shows what `children: .ignore` hides, and the two controls have the
+same tree. The symbol had named each star "Favorite"; they now say "1 star"
+to "5 stars", so anything that does meet one hears what it does. Whether
+VoiceOver can land on a star was **not** checked by ear.
 
 Not verified: any real request. The remote service's three calls are
 untested against a server, and the old-server behaviour rests on the
