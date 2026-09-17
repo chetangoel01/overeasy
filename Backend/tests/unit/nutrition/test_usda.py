@@ -67,15 +67,16 @@ def test_candidates_prefer_generic_foods_and_parse_nutrients_and_portions() -> N
 
     foods = client(respond).candidates("chickpeas canned drained")
 
-    assert [food.fdc_id for food in foods] == [2644288, 173800, 999001]
-    assert [food.search_rank for food in foods] == [0, 1, 2]
+    # Chocolate-covered chickpea snacks do not answer a canned-chickpea query.
+    assert [food.fdc_id for food in foods] == [2644288, 173800]
+    assert [food.search_rank for food in foods] == [0, 1]
     assert foods[0].calories_per_100g == Decimal("132.972")
     assert foods[0].protein_grams_per_100g == Decimal("7.01875")
     assert foods[0].carbohydrate_grams_per_100g == Decimal("20.32025")
     assert foods[0].fat_grams_per_100g == Decimal("3.096")
     assert foods[0].portions[1].measure_unit == "cup"
     assert foods[0].portions[1].gram_weight == 164
-    assert len(requests) == 4
+    assert len(requests) == 3
 
 
 def test_exact_normalized_query_is_cached_in_process() -> None:
@@ -95,6 +96,82 @@ def test_exact_normalized_query_is_cached_in_process() -> None:
 
     assert first == second
     assert calls == 2
+
+
+def test_unrelated_generic_results_do_not_hide_an_exact_packaged_food() -> None:
+    rice_vinegar = _detail(
+        123456,
+        "RICE VINEGAR",
+        "Branded",
+        calories=20,
+        protein=0,
+        carbohydrate=0,
+        fat=0,
+    )
+    scopes = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/foods/search"):
+            payload = json.loads(request.content)
+            scopes.append(payload["dataType"])
+            if "Branded" not in payload["dataType"]:
+                return httpx.Response(
+                    200,
+                    json={
+                        "foods": [
+                            {
+                                "fdcId": 172241,
+                                "description": "Vinegar, balsamic",
+                                "dataType": "SR Legacy",
+                            }
+                        ]
+                    },
+                )
+            return httpx.Response(200, json={"foods": [_row(rice_vinegar, 10)]})
+        assert request.url.path.endswith("/123456")
+        return httpx.Response(200, json=rice_vinegar)
+
+    assert [f.fdc_id for f in client(respond).candidates("vinegar rice")] == [123456]
+    assert len(scopes) == 2
+
+
+def test_category_words_do_not_keep_lentils_behind_other_beans() -> None:
+    lentils = _detail(
+        172420,
+        "Lentils, raw",
+        "SR Legacy",
+        calories=350,
+        protein=25,
+        carbohydrate=60,
+        fat=1,
+    )
+    queries = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/foods/search"):
+            query = json.loads(request.content)["query"]
+            queries.append(query)
+            if query == "lentils mature seeds raw":
+                return httpx.Response(
+                    200,
+                    json={
+                        "foods": [
+                            {
+                                "fdcId": 172423,
+                                "description": "Lupins, mature seeds, raw",
+                                "dataType": "SR Legacy",
+                            }
+                        ]
+                    },
+                )
+            assert query == "lentil raw"
+            return httpx.Response(200, json={"foods": [_row(lentils, 10)]})
+        return httpx.Response(200, json=lentils)
+
+    assert [
+        f.fdc_id for f in client(respond).candidates("lentils mature seeds raw")
+    ] == [172420]
+    assert queries == ["lentils mature seeds raw", "lentil raw"]
 
 
 @pytest.mark.parametrize(

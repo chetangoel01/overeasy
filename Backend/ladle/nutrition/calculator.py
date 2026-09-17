@@ -5,7 +5,12 @@ from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
 
 from ladle.nutrition.curated import CuratedFoodTable
-from ladle.nutrition.usda import FoodDataSource, FoodNutrients, FoodPortion
+from ladle.nutrition.usda import (
+    FoodDataSource,
+    FoodNutrients,
+    FoodPortion,
+    food_matches,
+)
 from ladle.recipes.template_clone import (
     RecipeTemplate,
     TemplateIngredient,
@@ -284,8 +289,8 @@ class NutritionCalculator:
         # Relevance orders the candidates before it rejects any, so reaching
         # an irrelevant one means every relevant candidate was unusable.
         candidates = [
-            food for food in candidates if _relevant(query, food.description)
-        ] + [food for food in candidates if not _relevant(query, food.description)]
+            food for food in candidates if food_matches(query, food.description)
+        ] + [food for food in candidates if not food_matches(query, food.description)]
         first_failure: NutritionCalculationUnavailable | None = None
         for food in candidates:
             if not _consistent(food, query=ingredient.usda_search_term or ""):
@@ -303,7 +308,7 @@ class NutritionCalculator:
                     ingredient_name=ingredient.name,
                 )
                 continue
-            if not _relevant(query, food.description):
+            if not food_matches(query, food.description):
                 first_failure = first_failure or NutritionCalculationUnavailable(
                     "foodNotFound",
                     ingredient_index=index,
@@ -477,73 +482,6 @@ def _consistent(food: FoodNutrients, *, query: str = "") -> bool:
 
 def _tokens(value: str) -> list[str]:
     return re.findall(r"[a-z0-9]+", value.casefold())
-
-
-def _stems(value: str) -> set[str]:
-    """Tokens with a trailing plural folded away.
-
-    "seeds" against "Spices, cumin seed" is what started all of this: one
-    character kept a laboratory record from matching the ingredient it
-    describes.
-    """
-    return {
-        token[:-1] if len(token) > 3 and token.endswith("s") else token
-        for token in _tokens(value)
-    }
-
-
-#: Mutually exclusive states. A record in one of these cannot answer a query
-#: asking for another: dried coriander leaf is 279 kcal per 100g and the fresh
-#: herb is about 23, so agreeing on "coriander" and "leaf" is not enough.
-_STATES: dict[str, str] = {
-    "raw": "raw",
-    "fresh": "raw",
-    "dried": "dried",
-    "dehydrated": "dried",
-    "canned": "canned",
-    "frozen": "frozen",
-    "cooked": "cooked",
-    "boiled": "cooked",
-    "roasted": "cooked",
-}
-
-
-def _states(stems: set[str]) -> set[str]:
-    return {_STATES[stem] for stem in stems if stem in _STATES}
-
-
-def _relevant(query: str, description: str) -> bool:
-    """Whether a candidate plausibly describes the ingredient asked for.
-
-    USDA's own ranking answers "cinnamon stick" with APPLEBEE'S mozzarella
-    sticks and "ginger garlic paste" with almond paste, and nothing on the
-    provider-ranked path checked. A candidate qualifies when it carries the
-    query's distinguishing word — every query token for a single-word query,
-    and more than half for a longer one, since USDA writes "Spices, cinnamon,
-    ground" where a cook writes "cinnamon stick".
-    """
-    tokens = [
-        token[:-1] if len(token) > 3 and token.endswith("s") else token
-        for token in _tokens(query)
-    ]
-    if not tokens:
-        return False
-    described = _stems(description)
-    # The first word names the food; the rest qualify it. Sharing only the
-    # qualifiers is how "coriander leaf raw" matched "Lettuce, leaf, green,
-    # raw" — two words of three agreed, and the one that did not was the only
-    # one that mattered.
-    if tokens[0] not in described:
-        return False
-    wanted = set(tokens)
-    asked = _states(wanted)
-    offered = _states(described)
-    if asked and offered and not (asked & offered):
-        return False
-    shared = wanted & described
-    if len(wanted) == 1:
-        return bool(shared)
-    return len(shared) * 2 > len(wanted)
 
 
 def _unit(value: str) -> str:

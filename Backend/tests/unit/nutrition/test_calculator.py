@@ -721,6 +721,28 @@ def test_sharing_the_qualifiers_is_not_enough_without_the_food_itself() -> None:
     assert [value.name for value in records] == ["coriander"]
 
 
+@pytest.mark.parametrize(
+    ("query", "description"),
+    [
+        ("ghee", "Ghee, clarified butter"),
+        ("tomato raw", "Tomatoes, raw"),
+        ("lentils raw", "Lentils, raw"),
+        ("pancetta", "PANCETTA"),
+        ("vinegar rice", "RICE VINEGAR"),
+        ("green cardamoms", "Spices, cardamom"),
+        ("cardamom ground", "Spices, cardamom"),
+        ("canned whole tomatoes", "Tomatoes, whole, canned, solids and liquids"),
+    ],
+)
+def test_pantry_matches_keep_food_identity_despite_wording(query, description):
+    candidate = food(description=description, search_rank=0)
+    result = NutritionCalculator(Foods({query: [candidate]})).calculate_required(
+        recipe([ingredient(name=query, query=query)])
+    )
+    assert result is not None
+    assert "FDC 1" in result.evidence
+
+
 def test_the_food_word_may_be_qualified_by_the_record() -> None:
     # "Carrots, baby, raw" for "carrot raw" is a good match, not a weak one.
     carrots = food(
@@ -743,6 +765,18 @@ def test_the_food_word_may_be_qualified_by_the_record() -> None:
     )
 
     assert records == []
+
+
+@pytest.mark.parametrize(
+    ("query", "description"),
+    [("whole milk", "Milk, skim"), ("ground beef", "Beef, steak")],
+)
+def test_qualifiers_that_change_nutrition_are_not_discarded(query, description):
+    records = uncounted_ingredients(
+        Foods({query: [food(description=description, search_rank=0)]}),
+        ingredient(name=query, query=query),
+    )
+    assert [(value.name, value.code) for value in records] == [(query, "foodNotFound")]
 
 
 def test_a_contradicted_state_is_uncounted_however_well_the_food_matches() -> None:
