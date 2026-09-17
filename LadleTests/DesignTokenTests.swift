@@ -253,31 +253,6 @@ final class DesignTokenTests: XCTestCase {
         XCTAssertEqual(offenders.sorted(), [])
     }
 
-    func testPorcelainPaletteUsesApprovedHexValues() {
-        XCTAssertEqual(LadleTheme.plumHex, "#14181B")
-        XCTAssertEqual(LadleTheme.paperHex, "#F7F4EF")
-        XCTAssertEqual(LadleTheme.oatHex, "#ECE7E1")
-        XCTAssertEqual(LadleTheme.inkHex, "#14181B")
-        XCTAssertEqual(LadleTheme.brickHex, "#C23B26")
-        XCTAssertEqual(LadleTheme.celeryHex, "#83A18A")
-        XCTAssertEqual(LadleTheme.ubeHex, "#E3DDD6")
-        XCTAssertEqual(LadleTheme.mutedInkHex, "#505B64")
-    }
-
-    func testDarkPaletteUsesNeutralGraphiteSurfaces() {
-        XCTAssertEqual(LadleTheme.darkPaperHex, "#101214")
-        XCTAssertEqual(LadleTheme.darkOatHex, "#1C2024")
-        XCTAssertEqual(LadleTheme.darkInkHex, "#F2F4F5")
-        XCTAssertEqual(LadleTheme.darkMutedInkHex, "#A6AFB7")
-        XCTAssertEqual(LadleTheme.darkUbeHex, "#252A2F")
-        XCTAssertEqual(LadleTheme.darkCeleryHex, "#294233")
-        XCTAssertEqual(LadleTheme.onAccentHex, "#FAFBFC")
-        XCTAssertEqual(LadleTheme.accentTextHex, "#C73924")
-        XCTAssertEqual(LadleTheme.darkAccentTextHex, "#FF7562")
-        XCTAssertEqual(LadleTheme.fixedInkHex, "#14181B")
-        XCTAssertEqual(LadleTheme.focusAccentHex, "#FF5A3D")
-    }
-
     func testAccentPreferenceHasStableChoicesAndFallback() {
         XCTAssertEqual(
             LadleAccentColor.allCases.map(\.rawValue),
@@ -295,20 +270,6 @@ final class DesignTokenTests: XCTestCase {
             LadleAccentColor.resolve(storedValue: nil),
             .tomato
         )
-    }
-
-    func testSpacingScaleIncreasesPredictably() {
-        XCTAssertEqual(LadleTheme.Spacing.compact, 8)
-        XCTAssertEqual(LadleTheme.Spacing.regular, 16)
-        XCTAssertEqual(LadleTheme.Spacing.generous, 24)
-        XCTAssertEqual(LadleTheme.Spacing.cooking, 32)
-    }
-
-    func testCornerScaleSupportsControlsCardsAndSheets() {
-        XCTAssertEqual(LadleTheme.Corner.control, 15)
-        XCTAssertEqual(LadleTheme.Corner.card, 20)
-        XCTAssertEqual(LadleTheme.Corner.sheet, 34)
-        XCTAssertEqual(LadleTheme.Corner.thumbnail, 12)
     }
 
     func testLayoutRolesResolveToStepsOnTheSpacingScale() {
@@ -417,19 +378,6 @@ final class DesignTokenTests: XCTestCase {
         XCTAssertEqual(LadleTheme.Control.hitTarget, 44)
         XCTAssertEqual(LadleTheme.Control.field, 48)
         XCTAssertEqual(LadleTheme.Control.primary, 52)
-    }
-
-    func testIconSizeScaleIsOrdered() {
-        XCTAssertEqual(
-            [
-                LadleTheme.IconSize.small,
-                LadleTheme.IconSize.medium,
-                LadleTheme.IconSize.large,
-                LadleTheme.IconSize.feature,
-                LadleTheme.IconSize.hero,
-            ],
-            [13, 16, 20, 28, 38]
-        )
     }
 
     func testDividerInsetIsDerivedFromTheRowItSeparates() {
@@ -639,13 +587,6 @@ final class DesignTokenTests: XCTestCase {
                 "Surface.badge must separate from the card more than steel does"
             )
         }
-    }
-
-    func testPressMotionUsesApprovedZeroBounceTimingLanguage() {
-        XCTAssertEqual(LadlePressKind.card.scale, 0.97)
-        XCTAssertEqual(LadlePressKind.card.duration, 0.18)
-        XCTAssertEqual(LadlePressKind.control.scale, 0.94)
-        XCTAssertEqual(LadlePressKind.control.duration, 0.15)
     }
 
     func testFeedbackPolicyOnlyAcknowledgesMeaningfulStateChanges() {

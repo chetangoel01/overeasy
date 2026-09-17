@@ -114,26 +114,6 @@ enum LadleTheme {
     // Palette values are private vocabulary for the semantic roles below.
     // Production screens consume Surface, Label, Intent, Mark, and Stroke
     // instead.
-    static let plumHex = "#14181B"
-    static let paperHex = "#F7F4EF"
-    static let oatHex = "#ECE7E1"
-    static let inkHex = "#14181B"
-    static let brickHex = "#C23B26"
-    static let celeryHex = "#83A18A"
-    static let ubeHex = "#E3DDD6"
-    static let mutedInkHex = "#505B64"
-    static let darkPaperHex = "#101214"
-    static let darkOatHex = "#1C2024"
-    static let darkInkHex = "#F2F4F5"
-    static let darkMutedInkHex = "#A6AFB7"
-    static let darkUbeHex = "#252A2F"
-    static let darkCeleryHex = "#294233"
-    static let onAccentHex = "#FAFBFC"
-    static let accentTextHex = "#C73924"
-    static let darkAccentTextHex = "#FF7562"
-    static let fixedInkHex = "#14181B"
-    static let focusAccentHex = "#FF5A3D"
-
     static let plum = Color("Plum")
     static let paper = Color("Paper")
     static let oat = Color("Oat")
