@@ -123,7 +123,17 @@ public struct RecipeFilter: Equatable, Sendable {
     }
 
     public func matches(_ recipe: Recipe) -> Bool {
-        guard diets.isSubset(of: Set(recipe.diets)) else { return false }
+        let taggedDiets = Set(recipe.diets)
+        guard diets.allSatisfy({ diet in
+            switch diet {
+            case .pescatarian:
+                !taggedDiets.isDisjoint(with: [.pescatarian, .vegetarian, .vegan])
+            case .vegetarian:
+                !taggedDiets.isDisjoint(with: [.vegetarian, .vegan])
+            default:
+                taggedDiets.contains(diet)
+            }
+        }) else { return false }
         if !cuisines.isEmpty, cuisines.isDisjoint(with: Set(recipe.cuisines)) {
             return false
         }

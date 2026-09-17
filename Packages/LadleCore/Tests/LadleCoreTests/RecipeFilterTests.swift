@@ -44,6 +44,35 @@ struct RecipeFilterTests {
     }
 
     @Test
+    func dietsIncludeMoreRestrictivePlantBasedRecipes() {
+        let library = [
+            recipe("Fish", diets: [.pescatarian]),
+            recipe("Vegetarian", diets: [.vegetarian]),
+            recipe("Vegan", diets: [.vegan]),
+            recipe("Unknown")
+        ]
+        #expect(RecipeFilter(diets: [.pescatarian]).apply(to: library).map(\.title)
+            == ["Fish", "Vegetarian", "Vegan"])
+        #expect(RecipeFilter(diets: [.vegetarian]).apply(to: library).map(\.title)
+            == ["Vegetarian", "Vegan"])
+        #expect(RecipeFilter(diets: [.vegan]).apply(to: library).map(\.title)
+            == ["Vegan"])
+        #expect(RecipeFilter(diets: [.pescatarian, .vegan]).apply(to: library).map(\.title)
+            == ["Vegan"])
+    }
+
+    @Test
+    func dietCompatibilityStillRequiresEveryAdditionalRestriction() {
+        let library = [
+            recipe("Gluten-free vegan", diets: [.vegan, .glutenFree]),
+            recipe("Vegan", diets: [.vegan]),
+            recipe("Gluten-free", diets: [.glutenFree])
+        ]
+        #expect(RecipeFilter(diets: [.pescatarian, .glutenFree])
+            .apply(to: library).map(\.title) == ["Gluten-free vegan"])
+    }
+
+    @Test
     func anyChosenCuisineOrKeywordIsEnough() {
         let italian = recipe("Italian", cuisines: [.italian])
         let korean = recipe("Korean", cuisines: [.korean])
