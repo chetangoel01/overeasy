@@ -110,9 +110,10 @@ because a recipe name is content and should grow with the reader's size, and
 `section` is `.headline` because a section label is chrome and stays closer to
 the surrounding UI. They diverge at large Dynamic Type, which is the point.
 
-`ladleScaledFont(size:)` is for cooking surfaces needing distance legibility
-beyond `display`, and nothing else. Symbol point sizes use `LadleTheme.IconSize`
-— `small` 13, `medium` 16, `large` 20, `feature` 28, `hero` 38.
+`ladleScaledFont(size:)` is for cooking surfaces read from counter distance —
+the Focus Mode instruction, its ingredient rows, a timer's clock — and nothing
+else. Symbol point sizes use `LadleTheme.IconSize` — `small` 13, `medium` 16,
+`large` 20, `feature` 28, `hero` 38.
 
 Metadata is always paired with `Label.secondary`. Avoid expanded display type,
 serif editorial accents, and decorative uppercase tracking.
@@ -308,6 +309,18 @@ navigation bar, it covers the large title.
 - Focus Mode uses the graphite ground with porcelain text and a fixed signal-red
   progress/action color.
 - One instruction owns the screen. Timers are large and stateful.
+- Under them, "For this step" lists the ingredients linked to the current
+  step, one row each: the amount, semibold, in a fixed leading column and the
+  name beside it, at 20 points through `ladleScaledFont` — `title3`'s size and
+  scaling in the two weights a row needs. Amounts follow the serving count
+  chosen before cooking and come from Full Recipe's formatter, so a row with
+  no amount is its name alone. The app never splits an amount between steps:
+  an ingredient other steps also use shows the whole-recipe amount and says
+  so under its name — "Recipe total. Also used in step 4."
+- The "For this step" header is a small disclosure on a 44-point target.
+  Folded, the section is the single line of names; it stays how the cook left
+  it until cooking ends and is not stored. At accessibility sizes the amount
+  sits above the name. The list scrolls beneath the pinned step controls.
 - Food photography and library navigation do not appear in Focus Mode.
 
 ## Nutrition
@@ -407,6 +420,10 @@ navigation bar, it covers the large title.
   August 2026"). A guest sees the word "Guest", what is on this device, and a
   sign-in button. Beneath that header sit accent color, saved-recipe count,
   and sync state, as rows under section headers with no explanatory footers.
+  The app icons are one row that scrolls sideways and ends on half a tile; the
+  installed icon wears the accent ring and a checkmark leads its caption, the
+  row becomes a standard list at accessibility sizes, and a choice moves
+  neither the form nor the row.
   Internal installation identifiers stay hidden.
 - A new Apple or Google account is asked its name once, on a full screen
   between the welcome and the walkthrough, with the keyboard already up. Skip
