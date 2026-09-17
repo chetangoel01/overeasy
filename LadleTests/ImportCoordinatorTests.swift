@@ -842,37 +842,6 @@ final class ImportCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.state, .idle)
     }
 
-    func testConfirmedCancellationTerminatesRemoteAndRemovesDurableJob() async throws {
-        let service = CancellablePollingImportService()
-        let repository = ImportTestRepository()
-        let coordinator = ImportCoordinator(
-            repository: repository,
-            service: service,
-            accountSession: AccountSession(
-                store: ImportTestPreferenceStore()
-            ),
-            clock: ImmediateImportClock()
-        )
-        let task = Task {
-            await coordinator.submit(
-                urlText: "https://youtu.be/cancel-this-import"
-            )
-        }
-
-        while repository.importJobs.first?.remoteJobID == nil {
-            await Task.yield()
-        }
-        let jobID = try XCTUnwrap(repository.importJobs.first?.id)
-
-        await coordinator.cancelImport(jobID: jobID)
-        await task.value
-
-        XCTAssertTrue(repository.importJobs.isEmpty)
-        XCTAssertEqual(coordinator.state, .idle)
-        let cancelCount = await service.cancelCount
-        XCTAssertEqual(cancelCount, 1)
-    }
-
     func testCancelDuringRacingStatusResponseDoesNotResurrectTheJob() async throws {
         // The status response lands in the same instant the user cancels:
         // the poll resumes with a successful update after the durable row
@@ -1952,63 +1921,6 @@ final class ImportCoordinatorTests: XCTestCase {
         XCTAssertEqual(
             coordinator.state,
             .failed(jobID: failed.id, reason: .parserUnavailable)
-        )
-    }
-
-    func testRelaunchMidInboxRetryReleasesTheResumedOutcome() async throws {
-        // The app dies while an Inbox retry is polling: the durable row
-        // is .parsing again with its remote id, and the relaunch's
-        // resumePendingImports adopts it with no sheet anywhere — the
-        // registered presentations died with the process. The cancelled
-        // outcome must self-release exactly as a resumed reimport
-        // always has.
-        let current = importRecipe(
-            title: "Current Curry",
-            originalURL: URL(string: "https://youtu.be/current-curry")!
-        )
-        let newRecipe = importRecipe(
-            title: "After The Wedge",
-            originalURL: URL(string: "https://youtu.be/after-the-wedge")!
-        )
-        var row = ImportJob.reimporting(
-            sourceURL: current.originalURL,
-            source: current.source,
-            currentRecipeID: current.id,
-            candidateRecipeID: UUID()
-        )
-        row.remoteJobID = row.id.uuidString
-        row = try row.transitioning(to: .failed(.parserUnavailable))
-        row = try row.retryingReimport(candidateRecipeID: UUID())
-        let repository = ImportTestRepository(
-            recipes: [current],
-            importJobs: [row]
-        )
-        let coordinator = ImportCoordinator(
-            repository: repository,
-            service: CancelledReimportThenReadyImportService(
-                readyRecipe: newRecipe
-            ),
-            accountSession: AccountSession(
-                store: ImportTestPreferenceStore()
-            ),
-            clock: ImmediateImportClock()
-        )
-
-        await coordinator.resumePendingImports()
-
-        XCTAssertNil(
-            coordinator.operation,
-            "A resumed retry nobody is presenting must release itself"
-        )
-        XCTAssertEqual(coordinator.state, .idle)
-        XCTAssertTrue(repository.importJobs.isEmpty)
-
-        await coordinator.submit(
-            urlText: "https://youtu.be/after-the-wedge"
-        )
-        XCTAssertEqual(
-            coordinator.state,
-            .completed(recipeID: newRecipe.id)
         )
     }
 

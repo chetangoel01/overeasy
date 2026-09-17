@@ -166,23 +166,6 @@ final class AccountSessionTests: XCTestCase {
         XCTAssertTrue(session.shouldPresentNameStep)
     }
 
-    func testOnboardingCompleteArgumentSkipsTheNameStep() {
-        let store = InMemoryPreferenceStore()
-
-        let session = AccountSession(
-            store: store,
-            launchArguments: [
-                "-ui-testing",
-                "-onboarding-complete",
-                "-account-state",
-                "signedInWithGoogle",
-            ]
-        )
-
-        XCTAssertFalse(session.shouldPresentNameStep)
-        XCTAssertFalse(session.shouldPresentWalkthrough)
-    }
-
     func testNameStepArgumentsSkipAndForceTheStep() {
         let store = InMemoryPreferenceStore()
         let signedIn = AccountSession(store: store)

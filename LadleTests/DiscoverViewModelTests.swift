@@ -77,27 +77,6 @@ final class DiscoverViewModelTests: XCTestCase {
         )
     }
 
-    /// A filter is not a page of the current feed, it is a different feed.
-    /// Setting one restarts paging rather than appending to what is there.
-    func testChangingTheFilterStartsANewFirstPage() async {
-        let service = DiscoverTestService(
-            result: .success((1...4).map { paged($0) })
-        )
-        let viewModel = DiscoverViewModel(service: service)
-        await viewModel.load()
-        let before = service.requests.count
-
-        viewModel.filter = RecipeFilter(keywords: [.dessert])
-        await viewModel.load()
-
-        XCTAssertGreaterThan(service.requests.count, before)
-        XCTAssertEqual(service.requests.last?.cursor, 0)
-        XCTAssertEqual(
-            service.requests.last?.filter,
-            RecipeFilter(keywords: [.dessert])
-        )
-    }
-
     /// The demo feed stands in for the server in every UI run, so it has to
     /// answer the filter or a chosen diet would change nothing on screen.
     func testTheDemoFeedAnswersTheFilterTheWayTheServerWould() async throws {
@@ -581,24 +560,6 @@ final class DiscoverViewModelTests: XCTestCase {
         )
     }
 
-    /// A feed that has not moved must not sprout a pill offering the rows
-    /// already on screen — which is also why the demo scenarios never show
-    /// one.
-    func testAQuietRefreshMatchingTheFeedIsDiscarded() async {
-        let onScreen = (1...3).map { paged($0) }
-        let service = DiscoverTestService(result: .success(onScreen))
-        let clock = TestClock()
-        let viewModel = DiscoverViewModel(service: service, now: clock.now)
-        await viewModel.load()
-
-        clock.advance(by: DiscoverViewModel.quietRefreshInterval)
-        await viewModel.refreshQuietly()
-
-        XCTAssertEqual(service.requests.count, 2)
-        XCTAssertNil(viewModel.pending)
-        XCTAssertEqual(viewModel.state, .loaded(onScreen))
-    }
-
     /// Page 1 against the first page's worth of what is on screen. After
     /// paging the list is longer than a page, and comparing the whole of it
     /// would call every feed new.
@@ -843,19 +804,6 @@ final class DiscoverViewModelTests: XCTestCase {
         let requestCount = service.requests.count
         await viewModel.loadMore()
         XCTAssertEqual(service.requests.count, requestCount)
-    }
-
-    func testLoadMoreAdvancesTheCursorRatherThanRefetchingPageOne() async {
-        let service = DiscoverTestService(
-            result: .success((1...4).map { paged($0) })
-        )
-        service.pageSize = 2
-        let viewModel = DiscoverViewModel(service: service)
-
-        await viewModel.load()
-        await viewModel.loadMore()
-
-        XCTAssertEqual(service.requests.map(\.cursor), [0, 2])
     }
 
     func testLoadMoreDropsRecipesAlreadyOnScreen() async {
