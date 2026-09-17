@@ -859,10 +859,10 @@ the same settings, database URL and provider keys as the service.
 | --- | --- |
 | `python -m ladle.admin.cache_cli invalidate --platform tiktok --video-id 123` | Marks a source's extraction cache stale so the next import re-extracts it |
 | `python -m ladle.admin.cache_cli backfill-thumbnails` | Copies legacy provider thumbnails into private object storage |
-| `python -m ladle.admin.backfill_times [--dry-run] [--limit N]` | Estimates a total cooking time for live recipes that carry none |
+| `python -m ladle.admin.backfill_times [--dry-run] [--limit N]` | Estimates missing totals for live recipes and active shared templates |
 
-`backfill_times` selects `deleted_at IS NULL AND total_minutes IS NULL`, and
-asks the configured extraction provider (`LADLE_EXTRACTION_PROVIDER`) the
+`backfill_times` selects live recipes with no total, followed by active shared
+templates at the current source revision with no total. It asks the configured extraction provider (`LADLE_EXTRACTION_PROVIDER`) the
 timing question alone against the stored recipe — title, the creator's
 caption in `recipes.description`, ingredients, ordered steps with their
 timers, any stated preparation and cooking time. There is no re-extraction
@@ -875,7 +875,13 @@ and no transcript.
   `recipe_changes` row is emitted and the estimate reaches the next sync page.
   It adds a `total_minutes` uncertainty carrying the reason the cook is shown
   and never changes `review_status`.
-- Recipes that already carry a total are skipped, so re-running is safe.
+- Templates use their own original content, never a saver's edited copy. Only
+  their total and timing uncertainty are updated; previews and future saves
+  inherit them.
+- The table distinguishes recipe/template targets, and `--limit` caps both
+  together. Targets that already carry a total are skipped, so re-running is safe.
+- See the [canonical timing record](../../docs/verification/2026-09-02-estimated-cooking-time-backend.md)
+  for validation and failure behavior.
 
 On the VPS the command runs through `manage.sh`, which supplies the `api`
 service's environment:
@@ -1002,14 +1008,3 @@ enabled.
 | Guest receives `guestRecipeLimitReached` | Inspect active recipes plus unexpired `recipe_slot_reservations` |
 | Apple endpoint returns `503` | Apple is disabled or its credential service was not constructed |
 | `LADLE_SERVER_MEDIA_FALLBACK_ENABLED` changes nothing | The concrete processor and runtime wiring described above are still required |
-
-
-### Timing repair for existing recipes
-
-`python -m ladle.admin.backfill_times [--dry-run] [--limit N]` estimates missing
-totals on saved recipes and active shared templates. The table distinguishes
-recipe/template targets; the limit applies to both together. Template estimates
-use the original shared content, and saved recipes publish changes through sync.
-The dry run still calls the configured provider but writes nothing. See the
-[canonical timing record](../../docs/verification/2026-09-02-estimated-cooking-time-backend.md)
-for validation and failure behavior.

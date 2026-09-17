@@ -7,7 +7,7 @@ Implementation proceeds in verified, task-sized commits. Design choices remain p
 
 | Issue | Work | Status |
 | --- | --- | --- |
-| [#37](https://github.com/chetangoel01/overeasy/issues/37) | Fall back per ingredient when USDA has no usable record, instead of voiding the recipe | Pending |
+| [#37](https://github.com/chetangoel01/overeasy/issues/37) | Fall back per ingredient when USDA has no usable record, instead of voiding the recipe | Existing behavior audited and verified; paid provider remains deferred |
 | [#110](https://github.com/chetangoel01/overeasy/issues/110) | The dashboard's recent-requests poll counts in its own traffic charts | Implemented and verified |
 | [#111](https://github.com/chetangoel01/overeasy/issues/111) | The USDA relevance gate refuses records it should accept: ghee, tomato, lentils, pancetta | Implemented and verified |
 | [#113](https://github.com/chetangoel01/overeasy/issues/113) | A private or deleted photo carousel reports parserUnavailable and retries forever | Implemented and verified |

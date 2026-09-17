@@ -241,3 +241,21 @@ the panel undercount until it runs.
 - No ops panel and no curated table: both are later PRs, and both were blocked
   on the skips existing, which is what this one adds.
 - No second provider. `fallback=None` in production, as before.
+
+
+## September 17: issue #37 completion audit
+
+The accepted Tier 0 behavior and the curated Tier 1 table are already present.
+The calculator totals matched ingredients, skips weak/unknown matches, records
+their names, and marks incomplete totals with ≈. Existing tests cover a heavy
+missing ingredient, no matches at all, and curated foods without a USDA call.
+Those tests pass in the current 1,143-test backend suite; the nutrition-note
+and rendering tests pass in the 588-test app suite (one intentional skip).
+
+The production misses inspected read-only included query-wording and ranking
+problems now addressed by #111, plus specific brands and mixed sauces. This
+check does not establish that a paid provider would resolve that remainder.
+The existing decision to defer a second provider remains in force; no provider,
+key, or paid subscription was added. The original per-ingredient fallback ask
+is implemented. Improvements to existing saved nutrition still require a
+reviewed enrichment refresh after deployment.
