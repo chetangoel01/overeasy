@@ -134,7 +134,10 @@ always contain lists, allowing the app to filter its synced library locally.
   match, while cuisines and keywords each match any requested value. Keyword
   shelves use `/v1/recipes/discover/shelves`; Watch uses the ranked feed without
   a `seen_before` session pin. The integration reference defines paging and
-  impression recording.
+  impression recording. Each source also has engagement: Overeasy saves, the
+  source platform's like snapshot, and 1–5 star ratings from accounts that
+  saved it. Ratings belong to the shared source, are served only in aggregate,
+  and publish an average once `LADLE_RATING_MINIMUM_COUNT` accounts have rated.
 - **Accounts:** guests use a device installation identity; Apple and Google
   sign-in merge guest data into the account. Sessions use short-lived access
   tokens and rotating refresh tokens. Production validates provider credentials

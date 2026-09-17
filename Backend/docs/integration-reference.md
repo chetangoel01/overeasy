@@ -206,6 +206,9 @@ Canonical recipe payloads are available in:
 | `GET /v1/recipes/discover/shelves?limit=&diet=&cuisine=&keyword=&ingredient=` | Bearer | `200` | Return keyword shelves under the same filters as the feed, without recording impressions |
 | `GET /v1/recipes/discover/{sourceVideoID}` | Bearer | `200` | Read the current shared recipe as a non-owned Discover preview |
 | `POST /v1/recipes/discover/{sourceVideoID}/save` | Bearer | `200` | Idempotently clone a ready shared extraction into the account |
+| `GET /v1/recipes/discover/{sourceVideoID}/engagement` | Bearer | `200` | Read a shared source's save count, source-platform like count, aggregate star rating, and the caller's own rating |
+| `PUT /v1/recipes/discover/{sourceVideoID}/rating` | Bearer | `200` | Set or change the caller's one-to-five star rating of a source they hold a saved recipe from |
+| `DELETE /v1/recipes/discover/{sourceVideoID}/rating` | Bearer | `200` | Idempotently clear the caller's rating |
 | `GET /v1/recipes/{recipeID}` | Bearer | `200` | Fetch one current recipe |
 | `PUT /v1/recipes/{recipeID}` | Bearer | `200` | Create or update a recipe with revision checking |
 | `DELETE /v1/recipes/{recipeID}?baseRevision=` | Bearer | `204` | Soft-delete and emit a tombstone |
@@ -241,6 +244,12 @@ ingredient terms must match; cuisines and keywords each match any requested
 value. Tags use the closed vocabularies in `ladle/contracts/tags.py` and reject
 unknown values with `422`. Ingredient filtering matches saved ingredient names,
 with at most ten terms of 100 characters each.
+
+Every `DiscoverRecipeDTO`, in the feed and on the shelves, carries
+`savedCount` (Overeasy accounts), `likeCount` (the source platform's snapshot,
+null when it was never captured), and Overeasy's own `ratingCount` and
+`ratingAverage`. See [Engagement and ratings](#engagement-and-ratings) for when
+the average is null.
 
 The shelves endpoint returns `DiscoverShelvesDTO`, grouping available sources
 by curated keyword under those filters. Its minimum recipe count and maximum
@@ -297,6 +306,57 @@ GET /v1/recipes/discover?cursor=0&limit=30&seen_before=2026-09-01T09:31:00.000Z
 ```
 
 The parameter is ignored without `seen_before`, which records nothing anyway.
+
+#### Engagement and ratings
+
+`GET /v1/recipes/discover/{sourceVideoID}/engagement` returns
+`SourceEngagementDTO` (`Contracts/Fixtures/source-engagement.json`), and both
+rating routes answer with the same DTO as it stands after the write:
+
+```json
+{
+  "sourceID": "90000000-0000-4000-8000-000000000001",
+  "savedCount": 12,
+  "likeCount": 48210,
+  "ratingAverage": 4.3,
+  "ratingCount": 14,
+  "myRating": 5
+}
+```
+
+Each count says where it comes from, and a count nobody knows is null, never
+zero. `likeCount` is the source platform's figure as captured at import.
+`savedCount` is the number of distinct accounts holding an undeleted recipe
+from the source, the caller's included — unlike a Discover item's `savedCount`,
+which only ever describes sources the caller has not saved. A Discover item
+names its source as `sourceID`; a saved recipe names it as `RecipeDTO.sourceID`,
+which is null for a recipe typed in by hand. The server sets that field and
+ignores it on `PUT /v1/recipes/{recipeID}`, so a client cannot attach a recipe
+to a source by echoing an ID.
+
+Ratings follow these rules:
+
+- **A rating belongs to the shared source**, not to an account's own copy.
+  Everyone who saved the same video feeds one average, and private edits stay
+  private.
+- **One rating per account per source**, in whole stars from 1 to 5.
+  `PUT .../rating` with `{"stars": 4}` sets or replaces it, and
+  `DELETE .../rating` clears it, idempotently. Stars outside the range are
+  `422`.
+- **Only an account holding an undeleted saved recipe from the source may
+  rate it**, guests included. Otherwise `PUT` answers `409` with the `conflict`
+  error; an unknown source is `404` on all three routes. Clearing is never
+  gated, and a rating already given stays in the average if its author later
+  deletes their copy — removing it would quietly drop the cooks most likely to
+  have rated low.
+- **The average is published only once `LADLE_RATING_MINIMUM_COUNT` accounts
+  (3) have rated the source.** Below that `ratingAverage` is null while
+  `ratingCount` is still served. It is rounded to one decimal place.
+- **Ratings are anonymous in aggregate.** No route returns who rated a source
+  or what anybody else gave; `myRating` is the caller's own.
+
+The read is rate limited like the other Discover reads (`sync:user`), and both
+writes like saving (`recipe-mutation:user`).
 
 ### Authentication payloads
 
@@ -720,6 +780,7 @@ erDiagram
     users ||--|| user_sync_state : sequences
     users ||--o{ recipe_changes : receives
     users ||--o{ discover_impressions : has_seen
+    users ||--o{ recipe_ratings : rates
 
     source_videos ||--o{ extraction_cache : caches
     source_videos ||--o| negative_extraction_cache : blocks
@@ -727,6 +788,7 @@ erDiagram
     source_videos ||--o{ import_jobs : canonicalizes
     source_videos ||--o{ recipes : sourced
     source_videos ||--o{ discover_impressions : shown_in
+    source_videos ||--o{ recipe_ratings : rated_in
 
     import_jobs ||--o| recipe_slot_reservations : reserves
     import_jobs ||--o{ provider_attempts : records
@@ -838,6 +900,26 @@ record must not outlive the account or the source it refers to. A guest merge
 upserts the guest's rows onto the destination keeping the later `seen_at`,
 then removes the guest's, since the pair is the primary key and a plain
 re-point would collide.
+
+### Recipe ratings
+
+| Table | Columns |
+| --- | --- |
+| `recipe_ratings` | Composite PK `(user_id, source_video_id)`, both FKs `ON DELETE CASCADE`; `stars smallint` with `CHECK (stars BETWEEN 1 AND 5)`; `created_at`, `updated_at timestamptz` |
+
+One row per account and source, so changing a rating is an update and nobody
+counts twice. `ix_recipe_ratings_source_video_id` serves the per-source count
+and average; the primary key already answers "what did this account give".
+The table is only ever read in aggregate, apart from the caller's own row.
+
+A rating is something the cook wrote, like a recipe, so the retention sweep
+deliberately leaves this table alone: it lasts as long as the account does.
+Account deletion removes it through the `users` cascade, with nothing to
+enumerate, and a source removed from the corpus takes its ratings with it. A
+guest merge upserts the guest's rows onto the destination and removes the
+guest's; where both accounts rated one source the row with the later
+`updated_at` wins, because it is the cook's most recent word — not the higher
+score.
 
 ### Sync
 
