@@ -215,7 +215,9 @@ reload, a failed Discover refresh, and the "New recipes" pill, which is an
 offer rather than a status. Nothing appears there or leaves because work is
 merely in flight, so loading never moves the title, the controls, the feed or
 the scroll position. A pull shows the system refresh control and nothing else.
-Profile's Sync row is where routine sync state is read.
+Profile's Sync row is where routine sync state is read. A strip's fill runs
+out to the sides of the screen and never upward: painted under the clear
+navigation bar, it covers the large title.
 
 ## Navigation and library
 

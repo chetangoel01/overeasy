@@ -6,8 +6,9 @@ Status: **built and verified on the local stack.**
 
 > The "Refreshing Discover…" banner this record mentions was removed on
 > September 17, 2026: a pull now shows only the system refresh control, and
-> the bar holds a failed refresh or the pill. See
-> `2026-09-17-quiet-sync.md`.
+> the bar holds a failed refresh or the pill. The same change stopped the
+> bar's fill covering the large title, which captures 01 and 02 below still
+> show. See `2026-09-17-quiet-sync.md`.
 
 ## What was asked, and what was built
 

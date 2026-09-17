@@ -302,6 +302,10 @@ struct LibraryView: View {
 
     /// Banners sit inside each tab's own stack so they render below that
     /// tab's navigation bar rather than above every bar at once.
+    ///
+    /// Each strip's fill may run out to the sides of the screen but never
+    /// upward. A background that ignores the top safe area runs up under the
+    /// bar, which is clear, and paints over the large title.
     @ViewBuilder
     private func banners(reloadError: String?) -> some View {
         VStack(spacing: 0) {
@@ -689,7 +693,10 @@ struct SyncStatusBanner: View {
             .padding(.horizontal, LadleTheme.Layout.screenMargin)
             .padding(.vertical, LadleTheme.Spacing.compact)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(LadleTheme.Surface.steel)
+            .background(
+                LadleTheme.Surface.steel,
+                ignoresSafeAreaEdges: .horizontal
+            )
             .overlay(alignment: .bottom) {
                 Divider().overlay(LadleTheme.Stroke.separator)
             }
@@ -731,7 +738,10 @@ private struct LibraryReloadErrorBanner: View {
         .padding(.horizontal, LadleTheme.Layout.screenMargin)
         .padding(.vertical, LadleTheme.Spacing.compact)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(LadleTheme.Surface.steel)
+        .background(
+            LadleTheme.Surface.steel,
+            ignoresSafeAreaEdges: .horizontal
+        )
         .overlay(alignment: .bottom) {
             Divider().overlay(LadleTheme.Stroke.separator)
         }

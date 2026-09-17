@@ -1068,7 +1068,12 @@ private struct DiscoverTopBar<Content: View>: View {
         .padding(.horizontal, LadleTheme.Layout.screenMargin)
         .padding(.vertical, LadleTheme.Spacing.compact)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(LadleTheme.Surface.steel)
+        // Sideways only. Left to ignore the top safe area, the fill runs up
+        // under the clear navigation bar and paints over the large title.
+        .background(
+            LadleTheme.Surface.steel,
+            ignoresSafeAreaEdges: .horizontal
+        )
         .overlay(alignment: .bottom) {
             Divider().overlay(LadleTheme.Stroke.separator)
         }
