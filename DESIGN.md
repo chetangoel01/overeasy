@@ -94,6 +94,7 @@ than only approximating it at the default one.
 | --- | --- | --- | --- | --- |
 | `display` | `.largeTitle` | 34 | bold | Welcome or Focus headline that owns the screen |
 | `title` | `.title` | 28 | bold | Screen title, cooking instruction |
+| `compactTitle` | `.title2` | 22 | bold | Screen title sharing a row with artwork, as in the recipe header |
 | `recipeTitle` | `.title3` | 20 | semibold | A recipe's name as content |
 | `section` | `.headline` | 17 | system | Section heading above a group |
 | `body` | `.body` | 17 | system | Running text |
@@ -173,7 +174,9 @@ label fell near two to one against its own fill. Pressed filled buttons darken
 the fill without fading their label.
 
 Icon-only controls are `LadleIconButton`, always on a 44-point target however
-small the glyph.
+small the glyph. The circle it draws may be smaller than the target
+(`diameter`), and on a raised card it takes the `onCard` tone, because steel
+disappears there.
 
 Buttons that carry both an icon and a label align their labels to a shared
 leading edge; centring icon and label together as one group gives a column of
@@ -250,6 +253,17 @@ navigation bar, it covers the large title.
   destination onto the recipe navigation path.
 - Recipe detail remains a pushed destination. Import and account flows remain
   native sheets.
+- Recipe detail opens on a compact header, not a hero: a 96-point thumbnail
+  beside the title and byline, the description beneath. The cook chose the
+  recipe from that photo a moment ago, so time, servings and nutrition are
+  whole on the first screen instead. At accessibility text sizes the thumbnail
+  sits above the title. Missing or late artwork keeps the same square.
+- A recipe whose link a platform player accepts offers the video from that
+  header twice: the thumbnail wears a play badge and opens the player, and a
+  tertiary "Watch original" link sits under the byline, because a badge on a
+  photo is not a label. Both are absent — never disabled — when there is no
+  playable video, and both work on a Discover preview, which has no options
+  menu. The menu keeps its own entry under the same condition.
 - Related steps stay in one sheet: Profile → Sign in, Nutrition → Apple Health,
   and failed import → correction notes, pasted details, or manual recovery.
   Back returns to the previous step.
@@ -257,8 +271,16 @@ navigation bar, it covers the large title.
   with unsaved edits shows Keep Editing and Discard Changes. The same protection
   covers manual recipe entry and all recovery forms; unchanged forms close
   immediately. Recovery Back also protects changes.
-- Servings uses a scrollable sheet, opens large at accessibility text sizes, and
-  stacks its value above the stepper so Reset remains reachable.
+- Servings are adjusted in place on the metadata band, never in a sheet. The
+  band stays two even cells; the right one reads, top to bottom, the people
+  glyph, the count between a round minus and plus with nothing else on that
+  line, and the word "servings". The circles are 30 points of `Surface.badge`
+  on 44-point targets and disable at the ends of the range. After a change the
+  last line reads "servings · Reset"; it keeps its height, and Reset's target
+  grows down into the band's padding, never up into the plus. VoiceOver meets
+  the stepper as one adjustable element. A band with nothing to scale — the
+  reimport sheet, a recipe claiming no yield — keeps the read-only yield cell,
+  and at accessibility text sizes the two cells stack.
 - Account management stays in the top-right toolbar on Recipes, Discover,
   Watch, and Inbox. Add Recipe sits beside it on Recipes and Inbox, the two
   tabs where a link arrives; Discover and Watch are consumption surfaces and
@@ -289,6 +311,26 @@ navigation bar, it covers the large title.
 - Do not reproduce recipe detail inside segmented card panels.
 - Inbox is a plain native list. Empty copy is one short sentence. Recovery and
   review actions remain explicit when an import needs attention.
+
+## Estimates
+
+- An estimated value carries one short hedge, on the value: "About 45 min",
+  "≈ 560" on calories and nothing else, "servings, estimated" under the count.
+  No accent, no badge, and no sentence beside it.
+- The reasons live once, in "About these estimates": a quiet metadata row
+  under the nutrition card — under the band when there is no nutrition —
+  collapsed by default and absent when there is nothing to list. It gives the
+  time and servings reasons, each ingredient whose nutrition amount had to be
+  assumed, by name, and says that nutrition is calculated from the ingredient
+  amounts. It is a button whose value reads "Expanded" or "Collapsed", and it
+  opens without animation under Reduce Motion.
+- A note stays on an ingredient or a step only when it changes how that line
+  should be read — the line itself is in doubt, or the totals left the
+  ingredient out ("Not counted") — and then in `Label.secondary`, like "Not
+  scaled". `FieldUncertainty.isRoutineEstimate` draws the line, by field.
+- "Partial" stays on the nutrition card, neutral: a total that is short reads
+  differently from one that is estimated. The review notice is unchanged — it
+  is a task, not an estimate.
 
 ## Cooking
 

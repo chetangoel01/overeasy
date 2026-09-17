@@ -61,9 +61,17 @@ enum PreviewFixtures {
             slug: "gochujang-chicken",
             imageName: "RecipeChicken",
             minutes: 45,
-            // A total the extractor read off the method, so the band has a
-            // labelled estimate to render.
-            timing: .estimatedTotal
+            // The demo library's estimated recipe, in every way the live
+            // ones are: a total the extractor read off the method, a yield it
+            // worked out from the amounts, and two ingredients the normalizer
+            // had to weigh for itself. The page hedges the values and keeps
+            // the reasons in one note.
+            timing: .estimatedTotal,
+            estimatedYield: true,
+            assumedAmounts: [
+                6: "Estimated 3 garlic cloves at 5g each.",
+                7: "Estimated one bunch of scallions at 100g.",
+            ]
         ),
         makeRecipe(
             id: "B54D0E5B-8B10-410F-ADE7-7B0F12F94E05",
@@ -161,15 +169,33 @@ enum PreviewFixtures {
         minutes: Int,
         timing: DemoTiming = .statedTotal,
         favorite: Bool = false,
-        uncountedIngredient: Int? = nil
+        uncountedIngredient: Int? = nil,
+        estimatedYield: Bool = false,
+        assumedAmounts: [Int: String] = [:]
     ) -> Recipe {
         let tags = demoTags(for: slug)
         let recipeID = UUID(uuidString: id)!
         let content = recipeContent(for: slug)
-        let (ingredients, uncertainties) = uncounted(
+        var (ingredients, uncertainties) = uncounted(
             in: content.ingredients,
             at: uncountedIngredient
         )
+        // As the normalizer writes them: on the ingredient's own note, under
+        // the field that marks routine working.
+        for (index, reason) in assumedAmounts {
+            ingredients[index].uncertainty = FieldUncertainty(
+                field: "ingredients[\(index)].nutritionAmount",
+                reason: reason
+            )
+        }
+        if estimatedYield {
+            uncertainties.append(
+                FieldUncertainty(
+                    field: "servings",
+                    reason: "Serving count was estimated from the recipe yield."
+                )
+            )
+        }
         let (preparation, cooking, total): (Int?, Int?, Int?) =
             timing == .cookOnly
                 ? (nil, minutes, nil)

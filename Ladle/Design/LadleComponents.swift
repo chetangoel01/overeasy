@@ -317,17 +317,6 @@ struct LadleSectionHeader: View {
     }
 }
 
-struct EstimateLabel: View {
-    var body: some View {
-        Label("Estimated", systemImage: "info.circle")
-            .ladleFont(.metadata)
-            .foregroundStyle(LadleTheme.Label.secondary)
-            .accessibilityHint(
-                "Nutrition and uncertain imported values may be estimates."
-            )
-    }
-}
-
 struct LadleSheetHandle: View {
     var body: some View {
         Capsule()
@@ -341,6 +330,9 @@ enum LadleIconButtonTone {
     case plain
     case onImage
     case quiet
+    /// `quiet`, for a control that sits on a raised card: steel is about
+    /// four percent off `Surface.raised` and disappears into it.
+    case onCard
     case primary
     case onDark
 
@@ -351,6 +343,8 @@ enum LadleIconButtonTone {
             .clear
         case .quiet:
             LadleTheme.Surface.steel
+        case .onCard:
+            LadleTheme.Surface.badge
         case .primary:
             accent.intent
         case .onDark:
@@ -360,7 +354,7 @@ enum LadleIconButtonTone {
 
     var foreground: Color {
         switch self {
-        case .plain, .onImage, .quiet:
+        case .plain, .onImage, .quiet, .onCard:
             LadleTheme.Label.primary
         case .primary:
             LadleTheme.Label.onAccent
@@ -377,6 +371,10 @@ struct LadleIconButton: View {
     let accessibilityLabel: String
     var tone: LadleIconButtonTone = .quiet
     var isSelected = false
+    /// The circle that is drawn. The target stays 44 points whatever this
+    /// is, so a pair of small controls can sit close without being small to
+    /// press.
+    var diameter = LadleTheme.Control.hitTarget
     var action: () -> Void
 
     var body: some View {
@@ -386,12 +384,16 @@ struct LadleIconButton: View {
                 .foregroundStyle(isSelected ? accent.label : tone.foreground)
                 .frame(width: LadleTheme.Control.hitTarget, height: LadleTheme.Control.hitTarget)
                 .background {
-                    if tone == .onImage {
-                        Circle().fill(.ultraThinMaterial)
-                    } else {
-                        Circle().fill(tone.background(accent))
+                    Group {
+                        if tone == .onImage {
+                            Circle().fill(.ultraThinMaterial)
+                        } else {
+                            Circle().fill(tone.background(accent))
+                        }
                     }
+                    .frame(width: diameter, height: diameter)
                 }
+                .contentShape(Rectangle())
         }
         .buttonStyle(LadlePressButtonStyle())
         .accessibilityLabel(accessibilityLabel)

@@ -1,6 +1,9 @@
 # The card says "≈ 410 cal" when the total is missing an ingredient
 
 Date: September 7, 2026
+Revised: September 17, 2026, for
+[#145](https://github.com/chetangoel01/overeasy/issues/145) — see
+[Where "≈" stands](#where--stands).
 
 The client half of issue #37's Tier 0. Stacked on
 [the backend change that removed the coverage floor](2026-09-07-nutrition-no-coverage-floor.md)
@@ -21,8 +24,8 @@ calorie figure it prints.
 
 ## Decisions in force
 
-1. **"≈" means incomplete, and only that.** See below — this is the one
-   decision that goes beyond the brief.
+1. **On a library card or row, "≈" means incomplete, and only that.** A
+   surface that shows a whole panel marks every estimate. See below.
 2. **The marker rides on calories alone**, everywhere. Protein, carbs and fat
    are drawn from the same partial total, but one caveat on a line reads as a
    caveat where four read as noise, and calories are the number people scan
@@ -31,26 +34,30 @@ calorie figure it prints.
 4. **The sheet's line was already there**, and is not duplicated.
 5. **The Health export is never blocked**, only annotated.
 
-### "≈" means incomplete, not estimated
+### Where "≈" stands
 
-The app already printed "≈" — in three places, for `isEstimated`:
-`NutritionView.calorieText`, `HealthExportSheet.metricText` and
-`WatchView.metadata`. Every calculated panel is estimated, so that marker sat
-on effectively all of them and distinguished nothing.
+"≈" keeps its everyday meaning — the figure is an estimate — and who prints it
+is the rule in `ladleApproximate`'s comment in
+`Ladle/Design/RecipePresentation.swift`:
 
-`approximate` is the narrower and more useful claim, and it cannot share a
-glyph with the wider one: a "≈" that means two things on two screens means
-neither. So those three sites were **re-pointed**, not added to — the glyph
-now answers `approximate` everywhere, and `isEstimated` keeps the words it
-already had elsewhere: the "Estimated" pill on the recipe detail band and the
-"Nutrition is estimated from the imported recipe." line on the sheet. Nothing
-that used to say "estimated" in words stopped saying it.
+- **Library cards and rows** (`libraryFacts` → `ladleCalorieText`) print it
+  only when the total is *incomplete*. Every calculated panel is an estimate,
+  so a marker on every card would distinguish nothing; on a shelf it has to
+  mean "this number is short".
+- **The nutrition sheet, the Health export, the Watch feed and — since #145 —
+  the recipe page's nutrition card** (`ladleEstimatedCalorieText`) print it
+  whenever the figure is estimated *or* incomplete.
 
-This is a behaviour change beyond the literal brief, which described only
-adding the marker to the card. It is recorded here because it is the reason
-the sheet and the Watch feed read differently after this change than before:
-a panel that is estimated but complete now shows a bare number where it used
-to show "≈".
+This section first recorded a plan to re-point the sheet, the export and the
+Watch feed at `approximate` alone and leave "estimated" to words: an
+"Estimated" pill on the recipe page and the sheet's "Nutrition is estimated
+from the imported recipe." line. That is not what shipped — those three kept
+the marker on every estimate, through `ladleEstimatedCalorieText` — and #145
+has now retired the pill too, because a hedged value, a badge and a sentence
+were saying one thing three times. On the recipe page "≈" is the whole of the
+estimate marker, the reason is in the page's "About these estimates" note, and
+the "Partial" pill beside the heading — neutral now, not accent — is what says
+the figure is also short by an ingredient.
 
 The companion doc for PR #104 says "Cards keep no marker — DESIGN.md keeps the
 estimate marker off cards." That was written before the 2026-09-07 decisions,
@@ -97,7 +104,7 @@ Call sites, all of them:
 | --- | --- |
 | Card and row facts ("≈ 300 cal · 20g protein") | `Ladle/Design/RecipePresentation.swift` → `libraryFacts`, read by `RecipeGridCard`, `RecipeListRow`, `RecipeContextMenu` |
 | Watch feed metadata | `Ladle/Library/WatchView.swift` |
-| Recipe detail nutrition summary | `Ladle/RecipeDetail/RecipeMetadataBand.swift` → `RecipeNutritionSummary` |
+| Recipe detail nutrition summary (any estimate, since #145) | `Ladle/RecipeDetail/RecipeMetadataBand.swift` → `RecipeNutritionSummary` |
 | Nutrition sheet hero | `Ladle/Nutrition/NutritionView.swift` |
 | Health export preview | `Ladle/Health/HealthExportSheet.swift` |
 
@@ -128,8 +135,8 @@ thing about them, and hiding it behind the marker would lose it.
 `"About 520 calories"` when the total is incomplete and `"520 calories"`
 otherwise — the word the metadata band already uses for a time it is unsure
 of. It no longer says "Estimated"; that word is still spoken by the sheet's
-own "Nutrition is estimated from the imported recipe." line and the detail
-band's pill.
+own "Nutrition is estimated from the imported recipe." line and, since #145
+removed the detail page's pill, by that page's estimates note.
 
 **Known rough edge:** cards read `libraryFacts` verbatim as their label, so
 VoiceOver announces the glyph as "almost equal to 300 cal". Understandable,

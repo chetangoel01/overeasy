@@ -2,8 +2,6 @@ import LadleCore
 import SwiftUI
 
 struct IngredientList: View {
-    @Environment(\.ladleAccent) private var accent
-
     let ingredients: [Ingredient]
 
     /// Whether each row leads with the ingredient's watercolour.
@@ -72,10 +70,9 @@ struct IngredientList: View {
                         Spacer(minLength: 0)
                     }
 
-                    // Quieter than the uncertainty note below it, and on the
-                    // same origin: this is an aside about one row, not a
-                    // warning about the recipe. A cook halving a recipe has
-                    // to be able to see which line did not halve.
+                    // An aside about one row, not a warning about the
+                    // recipe: a cook halving a recipe has to be able to see
+                    // which line did not halve.
                     if scaledBy != nil, !ingredient.isScalable {
                         Label("Not scaled", systemImage: "exclamationmark.circle")
                             .ladleFont(.metadata)
@@ -86,13 +83,19 @@ struct IngredientList: View {
                             )
                     }
 
-                    if let uncertainty = ingredient.uncertainty {
+                    // A note stays on its row when it changes how the row
+                    // should be read — the ingredient itself is in doubt, or
+                    // the nutrition left it out — and it is as quiet as the
+                    // marker above. The normalizer's routine working is in
+                    // the estimates note instead.
+                    if let uncertainty = ingredient.uncertainty,
+                       !uncertainty.isRoutineEstimate {
                         Label(
                             uncertainty.reason,
                             systemImage: "exclamationmark.circle"
                         )
                         .ladleFont(.metadata)
-                        .foregroundStyle(accent.label)
+                        .foregroundStyle(LadleTheme.Label.secondary)
                         .padding(.leading, labelOrigin)
                         .accessibilityLabel(
                             "Uncertain ingredient: \(uncertainty.reason)"
