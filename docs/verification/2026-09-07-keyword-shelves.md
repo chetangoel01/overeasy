@@ -5,6 +5,14 @@ Issue: [#101](https://github.com/chetangoel01/recipe-app/issues/101), split
 out of [#87](https://github.com/chetangoel01/recipe-app/issues/87)
 Status: **built and verified on the review simulator.**
 
+> Superseded in part on September 17, 2026. "The two rails first, then the
+> keyword shelves" is no longer where shelves are drawn: two lead, drawn once
+> per launch from every shelf alike, and the rest sit in the list. The
+> server's order below — count, then vocabulary — still decides which shelves
+> exist and the order they arrive in, so nothing shuffles between requests;
+> the client's draw only decides placement, and holds for the launch. See
+> `2026-09-17-discover-two-shelves.md`.
+
 Stacked on the iOS filter ([#120](2026-09-07-filter-model.md),
 `feat/filter-model`), which is stacked on the backend tags
 ([#105](2026-09-07-recipe-tags.md), `feat/recipe-tags`), which is stacked on

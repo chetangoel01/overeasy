@@ -347,8 +347,9 @@ final class DiscoverInteractionUITests: XCTestCase {
         )
 
         // Three of the six demo dishes are weeknight dinners, which is the
-        // floor, so this is the only keyword shelf a demo run composes. It
-        // sits below the two curated rails.
+        // floor, so this is the only keyword shelf a demo run composes. A
+        // demo run draws the shelves as fetched, so the two rails lead and
+        // this one is in the list, under its third row.
         let seeAll = app.buttons["discover.shelf.keyword-weeknight.see-all"]
         var scrolls = 0
         while scrolls < 6, !seeAll.exists || !seeAll.isHittable {

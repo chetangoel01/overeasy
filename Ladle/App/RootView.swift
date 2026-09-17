@@ -9,6 +9,7 @@ struct RootView: View {
     let authClient: AuthClient?
     let googleSignIn: (any GoogleSignInProviding)?
     let discoverService: any DiscoverServing
+    let shuffleShelfIDs: ([DiscoverShelf.ID]) -> [DiscoverShelf.ID]
     let syncStatus: SyncStatus
     let notificationNavigation: NotificationNavigation
     let onAuthenticated: @MainActor () async -> Void
@@ -22,6 +23,8 @@ struct RootView: View {
         authClient: AuthClient? = nil,
         googleSignIn: (any GoogleSignInProviding)? = nil,
         discoverService: any DiscoverServing = DemoDiscoverService(),
+        shuffleShelfIDs:
+            @escaping ([DiscoverShelf.ID]) -> [DiscoverShelf.ID] = { $0 },
         syncStatus: SyncStatus = SyncStatus(),
         notificationNavigation: NotificationNavigation = .shared,
         onAuthenticated: @escaping @MainActor () async -> Void = {},
@@ -35,6 +38,7 @@ struct RootView: View {
         self.authClient = authClient
         self.googleSignIn = googleSignIn
         self.discoverService = discoverService
+        self.shuffleShelfIDs = shuffleShelfIDs
         self.syncStatus = syncStatus
         self.notificationNavigation = notificationNavigation
         self.onAuthenticated = onAuthenticated
@@ -85,6 +89,7 @@ struct RootView: View {
                     authClient: authClient,
                     googleSignIn: googleSignIn,
                     discoverService: discoverService,
+                    shuffleShelfIDs: shuffleShelfIDs,
                     syncStatus: syncStatus,
                     notificationNavigation: notificationNavigation,
                     canImport:

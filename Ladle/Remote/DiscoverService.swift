@@ -98,7 +98,7 @@ enum DiscoverRail: CaseIterable, Sendable {
     }
 }
 
-/// One horizontal shelf above the ranked list.
+/// One horizontal shelf. Two lead Discover; the rest sit in the ranked list.
 ///
 /// Two kinds, drawn the same way. The curated rails are named here because
 /// they are orderings this app chose; a keyword shelf is named by the server,
@@ -167,6 +167,22 @@ struct DiscoverShelf: Identifiable, Equatable, Sendable {
     /// Below this a rail reads as an accident rather than a shelf, and the
     /// full-width list underneath already carries the same rows.
     static let minimumRecipes = 3
+    /// How many shelves sit above "All recipes". Every shelf there pushes
+    /// the ranked list further off the first screen.
+    static let leadCount = 2
+    /// The rest go into the list, one after every this many rows.
+    static let feedInterval = 3
+
+    /// The row a shelf in the list is drawn under, both counted from zero.
+    /// A slot depends only on the shelf's place in the order, so rows
+    /// arriving never move a shelf already drawn. One the loaded rows do not
+    /// reach yet waits for them — nil — unless the list has ended, when it
+    /// follows the last row rather than becoming unreachable.
+    static func feedSlot(_ position: Int, rows: Int, hasMore: Bool) -> Int? {
+        let slot = (position + 1) * feedInterval - 1
+        if slot < rows { return slot }
+        return hasMore || rows == 0 ? nil : rows - 1
+    }
 }
 
 enum DiscoverPaging {
