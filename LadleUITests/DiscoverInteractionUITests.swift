@@ -99,6 +99,27 @@ final class DiscoverInteractionUITests: XCTestCase {
     /// test could reach a signed-in screen at all. There is no `AuthClient`
     /// under `-ui-testing`, so the profile comes from the launch arguments.
     @MainActor
+    func testDiscoverSaveFitsAtLargestTextSize() {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-ui-testing", "-onboarding-complete", "-reset-library-preferences",
+            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL",
+        ]
+        app.launch()
+        let save = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH 'Save '")
+        ).firstMatch
+        for _ in 0..<15 where !save.isHittable {
+            app.swipeUp(velocity: .slow)
+        }
+        XCTAssertTrue(save.isHittable)
+        XCTAssertGreaterThanOrEqual(save.frame.height, 52)
+        XCTAssertGreaterThanOrEqual(save.frame.minX, 0)
+        XCTAssertLessThanOrEqual(save.frame.maxX, app.frame.maxX)
+        attachScreenshot(of: app, named: "Discover Save largest text")
+    }
+
+    @MainActor
     func testProfileHeaderShowsTheSignedInCook() throws {
         let app = XCUIApplication()
         app.launchArguments = [

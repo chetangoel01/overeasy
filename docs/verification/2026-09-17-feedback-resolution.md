@@ -15,12 +15,12 @@ Implementation proceeds in verified, task-sized commits. Design choices remain p
 | [#124](https://github.com/chetangoel01/overeasy/issues/124) | Saving an already-cached Discover recipe arrives untagged, and a persisted diet filter then hides it | Implemented and verified; production backfill pending |
 | [#140](https://github.com/chetangoel01/overeasy/issues/140) | Keep loading and sync indicators from shifting the screen | Pending |
 | [#141](https://github.com/chetangoel01/overeasy/issues/141) | Polish app motion with consistent native, tactile feedback | Pending |
-| [#142](https://github.com/chetangoel01/overeasy/issues/142) | Define and enforce consistent button design rules | Pending |
+| [#142](https://github.com/chetangoel01/overeasy/issues/142) | Define and enforce consistent button design rules | Implemented and verified |
 | [#143](https://github.com/chetangoel01/overeasy/issues/143) | Explore recipe reviews and more visible likes and save counts | Pending |
 | [#144](https://github.com/chetangoel01/overeasy/issues/144) | Add a calorie breakdown to nutrition per serving | Pending |
 | [#145](https://github.com/chetangoel01/overeasy/issues/145) | Make recipe estimate notes quieter and less repetitive | Pending |
 | [#146](https://github.com/chetangoel01/overeasy/issues/146) | Polish the app icon selector layout in Profile | Pending |
-| [#147](https://github.com/chetangoel01/overeasy/issues/147) | Investigate the layout of the icon-change confirmation dialog | Pending |
+| [#147](https://github.com/chetangoel01/overeasy/issues/147) | Investigate the layout of the icon-change confirmation dialog | System ownership confirmed; physical reproduction pending |
 | [#148](https://github.com/chetangoel01/overeasy/issues/148) | Adjust servings directly on the recipe without opening a sheet | Pending |
 | [#149](https://github.com/chetangoel01/overeasy/issues/149) | Include vegetarian and vegan recipes in pescatarian filtering | Implemented and verified |
 | [#150](https://github.com/chetangoel01/overeasy/issues/150) | Make the original video easy to access from recipe details | Pending |
@@ -31,6 +31,8 @@ Implementation proceeds in verified, task-sized commits. Design choices remain p
 | [#161](https://github.com/chetangoel01/overeasy/issues/161) | Verify cooking timer completion plays a sound and shows an alert | Permission-delay defects fixed; physical sound/alert checks pending |
 
 ## Verification
+
+- #142: Discover Save measured 75→38 points wide while loading (137→55 at accessibility text), and used 44-point height. The actual rendered-control regression now passes at standard, AX3, and AX5 sizes with stable bounds and the shared 52-point minimum. 93 focused app tests pass. The Discover save, retry alignment, and largest-text save UI checks pass. Shared loading also covers retry and Health export; toolbar Save reserves its label. Favorites share the icon control, retaining material only over photos. Rules and exceptions are recorded in [DESIGN.md](../../DESIGN.md#buttons).
 
 - #161: two permission-delay defects verified red/green. All 27 focused cooking/notification tests and the full 588-test app suite passed (one intentional skip). Physical listening remains pending; see [timer alerts](2026-09-17-timer-alerts.md).
 

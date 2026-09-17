@@ -1278,7 +1278,7 @@ private struct DiscoverShelfCard: View {
     }
 }
 
-private struct DiscoverRecipeRow: View {
+struct DiscoverRecipeRow: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.ladleAccent) private var accent
 
@@ -1399,32 +1399,18 @@ private struct DiscoverRecipeRow: View {
         .accessibilityHidden(true)
     }
 
-    private var saveButton: some View {
+    var saveButton: some View {
         Button(action: save) {
-            Group {
-                if isSaving {
-                    ProgressView()
-                        .controlSize(.small)
-                        .tint(LadleTheme.Label.onAccent)
-                } else {
-                    Label(
-                        isSaved ? "Saved" : "Save",
-                        systemImage: isSaved ? "checkmark" : "plus"
-                    )
-                }
-            }
-                .ladleFont(.metadata)
-                .foregroundStyle(
-                    isSaved ? LadleTheme.Label.primary : LadleTheme.Label.onAccent
-                )
-                .padding(.horizontal, LadleTheme.Spacing.medium)
-                .frame(minHeight: LadleTheme.Control.hitTarget)
-                .background(
-                    isSaved ? LadleTheme.Intent.success : accent.intent,
-                    in: Capsule()
-                )
+            Label(
+                isSaved ? "Saved" : "Save",
+                systemImage: isSaved ? "checkmark" : "plus"
+            )
         }
-        .buttonStyle(LadlePressButtonStyle())
+        .buttonStyle(LadleButtonStyle(
+            role: isSaved ? .secondary : .primary,
+            isFullWidth: false,
+            isLoading: isSaving
+        ))
         .disabled(isSaving || isSaved)
         .accessibilityLabel(
             isSaved ? "\(recipe.title) saved" : "Save \(recipe.title)"

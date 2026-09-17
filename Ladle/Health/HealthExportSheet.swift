@@ -62,15 +62,12 @@ struct HealthExportSheet: View {
                         await viewModel.confirmExport()
                     }
                 } label: {
-                    if viewModel.state == .exporting {
-                        ProgressView()
-                            .tint(LadleTheme.Label.onAccent)
-                            .frame(maxWidth: .infinity)
-                    } else {
-                        Text("Confirm & Export")
-                    }
+                    Text("Confirm & Export")
                 }
-                .buttonStyle(LadleButtonStyle(role: .primary))
+                .buttonStyle(LadleButtonStyle(
+                    role: .primary,
+                    isLoading: viewModel.state == .exporting
+                ))
                 .disabled(viewModel.state == .exporting)
             }
             .padding(LadleTheme.Spacing.generous)

@@ -75,13 +75,7 @@ struct ImportRecoveryActions: View {
         role: LadleButtonRole
     ) -> some View {
         Button(action: retry) {
-            if isRetrying {
-                ProgressView()
-                    // The spinner takes the label colour its own role would
-                    // have used; onAccent white on a raised fill is invisible.
-                    .tint(role.label(accent))
-                    .frame(maxWidth: .infinity)
-            } else if role == .primary {
+            if role == .primary {
                 Text(retryAvailability.buttonTitle(at: date))
             } else {
                 // Demoted, retry joins the column of recovery rows and takes
@@ -94,7 +88,7 @@ struct ImportRecoveryActions: View {
                 )
             }
         }
-        .buttonStyle(LadleButtonStyle(role: role))
+        .buttonStyle(LadleButtonStyle(role: role, isLoading: isRetrying))
         .disabled(
             isRetrying || !retryAvailability.allowsRetry(at: date)
         )

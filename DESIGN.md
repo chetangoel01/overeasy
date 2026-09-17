@@ -169,6 +169,24 @@ Buttons that carry both an icon and a label align their labels to a shared
 leading edge; centring icon and label together as one group gives a column of
 buttons a different text origin per button.
 
+Inline filled actions such as Discover Save use the same 52-point minimum,
+body label and 15-point corner as full-width actions. They hug their label
+with regular horizontal padding. Loading reserves the original label's bounds
+and accessible name, with an overlaid spinner. The caller disables repeated
+submission. A completed Save shows a neutral, disabled “Saved” checkmark;
+failures leave the action available beside an explanatory message.
+
+List and grid favorites share the icon button's glyph, 44-point target, selected
+accent, and press feedback. List favorites have no fill. Grid favorites use a
+material circle to maintain contrast over photographs; that is an intentional
+surface difference, not a different control size.
+
+Native toolbar and menu actions retain the platform's sizing and background.
+Toolbar Save still reserves its label while loading. Apple and Google sign-in
+retain their provider styling. Dark cooking controls retain their legible
+contrast and larger practical targets. These are contextual exceptions, not
+alternative styles for ordinary filled actions.
+
 ## Navigation and library
 
 - The root workspace is a native four-tab structure: Recipes, Discover, Watch,
