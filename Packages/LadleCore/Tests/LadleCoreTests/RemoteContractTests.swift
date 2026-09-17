@@ -16,6 +16,10 @@ struct RemoteContractTests {
         #expect(recipe.nutrition?.calories == Decimal(string: "540"))
         #expect(recipe.images.first?.remoteURL?.host == "images.ladle.example")
         #expect(recipe.steps.first?.ingredientIDs == [recipe.ingredients[0].id])
+        #expect(
+            recipe.sourceID?.uuidString.lowercased()
+                == "90000000-0000-4000-8000-000000000003"
+        )
     }
 
     @Test
@@ -138,6 +142,10 @@ struct RemoteContractTests {
         for key in ["diets", "cuisines", "keywords", "keywordProposals"] {
             #expect(object[key] is NSNull, "\(key) must travel as null")
         }
+        // The source is the server's to say. A server that predates the key
+        // forbids what it does not know, so echoing it would fail every edit.
+        #expect(try source.recipe().sourceID != nil)
+        #expect(object["sourceID"] == nil)
     }
 
     @Test
@@ -331,8 +339,57 @@ struct RemoteContractTests {
         #expect(page.items[0].imageURL?.host == "images.ladle.example")
         #expect(page.items[0].savedRecipeID == nil)
         #expect(page.items[0].likeCount == 48210)
+        #expect(page.items[0].recipe().ratingAverage == 4.3)
+        #expect(page.items[0].recipe().ratingCount == 14)
         #expect(page.nextCursor == 1)
         #expect(page.hasMore)
+    }
+
+    @Test
+    func aServerWithoutRatingsStillServesDiscoverAndRecipes() throws {
+        // Production answers without these keys until the ratings API is
+        // deployed. Nobody having rated is what their absence has to mean.
+        var page = try fixtureObject("discover-page")
+        var items = try #require(page["items"] as? [[String: Any]])
+        items[0].removeValue(forKey: "ratingAverage")
+        items[0].removeValue(forKey: "ratingCount")
+        page["items"] = items
+        var recipe = try fixtureObject("recipe-ready")
+        recipe.removeValue(forKey: "sourceID")
+
+        let decoder = RemoteContractJSON.decoder()
+        let card = try decoder.decode(
+            RemoteDiscoverPageDTO.self,
+            from: JSONSerialization.data(withJSONObject: page)
+        ).items[0].recipe()
+        let saved = try decoder.decode(
+            RemoteRecipeDTO.self,
+            from: JSONSerialization.data(withJSONObject: recipe)
+        ).recipe()
+
+        #expect(card.ratingAverage == nil)
+        #expect(card.ratingCount == 0)
+        #expect(saved.sourceID == nil)
+    }
+
+    @Test
+    func engagementFixtureKeepsThePlatformsCountApartFromOvereasys() throws {
+        let dto: RemoteSourceEngagementDTO = try decodeFixture(
+            "source-engagement"
+        )
+
+        #expect(
+            dto.engagement() == SourceEngagement(
+                sourceID: UUID(
+                    uuidString: "90000000-0000-4000-8000-000000000001"
+                )!,
+                savedCount: 12,
+                likeCount: 48210,
+                ratingAverage: 4.3,
+                ratingCount: 14,
+                myRating: 5
+            )
+        )
     }
 
     @Test
@@ -346,6 +403,9 @@ struct RemoteContractTests {
         #expect(shelves.shelves[0].items.count == 2)
         #expect(shelves.shelves[0].recipes[1].title == "Chickpea Curry")
         #expect(shelves.shelves[0].recipes[1].likeCount == nil)
+        // Two cooks rated it, which is under the floor: a count, no average.
+        #expect(shelves.shelves[0].recipes[1].ratingAverage == nil)
+        #expect(shelves.shelves[0].recipes[1].ratingCount == 2)
     }
 
     @Test
