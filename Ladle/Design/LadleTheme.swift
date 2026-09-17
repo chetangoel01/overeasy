@@ -112,7 +112,8 @@ private extension UIColor {
 
 enum LadleTheme {
     // Palette values are private vocabulary for the semantic roles below.
-    // Production screens consume Surface, Label, Intent, and Stroke instead.
+    // Production screens consume Surface, Label, Intent, Mark, and Stroke
+    // instead.
     static let plumHex = "#14181B"
     static let paperHex = "#F7F4EF"
     static let oatHex = "#ECE7E1"
@@ -138,6 +139,7 @@ enum LadleTheme {
     static let oat = Color("Oat")
     static let ink = Color("Ink")
     static let celery = Color("Celery")
+    static let thyme = Color("Thyme")
     static let ube = Color("Ube")
     static let mutedInk = Color("MutedInk")
     static let onAccent = Color(
@@ -217,6 +219,18 @@ enum LadleTheme {
         static let disabledFill = LadleTheme.ube
         /// Label on a disabled control.
         static let disabledLabel = LadleTheme.mutedInk
+    }
+
+    /// Marks that stand for data: a chart segment, and the legend dot that
+    /// names it. A mark carries no state, so it is not an `Intent`; it only
+    /// has to be told from the surface behind it, which for a graphic means
+    /// 3:1 on `steel` and on `raised` in both appearances.
+    enum Mark {
+        /// Protein on the nutrition sheet. The same sage family as
+        /// `Intent.success`, which cannot stand in for it: that role's dark
+        /// value is a fill for light text to sit on, and drawn as a mark it
+        /// is about 1.3:1 against `steel`.
+        static let protein = LadleTheme.thyme
     }
 
     /// Hairlines and separators.

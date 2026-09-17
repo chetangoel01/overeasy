@@ -39,6 +39,7 @@ final class DiscoverViewModel {
     private let removesSavedRecipeImmediately: Bool
     private let loadsShelves: Bool
     private let recordsSeenSources: Bool
+    private let shuffleShelfIDs: ([DiscoverShelf.ID]) -> [DiscoverShelf.ID]
     /// The last time a fetch replaced a feed the cook was already reading —
     /// a pull, a quiet refresh, or taking one. The first load is not one of
     /// those: it is the feed, not a refresh of it.
@@ -49,8 +50,20 @@ final class DiscoverViewModel {
     /// server demotes only what was seen *before* it, so the rows this walk
     /// records cannot re-rank the pages it has not fetched yet.
     private var sessionStartedAt: Date?
-    /// The rails as last loaded. `visibleShelves` is what the screen draws.
-    private(set) var shelves: [DiscoverShelf] = []
+    /// The order the shelves are placed in: the first two that can be drawn
+    /// lead, and the rest go into the list. Drawn once and only ever added
+    /// to, so nothing moves under the cook until a relaunch — the rule Watch
+    /// follows for its videos. An id outlives its shelf, so one that a filter
+    /// took away comes back where it was.
+    private var shelfOrder: [DiscoverShelf.ID] = []
+    /// The shelves as last loaded. `visibleShelves` is what the screen draws.
+    private(set) var shelves: [DiscoverShelf] = [] {
+        didSet {
+            let arrivals = shelves.map(\.id)
+                .filter { !shelfOrder.contains($0) }
+            shelfOrder += shuffleShelfIDs(arrivals)
+        }
+    }
     private(set) var state: State = .idle
     private(set) var refreshState: RefreshState = .current
     private(set) var isLoadingMore = false
@@ -118,7 +131,11 @@ final class DiscoverViewModel {
         removesSavedRecipeImmediately: Bool = true,
         loadsShelves: Bool = true,
         recordsSeenSources: Bool = true,
-        now: @escaping @MainActor () -> Date = { Date() }
+        now: @escaping @MainActor () -> Date = { Date() },
+        shuffleShelfIDs:
+            @escaping ([DiscoverShelf.ID]) -> [DiscoverShelf.ID] = {
+                $0.shuffled()
+            }
     ) {
         self.filter = filter
         self.service = service
@@ -126,6 +143,7 @@ final class DiscoverViewModel {
         self.loadsShelves = loadsShelves
         self.recordsSeenSources = recordsSeenSources
         self.now = now
+        self.shuffleShelfIDs = shuffleShelfIDs
     }
 
     /// The server already applied the query, so this is also what makes an
@@ -134,23 +152,47 @@ final class DiscoverViewModel {
         !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    /// The shelves the screen draws. Hidden entirely under a search, because
-    /// search replaces the feed and a shelf of unsearched rows beside the
-    /// results would look like results. A shelf with fewer than three cards
-    /// is dropped: it reads as a mistake next to the list below it.
+    /// The shelves the screen draws, in the order it places them. Hidden
+    /// entirely under a search, because search replaces the feed and a shelf
+    /// of unsearched rows beside the results would look like results. A shelf
+    /// with fewer than three cards is dropped: it reads as a mistake next to
+    /// the list around it.
     ///
     /// A keyword the cook is already filtering on is dropped too. Its shelf
     /// would be the first few rows of the list underneath it, which is what
     /// "See all" just took them to — the same reason search hides the lot.
     var visibleShelves: [DiscoverShelf] {
         guard !isSearching else { return [] }
-        return shelves.filter { shelf in
+        return shelfOrder.compactMap { id in
+            shelves.first { $0.id == id }
+        }.filter { shelf in
             guard shelf.recipes.count >= DiscoverShelf.minimumRecipes else {
                 return false
             }
             guard let keyword = shelf.keyword else { return true }
             return !filter.keywords.contains(keyword)
         }
+    }
+
+    /// The two above "All recipes". Whatever `visibleShelves` drops — a
+    /// short shelf, a filtered keyword, a rail that never loaded — the next
+    /// in the order moves up, so two lead whenever two can.
+    var leadShelves: [DiscoverShelf] {
+        Array(visibleShelves.prefix(DiscoverShelf.leadCount))
+    }
+
+    /// Every other shelf, which the list takes in one at a time.
+    var feedShelves: [DiscoverShelf] {
+        Array(visibleShelves.dropFirst(DiscoverShelf.leadCount))
+    }
+
+    /// The shelves drawn under the row at `index` of the `rows` on screen:
+    /// one at most, except under the last row of a list that has ended.
+    func feedShelves(afterRow index: Int, of rows: Int) -> [DiscoverShelf] {
+        feedShelves.enumerated().filter { position, _ in
+            DiscoverShelf.feedSlot(position, rows: rows, hasMore: hasMore)
+                == index
+        }.map(\.element)
     }
 
     private func criteriaChanged() {
@@ -238,8 +280,8 @@ final class DiscoverViewModel {
     }
 
     /// Fetches page 1 behind the reader's back and holds it. Nothing on
-    /// screen moves: the refresh banner stays out of this, and a page that
-    /// turns out to match what is already there is dropped without a word.
+    /// screen moves: a failure here draws no banner, and a page that turns
+    /// out to match what is already there is dropped without a word.
     ///
     /// Scrolling back to the top is how someone returns to a row they meant
     /// to keep, so the feed cannot be replaced at that moment. It can only
@@ -341,15 +383,15 @@ final class DiscoverViewModel {
         )
     }
 
-    /// Every shelf, in the order they are drawn: the two curated rails, then
-    /// the keyword shelves the server composed. Independent `async let`s
-    /// rather than a loop, because none of them should wait on the one above
-    /// it — and the keyword shelves arrive as one request whatever their
-    /// number, since the server decides how many there are.
+    /// Every shelf: the two curated rails, then the keyword shelves in the
+    /// order the server composed them. Independent `async let`s rather than
+    /// a loop, because none of them should wait on the one above it — and
+    /// the keyword shelves arrive as one request whatever their number,
+    /// since the server decides how many there are.
     ///
-    /// The keywords go last on purpose. The rails are this app's own promises
-    /// about the feed and stay where a returning cook left them; how many
-    /// shelves follow depends on what the corpus holds that week.
+    /// This is the order they are fetched in, not the order they are drawn
+    /// in. `shelfOrder` decides that, and only a demo run, which shuffles
+    /// nothing, draws them as they come.
     private func fetchShelves() async -> [DiscoverShelf] {
         guard loadsShelves, !isSearching else { return [] }
         async let arrivals = fetchShelf(.newToOvereasy)
@@ -511,7 +553,8 @@ final class DiscoverViewModel {
                 // A shelf is the same feed, so a source saved from its
                 // context menu has to leave the shelf as well as the list.
                 // Dropping to fewer than three cards hides the shelf, which
-                // is the right outcome: it is no longer one.
+                // is the right outcome: it is no longer one, and the next in
+                // the order takes its place.
                 shelves = shelves.map { shelf in
                     var shelf = shelf
                     shelf.recipes.removeAll {
@@ -612,7 +655,8 @@ struct DiscoverView: View {
         filters: RecipeFilterStore,
         saveRecipe: @escaping (SavedDiscoverRecipe) -> Void,
         openRecipe: @escaping (Recipe, DiscoverSaveModel) -> Void,
-        onInitialLoadFailed: @escaping () -> Void = {}
+        onInitialLoadFailed: @escaping () -> Void = {},
+        shuffleShelfIDs: @escaping ([DiscoverShelf.ID]) -> [DiscoverShelf.ID]
     ) {
         // Seeded rather than assigned after the fact: a diet held from the
         // last launch has to be part of the first request, not a reload of
@@ -620,7 +664,8 @@ struct DiscoverView: View {
         _viewModel = State(
             initialValue: DiscoverViewModel(
                 service: service,
-                filter: filters.filter
+                filter: filters.filter,
+                shuffleShelfIDs: shuffleShelfIDs
             )
         )
         self.filters = filters
@@ -863,6 +908,18 @@ struct DiscoverView: View {
         }
     }
 
+    /// A shelf is the same view above "All recipes" and inside it.
+    private func shelfView(_ shelf: DiscoverShelf) -> some View {
+        DiscoverShelfView(
+            shelf: shelf,
+            isLoadingDetail: { viewModel.isLoadingDetail($0) },
+            isSaved: { viewModel.isSaved($0) },
+            open: open,
+            save: save,
+            showAll: { filters.showAll(keyword: $0) }
+        )
+    }
+
     private func recipeList(_ recipes: [DiscoverRecipe]) -> some View {
         ScrollViewReader { scroll in
             feed(recipes)
@@ -876,25 +933,23 @@ struct DiscoverView: View {
 
     private func feed(_ recipes: [DiscoverRecipe]) -> some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 0) {
+            // Only the rows are lazy. Which shelves lead can change while
+            // the cook is far down the list — a save can take one under the
+            // floor — and a lazy stack places what it has not measured yet
+            // by estimate, which left the first shelf sitting high on the
+            // way back up. Two shelves cost nothing to keep alive.
+            VStack(alignment: .leading, spacing: 0) {
                 Color.clear
                     .frame(height: 0)
                     .id(Self.topAnchor)
 
-                ForEach(viewModel.visibleShelves) { shelf in
-                    DiscoverShelfView(
-                        shelf: shelf,
-                        isLoadingDetail: { viewModel.isLoadingDetail($0) },
-                        isSaved: { viewModel.isSaved($0) },
-                        open: open,
-                        save: save,
-                        showAll: { filters.showAll(keyword: $0) }
-                    )
-                    .padding(.top, LadleTheme.Spacing.medium)
+                ForEach(viewModel.leadShelves) { shelf in
+                    shelfView(shelf)
+                        .padding(.top, LadleTheme.Spacing.medium)
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
-                    // The rails carry the turnover; this is the whole
+                    // The shelves carry the turnover; this is the whole
                     // corpus, which is what the reader scrolls into.
                     Text("All recipes")
                         .ladleFont(.section)
@@ -905,40 +960,7 @@ struct DiscoverView: View {
                 }
                 .padding(.vertical, LadleTheme.Spacing.medium)
 
-                ForEach(recipes) { recipe in
-                    DiscoverRecipeRow(
-                        recipe: recipe,
-                        sort: viewModel.sort,
-                        isLoadingDetail: viewModel.isLoadingDetail(recipe),
-                        isSaving: viewModel.isSaving(recipe),
-                        isSaved: viewModel.isSaved(recipe),
-                        openFailure: viewModel.detailFailure(for: recipe),
-                        saveFailure: viewModel.saveFailure(for: recipe),
-                        open: { open(recipe) },
-                        save: { save(recipe) }
-                    )
-                    // Rows are lazy, so this fires as the reader approaches
-                    // the end rather than for the whole list at once.
-                    .onAppear {
-                        guard viewModel.shouldLoadMore(after: recipe) else {
-                            return
-                        }
-                        Task { await viewModel.loadMore() }
-                    }
-                    Divider()
-                        .overlay(LadleTheme.Label.primary.opacity(0.08))
-                }
-
-                if viewModel.isLoadingMore {
-                    HStack {
-                        Spacer()
-                        ProgressView()
-                            .controlSize(.small)
-                        Spacer()
-                    }
-                    .padding(.vertical, LadleTheme.Spacing.medium)
-                    .accessibilityLabel("Loading more recipes")
-                }
+                rows(recipes)
             }
             .padding(.horizontal, LadleTheme.Spacing.regular)
             .padding(.bottom, LadleTheme.Layout.scrollTail)
@@ -950,6 +972,63 @@ struct DiscoverView: View {
             reachedTop(from: previous, to: current)
         }
         .refreshable { await viewModel.load() }
+    }
+
+    private func rows(_ recipes: [DiscoverRecipe]) -> some View {
+        LazyVStack(alignment: .leading, spacing: 0) {
+            ForEach(
+                Array(recipes.enumerated()),
+                id: \.element.id
+            ) { index, recipe in
+                DiscoverRecipeRow(
+                    recipe: recipe,
+                    sort: viewModel.sort,
+                    isLoadingDetail: viewModel.isLoadingDetail(recipe),
+                    isSaving: viewModel.isSaving(recipe),
+                    isSaved: viewModel.isSaved(recipe),
+                    openFailure: viewModel.detailFailure(for: recipe),
+                    saveFailure: viewModel.saveFailure(for: recipe),
+                    open: { open(recipe) },
+                    save: { save(recipe) }
+                )
+                // Rows are lazy, so this fires as the reader approaches
+                // the end rather than for the whole list at once.
+                .onAppear {
+                    guard viewModel.shouldLoadMore(after: recipe) else {
+                        return
+                    }
+                    Task { await viewModel.loadMore() }
+                }
+                Divider()
+                    .overlay(LadleTheme.Label.primary.opacity(0.08))
+                ForEach(
+                    viewModel.feedShelves(
+                        afterRow: index,
+                        of: recipes.count
+                    )
+                ) { shelf in
+                    // A shelf in the list sits between two hairlines,
+                    // the same gap inside each: the row's above it, and
+                    // its own below to hand the list back, or the rows
+                    // after it read as the shelf's.
+                    shelfView(shelf)
+                        .padding(.top, LadleTheme.Layout.sectionGap)
+                    Divider()
+                        .overlay(LadleTheme.Label.primary.opacity(0.08))
+                }
+            }
+
+            if viewModel.isLoadingMore {
+                HStack {
+                    Spacer()
+                    ProgressView()
+                        .controlSize(.small)
+                    Spacer()
+                }
+                .padding(.vertical, LadleTheme.Spacing.medium)
+                .accessibilityLabel("Loading more recipes")
+            }
+        }
     }
 
     /// The false→true edge of arriving at the top, and only if the cook had
@@ -991,8 +1070,9 @@ private struct DiscoverScrollSignal: Equatable {
 }
 
 /// The other thing that can sit under the navigation bar. Deliberately the
-/// same strip of steel as the refresh banner: a second announcement language
-/// on one screen would make the feed look like it is talking to itself.
+/// same strip of steel as the failed-refresh banner: a second announcement
+/// language on one screen would make the feed look like it is talking to
+/// itself.
 private struct DiscoverNewRecipesPill: View {
     let take: () -> Void
 
@@ -1011,25 +1091,18 @@ private struct DiscoverNewRecipesPill: View {
     }
 }
 
-private struct DiscoverRefreshBanner: View {
+/// Draws a failed refresh and nothing else. A refresh in flight has no
+/// indicator of its own: a pull already shows the system's control, and a
+/// strip that came and went in this inset moved the feed under the reader.
+struct DiscoverRefreshBanner: View {
     let state: DiscoverViewModel.RefreshState
     let retry: () -> Void
 
-    @ViewBuilder
     var body: some View {
-        switch state {
-        case .current:
-            EmptyView()
-        case .refreshing:
-            DiscoverTopBar(systemImage: nil, identifier: Self.identifier) {
-                ProgressView().controlSize(.small)
-                Text("Refreshing Discover…")
-                    .ladleFont(.bodyStrong)
-            }
-        case let .failed(report):
+        if case let .failed(report) = state {
             DiscoverTopBar(
                 systemImage: report.failure.systemImage,
-                identifier: Self.identifier
+                identifier: "discover.refresh-status"
             ) {
                 VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
                     Text("Showing earlier Discover results")
@@ -1050,37 +1123,42 @@ private struct DiscoverRefreshBanner: View {
             }
         }
     }
-
-    private static let identifier = "discover.refresh-status"
 }
 
 /// The one bar Discover puts under the navigation bar, whatever it has to
-/// say. Shared so the refresh banner and the "New recipes" pill cannot drift
-/// into two different pieces of furniture.
+/// say. Shared so the failed-refresh banner and the "New recipes" pill cannot
+/// drift into two different pieces of furniture.
 private struct DiscoverTopBar<Content: View>: View {
-    let systemImage: String?
+    let systemImage: String
     let identifier: String
     @ViewBuilder let content: () -> Content
 
     var body: some View {
         HStack(alignment: .top, spacing: LadleTheme.Layout.iconGap) {
-            if let systemImage {
-                Image(systemName: systemImage)
-                    .font(.system(
-                        size: LadleTheme.IconSize.medium,
-                        weight: .semibold
-                    ))
-                    .accessibilityHidden(true)
-            }
+            Image(systemName: systemImage)
+                .font(.system(
+                    size: LadleTheme.IconSize.medium,
+                    weight: .semibold
+                ))
+                .accessibilityHidden(true)
             content()
         }
         .foregroundStyle(LadleTheme.Label.primary)
         .padding(.horizontal, LadleTheme.Layout.screenMargin)
         .padding(.vertical, LadleTheme.Spacing.compact)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(LadleTheme.Surface.steel)
+        // Sideways only. Left to ignore the top safe area, the fill runs up
+        // under the clear navigation bar and paints over the large title.
+        .background(
+            LadleTheme.Surface.steel,
+            ignoresSafeAreaEdges: .horizontal
+        )
         .overlay(alignment: .bottom) {
-            Divider().overlay(LadleTheme.Stroke.separator)
+            // The pill wraps this bar in a Button, and there a bare Divider
+            // stands upright; the stack keeps it flat.
+            VStack(spacing: 0) {
+                Divider().overlay(LadleTheme.Stroke.separator)
+            }
         }
         .contentShape(.rect)
         .accessibilityElement(children: .contain)

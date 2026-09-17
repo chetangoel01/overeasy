@@ -33,7 +33,7 @@ final class DesignTokenTests: XCTestCase {
         let paletteNames = [
             "paper", "oat", "ube", "plum", "ink", "mutedInk",
             "onAccent", "fixedInk", "accentText", "brick", "celery",
-            "focusAccent", "butter",
+            "focusAccent", "butter", "thyme",
         ]
         var offenders: [String] = []
 
@@ -543,6 +543,40 @@ final class DesignTokenTests: XCTestCase {
             rootView: row.saveButton.environment(\.dynamicTypeSize, textSize)
         )
         return host.sizeThatFits(in: CGSize(width: 390, height: 300))
+    }
+
+    /// Issue #140. Both strips sit in a top safe-area inset, so any height
+    /// they take while work is merely in flight moves the whole screen.
+    func testRoutineSyncAndRefreshTakeNoSpaceButFailuresDo() {
+        let syncing = SyncStatus()
+        syncing.begin()
+        let failedSync = SyncStatus()
+        failedSync.fail(APIError.transport)
+        let failedRefresh = DiscoverViewModel.RefreshState.failed(
+            RemoteFailureReport(APIError.transport)
+        )
+
+        XCTAssertEqual(topStripHeight(SyncStatusBanner(status: syncing)), 0)
+        XCTAssertGreaterThan(
+            topStripHeight(SyncStatusBanner(status: failedSync)), 0
+        )
+        XCTAssertEqual(
+            topStripHeight(
+                DiscoverRefreshBanner(state: .refreshing, retry: {})
+            ),
+            0
+        )
+        XCTAssertGreaterThan(
+            topStripHeight(
+                DiscoverRefreshBanner(state: failedRefresh, retry: {})
+            ),
+            0
+        )
+    }
+
+    private func topStripHeight(_ strip: some View) -> CGFloat {
+        UIHostingController(rootView: strip)
+            .sizeThatFits(in: CGSize(width: 390, height: 300)).height
     }
 
     func testFilledButtonsShareOneWidthAndTertiaryHugsItsLabel() {

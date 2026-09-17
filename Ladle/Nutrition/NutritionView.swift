@@ -73,6 +73,10 @@ struct NutritionView: View {
             Text("Calories")
                 .ladleFont(.bodyStrong)
                 .foregroundStyle(LadleTheme.Label.secondary)
+            if let macroCalories {
+                calorieSources(macroCalories)
+                    .padding(.top, LadleTheme.Spacing.medium)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 24)
@@ -91,7 +95,64 @@ struct NutritionView: View {
         )
     }
 
+    /// One bar, each segment as wide as its macro's share of the calories.
+    ///
+    /// The tiles below are its legend — a segment wears its tile's dot, in
+    /// the tiles' order — and they carry every number, so the bar says
+    /// nothing to VoiceOver that the tiles do not. Widths come from the
+    /// percentages the tiles print, so the two cannot disagree, and a macro
+    /// with no share draws no segment rather than a stray gap.
+    private func calorieSources(_ macros: MacroCalories) -> some View {
+        let segments = [
+            (share: macros.protein, color: MacroColor.protein),
+            (share: macros.carbohydrate, color: MacroColor.carbohydrate),
+            (share: macros.fat, color: MacroColor.fat),
+        ]
+        .filter { $0.share.percent > 0 }
+
+        return VStack(spacing: LadleTheme.Spacing.compact) {
+            Text("Calories from")
+                .ladleFont(.metadata)
+                .foregroundStyle(LadleTheme.Label.secondary)
+            GeometryReader { geometry in
+                let gap = LadleTheme.Spacing.tight
+                let width = geometry.size.width
+                    - gap * CGFloat(segments.count - 1)
+                HStack(spacing: gap) {
+                    ForEach(segments.indices, id: \.self) { index in
+                        let segment = segments[index]
+                        segment.color.frame(
+                            width: width * CGFloat(segment.share.percent) / 100
+                        )
+                    }
+                }
+            }
+            .frame(height: 12)
+            .clipShape(Capsule())
+        }
+        .padding(.horizontal, LadleTheme.Layout.cardPadding)
+        .accessibilityHidden(true)
+    }
+
     private var macroGrid: some View {
+        VStack(alignment: .leading, spacing: LadleTheme.Layout.rowGap) {
+            macroTiles
+            if let macroCalories {
+                let note = NutritionNote.macroCalories(
+                    macroCalories,
+                    of: displayedNutrition.calories
+                )
+                Text(note)
+                    .ladleFont(.metadata)
+                    .foregroundStyle(LadleTheme.Label.secondary)
+                    .accessibilityLabel(
+                        note.replacingOccurrences(of: "kcal", with: "calories")
+                    )
+            }
+        }
+    }
+
+    private var macroTiles: some View {
         Group {
             if dynamicTypeSize.isAccessibilitySize {
                 VStack(spacing: LadleTheme.Layout.rowGap) {
@@ -110,17 +171,20 @@ struct NutritionView: View {
         macro(
             name: "Protein",
             value: displayedNutrition.proteinGrams,
-            color: LadleTheme.Intent.success
+            share: macroCalories?.protein,
+            color: MacroColor.protein
         )
         macro(
             name: "Carbohydrates",
             value: displayedNutrition.carbohydrateGrams,
-            color: LadleTheme.Label.secondary
+            share: macroCalories?.carbohydrate,
+            color: MacroColor.carbohydrate
         )
         macro(
             name: "Fat",
             value: displayedNutrition.fatGrams,
-            color: LadleTheme.Label.primary
+            share: macroCalories?.fat,
+            color: MacroColor.fat
         )
     }
 
@@ -203,9 +267,13 @@ struct NutritionView: View {
     private func macro(
         name: String,
         value: Decimal?,
+        share: MacroCalories.Share?,
         color: Color
     ) -> some View {
         let valueText = value.map { "\(ladleNumber($0)) g" } ?? "Unavailable"
+        let calories = share.map {
+            ladleNumber($0.calories, maximumFractionDigits: 0)
+        }
 
         return VStack(spacing: LadleTheme.Spacing.compact) {
             Circle()
@@ -220,12 +288,34 @@ struct NutritionView: View {
                 .foregroundStyle(LadleTheme.Label.secondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.72)
+            if let share, let calories {
+                // Three tiles across leave each about 110 points, which
+                // "152 kcal · 23%" outgrows past the default text size, so
+                // there it breaks at the dot instead of shrinking.
+                let breaks = dynamicTypeSize > .large
+                    && !dynamicTypeSize.isAccessibilitySize
+                Text("\(calories) kcal\(breaks ? "\n" : " · ")\(share.percent)%")
+                    .ladleFont(.metadata)
+                    .foregroundStyle(LadleTheme.Label.primary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(breaks ? 2 : 1)
+                    .minimumScaleFactor(0.72)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 16)
         .ladleCard()
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(name), \(valueText)")
+        .accessibilityLabel(
+            [
+                name,
+                valueText,
+                calories.map { "\($0) calories" },
+                share.map { "\($0.percent) percent" },
+            ]
+            .compactMap(\.self)
+            .joined(separator: ", ")
+        )
         .accessibilityIdentifier("nutrition.macro.\(name.lowercased())")
     }
 
@@ -318,6 +408,24 @@ struct NutritionView: View {
         nutrition.perServing != nil
     }
 
+    /// Per serving, like every other figure here. Nil — so no bar, no kcal
+    /// lines and no note — when a macro is missing or the serving basis is
+    /// unusable, because an unavailable value is never drawn as zero.
+    private var macroCalories: MacroCalories? {
+        displayedNutrition.macroCalories
+    }
+
+}
+
+/// A tile's dot and its segment of the bar read the same role, which is what
+/// lets the dots stand as the bar's legend.
+///
+/// Not private, so the contrast test can hold all three to 3:1 on the hero
+/// and on a tile.
+enum MacroColor {
+    static let protein = LadleTheme.Mark.protein
+    static let carbohydrate = LadleTheme.Label.secondary
+    static let fat = LadleTheme.Label.primary
 }
 
 private struct NutritionDisplayRow: Identifiable {

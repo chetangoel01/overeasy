@@ -119,6 +119,27 @@ final class NutritionNoteTests: XCTestCase {
         XCTAssertNil(nutrition.ladleCalorieText)
     }
 
+    func testTheMacroNoteCitesTheTotalOnlyWhenTheWholeNumbersDisagree() throws {
+        // 21 g, 48 g and 26 g come to 510 kcal by 4, 4 and 9.
+        let macros = try XCTUnwrap(estimated.macroCalories)
+        let basisAlone = NutritionNote.macroCalories(macros, of: nil)
+
+        // Both figures print as they are; neither moves to meet the other.
+        XCTAssertTrue(
+            NutritionNote.macroCalories(macros, of: 520)
+                .hasSuffix("510 of the 520 calories.")
+        )
+        // 510.4 prints as 510 too, and a gap nobody can see is not explained.
+        XCTAssertEqual(
+            NutritionNote.macroCalories(macros, of: 510.4),
+            basisAlone
+        )
+        // A sum past the total still names both, never as "510 of the 500".
+        let over = NutritionNote.macroCalories(macros, of: 500)
+        XCTAssertTrue(over.contains("510") && over.contains("500"))
+        XCTAssertFalse(over.contains("of the"))
+    }
+
     private var estimated: Nutrition {
         Nutrition(
             calories: 520,

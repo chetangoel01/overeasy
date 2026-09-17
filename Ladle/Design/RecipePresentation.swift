@@ -159,7 +159,20 @@ extension Ingredient {
     /// guarantees the split whenever an amount was given at all, so the
     /// phrase adds nothing a row needs.
     var amountText: String? {
-        isToTaste ? nil : normalizedQuantity.map(measuredAmount)
+        amountText(scaledBy: 1)
+    }
+
+    /// The amount as a recipe scaled by `factor` prints it, on its own for a
+    /// surface that sets it in its own column. An ingredient with no
+    /// quantity — salt to taste — has none at any factor, because a pinch
+    /// does not double.
+    func amountText(scaledBy factor: Decimal) -> String? {
+        isToTaste ? nil : normalizedQuantity.map { measuredAmount($0 * factor) }
+    }
+
+    /// What a row says after its amount: "garlic — finely chopped".
+    var nameText: String {
+        row(nil)
     }
 
     var cookingDetailText: String {
@@ -179,10 +192,10 @@ extension Ingredient {
     }
 
     /// The row as a recipe scaled by `factor` prints it: the same amount,
-    /// multiplied, in the same form. An ingredient with no quantity — salt
-    /// to taste — scales to itself, because a pinch does not double.
+    /// multiplied, in the same form. An ingredient with no quantity scales
+    /// to itself.
     func cookingDetailText(scaledBy factor: Decimal) -> String {
-        row(isToTaste ? nil : normalizedQuantity.map { measuredAmount($0 * factor) })
+        row(amountText(scaledBy: factor))
     }
 
     private func row(_ amount: String?) -> String {

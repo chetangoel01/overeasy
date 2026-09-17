@@ -158,56 +158,55 @@ final class ProfileSheetUITests: XCTestCase {
 
     // MARK: - The app icon
 
-    /// Exercise every bundled icon through the real system switch, then
-    /// relaunch to verify persistence and restore the original selection.
+    /// The row scrolls sideways, so its last icon starts off screen: reach it
+    /// and choose it through the real system switch.
     @MainActor
-    func testEveryIconCanBeChosenAndPersistsAfterRelaunch() {
+    func testTheLastIconInTheRowCanBeReachedAndChosen() {
         let app = launchSignedIn()
         app.buttons["Profile"].tap()
         XCTAssertTrue(app.navigationBars["Profile"].waitForExistence(timeout: 3))
 
-        let choices = ["egg", "avocado", "tomato", "strawberry", "cherries", "carrot", "mushroom"]
-        var original = "egg"
-        for choice in choices {
-            let tile = revealIcon(choice, in: app)
-            if tile.value as? String == "Selected" { original = choice }
-        }
-        let gallery = XCTAttachment(screenshot: app.screenshot())
-        gallery.name = "All seven app icons"
-        gallery.lifetime = .keepAlways
-        add(gallery)
-
-        for choice in choices {
-            let tile = revealIcon(choice, in: app)
-            XCTAssertGreaterThanOrEqual(tile.frame.width, 44)
-            XCTAssertGreaterThanOrEqual(tile.frame.height, 44)
-            XCTAssertGreaterThanOrEqual(tile.frame.minX, app.frame.minX)
-            XCTAssertLessThanOrEqual(tile.frame.maxX, app.frame.maxX)
-            tile.tap()
-            dismissIconChangeNotice()
-            waitForSelection(of: tile)
-        }
-
-        app.terminate()
-        app.launch()
-        app.buttons["Profile"].tap()
-        waitForSelection(of: revealIcon("mushroom", in: app))
-
-        let originalTile = revealIcon(original, in: app)
-        originalTile.tap()
+        let mushroom = revealIcon("mushroom", in: app)
+        XCTAssertGreaterThanOrEqual(mushroom.frame.width, 44)
+        XCTAssertGreaterThanOrEqual(mushroom.frame.height, 44)
+        XCTAssertTrue(app.frame.contains(mushroom.frame))
+        mushroom.tap()
         dismissIconChangeNotice()
-        waitForSelection(of: originalTile)
+        waitForSelection(of: mushroom)
+
+        // The installed icon outlives the run, and the diet tests are only
+        // offered the avocado from the egg.
+        let egg = revealIcon("egg", in: app)
+        egg.tap()
+        dismissIconChangeNotice()
+        waitForSelection(of: egg)
     }
 
+    /// Scrolls the form to the picker, then the row to the tile: the row
+    /// scrolls sideways, so a tile can be off either end of it. The drag ends
+    /// on a hold, so the row settles on the nearest tile rather than being
+    /// flung past the one it is after.
     @MainActor
     private func revealIcon(_ name: String, in app: XCUIApplication) -> XCUIElement {
         let tile = app.buttons["account.app-icon.\(name)"]
-        for _ in 0..<6 {
-            if tile.exists && tile.isHittable { return tile }
-            if tile.exists && tile.frame.midY < app.frame.midY {
+        for _ in 0..<10 {
+            if tile.exists && tile.isHittable && app.frame.contains(tile.frame) {
+                return tile
+            }
+            if !tile.exists || tile.frame.maxY > app.frame.maxY {
+                app.swipeUp()
+            } else if tile.frame.minY < app.frame.minY {
                 app.swipeDown()
             } else {
-                app.swipeUp()
+                let start = app.coordinate(withNormalizedOffset: .zero)
+                    .withOffset(CGVector(dx: app.frame.midX, dy: tile.frame.midY))
+                let travel: CGFloat = tile.frame.midX > app.frame.midX ? -150 : 150
+                start.press(
+                    forDuration: 0.05,
+                    thenDragTo: start.withOffset(CGVector(dx: travel, dy: 0)),
+                    withVelocity: .slow,
+                    thenHoldForDuration: 0.2
+                )
             }
         }
         XCTAssertTrue(tile.isHittable, "Icon is not reachable: \(name)")

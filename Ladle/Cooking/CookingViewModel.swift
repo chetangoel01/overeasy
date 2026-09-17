@@ -2,6 +2,20 @@ import Foundation
 import LadleCore
 import Observation
 
+/// An ingredient the current step uses, as Focus Mode lists it.
+struct StepIngredient: Identifiable {
+    let ingredient: Ingredient
+    /// The amount at the session's serving count, or `nil` when the recipe
+    /// gives none.
+    let amount: String?
+    /// The other steps that use this ingredient, numbered from 1. An amount
+    /// belongs to the whole recipe and is never split between steps, so a
+    /// row with any of these has to say whose total it is showing.
+    let otherStepNumbers: [Int]
+
+    var id: UUID { ingredient.id }
+}
+
 @MainActor
 @Observable
 final class CookingViewModel: Identifiable {
@@ -19,6 +33,12 @@ final class CookingViewModel: Identifiable {
     private(set) var session: CookingSession
     private(set) var timers: [UUID: RecipeTimer]
     private(set) var keepsScreenAwake = false
+
+    /// Whether Focus Mode lists the step's ingredients with their amounts or
+    /// folds them to one line of names. It is the cook's for the session —
+    /// from step to step, and through Full Recipe and back — and is not
+    /// stored beyond it.
+    var showsStepIngredientAmounts = true
 
     @ObservationIgnored
     private let clock: CookingClock
@@ -80,14 +100,27 @@ final class CookingViewModel: Identifiable {
         return recipe.orderedSteps[currentStepIndex]
     }
 
-    var relevantIngredients: [Ingredient] {
-        guard let currentStep else {
+    var stepIngredients: [StepIngredient] {
+        let steps = recipe.orderedSteps
+        guard steps.indices.contains(currentStepIndex) else {
             return []
         }
-        let ingredientIDs = Set(currentStep.ingredientIDs)
-        return recipe.orderedIngredients.filter {
-            ingredientIDs.contains($0.id)
-        }
+        let ingredientIDs = Set(steps[currentStepIndex].ingredientIDs)
+        return recipe.orderedIngredients
+            .filter { ingredientIDs.contains($0.id) }
+            .map { ingredient in
+                StepIngredient(
+                    ingredient: ingredient,
+                    amount: ingredient.amountText(scaledBy: multiplier ?? 1),
+                    otherStepNumbers: steps.indices
+                        .filter {
+                            $0 != currentStepIndex
+                                && steps[$0].ingredientIDs
+                                    .contains(ingredient.id)
+                        }
+                        .map { $0 + 1 }
+                )
+            }
     }
 
     var finishedTimerForCurrentStep: DetectedTimer? {

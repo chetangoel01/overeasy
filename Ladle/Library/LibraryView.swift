@@ -136,6 +136,8 @@ struct LibraryView: View {
     var authClient: AuthClient?
     var googleSignIn: (any GoogleSignInProviding)?
     var discoverService: any DiscoverServing = DemoDiscoverService()
+    /// Left as fetched by default, like the demo service it sits beside.
+    var shuffleShelfIDs: ([DiscoverShelf.ID]) -> [DiscoverShelf.ID] = { $0 }
     var syncStatus: SyncStatus = SyncStatus()
     var notificationNavigation: NotificationNavigation = .shared
     var canImport = true
@@ -302,6 +304,10 @@ struct LibraryView: View {
 
     /// Banners sit inside each tab's own stack so they render below that
     /// tab's navigation bar rather than above every bar at once.
+    ///
+    /// Each strip's fill may run out to the sides of the screen but never
+    /// upward. A background that ignores the top safe area runs up under the
+    /// bar, which is clear, and paints over the large title.
     @ViewBuilder
     private func banners(reloadError: String?) -> some View {
         VStack(spacing: 0) {
@@ -499,7 +505,8 @@ struct LibraryView: View {
             openRecipe: { recipe, save in
                 showDiscoverRecipe(recipe, save: save)
             },
-            onInitialLoadFailed: fallBackToRecipesIfNeeded
+            onInitialLoadFailed: fallBackToRecipesIfNeeded,
+            shuffleShelfIDs: shuffleShelfIDs
         )
     }
 
@@ -651,26 +658,23 @@ struct LibraryView: View {
     }
 }
 
-private struct SyncStatusBanner: View {
+/// Draws a failed sync and nothing else. The strip sits in a top inset, so
+/// one that came and went with every routine sync moved the whole screen;
+/// Profile's Sync row is where routine state is read. Conflicts have
+/// `SyncConflictBanner`.
+struct SyncStatusBanner: View {
     let status: SyncStatus
 
-    @ViewBuilder
     var body: some View {
-        switch status.state {
-        case .idle, .current:
-            EmptyView()
-        case .syncing:
-            banner(systemImage: nil) {
-                ProgressView()
-                    .controlSize(.small)
-                Text("Syncing recipes…")
-                    .ladleFont(.bodyStrong)
+        if case let .failed(report) = status.state {
+            HStack(alignment: .top, spacing: LadleTheme.Layout.iconGap) {
+                Image(systemName: report.failure.systemImage)
+                    .font(.system(
+                        size: LadleTheme.IconSize.medium,
+                        weight: .semibold
+                    ))
                     .foregroundStyle(LadleTheme.Label.primary)
-            }
-        case .conflict:
-            EmptyView()
-        case let .failed(report):
-            banner(systemImage: report.failure.systemImage) {
+                    .accessibilityHidden(true)
                 VStack(
                     alignment: .leading,
                     spacing: LadleTheme.Spacing.tight
@@ -687,38 +691,22 @@ private struct SyncStatusBanner: View {
                             .foregroundStyle(LadleTheme.Label.secondary)
                     }
                 }
+                Spacer(minLength: 0)
             }
+            .padding(.horizontal, LadleTheme.Layout.screenMargin)
+            .padding(.vertical, LadleTheme.Spacing.compact)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                LadleTheme.Surface.steel,
+                ignoresSafeAreaEdges: .horizontal
+            )
+            .overlay(alignment: .bottom) {
+                Divider().overlay(LadleTheme.Stroke.separator)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("sync.status")
         }
     }
-
-    private func banner<Content: View>(
-        systemImage: String?,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        HStack(alignment: .top, spacing: LadleTheme.Layout.iconGap) {
-            if let systemImage {
-                Image(systemName: systemImage)
-                    .font(.system(
-                        size: LadleTheme.IconSize.medium,
-                        weight: .semibold
-                    ))
-                    .foregroundStyle(LadleTheme.Label.primary)
-                    .accessibilityHidden(true)
-            }
-            content()
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, LadleTheme.Layout.screenMargin)
-        .padding(.vertical, LadleTheme.Spacing.compact)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(LadleTheme.Surface.steel)
-        .overlay(alignment: .bottom) {
-            Divider().overlay(LadleTheme.Stroke.separator)
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("sync.status")
-    }
-
 }
 
 private struct LibraryReloadErrorBanner: View {
@@ -753,7 +741,10 @@ private struct LibraryReloadErrorBanner: View {
         .padding(.horizontal, LadleTheme.Layout.screenMargin)
         .padding(.vertical, LadleTheme.Spacing.compact)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(LadleTheme.Surface.steel)
+        .background(
+            LadleTheme.Surface.steel,
+            ignoresSafeAreaEdges: .horizontal
+        )
         .overlay(alignment: .bottom) {
             Divider().overlay(LadleTheme.Stroke.separator)
         }
