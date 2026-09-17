@@ -7,23 +7,6 @@ final class HIGRegressionUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    func testServingsResetIsReachableAtLargestTextSize() {
-        let app = launch(largeText: true)
-        openRecipe(in: app)
-        let servings = app.descendants(matching: .any)["recipe.servings"]
-        reveal(servings, in: app)
-        servings.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
-        let reset = app.buttons["recipe.servings.reset"]
-        reveal(reset, in: app)
-        XCTAssertTrue(reset.isHittable)
-        XCTAssertGreaterThanOrEqual(reset.frame.minX, 0)
-        XCTAssertLessThanOrEqual(reset.frame.maxX, app.frame.maxX)
-        capture(app, "HIG servings AX5")
-        reset.tap()
-        XCTAssertFalse(reset.exists)
-        XCTAssertEqual(servings.value as? String, "4 servings")
-    }
-
     func testEditorCancelOffersKeepEditingAndDiscard() {
         let app = launch()
         openEditor(in: app)

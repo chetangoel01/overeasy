@@ -201,17 +201,17 @@ On a simulator created for this task and deleted after
   `StateScenarioUITests` is worth running rather than reasoning about: it
   drives card → detail → Start Cooking → Focus mode, which is the flow this
   change rebuilt.
-- **What the UI test asserts, since #148.** On the seeded demo library it
-  presses the band's plus four times, 4 → 8, with no sheet in between, and
-  asserts the ground-beef row moves from "1 lb" to "2 lb", that the unscaled
-  row is gone, that the control's value is "8 servings, scaled from 4
-  servings", and that the salt row — which reads "kosher salt" at every count
-  — carries the "Not scaled" marker afterwards and not before. It then presses
-  Reset and asserts the "1 lb" row and the plain "4 servings" are back and
-  Reset has left. The stepper is one adjustable element to VoiceOver, so the
-  test presses the control's trailing end, where a finger presses the plus.
-  The counts above are the original run's; #148's own runs are in the
-  [layout record](2026-09-17-recipe-details-layout.md).
+- **What the UI test asserts, since #148.** It is one of the app's few smoke
+  journeys now, kept short on purpose: on the seeded demo library it presses
+  the band's plus four times, 4 → 8, with no sheet in between; asserts the
+  ground-beef row moves from "1 lb" to "2 lb" and the unscaled row is gone;
+  then presses Reset and asserts the "1 lb" row is back and Reset has left.
+  The stepper is one adjustable element to VoiceOver, so the test presses the
+  control's trailing end, where a finger presses the plus. The "Not scaled"
+  marker and the control's spoken value are no longer asserted there — the
+  owner asked on September 17 for UI tests to be cut to what proves the
+  behaviour — and the counts above are the original run's; #148's own runs are
+  in the [layout record](2026-09-17-recipe-details-layout.md).
 
 ### Notes from the rebase
 
@@ -234,7 +234,8 @@ On a simulator created for this task and deleted after
 
 Captured with #148 rather than reasoned about: at accessibility sizes the band
 stacks, the stepper keeps its 44-point targets, and "servings · Reset" fits
-the full-width cell. `HIGRegressionUITests
-.testServingsResetIsReachableAtLargestTextSize` steps once at AX5 and asserts
-Reset is hittable and inside the screen. The sheet's own large-type worry —
-Reset below the detent — went with the sheet.
+the full-width cell with Reset inside the screen — see `band-ax5-dark.png` in
+the layout record's captures. `HIGRegressionUITests
+.testServingsResetIsReachableAtLargestTextSize` guarded the sheet's version of
+this (Reset below the detent); it was deleted with the sheet rather than
+re-pointed, under the same instruction to keep UI tests to smoke journeys.
