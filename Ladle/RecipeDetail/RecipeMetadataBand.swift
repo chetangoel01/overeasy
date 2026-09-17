@@ -14,44 +14,40 @@ struct RecipeMetadataBand: View {
     /// stays the plain read-only fact it is today.
     var scaling: Binding<RecipeScaling>?
 
-    @State private var isServingsPresented = false
-    @State private var servingsWhenOpened: Decimal?
+    /// The settled-count announcement that has not been spoken yet.
+    @State private var announcement: Task<Void, Never>?
+
+    /// The drawn minus and plus. Their targets are 44 points regardless.
+    private static let stepDiameter: CGFloat = 30
+
+    /// Room for two digits, so stepping nine to ten does not slide the plus
+    /// out from under the finger that is pressing it.
+    private static let countMinWidth: CGFloat = 32
 
     var body: some View {
-        VStack(alignment: .leading, spacing: LadleTheme.Spacing.compact) {
-            Group {
-                if usesVerticalLayout {
-                    VStack(spacing: 0) {
-                        timeItem
-                        horizontalDivider
-                        yieldItem
-                    }
-                } else {
-                    HStack(spacing: 0) {
-                        timeItem
-                        verticalDivider
-                        yieldItem
-                    }
+        Group {
+            if usesVerticalLayout {
+                VStack(spacing: 0) {
+                    timeItem
+                    horizontalDivider
+                    yieldItem
+                }
+            } else {
+                HStack(spacing: 0) {
+                    timeItem
+                    verticalDivider
+                    yieldItem
                 }
             }
-            .padding(.vertical, 16)
-            .background(
-                LadleTheme.Surface.raised,
-                in: RoundedRectangle(
-                    cornerRadius: LadleTheme.Corner.card,
-                    style: .continuous
-                )
-            )
-
-            // Why the number says "About", in the voice ingredient and step
-            // notes already use.
-            if let note = recipe.ladleTimeNote {
-                Label(note, systemImage: "exclamationmark.circle")
-                    .ladleFont(.metadata)
-                    .foregroundStyle(accent.label)
-                    .accessibilityLabel("Estimated time: \(note)")
-            }
         }
+        .padding(.vertical, 16)
+        .background(
+            LadleTheme.Surface.raised,
+            in: RoundedRectangle(
+                cornerRadius: LadleTheme.Corner.card,
+                style: .continuous
+            )
+        )
     }
 
     private var timeItem: some View {
@@ -63,46 +59,13 @@ struct RecipeMetadataBand: View {
         )
     }
 
-    /// The yield, and on a scalable recipe the control for it. The band's
-    /// own text is the control: a cook thinking "I need six" is looking at
-    /// the number that says four, and that is where the tap belongs.
+    /// The yield, and on a scalable recipe the control for it, in place: a
+    /// cook thinking "I need six" is looking at the number that says four,
+    /// and changing it should not cost a sheet and a Done.
     @ViewBuilder
     private var yieldItem: some View {
         if let scaling, scaling.wrappedValue.isAvailable {
-            Button {
-                servingsWhenOpened = scaling.wrappedValue.servings
-                isServingsPresented = true
-            } label: {
-                metadataItem(
-                    value: yieldValue(scaling.wrappedValue),
-                    label: yieldLabel(scaling.wrappedValue),
-                    systemImage: "person.2",
-                    isAdjustable: true
-                )
-            }
-            .buttonStyle(LadlePressButtonStyle())
-            .accessibilityIdentifier("recipe.yield")
-            .accessibilityLabel("Servings")
-            .accessibilityValue(yieldAccessibilityValue(scaling.wrappedValue))
-            .accessibilityHint("Adjusts the serving count and scales the ingredients")
-            // Announced when the sheet closes, not on every press of the
-            // stepper: the stepper reads its own value as it changes, and a
-            // cook stepping four to eight would otherwise hear each count
-            // twice. What VoiceOver needs is what the page settled on.
-            .sheet(
-                isPresented: $isServingsPresented,
-                onDismiss: {
-                    guard
-                        scaling.wrappedValue.servings != servingsWhenOpened
-                    else { return }
-                    AccessibilityNotification.Announcement(
-                        scaledAnnouncement(scaling.wrappedValue)
-                    )
-                    .post()
-                }
-            ) {
-                ServingsSheet(scaling: scaling)
-            }
+            servingsStepper(scaling)
         } else {
             metadataItem(
                 value: recipe.ladleYieldText,
@@ -112,76 +75,182 @@ struct RecipeMetadataBand: View {
         }
     }
 
-    /// The chosen count while scaled, and the recipe's own claim otherwise.
-    private func yieldValue(_ scaling: RecipeScaling) -> String {
-        scaling.isScaled ? scaling.chosenYieldText : recipe.ladleYieldText
+    /// Glyph, then the count between a minus and a plus with nothing else on
+    /// that line, then the word for what is being counted.
+    private func servingsStepper(
+        _ scaling: Binding<RecipeScaling>
+    ) -> some View {
+        let value = scaling.wrappedValue
+        // No stack spacing: the 44-point targets already hold seven points
+        // of air either side of the circles drawn inside them.
+        return VStack(spacing: 0) {
+            glyph("person.2")
+            HStack(spacing: LadleTheme.Spacing.tight) {
+                // The arrows disable themselves at the ends of the range
+                // instead of silently refusing, as a native stepper does.
+                LadleIconButton(
+                    systemImage: "minus",
+                    accessibilityLabel: "Decrease servings",
+                    tone: .onCard,
+                    diameter: Self.stepDiameter
+                ) {
+                    step(scaling, by: -1)
+                }
+                .disabled(!value.canDecrease)
+
+                Text(ladleNumber(value.servings))
+                    .ladleFont(.recipeTitle)
+                    .monospacedDigit()
+                    .foregroundStyle(LadleTheme.Label.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                    .frame(minWidth: Self.countMinWidth)
+
+                LadleIconButton(
+                    systemImage: "plus",
+                    accessibilityLabel: "Increase servings",
+                    tone: .onCard,
+                    diameter: Self.stepDiameter
+                ) {
+                    step(scaling, by: 1)
+                }
+                .disabled(!value.canIncrease)
+            }
+            // One adjustable element, the way VoiceOver meets a stepper:
+            // swipe up or down on "Servings" rather than hunting for two
+            // unlabelled-looking buttons either side of a number.
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Servings")
+            .accessibilityValue(yieldAccessibilityValue(value))
+            .accessibilityHint("Scales the ingredient amounts")
+            .accessibilityAdjustableAction { direction in
+                switch direction {
+                case .increment: step(scaling, by: 1)
+                case .decrement: step(scaling, by: -1)
+                @unknown default: break
+                }
+            }
+            .accessibilityIdentifier("recipe.servings")
+
+            servingsLabelRow(scaling)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, LadleTheme.Spacing.compact)
+        .padding(.vertical, usesVerticalLayout ? LadleTheme.Spacing.medium : 0)
+        .onDisappear { announcement?.cancel() }
     }
 
-    /// A scaled band cannot leave "Yield" under a number the recipe never
-    /// claimed, so the label carries what it was scaled from. The phrase is
-    /// built from the count rather than `ladleYieldText`, which hedges an
-    /// uncertain yield with "About" and reads as "Scaled from Yield unknown".
-    private func yieldLabel(_ scaling: RecipeScaling) -> String {
-        scaling.isScaled ? "Scaled from \(scaling.baseYieldText)" : "Yield"
+    /// What is being counted and, once the cook has changed it, the way
+    /// back. One line of metadata in both states, so the band does not move
+    /// when Reset arrives or leaves.
+    private func servingsLabelRow(
+        _ scaling: Binding<RecipeScaling>
+    ) -> some View {
+        let value = scaling.wrappedValue
+        let grow = LadleTheme.Spacing.regular
+        return HStack(spacing: LadleTheme.Spacing.tight) {
+            // Hidden from VoiceOver: the stepper's value already says it.
+            Text(servingsLabel(value))
+                .accessibilityHidden(true)
+            if value.isScaled {
+                Text("·")
+                    .accessibilityHidden(true)
+                Button {
+                    scaling.wrappedValue.reset()
+                    announceOnceSettled(scaling.wrappedValue)
+                } label: {
+                    Text("Reset")
+                        .foregroundStyle(accent.label)
+                        // A line of metadata is 18 points tall and a target
+                        // is 44. It grows sideways and down, into the band's
+                        // own padding — never up, where it would take the
+                        // presses meant for the plus above it.
+                        .contentShape(
+                            Rectangle().inset(by: -grow).offset(y: grow)
+                        )
+                }
+                .buttonStyle(LadlePressButtonStyle())
+                .accessibilityLabel("Reset to \(value.baseYieldText)")
+                .accessibilityIdentifier("recipe.servings.reset")
+            }
+        }
+        .ladleFont(.metadata)
+        .foregroundStyle(LadleTheme.Label.secondary)
+        .multilineTextAlignment(.center)
     }
 
+    /// The word under the count. At the recipe's own yield it carries the
+    /// hedge `ladleYieldText` would have; the reason is in the estimates
+    /// note. Scaled, the count is the cook's choice and there is nothing to
+    /// hedge.
+    private func servingsLabel(_ scaling: RecipeScaling) -> String {
+        let noun = scaling.servings == 1 ? "serving" : "servings"
+        guard !scaling.isScaled, recipe.isYieldEstimated else { return noun }
+        return recipe.servings == 1 ? "Yield unknown" : "\(noun), estimated"
+    }
+
+    private func step(_ scaling: Binding<RecipeScaling>, by count: Int) {
+        let before = scaling.wrappedValue
+        scaling.wrappedValue.step(by: count)
+        guard scaling.wrappedValue != before else { return }
+        announceOnceSettled(scaling.wrappedValue)
+    }
+
+    /// The phrase is built from the counts rather than `ladleYieldText`,
+    /// which hedges an uncertain yield with "About" and reads as "scaled
+    /// from Yield unknown".
     private func yieldAccessibilityValue(_ scaling: RecipeScaling) -> String {
         scaling.isScaled
             ? "\(scaling.chosenYieldText), scaled from \(scaling.baseYieldText)"
             : recipe.ladleYieldText
     }
 
-    private func scaledAnnouncement(_ scaling: RecipeScaling) -> String {
-        scaling.isScaled
-            ? "Scaled to \(scaling.chosenYieldText). Ingredient amounts updated."
-            : "Back to the recipe as written."
+    /// Spoken once the count settles, not on every step: the control reads
+    /// its own value as it changes, and a cook stepping four to eight would
+    /// otherwise hear each count twice. What VoiceOver needs is what the
+    /// page settled on, and that the ingredients followed it.
+    private func announceOnceSettled(_ scaling: RecipeScaling) {
+        announcement?.cancel()
+        announcement = Task {
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled else { return }
+            AccessibilityNotification.Announcement(
+                scaling.isScaled
+                    ? "Scaled to \(scaling.chosenYieldText). Ingredient amounts updated."
+                    : "Back to the recipe as written."
+            )
+            .post()
+        }
     }
 
     private func metadataItem(
         value: String,
         label: String,
-        systemImage: String,
-        isAdjustable: Bool = false
+        systemImage: String
     ) -> some View {
         VStack(spacing: LadleTheme.Spacing.compact) {
-            Image(systemName: systemImage)
-                .font(.system(size: LadleTheme.IconSize.small, weight: .semibold))
-                .foregroundStyle(accent.label)
-                .accessibilityHidden(true)
-            HStack(spacing: LadleTheme.Spacing.tight) {
-                Text(value)
-                    .ladleFont(.bodyStrong)
-                    .foregroundStyle(LadleTheme.Label.primary)
-                    .lineLimit(usesVerticalLayout ? 2 : 1)
-                    .minimumScaleFactor(usesVerticalLayout ? 1 : 0.78)
-                // The one thing marking the yield as a control rather than a
-                // fact. iOS spells an adjustable value this way in Settings
-                // and in menus, so it needs no other decoration.
-                if isAdjustable {
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(
-                            .system(
-                                size: LadleTheme.IconSize.small,
-                                weight: .semibold
-                            )
-                        )
-                        .foregroundStyle(LadleTheme.Label.secondary)
-                        .accessibilityHidden(true)
-                }
-            }
+            glyph(systemImage)
+            Text(value)
+                .ladleFont(.bodyStrong)
+                .foregroundStyle(LadleTheme.Label.primary)
+                .lineLimit(usesVerticalLayout ? 2 : 1)
+                .minimumScaleFactor(usesVerticalLayout ? 1 : 0.78)
             Text(label)
                 .ladleFont(.metadata)
                 .foregroundStyle(LadleTheme.Label.secondary)
-                // No line limit, as before: "Scaled from 4 servings" is
-                // longer than the labels this band was built for, and it
-                // wraps inside a half-width tile at large type rather than
-                // truncating to "Scaled from 4 ser…".
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, LadleTheme.Spacing.compact)
         .padding(.vertical, usesVerticalLayout ? LadleTheme.Spacing.medium : 0)
         .accessibilityElement(children: .combine)
+    }
+
+    private func glyph(_ systemImage: String) -> some View {
+        Image(systemName: systemImage)
+            .font(.system(size: LadleTheme.IconSize.small, weight: .semibold))
+            .foregroundStyle(accent.label)
+            .accessibilityHidden(true)
     }
 
     private var verticalDivider: some View {
@@ -204,103 +273,8 @@ struct RecipeMetadataBand: View {
     }
 }
 
-/// The servings stepper the yield opens.
-///
-/// Deliberately small: one control, the sentence that says what it does and
-/// that it is not saved, and a way back to the recipe's own number. Nothing
-/// here writes to the recipe.
-private struct ServingsSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-
-    @Binding var scaling: RecipeScaling
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: LadleTheme.Layout.rowGap) {
-                    stepperRow
-
-                    Text(
-                        "Ingredient amounts are recalculated from the recipe’s \(scaling.baseYieldText). Nothing is saved — leaving the recipe puts it back."
-                    )
-                    .ladleFont(.metadata)
-                    .foregroundStyle(LadleTheme.Label.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                    if scaling.isScaled {
-                        Button("Reset to \(scaling.baseYieldText)") {
-                            scaling.reset()
-                        }
-                        .buttonStyle(LadleButtonStyle(role: .secondary))
-                        .accessibilityIdentifier("recipe.servings.reset")
-                    }
-                }
-                .padding(LadleTheme.Spacing.regular)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(LadleTheme.Surface.porcelain)
-            .navigationTitle("Cooking for")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                        .accessibilityIdentifier("recipe.servings.done")
-                }
-            }
-        }
-        .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
-        .presentationDragIndicator(.visible)
-        .presentationBackground(LadleTheme.Surface.porcelain)
-    }
-
-    private var stepperRow: some View {
-        let layout = dynamicTypeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
-            : AnyLayout(HStackLayout())
-        return layout {
-            VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
-                Text("Servings")
-                    .ladleFont(.metadata)
-                    .foregroundStyle(LadleTheme.Label.secondary)
-                Text(scaling.chosenYieldText)
-                    .ladleFont(.recipeTitle)
-                    .foregroundStyle(LadleTheme.Label.primary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            if !dynamicTypeSize.isAccessibilitySize { Spacer() }
-
-            // The arrows disable themselves at the ends of the range instead
-            // of silently refusing, which is what a native stepper does.
-            Stepper(
-                "Servings",
-                onIncrement: scaling.canIncrease
-                    ? { scaling.step(by: 1) }
-                    : nil,
-                onDecrement: scaling.canDecrease
-                    ? { scaling.step(by: -1) }
-                    : nil
-            )
-            .labelsHidden()
-            .fixedSize()
-            .accessibilityLabel("Servings")
-            .accessibilityValue(scaling.chosenYieldText)
-        }
-        .padding(16)
-        .background(
-            LadleTheme.Surface.raised,
-            in: RoundedRectangle(
-                cornerRadius: LadleTheme.Corner.card,
-                style: .continuous
-            )
-        )
-    }
-}
-
 struct RecipeNutritionSummary: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @Environment(\.ladleAccent) private var accent
 
     let nutrition: Nutrition
     let openDetails: () -> Void
@@ -312,20 +286,14 @@ struct RecipeNutritionSummary: View {
                     Text("Nutrition per serving")
                         .ladleFont(.bodyStrong)
                         .foregroundStyle(LadleTheme.Label.primary)
-                    if displayed.isEstimated {
-                        Text("Estimated")
-                            .ladleFont(.metadata)
-                            .foregroundStyle(accent.label)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(LadleTheme.Surface.steel, in: Capsule())
-                    }
                     if displayed.approximate {
-                        // The estimate is also short by an ingredient; the
+                        // Kept, and neutral: "≈" says the figure is an
+                        // estimate, and this says it is also short by an
+                        // ingredient, which changes how to read it. The
                         // sheet names which.
                         Text("Partial")
                             .ladleFont(.metadata)
-                            .foregroundStyle(accent.label)
+                            .foregroundStyle(LadleTheme.Label.secondary)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
                             .background(LadleTheme.Surface.steel, in: Capsule())
@@ -367,7 +335,10 @@ struct RecipeNutritionSummary: View {
 
     @ViewBuilder
     private var nutritionItems: some View {
-        nutritionItem(value: displayed.ladleCalorieText, label: "Calories")
+        nutritionItem(
+            value: displayed.ladleEstimatedCalorieText,
+            label: "Calories"
+        )
         nutritionItem(value: grams(displayed.proteinGrams), label: "Protein")
         nutritionItem(value: grams(displayed.carbohydrateGrams), label: "Carbs")
         nutritionItem(value: grams(displayed.fatGrams), label: "Fat")
@@ -417,10 +388,21 @@ extension Recipe {
         return uncertainties.first { $0.field == "total_minutes" }?.reason
     }
 
+    /// The reason an estimated yield is an estimate.
+    var ladleYieldNote: String? {
+        uncertainties.first { $0.field == "servings" }?.reason
+    }
+
+    /// Whether the yield is the pipeline's estimate rather than a count the
+    /// creator stated.
+    var isYieldEstimated: Bool {
+        ladleYieldNote != nil
+    }
+
     var ladleYieldText: String {
         let value = ladleNumber(servings)
         let noun = servings == 1 ? "serving" : "servings"
-        if uncertainties.contains(where: { $0.field == "servings" }) {
+        if isYieldEstimated {
             return servings == 1 ? "Yield unknown" : "About \(value) \(noun)"
         }
         return "\(value) \(noun)"

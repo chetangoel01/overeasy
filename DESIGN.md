@@ -51,6 +51,7 @@ name a call site may use.
 | Selected accent fill | `Intent.accent` | `brick` | `#C23B26` default | `#C23B26` default | Primary action and active state |
 | Destructive | `Intent.destructive` | — | system red | system red | Delete and discard |
 | Sage success | `Intent.success` | `celery` | `#83A18A` | `#294233` | Success state |
+| Protein mark | `Mark.protein` | `thyme` | `#5A8767` | `#83A18A` | Protein's dot and bar segment on the nutrition sheet |
 | Focus signal | `Intent.focus` | `focusAccent` | `#FF5A3D` fixed | same | Focus progress and icons |
 | Focus / destructive button fill | `Intent.focusFill` / `Intent.destructiveFill` | `#C23B26` fixed | same | White-label actions |
 | Disabled | `Intent.disabledFill` / `disabledLabel` | — | steel / secondary ink | same | Any disabled control |
@@ -58,6 +59,14 @@ name a call site may use.
 `Surface.badge` exists because `Surface.steel` sits about four percent off
 `Surface.raised`: a badge drawn in steel on a raised card disappears into it.
 Badges on the porcelain ground may keep using steel.
+
+`Mark` holds colours that stand for data — a chart segment and the legend dot
+that names it. A mark is a graphic, so it answers to 3:1 against the surfaces
+it sits on, steel and raised, in both appearances. `Mark.protein` exists
+because `Intent.success` is a fill: its dark value is there for light text to
+sit on, and drawn as a mark it is about 1.3:1 against steel. The mark stays in
+the same sage family, at 3.1:1 on steel and 3.3:1 on raised in light, and
+5.1:1 and 5.8:1 in dark.
 
 The four compatibility aliases — `field`, `review`, `success` and `paprika` —
 are gone; every call site is on the role. The duplicate, unused `butter` palette
@@ -85,6 +94,7 @@ than only approximating it at the default one.
 | --- | --- | --- | --- | --- |
 | `display` | `.largeTitle` | 34 | bold | Welcome or Focus headline that owns the screen |
 | `title` | `.title` | 28 | bold | Screen title, cooking instruction |
+| `compactTitle` | `.title2` | 22 | bold | Screen title sharing a row with artwork, as in the recipe header |
 | `recipeTitle` | `.title3` | 20 | semibold | A recipe's name as content |
 | `section` | `.headline` | 17 | system | Section heading above a group |
 | `body` | `.body` | 17 | system | Running text |
@@ -101,9 +111,10 @@ because a recipe name is content and should grow with the reader's size, and
 `section` is `.headline` because a section label is chrome and stays closer to
 the surrounding UI. They diverge at large Dynamic Type, which is the point.
 
-`ladleScaledFont(size:)` is for cooking surfaces needing distance legibility
-beyond `display`, and nothing else. Symbol point sizes use `LadleTheme.IconSize`
-— `small` 13, `medium` 16, `large` 20, `feature` 28, `hero` 38.
+`ladleScaledFont(size:)` is for cooking surfaces read from counter distance —
+the Focus Mode instruction, its ingredient rows, a timer's clock — and nothing
+else. Symbol point sizes use `LadleTheme.IconSize` — `small` 13, `medium` 16,
+`large` 20, `feature` 28, `hero` 38.
 
 Metadata is always paired with `Label.secondary`. Avoid expanded display type,
 serif editorial accents, and decorative uppercase tracking.
@@ -163,7 +174,9 @@ label fell near two to one against its own fill. Pressed filled buttons darken
 the fill without fading their label.
 
 Icon-only controls are `LadleIconButton`, always on a 44-point target however
-small the glyph.
+small the glyph. The circle it draws may be smaller than the target
+(`diameter`), and on a raised card it takes the `onCard` tone, because steel
+disappears there.
 
 Buttons that carry both an icon and a label align their labels to a shared
 leading edge; centring icon and label together as one group gives a column of
@@ -240,6 +253,17 @@ navigation bar, it covers the large title.
   destination onto the recipe navigation path.
 - Recipe detail remains a pushed destination. Import and account flows remain
   native sheets.
+- Recipe detail opens on a compact header, not a hero: a 96-point thumbnail
+  beside the title and byline, the description beneath. The cook chose the
+  recipe from that photo a moment ago, so time, servings and nutrition are
+  whole on the first screen instead. At accessibility text sizes the thumbnail
+  sits above the title. Missing or late artwork keeps the same square.
+- A recipe whose link a platform player accepts offers the video from that
+  header twice: the thumbnail wears a play badge and opens the player, and a
+  tertiary "Watch original" link sits under the byline, because a badge on a
+  photo is not a label. Both are absent — never disabled — when there is no
+  playable video, and both work on a Discover preview, which has no options
+  menu. The menu keeps its own entry under the same condition.
 - Related steps stay in one sheet: Profile → Sign in, Nutrition → Apple Health,
   and failed import → correction notes, pasted details, or manual recovery.
   Back returns to the previous step.
@@ -247,8 +271,16 @@ navigation bar, it covers the large title.
   with unsaved edits shows Keep Editing and Discard Changes. The same protection
   covers manual recipe entry and all recovery forms; unchanged forms close
   immediately. Recovery Back also protects changes.
-- Servings uses a scrollable sheet, opens large at accessibility text sizes, and
-  stacks its value above the stepper so Reset remains reachable.
+- Servings are adjusted in place on the metadata band, never in a sheet. The
+  band stays two even cells; the right one reads, top to bottom, the people
+  glyph, the count between a round minus and plus with nothing else on that
+  line, and the word "servings". The circles are 30 points of `Surface.badge`
+  on 44-point targets and disable at the ends of the range. After a change the
+  last line reads "servings · Reset"; it keeps its height, and Reset's target
+  grows down into the band's padding, never up into the plus. VoiceOver meets
+  the stepper as one adjustable element. A band with nothing to scale — the
+  reimport sheet, a recipe claiming no yield — keeps the read-only yield cell,
+  and at accessibility text sizes the two cells stack.
 - Account management stays in the top-right toolbar on Recipes, Discover,
   Watch, and Inbox. Add Recipe sits beside it on Recipes and Inbox, the two
   tabs where a link arrives; Discover and Watch are consumption surfaces and
@@ -280,6 +312,26 @@ navigation bar, it covers the large title.
 - Inbox is a plain native list. Empty copy is one short sentence. Recovery and
   review actions remain explicit when an import needs attention.
 
+## Estimates
+
+- An estimated value carries one short hedge, on the value: "About 45 min",
+  "≈ 560" on calories and nothing else, "servings, estimated" under the count.
+  No accent, no badge, and no sentence beside it.
+- The reasons live once, in "About these estimates": a quiet metadata row
+  under the nutrition card — under the band when there is no nutrition —
+  collapsed by default and absent when there is nothing to list. It gives the
+  time and servings reasons, each ingredient whose nutrition amount had to be
+  assumed, by name, and says that nutrition is calculated from the ingredient
+  amounts. It is a button whose value reads "Expanded" or "Collapsed", and it
+  opens without animation under Reduce Motion.
+- A note stays on an ingredient or a step only when it changes how that line
+  should be read — the line itself is in doubt, or the totals left the
+  ingredient out ("Not counted") — and then in `Label.secondary`, like "Not
+  scaled". `FieldUncertainty.isRoutineEstimate` draws the line, by field.
+- "Partial" stays on the nutrition card, neutral: a total that is short reads
+  differently from one that is estimated. The review notice is unchanged — it
+  is a task, not an estimate.
+
 ## Cooking
 
 - Recipe detail's ingredient rows lead with a 40-point watercolour of the
@@ -299,7 +351,42 @@ navigation bar, it covers the large title.
 - Focus Mode uses the graphite ground with porcelain text and a fixed signal-red
   progress/action color.
 - One instruction owns the screen. Timers are large and stateful.
+- Under them, "For this step" lists the ingredients linked to the current
+  step, one row each: the amount, semibold, in a fixed leading column and the
+  name beside it, at 20 points through `ladleScaledFont` — `title3`'s size and
+  scaling in the two weights a row needs. Amounts follow the serving count
+  chosen before cooking and come from Full Recipe's formatter, so a row with
+  no amount is its name alone. The app never splits an amount between steps:
+  an ingredient other steps also use shows the whole-recipe amount and says
+  so under its name — "Recipe total. Also used in step 4."
+- The "For this step" header is a small disclosure on a 44-point target.
+  Folded, the section is the single line of names; it stays how the cook left
+  it until cooking ends and is not stored. At accessibility sizes the amount
+  sits above the name. The list scrolls beneath the pinned step controls.
 - Food photography and library navigation do not appear in Focus Mode.
+
+## Nutrition
+
+- The nutrition sheet is per serving throughout. The calorie hero leads, and
+  calories are the only figure that carries the "≈" marker.
+- Under the total, a "Calories from" bar splits the calories the app can
+  attribute — protein and carbohydrate at 4 kcal a gram, fat at 9 — into three
+  segments. The macro tiles beneath are its legend: a segment wears its tile's
+  dot colour, in the tiles' order, and each tile prints its own kcal and
+  whole-percent share. That line is a value, so it is `metadata` in
+  `Label.primary`. The shares are of the macro sum and always add to 100. The
+  bar is hidden from VoiceOver because the tiles speak the same figures.
+- The marks are protein `Mark.protein`, carbohydrates `Label.secondary` and fat
+  `Label.primary`. Each has to read as a segment on the steel hero and as a
+  dot on a raised tile, so all three hold 3:1 on both surfaces in light and in
+  dark.
+- An unavailable value is never drawn as zero. With any macro missing, or no
+  usable serving basis, there is no bar, no kcal line and no note; without
+  calories the bar stays and only the comparison is dropped.
+- The macro sum is never reconciled with the stated calories. When the two
+  whole numbers differ, one quiet line under the tiles states both and gives
+  no reason, and neither number moves to meet the other. See the
+  [macro calorie breakdown](docs/verification/2026-09-17-macro-calorie-breakdown.md).
 
 ## First run and Share Extension
 
@@ -319,30 +406,43 @@ navigation bar, it covers the large title.
   the complete shared extraction as a read-only recipe preview. Saving clones
   that already-resolved extraction into the current account. Neither action
   resubmits the video to the import, transcription, or model pipeline.
-- Two curated rails sit above that ranked list, because Discover is the launch
-  screen and a list ordered by saves only turns over when someone saves
-  something. **New to Overeasy** is ordered by when a source arrived here, not
-  when its creator published it. **Quick dinners** keeps the sources a saver
-  timed at thirty minutes or less; a source nobody timed is left out rather
-  than assumed quick. Each rail is one short page of the same feed — no "See
-  all", no destination of its own, because neither ordering is something the
-  app can ask for a second time — and the list beneath is headed "All recipes".
-- **Keyword shelves follow the two rails**, composed by the server from the
-  keywords the recipes carry rather than from a list anybody maintains: the
-  keywords with enough sources behind them, best-stocked first, titled in
-  words a cook uses ("One pot", "Weeknight", "High protein") and never in a
-  raw tag. They are the part of the screen that changes as the corpus grows,
-  so they sit below the rails, which do not. A keyword shelf has no caption —
-  its title says what is on it — and it is the one shelf with a **See all**,
-  because a keyword is a filter: it puts that keyword in the filter every tab
-  reads, keeps the diet and cuisine the shelf was composed under, and the
-  ranked list below becomes the rest of the row. The shelf then hides itself
-  rather than repeating the list it just opened.
+- Shelves break up that ranked list, because Discover is the launch screen
+  and a list ordered by saves only turns over when someone saves something.
+  Two of them are curated rails. **New to Overeasy** is ordered by when a
+  source arrived here, not when its creator published it. **Quick dinners**
+  keeps the sources a saver timed at thirty minutes or less; a source nobody
+  timed is left out rather than assumed quick. Each rail is one short page of
+  the same feed under a caption that says what its ordering promises — no
+  "See all", no destination of its own, because neither ordering is something
+  the app can ask for a second time.
+- **Keyword shelves** are composed by the server from the keywords the recipes
+  carry rather than from a list anybody maintains: the keywords with enough
+  sources behind them, best-stocked first, titled in words a cook uses ("One
+  pot", "Weeknight", "High protein") and never in a raw tag. A keyword shelf
+  has no caption — its title says what is on it — and it is the one shelf
+  with a **See all**, because a keyword is a filter: it puts that keyword in
+  the filter every tab reads, keeps the diet and cuisine the shelf was
+  composed under, and the ranked list becomes the rest of the row. The shelf
+  then hides itself rather than repeating the list it just opened.
+- **Two shelves lead and the rest are in the scroll.** Exactly two sit above
+  the list, which is headed "All recipes", so the ranked rows start on the
+  first screen however many shelves the corpus earns. Which two is drawn at
+  random once per launch, from the rails and the keyword shelves alike, and
+  then held the way Watch holds its order: a pull, a tab switch, a filter
+  that leaves a shelf standing and the "New recipes" page never reshuffle
+  under the cook, and a relaunch draws again. When a lead is empty, filtered
+  out, under three cards or failed to load, the next shelf in that order takes
+  its slot, and one shelf leads when only one can. Every other shelf goes into
+  the list in the same order, one after every third row, between two hairlines
+  so the rows after it do not read as the shelf's. A slot never moves as pages
+  arrive, and a shelf the list ends before reaching follows the last row
+  rather than becoming unreachable. Demo and UI-test runs draw nothing: the
+  shelves stay as fetched, so the two rails lead.
 - Every shelf is composed under the cook's filter, so a vegetarian is offered
   vegetarian shelves rather than vegetarian cards under a title chosen for
   somebody else — and a keyword with too little behind it once the diet
   applies has no shelf at all.
-- A shelf is decoration on top of the feed, so it fails quietly: a shelf that
+- A shelf is decoration on the feed, so it fails quietly: a shelf that
   does not load is absent rather than an error, and a shelf with fewer than
   three cards is dropped instead of drawn short. Searching hides them all
   outright, because search replaces the feed and unsearched cards beside the
@@ -362,6 +462,10 @@ navigation bar, it covers the large title.
   August 2026"). A guest sees the word "Guest", what is on this device, and a
   sign-in button. Beneath that header sit accent color, saved-recipe count,
   and sync state, as rows under section headers with no explanatory footers.
+  The app icons are one row that scrolls sideways and ends on half a tile; the
+  installed icon wears the accent ring and a checkmark leads its caption, the
+  row becomes a standard list at accessibility sizes, and a choice moves
+  neither the form nor the row.
   Internal installation identifiers stay hidden.
 - A new Apple or Google account is asked its name once, on a full screen
   between the welcome and the walkthrough, with the keyboard already up. Skip

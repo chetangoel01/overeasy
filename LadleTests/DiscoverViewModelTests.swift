@@ -133,7 +133,10 @@ final class DiscoverViewModelTests: XCTestCase {
         let service = DiscoverTestService(
             result: .success((1...4).map { paged($0) })
         )
-        let viewModel = DiscoverViewModel(service: service)
+        let viewModel = DiscoverViewModel(
+            service: service,
+            shuffleShelfIDs: { $0 }
+        )
 
         await viewModel.load()
 
@@ -172,7 +175,9 @@ final class DiscoverViewModelTests: XCTestCase {
         )
     }
 
-    func testTheKeywordShelvesArriveNamedAndSitAfterTheTwoRails() async {
+    /// Two shelves lead and the rest go into the list. With the order left
+    /// as fetched, which is how a demo run draws it, the two are the rails.
+    func testTwoShelvesLeadAndTheKeywordShelvesArriveNamedInTheFeed() async {
         let service = DiscoverTestService(
             result: .success((1...4).map { paged($0) })
         )
@@ -180,28 +185,108 @@ final class DiscoverViewModelTests: XCTestCase {
             keywordShelf(.weeknight, "Weeknight", count: 4),
             keywordShelf(.onePot, "One pot", count: 3),
         ])
-        let viewModel = DiscoverViewModel(service: service)
+        let viewModel = DiscoverViewModel(
+            service: service,
+            shuffleShelfIDs: { $0 }
+        )
 
         await viewModel.load()
 
         XCTAssertEqual(
-            viewModel.visibleShelves.map(\.id),
-            [
-                .newToOvereasy,
-                .quickDinners,
-                .keyword("weeknight"),
-                .keyword("onePot"),
-            ]
+            viewModel.leadShelves.map(\.id),
+            [.newToOvereasy, .quickDinners]
+        )
+        XCTAssertEqual(
+            viewModel.feedShelves.map(\.id),
+            [.keyword("weeknight"), .keyword("onePot")]
         )
         // The words come off the wire. Nothing in the app maps a keyword to
         // a shelf heading, so a keyword promoted after this build shipped
         // still draws.
         XCTAssertEqual(
-            viewModel.visibleShelves.map(\.title).suffix(2),
+            viewModel.feedShelves.map(\.title),
             ["Weeknight", "One pot"]
         )
-        XCTAssertNil(viewModel.visibleShelves.last?.caption)
+        XCTAssertNil(viewModel.feedShelves.last?.caption)
         XCTAssertEqual(service.keywordShelfRequests, [.none])
+    }
+
+    /// Which two lead is drawn once for the launch, from every shelf alike.
+    /// A pull and the "New recipes" page both refetch the shelves and must
+    /// not redraw them under the cook; a lead that drops out hands its slot
+    /// to the next shelf in the same order.
+    func testTheShelfDrawHoldsForTheLaunchAndALostSlotPassesOn() async {
+        let recipes = (1...4).map { paged($0) }
+        let service = DiscoverTestService(
+            result: .success(recipes),
+            savedResult: .success(SavedDiscoverRecipe(
+                recipe: PreviewFixtures.recipes[0], revision: 1
+            ))
+        )
+        service.keywordShelfResult = .success([
+            keywordShelf(.weeknight, "Weeknight", count: 4),
+            keywordShelf(.onePot, "One pot", count: 3),
+        ])
+        let clock = TestClock()
+        // Only the first draw reverses, so a second one would show: it would
+        // put the shelves back in the order they were fetched.
+        var draws = 0
+        let viewModel = DiscoverViewModel(
+            service: service,
+            now: clock.now,
+            shuffleShelfIDs: { ids in
+                draws += 1
+                return draws == 1 ? ids.reversed() : ids
+            }
+        )
+        let drawn: [DiscoverShelf.ID] = [
+            .keyword("onePot"),
+            .keyword("weeknight"),
+            .quickDinners,
+            .newToOvereasy,
+        ]
+
+        await viewModel.load()
+        XCTAssertEqual(
+            viewModel.leadShelves.map(\.id),
+            [.keyword("onePot"), .keyword("weeknight")]
+        )
+        XCTAssertEqual(
+            viewModel.feedShelves.map(\.id),
+            [.quickDinners, .newToOvereasy]
+        )
+
+        await viewModel.load()
+        XCTAssertEqual(viewModel.visibleShelves.map(\.id), drawn)
+
+        clock.advance(by: DiscoverViewModel.quietRefreshInterval)
+        service.overrideNextPage = [paged(5), paged(6)]
+        await viewModel.refreshQuietly()
+        await viewModel.applyPending()
+        XCTAssertEqual(viewModel.visibleShelves.map(\.id), drawn)
+
+        // One pot had three cards, so this save takes it under the floor.
+        _ = await viewModel.save(recipes[0])
+        XCTAssertEqual(
+            viewModel.leadShelves.map(\.id),
+            [.keyword("weeknight"), .quickDinners]
+        )
+        XCTAssertEqual(viewModel.feedShelves.map(\.id), [.newToOvereasy])
+    }
+
+    /// One shelf after every third row. A slot is fixed by the shelf's place
+    /// in the order, so rows arriving never move one already drawn; a shelf
+    /// the list ends before reaching follows the last row instead.
+    func testFeedShelvesTakeEveryThirdRowAndTheLeftoversFollowTheLastOne() {
+        func slots(rows: Int, hasMore: Bool) -> [Int?] {
+            (0..<3).map {
+                DiscoverShelf.feedSlot($0, rows: rows, hasMore: hasMore)
+            }
+        }
+
+        XCTAssertEqual(slots(rows: 7, hasMore: true), [2, 5, nil])
+        XCTAssertEqual(slots(rows: 7, hasMore: false), [2, 5, 6])
+        XCTAssertEqual(slots(rows: 2, hasMore: false), [1, 1, 1])
     }
 
     /// The shelves are the feed cut a different way, so they answer the same
@@ -228,7 +313,10 @@ final class DiscoverViewModelTests: XCTestCase {
             keywordShelf(.weeknight, "Weeknight", count: 4),
             keywordShelf(.onePot, "One pot", count: 3),
         ])
-        let viewModel = DiscoverViewModel(service: service)
+        let viewModel = DiscoverViewModel(
+            service: service,
+            shuffleShelfIDs: { $0 }
+        )
 
         await viewModel.load()
         viewModel.filter = RecipeFilter(keywords: [.weeknight])
@@ -248,7 +336,10 @@ final class DiscoverViewModelTests: XCTestCase {
         let recipes = (1...4).map { paged($0) }
         let service = DiscoverTestService(result: .success(recipes))
         service.keywordShelfResult = .failure(TestError.failed)
-        let viewModel = DiscoverViewModel(service: service)
+        let viewModel = DiscoverViewModel(
+            service: service,
+            shuffleShelfIDs: { $0 }
+        )
 
         await viewModel.load()
 

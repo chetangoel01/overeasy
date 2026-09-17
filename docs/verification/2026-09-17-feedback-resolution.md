@@ -1,9 +1,9 @@
 # September 17 feedback resolution
 
 Scope: all 22 open GitHub issues, confirmed by the owner on September 17, 2026.
-Branch: `codex/feedback-resolution-2026-09-17`, based on `81b101d`.
+Branches: `codex/feedback-resolution-2026-09-17` (based on `81b101d`), then one `codex/feedback-…` branch per issue group; all merged to `main` on September 17.
 
-Implementation proceeds in verified, task-sized commits. Design choices remain pending until the owner answers the in-task questions. Physical-device checks require a connected iPhone. Both were initially disconnected; the iPhone 17 Pro later became reachable and reports Overeasy build `20260910.2`. Audible delivery is still unverified.
+Implementation proceeds in verified, task-sized commits. The owner answered the open product questions on September 17 — the layout group from a live mockup — and those changes are implemented below. Physical-device checks require a connected iPhone. Both were initially disconnected; the iPhone 17 Pro later became reachable and reports Overeasy build `20260910.2`. Audible delivery is still unverified.
 
 | Issue | Work | Status |
 | --- | --- | --- |
@@ -16,22 +16,31 @@ Implementation proceeds in verified, task-sized commits. Design choices remain p
 | [#140](https://github.com/chetangoel01/overeasy/issues/140) | Keep loading and sync indicators from shifting the screen | Implemented and verified |
 | [#141](https://github.com/chetangoel01/overeasy/issues/141) | Polish app motion with consistent native, tactile feedback | Implemented and verified |
 | [#142](https://github.com/chetangoel01/overeasy/issues/142) | Define and enforce consistent button design rules | Implemented and verified |
-| [#143](https://github.com/chetangoel01/overeasy/issues/143) | Explore recipe reviews and more visible likes and save counts | Owner chose existing counts plus star ratings; [API implemented and verified](2026-09-17-recipe-ratings-api.md) on `codex/feedback-143-ratings-api`; iOS surfaces pending the layout review |
-| [#144](https://github.com/chetangoel01/overeasy/issues/144) | Add a calorie breakdown to nutrition per serving | Pending |
-| [#145](https://github.com/chetangoel01/overeasy/issues/145) | Make recipe estimate notes quieter and less repetitive | Pending |
-| [#146](https://github.com/chetangoel01/overeasy/issues/146) | Polish the app icon selector layout in Profile | Pending |
+| [#143](https://github.com/chetangoel01/overeasy/issues/143) | Explore recipe reviews and more visible likes and save counts | Owner chose existing counts plus star ratings; [API implemented, verified and merged](2026-09-17-recipe-ratings-api.md); the iOS surfaces (rating on recipe details, stars beside the save count on Discover) are next |
+| [#144](https://github.com/chetangoel01/overeasy/issues/144) | Add a calorie breakdown to nutrition per serving | Macro breakdown implemented and verified; by-ingredient deferred |
+| [#145](https://github.com/chetangoel01/overeasy/issues/145) | Make recipe estimate notes quieter and less repetitive | Implemented and verified |
+| [#146](https://github.com/chetangoel01/overeasy/issues/146) | Polish the app icon selector layout in Profile | Implemented and verified; the confirmation dialog itself remains #147 |
 | [#147](https://github.com/chetangoel01/overeasy/issues/147) | Investigate the layout of the icon-change confirmation dialog | System ownership confirmed; physical reproduction pending |
-| [#148](https://github.com/chetangoel01/overeasy/issues/148) | Adjust servings directly on the recipe without opening a sheet | Pending |
+| [#148](https://github.com/chetangoel01/overeasy/issues/148) | Adjust servings directly on the recipe without opening a sheet | Implemented and verified |
 | [#149](https://github.com/chetangoel01/overeasy/issues/149) | Include vegetarian and vegan recipes in pescatarian filtering | Implemented and verified |
-| [#150](https://github.com/chetangoel01/overeasy/issues/150) | Make the original video easy to access from recipe details | Pending |
-| [#151](https://github.com/chetangoel01/overeasy/issues/151) | Reduce the large thumbnail at the top of recipe details | Pending |
+| [#150](https://github.com/chetangoel01/overeasy/issues/150) | Make the original video easy to access from recipe details | Implemented and verified |
+| [#151](https://github.com/chetangoel01/overeasy/issues/151) | Reduce the large thumbnail at the top of recipe details | Implemented and verified |
 | [#152](https://github.com/chetangoel01/overeasy/issues/152) | Find why total time still fails to show on some recipes | Implemented and verified; production backfill pending |
-| [#153](https://github.com/chetangoel01/overeasy/issues/153) | Show two Discover shelves up front and move the rest into the scroll | Pending |
-| [#160](https://github.com/chetangoel01/overeasy/issues/160) | Show ingredient quantities in recipe Focus mode | Pending |
+| [#153](https://github.com/chetangoel01/overeasy/issues/153) | Show two Discover shelves up front and move the rest into the scroll | Implemented and verified |
+| [#160](https://github.com/chetangoel01/overeasy/issues/160) | Show ingredient quantities in recipe Focus mode | Implemented and verified |
 | [#161](https://github.com/chetangoel01/overeasy/issues/161) | Verify cooking timer completion plays a sound and shows an alert | Permission-delay defects fixed; physical sound/alert checks pending |
 
 ## Verification
 
+- #151: on the old layout the nutrition card ended 76 points under the tab bar (866.7 against 791); that first-screen assertion failed there and now passes inside the scaling smoke journey. At accessibility sizes the thumbnail stacks above the title. Captured in dark, light and the largest text size. [Recipe details layout](2026-09-17-recipe-details-layout.md).
+- #150: the link and the play-badged thumbnail appear only when `VideoEmbed.url(for:)` accepts the link, on saved recipes and Discover previews, which had no path to the player before; the menu entry is gated the same way. By hand, the player opens from both places, the reading position is kept, and a hand-typed recipe shows no dead control. [Recipe details layout](2026-09-17-recipe-details-layout.md).
+- #148: inline minus, count and plus with "servings · Reset"; `ServingsSheet` is deleted. Red on the old layout (2 failures), and the smoke journey passes. Everything under the band is pixel-identical unscaled and scaled. VoiceOver gets one adjustable element and one settled announcement. [Recipe details layout](2026-09-17-recipe-details-layout.md).
+- #145: the accent time note and the "Estimated" pill are removed; routine `nutritionAmount` assumptions moved into one collapsed "About these estimates" row; "Not counted" and extraction doubts stay on their rows in neutral type. The list test was red against a shell (2 failures). [Recipe details layout](2026-09-17-recipe-details-layout.md).
+- #153: two shelves now lead Discover and the rest sit in the ranked list, one after every third row, with leftovers after the last row once the list ends. Which two lead is drawn once per launch from the rails and keyword shelves alike and holds through a pull, a tab switch, a filter change and the New recipes page; a lead that is empty, filtered out, under three cards or failed hands its slot to the next shelf. Demo and UI-test runs draw nothing, so the rails lead there. Looking at it found a lazy-stack fault — after a save changed the lead shelves mid-scroll the viewport jumped — fixed by keeping only the rows lazy. [Two shelves lead Discover](2026-09-17-discover-two-shelves.md); the rule is in [DESIGN.md](../../DESIGN.md#discover-and-account).
+- #160: a new view-model test failed red (two assertions) then passed; amounts under "For this step" share Full Recipe's rule, a reused ingredient shows its recipe total and says so, and a small fold holds for the cooking session. [Focus step amounts](2026-09-17-focus-step-amounts.md).
+- #146: one sideways-scrolling row, ring plus caption check, a list at accessibility sizes. On the owner's instruction to cut UI tests, the seven-icon switching test became one check that the last icon in the row can be reached and chosen through the real system switch; the store's persistence stays with `AppIconStoreTests`. [App icon picker](2026-09-17-app-icon-picker.md).
+- Combined check after every branch landed: all 598 app tests pass on the merged code (one intentional skip), with the four smoke journeys — Discover tap and long-press, scaling, inbox → detail → cooking, and the icon row.
+- #144: the owner chose the macro breakdown on September 17; calories by ingredient is deferred because it needs per-ingredient figures from the pipeline. Shares that add to 100 and the rule that the macro sum is never reconciled with the stated calories were both verified red/green. Protein's dot and bar segment had used the success fill, which all but vanished in dark mode (1.3:1 on the hero); they now use a `Mark.protein` colour, and a contrast test, red first, holds all three macro marks to 3:1 on the hero and the tiles in both appearances. 95 shared-domain tests and 592 app tests pass (one intentional skip), as does the UI check that opens the sheet. Light, dark and largest-text captures are in the [macro calorie breakdown](2026-09-17-macro-calorie-breakdown.md).
 - #140: the owner chose to hide routine sync entirely. A hosted regression measured the "Syncing recipes…" and "Refreshing Discover…" strips at 36 points each inside the top safe-area inset, which is what pushed every screen down and back; it now measures zero for routine work and still measures the failed strips. The tall empty header reproduced as a second defect: every strip's fill painted up under the clear navigation bar and covered the large title, on the failure strips and the New recipes pill too; the fill now stops at the strip. The placeholders already kept the normal chrome and nothing moves when the feed arrives. All 591 app tests pass (one intentional skip), and both UI scenarios that expect the failed-sync strip pass. Decision, causes, captures, and what was left alone are in [quiet sync and refresh](2026-09-17-quiet-sync.md); the rule is in [DESIGN.md](../../DESIGN.md#motion-and-feedback).
 
 - #141: a hosted SwiftUI probe reproduced a forced 0.5-second save animation outside the presenting view. The save model now publishes state without dictating motion; RecipeDetail, Discover, and FullRecipe consult Reduce Motion for their explicit save and scroll transitions. The hosted regression passes, and all 590 app tests pass (one intentional skip). Existing press and haptic behavior was audited and is documented in [DESIGN.md](../../DESIGN.md#motion-and-feedback).
@@ -60,46 +69,33 @@ No issues are considered complete solely because an implementation exists; unres
 ## Decisions and device checks still pending
 
 The owner has approved backend short-link resolution and bounded missing-time
-repair including cached templates, and on September 17 chose to hide routine
-sync status entirely (#140) rather than move it into the navigation bar; all
-three are implemented above. These earlier questions remain unanswered, so
-their dependent product changes have not been selected on the owner's behalf:
+repair including cached templates. On September 17 the owner also chose to
+hide routine sync status entirely (#140) rather than move it into the
+navigation bar, and macros over ingredient contributions for the calorie
+breakdown (#144), which stay deferred; all four are implemented above. On the
+same day the owner approved the layout group (#145, #146, #148, #150, #151,
+#153, #160) from a live mockup — the Watch original link under the byline, the
+second servings design, random lead shelves per relaunch, and a small fold on
+Focus mode's ingredient list — and those are implemented above too. What
+remains:
 
-- Layout group (#145, #146, #148, #150, #151, #153, #160): proposed compact
-  thumbnail header with “Watch original”; inline serving minus/plus and Reset;
-  neutral expandable estimate notes; horizontal icon choices with a list for
-  accessibility text; two randomly selected top shelves per launch with the
-  others between feed rows; Focus quantities under “For this step”, explicitly
-  labelled as recipe totals when an ingredient is reused across steps.
 - Engagement (#143): the owner chose existing counts plus 1–5 star ratings,
   with no written reviews. The API is built, and who may rate and how a rating
   is changed or cleared are in the
-  [ratings API record](2026-09-17-recipe-ratings-api.md). Where the counts and
-  the rating control sit on Discover cards and recipe details joins the layout
-  group above. One engineering call awaits the owner: a rating currently
-  outlives the deletion of the saved copy.
-- Calorie breakdown (#144): macros, ingredient contributions, or both.
+  [ratings API record](2026-09-17-recipe-ratings-api.md). The iOS surfaces —
+  the rating control on recipe details and stars beside the save count on
+  Discover — were approved in the same mockup and are next. One engineering
+  call awaits the owner: a rating currently outlives the deletion of the
+  saved copy.
 - Phone QA (#147, #161): reproduce the system icon confirmation, and listen
   for the timer in the foreground and with the phone locked, recording Silent
   mode and Focus. Mirroring ultimately reports “iPhone in Use”. No listening
   result has been supplied and the installed TestFlight build predates these
   fixes. Repeat final timer checks on a build containing the changes.
 
-## Current review checkpoint
+## Current checkpoint
 
-- [Draft PR #163](https://github.com/chetangoel01/overeasy/pull/163) contains the feedback fixes.
-- Dashboard polling has its own [draft PR #162](https://github.com/chetangoel01/overeasy/pull/162).
-- Both are stacked on [draft PR #164](https://github.com/chetangoel01/overeasy/pull/164), which repairs pre-existing CI failures: the removed MinIO Docker Hub image and three fixed PCRE2 findings. The new registry passes the storage integration checks; the backend, ingress and egress images build with zero fixable HIGH/CRITICAL scan findings. The locked dependency audit is clean. No security gate was relaxed.
-- Backend: 1,137 passing tests after the owner's requested test cleanup; 89
-  focused checks, lint, and type checks also pass. Six weak tests and repeated
-  implementation assertions were removed; the
-  [test maintenance record](../../Backend/docs/ci-and-production-verification.md#test-maintenance)
-  records the scope and the revised guidance. Product behavior is unchanged.
-- App: 590 tests, one intentional skip, no failures. App and Share Extension
-  compile in that run. Shared domain: 91 passing tests after the filter change.
-- Three affected UI checks pass: Discover save, retry alignment, and AX5 Save.
-- Xcode changed from 26.6 to 27.0 during verification. A simulator component
-  update and a reboot of the dedicated test simulator resolved the transient
-  runner failures; the final full app run used Xcode 27.0 on iOS 26.5.
-- Production has been inspected read-only. Deployment and existing-data tag,
-  timing, and nutrition refreshes have not been performed.
+- Merged to `main` on September 17: the CI repairs ([#164](https://github.com/chetangoel01/overeasy/pull/164)), dashboard polling ([#162](https://github.com/chetangoel01/overeasy/pull/162)), the feedback fixes ([#163](https://github.com/chetangoel01/overeasy/pull/163)), the ratings API ([#165](https://github.com/chetangoel01/overeasy/pull/165)), quiet sync ([#166](https://github.com/chetangoel01/overeasy/pull/166)), the macro calorie breakdown ([#167](https://github.com/chetangoel01/overeasy/pull/167)), two Discover shelves ([#168](https://github.com/chetangoel01/overeasy/pull/168)), Focus amounts and the icon row ([#169](https://github.com/chetangoel01/overeasy/pull/169)), and recipe details ([#170](https://github.com/chetangoel01/overeasy/pull/170)), plus five dependency bumps. `main`'s backend gate is green for the first time since September 14. No security gate was relaxed.
+- App: 598 tests on the merged code, one intentional skip, no failures, and four smoke UI journeys. Shared domain: 95 tests. Backend: 1,141 tests, lint and type checks clean.
+- The owner asked on September 17 for the test suite to be cut down, UI tests especially; that work follows separately and these counts will fall.
+- Production has been inspected read-only. Deployment, migration `0027`, and the existing-data tag, timing, and nutrition refreshes have not been performed. Phone checks (#147, #161) need a TestFlight build containing these changes.

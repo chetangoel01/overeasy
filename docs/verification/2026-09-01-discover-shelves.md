@@ -4,6 +4,11 @@ Date: September 1, 2026
 Issue: [#29](https://github.com/chetangoel01/recipe-app/issues/29)
 Status: **built and verified on the review simulator and the local stack.**
 
+> Superseded in part on September 17, 2026. The two rails no longer hold the
+> top of the screen by right: any two shelves lead, drawn once per launch, and
+> the rest sit in the list. What each rail is and how it is fetched is
+> unchanged. See `2026-09-17-discover-two-shelves.md`.
+
 ## What was wrong
 
 Since #27 Discover is the launch screen, so the first thing a cook sees on

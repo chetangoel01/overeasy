@@ -103,3 +103,64 @@ struct NutritionTests {
         #expect(restored.approximate)
     }
 }
+
+@Suite("Macro calories")
+struct MacroCaloriesTests {
+    @Test
+    func countsFourFourAndNineCaloriesAGram() throws {
+        let macros = try #require(
+            nutrition(protein: 38, carbohydrate: 35, fat: 42).macroCalories
+        )
+
+        #expect(macros.protein.calories == 152)
+        #expect(macros.carbohydrate.calories == 140)
+        #expect(macros.fat.calories == 378)
+        #expect(macros.total == 670)
+    }
+
+    @Test
+    func wholePercentSharesAddToOneHundred() throws {
+        // A gram of each is 4, 4 and 9 of 17 kcal — 23.5, 23.5 and 52.9
+        // percent, which rounded one at a time read 24 + 24 + 53 = 101.
+        let macros = try #require(
+            nutrition(protein: 1, carbohydrate: 1, fat: 1).macroCalories
+        )
+
+        #expect(macros.protein.percent == 24)
+        #expect(macros.carbohydrate.percent == 23)
+        #expect(macros.fat.percent == 53)
+    }
+
+    @Test
+    func aMissingMacroLeavesNoBreakdown() {
+        let nutrition = nutrition(protein: 38, carbohydrate: nil, fat: 42)
+
+        #expect(nutrition.macroCalories == nil)
+    }
+
+    @Test
+    func nothingToShareOutLeavesNoBreakdown() {
+        #expect(
+            nutrition(protein: 0, carbohydrate: 0, fat: 0).macroCalories == nil
+        )
+        // A negative gram count is bad data, not a share of anything.
+        #expect(
+            nutrition(protein: -5, carbohydrate: 50, fat: 10).macroCalories
+                == nil
+        )
+    }
+
+    private func nutrition(
+        protein: Decimal?,
+        carbohydrate: Decimal?,
+        fat: Decimal?
+    ) -> Nutrition {
+        Nutrition(
+            proteinGrams: protein,
+            carbohydrateGrams: carbohydrate,
+            fatGrams: fat,
+            servingBasis: 1,
+            isEstimated: true
+        )
+    }
+}

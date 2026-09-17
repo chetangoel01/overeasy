@@ -30,9 +30,13 @@ already carries, so the rendering built here is ready for it.
   under "Total time".
 - **An estimated total says "About 45 min"** — the rule "About 4 servings"
   already uses for an estimated yield.
-- **The reason sits under the band as one line**, in the same font and accent
-  colour as the notes on an uncertain ingredient or step, so the cook can see
-  the number came from the method rather than the creator.
+- **The reason is one tap away, not under the band.** It shipped as an accent
+  line beneath the card; [#145](https://github.com/chetangoel01/overeasy/issues/145)
+  moved it into the page's "About these estimates" note, with the servings and
+  ingredient reasons, because a hedged value, a badge and a sentence were
+  saying one thing three times. "About" on the value is the only hedge the
+  band itself carries. See the
+  [layout record](2026-09-17-recipe-details-layout.md).
 - **Time filters and sorts follow the same rule.** A cook-only 20-minute
   recipe now passes "30 min or less", sorts into its right place by time and
   appears under "Ready in 30 minutes". Discover's "Quick dinners" shelf reads
@@ -55,7 +59,7 @@ already carries, so the rendering built here is ready for it.
   estimate be labeled inline. Yield already does that in this exact band, and
   a second visual language for the same idea two inches apart would be worse
   than none.
-- **An estimate never blocks.** The note is rendered only when there is a
+- **An estimate never blocks.** The reason is offered only when there is a
   number for it to explain, and carries no review affordance — it says how
   the number was arrived at, not that the recipe needs checking.
 - **The demo library carries all three shapes.** One-Pot Lemon Orzo states
@@ -76,7 +80,8 @@ already carries, so the rendering built here is ready for it.
 - `Packages/LadleCore/Sources/LadleCore/RecipeQuery.swift` — the time filter
   and the time sort.
 - `Ladle/RecipeDetail/RecipeMetadataBand.swift` — the band's time item,
-  `ladleTimeItem`, `ladleTimeNote`, and the note line under the card.
+  `ladleTimeItem` and `ladleTimeNote`. The note line under the card is gone
+  since #145; `Ladle/RecipeDetail/RecipeEstimates.swift` reads the reason.
 - `Ladle/Library/LibraryViewModel.swift` — the Quick collection.
 - `Ladle/Remote/DiscoverService.swift` — the demo Quick dinners filter.
 - `Ladle/Data/PreviewFixtures.swift` — `DemoTiming`, the cook-only and
@@ -104,7 +109,7 @@ already carries, so the rendering built here is ready for it.
     cooking, showing "—" under "Total time".
   - `after-cook-only.png` — the same recipe showing "35 min · Cook time".
   - `after-estimated.png` — Sheet-Pan Gochujang Chicken showing
-    "About 45 min" with its reason under the band.
+    "About 45 min" with its reason under the band, as it was until #145.
 
 The before capture was taken with the demo fixture already carrying the
 cook-only recipe and the band still reading `totalMinutes` — on the

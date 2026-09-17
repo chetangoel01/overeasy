@@ -136,6 +136,8 @@ struct LibraryView: View {
     var authClient: AuthClient?
     var googleSignIn: (any GoogleSignInProviding)?
     var discoverService: any DiscoverServing = DemoDiscoverService()
+    /// Left as fetched by default, like the demo service it sits beside.
+    var shuffleShelfIDs: ([DiscoverShelf.ID]) -> [DiscoverShelf.ID] = { $0 }
     var syncStatus: SyncStatus = SyncStatus()
     var notificationNavigation: NotificationNavigation = .shared
     var canImport = true
@@ -503,7 +505,8 @@ struct LibraryView: View {
             openRecipe: { recipe, save in
                 showDiscoverRecipe(recipe, save: save)
             },
-            onInitialLoadFailed: fallBackToRecipesIfNeeded
+            onInitialLoadFailed: fallBackToRecipesIfNeeded,
+            shuffleShelfIDs: shuffleShelfIDs
         )
     }
 

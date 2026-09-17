@@ -1,6 +1,7 @@
 import XCTest
 
-/// Scaling a recipe from its yield, end to end, on the seeded demo library.
+/// Scaling a recipe from the band's inline stepper, end to end, on the seeded
+/// demo library.
 final class RecipeScalingUITests: XCTestCase {
     @MainActor
     func testChangingTheYieldRewritesTheIngredientAmounts() {
@@ -27,49 +28,41 @@ final class RecipeScalingUITests: XCTestCase {
         ]
         XCTAssertTrue(asWritten.waitForExistence(timeout: 3))
 
-        // The salt is seasoned by eye, so it has no amount to multiply. It
-        // reads as its name at any count, and says nothing about scaling
-        // until the page is scaled.
-        let notScaled = app.descendants(matching: .any).matching(
-            NSPredicate(format: "label BEGINSWITH 'Not scaled'")
+        // The header is a thumbnail, not a hero, so the facts a cook opens a
+        // recipe for are whole on the first screen. Frames, not `isHittable`:
+        // under the 322-point hero the nutrition card's hit point was already
+        // reachable while most of the card sat beneath the tab bar.
+        let servings = app.descendants(matching: .any)["recipe.servings"]
+        XCTAssertTrue(servings.waitForExistence(timeout: 3))
+        let nutrition = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH 'Nutrition per serving'")
         ).firstMatch
-        XCTAssertFalse(notScaled.exists)
+        XCTAssertLessThanOrEqual(
+            nutrition.frame.maxY,
+            app.tabBars.firstMatch.frame.minY,
+            "Time, servings and nutrition open without scrolling"
+        )
 
-        let yield = app.buttons["recipe.yield"]
-        XCTAssertTrue(yield.waitForExistence(timeout: 3))
-        for _ in 0..<4 where !yield.isHittable {
-            app.swipeUp()
-        }
-        yield.tap()
-
-        // Four servings to eight, one arrow at a time.
-        let increment = app.steppers.firstMatch.buttons["Increment"]
-        XCTAssertTrue(increment.waitForExistence(timeout: 3))
+        // Four servings to eight, on the band itself: no sheet, no Done. The
+        // stepper is one adjustable element to VoiceOver, so the test presses
+        // where a finger does — the plus is the trailing end of the control.
+        let plus = servings.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)
+        )
         for _ in 0..<4 {
-            increment.tap()
+            plus.tap()
         }
-        attachScreenshot(of: app, named: "Servings stepper at 8")
-        app.buttons["recipe.servings.done"].tap()
-
-        // The amount is recomputed from the split, and the band says what it
-        // was scaled from rather than claiming the recipe yields eight.
         XCTAssertTrue(
             app.staticTexts["2 lb ground beef — 80/20, in four loose balls"]
                 .waitForExistence(timeout: 3)
         )
         XCTAssertFalse(asWritten.exists)
-        XCTAssertTrue(app.staticTexts["Scaled from 4 servings"].exists)
 
-        attachScreenshot(of: app, named: "Recipe scaled to 8 servings")
-
-        // The row a multiplier could not reach says so, rather than leaving
-        // a cook to notice that one line did not move.
-        XCTAssertTrue(notScaled.waitForExistence(timeout: 3))
-        XCTAssertTrue(app.staticTexts["kosher salt"].exists)
-        for _ in 0..<6 where !notScaled.isHittable {
-            app.swipeUp()
-        }
-        attachScreenshot(of: app, named: "Scaled list with a to-taste row")
+        // Reset is the way back, and it leaves with the scaling it undoes.
+        let reset = app.buttons["recipe.servings.reset"]
+        reset.tap()
+        XCTAssertTrue(asWritten.waitForExistence(timeout: 3))
+        XCTAssertFalse(reset.exists)
     }
 
     private func launchApp(startingOn tab: String) -> XCUIApplication {
@@ -87,15 +80,5 @@ final class RecipeScalingUITests: XCTestCase {
         )
         button.tap()
         return app
-    }
-
-    private func attachScreenshot(
-        of app: XCUIApplication,
-        named name: String
-    ) {
-        let attachment = XCTAttachment(screenshot: app.screenshot())
-        attachment.name = name
-        attachment.lifetime = .keepAlways
-        add(attachment)
     }
 }

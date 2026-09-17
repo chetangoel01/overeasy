@@ -1,6 +1,6 @@
 # App icons, chosen in Profile
 
-Updated: September 10, 2026
+Updated: September 17, 2026
 
 Branch: `codex/liquid-glass-icons`
 
@@ -41,11 +41,13 @@ so iOS can apply its native Liquid Glass materials.
 
 ## What the cook sees
 
-- Profile has an **App icon** section below Appearance. A grid shows all
-  seven named options, with a ring and checkmark on the installed icon.
-- Columns adapt to the screen width and Dynamic Type. Icons stay 60 points
-  square, labels use the app's footnote style, and each choice has a named
-  VoiceOver button with a selected value.
+- Profile has an **App icon** section below Appearance. One row that scrolls
+  sideways shows all seven named options, with a ring around the installed
+  icon and a checkmark leading its caption. The grid this replaced, and why,
+  are in the [September 17 picker record](2026-09-17-app-icon-picker.md).
+- Icons stay 60 points square, labels use the app's footnote style, and each
+  choice has a named VoiceOver button with a selected value. At accessibility
+  text sizes the row becomes a standard list with a trailing checkmark.
 - Every icon is available to everyone, regardless of diet. Tapping switches
   the home-screen icon through the existing iOS API. iOS owns its confirmation
   notice and persists the selection across launches.
@@ -134,7 +136,8 @@ and [alternate icon configuration](https://developer.apple.com/documentation/xco
 
 - `Ladle/Design/AppIconStore.swift`: seven choices, stable installed avocado
   name, image names, and explicit avocado offer text.
-- `Ladle/Account/AccountSheet.swift`: adaptive named icon grid.
+- `Ladle/Account/AccountSheet.swift`: the named icon row, and its list at
+  accessibility sizes.
 - `Ladle/Resources/AppIcons`: seven native layered icon packages.
 - `Ladle/Resources/Assets.xcassets`: native Default and Dark picker previews.
 - `Tools/app-icon/build_icons.py`, `originals`, and `generation-prompts.json`: repeatable conversion and original artwork provenance.
@@ -142,8 +145,10 @@ and [alternate icon configuration](https://developer.apple.com/documentation/xco
 - `AppIconStoreTests`: complete selection/restoration mapping and offer gate.
 - `ProjectSmokeTests`: compiled declarations, drawable previews, separate
   backgrounds, visible 1024-pixel foreground layers, and transparent exteriors.
-- `ProfileSheetUITests`: actual switching through all seven choices, relaunch
-  persistence, reachable tap targets, and restoration of the original icon.
+- `ProfileSheetUITests`: one smoke test that reaches the last icon in the
+  row, switches to it through the real system API, and puts the egg back.
+  Until September 17 it switched through all seven and relaunched; the
+  store's side of that is `AppIconStoreTests`.
 
 ## September 10 Liquid Glass verification
 
@@ -332,8 +337,7 @@ cannot put it back — it is not a preference of ours — and neither does
 reinstalling from a test run. A simulator left on the plant-based icon makes
 the two diet UI tests fail, because a cook already carrying an alternate is not
 offered it: `xcrun simctl uninstall <udid> com.ladle.ios` is the reset. The
-picker's own UI test therefore reads which icon it started on and puts that
-one back.
+picker's own UI test therefore puts the egg back when it is done.
 
 ## September 17 confirmation-layout investigation (#147)
 

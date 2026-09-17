@@ -16,6 +16,8 @@ final class CookingViewModelTests: XCTestCase {
         viewModel.toggleCompletedStep(firstStep.id)
         viewModel.toggleCompletedIngredient(firstIngredient.id)
         viewModel.enterFocusMode()
+        XCTAssertTrue(viewModel.showsStepIngredientAmounts)
+        viewModel.showsStepIngredientAmounts = false
 
         XCTAssertEqual(viewModel.mode, .focus)
         XCTAssertEqual(viewModel.currentStepIndex, 1)
@@ -29,6 +31,12 @@ final class CookingViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.mode, .fullRecipe)
         XCTAssertEqual(viewModel.currentStepIndex, 1)
         XCTAssertTrue(viewModel.isStepCompleted(firstStep.id))
+
+        // The fold is the cook's for the session: another step, and the
+        // trip through Full Recipe, leave it how they left it.
+        viewModel.enterFocusMode()
+        viewModel.moveNext()
+        XCTAssertFalse(viewModel.showsStepIngredientAmounts)
     }
 
     func testNavigationClampsAndRelevantIngredientsFollowCurrentStep() {
@@ -38,7 +46,7 @@ final class CookingViewModelTests: XCTestCase {
         viewModel.movePrevious()
         XCTAssertEqual(viewModel.currentStepIndex, 0)
         XCTAssertEqual(
-            viewModel.relevantIngredients.map(\.name),
+            viewModel.stepIngredients.map(\.ingredient.name),
             ["orzo", "garlic"]
         )
 
@@ -51,8 +59,31 @@ final class CookingViewModelTests: XCTestCase {
             recipe.orderedSteps.count - 1
         )
         XCTAssertEqual(
-            viewModel.relevantIngredients.map(\.name),
+            viewModel.stepIngredients.map(\.ingredient.name),
             ["crumbled feta", "extra-virgin olive oil"]
+        )
+    }
+
+    /// Focus Mode prints each amount at the session's serving count. An
+    /// amount belongs to the whole recipe and is never split between steps,
+    /// so a row has to know which other steps share its ingredient.
+    func testStepIngredientsCarryScaledAmountsAndTheOtherStepsSharingThem() {
+        let recipe = PreviewFixtures.recipes[3]
+        var scaling = RecipeScaling(baseServings: recipe.servings)
+        scaling.setServings(recipe.servings * 2)
+        let viewModel = makeViewModel(recipe: recipe, scaling: scaling)
+
+        viewModel.moveNext()
+
+        // Step 2 roasts the thighs that steps 1 and 3 also handle, over
+        // scallions no other step touches.
+        XCTAssertEqual(
+            viewModel.stepIngredients.map(\.amount),
+            ["4 lb", "2 bunch"]
+        )
+        XCTAssertEqual(
+            viewModel.stepIngredients.map(\.otherStepNumbers),
+            [[1, 3], []]
         )
     }
 

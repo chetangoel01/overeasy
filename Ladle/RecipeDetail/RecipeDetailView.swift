@@ -73,7 +73,14 @@ struct RecipeDetailView: View {
 
     private var allowsLibraryEdits: Bool { currentAccess == .saved }
 
-    /// Which server object can re-sign the hero image's expired URL.
+    /// Whether there is a player to open. A link whose shape no platform
+    /// player accepts has none, and the page then offers no way to watch
+    /// rather than a control that opens "Video unavailable".
+    private var isVideoPlayable: Bool {
+        VideoEmbed.url(for: displayedRecipe) != nil
+    }
+
+    /// Which server object can re-sign the header artwork's expired URL.
     /// It follows the page's access, never the id alone: a Discover
     /// preview's recipe id IS the Discover sourceID, which /v1/recipes/{id}
     /// answers with a 404. A save on the page moves both together — the
@@ -128,17 +135,8 @@ struct RecipeDetailView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: LadleTheme.Layout.sectionGap) {
-                    heroImage
                     recipeHeader
-                    RecipeMetadataBand(
-                        recipe: displayedRecipe,
-                        scaling: $scaling
-                    )
-                    if let nutrition = displayedRecipe.nutrition {
-                        RecipeNutritionSummary(nutrition: nutrition) {
-                            isNutritionPresented = true
-                        }
-                    }
+                    recipeFacts
                     if showsReviewNotice {
                         reviewNotice
                             .id("recipe-review")
@@ -160,6 +158,9 @@ struct RecipeDetailView: View {
                     }
                 }
                 .padding(.horizontal, LadleTheme.Spacing.regular)
+                // The hero used to meet the navigation bar edge to edge. A
+                // thumbnail there reads as jammed under the back button.
+                .padding(.top, LadleTheme.Spacing.medium)
                 .padding(.bottom, LadleTheme.Layout.scrollTail)
             }
             .scrollIndicators(.hidden)
@@ -281,65 +282,174 @@ struct RecipeDetailView: View {
         }
     }
 
-    @ViewBuilder
-    private var heroImage: some View {
-        RecipeArtworkView(
-            owner: artworkOwner,
-            image: displayedRecipe.images.first
-        )
-        .frame(height: 322)
-        .frame(maxWidth: .infinity)
-        .clipShape(
-            RoundedRectangle(
-                cornerRadius: LadleTheme.Corner.card,
-                style: .continuous
-            )
-        )
-        .clipped()
-        .accessibilityLabel("Recipe photo")
-    }
+    /// The cook chose this recipe from its photo a moment ago, so the photo
+    /// is a thumbnail beside the title rather than a hero above it: the
+    /// time, the servings and the nutrition open on the first screen.
+    private static let thumbnailSide: CGFloat = 96
 
     private var recipeHeader: some View {
-        VStack(alignment: .leading, spacing: LadleTheme.Spacing.medium) {
-            recipeTitle
-            recipeByline
+        VStack(alignment: .leading, spacing: LadleTheme.Spacing.compact) {
+            // One layout, two arrangements, so the artwork keeps its identity
+            // — and its loaded image — when the text size changes. Beside a
+            // 96-point square an accessibility-size title gets four letters
+            // to a line, so there the photo sits above it instead.
+            let layout = dynamicTypeSize.isAccessibilitySize
+                ? AnyLayout(
+                    VStackLayout(
+                        alignment: .leading,
+                        spacing: LadleTheme.Spacing.medium
+                    )
+                )
+                : AnyLayout(
+                    HStackLayout(
+                        alignment: .top,
+                        spacing: LadleTheme.Spacing.regular
+                    )
+                )
+            layout {
+                recipeThumbnail
+                // No stack spacing: the link's target already carries the
+                // air between its label and the byline above it.
+                VStack(alignment: .leading, spacing: 0) {
+                    recipeTitle
+                    recipeByline
+                        .padding(.top, LadleTheme.Spacing.tight)
+                    if isVideoPlayable {
+                        watchOriginalLink
+                    }
+                }
+            }
+
+            if !displayedRecipe.description.isEmpty {
+                Text(displayedRecipe.description)
+                    .ladleFont(.body)
+                    .foregroundStyle(LadleTheme.Label.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if let report = discoverSave?.failure {
                 saveFailureNotice(report)
             }
         }
     }
 
+    private static let playBadgeSide: CGFloat = 28
+
+    /// The band, the nutrition card, and under whichever comes last the one
+    /// note that explains their estimates. Grouped so the note sits against
+    /// the card it qualifies rather than a section gap below it.
+    private var recipeFacts: some View {
+        let notes = displayedRecipe.ladleEstimateNotes
+        return VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
+            VStack(spacing: LadleTheme.Layout.sectionGap) {
+                RecipeMetadataBand(
+                    recipe: displayedRecipe,
+                    scaling: $scaling
+                )
+                if let nutrition = displayedRecipe.nutrition {
+                    RecipeNutritionSummary(nutrition: nutrition) {
+                        isNutritionPresented = true
+                    }
+                }
+            }
+            if !notes.isEmpty {
+                RecipeEstimatesDisclosure(notes: notes)
+            }
+        }
+    }
+
+    /// A fixed square whatever it holds. `RecipeArtworkView` fills the frame
+    /// it is given with a placeholder until the image arrives, so late or
+    /// missing artwork never moves the title.
+    ///
+    /// On a playable recipe it is also a way in to the video, and says so
+    /// with a badge; on any other it is only the photo.
+    @ViewBuilder
+    private var recipeThumbnail: some View {
+        let artwork = RecipeArtworkView(
+            owner: artworkOwner,
+            image: displayedRecipe.images.first
+        )
+        .frame(width: Self.thumbnailSide, height: Self.thumbnailSide)
+        .clipShape(
+            RoundedRectangle(
+                cornerRadius: LadleTheme.Corner.thumbnail,
+                style: .continuous
+            )
+        )
+        // One element with one name: the artwork's own label describes its
+        // load state, which is not what this square is for here.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            isVideoPlayable ? "Watch original video" : "Recipe photo"
+        )
+
+        if isVideoPlayable {
+            Button {
+                isVideoPresented = true
+            } label: {
+                artwork.overlay(alignment: .bottomTrailing) { playBadge }
+            }
+            .buttonStyle(LadlePressButtonStyle(kind: .card))
+        } else {
+            artwork.accessibilityAddTraits(.isImage)
+        }
+    }
+
+    /// Material, like the favourite on a grid card, so the glyph keeps its
+    /// contrast over whatever the photo puts behind it.
+    private var playBadge: some View {
+        Image(systemName: "play.fill")
+            .font(.system(size: LadleTheme.IconSize.small, weight: .bold))
+            .foregroundStyle(LadleTheme.Label.primary)
+            .frame(width: Self.playBadgeSide, height: Self.playBadgeSide)
+            .background(.ultraThinMaterial, in: Circle())
+            .padding(LadleTheme.Spacing.compact)
+            .accessibilityHidden(true)
+    }
+
+    /// The words, because a badge on a photo is not a label. Tertiary with
+    /// no inset, so the glyph lands on the title's leading edge, and held to
+    /// its label so the blank row beside it is not a button — except at
+    /// accessibility sizes, where the label needs that row to wrap into.
+    private var watchOriginalLink: some View {
+        let wraps = dynamicTypeSize.isAccessibilitySize
+        return Button {
+            isVideoPresented = true
+        } label: {
+            Label {
+                Text("Watch original")
+            } icon: {
+                Image(systemName: "play.fill")
+                    .imageScale(.small)
+            }
+            .frame(maxWidth: wraps ? .infinity : nil, alignment: .leading)
+        }
+        .buttonStyle(LadleButtonStyle(role: .tertiary, isFullWidth: true))
+        .fixedSize(horizontal: !wraps, vertical: false)
+        .accessibilityIdentifier("recipe.watch-original")
+    }
+
     private var recipeTitle: some View {
         Text(displayedRecipe.title)
-            .ladleFont(.title)
+            .ladleFont(.compactTitle)
             .foregroundStyle(LadleTheme.Label.primary)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    /// One run of text rather than a row of three, so it wraps between
+    /// words instead of squeezing the creator's handle into a column. At
+    /// accessibility sizes the platform takes its own line: wrapped, the
+    /// second line would otherwise open on the separator.
     private var recipeByline: some View {
-        VStack(alignment: .leading, spacing: LadleTheme.Spacing.medium) {
-            HStack(spacing: LadleTheme.Spacing.compact) {
-                if let creatorName = displayedRecipe.creatorName {
-                    Text(creatorName)
-                }
-                if displayedRecipe.creatorName != nil {
-                    Text("·")
-                        .accessibilityHidden(true)
-                }
-                Text(displayedRecipe.source.libraryTitle)
-            }
+        let source = displayedRecipe.source.libraryTitle
+        let creator = displayedRecipe.creatorName
+        let separator = dynamicTypeSize.isAccessibilitySize ? "\n" : " · "
+        return Text(creator.map { $0 + separator + source } ?? source)
             .ladleFont(.metadata)
             .foregroundStyle(LadleTheme.Label.secondary)
-
-            if !displayedRecipe.description.isEmpty {
-                Text(displayedRecipe.description)
-                    .ladleFont(.body)
-                    .foregroundStyle(LadleTheme.Label.primary.opacity(0.7))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityLabel(creator.map { "\($0), \(source)" } ?? source)
     }
 
     /// Save, in the top-right toolbar group beside the account button — the
@@ -452,36 +562,6 @@ struct RecipeDetailView: View {
             }
         }
         .accessibilityIdentifier("recipe.notes")
-    }
-
-    private var estimateNote: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "info.circle")
-                .foregroundStyle(accent.label)
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Estimated nutrition")
-                    .ladleFont(.bodyStrong)
-                    .foregroundStyle(LadleTheme.Label.primary)
-                Text(
-                    "Values are estimated from the imported recipe and may vary by ingredients or serving size."
-                )
-                .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.Label.secondary)
-            }
-        }
-        .padding(16)
-        .background(
-            LadleTheme.Surface.steel,
-            in: RoundedRectangle(
-                cornerRadius: LadleTheme.Corner.card,
-                style: .continuous
-            )
-        )
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(
-            "Estimated nutrition. Values may vary by ingredients or serving size."
-        )
     }
 
     private var reviewNotice: some View {
@@ -690,7 +770,9 @@ struct RecipeDetailView: View {
         if displayedRecipe.nutrition != nil {
             options.append(.nutrition)
         }
-        options.append(.source)
+        if isVideoPlayable {
+            options.append(.source)
+        }
         options.append(.delete)
         return options
     }

@@ -33,7 +33,7 @@ final class DesignTokenTests: XCTestCase {
         let paletteNames = [
             "paper", "oat", "ube", "plum", "ink", "mutedInk",
             "onAccent", "fixedInk", "accentText", "brick", "celery",
-            "focusAccent", "butter",
+            "focusAccent", "butter", "thyme",
         ]
         var offenders: [String] = []
 

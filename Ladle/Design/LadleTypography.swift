@@ -15,6 +15,10 @@ enum LadleTextStyle {
     case display
     /// A screen title, or a cooking instruction.
     case title
+    /// A screen title that shares its row with artwork instead of owning
+    /// one, as the recipe header does: two lines of it sit beside a
+    /// thumbnail where `title` would take three.
+    case compactTitle
     /// A recipe's name wherever it appears as content.
     ///
     /// Content, so it scales on `title3` and grows with the reader's size.
@@ -37,6 +41,7 @@ enum LadleTextStyle {
         switch self {
         case .display: .largeTitle
         case .title: .title
+        case .compactTitle: .title2
         case .recipeTitle: .title3
         case .section: .headline
         case .body, .bodyStrong: .body
@@ -50,7 +55,7 @@ enum LadleTextStyle {
     /// if the platform ever changes.
     var weight: Font.Weight? {
         switch self {
-        case .display, .title: .bold
+        case .display, .title, .compactTitle: .bold
         case .recipeTitle: .semibold
         case .section: nil
         case .bodyStrong: .semibold

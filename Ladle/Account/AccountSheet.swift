@@ -107,6 +107,7 @@ final class AccountDeleter {
 /// dialog and the alert where it is actually load-bearing.
 struct AccountSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @AppStorage(LadleAccentColor.preferenceKey)
     private var accentColor = LadleAccentColor.tomato.rawValue
 
@@ -125,7 +126,8 @@ struct AccountSheet: View {
     @State private var isSigningOut = false
     @State private var isSignInPresented = false
     @State private var deletion = AccountDeleter()
-    @ScaledMetric(relativeTo: .footnote) private var appIconColumnWidth: CGFloat = 84
+    /// Room for the longest caption with its checkmark, "Strawberry".
+    @ScaledMetric(relativeTo: .footnote) private var appIconMinimumTileWidth: CGFloat = 84
 
     var body: some View {
         NavigationStack {
@@ -317,89 +319,139 @@ struct AccountSheet: View {
         .sensoryFeedback(.selection, trigger: accentColor)
     }
 
-    /// Wrap choices to fit the available width and text size. Any cook can
-    /// choose any icon, independently of the one-time diet offer.
+    /// One row that scrolls sideways, so seven icons never strand one on a
+    /// line of its own, and a standard list once the text is too large for
+    /// tiles. Any cook can choose any icon, independently of the one-time
+    /// diet offer.
+    ///
+    /// A selection changes only what a tile draws, never which views exist,
+    /// so neither the form nor the row loses its place over a change or the
+    /// system notice that follows it.
     private var appIconSection: some View {
         Section {
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: appIconColumnWidth))],
-                spacing: LadleTheme.Layout.rowGap
-            ) {
+            if dynamicTypeSize.isAccessibilitySize {
                 ForEach(LadleAppIcon.allCases) { option in
-                    Button {
-                        Task { await appIcon.select(option) }
-                    } label: {
-                        VStack(spacing: LadleTheme.Spacing.compact) {
-                            iconTile(option)
+                    appIconButton(option) {
+                        HStack(spacing: LadleTheme.Layout.iconGap) {
+                            appIconImage(option, size: Self.appIconListSize)
                             Text(option.title)
-                                .ladleFont(.metadata)
                                 .foregroundStyle(LadleTheme.Label.primary)
-                                .multilineTextAlignment(.center)
+                            Spacer(minLength: 0)
+                            Image(systemName: "checkmark")
+                                .fontWeight(.semibold)
+                                .foregroundStyle(selectedAccent.label)
+                                .opacity(appIcon.icon == option ? 1 : 0)
                         }
-                        .frame(maxWidth: .infinity)
-                        .contentShape(Rectangle())
                     }
-                    .buttonStyle(LadlePressButtonStyle())
-                    .accessibilityLabel(option.title)
-                    .accessibilityValue(
-                        appIcon.icon == option ? "Selected" : ""
-                    )
-                    .accessibilityIdentifier(option.accessibilityIdentifier)
                 }
+            } else {
+                ScrollView(.horizontal) {
+                    HStack(alignment: .top, spacing: Self.appIconSpacing) {
+                        ForEach(LadleAppIcon.allCases) { option in
+                            appIconButton(option) { appIconTile(option) }
+                                .buttonStyle(LadlePressButtonStyle())
+                                .containerRelativeFrame(.horizontal) { length, _ in
+                                    appIconTileWidth(in: length)
+                                }
+                        }
+                    }
+                    .scrollTargetLayout()
+                    .padding(.vertical, LadleTheme.Layout.cardPadding)
+                }
+                .safeAreaPadding(.horizontal, Self.appIconSpacing)
+                .scrollTargetBehavior(.viewAligned)
+                .scrollIndicators(.hidden)
+                .listRowInsets(EdgeInsets())
             }
-            .padding(.vertical, LadleTheme.Spacing.tight)
         } header: {
             Text("App icon")
         }
         .sensoryFeedback(.selection, trigger: appIcon.icon)
     }
 
-    private func iconTile(_ option: LadleAppIcon) -> some View {
+    private func appIconButton(
+        _ option: LadleAppIcon,
+        @ViewBuilder label: () -> some View
+    ) -> some View {
+        Button {
+            Task { await appIcon.select(option) }
+        } label: {
+            label()
+        }
+        .accessibilityLabel(option.title)
+        .accessibilityValue(appIcon.icon == option ? "Selected" : "")
+        .accessibilityIdentifier(option.accessibilityIdentifier)
+    }
+
+    /// The ring sits around the artwork and is always drawn, shown by its
+    /// opacity. The check leads the caption: hung off the tile's corner, it
+    /// overflowed the tile.
+    private func appIconTile(_ option: LadleAppIcon) -> some View {
+        let isSelected = appIcon.icon == option
+        let check = Text(Image(systemName: "checkmark"))
+            .foregroundStyle(selectedAccent.label)
+
+        return VStack(spacing: LadleTheme.Spacing.compact) {
+            appIconImage(option, size: Self.appIconTileSize)
+                .padding(LadleTheme.Spacing.tight)
+                .overlay {
+                    RoundedRectangle(
+                        cornerRadius: LadleTheme.Corner.thumbnail
+                            + LadleTheme.Spacing.tight,
+                        style: .continuous
+                    )
+                    .strokeBorder(selectedAccent.actionColor, lineWidth: 2)
+                    .opacity(isSelected ? 1 : 0)
+                }
+            (isSelected ? Text("\(check) \(option.title)") : Text(option.title))
+                .ladleFont(.metadata)
+                .fontWeight(isSelected ? .semibold : nil)
+                .imageScale(.small)
+                .foregroundStyle(LadleTheme.Label.primary)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity)
+        .contentShape(Rectangle())
+    }
+
+    private func appIconImage(
+        _ option: LadleAppIcon,
+        size: CGFloat
+    ) -> some View {
         Image(option.markImageName)
             .resizable()
             .scaledToFill()
-            .frame(
-                width: Self.appIconTileSize,
-                height: Self.appIconTileSize
-            )
+            .frame(width: size, height: size)
             .clipShape(
                 RoundedRectangle(
                     cornerRadius: LadleTheme.Corner.thumbnail,
                     style: .continuous
                 )
             )
-            .overlay {
-                if appIcon.icon == option {
-                    RoundedRectangle(
-                        cornerRadius: LadleTheme.Corner.thumbnail,
-                        style: .continuous
-                    )
-                    .strokeBorder(selectedAccent.actionColor, lineWidth: 3)
-                }
-            }
-            .overlay(alignment: .bottomTrailing) {
-                if appIcon.icon == option {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(
-                            .system(
-                                size: LadleTheme.IconSize.large,
-                                weight: .bold
-                            )
-                        )
-                        .symbolRenderingMode(.palette)
-                        .foregroundStyle(
-                            LadleTheme.Label.onAccent,
-                            selectedAccent.actionColor
-                        )
-                        .offset(x: LadleTheme.Spacing.tight, y: LadleTheme.Spacing.tight)
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .contentShape(Rectangle())
+    }
+
+    /// The tile width that ends the visible row on half a tile, which is
+    /// what says the row scrolls. Never narrower than the scaled minimum, so
+    /// the longest caption keeps to one line.
+    ///
+    /// The row's inset is safe-area padding, so `length` stops one inset
+    /// short of the trailing edge while tiles stay visible right up to it.
+    private func appIconTileWidth(in length: CGFloat) -> CGFloat {
+        let visible = length + Self.appIconSpacing
+        let pitch = appIconMinimumTileWidth + Self.appIconSpacing
+        let wholeTiles = max(1, (visible / pitch - 0.5).rounded(.down))
+        return visible / (wholeTiles + 0.5) - Self.appIconSpacing
     }
 
     /// Match the familiar home-screen icon size.
     private static let appIconTileSize: CGFloat = 60
+
+    /// The list's leading artwork is the minimum target, so the icon is never
+    /// the smaller thing in its row.
+    private static let appIconListSize = LadleTheme.Control.hitTarget
+
+    /// Between tiles, and between the row and the edges of its card.
+    private static let appIconSpacing = LadleTheme.Spacing.compact
 
     private var privacySection: some View {
         Section {
