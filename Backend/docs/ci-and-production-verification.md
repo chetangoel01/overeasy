@@ -166,3 +166,20 @@ The test's device code path is compile-checked without signing using a generic
 iOS `build-for-testing`. A passing production claim still requires rerunning
 against the production App Attest environment and final signed app identity in
 another disposable isolated environment.
+
+## September 17 registry repair
+
+Fresh CI workers could no longer pull `minio/minio` from Docker Hub, while
+local runs continued to pass using an old cached image. The thumbnail storage
+test and both Compose manifests now use the publisher's
+[Quay registry](https://github.com/minio/minio/blob/master/helm/minio/values.yaml),
+pinned to the April 22, 2025 release already used by Compose and its verified
+multi-platform digest. The test no longer inherits Testcontainers' implicit
+2022 default. Private unsigned reads, signed reads, content type, and deletion
+remain covered by the existing integration test. No storage volumes or
+production services were changed during this repair.
+
+Verification: the original GitHub run failed while pulling the removed image.
+After switching registries, all 1,107 backend tests pass, including the real
+private-thumbnail round trip. Formatting, lint, and strict type checks pass.
+The Quay manifest was checked for both amd64 and arm64 support before pinning.
