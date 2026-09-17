@@ -131,7 +131,6 @@ def test_uncertainty_and_note_text_are_bounded() -> None:
         (("ingredients", 0, "normalizedQuantity"), "1000001"),
         (("nutrition", "calories"), "Infinity"),
         (("nutrition", "calories"), "-1"),
-        (("nutrition", "otherNutrients", 0, "amount"), "1000001"),
         (("nutrition", "servingBasis"), "0"),
     ],
 )

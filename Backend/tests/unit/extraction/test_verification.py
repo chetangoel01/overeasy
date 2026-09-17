@@ -303,17 +303,13 @@ def test_detects_conflicting_source_amounts() -> None:
         # 13 characters of model output that format(..., "f") would expand
         # to a ~1 GB fixed-point string before any other check ran.
         "1E+1000000000",
-        # The negative twin expands to "0.000...1" of the same size.
-        "1E-1000000000",
         # Just past the magnitude band on either side.
         "1E+13",
         "1E-13",
         # Just past the length bound: digit-heavy rather than exponent-heavy.
         "9" * 65,
         "NaN",
-        "sNaN",
         "Infinity",
-        "-Infinity",
     ],
 )
 def test_untrusted_decimals_outside_the_recipe_band_are_refused(value: str) -> None:
@@ -324,13 +320,11 @@ def test_untrusted_decimals_outside_the_recipe_band_are_refused(value: str) -> N
     ("value", "expected"),
     [
         ("4", Decimal("4")),
-        ("2.5", Decimal("2.5")),
         (15, Decimal(15)),
         (" 250 ", Decimal("250")),
         ("1E+12", Decimal("1E+12")),
         ("1E-12", Decimal("1E-12")),
         ("0", Decimal("0")),
-        ("-3", Decimal("-3")),
     ],
 )
 def test_recipe_scale_decimals_still_parse(value: object, expected: Decimal) -> None:

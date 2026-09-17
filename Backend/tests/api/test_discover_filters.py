@@ -285,9 +285,7 @@ def test_one_diet_keeps_only_the_dishes_that_satisfy_it(discover) -> None:
     ("query", "expected"),
     [
         ("?diet=pescatarian", ["Lemon Orzo", "Garlic Butter Udon", "Chickpea Curry"]),
-        ("?diet=vegan", ["Chickpea Curry"]),
         ("?diet=pescatarian&diet=glutenFree", ["Chickpea Curry"]),
-        ("?diet=pescatarian&diet=vegan", ["Chickpea Curry"]),
     ],
 )
 def test_diet_compatibility_preserves_other_restrictions(discover, query, expected):

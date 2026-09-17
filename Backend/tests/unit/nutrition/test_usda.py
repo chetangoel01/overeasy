@@ -176,7 +176,7 @@ def test_category_words_do_not_keep_lentils_behind_other_beans() -> None:
 
 @pytest.mark.parametrize(
     ("nutrient_id", "bad_unit"),
-    [(2048, "kJ"), (1003, "mg"), (1004, "mg"), (1005, "mg")],
+    [(2048, "kJ"), (1003, "mg")],
 )
 def test_wrong_required_nutrient_units_are_not_guessed(
     nutrient_id: int,

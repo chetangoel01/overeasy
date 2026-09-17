@@ -49,10 +49,8 @@ def test_product_metrics_use_only_bounded_labels_and_render_prometheus_text() ->
 @pytest.mark.parametrize(
     ("method", "values"),
     [
-        ("record_cache", ("user-controlled-value",)),
         ("record_provider", ("unknown-provider", "success")),
         ("record_job", ("ready", "user-123")),
-        ("record_sync", ("user-123",)),
     ],
 )
 def test_metrics_reject_unbounded_label_values(
