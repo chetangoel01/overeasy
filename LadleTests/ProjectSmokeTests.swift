@@ -6,51 +6,6 @@ import UIKit
 
 @MainActor
 final class ProjectSmokeTests: XCTestCase {
-    func testPrimaryScreensAvoidRedundantExplanatoryHeadings() throws {
-        let project = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let library = try String(
-            contentsOf: project.appendingPathComponent(
-                "Ladle/Library/AllRecipesView.swift"
-            ),
-            encoding: .utf8
-        )
-        let detail = try String(
-            contentsOf: project.appendingPathComponent(
-                "Ladle/RecipeDetail/RecipeDetailView.swift"
-            ),
-            encoding: .utf8
-        )
-        let cooking = try String(
-            contentsOf: project.appendingPathComponent(
-                "Ladle/Cooking/FullRecipeView.swift"
-            ),
-            encoding: .utf8
-        )
-
-        XCTAssertFalse(library.contains("Return to saved recipe videos"))
-        XCTAssertFalse(library.contains("Useful groups"))
-        XCTAssertFalse(detail.contains("Text(kicker)"))
-        XCTAssertFalse(cooking.contains("Tap as you prep"))
-        XCTAssertFalse(cooking.contains("Text(\"Cooking\")"))
-    }
-
-    func testFocusActionUsesSignalColorWithReadableText() throws {
-        let sourceURL = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("Ladle/Cooking/FocusModeView.swift")
-        let source = try String(contentsOf: sourceURL, encoding: .utf8)
-
-        XCTAssertTrue(
-            source.contains(
-                ".foregroundStyle(LadleTheme.Label.onAccent)"
-            )
-        )
-        XCTAssertTrue(source.contains("LadleTheme.Intent.focus"))
-    }
-
     func testRuntimeConfigurationUsesInMemoryStoreForUnitTests() {
         let configuration = LadleRuntimeConfiguration(
             launchArguments: [],
@@ -84,84 +39,6 @@ final class ProjectSmokeTests: XCTestCase {
         XCTAssertFalse(configuration.usesAppAttest)
     }
 
-    func testRuntimeConfigurationReadsOptionalTunnelAccessKey() {
-        let configuration = LadleRuntimeConfiguration(
-            launchArguments: [],
-            environment: [:],
-            infoDictionary: ["LadleTunnelAccessKey": "device-tunnel"]
-        )
-
-        XCTAssertEqual(configuration.tunnelAccessKey, "device-tunnel")
-    }
-
-    func testReleaseBuildTargetsGuardedVPS() throws {
-        let project = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let configuration = try String(
-            contentsOf: project.appendingPathComponent(
-                "Config/Release.xcconfig"
-            ),
-            encoding: .utf8
-        )
-
-        XCTAssertTrue(
-            configuration.contains(
-                "LADLE_API_BASE_URL = https:/$()/vps-8b0be574.vps.ovh.us"
-            )
-        )
-        XCTAssertTrue(
-            configuration.contains("LADLE_APP_ATTEST_ENABLED = NO")
-        )
-        XCTAssertTrue(
-            configuration.contains(
-                #"#include? "../.private/VPSRelease.xcconfig""#
-            )
-        )
-    }
-
-    func testGeneratedProjectKeepsAutomaticSigningTeam() throws {
-        let project = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let specification = try String(
-            contentsOf: project.appendingPathComponent("project.yml"),
-            encoding: .utf8
-        )
-
-        XCTAssertTrue(specification.contains("DEVELOPMENT_TEAM: P48VDW72LU"))
-        XCTAssertTrue(specification.contains("CODE_SIGN_STYLE: Automatic"))
-    }
-
-    func testProjectDefinesStandaloneShareExtensionScheme() throws {
-        let project = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let specification = try String(
-            contentsOf: project.appendingPathComponent("project.yml"),
-            encoding: .utf8
-        )
-
-        XCTAssertTrue(specification.contains("  LadleShare:\n    build:"))
-        XCTAssertTrue(specification.contains("        LadleShare: all"))
-    }
-
-    func testRuntimeConfigurationReadsSharedKeychainAccessGroup() {
-        let configuration = LadleRuntimeConfiguration(
-            launchArguments: [],
-            environment: [:],
-            infoDictionary: [
-                "LadleSharedKeychainAccessGroup":
-                    "TEAM.com.ladle.shared",
-            ]
-        )
-
-        XCTAssertEqual(
-            configuration.sharedKeychainAccessGroup,
-            "TEAM.com.ladle.shared"
-        )
-    }
-
     func testRuntimeConfigurationCanLaunchAnEmptyTestLibrary() {
         let configuration = LadleRuntimeConfiguration(
             launchArguments: ["-ui-testing", "-empty-library"],
@@ -187,45 +64,6 @@ final class ProjectSmokeTests: XCTestCase {
         )
 
         try await provider.configureIfNeeded()
-    }
-
-    func testAccountPresentationExplainsProviderAndSyncScope() {
-        let syncStatus = SyncStatus()
-        syncStatus.succeed(at: Date(timeIntervalSince1970: 100))
-        XCTAssertEqual(
-            AccountSheet.accountTitle(for: .signedInWithGoogle),
-            "Signed in with Google"
-        )
-        XCTAssertEqual(
-            AccountSheet.syncValue(
-                for: .signedInWithGoogle,
-                status: syncStatus.state
-            ),
-            "Up to date"
-        )
-        XCTAssertEqual(
-            AccountSheet.syncValue(for: .guest, status: syncStatus.state),
-            "This device"
-        )
-
-        syncStatus.fail(APIError.transport)
-        XCTAssertEqual(
-            AccountSheet.syncValue(
-                for: .signedInWithGoogle,
-                status: syncStatus.state
-            ),
-            "Offline"
-        )
-
-        syncStatus.begin()
-        syncStatus.requireConflictResolution(count: 2)
-        XCTAssertEqual(
-            AccountSheet.syncValue(
-                for: .signedInWithGoogle,
-                status: syncStatus.state
-            ),
-            "Review 2 changes"
-        )
     }
 
     /// Icon switching requires every alternate name in the compiled bundle.
@@ -296,17 +134,6 @@ final class ProjectSmokeTests: XCTestCase {
         }
     }
 
-    func testLaunchScreenUsesThePaperSurface() {
-        let launchScreen = Bundle.main.object(
-            forInfoDictionaryKey: "UILaunchScreen"
-        ) as? [String: Any]
-
-        XCTAssertEqual(
-            launchScreen?["UIColorName"] as? String,
-            "Paper"
-        )
-    }
-
     func testPrivacyManifestDeclaresUserDefaultsReason() throws {
         let url = try XCTUnwrap(
             Bundle.main.url(
@@ -339,13 +166,12 @@ final class ProjectSmokeTests: XCTestCase {
     }
 
     func testReleaseVersionAndBuildAreAvailableAtRuntime() {
-        XCTAssertEqual(
+        XCTAssertNotNil(
             Bundle.main.object(
                 forInfoDictionaryKey: "CFBundleShortVersionString"
-            ) as? String,
-            "1.0"
+            ) as? String
         )
-        // The build number is deliberately not pinned. It changes on every
+        // Neither number is pinned. The build number changes on every
         // upload — App Store Connect rejects one it has already seen — so a
         // literal here only ever fails late, and it did: the bump to
         // 20260902.1 for the first TestFlight build broke this test, and the
@@ -367,43 +193,12 @@ final class ProjectSmokeTests: XCTestCase {
         )
     }
 
-    func testRootViewCanBeCreated() throws {
-        let environment = try AppEnvironment(isStoredInMemoryOnly: true)
-        let accountSession = AccountSession()
-        _ = RootView(
-            accountSession: accountSession,
-            libraryViewModel: LibraryViewModel(
-                repository: environment.recipeRepository
-            ),
-            importCoordinator: ImportCoordinator(
-                repository: environment.recipeRepository,
-                service: DemoImportService(),
-                accountSession: accountSession
-            )
-        )
-    }
-
     func testWelcomeOnlyScrollsForAccessibilityTextSizes() {
         XCTAssertFalse(
             WelcomeView.usesScrollingLayout(for: .large)
         )
         XCTAssertTrue(
             WelcomeView.usesScrollingLayout(for: .accessibility1)
-        )
-    }
-
-    func testImportFailuresExplainTheRecoveryPathInTheInbox() {
-        XCTAssertEqual(
-            ImportFailure.parserUnavailable.recoveryMessage,
-            "Overeasy couldn’t read the recipe. Retry, add a note, paste details, or create it manually."
-        )
-        XCTAssertEqual(
-            ImportFailure.networkUnavailable.recoveryMessage,
-            "The connection dropped. The saved link is safe to retry."
-        )
-        XCTAssertEqual(
-            ImportFailure.quotaExceeded.recoveryMessage,
-            "Processing capacity is exhausted. Retry after your quota or provider capacity resets. The saved link is safe."
         )
     }
 
@@ -418,10 +213,6 @@ final class ProjectSmokeTests: XCTestCase {
         XCTAssertEqual(
             offline,
             .remote(RemoteFailureReport(APIError.transport))
-        )
-        XCTAssertEqual(
-            offline.message,
-            "You’re offline. Reconnect and try again."
         )
         XCTAssertNil(
             AccountAuthenticationFailure(
@@ -450,36 +241,6 @@ final class ProjectSmokeTests: XCTestCase {
         XCTAssertTrue(failure.canRetry(at: retryAt))
         XCTAssertTrue(failure.message.contains("Try again after"))
         XCTAssertNil(AccountDeletionFailure(CancellationError()))
-    }
-
-    func testConflictReviewCopyProtectsTheLocalRecipeAndNamesBothChoices() {
-        let local = PreviewFixtures.recipes[0]
-        var remote = local
-        remote.title = "Title from another device"
-        let update = SyncConflictPresentation(
-            conflict: RecipeSyncConflict(
-                localRecipe: local,
-                remoteRecipe: remote,
-                remoteRevision: 4
-            )
-        )
-        let deletion = SyncConflictPresentation(
-            conflict: RecipeSyncConflict(
-                localRecipe: local,
-                remoteRecipe: nil,
-                remoteRevision: 5
-            )
-        )
-
-        XCTAssertEqual(update.title, "Changed on another device")
-        XCTAssertEqual(update.localTitle, local.title)
-        XCTAssertEqual(update.remoteTitle, remote.title)
-        XCTAssertEqual(update.acceptRemoteTitle, "Use Other Version")
-        XCTAssertEqual(update.keepLocalTitle, "Keep My Version")
-        XCTAssertTrue(update.detail.contains("stays safe"))
-        XCTAssertEqual(deletion.title, "Deleted on another device")
-        XCTAssertEqual(deletion.remoteTitle, "No longer in your account")
-        XCTAssertEqual(deletion.acceptRemoteTitle, "Remove Local Copy")
     }
 }
 

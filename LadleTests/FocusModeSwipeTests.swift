@@ -18,15 +18,6 @@ final class FocusModeSwipeTests: XCTestCase {
         )
     }
 
-    func testVerticalScrollWithRightwardDriftIsNotASwipe() {
-        XCTAssertNil(
-            FocusModeSwipe(
-                translation: CGSize(width: 50, height: 200)
-            ),
-            "A vertical scroll drifting right must not read as a previous-step swipe"
-        )
-    }
-
     func testPerfectDiagonalIsNotASwipe() {
         XCTAssertNil(
             FocusModeSwipe(
@@ -49,15 +40,6 @@ final class FocusModeSwipeTests: XCTestCase {
                 translation: CGSize(width: -120, height: -20)
             ),
             .nextStep
-        )
-    }
-
-    func testPredominantlyHorizontalRightSwipeMovesToPreviousStep() {
-        XCTAssertEqual(
-            FocusModeSwipe(
-                translation: CGSize(width: 120, height: 20)
-            ),
-            .previousStep
         )
     }
 

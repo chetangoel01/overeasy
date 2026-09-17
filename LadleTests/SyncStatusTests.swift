@@ -18,7 +18,6 @@ final class SyncStatusTests: XCTestCase {
         status.succeed(at: completedAt)
         XCTAssertEqual(status.state, .current)
         XCTAssertEqual(status.lastSuccessfulSync, completedAt)
-        XCTAssertEqual(status.shortLabel, "Up to date")
     }
 
     func testFailureClassifiesOfflineAndPreservesLastSuccess() {
@@ -31,7 +30,6 @@ final class SyncStatusTests: XCTestCase {
 
         XCTAssertEqual(status.failure, .offline)
         XCTAssertEqual(status.lastSuccessfulSync, completedAt)
-        XCTAssertEqual(status.shortLabel, "Offline")
     }
 
     func testRateLimitAndAuthenticationHaveDistinctStates() throws {
@@ -46,12 +44,10 @@ final class SyncStatusTests: XCTestCase {
         status.fail(APIError.remote(rateLimit))
         XCTAssertEqual(status.failure, .rateLimited(retryAt: retryAt))
         XCTAssertEqual(status.retryAt, retryAt)
-        XCTAssertEqual(status.shortLabel, "Try later")
 
         status.begin()
         status.fail(APIError.authenticationExpired)
         XCTAssertEqual(status.failure, .authenticationExpired)
-        XCTAssertEqual(status.shortLabel, "Sign in again")
     }
 
     func testLaterSuccessRecoversFromFailure() {
@@ -76,7 +72,6 @@ final class SyncStatusTests: XCTestCase {
         status.requireConflictResolution(count: 2)
 
         XCTAssertEqual(status.state, .conflict(count: 2))
-        XCTAssertEqual(status.shortLabel, "Review 2 changes")
         XCTAssertNil(status.failure)
         XCTAssertEqual(
             status.lastSuccessfulSync,

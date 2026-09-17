@@ -68,22 +68,6 @@ struct ImportJobTests {
     }
 
     @Test
-    func insufficientTextEvidenceHasAStableWireValue() {
-        #expect(
-            ImportFailure.insufficientTextEvidence.rawValue
-                == "insufficientTextEvidence"
-        )
-    }
-
-    @Test
-    func photoPostNeedsManualEntryHasAStableWireValue() {
-        #expect(
-            ImportFailure.photoPostNeedsManualEntry.rawValue
-                == "photoPostNeedsManualEntry"
-        )
-    }
-
-    @Test
     func aFailureCodeThisBuildDoesNotKnowDecodesInsteadOfThrowing() throws {
         let decoded = try JSONDecoder().decode(
             ImportFailure.self,

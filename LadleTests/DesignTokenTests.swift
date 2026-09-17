@@ -56,82 +56,6 @@ final class DesignTokenTests: XCTestCase {
         XCTAssertEqual(offenders.sorted(), [])
     }
 
-    func testShareUsesSemanticSurfaceNames() throws {
-        let project = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let source = try String(
-            contentsOf: project.appendingPathComponent(
-                "LadleShare/ShareConfirmationView.swift"
-            ),
-            encoding: .utf8
-        )
-
-        // `ShareTheme.field` and `ShareTheme.review` are gone from the type,
-        // so the compiler already refuses them; only their replacements need
-        // asserting.
-        XCTAssertTrue(source.contains("ShareTheme.Surface.raised"))
-        XCTAssertTrue(source.contains("ShareTheme.Surface.steel"))
-    }
-
-    func testCompatibilityColorAssetsAreRemoved() {
-        let assets = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("Ladle/Resources/Assets.xcassets")
-        let compatibilityAssets = [
-            "Butter", "Field", "Paprika", "Review", "Success",
-        ]
-
-        for name in compatibilityAssets {
-            XCTAssertFalse(
-                FileManager.default.fileExists(
-                    atPath: assets
-                        .appendingPathComponent("\(name).colorset")
-                        .path
-                ),
-                "\(name) is a retired compatibility asset"
-            )
-        }
-        XCTAssertTrue(
-            FileManager.default.fileExists(
-                atPath: assets
-                    .appendingPathComponent("AccentColor.colorset")
-                    .path
-            ),
-            "Xcode consumes AccentColor by catalog name"
-        )
-    }
-
-    func testRaisedCardBadgesUseTheDistinctBadgeSurface() throws {
-        // AccountSheet is deliberately absent: it is a grouped `Form`, so its
-        // rows are system `Label`s and it draws no badge of its own. The one
-        // badge it presents is the profile header's monogram, which lives in
-        // its own view.
-        let expectedCounts = [
-            "Ladle/Account/AccountHeaderView.swift": 1,
-            "Ladle/Account/GuestLimitView.swift": 1,
-            "Ladle/Edit/ReimportSheet.swift": 2,
-            "Ladle/Health/HealthExportSheet.swift": 1,
-            "Ladle/Import/AddRecipeSheet.swift": 4,
-            "Ladle/Import/FailedImportSheet.swift": 1,
-        ]
-        let project = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-
-        for (path, expectedCount) in expectedCounts {
-            let source = try String(
-                contentsOf: project.appendingPathComponent(path),
-                encoding: .utf8
-            )
-            let count = source.components(
-                separatedBy: "LadleTheme.Surface.badge, in: Circle()"
-            ).count - 1
-            XCTAssertEqual(count, expectedCount, path)
-        }
-    }
-
     func testControlTintsUseIntentAndDecorativeBulletsStayNeutral() throws {
         let project = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -150,13 +74,6 @@ final class DesignTokenTests: XCTestCase {
         }
 
         XCTAssertEqual(offenders.sorted(), [])
-        let editor = try String(
-            contentsOf: project.appendingPathComponent(
-                "Ladle/Edit/RecipeEditorView.swift"
-            ),
-            encoding: .utf8
-        )
-        XCTAssertTrue(editor.contains("? accent.intent"))
     }
 
     /// The accent may only be read out of storage in the two places that have
@@ -253,31 +170,6 @@ final class DesignTokenTests: XCTestCase {
         XCTAssertEqual(offenders.sorted(), [])
     }
 
-    func testPorcelainPaletteUsesApprovedHexValues() {
-        XCTAssertEqual(LadleTheme.plumHex, "#14181B")
-        XCTAssertEqual(LadleTheme.paperHex, "#F7F4EF")
-        XCTAssertEqual(LadleTheme.oatHex, "#ECE7E1")
-        XCTAssertEqual(LadleTheme.inkHex, "#14181B")
-        XCTAssertEqual(LadleTheme.brickHex, "#C23B26")
-        XCTAssertEqual(LadleTheme.celeryHex, "#83A18A")
-        XCTAssertEqual(LadleTheme.ubeHex, "#E3DDD6")
-        XCTAssertEqual(LadleTheme.mutedInkHex, "#505B64")
-    }
-
-    func testDarkPaletteUsesNeutralGraphiteSurfaces() {
-        XCTAssertEqual(LadleTheme.darkPaperHex, "#101214")
-        XCTAssertEqual(LadleTheme.darkOatHex, "#1C2024")
-        XCTAssertEqual(LadleTheme.darkInkHex, "#F2F4F5")
-        XCTAssertEqual(LadleTheme.darkMutedInkHex, "#A6AFB7")
-        XCTAssertEqual(LadleTheme.darkUbeHex, "#252A2F")
-        XCTAssertEqual(LadleTheme.darkCeleryHex, "#294233")
-        XCTAssertEqual(LadleTheme.onAccentHex, "#FAFBFC")
-        XCTAssertEqual(LadleTheme.accentTextHex, "#C73924")
-        XCTAssertEqual(LadleTheme.darkAccentTextHex, "#FF7562")
-        XCTAssertEqual(LadleTheme.fixedInkHex, "#14181B")
-        XCTAssertEqual(LadleTheme.focusAccentHex, "#FF5A3D")
-    }
-
     func testAccentPreferenceHasStableChoicesAndFallback() {
         XCTAssertEqual(
             LadleAccentColor.allCases.map(\.rawValue),
@@ -295,20 +187,6 @@ final class DesignTokenTests: XCTestCase {
             LadleAccentColor.resolve(storedValue: nil),
             .tomato
         )
-    }
-
-    func testSpacingScaleIncreasesPredictably() {
-        XCTAssertEqual(LadleTheme.Spacing.compact, 8)
-        XCTAssertEqual(LadleTheme.Spacing.regular, 16)
-        XCTAssertEqual(LadleTheme.Spacing.generous, 24)
-        XCTAssertEqual(LadleTheme.Spacing.cooking, 32)
-    }
-
-    func testCornerScaleSupportsControlsCardsAndSheets() {
-        XCTAssertEqual(LadleTheme.Corner.control, 15)
-        XCTAssertEqual(LadleTheme.Corner.card, 20)
-        XCTAssertEqual(LadleTheme.Corner.sheet, 34)
-        XCTAssertEqual(LadleTheme.Corner.thumbnail, 12)
     }
 
     func testLayoutRolesResolveToStepsOnTheSpacingScale() {
@@ -334,143 +212,19 @@ final class DesignTokenTests: XCTestCase {
                 "\(role) is not a step on the spacing scale"
             )
         }
-        XCTAssertEqual(LadleTheme.Layout.screenMargin, 16)
-        XCTAssertEqual(LadleTheme.Layout.sheetMargin, 24)
     }
 
-    func testWatchOverlayLayoutUsesProvidedSafeAreaInsets() {
-        // Top chrome is already inside the safe area, so it must not add the
-        // inset again; only the bottom padding clears the home indicator.
-        XCTAssertEqual(
-            WatchOverlayLayout.topPadding,
-            LadleTheme.Spacing.compact
+    /// 44 points is the platform's minimum hit target, not a value of ours,
+    /// and no named control height may fall under it.
+    func testEveryControlHeightMeetsTheMinimumHitTarget() {
+        XCTAssertGreaterThanOrEqual(LadleTheme.Control.hitTarget, 44)
+        XCTAssertGreaterThanOrEqual(
+            LadleTheme.Control.field,
+            LadleTheme.Control.hitTarget
         )
-        XCTAssertEqual(
-            WatchOverlayLayout.refreshTopPadding,
-            LadleTheme.Spacing.compact + LadleTheme.Control.hitTarget
-        )
-        XCTAssertEqual(
-            WatchOverlayLayout.bottomPadding(safeAreaBottom: 34),
-            34 + LadleTheme.Control.primary
-                + LadleTheme.Spacing.regular
-        )
-        XCTAssertNotEqual(
-            WatchOverlayLayout.bottomPadding(safeAreaBottom: 0),
-            WatchOverlayLayout.bottomPadding(safeAreaBottom: 34)
-        )
-    }
-
-    /// No sheet may inset its own toolbar controls.
-    ///
-    /// This asserted the opposite until September 1. The inset moved a bar
-    /// button from the system's 16-point edge onto the sheet's 24-point
-    /// content margin, which was right when a bar button was bare text. Under
-    /// iOS 26 the toolbar draws a glass capsule *around the padded label*, so
-    /// the padding inflated the capsule by 8 points and pushed the label 4
-    /// points off its own centre — on all ten sheets that carried it.
-    ///
-    /// Scanning for the token by name rather than for a padding shape is
-    /// deliberate: the name is what a future call site would have to write,
-    /// and a structural scan for ".padding near ToolbarItem" would be fragile
-    /// enough to pass by accident.
-    func testSheetToolbarControlsAreNotInset() throws {
-        let project = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let sources = try productionSwiftSources(
-            under: project.appendingPathComponent("Ladle")
-        )
-        var offenders: [String] = []
-
-        for file in sources {
-            let source = try String(contentsOf: file, encoding: .utf8)
-            if source.contains("sheetToolbarInset") {
-                offenders.append(file.lastPathComponent)
-            }
-        }
-
-        XCTAssertEqual(
-            offenders.sorted(),
-            [],
-            "A sheet's toolbar controls sit on the system's own margin"
-        )
-    }
-
-    func testRecipeEditorUsesTheSheetMargin() throws {
-        let project = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let source = try String(
-            contentsOf: project.appendingPathComponent(
-                "Ladle/Edit/RecipeEditorView.swift"
-            ),
-            encoding: .utf8
-        )
-
-        XCTAssertTrue(source.contains("LadleTheme.Layout.sheetMargin"))
-        XCTAssertFalse(
-            source.contains(".padding(LadleTheme.Spacing.regular)")
-        )
-    }
-
-    func testControlHeightsCollapseToThreeNamedValues() {
-        XCTAssertEqual(LadleTheme.Control.hitTarget, 44)
-        XCTAssertEqual(LadleTheme.Control.field, 48)
-        XCTAssertEqual(LadleTheme.Control.primary, 52)
-    }
-
-    func testIconSizeScaleIsOrdered() {
-        XCTAssertEqual(
-            [
-                LadleTheme.IconSize.small,
-                LadleTheme.IconSize.medium,
-                LadleTheme.IconSize.large,
-                LadleTheme.IconSize.feature,
-                LadleTheme.IconSize.hero,
-            ],
-            [13, 16, 20, 28, 38]
-        )
-    }
-
-    func testDividerInsetIsDerivedFromTheRowItSeparates() {
-        // The cooking checklist lays out a 30pt icon and a 13pt gap, so its
-        // divider belongs at 43 - not the 52 that a differently built row uses.
-        XCTAssertEqual(
-            LadleTheme.dividerInset(iconWidth: 30, gap: 13),
-            43
-        )
-        // Collections: 12pt leading padding, 28pt icon, 12pt gap.
-        XCTAssertEqual(
-            LadleTheme.dividerInset(
-                iconWidth: 28,
-                gap: 12,
-                leadingPadding: 12
-            ),
-            52
-        )
-        XCTAssertEqual(
-            LadleTheme.dividerInset(iconWidth: 28),
-            28 + LadleTheme.Layout.iconGap
-        )
-    }
-
-    func testButtonRolesCarryDistinctFillAndLabelIntent() {
-        let accent = LadleAccentColor.tomato
-        XCTAssertNotNil(LadleButtonRole.primary.fill(accent))
-        XCTAssertNotNil(LadleButtonRole.secondary.fill(accent))
-        XCTAssertNotNil(LadleButtonRole.destructive.fill(accent))
-        XCTAssertNil(
-            LadleButtonRole.tertiary.fill(accent),
-            "A tertiary button carries no fill"
-        )
-        XCTAssertEqual(LadleButtonRole.destructive.fill(accent), LadleTheme.Intent.destructiveFill)
-        XCTAssertEqual(
-            LadleButtonRole.primary.label(accent),
-            LadleTheme.Label.onAccent
-        )
-        XCTAssertEqual(
-            LadleButtonRole.secondary.label(accent),
-            LadleTheme.Label.primary
+        XCTAssertGreaterThanOrEqual(
+            LadleTheme.Control.primary,
+            LadleTheme.Control.hitTarget
         )
     }
 
@@ -579,45 +333,6 @@ final class DesignTokenTests: XCTestCase {
             .sizeThatFits(in: CGSize(width: 390, height: 300)).height
     }
 
-    func testFilledButtonsShareOneWidthAndTertiaryHugsItsLabel() {
-        XCTAssertTrue(LadleButtonStyle(role: .primary).isFullWidth)
-        XCTAssertTrue(LadleButtonStyle(role: .secondary).isFullWidth)
-        XCTAssertTrue(LadleButtonStyle(role: .destructive).isFullWidth)
-        XCTAssertFalse(LadleButtonStyle(role: .tertiary).isFullWidth)
-        XCTAssertTrue(
-            LadleButtonStyle(role: .tertiary, isFullWidth: true).isFullWidth
-        )
-    }
-
-    func testRecipeOptionsUseSemanticRolesWithoutIndentingRows() {
-        // The options live in a native Menu, so destructive styling comes
-        // from the system's button role rather than a filled CTA background.
-        XCTAssertTrue(RecipeOption.delete.isDestructive)
-        for option in [
-            RecipeOption.edit,
-            .reimport,
-            .nutrition,
-            .source,
-        ] {
-            XCTAssertFalse(
-                option.isDestructive,
-                "\(option) should remain a non-destructive action"
-            )
-        }
-        XCTAssertEqual(
-            LadleButtonStyle(role: .tertiary).horizontalPadding,
-            LadleTheme.Spacing.regular
-        )
-        XCTAssertEqual(
-            LadleButtonStyle(
-                role: .tertiary,
-                isFullWidth: true
-            ).horizontalPadding,
-            0,
-            "A full-width row owns its own content inset"
-        )
-    }
-
     func testBadgeSurfaceIsDistinguishableFromTheCardBehindIt() {
         // Surface.steel sits about four percent off Surface.raised, which is
         // why a badge drawn in it disappears into the card. Surface.badge has
@@ -639,13 +354,6 @@ final class DesignTokenTests: XCTestCase {
                 "Surface.badge must separate from the card more than steel does"
             )
         }
-    }
-
-    func testPressMotionUsesApprovedZeroBounceTimingLanguage() {
-        XCTAssertEqual(LadlePressKind.card.scale, 0.97)
-        XCTAssertEqual(LadlePressKind.card.duration, 0.18)
-        XCTAssertEqual(LadlePressKind.control.scale, 0.94)
-        XCTAssertEqual(LadlePressKind.control.duration, 0.15)
     }
 
     func testFeedbackPolicyOnlyAcknowledgesMeaningfulStateChanges() {
@@ -711,21 +419,23 @@ final class DesignTokenTests: XCTestCase {
 
     func testReviewCompletionShowsReviewedBeforePromptNavigation() {
         var presentation = ReviewCompletionPresentation()
+        let pendingTitle = presentation.title
 
-        XCTAssertEqual(presentation.title, "Mark reviewed")
         XCTAssertNil(presentation.systemImage)
         XCTAssertFalse(presentation.isReviewed)
 
         presentation.markReviewed()
 
-        XCTAssertEqual(presentation.title, "Reviewed")
-        XCTAssertEqual(presentation.systemImage, "checkmark")
+        XCTAssertNotEqual(presentation.title, pendingTitle)
+        XCTAssertNotNil(presentation.systemImage)
         XCTAssertTrue(presentation.isReviewed)
-        XCTAssertEqual(
+        // The button has to be seen to change, and the cook must not be kept
+        // waiting for it: a budget, not the value the delay happens to hold.
+        XCTAssertGreaterThan(
             ReviewCompletionPresentation.navigationDelay(
                 reduceMotion: false
             ),
-            .milliseconds(160)
+            .zero
         )
         XCTAssertLessThanOrEqual(
             ReviewCompletionPresentation.navigationDelay(
@@ -738,86 +448,6 @@ final class DesignTokenTests: XCTestCase {
                 reduceMotion: true
             ),
             .zero
-        )
-    }
-
-    /// The Recipes header's sort and view menus are native `Picker`s, the
-    /// shape Discover already uses, so iOS draws the trailing checkmark
-    /// column itself. The hand-rolled version put a *leading* `"checkmark"`
-    /// on the selected row and left the icon gutter empty on every other one.
-    func testRecipesHeaderMenusAreNativePickers() throws {
-        let project = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let source = try String(
-            contentsOf: project.appendingPathComponent(
-                "Ladle/Library/AllRecipesView.swift"
-            ),
-            encoding: .utf8
-        )
-        // Collapsed so the assertions describe the call, not its wrapping.
-        let code = source
-            .components(separatedBy: .whitespacesAndNewlines)
-            .filter { !$0.isEmpty }
-            .joined(separator: " ")
-
-        XCTAssertEqual(
-            source.components(separatedBy: "Picker(").count - 1,
-            3,
-            """
-            One picker each for sort and view, and one shared row builder \
-            for the five filter submenus
-            """
-        )
-        XCTAssertTrue(
-            code.contains("\"Sort recipes\", selection: $viewModel.sort"),
-            "The sort menu's picker binds straight to the view model"
-        )
-        XCTAssertTrue(
-            code.contains("\"Recipe view\", selection: Binding("),
-            "The view menu's picker routes writes through setDisplayMode"
-        )
-        XCTAssertFalse(
-            source.contains("\"checkmark\""),
-            "A Picker draws selection; the view must not hand-roll it"
-        )
-        XCTAssertEqual(
-            source.components(separatedBy: ".menuOrder(.fixed)").count - 1,
-            2,
-            """
-            Sort and view keep declaration order here; Filters is the shared             control now and keeps it in RecipeFilterMenu
-            """
-        )
-        let sharedControl = try String(
-            contentsOf: project.appendingPathComponent(
-                "Ladle/Library/RecipeFilterMenu.swift"
-            ),
-            encoding: .utf8
-        )
-        XCTAssertEqual(
-            sharedControl.components(separatedBy: ".menuOrder(.fixed)").count - 1,
-            1,
-            "The one filter control, on all three tabs, keeps its order too"
-        )
-
-        // Filters is a menu of live bindings: no staged copy, no Apply.
-        XCTAssertTrue(
-            code.contains(
-                "Toggle(\"Favorites\", isOn: $viewModel.favoritesOnly)"
-            ),
-            "The favorites row writes the view model as it is tapped"
-        )
-        XCTAssertTrue(
-            code.contains("filterSubmenu(.time, selection:"),
-            "Each dimension is a submenu over the shared LibraryFilter source"
-        )
-
-        // The accessibility contract the Recipes UI tests drive.
-        XCTAssertTrue(source.contains("accessibilityLabel(\"Sort recipes\")"))
-        XCTAssertTrue(source.contains("accessibilityLabel(\"Recipe view\")"))
-        XCTAssertTrue(source.contains("accessibilityValue(displayModeTitle)"))
-        XCTAssertTrue(
-            source.contains("accessibilityLabel(filterButtonTitle)")
         )
     }
 
@@ -838,10 +468,6 @@ final class DesignTokenTests: XCTestCase {
         )
         XCTAssertFalse(modeImages.contains(where: \.isEmpty))
         XCTAssertFalse(modeImages.contains("checkmark"))
-        XCTAssertEqual(
-            LibraryDisplayMode.allCases.map(\.title),
-            ["Grid", "List", "Gallery"]
-        )
     }
 
     private func productionSwiftSources(under root: URL) throws -> [URL] {

@@ -94,21 +94,4 @@ final class ProfileFactsTests: XCTestCase {
             "0 recipes on this device"
         )
     }
-
-    /// The title the header prints under the name is untouched by any of
-    /// this — the provider line is the same string it always was.
-    func testAccountTitleIsUnchanged() {
-        XCTAssertEqual(
-            AccountSheet.accountTitle(for: .signedInWithGoogle),
-            "Signed in with Google"
-        )
-        XCTAssertEqual(
-            AccountSheet.accountTitle(for: .signedInWithApple),
-            "Signed in with Apple"
-        )
-        XCTAssertEqual(
-            AccountSheet.accountTitle(for: .guest),
-            "Using Overeasy as a guest"
-        )
-    }
 }

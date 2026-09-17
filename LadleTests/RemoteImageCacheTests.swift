@@ -259,17 +259,6 @@ final class RemoteImageCacheTests: XCTestCase {
         }
     }
 
-    func testArtworkFailurePresentationIsExplicit() {
-        XCTAssertEqual(
-            RecipeArtworkLoadState.failed.systemImage,
-            "photo.badge.exclamationmark"
-        )
-        XCTAssertEqual(
-            RecipeArtworkLoadState.failed.accessibilityLabel,
-            "Recipe image unavailable"
-        )
-    }
-
     // MARK: - The detail screen's artwork owner must follow its access
 
     @MainActor

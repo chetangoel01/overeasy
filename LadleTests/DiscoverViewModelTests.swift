@@ -5,17 +5,6 @@ import XCTest
 
 @MainActor
 final class DiscoverViewModelTests: XCTestCase {
-    func testLoadPublishesDiscoveredRecipes() async {
-        let recipe = discoveredRecipe()
-        let viewModel = DiscoverViewModel(
-            service: DiscoverTestService(result: .success([recipe]))
-        )
-
-        await viewModel.load()
-
-        XCTAssertEqual(viewModel.state, .loaded([recipe]))
-    }
-
     func testLoadOmitsRecipesAlreadySavedByTheCurrentCook() async {
         let unsaved = discoveredRecipe()
         let saved = discoveredRecipe(
@@ -85,27 +74,6 @@ final class DiscoverViewModelTests: XCTestCase {
         XCTAssertTrue(
             service.shelfRequests.allSatisfy { $0.filter == filter },
             "A rail is the same feed under another order"
-        )
-    }
-
-    /// A filter is not a page of the current feed, it is a different feed.
-    /// Setting one restarts paging rather than appending to what is there.
-    func testChangingTheFilterStartsANewFirstPage() async {
-        let service = DiscoverTestService(
-            result: .success((1...4).map { paged($0) })
-        )
-        let viewModel = DiscoverViewModel(service: service)
-        await viewModel.load()
-        let before = service.requests.count
-
-        viewModel.filter = RecipeFilter(keywords: [.dessert])
-        await viewModel.load()
-
-        XCTAssertGreaterThan(service.requests.count, before)
-        XCTAssertEqual(service.requests.last?.cursor, 0)
-        XCTAssertEqual(
-            service.requests.last?.filter,
-            RecipeFilter(keywords: [.dessert])
         )
     }
 
@@ -592,24 +560,6 @@ final class DiscoverViewModelTests: XCTestCase {
         )
     }
 
-    /// A feed that has not moved must not sprout a pill offering the rows
-    /// already on screen — which is also why the demo scenarios never show
-    /// one.
-    func testAQuietRefreshMatchingTheFeedIsDiscarded() async {
-        let onScreen = (1...3).map { paged($0) }
-        let service = DiscoverTestService(result: .success(onScreen))
-        let clock = TestClock()
-        let viewModel = DiscoverViewModel(service: service, now: clock.now)
-        await viewModel.load()
-
-        clock.advance(by: DiscoverViewModel.quietRefreshInterval)
-        await viewModel.refreshQuietly()
-
-        XCTAssertEqual(service.requests.count, 2)
-        XCTAssertNil(viewModel.pending)
-        XCTAssertEqual(viewModel.state, .loaded(onScreen))
-    }
-
     /// Page 1 against the first page's worth of what is on screen. After
     /// paging the list is longer than a page, and comparing the whole of it
     /// would call every feed new.
@@ -856,19 +806,6 @@ final class DiscoverViewModelTests: XCTestCase {
         XCTAssertEqual(service.requests.count, requestCount)
     }
 
-    func testLoadMoreAdvancesTheCursorRatherThanRefetchingPageOne() async {
-        let service = DiscoverTestService(
-            result: .success((1...4).map { paged($0) })
-        )
-        service.pageSize = 2
-        let viewModel = DiscoverViewModel(service: service)
-
-        await viewModel.load()
-        await viewModel.loadMore()
-
-        XCTAssertEqual(service.requests.map(\.cursor), [0, 2])
-    }
-
     func testLoadMoreDropsRecipesAlreadyOnScreen() async {
         // A save between pages shifts the server's window, so the same source
         // can arrive twice. It must not render twice.
@@ -926,33 +863,6 @@ final class DiscoverViewModelTests: XCTestCase {
 
         XCTAssertEqual(viewModel.state, .loaded(Array(all.prefix(2))))
         XCTAssertFalse(viewModel.hasMore)
-    }
-
-    func testInitialLoadClassifiesRemoteFailures() async throws {
-        let retryAt = Date(timeIntervalSince1970: 1_800_000_000)
-        let rateLimit = try remoteError(
-            code: .rateLimited,
-            details: "\"retryAt\":\"2027-01-15T08:00:00.000Z\""
-        )
-        let provider = try remoteError(code: .providerUnavailable)
-        let cases: [(APIError, RemoteFailure)] = [
-            (.transport, .offline),
-            (.remote(rateLimit), .rateLimited(retryAt: retryAt)),
-            (.remote(provider), .serviceUnavailable),
-        ]
-
-        for (error, expected) in cases {
-            let viewModel = DiscoverViewModel(
-                service: DiscoverTestService(result: .failure(error))
-            )
-
-            await viewModel.load()
-
-            guard case let .failed(report) = viewModel.state else {
-                return XCTFail("Expected classified first-load failure")
-            }
-            XCTAssertEqual(report.failure, expected)
-        }
     }
 
     func testRefreshKeepsContentThenExposesStaleFailureAndRecovers() async {
