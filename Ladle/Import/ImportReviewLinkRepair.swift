@@ -88,8 +88,8 @@ final class ImportReviewLinkRepair {
                     && SourceVideoKey($0.originalURL) == key
             }
             // One match is the only safe answer. None means the recipe was
-            // deleted, or the link is a short one only the server can
-            // resolve; several means two imports of the same video, and
+            // deleted, or short-link resolution was unavailable;
+            // several means two imports of the same video, and
             // guessing between them would put the wrong recipe behind the
             // row.
             guard matches.count == 1, let recipe = matches.first else {
