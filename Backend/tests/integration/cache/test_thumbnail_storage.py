@@ -9,7 +9,12 @@ from ladle.infrastructure.object_storage import S3ObjectStorage
 
 @pytest.mark.integration
 def test_private_thumbnail_put_signed_read_and_delete() -> None:
-    with MinioContainer() as minio:
+    # Use the same release as Compose. Docker Hub removed minio/minio;
+    # the publisher's Quay registry still serves these pinned images.
+    with MinioContainer(
+        "quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z"
+        "@sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e"
+    ) as minio:
         config = minio.get_config()
         storage = S3ObjectStorage(
             endpoint_url=f"http://{config['endpoint']}",

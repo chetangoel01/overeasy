@@ -13,6 +13,9 @@ ARG FFMPEG_VERSION=7:5.1.9-0+deb12u1
 # the snapshot above moved forward for; pinned explicitly so the version is
 # chosen here rather than by whatever apt happens to resolve.
 ARG LIBEXPAT1_VERSION=2.5.0-1+deb12u3
+# The Python base already includes PCRE2 10.42-1. Install Debian's security
+# update even in images without ffmpeg (DLA-4772-1).
+ARG LIBPCRE2_VERSION=10.42-1+deb12u1
 ARG INSTALL_MEDIA_TOOLS=true
 RUN sed -i \
         -e "s|http://deb.debian.org/debian$|https://snapshot.debian.org/archive/debian/${DEBIAN_SNAPSHOT}|" \
@@ -22,6 +25,7 @@ RUN sed -i \
     && apt-get update \
     && apt-get install --no-install-recommends -y \
         ca-certificates=${CA_CERTIFICATES_VERSION} \
+        libpcre2-8-0=${LIBPCRE2_VERSION} \
     && if [ "$INSTALL_MEDIA_TOOLS" = "true" ]; then \
         apt-get install --no-install-recommends -y \
             ffmpeg=${FFMPEG_VERSION} \
