@@ -893,7 +893,7 @@ sudo /opt/ladle/app/Backend/deploy/vps/manage.sh backfill-times
 
 ## Migrations and schema inspection
 
-The current head is `0026` (ingredient quantity state). The full chain is in
+The current head is `0027` (recipe ratings). The full chain is in
 [`alembic/versions`](../alembic/versions/); inspect it with
 `uv run alembic history` from `Backend/`. Keep the readiness probe's expected
 revision in `ladle/api/routes/health.py` aligned with the migration head.
