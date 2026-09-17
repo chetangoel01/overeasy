@@ -345,21 +345,12 @@ final class AccountSessionTests: XCTestCase {
         let session = AccountSession(store: InMemoryPreferenceStore())
         session.continueAsGuest()
 
-        XCTAssertEqual(
-            session.saveDecision(savedRecipeCount: 0),
-            .allow
-        )
-        XCTAssertEqual(
-            session.saveDecision(savedRecipeCount: 8),
-            .allow
-        )
+        // The thresholds are `GuestPolicy`'s and LadleCore tests them; this
+        // is that a guest session answers with the policy, on both sides of
+        // the limit.
         XCTAssertEqual(
             session.saveDecision(savedRecipeCount: 9),
             .allowWithAccountPrompt
-        )
-        XCTAssertEqual(
-            session.saveDecision(savedRecipeCount: 10),
-            .limitReached
         )
         XCTAssertEqual(
             session.saveDecision(savedRecipeCount: 11),

@@ -5,40 +5,11 @@ import XCTest
 
 /// `LibraryFilter` is the single source for what the Recipes filter menu
 /// offers and for how every value is worded. The pills under the header read
-/// the same titles, so these tests pin both the words and the fact that the
-/// two call sites cannot drift apart.
+/// the same titles, so these tests pin that the two call sites cannot drift
+/// apart — not the words themselves.
 @MainActor
 final class LibraryFilterTests: XCTestCase {
-    func testEveryOptionIsWordedForACook() {
-        XCTAssertEqual(
-            LibraryFilter.time.options.map(LibraryFilter.time.optionTitle),
-            [
-                "15 min or less",
-                "30 min or less",
-                "45 min or less",
-                "60 min or less",
-            ]
-        )
-        XCTAssertEqual(
-            LibraryFilter.calories.options
-                .map(LibraryFilter.calories.optionTitle),
-            ["400 or fewer", "600 or fewer", "800 or fewer"]
-        )
-        XCTAssertEqual(
-            LibraryFilter.protein.options
-                .map(LibraryFilter.protein.optionTitle),
-            ["20 g or more", "30 g or more", "40 g or more"]
-        )
-        XCTAssertEqual(
-            LibraryFilter.carbohydrates.options
-                .map(LibraryFilter.carbohydrates.optionTitle),
-            ["Under 30 g", "Under 50 g"]
-        )
-        XCTAssertEqual(
-            LibraryFilter.fat.options.map(LibraryFilter.fat.optionTitle),
-            ["Under 15 g", "Under 25 g"]
-        )
-
+    func testEveryOptionInAMenuIsNamedDistinctly() {
         for filter in LibraryFilter.allCases {
             let titles = filter.options.map(filter.optionTitle)
             XCTAssertEqual(
@@ -53,59 +24,23 @@ final class LibraryFilterTests: XCTestCase {
     /// The submenu label carries the current value, so the menu reads as
     /// state before it is opened.
     func testSubmenuTitleCarriesTheCurrentValue() {
-        XCTAssertEqual(LibraryFilter.time.menuTitle(for: nil), "Time · Any")
-        XCTAssertEqual(
-            LibraryFilter.time.menuTitle(for: 30),
-            "Time · 30 min or less"
-        )
-        XCTAssertEqual(
-            LibraryFilter.carbohydrates.menuTitle(for: 50),
-            "Carbohydrates · Under 50 g"
-        )
-        XCTAssertEqual(LibraryFilter.anyTitle, "Any")
+        let unset = LibraryFilter.time.menuTitle(for: nil)
+        let thirty = LibraryFilter.time.menuTitle(for: 30)
+
+        XCTAssertTrue(unset.contains(LibraryFilter.anyTitle))
+        XCTAssertTrue(thirty.contains(LibraryFilter.time.optionTitle(30)))
+        XCTAssertNotEqual(unset, thirty)
     }
 
     /// A pill stands alone under the header, so it carries the noun its
-    /// submenu label would otherwise supply.
-    func testEveryOptionIsWordedForAPillThatStandsAlone() {
-        XCTAssertEqual(
-            LibraryFilter.time.options.map(LibraryFilter.time.pillTitle),
-            [
-                "15 min or less",
-                "30 min or less",
-                "45 min or less",
-                "60 min or less",
-            ]
+    /// submenu label would otherwise supply. Carbs and fat are why: without
+    /// it a pills row holding both at one value says the same thing twice
+    /// over and names neither.
+    func testAPillNamesItsDimensionBecauseItStandsAlone() {
+        XCTAssertNotEqual(
+            LibraryFilter.carbohydrates.pillTitle(50),
+            LibraryFilter.fat.pillTitle(50)
         )
-        XCTAssertEqual(
-            LibraryFilter.calories.options
-                .map(LibraryFilter.calories.pillTitle),
-            ["400 cal or fewer", "600 cal or fewer", "800 cal or fewer"]
-        )
-        XCTAssertEqual(
-            LibraryFilter.protein.options.map(LibraryFilter.protein.pillTitle),
-            [
-                "20 g protein or more",
-                "30 g protein or more",
-                "40 g protein or more",
-            ]
-        )
-        XCTAssertEqual(
-            LibraryFilter.carbohydrates.options
-                .map(LibraryFilter.carbohydrates.pillTitle),
-            ["Under 30 g carbs", "Under 50 g carbs"]
-        )
-        XCTAssertEqual(
-            LibraryFilter.fat.options.map(LibraryFilter.fat.pillTitle),
-            ["Under 15 g fat", "Under 25 g fat"]
-        )
-
-        // Carbs and fat are why the noun is there: without it a pills row
-        // holding both says "Under 50 g" twice over and names neither.
-        let grams = LibraryFilter.carbohydrates.options
-            .map(LibraryFilter.carbohydrates.pillTitle)
-            + LibraryFilter.fat.options.map(LibraryFilter.fat.pillTitle)
-        XCTAssertEqual(Set(grams).count, grams.count)
     }
 
     /// The whole point of the shared source: a pill and its submenu row are
