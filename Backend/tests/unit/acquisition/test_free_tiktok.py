@@ -1,5 +1,9 @@
 import json
 
+import httpx
+import pytest
+
+from ladle.acquisition.errors import PrivateOrDeleted
 from ladle.acquisition.free.tiktok import TikTokPageClient
 from ladle.acquisition.models import MediaKind
 
@@ -144,6 +148,34 @@ def test_caption_url_that_is_not_vtt_is_rejected() -> None:
 
 PHOTO_URL = "https://www.tiktok.com/@creator/photo/7481234567890123456"
 PHOTO_STRUCT_URL = "https://www.tiktok.com/@creator/video/7481234567890123456"
+
+
+@pytest.mark.parametrize("status", [404, 410])
+def test_removed_photo_posts_are_terminal_failures(status: int) -> None:
+    class RemovedPage:
+        def fetch_raw(self, url: str) -> str:
+            response = httpx.Response(status, request=httpx.Request("GET", url))
+            response.raise_for_status()
+            return ""
+
+    with pytest.raises(PrivateOrDeleted):
+        TikTokPageClient(fetcher=RemovedPage()).evidence(PHOTO_URL)
+
+
+@pytest.mark.parametrize("status", [10216, 10222, 10204])
+def test_private_posts_are_distinguished_from_ip_blocks(status: int) -> None:
+    payload = {"__DEFAULT_SCOPE__": {"webapp.video-detail": {"statusCode": status}}}
+    html = (
+        '<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__">'
+        + json.dumps(payload)
+        + "</script>"
+    )
+    client = TikTokPageClient(fetcher=Fetcher({PHOTO_STRUCT_URL: html}))
+    if status == 10204:
+        assert client.evidence(PHOTO_URL).is_empty
+    else:
+        with pytest.raises(PrivateOrDeleted):
+            client.evidence(PHOTO_URL)
 
 
 def test_photo_post_struct_is_read_from_the_video_form_of_the_url() -> None:

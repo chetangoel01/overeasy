@@ -2,8 +2,6 @@ import LadleCore
 import SwiftUI
 
 struct RecipeGridCard: View {
-    @Environment(\.ladleAccent) private var accent
-
     let recipe: Recipe
     let openRecipe: () -> Void
     let toggleFavorite: () -> Void
@@ -13,24 +11,14 @@ struct RecipeGridCard: View {
             ZStack(alignment: .topTrailing) {
                 recipeImage
 
-                Button(action: toggleFavorite) {
-                    Image(
-                        systemName: recipe.isFavorite
-                            ? "heart.fill"
-                            : "heart"
-                    )
-                    .font(.system(size: LadleTheme.IconSize.small, weight: .semibold))
-                    .foregroundStyle(
-                        recipe.isFavorite
-                            ? accent.label
-                            : LadleTheme.Label.primary
-                    )
-                    .frame(width: 38, height: 38)
-                    .background(.ultraThinMaterial, in: Circle())
-                    .padding(8)
-                }
-                .buttonStyle(LadlePressButtonStyle())
-                .accessibilityLabel(favoriteAccessibilityLabel)
+                LadleIconButton(
+                    systemImage: recipe.isFavorite ? "heart.fill" : "heart",
+                    accessibilityLabel: favoriteAccessibilityLabel,
+                    tone: .onImage,
+                    isSelected: recipe.isFavorite,
+                    action: toggleFavorite
+                )
+                .padding(8)
             }
 
             // Neither of these reserves space for a line it may not use. The

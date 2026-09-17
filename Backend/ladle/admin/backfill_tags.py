@@ -42,7 +42,7 @@ from ladle.acquisition.models import SourceVideoDescriptor
 from ladle.acquisition.protocol import VideoAcquirer
 from ladle.clock import SystemClock
 from ladle.config import Settings
-from ladle.db.models import Recipe, SourceVideo
+from ladle.db.models import ExtractionCache, Recipe, SourceVideo
 from ladle.db.session import build_engine, build_session_factory
 from ladle.extraction.claude import ExtractionUnavailable
 from ladle.extraction.protocol import RecipeExtractor
@@ -164,6 +164,27 @@ class TagBackfillService:
             # command.
             reason = f"skipped: {type(error).__name__}"
             return [_row(stored, reason) for stored in stored_recipes]
+
+        tags = template.model_dump(
+            mode="json",
+            by_alias=True,
+            include={"diets", "cuisines", "keywords", "keyword_proposals"},
+        )
+        if not dry_run and any(tags.values()):
+            # Future Discover previews and saves must inherit the same tags.
+            # Preserve the verified template, including nutrition; the raw
+            # extractor's other fields have not passed the full pipeline.
+            caches = database.scalars(
+                select(ExtractionCache)
+                .where(
+                    ExtractionCache.source_video_id == source_id,
+                    ExtractionCache.source_revision == source.source_revision,
+                    ExtractionCache.invalidated_at.is_(None),
+                )
+                .with_for_update()
+            )
+            for cached in caches:
+                cached.template_json = {**cached.template_json, **tags}
 
         return [
             self._apply(database, stored, template, dry_run=dry_run)

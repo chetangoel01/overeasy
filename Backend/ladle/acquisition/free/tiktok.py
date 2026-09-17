@@ -19,6 +19,7 @@ from typing import Any
 
 import httpx
 
+from ladle.acquisition.errors import PrivateOrDeleted
 from ladle.acquisition.free.links import LinkFetcher, UnsafeURL
 from ladle.acquisition.free.ytdlp import parse_vtt
 from ladle.acquisition.models import (
@@ -59,11 +60,16 @@ class TikTokPageClient:
         self._fetcher = fetcher
 
     def evidence(self, canonical_url: str) -> TikTokPageEvidence:
-        """Best-effort. Any failure means the paid chain simply runs as before."""
+        """Best-effort except when TikTok confirms a private or removed post."""
         evidence = TikTokPageEvidence()
         struct_url = _struct_url(canonical_url)
         try:
             page = self._fetcher.fetch_raw(struct_url)
+        except httpx.HTTPStatusError as error:
+            if error.response.status_code in (404, 410):
+                raise PrivateOrDeleted("TikTok post is no longer available") from error
+            LOGGER.info("TikTok page unavailable for %s: %s", struct_url, error)
+            return evidence
         except (UnsafeURL, OSError, httpx.HTTPError) as error:
             LOGGER.info("TikTok page unavailable for %s: %s", struct_url, error)
             return evidence
@@ -221,6 +227,10 @@ def _item_struct(page: str) -> dict[str, Any] | None:
     detail = scope.get("webapp.video-detail")
     if not isinstance(detail, dict):
         return None
+    # These identify a private post/account in TikTok's web response (also
+    # recognized by yt-dlp). 10204 is an IP block, not evidence of deletion.
+    if detail.get("statusCode") in (10216, 10222):
+        raise PrivateOrDeleted("TikTok post or account is private")
     info = detail.get("itemInfo")
     if not isinstance(info, dict):
         return None

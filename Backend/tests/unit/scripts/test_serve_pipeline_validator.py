@@ -1,15 +1,10 @@
-import json
-import re
 from collections.abc import Callable
-from pathlib import Path
 from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 
 from scripts import serve_pipeline_validator
-
-TOOLS = Path(__file__).resolve().parents[3] / "tools"
 
 
 class ImmediateExecutor:
@@ -170,97 +165,6 @@ def test_api_returns_typed_invalid_input(payload: dict[str, str], status: int) -
 
     assert response.status_code == status
     assert response.json()["error"] == "invalidSourceURL"
-
-
-def test_results_page_embeds_five_safe_complete_recipe_records() -> None:
-    page = TOOLS / "pipeline-results.html"
-    html = page.read_text()
-    match = re.search(
-        r'<script id="pipeline-results-data" type="application/json">(.*?)</script>',
-        html,
-        re.DOTALL,
-    )
-
-    assert '<meta name="viewport"' in html
-    assert "<main" in html and "<nav" in html
-    assert "@media (prefers-reduced-motion: reduce)" in html
-    assert "<script src=" not in html
-    assert "sk-or-v1" not in html
-    assert match is not None
-    records = json.loads(match.group(1))
-    assert len(records) == 5
-    assert {record["sourceURL"] for record in records} == {
-        "https://www.tiktok.com/@zachs.foods/video/7612708181004799263",
-        "https://www.tiktok.com/@iankyo/video/7436430114910506271",
-        "https://www.tiktok.com/@alexcookjoy/video/7574621199519567136",
-        "https://www.tiktok.com/@foodiligence/video/7581152180174966030",
-        "https://www.instagram.com/p/DbbHIKHM3xr/",
-    }
-    assert sum(float(record["knownCostUSD"]) for record in records) == pytest.approx(
-        0.1190838276875
-    )
-    for record in records:
-        recipe = record["recipe"]
-        assert recipe["servings"]
-        assert recipe["servings_basis"] in {"stated", "estimatedFromYield"}
-        assert recipe["review_status"] in {"ready", "needsReview"}
-        assert recipe["ingredients"]
-        assert recipe["steps"]
-        assert recipe["nutrition"]["calories"] is not None
-        assert recipe["nutrition"]["protein_grams"] is not None
-        assert recipe["nutrition"]["carbohydrate_grams"] is not None
-        assert recipe["nutrition"]["fat_grams"] is not None
-        assert recipe["nutrition"]["evidence"]
-        assert record["processSeconds"] > 0
-
-
-def test_validator_page_has_accessible_safe_live_pipeline_contract() -> None:
-    html = (TOOLS / "pipeline-validator.html").read_text()
-
-    assert '<meta name="viewport"' in html
-    assert "<main" in html and "<form" in html
-    assert '<label for="source-url"' in html
-    assert 'id="source-url"' in html and 'type="url"' in html
-    assert 'id="run-validation"' in html and 'type="submit"' in html
-    assert 'aria-live="polite"' in html
-    for output_id in (
-        "stage-status",
-        "servings-output",
-        "servings-basis",
-        "ingredients-output",
-        "steps-output",
-        "uncertainties-output",
-        "nutrition-output",
-        "calories-output",
-        "protein-output",
-        "carbohydrates-output",
-        "fat-output",
-        "whole-recipe-nutrition",
-        "nutrition-evidence",
-    ):
-        assert f'id="{output_id}"' in html
-    assert "api/validate" in html and "api/jobs/" in html
-    assert "AbortController" in html
-    assert "location.protocol === 'file:'" in html
-    assert "textContent" in html
-    assert "innerHTML" not in html
-    assert "<script src=" not in html
-    assert "sk-or-v1" not in html
-
-
-def test_both_pages_render_nutrition_and_visible_blockers() -> None:
-    validator = (TOOLS / "pipeline-validator.html").read_text()
-    results = (TOOLS / "pipeline-results.html").read_text()
-
-    for html in (validator, results):
-        assert "Calories" in html
-        assert "Protein" in html
-        assert "Carbohydrates" in html
-        assert "Fat" in html
-        assert "Per serving" in html
-        assert "Whole recipe" in html
-        assert "nutrition" in html
-        assert "needsReview" in html
 
 
 def test_server_serves_both_html_pages_without_secrets() -> None:

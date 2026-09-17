@@ -1,3 +1,4 @@
+import Foundation
 import LadleCore
 
 enum ImportServiceProgress: Equatable, Sendable {
@@ -24,6 +25,8 @@ struct ImportServiceUpdate: Equatable, Sendable {
 }
 
 protocol ImportService: Sendable {
+    func resolveSourceURL(_ url: URL) async throws -> URL
+
     func submit(
         _ job: ImportJob,
         allowingDuplicate: Bool
@@ -43,5 +46,7 @@ protocol ImportService: Sendable {
 }
 
 extension ImportService {
+    func resolveSourceURL(_ url: URL) async throws -> URL { url }
+
     func cancel(remoteJobID: String) async throws {}
 }

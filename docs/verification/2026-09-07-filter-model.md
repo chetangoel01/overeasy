@@ -203,6 +203,19 @@ The whitespace check is clean on every commit.
 
 ## Known gaps
 
+### September 17, 2026: diet compatibility (#149)
+
+Pescatarian now accepts recipes tagged pescatarian, vegetarian, or vegan;
+Vegetarian also accepts vegan recipes. Vegan does not accept the broader tags.
+Every selected restriction still has to hold, so Pescatarian + Gluten-free
+requires a compatible diet **and** the gluten-free tag. Untagged recipes are
+not presumed suitable for a selected diet.
+
+`RecipeFilter.matches` and the backend's shared `_filter_conditions` apply the
+same rule to Recipes, both Watch segments, Discover paging, and shelf selection.
+The regression fixtures deliberately include vegan recipes without a redundant
+vegetarian tag. Verification is recorded in the September 17 feedback work log.
+
 - **Tags are not shown on a recipe.** `keywordProposals` decodes, is carried
   through an edit and is never filterable — but nothing draws it yet. The
   Discover shelves built from keywords are the separate issue that #87 blocks.

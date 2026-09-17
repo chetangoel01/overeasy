@@ -3,6 +3,7 @@ import SwiftUI
 
 struct FullRecipeView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.ladleAccent) private var accent
 
     @Bindable var viewModel: CookingViewModel
@@ -46,17 +47,12 @@ struct FullRecipeView: View {
             // Picking a step used to change only the pill's own label: this
             // screen shows every step at once, so nothing moved and the
             // control looked broken. It now brings the chosen step into view.
-            // Animated on purpose. Dropping the animation was tried to stop a
-            // rebound after select-then-swipe, and it did halve the peak — but
-            // the rebound is the scroll view overshooting the end of the
-            // content and springing back, which a plain fast swipe does just
-            // as much of on its own. Since the bounce is the system's and not
-            // this jump's, the animation is worth keeping for the movement it
-            // gives the step change.
+            // Keep the native scroll when motion is allowed; Reduce Motion
+            // jumps directly to the chosen step without that travel.
             .onChange(of: viewModel.currentStepIndex) { _, index in
                 guard viewModel.recipe.orderedSteps.indices.contains(index)
                 else { return }
-                withAnimation(.easeInOut(duration: 0.25)) {
+                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.25)) {
                     scroll.scrollTo(
                         viewModel.recipe.orderedSteps[index].id,
                         anchor: .top

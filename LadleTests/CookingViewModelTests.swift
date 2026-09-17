@@ -1,5 +1,6 @@
 import Foundation
 import LadleCore
+import UserNotifications
 import XCTest
 @testable import Ladle
 
@@ -155,6 +156,58 @@ final class CookingViewModelTests: XCTestCase {
             notifications.cancelled,
             [detectedTimer.id, detectedTimer.id]
         )
+    }
+
+    func testFinishingDuringPermissionPromptDoesNotCancelCompletionAlert() async throws {
+        let recipe = PreviewFixtures.recipes[1]
+        let timer = try XCTUnwrap(recipe.orderedSteps[1].timers.first)
+        let clock = TestCookingClock()
+        let notifications = GateTimerNotificationScheduler()
+        let viewModel = makeViewModel(recipe: recipe, clock: clock, notifications: notifications)
+        let start = Task { await viewModel.startTimer(id: timer.id) }
+        await notifications.waitUntilScheduling()
+        clock.advance(by: TimeInterval(timer.durationSeconds))
+        notifications.release()
+        await start.value
+        XCTAssertEqual(viewModel.timerPhase(for: timer.id), .finished)
+        XCTAssertTrue(notifications.cancelled.isEmpty)
+    }
+
+    func testCompletionRequestHasSoundAndKeepsDeadlineAcrossPermissionDelay() async throws {
+        for delay in [0.0, 4.0, 15.0] {
+            let clock = TestCookingClock()
+            let center = RecordingTimerNotificationCenter {
+                clock.advance(by: delay)
+            }
+            let scheduler = LocalTimerNotificationScheduler(center: center, now: { clock.now })
+            await scheduler.schedule(timerID: UUID(), label: "Simmer", durationSeconds: 10)
+            let request = try XCTUnwrap(center.requests.first)
+            XCTAssertEqual(center.options, [.alert, .sound])
+            XCTAssertEqual(request.content.title, "Simmer is ready")
+            XCTAssertEqual(request.content.body, "Your Overeasy timer has finished.")
+            XCTAssertNotNil(request.content.sound)
+            if delay < 10 {
+                let trigger = try XCTUnwrap(request.trigger as? UNTimeIntervalNotificationTrigger)
+                XCTAssertEqual(trigger.timeInterval, 10 - delay, accuracy: 0.01)
+                XCTAssertFalse(trigger.repeats)
+            } else {
+                XCTAssertNil(request.trigger, "An elapsed timer should alert immediately after permission is granted")
+            }
+        }
+    }
+
+    func testDeniedOrCancelledPermissionDoesNotLeaveATimerAlert() async {
+        for denied in [true, false] {
+            let timerID = UUID()
+            var scheduler: LocalTimerNotificationScheduler?
+            let center = RecordingTimerNotificationCenter {
+                if !denied { scheduler?.cancel(timerID: timerID) }
+            }
+            center.authorized = !denied
+            scheduler = LocalTimerNotificationScheduler(center: center)
+            await scheduler?.schedule(timerID: timerID, label: "Simmer", durationSeconds: 10)
+            XCTAssertTrue(center.requests.isEmpty)
+        }
     }
 
     func testRunningTimerReportsFinishedWhenCountdownReachesZero() async throws {
@@ -494,4 +547,23 @@ private final class GateTimerNotificationScheduler:
 @MainActor
 private final class TestIdleTimerController: IdleTimerControlling {
     var isIdleTimerDisabled = false
+}
+
+
+@MainActor
+private final class RecordingTimerNotificationCenter: CookingNotificationCenter {
+    let authorize: () -> Void
+    var options: UNAuthorizationOptions = []
+    var authorized = true
+    var requests: [UNNotificationRequest] = []
+    init(authorize: @escaping () -> Void) { self.authorize = authorize }
+    func requestAuthorization(options: UNAuthorizationOptions) async throws -> Bool {
+        self.options = options
+        authorize()
+        return authorized
+    }
+    func add(_ request: UNNotificationRequest) async throws { requests.append(request) }
+    func removePendingNotificationRequests(withIdentifiers identifiers: [String]) {
+        requests.removeAll { identifiers.contains($0.identifier) }
+    }
 }

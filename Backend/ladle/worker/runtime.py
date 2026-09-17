@@ -50,6 +50,12 @@ from ladle.extraction.claude import (
 )
 from ladle.extraction.openrouter import OpenRouterStructuredClient
 from ladle.extraction.protocol import RecipeExtractor, RecipeVerifier
+from ladle.extraction.timing import (
+    AnthropicTimeEstimateClient,
+    OpenRouterTimeEstimateClient,
+    RecipeTimeEstimator,
+    TimeEstimateClient,
+)
 from ladle.extraction.verification import (
     AnthropicVerificationClient,
     OpenRouterVerificationClient,
@@ -603,6 +609,44 @@ def runtime_extractor(
     )
 
 
+def runtime_time_estimator(
+    settings: Settings, *, usage: ProviderUsageSink
+) -> RecipeTimeEstimator:
+    client: TimeEstimateClient
+    if settings.extraction_provider == "openrouter":
+        if settings.openrouter_api_key is None:
+            raise RuntimeError("timing repair requires an OpenRouter API key")
+        client = OpenRouterTimeEstimateClient(
+            http=httpx.Client(
+                timeout=settings.openrouter_timeout_seconds, trust_env=False
+            ),
+            api_key=settings.openrouter_api_key.get_secret_value(),
+            base_url=str(settings.openrouter_base_url),
+            max_attempts=1,
+        )
+        model = settings.openrouter_model_id
+    else:
+        if settings.anthropic_api_key is None:
+            raise RuntimeError("timing repair requires an Anthropic API key")
+        client = AnthropicTimeEstimateClient(
+            Anthropic(
+                api_key=settings.anthropic_api_key.get_secret_value(),
+                base_url=str(settings.anthropic_base_url),
+                timeout=settings.anthropic_timeout_seconds,
+                max_retries=0,
+            ),
+            max_attempts=1,
+        )
+        model = settings.anthropic_model_id
+    return RecipeTimeEstimator(
+        client=client,
+        model_id=model,
+        max_tokens=settings.recipe_verification_max_tokens,
+        usage=usage,
+        provider=settings.extraction_provider,
+    )
+
+
 @lru_cache(maxsize=1)
 def runtime_orchestrator() -> ImportOrchestrator:
     settings = Settings()
@@ -635,6 +679,7 @@ def runtime_orchestrator() -> ImportOrchestrator:
     extractor: RecipeExtractor
     nutrition_service: RecipeNutritionService | None = None
     verifier: RecipeVerifier | None = None
+    time_estimator: RecipeTimeEstimator | None = None
     if settings.worker_provider_mode == "fake":
         acquirer = FakeRuntimeAcquirer(
             delay_seconds=settings.fake_provider_delay_seconds,
@@ -669,6 +714,7 @@ def runtime_orchestrator() -> ImportOrchestrator:
         verifier = _recipe_verifier(settings, usage=usage)
         acquirer = runtime_acquirer(settings, usage=usage, metrics=metrics)
         extractor = runtime_extractor(settings, usage=usage)
+        time_estimator = runtime_time_estimator(settings, usage=usage)
     thumbnails: OEmbedThumbnailFetcher | None = None
     if settings.object_storage_enabled:
         thumbnails = OEmbedThumbnailFetcher(
@@ -689,6 +735,7 @@ def runtime_orchestrator() -> ImportOrchestrator:
         extractor=extractor,
         clock=clock,
         nutrition_enricher=nutrition_service,
+        time_estimator=time_estimator,
         verifier=verifier,
         thumbnails=thumbnails,
         private_text=build_private_text_cipher(

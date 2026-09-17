@@ -514,6 +514,37 @@ final class DesignTokenTests: XCTestCase {
         }
     }
 
+    func testDiscoverSaveKeepsItsBoundsWhileLoadingAtEveryTextSize() {
+        for textSize: DynamicTypeSize in [.large, .accessibility3, .accessibility5] {
+            let ready = discoverSaveSize(isSaving: false, textSize: textSize)
+            let loading = discoverSaveSize(isSaving: true, textSize: textSize)
+            XCTAssertEqual(ready.width, loading.width, accuracy: 0.5)
+            XCTAssertEqual(ready.height, loading.height, accuracy: 0.5)
+            XCTAssertGreaterThanOrEqual(ready.height, LadleTheme.Control.primary)
+        }
+    }
+
+    private func discoverSaveSize(
+        isSaving: Bool,
+        textSize: DynamicTypeSize
+    ) -> CGSize {
+        let recipe = DiscoverRecipe(
+            sourceID: UUID(), title: "Lemon Orzo", description: "",
+            creatorName: nil, source: .tiktok,
+            originalURL: URL(string: "https://www.tiktok.com/@cook/video/123")!,
+            imageURL: nil, savedCount: 12
+        )
+        let row = DiscoverRecipeRow(
+            recipe: recipe, sort: .popular, isLoadingDetail: false,
+            isSaving: isSaving, isSaved: false,
+            openFailure: nil, saveFailure: nil, open: {}, save: {}
+        )
+        let host = UIHostingController(
+            rootView: row.saveButton.environment(\.dynamicTypeSize, textSize)
+        )
+        return host.sizeThatFits(in: CGSize(width: 390, height: 300))
+    }
+
     func testFilledButtonsShareOneWidthAndTertiaryHugsItsLabel() {
         XCTAssertTrue(LadleButtonStyle(role: .primary).isFullWidth)
         XCTAssertTrue(LadleButtonStyle(role: .secondary).isFullWidth)

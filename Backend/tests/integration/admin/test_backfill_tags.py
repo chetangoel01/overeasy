@@ -27,7 +27,14 @@ from ladle.acquisition.models import (
 from ladle.admin.backfill_tags import TagBackfillService, render_table
 from ladle.contracts.recipes import RecipeDTO, RecipeReviewStatus, RecipeSource
 from ladle.contracts.tags import CuisineTag, DietTag, RecipeKeyword
-from ladle.db.models import Recipe, RecipeChange, SourceVideo, User, UserSyncState
+from ladle.db.models import (
+    ExtractionCache,
+    Recipe,
+    RecipeChange,
+    SourceVideo,
+    User,
+    UserSyncState,
+)
 from ladle.db.session import build_engine
 from ladle.recipes.repository import RecipeRepository
 from ladle.recipes.service import RecipeService
@@ -401,4 +408,73 @@ def test_an_empty_corpus_says_so(clean_postgres_url: str) -> None:
     assert rows == []
     assert render_table(rows) == "No recipes to tag."
 
+    engine.dispose()
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("dry_run", "tagged"), [(False, True), (True, True), (False, False)]
+)
+def test_backfill_repairs_only_tags_in_current_cache_and_future_discover_saves(
+    clean_postgres_url: str,
+    dry_run: bool,
+    tagged: bool,
+) -> None:
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    engine = build_engine(clean_postgres_url)
+    source_id, _ = seed(engine)
+    original = RecipeTemplate.from_recipe(stored_recipe(uuid4())).model_dump(
+        mode="json",
+        by_alias=True,
+    )
+    cache_ids = [uuid4() for _ in range(3)]
+    new_user = uuid4()
+    with Session(engine) as database, database.begin():
+        database.add(User(id=new_user, kind="guest", created_at=NOW))
+        database.flush()
+        database.add(UserSyncState(user_id=new_user, next_sequence=1))
+        for index, cache_id in enumerate(cache_ids):
+            database.add(
+                ExtractionCache(
+                    id=cache_id,
+                    source_video_id=source_id,
+                    source_revision="old" if index == 1 else "1",
+                    contract_version="v1",
+                    prompt_version=f"legacy-{index}",
+                    model_id="fake",
+                    template_json=original,
+                    review_status="ready",
+                    created_at=NOW,
+                    invalidated_at=NOW if index == 2 else None,
+                )
+            )
+    service, _ = build(engine, extractor=FakeExtractor(tagged=tagged))
+    with Session(engine) as database, database.begin():
+        service.run(database, limit=None, dry_run=dry_run)
+    with Session(engine) as database, database.begin():
+        current = database.get(ExtractionCache, cache_ids[0]).template_json
+        expected = dict(original)
+        if not dry_run and tagged:
+            expected.update(
+                diets=["vegetarian"],
+                cuisines=["mediterranean"],
+                keywords=["onePot"],
+                keywordProposals=["lemony"],
+            )
+        assert (
+            current == expected
+        )  # Including verified nutrition and all recipe content.
+        for cache_id in cache_ids[1:]:
+            assert database.get(ExtractionCache, cache_id).template_json == original
+        recipes = RecipeService(clock=FrozenClock(NOW))
+        preview = recipes.discover_detail(database, source_video_id=source_id)
+        saved = recipes.save_discovered(
+            database, user_id=new_user, source_video_id=source_id
+        )
+        assert (
+            preview.diets
+            == saved.diets
+            == ([DietTag.VEGETARIAN] if not dry_run and tagged else [])
+        )
+        assert saved.nutrition.calories == preview.nutrition.calories == Decimal("540")
     engine.dispose()

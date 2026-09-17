@@ -153,19 +153,22 @@ struct LadleButtonStyle: ButtonStyle {
     /// Primary, secondary and destructive buttons span their container so a
     /// column of them shares one width. Tertiary buttons hug their label.
     var isFullWidth: Bool
+    var isLoading: Bool
 
-    /// Hugging tertiary actions add room around their text. A full-width
-    /// tertiary row already owns its inner layout and must not be indented a
-    /// second time by the style.
+    /// Inline actions keep the shared height, type and corners, with room
+    /// around the label. Full-width actions already own their inner layout.
     var horizontalPadding: CGFloat {
-        role == .tertiary && !isFullWidth
-            ? LadleTheme.Spacing.regular
-            : 0
+        isFullWidth ? 0 : LadleTheme.Spacing.regular
     }
 
-    init(role: LadleButtonRole = .primary, isFullWidth: Bool? = nil) {
+    init(
+        role: LadleButtonRole = .primary,
+        isFullWidth: Bool? = nil,
+        isLoading: Bool = false
+    ) {
         self.role = role
         self.isFullWidth = isFullWidth ?? (role != .tertiary)
+        self.isLoading = isLoading
     }
 
     func makeBody(configuration: Configuration) -> some View {
@@ -176,6 +179,7 @@ struct LadleButtonStyle: ButtonStyle {
         Content(
             role: role,
             isFullWidth: isFullWidth,
+            isLoading: isLoading,
             horizontalPadding: horizontalPadding,
             configuration: configuration
         )
@@ -188,6 +192,7 @@ struct LadleButtonStyle: ButtonStyle {
 
         let role: LadleButtonRole
         let isFullWidth: Bool
+        let isLoading: Bool
         let horizontalPadding: CGFloat
         let configuration: Configuration
 
@@ -202,6 +207,15 @@ struct LadleButtonStyle: ButtonStyle {
 
         var body: some View {
             configuration.label
+                // Opacity preserves both the measured label and its accessible name.
+                .opacity(isLoading ? 0 : 1)
+                .overlay {
+                    if isLoading {
+                        ProgressView()
+                            .tint(isEnabled ? role.label(accent) : LadleTheme.Intent.disabledLabel)
+                            .accessibilityHidden(true)
+                    }
+                }
                 .ladleFont(.bodyStrong)
                 .foregroundStyle(
                     isEnabled ? role.label(accent) : LadleTheme.Intent.disabledLabel
@@ -324,6 +338,8 @@ struct LadleSheetHandle: View {
 }
 
 enum LadleIconButtonTone {
+    case plain
+    case onImage
     case quiet
     case primary
     case onDark
@@ -331,6 +347,8 @@ enum LadleIconButtonTone {
     /// See `LadleButtonRole.fill(_:)` for why this takes the accent.
     func background(_ accent: LadleAccentColor) -> Color {
         switch self {
+        case .plain, .onImage:
+            .clear
         case .quiet:
             LadleTheme.Surface.steel
         case .primary:
@@ -342,7 +360,7 @@ enum LadleIconButtonTone {
 
     var foreground: Color {
         switch self {
-        case .quiet:
+        case .plain, .onImage, .quiet:
             LadleTheme.Label.primary
         case .primary:
             LadleTheme.Label.onAccent
@@ -358,15 +376,22 @@ struct LadleIconButton: View {
     let systemImage: String
     let accessibilityLabel: String
     var tone: LadleIconButtonTone = .quiet
+    var isSelected = false
     var action: () -> Void
 
     var body: some View {
         Button(action: action) {
             Image(systemName: systemImage)
                 .font(.system(size: LadleTheme.IconSize.medium, weight: .bold))
-                .foregroundStyle(tone.foreground)
+                .foregroundStyle(isSelected ? accent.label : tone.foreground)
                 .frame(width: LadleTheme.Control.hitTarget, height: LadleTheme.Control.hitTarget)
-                .background(tone.background(accent), in: Circle())
+                .background {
+                    if tone == .onImage {
+                        Circle().fill(.ultraThinMaterial)
+                    } else {
+                        Circle().fill(tone.background(accent))
+                    }
+                }
         }
         .buttonStyle(LadlePressButtonStyle())
         .accessibilityLabel(accessibilityLabel)

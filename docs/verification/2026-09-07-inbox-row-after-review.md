@@ -107,9 +107,9 @@ trailing slash, which is nowhere near enough.
 mirroring the server's rules: `m.` and `www.` hosts collapse, Instagram's
 `/reels/` collapses to `/reel/` and `/share/` is stripped, YouTube's
 `/watch?v=`, `/shorts/`, `/live/`, `/embed/` and `youtu.be` all reduce to the
-same id. What it deliberately does not do is resolve short links
-(`vm.tiktok.com`, `/t/…`) — only the server can, so those rows yield no key
-and are left alone.
+same id. Short links (`vm.tiktok.com`, `/t/…`) are resolved by the backend
+before comparison, as described in the September 17 follow-up below. The
+initial synchronous launch pass still leaves them for that authenticated pass.
 
 ### What it will and will not touch
 
@@ -117,7 +117,7 @@ and are left alone.
 |---|---|
 | Exactly one unclaimed recipe matches, still `.needsReview` | linked; the row now shows the recipe and opens review |
 | Exactly one matches and is already `.ready` | linked and moved to `.ready`; the row goes |
-| No match — recipe deleted, or a short link | skipped, untouched |
+| No match — recipe deleted, or short-link resolution unavailable | skipped, untouched |
 | Two matches — the same video imported twice | skipped; guessing would put the wrong recipe behind the row |
 | A re-import awaiting its accept/keep decision | never in the list: `reviewRecipeID` is non-nil there |
 
@@ -281,3 +281,30 @@ Left is `main`, right is this branch, on the seeded library.
 | Before | After |
 | --- | --- |
 | ![Before](captures/2026-09-07-inbox-row-after-review/before.png) | ![After](captures/2026-09-07-inbox-row-after-review/after.png) |
+
+
+## September 17: short links and alias duplicates (#117)
+
+The owner chose server-side short-link resolution. `POST /v1/imports/resolve`
+uses the existing restricted redirect resolver and returns the canonical URL.
+It requires a valid bearer session and a separate per-IP, installation, and user
+rate-limit bucket. It creates no job, reserves no library slot, and consumes no
+import quota. The phone never follows the social-platform redirect.
+
+The coordinator compares platform + post ID for duplicate detection, including
+TikTok photo posts and mobile/renamed-creator aliases. When a short link needs
+resolution, duplicate detection resolves it first and re-reads the library
+afterward. Reset, cancellation, and sign-out invalidate a pending lookup.
+Resolution failure falls through to the normal recoverable import path.
+
+Inbox repair also resolves stranded short links after session restoration,
+authentication, and activation sync. It re-reads current jobs and recipes after
+network calls. Exactly one unclaimed match is required; zero/multiple matches,
+unavailable resolution, and re-import decisions remain untouched.
+
+Verification: alias/photo duplicate and short-link duplicate/repair tests failed
+before implementation. All 90 focused app tests passed, including remote request
+encoding and the existing review/re-import safety cases. The app and Share
+Extension compile in that test build. All 67 focused backend admission, identity,
+and redirect-safety tests passed, as did the full 1,133-test backend suite, Ruff,
+and mypy. No physical-device behavior is claimed by these tests.

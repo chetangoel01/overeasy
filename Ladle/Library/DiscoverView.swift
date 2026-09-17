@@ -577,14 +577,13 @@ final class DiscoverSaveModel {
         // Stored before the flip: the library has to be holding the recipe by
         // the time the favourite and options controls appear for it.
         didSave(saved)
-        withAnimation(.snappy) {
-            access = .saved
-        }
+        access = .saved
         return saved
     }
 }
 
 struct DiscoverView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var viewModel: DiscoverViewModel
     /// The state; the view model holds only a mirror of it, so the feed can
     /// be tested without a preference store behind it.
@@ -868,7 +867,7 @@ struct DiscoverView: View {
         ScrollViewReader { scroll in
             feed(recipes)
                 .onChange(of: scrollToTopRequests) {
-                    withAnimation {
+                    withAnimation(reduceMotion ? nil : .default) {
                         scroll.scrollTo(Self.topAnchor, anchor: .top)
                     }
                 }
@@ -1278,7 +1277,7 @@ private struct DiscoverShelfCard: View {
     }
 }
 
-private struct DiscoverRecipeRow: View {
+struct DiscoverRecipeRow: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.ladleAccent) private var accent
 
@@ -1399,32 +1398,18 @@ private struct DiscoverRecipeRow: View {
         .accessibilityHidden(true)
     }
 
-    private var saveButton: some View {
+    var saveButton: some View {
         Button(action: save) {
-            Group {
-                if isSaving {
-                    ProgressView()
-                        .controlSize(.small)
-                        .tint(LadleTheme.Label.onAccent)
-                } else {
-                    Label(
-                        isSaved ? "Saved" : "Save",
-                        systemImage: isSaved ? "checkmark" : "plus"
-                    )
-                }
-            }
-                .ladleFont(.metadata)
-                .foregroundStyle(
-                    isSaved ? LadleTheme.Label.primary : LadleTheme.Label.onAccent
-                )
-                .padding(.horizontal, LadleTheme.Spacing.medium)
-                .frame(minHeight: LadleTheme.Control.hitTarget)
-                .background(
-                    isSaved ? LadleTheme.Intent.success : accent.intent,
-                    in: Capsule()
-                )
+            Label(
+                isSaved ? "Saved" : "Save",
+                systemImage: isSaved ? "checkmark" : "plus"
+            )
         }
-        .buttonStyle(LadlePressButtonStyle())
+        .buttonStyle(LadleButtonStyle(
+            role: isSaved ? .secondary : .primary,
+            isFullWidth: false,
+            isLoading: isSaving
+        ))
         .disabled(isSaving || isSaved)
         .accessibilityLabel(
             isSaved ? "\(recipe.title) saved" : "Save \(recipe.title)"

@@ -2,8 +2,6 @@ import LadleCore
 import SwiftUI
 
 struct RecipeListRow: View {
-    @Environment(\.ladleAccent) private var accent
-
     let recipe: Recipe
     let openRecipe: () -> Void
     let toggleFavorite: () -> Void
@@ -32,28 +30,17 @@ struct RecipeListRow: View {
 
             Spacer(minLength: 4)
 
-            Button(action: toggleFavorite) {
-                Image(
-                    systemName: recipe.isFavorite
-                        ? "heart.fill"
-                        : "heart"
-                )
-                .font(.system(size: LadleTheme.IconSize.medium, weight: .semibold))
-                .foregroundStyle(
-                    recipe.isFavorite
-                        ? accent.label
-                        : LadleTheme.Label.primary.opacity(0.52)
-                )
-                .frame(width: LadleTheme.Control.hitTarget, height: LadleTheme.Control.hitTarget)
-            }
-            .buttonStyle(LadlePressButtonStyle())
-            .accessibilityLabel(
-                recipe.isFavorite
+            LadleIconButton(
+                systemImage: recipe.isFavorite ? "heart.fill" : "heart",
+                accessibilityLabel: recipe.isFavorite
                     ? "Remove \(recipe.title) from favorites"
-                    : "Add \(recipe.title) to favorites"
+                    : "Add \(recipe.title) to favorites",
+                tone: .plain,
+                isSelected: recipe.isFavorite,
+                action: toggleFavorite
             )
         }
-        // The trailing element is a 44-point hit frame around a 16-point
+        // The trailing element is a 44-point hit frame around a shared
         // glyph, so it carries its own slack. Padding the trailing edge as
         // well put the heart 22 points off the card while the thumbnail sat 8
         // points off the other side. The frame supplies the trailing inset;

@@ -265,3 +265,45 @@ The unit file is named `test_backfill_times_client.py` rather than
 `test_backfill_times.py`: the test tree has no `__init__.py` files, so pytest
 requires unique module basenames and the integration file already owns that
 name.
+
+
+## September 17: omitted totals and stale shared templates (#152)
+
+Read-only production inspection found 11 saved recipes without a total. Ten
+copies came from three older shared templates: One Pot Creamy French Onion
+Pasta, Madras Curry, and The Best Vegan Pizza! The first two had no time fields;
+the pizza had a 30-minute cook time but 65 minutes of step timers and no total.
+The remaining legacy row was titled Unknown Recipe. A production dry run
+returned estimates for the real recipes and no estimate for that legacy row.
+Nothing was written to production during investigation.
+
+The owner chose a bounded repair during import and repair of existing shared
+templates. After extraction and creator-fact recovery, a missing total with a
+method gets one timing-only provider request. It shares the existing evidence,
+strict output shape, and timer/prep/cook floor with the backfill. It preserves
+all other recipe content and review status, adds the existing estimate label,
+and records the request in provider usage. Existing totals and recipes without
+steps require no extra call. Exhausted budget, unavailable providers, malformed
+replies, or estimates below the evidence floor preserve the recipe without
+inventing a total. The live repair makes one attempt, including on a rate limit;
+the admin backfill retains its three-attempt recovery policy.
+
+The shared provider code now lives in `ladle/extraction/timing.py`; moving the
+existing clients avoids a second implementation of timing and retry handling.
+The orchestrator runs repair before nutrition and verification. Existing cache
+hits remain free of estimation calls.
+
+`backfill-times` now also processes active templates at the current source
+revision. Each estimate uses that template's original content, never a cook's
+edited copy. Only its total and timing uncertainty change; previews and future
+saves inherit them. Saved copies still use the normal revision/change-log path.
+The table identifies each target as a recipe or template, and `--limit` caps
+the combined targets. Dry runs write nothing. Deploy and rerun the command to
+repair production; that write has not been performed yet.
+
+Verification: the cache repair and import integration regressions failed before
+implementation. All 30 focused timing/client/backfill/round-trip tests pass,
+including one estimate shared across three imports, refusal below the timers,
+budget exhaustion, dry runs, and no provider request for already-timed recipes.
+All 1,143 backend tests pass; Ruff, formatting, and mypy pass. Timing client tests
+are now in `tests/unit/extraction/test_timing.py`.

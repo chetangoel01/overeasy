@@ -161,10 +161,14 @@ def _carries_ingredient(term: str) -> ColumnElement[bool]:
 
 
 def _filter_conditions(filters: DiscoverFilter) -> list[ColumnElement[bool]]:
+    compatible_diets = {
+        DietTag.PESCATARIAN: [DietTag.PESCATARIAN, DietTag.VEGETARIAN, DietTag.VEGAN],
+        DietTag.VEGETARIAN: [DietTag.VEGETARIAN, DietTag.VEGAN],
+    }
     conditions: list[ColumnElement[bool]] = [
         # One EXISTS per diet, which is what makes them compose: two
         # restrictions have to hold together, not either-or.
-        _carries_tag("diet", [value])
+        _carries_tag("diet", compatible_diets.get(value, [value]))
         for value in filters.diets
     ]
     if filters.cuisines:

@@ -197,6 +197,7 @@ Canonical recipe payloads are available in:
 | `DELETE /v1/auth/session` | Bearer | `204` | Revoke the current session |
 | `DELETE /v1/auth/account` | Bearer | `204` | Delete the account and everything it owns |
 | `POST /v1/imports` | Bearer | `202` | Admit and enqueue an import |
+| `POST /v1/imports/resolve` | Bearer | `200` | Resolve `sourceURL` to `canonicalURL` using the import resolver; no job or quota charge |
 | `GET /v1/imports/{jobID}` | Bearer | `200` | Poll an import owned by the current user |
 | `DELETE /v1/imports/{jobID}` | Bearer | `204` | Cancel an actively parsing import and release its reserved slot |
 | `POST /v1/imports/{jobID}/retry` | Bearer | `202` | Retry with optional correction or pasted text |
@@ -858,10 +859,10 @@ the same settings, database URL and provider keys as the service.
 | --- | --- |
 | `python -m ladle.admin.cache_cli invalidate --platform tiktok --video-id 123` | Marks a source's extraction cache stale so the next import re-extracts it |
 | `python -m ladle.admin.cache_cli backfill-thumbnails` | Copies legacy provider thumbnails into private object storage |
-| `python -m ladle.admin.backfill_times [--dry-run] [--limit N]` | Estimates a total cooking time for live recipes that carry none |
+| `python -m ladle.admin.backfill_times [--dry-run] [--limit N]` | Estimates missing totals for live recipes and active shared templates |
 
-`backfill_times` selects `deleted_at IS NULL AND total_minutes IS NULL`, and
-asks the configured extraction provider (`LADLE_EXTRACTION_PROVIDER`) the
+`backfill_times` selects live recipes with no total, followed by active shared
+templates at the current source revision with no total. It asks the configured extraction provider (`LADLE_EXTRACTION_PROVIDER`) the
 timing question alone against the stored recipe — title, the creator's
 caption in `recipes.description`, ingredients, ordered steps with their
 timers, any stated preparation and cooking time. There is no re-extraction
@@ -874,7 +875,13 @@ and no transcript.
   `recipe_changes` row is emitted and the estimate reaches the next sync page.
   It adds a `total_minutes` uncertainty carrying the reason the cook is shown
   and never changes `review_status`.
-- Recipes that already carry a total are skipped, so re-running is safe.
+- Templates use their own original content, never a saver's edited copy. Only
+  their total and timing uncertainty are updated; previews and future saves
+  inherit them.
+- The table distinguishes recipe/template targets, and `--limit` caps both
+  together. Targets that already carry a total are skipped, so re-running is safe.
+- See the [canonical timing record](../../docs/verification/2026-09-02-estimated-cooking-time-backend.md)
+  for validation and failure behavior.
 
 On the VPS the command runs through `manage.sh`, which supplies the `api`
 service's environment:

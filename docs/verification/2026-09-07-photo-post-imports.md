@@ -170,3 +170,18 @@ need a bump.
   worse here.
 - The caption-sufficiency figure behind this route (7 of 8) is an upper bound:
   the probe's URLs were found by web search, which indexes posts by caption.
+
+## September 17: private and deleted TikTok posts (#113)
+
+The TikTok page reader now raises the existing `PrivateOrDeleted` acquisition
+failure for HTTP 404/410 and explicit private-post/account statuses 10216/10222.
+The import flow consequently uses its existing non-retryable unavailable-source
+state instead of retrying extraction with empty evidence. A generic login page,
+HTTP access block, or TikTok's IP-block status 10204 remains insufficient evidence
+of deletion and retains the existing fallback behavior. Caption-track failures
+remain best-effort and do not mark the post deleted.
+
+`TikTokPageClient` is the only production component changed. Four new regressions
+failed before the fix; all 15 TikTok tests and all 1,117 backend tests passed after
+it. The status distinction was cross-checked against the installed yt-dlp TikTok
+extractor. No live private account was accessed.

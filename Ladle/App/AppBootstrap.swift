@@ -190,6 +190,7 @@ final class LadleRuntime {
     /// launch after the update the recipe a stranded row belongs to may
     /// still be arriving with the sync that `sceneBecameActive` starts.
     private let reviewLinkRepair: ImportReviewLinkRepair
+    private let importService: any ImportService
     private let sessionWriters: [any SessionWriter]
 
     init(
@@ -241,12 +242,6 @@ final class LadleRuntime {
         } else {
             sharedQueueReconciler = nil
         }
-
-        let reviewLinkRepair = ImportReviewLinkRepair(
-            repository: appEnvironment.recipeRepository
-        )
-        _ = try? reviewLinkRepair.repair()
-        self.reviewLinkRepair = reviewLinkRepair
 
         let notificationService: any NotificationService
         let authClient: AuthClient?
@@ -322,6 +317,13 @@ final class LadleRuntime {
             )
             discoverService = RemoteDiscoverService(api: api)
         }
+
+        let reviewLinkRepair = ImportReviewLinkRepair(
+            repository: appEnvironment.recipeRepository
+        )
+        _ = try? reviewLinkRepair.repair()
+        self.reviewLinkRepair = reviewLinkRepair
+        self.importService = importService
 
         let syncStatus = SyncStatus()
         if let failure = configuration.demoScenario.syncFailure {
@@ -399,6 +401,7 @@ final class LadleRuntime {
             )
             await importCoordinator.resumePendingImports()
         }
+        _ = try? await reviewLinkRepair.repair(using: importService)
         libraryViewModel.load()
     }
 
@@ -416,6 +419,7 @@ final class LadleRuntime {
             )
             await importCoordinator.resumePendingImports()
         }
+        _ = try? await reviewLinkRepair.repair(using: importService)
         libraryViewModel.load()
     }
 
@@ -458,7 +462,7 @@ final class LadleRuntime {
                     using: syncService,
                     status: syncStatus
                 )
-                _ = try? reviewLinkRepair.repair()
+                _ = try? await reviewLinkRepair.repair(using: importService)
                 libraryViewModel.load()
             }
         } catch {

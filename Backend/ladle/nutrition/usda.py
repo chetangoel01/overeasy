@@ -84,6 +84,55 @@ class FoodDataSource(Protocol):
     def candidates(self, query: str) -> list[FoodNutrients]: ...
 
 
+# Mechanical preparation words do not change the food's identity. Physical
+# states still have to agree when both the query and record specify one.
+_PREPARATION_WORDS = {"chopped", "diced", "minced", "drained"}
+_FOOD_PLURALS = {"tomatoes": "tomato", "potatoes": "potato", "leaves": "leaf"}
+_FOOD_STATES = {
+    "raw": "raw",
+    "fresh": "raw",
+    "dried": "dried",
+    "dehydrated": "dried",
+    "canned": "canned",
+    "frozen": "frozen",
+    "cooked": "cooked",
+    "boiled": "cooked",
+    "roasted": "cooked",
+}
+
+
+def _food_words(value: str) -> list[str]:
+    words = [
+        _FOOD_PLURALS.get(
+            word, word[:-1] if len(word) > 3 and word.endswith("s") else word
+        )
+        for word in re.findall(r"[a-z0-9]+", value.casefold())
+    ]
+    ignored = set(_PREPARATION_WORDS)
+    if "cardamom" in words:
+        ignored.update(("green", "ground", "whole"))
+    if "tomato" in words:
+        ignored.add("whole")
+    if "lentil" in words:
+        ignored.update(("mature", "seed"))
+    return [word for word in words if word not in ignored]
+
+
+def food_matches(query: str, description: str) -> bool:
+    """Require the food itself, not just shared qualifiers or preparation."""
+    words = _food_words(query)
+    described = set(_food_words(description))
+    head = next((word for word in words if word not in _FOOD_STATES), None)
+    if head is None or head not in described:
+        return False
+    wanted = set(words)
+    asked = {_FOOD_STATES[word] for word in wanted if word in _FOOD_STATES}
+    offered = {_FOOD_STATES[word] for word in described if word in _FOOD_STATES}
+    if asked and offered and not (asked & offered):
+        return False
+    return len(wanted & described) * 2 > len(wanted)
+
+
 class USDAClient:
     """Fetch and cache complete generic-food records from FoodData Central."""
 
@@ -154,7 +203,12 @@ class USDAClient:
             raise MalformedProviderResponse("USDA search returned invalid foods")
 
         ranked = sorted(
-            (row for row in rows if isinstance(row, dict)),
+            (
+                row
+                for row in rows
+                if isinstance(row, dict)
+                and food_matches(normalized, str(row.get("description", "")))
+            ),
             key=lambda row: self._search_rank(normalized, row),
         )[: self._maximum_candidates]
         foods: list[FoodNutrients] = []
@@ -186,10 +240,25 @@ class USDAClient:
         exist solely as products.
         """
         generic = self._search_request(normalized, _GENERIC_DATA_TYPES)
-        rows = generic.get("foods")
-        if isinstance(rows, list) and rows:
+
+        def has_match(payload: dict[str, object]) -> bool:
+            rows = payload.get("foods")
+            return isinstance(rows, list) and any(
+                isinstance(row, dict)
+                and food_matches(normalized, str(row.get("description", "")))
+                for row in rows
+            )
+
+        if has_match(generic):
             return generic
-        return self._search_request(normalized, _DATA_TYPES)
+        # USDA can rank category qualifiers ("mature seeds") ahead of the
+        # food. Retry once with the same identity and state, without them.
+        simpler = " ".join(_food_words(normalized))
+        if simpler and simpler != normalized:
+            generic = self._search_request(simpler, _GENERIC_DATA_TYPES)
+            if has_match(generic):
+                return generic
+        return self._search_request(simpler or normalized, _DATA_TYPES)
 
     def _search_request(
         self,

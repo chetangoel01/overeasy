@@ -20,17 +20,23 @@ from sqlalchemy.orm import Session
 
 from alembic import command
 from ladle.admin.backfill_times import (
-    EstimateOutcome,
-    RecipeTimeEvidence,
     TimeBackfillService,
-    TimeEstimate,
     render_table,
 )
 from ladle.contracts.recipes import RecipeDTO, RecipeReviewStatus
-from ladle.db.models import Recipe, RecipeImage, User, UserSyncState
+from ladle.db.models import (
+    ExtractionCache,
+    Recipe,
+    RecipeImage,
+    SourceVideo,
+    User,
+    UserSyncState,
+)
 from ladle.db.session import build_engine
+from ladle.extraction.timing import EstimateOutcome, RecipeTimeEvidence, TimeEstimate
 from ladle.recipes.repository import RecipeRepository
 from ladle.recipes.service import RecipeService
+from ladle.recipes.template_clone import RecipeTemplate
 from ladle.sync.service import RecipeSyncService
 from tests.integration.test_migrations import alembic_config
 
@@ -400,4 +406,73 @@ def test_the_run_pauses_between_recipes_but_not_before_the_first(
     # Two gaps for three recipes: the run does not open with a wait.
     assert pauses == [1.0, 1.0]
 
+    engine.dispose()
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(("dry_run", "minutes"), [(False, 30), (True, 30), (False, 5)])
+def test_time_backfill_repairs_active_shared_template_without_private_recipe_data(
+    clean_postgres_url: str,
+    dry_run: bool,
+    minutes: int,
+) -> None:
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    engine = build_engine(clean_postgres_url)
+    source_id, cache_id = uuid4(), uuid4()
+    original = RecipeTemplate.from_recipe(untimed_recipe(uuid4())).model_dump(
+        mode="json", by_alias=True
+    )
+    with Session(engine) as database, database.begin():
+        user_id = seed_user(database)
+        database.add(
+            SourceVideo(
+                id=source_id,
+                platform="tiktok",
+                platform_video_id="cache-time",
+                canonical_url="https://www.tiktok.com/@cook/video/7612708181004799263",
+                source_revision="1",
+                source_metadata={},
+            )
+        )
+        database.flush()
+        database.add(
+            ExtractionCache(
+                id=cache_id,
+                source_video_id=source_id,
+                source_revision="1",
+                contract_version="v1",
+                prompt_version="old",
+                model_id="fake",
+                template_json=original,
+                review_status="ready",
+                created_at=NOW,
+            )
+        )
+    estimator = FakeEstimator(minutes=minutes)
+    with Session(engine) as database, database.begin():
+        rows = backfill(estimator).run(database, limit=None, dry_run=dry_run)
+    assert len(rows) == len(estimator.calls) == 1
+    assert estimator.calls[0].title == original["title"]
+    with Session(engine) as database, database.begin():
+        cached = database.get(ExtractionCache, cache_id).template_json
+        if dry_run or minutes < 10:
+            assert cached == original
+        else:
+            assert cached["totalMinutes"] == minutes
+            assert {
+                k: v
+                for k, v in cached.items()
+                if k not in ("totalMinutes", "uncertainties")
+            } == {
+                k: v
+                for k, v in original.items()
+                if k not in ("totalMinutes", "uncertainties")
+            }
+            recipes = RecipeService(clock=FrozenClock(NOW))
+            preview = recipes.discover_detail(database, source_video_id=source_id)
+            saved = recipes.save_discovered(
+                database, user_id=user_id, source_video_id=source_id
+            )
+            assert preview.total_minutes == saved.total_minutes == minutes
+            assert any(u.field == "total_minutes" for u in saved.uncertainties)
     engine.dispose()

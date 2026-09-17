@@ -357,7 +357,7 @@ class RateLimitPolicies:
 
     def import_request(
         self,
-        operation: Literal["submit", "retry"],
+        operation: Literal["submit", "retry", "resolve"],
         ip: str,
         installation: str,
         user: str,

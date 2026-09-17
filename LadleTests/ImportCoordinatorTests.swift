@@ -73,6 +73,55 @@ final class ImportCoordinatorTests: XCTestCase {
         XCTAssertNotEqual(repository.recipes.last?.id, existing.id)
     }
 
+    func testDuplicateUsesVideoIdentityAcrossAliasesAndPhotoPosts() async {
+        for kind in ["video", "photo"] {
+            let recipe = importRecipe(
+                title: "Already saved",
+                originalURL: URL(string: "https://www.tiktok.com/@cook/\(kind)/7612708181004799263")!
+            )
+            let repository = ImportTestRepository(recipes: [recipe])
+            let coordinator = makeCoordinator(repository: repository)
+            await coordinator.submit(urlText: "https://m.tiktok.com/@newname/\(kind)/7612708181004799263?tracking=1")
+            XCTAssertEqual(coordinator.state, .duplicate(existingRecipeID: recipe.id))
+            XCTAssertTrue(repository.importJobs.isEmpty)
+        }
+    }
+
+    func testShortLinkDuplicateUsesBackendResolutionBeforeCreatingJob() async {
+        let recipe = importRecipe(
+            title: "Already saved",
+            originalURL: URL(string: "https://www.tiktok.com/@cook/video/7612708181004799263")!
+        )
+        let repository = ImportTestRepository(recipes: [recipe])
+        let coordinator = ImportCoordinator(
+            repository: repository,
+            service: FixedImportService(outcome: .ready(recipe), resolvedURL: recipe.originalURL),
+            accountSession: AccountSession(store: ImportTestPreferenceStore()),
+            clock: ImmediateImportClock()
+        )
+        await coordinator.submit(urlText: "https://vm.tiktok.com/ZMabcdefg/")
+        XCTAssertEqual(coordinator.state, .duplicate(existingRecipeID: recipe.id))
+        XCTAssertTrue(repository.importJobs.isEmpty)
+    }
+
+    func testStrandedShortLinkRepairRequiresOneCurrentRecipe() async throws {
+        let canonical = "https://www.tiktok.com/@cook/video/7612708181004799263"
+        for count in 0...2 {
+            let job = try strandedReviewJob("https://vm.tiktok.com/ZMabcdefg/")
+            let recipes = (0..<count).map { _ in reviewRecipe(canonical, reviewStatus: .ready) }
+            let repository = ImportTestRepository(recipes: recipes, importJobs: [job])
+            let service = FixedImportService(outcome: .parsing, resolvedURL: URL(string: canonical)!)
+            let outcome = try await ImportReviewLinkRepair(repository: repository).repair(using: service)
+            if count == 1 {
+                XCTAssertEqual(outcome, .init(cleared: [job.id]))
+                XCTAssertEqual(repository.importJobs.first?.currentRecipeID, recipes.first?.id)
+            } else {
+                XCTAssertEqual(outcome, .init(skipped: [job.id]))
+                XCTAssertEqual(repository.importJobs, [job])
+            }
+        }
+    }
+
     func testRemoteDuplicateRemovesLocalAdmissionJob() async throws {
         let existing = importRecipe(
             title: "Existing Green Curry",
@@ -3572,9 +3621,15 @@ private actor OfflineCancelImportService: ImportService {
 
 private actor FixedImportService: ImportService {
     let outcome: ImportServiceProgress
+    let resolvedURL: URL?
 
-    init(outcome: ImportServiceProgress) {
+    init(outcome: ImportServiceProgress, resolvedURL: URL? = nil) {
         self.outcome = outcome
+        self.resolvedURL = resolvedURL
+    }
+
+    func resolveSourceURL(_ url: URL) async throws -> URL {
+        resolvedURL ?? url
     }
 
     func submit(

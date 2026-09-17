@@ -67,7 +67,7 @@ DISHES = [
     ),
     Dish(
         title="Chickpea Curry",
-        diets=("vegetarian", "vegan", "glutenFree"),
+        diets=("vegan", "glutenFree"),
         cuisines=("indian",),
         keywords=("onePot", "mealPrep"),
         ingredients=("chickpeas", "coconut milk"),
@@ -278,6 +278,20 @@ def test_one_diet_keeps_only_the_dishes_that_satisfy_it(discover) -> None:
         "Garlic Butter Udon",
         "Chickpea Curry",
     ]
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("query", "expected"),
+    [
+        ("?diet=pescatarian", ["Lemon Orzo", "Garlic Butter Udon", "Chickpea Curry"]),
+        ("?diet=vegan", ["Chickpea Curry"]),
+        ("?diet=pescatarian&diet=glutenFree", ["Chickpea Curry"]),
+        ("?diet=pescatarian&diet=vegan", ["Chickpea Curry"]),
+    ],
+)
+def test_diet_compatibility_preserves_other_restrictions(discover, query, expected):
+    assert _titles(discover(query)) == expected
 
 
 @pytest.mark.integration

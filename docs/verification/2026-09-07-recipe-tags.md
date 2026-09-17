@@ -218,15 +218,6 @@ Then through the API as a fresh guest:
 
 ## Known gaps
 
-- **The extraction cache is not rewritten.** It is keyed on `PROMPT_VERSION`,
-  so existing entries stay on v14. The backfill tags the savers' `Recipe`
-  rows, which is what the Discover filter reads, but `save_discovered` and
-  `discover_detail` instantiate from the cache template — so a *new* save of
-  an already-cached Discover source arrives untagged until that source is
-  imported again under v15. Writing the fresh template into the cache is the
-  obvious fix, but the backfill's extractor output skips `apply_creator_facts`,
-  nutrition enrichment and the verifier, so it would be a worse cache row than
-  the one it replaced. Follow-up.
 - **The live provider schema is untested here.** `list[DietTag]` adds enums
   and `keywords` adds `maxItems` to the schema handed to `messages.parse`.
   Existing fields already carry `minItems` and numeric bounds through the same
@@ -234,3 +225,24 @@ Then through the API as a fresh guest:
   `live_provider`-marked and did not run.
 - The iOS filter control, the persisted diet preference and the Discover
   shelves built on keywords are all out of scope here.
+
+
+## September 17: keep new Discover saves tagged (#124)
+
+The tag backfill now also updates only the four tag fields on active extraction
+cache entries for the same source revision. It leaves the verified title, steps,
+quantities, nutrition, uncertainties, thumbnail, and cache identity intact. It
+does not store the raw re-extraction as a replacement recipe. Invalidated entries
+and older source revisions are untouched. Empty extraction results and dry runs
+still make no changes.
+
+This closes the gap between the existing savers' tags used to filter Discover
+and the template used by previews and future saves. Deploy this change and rerun
+`backfill-tags` to repair the existing corpus; no provider call is added to each
+save. Source acquisition failures remain visible in the backfill report.
+
+Verification: an integration regression failed on the missing cache tags before
+the change. The complete backfill suite (11 tests) passes, including a subsequent
+Discover preview and save by a different user, preserved nutrition, dry runs,
+empty extraction, and exclusion of stale/invalidated templates. Full backend:
+1,132 passed. Ruff and mypy passed. Production backfill has not been applied.

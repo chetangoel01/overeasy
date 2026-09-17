@@ -49,7 +49,7 @@ Observed on the VPS — every nutrition failure, same check, always a spice:
 ## What changed
 
 - The search asks for the laboratory data types first and only falls back to
-  including Branded when nothing generic answers at all. Ranking alone could
+  including Branded when no generic result matches the requested food. Ranking alone could
   not fix "garlic powder": **every** row USDA returns for it is Branded, so
   there was nothing better to promote. Asking the generic types on their own
   surfaces `Spices, garlic powder`.
@@ -187,7 +187,7 @@ involved.
 
 **The provider-ranked path had no relevance check at all.** It took USDA's
 first result on trust; only the fallback path checked that a candidate had
-anything to do with the query. Relevance now *orders* candidates rather than
+anything to do with the query. At the time of this initial change, relevance ordered candidates rather than
 removing them — a candidate qualifies when it carries the query's
 distinguishing word — and singular and plural are folded together, which is
 the "seeds" against `Spices, cumin seed` problem that started all of this.
@@ -204,7 +204,8 @@ leaf raw` reaches `Spices, coriander leaf, dried`, where the food and the form
 are both right and only the state disagrees — and that disagreement is the
 whole difference between 279 kcal per 100g and roughly 23.
 
-**Nothing new blocks.** When no candidate is relevant the recipe is still
+**Historical behavior, superseded by the per-ingredient fallback linked above:**
+When no candidate is relevant the recipe is still
 costed from the closest row, and a `WeakFoodMatch` is recorded and surfaced as
 an `ingredients[n].nutritionMatch` uncertainty. That is deliberate: blocking
 would lose every other ingredient's calories over one spice blend USDA has no
@@ -274,9 +275,28 @@ nothing about whether anyone will ever receive it. The verification for the
 first pass queried the `nutrition` table and stopped there, which is exactly
 the check that cannot fail on this bug.
 
-## Still open
+## September 17: matching and search repair (#111)
 
-When *every* candidate for one ingredient is unusable, the recipe still loses
-all nutrition. Excluding that ingredient with an uncertainty note and totalling
-the rest would be more useful and slightly less accurate. Not decided, so not
-changed.
+A read-only check of the production USDA store reproduced two distinct problems.
+`tomato raw` failed against `Tomatoes, raw`, and `cardamom ground` failed against
+`Spices, cardamom`. Separately, the `vinegar rice` search returned unrelated
+generic vinegars; their mere presence suppressed a search that included exact
+packaged rice vinegar. `lentils mature seeds raw` returned other legumes ahead
+of lentils. The current stored ghee and exact pancetta searches already matched
+correctly, so those paths are covered without substituting another food.
+
+The search and calculator now share the relevance check. Tomato/potato/leaf
+plurals and mechanical preparation wording are normalized; known cardamom and
+lentil classification wording is simplified. A leading state such as `canned`
+is no longer mistaken for the food name. Whole milk and ground meat qualifiers
+remain significant, as do contradictory raw/cooked/dried states.
+
+Search results must contain a relevant food before ending the search. If needed,
+one retry removes the known wording differences, followed by the existing
+Branded fallback. Irrelevant stored search results trigger this same refresh.
+The calculator still skips unknown or inconsistent ingredients, reports them,
+and totals the usable ingredients; it never fills gaps with unrelated foods.
+
+Verification: focused regressions failed before the fixes, including safeguards
+against substituting skim milk for whole milk or steak for ground beef. All 80
+calculator/client tests and all 1,129 backend tests passed. Ruff and mypy passed.

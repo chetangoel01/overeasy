@@ -39,6 +39,7 @@ from ladle.extraction.evidence_gate import (
     require_recipe_evidence,
 )
 from ladle.extraction.protocol import RecipeExtractor, RecipeVerifier
+from ladle.extraction.timing import RecipeTimeEstimator
 from ladle.extraction.verification import verification_evidence
 from ladle.imports.failures import is_retryable_import_failure
 from ladle.imports.thumbnails import OEmbedThumbnailFetcher, ThumbnailAsset
@@ -104,6 +105,7 @@ class ImportOrchestrator:
         heartbeat: ClaimHeartbeat | None = None,
         nutrition_enricher: NutritionService | None = None,
         verifier: RecipeVerifier | None = None,
+        time_estimator: RecipeTimeEstimator | None = None,
     ) -> None:
         self._sessions = session_factory
         self._cache = cache
@@ -119,6 +121,7 @@ class ImportOrchestrator:
         self._heartbeat = heartbeat
         self._nutrition = nutrition_enricher
         self._verifier = verifier
+        self._time_estimator = time_estimator
 
     #: How stale a counts snapshot must be before a cache-hit import spends a
     #: provider call refreshing it. Engagement numbers move continuously, so
@@ -354,6 +357,9 @@ class ImportOrchestrator:
                     template,
                     (value.text for value in text_evidence),
                 )
+                if self._time_estimator is not None:
+                    with log_context(stage="timing"):
+                        template = self._time_estimator.repair(template, job_id=job_id)
                 if self._nutrition is not None:
                     with log_context(stage="nutrition"):
                         template = self._nutrition.enrich(
