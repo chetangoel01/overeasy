@@ -16,7 +16,7 @@ Implementation proceeds in verified, task-sized commits. Design choices remain p
 | [#140](https://github.com/chetangoel01/overeasy/issues/140) | Keep loading and sync indicators from shifting the screen | Pending |
 | [#141](https://github.com/chetangoel01/overeasy/issues/141) | Polish app motion with consistent native, tactile feedback | Implemented and verified |
 | [#142](https://github.com/chetangoel01/overeasy/issues/142) | Define and enforce consistent button design rules | Implemented and verified |
-| [#143](https://github.com/chetangoel01/overeasy/issues/143) | Explore recipe reviews and more visible likes and save counts | Pending |
+| [#143](https://github.com/chetangoel01/overeasy/issues/143) | Explore recipe reviews and more visible likes and save counts | Owner chose existing counts plus star ratings; [API implemented and verified](2026-09-17-recipe-ratings-api.md) on `codex/feedback-143-ratings-api`; iOS surfaces pending the layout review |
 | [#144](https://github.com/chetangoel01/overeasy/issues/144) | Add a calorie breakdown to nutrition per serving | Pending |
 | [#145](https://github.com/chetangoel01/overeasy/issues/145) | Make recipe estimate notes quieter and less repetitive | Pending |
 | [#146](https://github.com/chetangoel01/overeasy/issues/146) | Polish the app icon selector layout in Profile | Pending |
@@ -35,6 +35,8 @@ Implementation proceeds in verified, task-sized commits. Design choices remain p
 - #141: a hosted SwiftUI probe reproduced a forced 0.5-second save animation outside the presenting view. The save model now publishes state without dictating motion; RecipeDetail, Discover, and FullRecipe consult Reduce Motion for their explicit save and scroll transitions. The hosted regression passes, and all 590 app tests pass (one intentional skip). Existing press and haptic behavior was audited and is documented in [DESIGN.md](../../DESIGN.md#motion-and-feedback).
 
 - #142: Discover Save measured 75→38 points wide while loading (137→55 at accessibility text), and used 44-point height. The actual rendered-control regression now passes at standard, AX3, and AX5 sizes with stable bounds and the shared 52-point minimum. 93 focused app tests pass. The Discover save, retry alignment, and largest-text save UI checks pass. Shared loading also covers retry and Health export; toolbar Save reserves its label. Favorites share the icon control, retaining material only over photos. Rules and exceptions are recorded in [DESIGN.md](../../DESIGN.md#buttons).
+
+- #143 (API only): the rating lifecycle, merge tie-break and migration tests were each seen failing first. All 1,141 backend tests, lint and strict type checks pass, and the 91 shared-domain tests still pass against the updated fixtures. See [ratings API](2026-09-17-recipe-ratings-api.md).
 
 - #161: two permission-delay defects verified red/green. All 27 focused cooking/notification tests and the full 588-test app suite passed (one intentional skip). Physical listening remains pending; see [timer alerts](2026-09-17-timer-alerts.md).
 
@@ -66,9 +68,13 @@ selected on the owner's behalf:
   accessibility text; two randomly selected top shelves per launch with the
   others between feed rows; Focus quantities under “For this step”, explicitly
   labelled as recipe totals when an ingredient is reused across steps.
-- Engagement (#143): expose source-platform likes and Overeasy saves only,
-  or add ratings, or ratings with written reviews. Public feedback needs its
-  contribution/edit/report rules once that scope is selected.
+- Engagement (#143): the owner chose existing counts plus 1–5 star ratings,
+  with no written reviews. The API is built, and who may rate and how a rating
+  is changed or cleared are in the
+  [ratings API record](2026-09-17-recipe-ratings-api.md). Where the counts and
+  the rating control sit on Discover cards and recipe details joins the layout
+  group above. One engineering call awaits the owner: a rating currently
+  outlives the deletion of the saved copy.
 - Calorie breakdown (#144): macros, ingredient contributions, or both.
 - Routine sync status (#140): proposed navigation-bar indicator, retaining
   actionable offline/conflict messages; hiding routine status is the other

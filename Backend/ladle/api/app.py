@@ -302,7 +302,10 @@ def create_app(
     # Recipe images read it from the repository; the profile's avatar reads it
     # off the app, because the auth routes mint the URL themselves.
     application.state.object_url = object_url
-    recipe_repository = RecipeRepository(object_url=object_url)
+    recipe_repository = RecipeRepository(
+        object_url=object_url,
+        rating_minimum_count=configured.rating_minimum_count,
+    )
     application.state.recipe_service = RecipeService(
         clock=runtime_clock,
         repository=recipe_repository,

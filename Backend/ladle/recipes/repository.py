@@ -37,6 +37,7 @@ from ladle.contracts.recipes import (
     RecipeReviewStatus,
     RecipeSource,
     RecipeStepDTO,
+    SourceEngagementDTO,
 )
 from ladle.contracts.tags import CuisineTag, DietTag, RecipeKeyword
 from ladle.db.models import (
@@ -51,6 +52,7 @@ from ladle.db.models import (
     Recipe,
     RecipeImage,
     RecipeKeywordProposal,
+    RecipeRating,
     RecipeStep,
     RecipeTag,
     SourceVideo,
@@ -236,8 +238,13 @@ class RecipeRepository:
         self,
         *,
         object_url: Callable[[str], str] | None = None,
+        rating_minimum_count: int = 3,
     ) -> None:
         self._object_url = object_url
+        # Held here rather than passed per call: the feed, the shelves and
+        # the engagement read all publish the average, and they must not be
+        # able to disagree about when.
+        self._rating_minimum_count = rating_minimum_count
 
     def find(
         self,
@@ -439,6 +446,9 @@ class RecipeRepository:
 
         has_more = len(ranked) > limit
         consumed = ranked[:limit]
+        ratings = self._rating_summaries(
+            database, [row.source_video_id for row in consumed]
+        )
         items: list[DiscoverRecipeDTO] = []
         for source_video_id, count, _latest, _title, likes in consumed:
             source = database.get(SourceVideo, source_video_id)
@@ -459,6 +469,7 @@ class RecipeRepository:
                 continue
             template = cache.template_json
             image_url = self.extraction_thumbnail_url(cache)
+            rating_count, rating_average = ratings.get(source_video_id, (0, None))
             items.append(
                 DiscoverRecipeDTO(
                     source_id=source_video_id,
@@ -470,6 +481,8 @@ class RecipeRepository:
                     image_url=image_url,
                     saved_count=count,
                     like_count=likes,
+                    rating_average=rating_average,
+                    rating_count=rating_count,
                     saved_recipe_id=None,
                 )
             )
@@ -599,6 +612,113 @@ class RecipeRepository:
                     DiscoverImpression.source_video_id,
                 ],
                 set_={"seen_at": statement.excluded.seen_at},
+            )
+        )
+
+    def _rating_summaries(
+        self,
+        database: Session,
+        source_video_ids: Collection[UUID],
+    ) -> dict[UUID, tuple[int, float | None]]:
+        """How many cooks rated each source, and the average once enough have.
+
+        One grouped query for a whole page, kept out of the ranking: nothing
+        sorts on a rating, and joining raters onto a query already grouped
+        over savers would multiply the rows it counts. A source nobody rated
+        is simply absent. Below the minimum the average is withheld, not
+        zeroed — the count still says somebody rated, and no single cook's
+        stars can be read back out of it.
+        """
+        if not source_video_ids:
+            return {}
+        return {
+            source_video_id: (
+                count,
+                float(average) if count >= self._rating_minimum_count else None,
+            )
+            for source_video_id, count, average in database.execute(
+                select(
+                    RecipeRating.source_video_id,
+                    func.count(),
+                    func.round(func.avg(RecipeRating.stars), 1),
+                )
+                .where(RecipeRating.source_video_id.in_(source_video_ids))
+                .group_by(RecipeRating.source_video_id)
+            )
+        }
+
+    def source_engagement(
+        self,
+        database: Session,
+        *,
+        user_id: UUID,
+        source: SourceVideo,
+    ) -> SourceEngagementDTO:
+        """One source's counts, and the asking cook's own rating beside them.
+
+        Aggregates only. `my_rating` is the one row this ever reads for a
+        single cook, and it is the caller's own.
+        """
+        rating_count, rating_average = self._rating_summaries(
+            database, [source.id]
+        ).get(source.id, (0, None))
+        return SourceEngagementDTO(
+            source_id=source.id,
+            saved_count=database.execute(
+                select(func.count(distinct(Recipe.user_id))).where(
+                    Recipe.source_video_id == source.id,
+                    Recipe.deleted_at.is_(None),
+                )
+            ).scalar_one(),
+            like_count=source.like_count,
+            rating_average=rating_average,
+            rating_count=rating_count,
+            my_rating=database.scalar(
+                select(RecipeRating.stars).where(
+                    RecipeRating.user_id == user_id,
+                    RecipeRating.source_video_id == source.id,
+                )
+            ),
+        )
+
+    def rate_source(
+        self,
+        database: Session,
+        *,
+        user_id: UUID,
+        source_video_id: UUID,
+        stars: int,
+        rated_at: datetime,
+    ) -> None:
+        """An update when the cook has rated before, so nobody counts twice."""
+        statement = insert(RecipeRating).values(
+            user_id=user_id,
+            source_video_id=source_video_id,
+            stars=stars,
+            created_at=rated_at,
+            updated_at=rated_at,
+        )
+        database.execute(
+            statement.on_conflict_do_update(
+                index_elements=[RecipeRating.user_id, RecipeRating.source_video_id],
+                set_={
+                    "stars": statement.excluded.stars,
+                    "updated_at": statement.excluded.updated_at,
+                },
+            )
+        )
+
+    def clear_source_rating(
+        self,
+        database: Session,
+        *,
+        user_id: UUID,
+        source_video_id: UUID,
+    ) -> None:
+        database.execute(
+            delete(RecipeRating).where(
+                RecipeRating.user_id == user_id,
+                RecipeRating.source_video_id == source_video_id,
             )
         )
 
@@ -986,6 +1106,7 @@ class RecipeRepository:
             creator_name=stored.creator_name,
             source=RecipeSource(stored.source),
             original_url=stored.original_url,
+            source_id=stored.source_video_id,
             images=[
                 RecipeImageDTO(id=image.id, remote_url=self._image_url(image))
                 for image in images

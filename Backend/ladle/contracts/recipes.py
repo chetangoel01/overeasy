@@ -230,6 +230,12 @@ class RecipeDTO(WireModel):
     creator_name: str | None = Field(default=None, max_length=200)
     source: RecipeSource
     original_url: AnyHttpUrl = Field(max_length=2_048)
+    #: The shared source this recipe came from, which is what its ratings
+    #: and counts hang off. The server's to say and ignored on the way in:
+    #: the app sends the whole recipe back on every edit, and where a recipe
+    #: came from is not something an edit can change. Null for a recipe
+    #: typed in by hand.
+    source_id: WireUUID | None = None
     images: list[RecipeImageDTO] = Field(default_factory=list, max_length=20)
     preparation_minutes: int | None = Field(
         default=None,
@@ -355,7 +361,29 @@ class DiscoverRecipeDTO(WireModel):
     #: videos imported before counts were captured, and for providers that
     #: withhold them — Instagram among them.
     like_count: int | None = Field(default=None, ge=0)
+    #: Overeasy's own star ratings for the source. The average stays null
+    #: until enough cooks have rated it — never zero, which would read as a
+    #: verdict nobody gave.
+    rating_average: float | None = Field(default=None, ge=1, le=5)
+    rating_count: int = Field(default=0, ge=0)
     saved_recipe_id: WireUUID | None = None
+
+
+class SourceEngagementDTO(WireModel):
+    """Everything countable about one shared source, each count its own field.
+
+    `like_count` is the source platform's and the rest are Overeasy's, so a
+    client can label them apart. A count nobody knows is null, not zero.
+    """
+
+    source_id: WireUUID
+    #: Accounts holding a live saved copy, the caller's included.
+    saved_count: int = Field(ge=0)
+    like_count: int | None = Field(default=None, ge=0)
+    rating_average: float | None = Field(default=None, ge=1, le=5)
+    rating_count: int = Field(ge=0)
+    #: The caller's own stars. Nobody else's are ever served.
+    my_rating: int | None = Field(default=None, ge=1, le=5)
 
 
 class DiscoverSort(StrEnum):

@@ -153,6 +153,14 @@ def test_every_sensitive_route_enforces_its_distributed_policy(
             ).status_code
             == 429
         )
+        assert (
+            client.put(
+                f"/v1/recipes/discover/{uuid4()}/rating",
+                headers=authorization,
+                json={"stars": 5},
+            ).status_code
+            == 429
+        )
 
     engine.dispose()
 

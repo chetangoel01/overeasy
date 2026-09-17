@@ -10,7 +10,9 @@
       "imageURL": "https://images.ladle.example/discover/lemon-orzo.jpg",
       "savedCount": 12,
       "savedRecipeID": null,
-      "likeCount": 48210
+      "likeCount": 48210,
+      "ratingAverage": 4.3,
+      "ratingCount": 14
     }
   ],
   "nextCursor": 1,

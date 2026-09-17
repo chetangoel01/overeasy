@@ -124,6 +124,12 @@ _REQUEST_EXAMPLES: dict[tuple[str, str], dict[str, dict[str, object]]] = {
             },
         }
     },
+    ("/v1/recipes/discover/{source_video_id}/rating", "put"): {
+        "fourStars": {
+            "summary": "Rate a source this account has saved",
+            "value": {"stars": 4},
+        }
+    },
 }
 
 # Operations worth explaining in the console but outside the numbered import
@@ -199,6 +205,44 @@ _OPERATION_DESCRIPTIONS = {
         "```\n\n"
         "Unreviewed keyword proposals can never appear: they live in a "
         "different table, which this query does not touch."
+    ),
+    ("/v1/recipes/discover/{source_video_id}/engagement", "get"): (
+        "Everything countable about one shared source, each count labelled "
+        "by where it comes from. `likeCount` is the source platform's, a "
+        "snapshot taken at import and null when the platform withheld it. "
+        "`savedCount` is the number of Overeasy accounts holding a live "
+        "saved copy, the caller's included. `ratingCount` and "
+        "`ratingAverage` are Overeasy's own one-to-five star ratings.\n\n"
+        "The average is published only once "
+        "`LADLE_RATING_MINIMUM_COUNT` accounts — three by default — have "
+        "rated the source, and is rounded to one decimal place. Below that "
+        "it is null, never zero: the count still says somebody rated, and "
+        "no single cook's stars can be read back out of it. Ratings are "
+        "only ever served in aggregate; `myRating` is the caller's own and "
+        "nobody else's is exposed.\n\n"
+        "A saved recipe finds its source through `RecipeDTO.sourceID`, and "
+        "a Discover item through its own `sourceID`. The same two rating "
+        "fields ride on every `DiscoverRecipeDTO`, in the ranked feed and "
+        "on the shelves, under the same minimum."
+    ),
+    ("/v1/recipes/discover/{source_video_id}/rating", "put"): (
+        "Rate the shared source from one to five whole stars, or change a "
+        "rating already given: each account holds one rating per source, so "
+        "a second `PUT` replaces the first. The rating belongs to the source "
+        "rather than to the account's own copy, so everyone who saved the "
+        "same video feeds one average and private edits stay private.\n\n"
+        "Only an account holding a saved, undeleted recipe from the source "
+        "may rate it — guests included. Anybody else is answered `409` "
+        "with the `conflict` error, an unknown source `404`, and stars "
+        "outside one to five `422`. Returns the source's engagement as it "
+        "stands after the write."
+    ),
+    ("/v1/recipes/discover/{source_video_id}/rating", "delete"): (
+        "Withdraw the caller's rating. Idempotent — clearing a rating that "
+        "was never given answers the same `200` — and deliberately not "
+        "limited to accounts still holding a saved copy: deleting a recipe "
+        "must not strand a rating its author can no longer take back. "
+        "Returns the source's engagement as it stands after the write."
     ),
 }
 

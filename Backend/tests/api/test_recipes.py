@@ -77,6 +77,10 @@ def test_recipe_crud_conflict_and_sync_tombstone(clean_postgres_url: str) -> Non
         )
         assert created.status_code == 200
         assert created.json()["revision"] == 1
+        # The fixture names a source; a client cannot attach its recipe to one
+        # by saying so, or it could rate and be counted without saving.
+        assert recipe["sourceID"] is not None
+        assert created.json()["sourceID"] is None
 
         recipe["title"] = "Edited through API"
         updated = client.put(
@@ -236,6 +240,9 @@ def test_discover_returns_aggregated_public_source_data(
             # No counts: this source was seeded directly, never imported, so
             # nothing ever read the platform's numbers for it.
             "likeCount": None,
+            # Nobody has rated it, and an average nobody gave is null, not 0.
+            "ratingAverage": None,
+            "ratingCount": 0,
             "savedRecipeID": None,
         }
     ]
@@ -279,11 +286,13 @@ def test_discover_returns_aggregated_public_source_data(
 
     assert detail.status_code == 200
     assert detail.json()["id"] == str(source_id)
+    assert detail.json()["sourceID"] == str(source_id)
     assert detail.json()["title"] == "Lemon Orzo"
     assert detail.json()["ingredients"][0]["name"] == "orzo"
     assert detail.json()["steps"][0]["instruction"] == "Cook the orzo until tender."
     assert saved.status_code == 200
     assert saved.json()["title"] == "Lemon Orzo"
+    assert saved.json()["sourceID"] == str(source_id)
     assert saved.json()["reviewStatus"] == "ready"
     assert repeated.status_code == 200
     assert repeated.json()["id"] == saved.json()["id"]
