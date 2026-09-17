@@ -42,7 +42,9 @@ putting private recipe or authentication data in telemetry.
   timer, because a readiness check contacts every dependency and wakes a Celery
   CLI process; it must never run at the polling cadence.
 - The page hides `/health/live` and `/health/ready` by default, and always hides
-  its own polling. Uptime probes outnumber real traffic by more than a hundred
+  its own polling, including the recent-request poll at `/ops/requests.json`.
+  The raw counters retain these requests; dashboard traffic totals, rates, and
+  latency charts exclude them. Uptime probes outnumber real traffic by more than a hundred
   to one on the deployed host, which does not merely add noise: they suppress
   the error rate and pull p95 toward their own trivial cost, so both headline
   numbers read better than the service actually is. A header toggle brings them

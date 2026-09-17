@@ -1,3 +1,5 @@
+import json
+import re
 from dataclasses import dataclass
 
 import pytest
@@ -6,6 +8,7 @@ from fastapi.testclient import TestClient
 from ladle.api.app import create_app
 from ladle.api.routes.ops import OPS_COOKIE
 from ladle.config import Settings
+from ladle.observability.middleware import _POLLED
 
 TOKEN = "ops-dashboard-secret-that-is-long-enough"
 
@@ -129,6 +132,21 @@ def test_the_page_mounts_the_panel_of_ingredients_that_were_not_counted() -> Non
 
     assert 'id="nutrition-misses"' in page
     assert "/ops/nutrition-misses.json" in page
+
+
+def test_every_dashboard_poll_is_excluded_from_traffic_charts() -> None:
+    with _client() as client:
+        client.get("/ops", params={"token": TOKEN})
+        page = client.get("/ops").text
+
+    exclusions = re.search(r"var OPS_ROUTES = (\{.*?\});", page, re.S)
+    assert exclusions is not None
+    routes = json.loads(exclusions.group(1))
+    for poll in _POLLED:
+        if poll.startswith("/ops/"):
+            assert routes.get(poll) == 1, (
+                f"Dashboard poll counts as user traffic: {poll}"
+            )
 
 
 def test_dashboard_page_may_run_its_own_inline_script_and_styles() -> None:
