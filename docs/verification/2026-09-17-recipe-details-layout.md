@@ -46,12 +46,15 @@ screen.
   anchor row's frame was identical before and after).
 - **Inline servings (#148).** The band is still two even cells. The right one
   is the people glyph, the count between a round minus and plus, and the word
-  "servings". After a change that line reads "servings · Reset". The band's
-  frame is identical with and without Reset. The buttons disable at 1 and at
-  `RecipeContractLimits.maximumServings`. Nothing is saved, the scaling still
-  resets when the recipe changes and is still handed to Cook mode. A band with
-  nothing to scale (the reimport sheet, a recipe claiming no yield) keeps the
-  read-only "Yield" cell. `ServingsSheet` is deleted.
+  "servings". After a change that line reads "servings · Reset" and the band
+  keeps its height: in the unscaled and scaled first-screen captures
+  everything under the band — the nutrition card, the estimates row, the top
+  of the section picker — is pixel-identical, in dark and in light. The
+  buttons disable at 1 and at `RecipeContractLimits.maximumServings`. Nothing
+  is saved, the scaling still resets when the recipe changes and is still
+  handed to Cook mode. A band with nothing to scale (the reimport sheet, a
+  recipe claiming no yield) keeps the read-only "Yield" cell. `ServingsSheet`
+  is deleted.
 - **Quiet estimates (#145).** A value keeps one short hedge — "About 45 min",
   "≈ 560", "servings, estimated" — and the reasons live once, in a collapsed
   "About these estimates" row under the nutrition card (under the band when
