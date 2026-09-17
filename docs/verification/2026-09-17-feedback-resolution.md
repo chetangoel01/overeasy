@@ -81,7 +81,9 @@ selected on the owner's behalf:
 
 ## Current review checkpoint
 
+- [Draft PR #163](https://github.com/chetangoel01/overeasy/pull/163) contains the feedback fixes.
 - Dashboard polling has its own [draft PR #162](https://github.com/chetangoel01/overeasy/pull/162).
+- Both are stacked on [draft PR #164](https://github.com/chetangoel01/overeasy/pull/164), which repairs pre-existing CI failures: the removed MinIO Docker Hub image and three fixed PCRE2 findings. The new registry passes the storage integration checks; the backend, ingress and egress images build with zero fixable HIGH/CRITICAL scan findings. The locked dependency audit is clean. No security gate was relaxed.
 - Backend: 1,143 passing tests; lint/type checks passed with the backend fixes.
 - App: 590 tests, one intentional skip, no failures. App and Share Extension
   compile in that run. Shared domain: 91 passing tests after the filter change.
