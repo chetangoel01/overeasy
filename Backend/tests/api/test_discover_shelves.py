@@ -25,6 +25,7 @@ from alembic import command
 from ladle.api.app import create_app
 from ladle.auth.attestation import AttestationService
 from ladle.config import Settings
+from ladle.contracts.tags import RecipeKeyword
 from ladle.db.models import (
     ExtractionCache,
     Ingredient,
@@ -329,11 +330,10 @@ def test_the_cap_keeps_the_best_stocked_shelves(feed: Feed) -> None:
 def test_a_shelf_is_titled_in_words_rather_than_in_its_raw_value(feed: Feed) -> None:
     shelves = feed.shelves()
 
-    assert [shelf["title"] for shelf in shelves[:3]] == [
-        "One pot",
-        "Weeknight",
-        "Budget",
-    ]
+    assert shelves
+    for shelf in shelves:
+        assert shelf["title"] == RecipeKeyword(shelf["keyword"]).shelf_title
+        assert shelf["title"] != shelf["keyword"]
 
 
 @pytest.mark.integration

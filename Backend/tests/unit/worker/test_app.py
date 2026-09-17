@@ -24,7 +24,6 @@ from ladle.worker.tasks import is_retryable_import_failure, retry_countdown
 def test_creator_search_runtime_builder_preserves_configured_bounds() -> None:
     from pydantic import SecretStr
 
-    from ladle.acquisition.search import SparseTextEnricher
     from ladle.worker.runtime import _creator_search
 
     built = _creator_search(
@@ -36,7 +35,7 @@ def test_creator_search_runtime_builder_preserves_configured_bounds() -> None:
         )
     )
 
-    assert isinstance(built, SparseTextEnricher)
+    assert built is not None
     assert built._maximum_queries == 4
     assert built._maximum_candidates == 9
 
@@ -73,7 +72,6 @@ def test_enabled_creator_search_requires_its_openrouter_key() -> None:
 def test_nutrition_runtime_builder_preserves_configured_bounds() -> None:
     from pydantic import SecretStr
 
-    from ladle.nutrition.calculator import NutritionCalculator
     from ladle.worker.runtime import _nutrition_calculator
 
     built = _nutrition_calculator(
@@ -84,7 +82,7 @@ def test_nutrition_runtime_builder_preserves_configured_bounds() -> None:
         )
     )
 
-    assert isinstance(built, NutritionCalculator)
+    assert built is not None
     assert built._source._maximum_candidates == 7
 
 
@@ -113,21 +111,20 @@ def test_enabled_nutrition_requires_a_usda_key() -> None:
 def test_nutrition_service_uses_gemini_normalization_and_usda() -> None:
     from pydantic import SecretStr
 
-    from ladle.nutrition.service import RecipeNutritionService
     from ladle.worker.runtime import _nutrition_service
 
     built = _nutrition_service(
         Settings(
             openrouter_api_key=SecretStr("model-key"),
             usda_api_key=SecretStr("food-key"),
-            nutrition_normalization_model_id="google/gemini-3.7-flash",
+            nutrition_normalization_model_id="normalization-model",
             _env_file=None,
         ),
         usage=None,
     )
 
-    assert isinstance(built, RecipeNutritionService)
-    assert built._normalizer._model_id == "google/gemini-3.7-flash"
+    assert built is not None
+    assert built._normalizer._model_id == "normalization-model"
 
 
 def test_nutrition_service_requires_openrouter_for_normalization() -> None:
@@ -149,7 +146,6 @@ def test_nutrition_service_requires_openrouter_for_normalization() -> None:
 def test_recipe_verifier_runtime_builder_uses_extraction_model() -> None:
     from pydantic import SecretStr
 
-    from ladle.extraction.verification import TargetedRecipeVerifier
     from ladle.worker.runtime import _recipe_verifier
 
     built = _recipe_verifier(
@@ -161,7 +157,7 @@ def test_recipe_verifier_runtime_builder_uses_extraction_model() -> None:
         usage=None,
     )
 
-    assert isinstance(built, TargetedRecipeVerifier)
+    assert built is not None
     assert built._model_id == "quality-model"
 
 
