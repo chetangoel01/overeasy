@@ -51,10 +51,13 @@ API and provider tests cover this dependency-only update, so it adds no new test
 
 Keep a test when it protects a distinct behavior, regression, edge case, or
 contract. Prefer extending an existing test when it already covers the change.
-Do not copy dependency versions, UI wording, or arbitrary file/line counts into
-tests. Immutable dependency pins, isolation rules, and release gates remain
-useful contracts; the exact selected version belongs in its configuration.
-Do not combine unrelated assertions merely to reduce the reported test count.
+Do not copy dependency versions, UI wording, settings defaults or design-token
+values, the text of scripts, config or production source, or arbitrary
+file/line counts into tests. Each parametrised case must reach a branch,
+boundary or field no sibling reaches. Immutable dependency pins, isolation
+rules, and release gates remain useful contracts; the exact selected version
+belongs in its configuration. Do not combine unrelated assertions merely to
+reduce the reported test count.
 
 The September 17 audit counted 1,143 backend cases across 865 test functions;
 278 cases were parameter expansions. The feedback fixes added 36 cases to the
@@ -75,6 +78,60 @@ Verification: 89 focused tests pass; the full default suite passes all 1,137
 cases in 25.59 seconds, with the same ten Testcontainers deprecation warnings.
 Ruff formatting/lint, strict mypy, and `git diff --check` pass. App code did not
 change, so this cleanup did not repeat the already-passing app suites.
+
+### September 17 backend cleanup
+
+A second pass the same day applied a read-only audit of the whole backend suite
+and then went past it. The default selection went from 1,141 cases in 867 test
+functions to 1,010 in 800. Removed:
+
+- 11 tests that copied settings defaults, proved that pydantic-settings reads
+  the environment, or restated a validator every `Settings()` already runs;
+- 10 text greps of deploy scripts, Compose files and an alert-rules file that
+  nothing loads;
+- 56 parametrised cases that reached a branch a sibling already reached;
+- 13 exact or strict-subset duplicates, 6 fixture or schema echoes, and 3
+  source or signature inspections;
+- 33 more beyond the audit: deploy tests that restated Compose files whose
+  mistakes fail the deploy loudly (required OAuth and USDA variables, gateway
+  aliases, local data-service flags), argument and file plumbing of the
+  evaluation and pipeline-validator scripts, and cross-layer or same-branch
+  repeats in the API, extraction, contract and nutrition tests.
+
+Sound tests kept their behaviour check and lost the copy around it: Swagger
+prose, table and shelf wording, literal counts, `isinstance` lines, a CSP
+literal repeated in three files, and Compose values restated beside the
+deploy posture checks. Five tests could not fail for the reason they claimed
+and were fixed: the link fetcher's private-address and redirect tests only ever
+reached the scheme check, a supplied-unit test never reached its guard, a
+Substack ranking test was decided by sitemap order, and the local-stack test
+checked one service's ports rather than every published one. A worker-builder
+test asserted the default model id and now sets a distinct one. A production
+dashboard-token test that tripped the signing-secret check first was removed;
+the settings matrix case does reach the dashboard branch. The golden round trip
+gained `discover-page.json`, which only the app had been decoding.
+
+Three settings nothing read — `frame_analysis_enabled`,
+`thumbnail_analysis_enabled` and `server_media_fallback_enabled` — were removed
+with their Compose and env-example lines. `Settings` ignores unknown keys, so a
+deployed `.env` that still sets them loads unchanged.
+
+Kept on purpose: SSRF and URL-safety matrices, auth and claims, rate limits and
+quotas, privacy and retention, migrations, golden fixtures and recipe limits,
+the fail-closed production-settings matrices, import retry and recovery
+(including the Celery late-acknowledgement settings), sync conflicts, and the
+admin backfills still to run in production. The audit's trims inside the #111
+matching regressions were declined for `cardamom ground` and the whole-milk and
+ground-beef safeguards. Deploy keeps the egress allow-list, edge headers and
+hidden diagnostics, sandboxing and loopback publishing, fail-closed VPS
+defaults, the migration gate, CI's security gates and SHA pins, and the chaos
+timing pins. Evaluation scoring and model-comparison logic stay because a wrong
+threshold does not fail loudly.
+
+Verification: each group's files, then `uv run pytest` before every commit;
+`ruff check`, `ruff format --check`, `mypy --strict ladle` and
+`git diff --check` pass. Each of the five fixed tests was run with the guard it
+names disabled, and failed.
 
 ## Scheduled capacity and chaos checks
 

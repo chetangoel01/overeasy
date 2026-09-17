@@ -32,7 +32,7 @@
 ## Document every coherent change
 
 - Add or update a concise human-readable companion document for every screen, feature, or coherent behavior change.
-- Record its purpose, user-visible behavior, important decisions, affected components, and verification.
+- Record its purpose, user-visible behavior, important decisions, affected components, and how it was verified: the focused tests or commands, not suite totals.
 - Write enough for a human or replacement agent to resume the work without reconstructing intent from code.
 - Keep the document near related plans or verification records and update an existing relevant document instead of creating duplicates.
 
@@ -43,8 +43,11 @@
   failure first and verify red-green-refactor. Reuse existing coverage when it
   already protects the change; explain when a new test is unnecessary.
 - Do not add tests that only copy implementation details, dependency versions,
-  UI wording, or arbitrary file/line counts. Keep tests for distinct risks, and
-  remove redundant coverage rather than combining it just to lower the count.
+  UI wording, settings defaults or design-token values, the text of scripts,
+  config or production source, or arbitrary file/line counts. Each parametrised
+  case must reach a branch, boundary or field no sibling reaches. Keep tests for
+  distinct risks, and remove redundant coverage rather than combining it just to
+  lower the count.
 - Run the narrow tests for the changed behavior. Backend: `uv run pytest <path>`
   from `Backend/`; add `-n0` for a single file, where starting the xdist workers
   costs more than the tests do.
