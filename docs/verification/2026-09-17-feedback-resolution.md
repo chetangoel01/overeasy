@@ -3,7 +3,7 @@
 Scope: all 22 open GitHub issues, confirmed by the owner on September 17, 2026.
 Branch: `codex/feedback-resolution-2026-09-17`, based on `81b101d`.
 
-Implementation proceeds in verified, task-sized commits. Design choices remain pending until the owner answers the in-task questions. Physical-device checks require a connected iPhone; both registered phones were disconnected at the initial check.
+Implementation proceeds in verified, task-sized commits. Design choices remain pending until the owner answers the in-task questions. Physical-device checks require a connected iPhone. Both were initially disconnected; the iPhone 17 Pro later became reachable and reports Overeasy build `20260910.2`. Audible delivery is still unverified.
 
 | Issue | Work | Status |
 | --- | --- | --- |
@@ -25,12 +25,14 @@ Implementation proceeds in verified, task-sized commits. Design choices remain p
 | [#149](https://github.com/chetangoel01/overeasy/issues/149) | Include vegetarian and vegan recipes in pescatarian filtering | Implemented and verified |
 | [#150](https://github.com/chetangoel01/overeasy/issues/150) | Make the original video easy to access from recipe details | Pending |
 | [#151](https://github.com/chetangoel01/overeasy/issues/151) | Reduce the large thumbnail at the top of recipe details | Pending |
-| [#152](https://github.com/chetangoel01/overeasy/issues/152) | Find why total time still fails to show on some recipes | Pending |
+| [#152](https://github.com/chetangoel01/overeasy/issues/152) | Find why total time still fails to show on some recipes | Implemented and verified; production backfill pending |
 | [#153](https://github.com/chetangoel01/overeasy/issues/153) | Show two Discover shelves up front and move the rest into the scroll | Pending |
 | [#160](https://github.com/chetangoel01/overeasy/issues/160) | Show ingredient quantities in recipe Focus mode | Pending |
 | [#161](https://github.com/chetangoel01/overeasy/issues/161) | Verify cooking timer completion plays a sound and shows an alert | Pending |
 
 ## Verification
+
+- #152: production gaps traced read-only to three stale shared templates and one legacy row. Thirty focused timing tests and all 1,143 backend tests pass. New imports repair missing totals once; admin backfill includes shared templates.
 
 - #117: server resolution and app duplicate/repair regressions verified red/green. 90 focused app tests, 67 focused backend tests, and all 1,133 backend tests passed.
 

@@ -1002,3 +1002,14 @@ enabled.
 | Guest receives `guestRecipeLimitReached` | Inspect active recipes plus unexpired `recipe_slot_reservations` |
 | Apple endpoint returns `503` | Apple is disabled or its credential service was not constructed |
 | `LADLE_SERVER_MEDIA_FALLBACK_ENABLED` changes nothing | The concrete processor and runtime wiring described above are still required |
+
+
+### Timing repair for existing recipes
+
+`python -m ladle.admin.backfill_times [--dry-run] [--limit N]` estimates missing
+totals on saved recipes and active shared templates. The table distinguishes
+recipe/template targets; the limit applies to both together. Template estimates
+use the original shared content, and saved recipes publish changes through sync.
+The dry run still calls the configured provider but writes nothing. See the
+[canonical timing record](../../docs/verification/2026-09-02-estimated-cooking-time-backend.md)
+for validation and failure behavior.

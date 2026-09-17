@@ -15,8 +15,9 @@ from typing import cast
 import anthropic
 import httpx
 import httpx2
+import pytest
 
-from ladle.admin.backfill_times import (
+from ladle.extraction.timing import (
     AnthropicTimeEstimateClient,
     EstimateOutcome,
     EvidenceStep,
@@ -286,3 +287,108 @@ def test_the_anthropic_client_names_an_exhausted_rate_limit() -> None:
     outcome = client.estimate(model="m", max_tokens=256, evidence=evidence())
 
     assert outcome.failure == "provider 429 after 3 attempts"
+
+
+@pytest.mark.parametrize(("minutes", "expected"), [(30, 30), (5, None), (None, None)])
+def test_missing_total_is_repaired_once_without_losing_the_recipe(minutes, expected):
+    from decimal import Decimal
+    from uuid import uuid4
+
+    from ladle.contracts.recipes import RecipeReviewStatus, RecipeSource
+    from ladle.extraction.timing import RecipeTimeEstimator
+    from ladle.recipes.template_clone import (
+        RecipeTemplate,
+        TemplateIngredient,
+        TemplateStep,
+        TemplateTimer,
+    )
+
+    calls = []
+
+    class Estimator:
+        def estimate(self, **values):
+            calls.append(values)
+            return (
+                EstimateOutcome(estimate=TimeEstimate(total_minutes=minutes))
+                if minutes
+                else EstimateOutcome(failure="provider unavailable")
+            )
+
+    template = RecipeTemplate(
+        title="Orzo",
+        description="",
+        source=RecipeSource.TIKTOK,
+        original_url="https://www.tiktok.com/@cook/video/123456",
+        servings=Decimal(2),
+        ingredients=[TemplateIngredient(name="orzo", order_index=0)],
+        steps=[
+            TemplateStep(
+                order_index=0,
+                instruction="Simmer.",
+                timers=[TemplateTimer(label="Simmer", duration_seconds=600)],
+            )
+        ],
+        review_status=RecipeReviewStatus.READY,
+    )
+    result = RecipeTimeEstimator(
+        client=Estimator(), model_id="test", max_tokens=256
+    ).repair(template, job_id=uuid4())
+    assert result.total_minutes == expected
+    assert result.steps == template.steps
+    assert result.ingredients == template.ingredients
+    assert result.review_status == template.review_status
+    assert len(calls) == 1
+    assert any(u.field == "total_minutes" for u in result.uncertainties) == (
+        expected is not None
+    )
+
+
+def test_import_timing_429_is_one_attempt_without_sleep():
+    requests = []
+
+    def respond(request):
+        requests.append(request)
+        return httpx.Response(429)
+
+    estimator = OpenRouterTimeEstimateClient(
+        http=httpx.Client(transport=httpx.MockTransport(respond)),
+        api_key="test",
+        base_url="https://openrouter.test",
+        max_attempts=1,
+        sleep=lambda _: pytest.fail("live timing repair must not retry"),
+    )
+    outcome = estimator.estimate(model="test", max_tokens=256, evidence=evidence())
+    assert outcome.estimate is None
+    assert len(requests) == 1
+
+
+@pytest.mark.parametrize("case", ["alreadyTimed", "noMethod", "budgetExhausted"])
+def test_timing_repair_does_not_spend_when_not_needed_or_budget_exhausted(case):
+    from uuid import uuid4
+
+    from ladle.extraction.review import build_reviewed_template
+    from ladle.extraction.timing import RecipeTimeEstimator
+    from ladle.usage.ledger import NullProviderUsageSink
+    from ladle.usage.limits import UsageLimitExceeded
+    from tests.unit.extraction.test_claude import context, extracted
+
+    class NoCall:
+        def estimate(self, **values):
+            pytest.fail("timing provider should not be called")
+
+    class Budget(NullProviderUsageSink):
+        def started(self, **values):
+            raise UsageLimitExceeded()
+
+    template = build_reviewed_template(extracted(), context=context())
+    if case == "alreadyTimed":
+        template = template.model_copy(update={"total_minutes": 15})
+    if case == "noMethod":
+        template = template.model_copy(update={"steps": []})
+    estimator = RecipeTimeEstimator(
+        client=NoCall(),
+        model_id="test",
+        max_tokens=256,
+        usage=Budget() if case == "budgetExhausted" else None,
+    )
+    assert estimator.repair(template, job_id=uuid4()) == template

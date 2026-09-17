@@ -20,6 +20,7 @@ from ladle.db.models import (
     SourceVideo,
 )
 from ladle.db.session import build_engine
+from ladle.extraction.timing import EstimateOutcome, RecipeTimeEstimator, TimeEstimate
 from ladle.imports.orchestrator import ImportOrchestrator, ProcessOutcome
 from ladle.imports.reservations import ReservationService
 from ladle.observability.metrics import MetricsRegistry
@@ -101,12 +102,20 @@ def test_worker_round_trip_then_shared_hit_and_duplicate_delivery(
     recipe = manual_recipe(uuid4()).model_copy(
         update={
             "source": RecipeSource.YOUTUBE,
+            "total_minutes": None,
             "original_url": "https://www.youtube.com/watch?v=walking-test",
         }
     )
     acquirer = FakeAcquirer()
     extractor = FakeExtractor(RecipeTemplate.from_recipe(recipe))
     heartbeat = RecordingHeartbeat()
+    timing_calls = []
+
+    class Estimator:
+        def estimate(self, **values):
+            timing_calls.append(values)
+            return EstimateOutcome(estimate=TimeEstimate(total_minutes=60))
+
     orchestrator = ImportOrchestrator(
         session_factory=sessions,
         cache=cache,
@@ -115,6 +124,9 @@ def test_worker_round_trip_then_shared_hit_and_duplicate_delivery(
         clock=clock,
         metrics=metrics,
         heartbeat=heartbeat,
+        time_estimator=RecipeTimeEstimator(
+            client=Estimator(), model_id="test", max_tokens=256
+        ),
     )
 
     with Session(engine) as database, database.begin():
@@ -146,9 +158,11 @@ def test_worker_round_trip_then_shared_hit_and_duplicate_delivery(
     assert len(acquirer.calls) == 1
     assert acquirer.public_checks == [source_id]
     assert len(extractor.calls) == 1
+    assert len(timing_calls) == 1
     assert [claim.owner_job_id for claim in heartbeat.claims] == [first_job]
     with Session(engine) as database:
         assert database.scalar(select(func.count()).select_from(Recipe)) == 3
+        assert list(database.scalars(select(Recipe.total_minutes))) == [60, 60, 60]
         assert database.scalar(select(func.count()).select_from(ExtractionCache)) == 1
         assert (
             database.scalar(
