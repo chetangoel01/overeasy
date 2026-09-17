@@ -1,9 +1,9 @@
 import XCTest
 
-/// The whole UI suite: eight journeys, each a critical path that only a
-/// running app can prove. Every test here is a full app launch, so a rule, a
-/// state or a piece of wording belongs in a unit test instead, and a layout
-/// fix is recorded with captures under `docs/verification/`.
+/// The whole UI suite: a few journeys, each a critical path that only a
+/// running app can prove. Every test here is a full app launch, so a rule or
+/// a state belongs in a unit test instead, and a layout fix is recorded with
+/// captures under `docs/verification/`.
 ///
 /// Journeys are found by accessibility identifier, or by the label a cook
 /// would press; none of them asserts copy, frames or screenshots.
