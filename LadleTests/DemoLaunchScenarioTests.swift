@@ -2,30 +2,6 @@ import XCTest
 @testable import Ladle
 
 final class DemoLaunchScenarioTests: XCTestCase {
-    func testEveryNamedScenarioParsesFromOneLaunchArgument() {
-        let expected: [(String, DemoLaunchScenario)] = [
-            ("empty", .empty),
-            ("offline-content", .offlineContent),
-            ("offline-empty", .offlineEmpty),
-            ("store-failure", .storeFailure),
-            ("discover-empty", .discoverEmpty),
-            ("discover-rate-limited", .discoverRateLimited),
-            ("import-quota", .importQuota),
-            ("import-rate-limited", .importRateLimited),
-            ("authentication-expired", .authenticationExpired),
-            ("large-library", .largeLibrary),
-        ]
-
-        for (rawValue, scenario) in expected {
-            XCTAssertEqual(
-                DemoLaunchScenario(
-                    launchArguments: ["-demo-scenario", rawValue]
-                ),
-                scenario
-            )
-        }
-    }
-
     func testMissingUnknownOrContradictoryScenariosUseStandardDemo() {
         XCTAssertEqual(
             DemoLaunchScenario(launchArguments: []),

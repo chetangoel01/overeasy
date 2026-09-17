@@ -27,6 +27,7 @@ from ladle.contracts.errors import (
 )
 from ladle.contracts.imports import ImportFailure, ImportJobResponse, ImportStatus
 from ladle.contracts.recipes import (
+    DiscoverPageDTO,
     DiscoverShelvesDTO,
     RecipeDTO,
     SourceEngagementDTO,
@@ -60,6 +61,7 @@ def canonical_json(value: Any) -> str:
         ("recipe-needs-review.json", TypeAdapter(RecipeDTO)),
         ("recipe-estimated-time.json", TypeAdapter(RecipeDTO)),
         ("recipe-approximate-nutrition.json", TypeAdapter(RecipeDTO)),
+        ("discover-page.json", TypeAdapter(DiscoverPageDTO)),
         ("discover-shelves.json", TypeAdapter(DiscoverShelvesDTO)),
         ("source-engagement.json", TypeAdapter(SourceEngagementDTO)),
         ("sync-page.json", TypeAdapter(SyncPageDTO)),

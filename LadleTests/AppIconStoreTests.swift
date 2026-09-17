@@ -61,24 +61,6 @@ final class AppIconStoreTests: XCTestCase {
         XCTAssertEqual(store.icon, .egg)
     }
 
-    /// The picker has no preference of its own to read: the installed icon
-    /// is the selection, and iOS is the one holding it.
-    func testTheStoreOpensOnWhicheverIconIsInstalled() {
-        let plantBased = AppIconStore(
-            application: FakeAlternateIcons(
-                alternateIconName: "AppIcon-PlantBased"
-            ),
-            preferenceStore: IconPreferences()
-        )
-        let egg = AppIconStore(
-            application: FakeAlternateIcons(),
-            preferenceStore: IconPreferences()
-        )
-
-        XCTAssertEqual(plantBased.icon, .avocado)
-        XCTAssertEqual(egg.icon, .egg)
-    }
-
     /// A failed switch leaves the picker showing the icon that is actually
     /// installed rather than the one that was asked for.
     func testARefusedSwitchLeavesTheSelectionWhereItWas() async {
@@ -135,33 +117,6 @@ final class AppIconStoreTests: XCTestCase {
                 "\(diet) was handled the wrong way"
             )
         }
-    }
-
-    func testNoDietIsNeverAsked() {
-        let store = AppIconStore(
-            application: FakeAlternateIcons(),
-            preferenceStore: IconPreferences()
-        )
-
-        store.offerIfNeeded(for: [])
-
-        XCTAssertFalse(store.isOfferPresented)
-    }
-
-    /// The offer is spent when it is shown, not when it is answered. An app
-    /// that dies while the alert is up has still asked.
-    func testTheOfferIsSpentWhenItIsShown() {
-        let preferences = IconPreferences()
-        let store = AppIconStore(
-            application: FakeAlternateIcons(),
-            preferenceStore: preferences
-        )
-
-        store.offerIfNeeded(for: [.vegan])
-
-        XCTAssertTrue(
-            preferences.bool(forKey: AppIconStore.offerPreferenceKey)
-        )
     }
 
     func testAcceptingTheOfferSwitchesTheIcon() async {

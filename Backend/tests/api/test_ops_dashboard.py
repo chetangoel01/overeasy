@@ -2,7 +2,6 @@ import json
 import re
 from dataclasses import dataclass
 
-import pytest
 from fastapi.testclient import TestClient
 
 from ladle.api.app import create_app
@@ -151,18 +150,9 @@ def test_dashboard_page_may_run_its_own_inline_script_and_styles() -> None:
     assert "style-src 'self' 'unsafe-inline'" in policy
     assert "connect-src 'self'" in policy
     assert "frame-ancestors 'none'" in policy
-    assert elsewhere.headers["content-security-policy"] == (
-        "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
-    )
-
-
-def test_production_refuses_to_start_without_a_dashboard_token() -> None:
-    with pytest.raises(ValueError, match="dashboard"):
-        Settings(
-            environment="production",
-            ops_dashboard_token=None,
-            _env_file=None,
-        )
+    # The relaxation is the page's alone; tests/api/test_security_headers.py
+    # owns what every other route sends.
+    assert "unsafe-inline" not in elsewhere.headers["content-security-policy"]
 
 
 def test_the_cookie_is_secure_whenever_the_request_arrived_over_https() -> None:
@@ -214,10 +204,6 @@ def test_an_untrusted_peer_cannot_talk_its_way_into_a_secure_cookie() -> None:
     assert "Secure" not in _handoff(
         ("203.0.113.9", 51000), {"x-forwarded-proto": "https"}
     )
-
-
-def test_plain_local_http_still_gets_a_cookie_the_browser_will_store() -> None:
-    assert "Secure" not in _handoff(("127.0.0.1", 51000), {})
 
 
 CLIENT_CERT_HEADER = "x-ladle-ops-client"

@@ -1112,4 +1112,3 @@ enabled.
 | `409 syncConflict` | Apply `details.currentRecipe`, preserve the local draft, and retry only after the user resolves it |
 | Guest receives `guestRecipeLimitReached` | Inspect active recipes plus unexpired `recipe_slot_reservations` |
 | Apple endpoint returns `503` | Apple is disabled or its credential service was not constructed |
-| `LADLE_SERVER_MEDIA_FALLBACK_ENABLED` changes nothing | The concrete processor and runtime wiring described above are still required |

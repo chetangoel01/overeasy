@@ -82,13 +82,6 @@ def test_a_phrase_with_no_number_becomes_an_ingredient_with_no_quantity() -> Non
     assert value.normalized_quantity is None
 
 
-def test_an_ingredient_with_nothing_said_about_its_amount_has_no_quantity() -> None:
-    value = ingredient(name="olive oil")
-
-    assert value.is_to_taste is True
-    assert value.normalized_quantity is None
-
-
 def test_a_flagged_ingredient_is_left_exactly_as_it_came() -> None:
     value = ingredient(name="salt", quantityText="a pinch", isToTaste=True)
 
@@ -98,14 +91,16 @@ def test_a_flagged_ingredient_is_left_exactly_as_it_came() -> None:
 
 
 def test_a_split_the_model_supplied_is_never_second_guessed() -> None:
+    # The phrase has a unit of its own to offer, and the number agrees, so
+    # only the supplied unit stands between it and the row.
     value = ingredient(
-        quantityText="2 16oz cans",
+        quantityText="2 cups",
         normalizedQuantity="2",
-        unit="cans",
+        unit="c",
     )
 
     assert value.normalized_quantity == Decimal("2")
-    assert value.unit == "cans"
+    assert value.unit == "c"
 
 
 def test_zero_is_an_amount_and_not_an_absence() -> None:

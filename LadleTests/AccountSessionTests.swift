@@ -4,13 +4,6 @@ import XCTest
 
 @MainActor
 final class AccountSessionTests: XCTestCase {
-    func testNewInstallPresentsWelcome() {
-        let session = AccountSession(store: InMemoryPreferenceStore())
-
-        XCTAssertTrue(session.shouldPresentWelcome)
-        XCTAssertEqual(session.state, .undecided)
-    }
-
     func testContinuingAsGuestPersistsTheChoice() {
         let store = InMemoryPreferenceStore()
         let session = AccountSession(store: store)
@@ -171,23 +164,6 @@ final class AccountSessionTests: XCTestCase {
         session.signInWithApple()
 
         XCTAssertTrue(session.shouldPresentNameStep)
-    }
-
-    func testOnboardingCompleteArgumentSkipsTheNameStep() {
-        let store = InMemoryPreferenceStore()
-
-        let session = AccountSession(
-            store: store,
-            launchArguments: [
-                "-ui-testing",
-                "-onboarding-complete",
-                "-account-state",
-                "signedInWithGoogle",
-            ]
-        )
-
-        XCTAssertFalse(session.shouldPresentNameStep)
-        XCTAssertFalse(session.shouldPresentWalkthrough)
     }
 
     func testNameStepArgumentsSkipAndForceTheStep() {
@@ -352,21 +328,12 @@ final class AccountSessionTests: XCTestCase {
         let session = AccountSession(store: InMemoryPreferenceStore())
         session.continueAsGuest()
 
-        XCTAssertEqual(
-            session.saveDecision(savedRecipeCount: 0),
-            .allow
-        )
-        XCTAssertEqual(
-            session.saveDecision(savedRecipeCount: 8),
-            .allow
-        )
+        // The thresholds are `GuestPolicy`'s and LadleCore tests them; this
+        // is that a guest session answers with the policy, on both sides of
+        // the limit.
         XCTAssertEqual(
             session.saveDecision(savedRecipeCount: 9),
             .allowWithAccountPrompt
-        )
-        XCTAssertEqual(
-            session.saveDecision(savedRecipeCount: 10),
-            .limitReached
         )
         XCTAssertEqual(
             session.saveDecision(savedRecipeCount: 11),

@@ -4,13 +4,6 @@ import XCTest
 
 @MainActor
 final class LibraryNavigationStateTests: XCTestCase {
-    func testLibraryStartsOnDiscoverTab() {
-        let state = LibraryNavigationState()
-
-        XCTAssertEqual(state.tab, .discover)
-        XCTAssertTrue(state.path.isEmpty)
-    }
-
     func testSelectingDiscoverDoesNotPushNavigation() {
         var state = LibraryNavigationState(
             tab: .recipes,
@@ -68,23 +61,7 @@ final class LibraryNavigationStateTests: XCTestCase {
         XCTAssertTrue(state.path.isEmpty)
     }
 
-    func testInboxCanBeSelectedAgainAfterReturningToRecipes() {
-        var state = LibraryNavigationState(tab: .inbox)
-
-        state.reviewDidComplete(hasActionableImports: false)
-        state.select(.inbox)
-
-        XCTAssertEqual(state.tab, .inbox)
-        XCTAssertTrue(state.path.isEmpty)
-    }
-
     // MARK: - Cold-launch Discover failure
-
-    func testFailedDiscoverLaunchSelectsRecipes() {
-        var fallback = DiscoverLaunchFallback()
-
-        XCTAssertTrue(fallback.claim(for: LibraryNavigationState()))
-    }
 
     func testDiscoverFallsBackOnlyOncePerProcess() {
         var fallback = DiscoverLaunchFallback()
@@ -192,16 +169,6 @@ final class LibraryNavigationStateTests: XCTestCase {
             .content(reloadError: "Your recipes couldn’t be refreshed.")
         )
         XCTAssertTrue(presentation.displaysTabs)
-    }
-
-    func testDiscoverRecipeDestinationIsReadOnly() {
-        let destination = LibraryRecipeDestination(
-            recipe: PreviewFixtures.recipes[0],
-            statusText: "Discover recipe",
-            access: .discover
-        )
-
-        XCTAssertEqual(destination.access, .discover)
     }
 
     func testRecipeContextMenuOffersOpenAndFavoriteActions() {

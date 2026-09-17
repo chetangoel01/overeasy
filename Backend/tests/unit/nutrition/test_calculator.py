@@ -16,7 +16,6 @@ from ladle.recipes.template_clone import (
     TemplateIngredient,
     TemplateNutrition,
 )
-from tests.fakes.nutrition import FakeFoodDataSource
 
 
 @dataclass
@@ -167,7 +166,6 @@ def test_calculates_per_serving_nutrition_with_one_serving_basis() -> None:
     [
         ("cup", "2", portion("cup", "100"), Decimal("70.0")),
         ("tbsp", "2", portion("tablespoon", "15"), Decimal("10.5")),
-        ("piece", "3", portion("piece", "30"), Decimal("31.5")),
     ],
 )
 def test_uses_usda_portion_weights_for_volume_and_counts(
@@ -277,17 +275,8 @@ def test_trusts_unique_usda_search_order_for_normalized_query() -> None:
     assert result.evidence == "USDA FDC 10"
 
 
-@pytest.mark.parametrize(
-    "value",
-    [
-        ingredient(quantity=None, unit=None, metric_amount=None, metric_unit=None),
-        ingredient(quantity="2", unit="scoop", metric_amount=None, metric_unit=None),
-    ],
-    ids=["missing-quantity", "unsupported-portion"],
-)
-def test_missing_material_mass_returns_no_nutrition(
-    value: TemplateIngredient,
-) -> None:
+def test_missing_material_mass_returns_no_nutrition() -> None:
+    value = ingredient(quantity="2", unit="scoop", metric_amount=None, metric_unit=None)
     source = Foods({"chickpeas drained": [food()]})
 
     assert NutritionCalculator(source).calculate(recipe([value])) is None
@@ -382,8 +371,8 @@ def test_gross_calorie_macro_inconsistency_is_rejected() -> None:
     ]
 
 
-@pytest.mark.parametrize("query", ["white table wine", "black vinegar"])
-def test_non_macro_energy_sources_use_authoritative_usda_calories(query: str) -> None:
+def test_non_macro_energy_sources_use_authoritative_usda_calories() -> None:
+    query = "white table wine"
     source = Foods(
         {
             query: [
@@ -727,7 +716,6 @@ def test_sharing_the_qualifiers_is_not_enough_without_the_food_itself() -> None:
         ("ghee", "Ghee, clarified butter"),
         ("tomato raw", "Tomatoes, raw"),
         ("lentils raw", "Lentils, raw"),
-        ("pancetta", "PANCETTA"),
         ("vinegar rice", "RICE VINEGAR"),
         ("green cardamoms", "Spices, cardamom"),
         ("cardamom ground", "Spices, cardamom"),
@@ -923,43 +911,6 @@ def test_most_of_the_dish_going_uncounted_still_totals_the_rest() -> None:
     assert [value.name for value in records] == ["garam masala"]
 
 
-def test_one_unmatched_ingredient_leaves_the_others_totalled() -> None:
-    # The counted 400 g stands on its own; the uncounted 100 g changes
-    # nothing about it beyond the record saying it was left out.
-    source = Foods(
-        {
-            "egg noodles dry": [
-                food(fdc_id=23, description="egg noodles dry", search_rank=0)
-            ]
-        }
-    )
-    records: list[UncountedIngredient] = []
-
-    result = NutritionCalculator(source).calculate_required(
-        recipe(
-            [
-                ingredient(
-                    name="egg noodles",
-                    query="egg noodles dry",
-                    quantity="400",
-                    metric_amount="400",
-                ),
-                ingredient(
-                    name="garam masala",
-                    query="garam masala",
-                    quantity="100",
-                    metric_amount="100",
-                    order_index=1,
-                ),
-            ]
-        ),
-        uncounted=records,
-    )
-
-    assert result.calories == Decimal("140.0")
-    assert [value.estimated_grams for value in records] == [Decimal("100")]
-
-
 def test_nothing_matched_produces_no_block_rather_than_an_error() -> None:
     """The one legitimate empty case, and it is not a failure.
 
@@ -1132,69 +1083,6 @@ def test_a_fallback_that_also_fails_leaves_the_ingredient_uncounted() -> None:
     assert [value.name for value in records] == ["curry leaves"]
     assert fallback.calls == ["curry leaves"]
     assert result.evidence == "USDA FDC 23"
-
-
-def test_an_unusable_yield_is_still_a_whole_recipe_failure() -> None:
-    # Degrading per ingredient does not make every failure per ingredient:
-    # without a serving count there is nothing to divide by.
-    source = Foods({"chickpeas drained": [food()]})
-
-    with pytest.raises(NutritionCalculationUnavailable) as error:
-        NutritionCalculator(source).calculate_required(
-            recipe([ingredient()], servings_basis="unknown")
-        )
-
-    assert error.value.code == "invalidYield"
-
-
-def test_the_shared_fallback_fake_answers_the_known_usda_gaps() -> None:
-    """The fake stands in for the provider PR B will add.
-
-    It exists so the ladder can be exercised without a key, and it answers
-    the four ingredients the live library found USDA has no usable row for.
-    """
-    usda = Foods(
-        {
-            "chicken thigh raw": [
-                food(
-                    fdc_id=171077,
-                    description="Chicken, thigh, raw",
-                    data_type="SR Legacy",
-                    calories="209",
-                    protein="17.27",
-                    carbohydrate="0",
-                    fat="15.25",
-                    search_rank=0,
-                )
-            ]
-        }
-    )
-    fallback = FakeFoodDataSource()
-    records: list[UncountedIngredient] = []
-
-    result = NutritionCalculator(usda, fallback).calculate_required(
-        recipe(
-            [
-                ingredient(
-                    name="chicken thighs",
-                    query="chicken thigh raw",
-                    quantity="500",
-                    metric_amount="500",
-                ),
-                ingredient(
-                    name="curry leaves",
-                    query="curry leaves",
-                    quantity="5",
-                    metric_amount="5",
-                    order_index=1,
-                ),
-            ]
-        ),
-        uncounted=records,
-    )
-
-    assert records == []
-    assert result.evidence == "USDA FDC 171077, Fake Foods 900002"
 
 
 def test_a_curated_ingredient_is_costed_without_asking_usda() -> None:

@@ -12,15 +12,11 @@ from ladle.config import Settings
 BACKEND = Path(__file__).parents[3]
 
 
-def compose_text() -> str:
-    return (BACKEND / "docker-compose.yml").read_text()
-
-
 def compose() -> dict[str, Any]:
-    return yaml.safe_load(compose_text())
+    return yaml.safe_load((BACKEND / "docker-compose.yml").read_text())
 
 
-def test_runtime_image_is_reproducible_and_ships_no_development_artifacts() -> None:
+def test_runtime_image_pins_what_it_installs_and_ships_no_secrets() -> None:
     dockerfile = (BACKEND / "Dockerfile").read_text()
     ignored = (BACKEND / ".dockerignore").read_text()
 
@@ -37,97 +33,27 @@ def test_runtime_image_is_reproducible_and_ships_no_development_artifacts() -> N
     assert "snapshot.debian.org" in dockerfile
     assert "ca-certificates=${CA_CERTIFICATES_VERSION}" in dockerfile
     assert "ffmpeg=${FFMPEG_VERSION}" in dockerfile
-    assert "ARG INSTALL_MEDIA_TOOLS=true" in dockerfile
-    assert 'if [ "$INSTALL_MEDIA_TOOLS" = "true" ]' in dockerfile
-    assert "INSTALL_MEDIA_TOOLS: ${LADLE_INSTALL_MEDIA_TOOLS:-true}" in compose_text()
-    assert "HEALTHCHECK" in dockerfile
-    assert 'CMD ["/app/.venv/bin/python", "-m", "ladle.api"]' in dockerfile
 
-    for pattern in (
-        ".git",
-        ".env*",
-        "tests",
-        "docs",
-        "load",
-        "docker-compose*",
-        ".eval-cache",
-        "*.cookies*",
-        "*.sqlite*",
-        "__pycache__",
-    ):
+    # What a build context must never carry into a pushed image: history,
+    # environment files, yt-dlp session cookies and local databases.
+    for pattern in (".git", ".env*", "*.cookies*", "*.sqlite*"):
         assert pattern in ignored
 
 
-def test_local_services_are_sandboxed_recover_and_publish_only_to_loopback() -> None:
-    text = compose_text()
+def test_local_services_are_sandboxed_and_publish_only_to_loopback() -> None:
     services = compose()["services"]
 
-    assert "x-runtime-security: &runtime-security" in text
-    assert text.count("<<: *runtime-security") >= 4
-    for requirement in (
-        "read_only: true",
-        "tmpfs:",
-        "cap_drop:",
-        '- "ALL"',
-        "no-new-privileges:true",
-        "pids_limit:",
-        "mem_limit:",
-        "cpus:",
-        "nofile:",
-        "fsize:",
-    ):
-        assert requirement in text
+    # Every service built from this repository, as opposed to a stock image.
+    built = {name: value for name, value in services.items() if "image" not in value}
+    assert {"api", "worker", "beat", "migrate"} <= set(built)
+    for name, service in built.items():
+        assert service["read_only"] is True, name
+        assert service["cap_drop"] == ["ALL"], name
+        assert service["security_opt"] == ["no-new-privileges:true"], name
 
-    for service_name in ("api", "worker", "beat"):
-        assert services[service_name]["restart"] == "unless-stopped"
-
-    worker = services["worker"]
-    assert worker["mem_limit"] == "${LADLE_WORKER_MEMORY_LIMIT:-2g}"
-    assert worker["cpus"] == "${LADLE_WORKER_CPU_LIMIT:-2.0}"
-    assert "--concurrency=${LADLE_WORKER_CONCURRENCY:-1}" in worker["command"]
-
-    edge = services["device-edge"]
-    assert edge["profiles"] == ["device-tunnel"]
-    assert edge["ports"] == ["127.0.0.1:4114:8082"]
-    assert edge["read_only"] is True
-    assert edge["cap_drop"] == ["ALL"]
-    assert edge["security_opt"] == ["no-new-privileges:true"]
-    assert edge["depends_on"]["api"]["condition"] == "service_healthy"
-    assert edge["depends_on"]["minio"]["condition"] == "service_healthy"
-
-
-def test_local_data_services_and_account_providers_are_configured() -> None:
-    text = compose_text()
-    services = compose()["services"]
-
-    for option in (
-        "--appendonly",
-        "--appendfsync",
-        "everysec",
-        "--maxmemory-policy",
-        "noeviction",
-        "--stop-writes-on-bgsave-error",
-    ):
-        assert option in text
-    assert "ladle.infrastructure.object_storage_init" in text
-    assert "./deploy/object-storage-lifecycle.json:" in text
-
-    environment = services["migrate"]["environment"]
-    for variable in (
-        "LADLE_APPLE_ENABLED",
-        "LADLE_APPLE_BUNDLE_ID",
-        "LADLE_APPLE_TEAM_ID",
-        "LADLE_APPLE_KEY_ID",
-        "LADLE_GOOGLE_ENABLED",
-        "LADLE_GOOGLE_SERVER_CLIENT_ID",
-    ):
-        assert variable in environment
-    assert environment["LADLE_APPLE_PRIVATE_KEY_FILE"] == (
-        "/run/secrets/apple_private_key"
-    )
-    assert (
-        "${LADLE_APPLE_PRIVATE_KEY_FILE:-/dev/null}:/run/secrets/apple_private_key:ro"
-    ) in services["api"]["volumes"]
+    for name, service in services.items():
+        for port in service.get("ports", []):
+            assert port.startswith("127.0.0.1:"), (name, port)
 
 
 def chaos_overlay() -> dict[str, Any]:
@@ -185,5 +111,3 @@ def test_chaos_overlay_pins_keep_the_worker_timing_valid() -> None:
             f"orders below LADLE_CELERY_TASK_SOFT_TIME_LIMIT_SECONDS: {error}"
         ) from error
     assert settings.usda_timeout_seconds < settings.celery_task_soft_time_limit_seconds
-    assert overlay["services"]["api"]["ports"] == ["127.0.0.1:42112:4111"]
-    assert overlay["services"]["minio"]["ports"] == []

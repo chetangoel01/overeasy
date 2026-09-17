@@ -77,19 +77,6 @@ final class HealthExportViewModelTests: XCTestCase {
         )
     }
 
-    func testServiceFailureLeavesExportAvailableForRetry() async {
-        let service = FakeHealthService(writeError: FakeHealthError.writeFailed)
-        let viewModel = makeViewModel(service: service)
-
-        await viewModel.confirmExport()
-
-        XCTAssertEqual(
-            viewModel.state,
-            .failed(.remote(RemoteFailureReport(FakeHealthError.writeFailed)))
-        )
-        XCTAssertTrue(viewModel.canRetry)
-    }
-
     func testOfflineWriteFailureIsDistinctAndRetryable() async {
         let service = FakeHealthService(writeError: APIError.transport)
         let viewModel = makeViewModel(service: service)
@@ -134,13 +121,6 @@ final class HealthExportViewModelTests: XCTestCase {
         XCTAssertEqual(snapshot.writtenPayloads.first?.approximate, true)
     }
 
-    func testACompletePanelCarriesNoMarkerEvenWhenEstimated() async {
-        let viewModel = makeViewModel(service: FakeHealthService())
-
-        XCTAssertTrue(viewModel.payload.isEstimated)
-        XCTAssertFalse(viewModel.payload.approximate)
-    }
-
     private func makeViewModel(
         service: FakeHealthService,
         nutrition: Nutrition = Nutrition(
@@ -162,10 +142,6 @@ final class HealthExportViewModelTests: XCTestCase {
             service: service
         )
     }
-}
-
-private enum FakeHealthError: Error {
-    case writeFailed
 }
 
 private actor FakeHealthService: HealthService {

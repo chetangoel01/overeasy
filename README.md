@@ -163,18 +163,29 @@ swift test --package-path Packages/LadleCore
 ```
 
 Run the app and Share Extension unit tests. Tests are disabled on the default
-`Ladle` scheme so ordinary builds stay fast — use the `LadleAllTests` scheme:
+`Ladle` scheme so ordinary builds stay fast — use the `LadleAllTests` scheme,
+and ask for the unit bundle, which runs in seconds:
 
 ```bash
 xcodebuild test \
   -project Ladle.xcodeproj \
   -scheme LadleAllTests \
-  -destination 'platform=iOS Simulator,name=iPhone 17'
+  -destination 'platform=iOS Simulator,name=iPhone 17' \
+  -only-testing:LadleTests
 ```
 
-Add `-only-testing:LadleTests` for just the unit suite: 404 tests in under four
-seconds, against a few minutes for the 20 UI tests, each of which pays for
-its own app launch.
+The UI bundle is a small smoke set, `LadleUITests/SmokeUITests.swift`: a
+handful of journeys that only a running app can prove (launch to cooking,
+import and review, Discover, Watch, scaling, the icon switch, first run). Each
+one is a full app launch, so the set takes minutes rather than seconds and is
+run when a change touches one of those paths, or before a release — not on
+every edit. Swap the last argument for `-only-testing:LadleUITests`, or name
+one journey with `-only-testing:LadleUITests/SmokeUITests/<test>`.
+
+Neither app bundle runs in CI, which gates the backend only. A rule or a state
+belongs in a unit test, wording is not tested at all, and a layout fix is
+recorded with captures under `docs/verification/` rather than pinned by a UI
+test.
 
 Run the backend suite from `Backend/`:
 

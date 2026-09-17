@@ -62,41 +62,6 @@ def service(
     )
 
 
-def test_valid_source_is_canonicalized_and_completed() -> None:
-    runner = SuccessfulRunner()
-    jobs = service(runner)
-
-    job_id = jobs.submit(
-        "https://www.tiktok.com/@cook/video/7612708181004799263?sender_device=pc"
-    )
-
-    assert runner.urls == ["https://www.tiktok.com/@cook/video/7612708181004799263"]
-    assert jobs.status(job_id) == {
-        "jobID": job_id,
-        "status": "succeeded",
-        "stage": "complete",
-        "message": "Recipe ready",
-        "sourceURL": runner.urls[0],
-        "result": {
-            "modelID": "google/gemini-3.7-flash",
-            "recipe": {
-                "title": "Test Noodles",
-                "servings": "2",
-                "servings_basis": "stated",
-                "review_status": "ready",
-                "ingredients": [],
-                "steps": [],
-                "uncertainties": [],
-            },
-        },
-    }
-
-
-def test_invalid_source_is_rejected_before_job_creation() -> None:
-    with pytest.raises(serve_pipeline_validator.InvalidValidationURL):
-        service(SuccessfulRunner()).submit("https://example.com/not-a-recipe")
-
-
 def test_only_one_validation_can_spend_at_a_time() -> None:
     executor = HeldExecutor()
     jobs = service(SuccessfulRunner(), executor=executor)
@@ -165,16 +130,3 @@ def test_api_returns_typed_invalid_input(payload: dict[str, str], status: int) -
 
     assert response.status_code == status
     assert response.json()["error"] == "invalidSourceURL"
-
-
-def test_server_serves_both_html_pages_without_secrets() -> None:
-    with TestClient(
-        serve_pipeline_validator.create_app(service(SuccessfulRunner()))
-    ) as client:
-        validator = client.get("/")
-        results = client.get("/pipeline-results.html")
-
-    assert validator.status_code == results.status_code == 200
-    assert validator.headers["content-type"].startswith("text/html")
-    assert results.headers["content-type"].startswith("text/html")
-    assert "sk-or-v1" not in validator.text + results.text

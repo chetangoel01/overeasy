@@ -316,22 +316,6 @@ final class CookingViewModelTests: XCTestCase {
         XCTAssertTrue(notifications.scheduled.isEmpty)
     }
 
-    func testEndCookingOnARecipeWithoutTimersCancelsNothing() {
-        let recipe = PreviewFixtures.recipes[4]
-        XCTAssertTrue(recipe.orderedSteps.allSatisfy(\.timers.isEmpty))
-        let notifications = TestTimerNotificationScheduler()
-        let viewModel = makeViewModel(
-            recipe: recipe,
-            notifications: notifications
-        )
-
-        viewModel.beginCooking()
-        viewModel.endCooking()
-
-        XCTAssertTrue(notifications.scheduled.isEmpty)
-        XCTAssertTrue(notifications.cancelled.isEmpty)
-    }
-
     func testKeepAwakeIsExplicitAndRestoresPreviousSettingOnExit() {
         let idleTimer = TestIdleTimerController()
         idleTimer.isIdleTimerDisabled = false

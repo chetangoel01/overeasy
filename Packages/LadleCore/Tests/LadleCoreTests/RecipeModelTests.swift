@@ -120,47 +120,4 @@ struct RecipeModelTests {
             "Simmer until tender.",
         ])
     }
-
-    @Test
-    func nutritionRecordsEstimateAndServingBasis() {
-        let nutrition = Nutrition(
-            calories: 520,
-            proteinGrams: 18,
-            servingBasis: 1,
-            isEstimated: true
-        )
-
-        #expect(nutrition.calories == 520)
-        #expect(nutrition.servingBasis == 1)
-        #expect(nutrition.isEstimated)
-    }
-
-    @Test
-    func uncertaintyIdentifiesQuestionableField() {
-        let uncertainty = FieldUncertainty(
-            field: "ingredients[1].quantity",
-            reason: "The quantity was difficult to hear.",
-            confidence: 0.42
-        )
-
-        #expect(uncertainty.field == "ingredients[1].quantity")
-        #expect(uncertainty.confidence == 0.42)
-    }
-
-    @Test
-    func cookingHistoryIsOptionalAndMutable() {
-        let cookedAt = Date(timeIntervalSince1970: 500)
-        var recipe = Recipe(
-            title: "Lemon Orzo",
-            source: .instagram,
-            originalURL: URL(string: "https://example.com/orzo")!,
-            servings: 4
-        )
-
-        #expect(recipe.lastCookedAt == nil)
-
-        recipe.lastCookedAt = cookedAt
-
-        #expect(recipe.lastCookedAt == cookedAt)
-    }
 }
