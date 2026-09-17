@@ -16,7 +16,7 @@ Implementation proceeds in verified, task-sized commits. The owner answered the 
 | [#140](https://github.com/chetangoel01/overeasy/issues/140) | Keep loading and sync indicators from shifting the screen | Implemented and verified |
 | [#141](https://github.com/chetangoel01/overeasy/issues/141) | Polish app motion with consistent native, tactile feedback | Implemented and verified |
 | [#142](https://github.com/chetangoel01/overeasy/issues/142) | Define and enforce consistent button design rules | Implemented and verified |
-| [#143](https://github.com/chetangoel01/overeasy/issues/143) | Explore recipe reviews and more visible likes and save counts | Owner chose existing counts plus star ratings; [API implemented, verified and merged](2026-09-17-recipe-ratings-api.md); the iOS surfaces (rating on recipe details, stars beside the save count on Discover) are next |
+| [#143](https://github.com/chetangoel01/overeasy/issues/143) | Explore recipe reviews and more visible likes and save counts | Owner chose existing counts plus star ratings; [API](2026-09-17-recipe-ratings-api.md) and [iOS surfaces](2026-09-17-recipe-ratings-ios.md) implemented, verified and merged; not deployed, so no request has met a live server |
 | [#144](https://github.com/chetangoel01/overeasy/issues/144) | Add a calorie breakdown to nutrition per serving | Macro breakdown implemented and verified; by-ingredient deferred |
 | [#145](https://github.com/chetangoel01/overeasy/issues/145) | Make recipe estimate notes quieter and less repetitive | Implemented and verified |
 | [#146](https://github.com/chetangoel01/overeasy/issues/146) | Polish the app icon selector layout in Profile | Implemented and verified; the confirmation dialog itself remains #147 |
@@ -32,6 +32,7 @@ Implementation proceeds in verified, task-sized commits. The owner answered the 
 
 ## Verification
 
+- #143 (iOS): likes ride the header's source line; stars and saves take their own line on the header, Discover rows and Watch; a saved recipe with a source gets a rating card above Start cooking, optimistic with rollback. Four new app tests were each seen failing first (two against the old sync code, two by mutation), beside fixture assertions. Existing recipes learn `sourceID` from a pull from the start of the log, repeated once per launch until one carries a source; without the API the app makes no engagement request and shows nothing. Captured in dark, light and the largest text size. Not run against a server or on a phone; VoiceOver not listened to. [Ratings on iOS](2026-09-17-recipe-ratings-ios.md).
 - #151: on the old layout the nutrition card ended 76 points under the tab bar (866.7 against 791); that first-screen assertion failed there and now passes inside the scaling smoke journey. At accessibility sizes the thumbnail stacks above the title. Captured in dark, light and the largest text size. [Recipe details layout](2026-09-17-recipe-details-layout.md).
 - #150: the link and the play-badged thumbnail appear only when `VideoEmbed.url(for:)` accepts the link, on saved recipes and Discover previews, which had no path to the player before; the menu entry is gated the same way. By hand, the player opens from both places, the reading position is kept, and a hand-typed recipe shows no dead control. [Recipe details layout](2026-09-17-recipe-details-layout.md).
 - #148: inline minus, count and plus with "servings · Reset"; `ServingsSheet` is deleted. Red on the old layout (2 failures), and the smoke journey passes. Everything under the band is pixel-identical unscaled and scaled. VoiceOver gets one adjustable element and one settled announcement. [Recipe details layout](2026-09-17-recipe-details-layout.md).
@@ -79,14 +80,12 @@ second servings design, random lead shelves per relaunch, and a small fold on
 Focus mode's ingredient list — and those are implemented above too. What
 remains:
 
-- Engagement (#143): the owner chose existing counts plus 1–5 star ratings,
-  with no written reviews. The API is built, and who may rate and how a rating
-  is changed or cleared are in the
-  [ratings API record](2026-09-17-recipe-ratings-api.md). The iOS surfaces —
-  the rating control on recipe details and stars beside the save count on
-  Discover — were approved in the same mockup and are next. One engineering
-  call awaits the owner: a rating currently outlives the deletion of the
-  saved copy.
+- Engagement (#143): built end to end but not live. It needs the backend
+  deployed with migration `0027`; until then the app shows no engagement line
+  and no rating card, by design. One engineering call awaits the owner: a
+  rating currently outlives the deletion of the saved copy. Once the API has
+  been live for a release, the launch-time replay that teaches older recipes
+  their `sourceID` can be deleted.
 - Phone QA (#147, #161): reproduce the system icon confirmation, and listen
   for the timer in the foreground and with the phone locked, recording Silent
   mode and Focus. Mirroring ultimately reports “iPhone in Use”. No listening
@@ -95,7 +94,6 @@ remains:
 
 ## Current checkpoint
 
-- Merged to `main` on September 17: the CI repairs ([#164](https://github.com/chetangoel01/overeasy/pull/164)), dashboard polling ([#162](https://github.com/chetangoel01/overeasy/pull/162)), the feedback fixes ([#163](https://github.com/chetangoel01/overeasy/pull/163)), the ratings API ([#165](https://github.com/chetangoel01/overeasy/pull/165)), quiet sync ([#166](https://github.com/chetangoel01/overeasy/pull/166)), the macro calorie breakdown ([#167](https://github.com/chetangoel01/overeasy/pull/167)), two Discover shelves ([#168](https://github.com/chetangoel01/overeasy/pull/168)), Focus amounts and the icon row ([#169](https://github.com/chetangoel01/overeasy/pull/169)), and recipe details ([#170](https://github.com/chetangoel01/overeasy/pull/170)), plus five dependency bumps. `main`'s backend gate is green for the first time since September 14. No security gate was relaxed.
-- App: 598 tests on the merged code, one intentional skip, no failures, and four smoke UI journeys. Shared domain: 95 tests. Backend: 1,141 tests, lint and type checks clean.
-- The owner asked on September 17 for the test suite to be cut down, UI tests especially; that work follows separately and these counts will fall.
+- Merged to `main` on September 17: the CI repairs ([#164](https://github.com/chetangoel01/overeasy/pull/164)), dashboard polling ([#162](https://github.com/chetangoel01/overeasy/pull/162)), the feedback fixes ([#163](https://github.com/chetangoel01/overeasy/pull/163)), the ratings API ([#165](https://github.com/chetangoel01/overeasy/pull/165)), quiet sync ([#166](https://github.com/chetangoel01/overeasy/pull/166)), the macro calorie breakdown ([#167](https://github.com/chetangoel01/overeasy/pull/167)), two Discover shelves ([#168](https://github.com/chetangoel01/overeasy/pull/168)), Focus amounts and the icon row ([#169](https://github.com/chetangoel01/overeasy/pull/169)), recipe details ([#170](https://github.com/chetangoel01/overeasy/pull/170)), and ratings on iOS ([#175](https://github.com/chetangoel01/overeasy/pull/175)), plus five dependency bumps. The test-suite cut the owner asked for landed as [#172](https://github.com/chetangoel01/overeasy/pull/172) (backend), [#173](https://github.com/chetangoel01/overeasy/pull/173) (app) and [#174](https://github.com/chetangoel01/overeasy/pull/174) (the rule in `AGENTS.md`). `main`'s backend gate is green for the first time since September 14. No security gate was relaxed.
+- Final combined check on the merged code: the app unit suite (one intentional skip, no failures), all eight smoke UI journeys, the shared-domain tests and the backend suite with lint and type checks pass. The suites were cut down the same day on the owner's instruction — UI tests from 49 to eight smoke journeys — and the [trim record](2026-09-17-test-suite-trim.md) says what is no longer covered automatically.
 - Production has been inspected read-only. Deployment, migration `0027`, and the existing-data tag, timing, and nutrition refreshes have not been performed. Phone checks (#147, #161) need a TestFlight build containing these changes.
