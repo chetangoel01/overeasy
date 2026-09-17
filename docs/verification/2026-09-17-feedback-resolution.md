@@ -17,7 +17,7 @@ Implementation proceeds in verified, task-sized commits. Design choices remain p
 | [#141](https://github.com/chetangoel01/overeasy/issues/141) | Polish app motion with consistent native, tactile feedback | Implemented and verified |
 | [#142](https://github.com/chetangoel01/overeasy/issues/142) | Define and enforce consistent button design rules | Implemented and verified |
 | [#143](https://github.com/chetangoel01/overeasy/issues/143) | Explore recipe reviews and more visible likes and save counts | Pending |
-| [#144](https://github.com/chetangoel01/overeasy/issues/144) | Add a calorie breakdown to nutrition per serving | Pending |
+| [#144](https://github.com/chetangoel01/overeasy/issues/144) | Add a calorie breakdown to nutrition per serving | Macro breakdown implemented and verified; by-ingredient deferred |
 | [#145](https://github.com/chetangoel01/overeasy/issues/145) | Make recipe estimate notes quieter and less repetitive | Pending |
 | [#146](https://github.com/chetangoel01/overeasy/issues/146) | Polish the app icon selector layout in Profile | Pending |
 | [#147](https://github.com/chetangoel01/overeasy/issues/147) | Investigate the layout of the icon-change confirmation dialog | System ownership confirmed; physical reproduction pending |
@@ -31,6 +31,8 @@ Implementation proceeds in verified, task-sized commits. Design choices remain p
 | [#161](https://github.com/chetangoel01/overeasy/issues/161) | Verify cooking timer completion plays a sound and shows an alert | Permission-delay defects fixed; physical sound/alert checks pending |
 
 ## Verification
+
+- #144: the owner chose the macro breakdown on September 17; calories by ingredient is deferred because it needs per-ingredient figures from the pipeline. Shares that add to 100 and the rule that the macro sum is never reconciled with the stated calories were both verified red/green. 95 shared-domain tests and 591 app tests pass (one intentional skip), as does the UI check that opens the sheet. Light, dark and largest-text captures are in the [macro calorie breakdown](2026-09-17-macro-calorie-breakdown.md), which also records that the protein colour is faint in dark mode.
 
 - #141: a hosted SwiftUI probe reproduced a forced 0.5-second save animation outside the presenting view. The save model now publishes state without dictating motion; RecipeDetail, Discover, and FullRecipe consult Reduce Motion for their explicit save and scroll transitions. The hosted regression passes, and all 590 app tests pass (one intentional skip). Existing press and haptic behavior was audited and is documented in [DESIGN.md](../../DESIGN.md#motion-and-feedback).
 
@@ -56,9 +58,11 @@ No issues are considered complete solely because an implementation exists; unres
 ## Decisions and device checks still pending
 
 The owner has approved backend short-link resolution and bounded missing-time
-repair including cached templates; both are implemented above. These earlier
-questions remain unanswered, so their dependent product changes have not been
-selected on the owner's behalf:
+repair including cached templates; both are implemented above. For the calorie
+breakdown (#144) the owner chose macros over ingredient contributions, which
+stay deferred; that is implemented above too. These earlier questions remain
+unanswered, so their dependent product changes have not been selected on the
+owner's behalf:
 
 - Layout group (#145, #146, #148, #150, #151, #153, #160): proposed compact
   thumbnail header with “Watch original”; inline serving minus/plus and Reset;
@@ -69,7 +73,6 @@ selected on the owner's behalf:
 - Engagement (#143): expose source-platform likes and Overeasy saves only,
   or add ratings, or ratings with written reviews. Public feedback needs its
   contribution/edit/report rules once that scope is selected.
-- Calorie breakdown (#144): macros, ingredient contributions, or both.
 - Routine sync status (#140): proposed navigation-bar indicator, retaining
   actionable offline/conflict messages; hiding routine status is the other
   offered option. Neither placement has been approved yet.

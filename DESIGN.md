@@ -290,6 +290,25 @@ not introduce animated movement of the page.
 - One instruction owns the screen. Timers are large and stateful.
 - Food photography and library navigation do not appear in Focus Mode.
 
+## Nutrition
+
+- The nutrition sheet is per serving throughout. The calorie hero leads, and
+  calories are the only figure that carries the "≈" marker.
+- Under the total, a "Calories from" bar splits the calories the app can
+  attribute — protein and carbohydrate at 4 kcal a gram, fat at 9 — into three
+  segments. The macro tiles beneath are its legend: a segment wears its tile's
+  dot colour, in the tiles' order, and each tile prints its own kcal and
+  whole-percent share. That line is a value, so it is `metadata` in
+  `Label.primary`. The shares are of the macro sum and always add to 100. The
+  bar is hidden from VoiceOver because the tiles speak the same figures.
+- An unavailable value is never drawn as zero. With any macro missing, or no
+  usable serving basis, there is no bar, no kcal line and no note; without
+  calories the bar stays and only the comparison is dropped.
+- The macro sum is never reconciled with the stated calories. When the two
+  whole numbers differ, one quiet line under the tiles states both and gives
+  no reason, and neither number moves to meet the other. See the
+  [macro calorie breakdown](docs/verification/2026-09-17-macro-calorie-breakdown.md).
+
 ## First run and Share Extension
 
 - Welcome is a dedicated graphite surface with the installed app mark, one
