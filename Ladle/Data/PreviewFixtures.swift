@@ -219,6 +219,9 @@ enum PreviewFixtures {
             creatorName: creator,
             source: source,
             originalURL: previewVideoURL(for: slug),
+            // The demo's Discover card already uses the recipe's id as its
+            // source, so the saved copy names the same one.
+            sourceID: recipeID,
             images: [RecipeImage(localName: imageName)],
             preparationMinutes: preparation,
             cookingMinutes: cooking,

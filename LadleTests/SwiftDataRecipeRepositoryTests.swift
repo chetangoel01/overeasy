@@ -584,6 +584,50 @@ final class SwiftDataRecipeRepositoryTests: XCTestCase {
         )
     }
 
+    func testAnUnchangedRevisionTeachesACleanRowItsSourceAndLeavesAnEditAlone()
+        throws
+    {
+        let fixture = try makeFixture()
+        let repository = fixture.repository
+        let clean = makeRecipe()
+        var edited = makeRecipe()
+        try repository.saveRemote(clean, revision: 3)
+        try repository.saveRemote(edited, revision: 3)
+        let served = edited
+        edited.title = "My Offline Title"
+        try repository.save(edited)
+        let sourceID = UUID()
+
+        // What a pull from the start of the log serves: every recipe again,
+        // at the revision this device already holds, now naming its source.
+        try repository.applySyncPage(
+            makeSyncPage(
+                try [clean, served].enumerated().map { index, recipe in
+                    var change = try upsertChange(
+                        recipe,
+                        revision: 3,
+                        sequence: index + 1
+                    )
+                    var body = try XCTUnwrap(change["recipe"] as? [String: Any])
+                    body["sourceID"] = sourceID.uuidString
+                    change["recipe"] = body
+                    return change
+                }
+            )
+        )
+
+        XCTAssertEqual(
+            try repository.fetchRecipe(id: clean.id)?.sourceID,
+            sourceID
+        )
+        XCTAssertEqual(try repository.fetchRecipe(id: edited.id), edited)
+        XCTAssertEqual(
+            try repository.pendingRecipeMutations(),
+            [.upsert(recipe: edited, baseRevision: 3)]
+        )
+        XCTAssertEqual(try repository.syncConflictCount(), 0)
+    }
+
     func testWipingLocalDataClearsEverythingWithoutQueueingTombstones() throws {
         let fixture = try makeFixture()
         let repository = fixture.repository

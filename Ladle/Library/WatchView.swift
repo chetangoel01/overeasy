@@ -649,7 +649,17 @@ private struct WatchRecipePage: View {
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
 
-            if !metadata.isEmpty {
+            // A Discover video shows Overeasy's numbers for its source, in
+            // the words the Discover row and the recipe header use; a saved
+            // one shows what the cook's own copy says.
+            if let discoverRecipe {
+                EngagementLine(
+                    text: EngagementText(discoverRecipe),
+                    emphasis: LadleTheme.Label.onAccent
+                )
+                .ladleFont(.metadata)
+                .foregroundStyle(LadleTheme.Label.onAccent.opacity(0.78))
+            } else if !metadata.isEmpty {
                 Text(metadata)
                     .ladleFont(.metadata)
                     .foregroundStyle(LadleTheme.Label.onAccent.opacity(0.78))
@@ -763,12 +773,7 @@ private struct WatchRecipePage: View {
     }
 
     private var metadata: String {
-        if let discoverRecipe {
-            return discoverRecipe.savedCount == 1
-                ? "Saved by 1 cook"
-                : "Saved by \(discoverRecipe.savedCount) cooks"
-        }
-        return [
+        [
             recipe.libraryNutrition?.ladleEstimatedCalorieText.map { "\($0) cal" },
             recipe.libraryNutrition?.proteinGrams.map {
                 "\(ladleNumber($0)) g protein"

@@ -363,6 +363,24 @@ Ratings follow these rules:
 The read is rate limited like the other Discover reads (`sync:user`), and both
 writes like saving (`recipe-mutation:user`).
 
+How the iOS client uses this (see the
+[iOS record](../../docs/verification/2026-09-17-recipe-ratings-ios.md)):
+
+- **`sourceID` is read and never echoed.** The app's `PUT
+  /v1/recipes/{recipeID}` body leaves the key out, because `WireModel` forbids
+  keys it does not know and a build that has the field must still be able to
+  write to a server that predates it.
+- **Recipes synced before the field existed learn it from a pull that starts
+  at cursor 0.** Serving a new field bumps no revision, so every replayed
+  change arrives at the revision the device already holds. The app re-applies
+  such a change when the row has no pending mutation, and skips it — as the
+  echo of its own push — when it has one. It starts the first sync of each
+  launch from 0 until a pull from 0 has carried a `sourceID`, so a build that
+  meets a server without the field simply tries again next launch.
+- **A recipe with no `sourceID` makes no engagement request**, which is every
+  recipe against a server that predates the field. Where a request is made
+  and fails, the app shows no counts and no rating control, and no error.
+
 ### Authentication payloads
 
 Create a guest:

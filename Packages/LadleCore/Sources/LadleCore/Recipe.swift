@@ -174,6 +174,10 @@ public struct Recipe: Codable, Hashable, Identifiable, Sendable {
     public var creatorName: String?
     public var source: RecipeSource
     public var originalURL: URL
+    /// The shared source this recipe was saved from, which is what its
+    /// ratings and counts hang off. The server's to say: nil for a recipe
+    /// typed in by hand, and for one synced before the server named it.
+    public var sourceID: UUID?
     public var images: [RecipeImage]
     public var preparationMinutes: Int?
     public var cookingMinutes: Int?
@@ -210,6 +214,7 @@ public struct Recipe: Codable, Hashable, Identifiable, Sendable {
         creatorName: String? = nil,
         source: RecipeSource,
         originalURL: URL,
+        sourceID: UUID? = nil,
         images: [RecipeImage] = [],
         preparationMinutes: Int? = nil,
         cookingMinutes: Int? = nil,
@@ -236,6 +241,7 @@ public struct Recipe: Codable, Hashable, Identifiable, Sendable {
         self.creatorName = creatorName
         self.source = source
         self.originalURL = originalURL
+        self.sourceID = sourceID
         self.images = images
         self.preparationMinutes = preparationMinutes
         self.cookingMinutes = cookingMinutes
@@ -274,6 +280,7 @@ public struct Recipe: Codable, Hashable, Identifiable, Sendable {
         )
         source = try container.decode(RecipeSource.self, forKey: .source)
         originalURL = try container.decode(URL.self, forKey: .originalURL)
+        sourceID = try container.decodeIfPresent(UUID.self, forKey: .sourceID)
         images = try container.decodeIfPresent(
             [RecipeImage].self,
             forKey: .images

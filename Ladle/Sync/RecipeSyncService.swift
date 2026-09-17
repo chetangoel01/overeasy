@@ -49,6 +49,14 @@ actor RecipeSyncService {
     private let repository: any RecipeSyncRepository
     private let cursorStore: any SyncCursorStoring
     private var inFlight: SyncRun?
+    /// Recipes synced before the server named their source hold no
+    /// `sourceID`, and an incremental pull never serves them again. Until a
+    /// pull from the beginning has delivered one, the first sync of each
+    /// launch starts there. Replaying is safe to repeat: a row the device
+    /// already holds takes the server's copy only while it has no pending
+    /// edit, and a server that does not send the field yet changes nothing,
+    /// this flag included — so the pull is still owed once it does.
+    private var replaysLogForSourceIDs: Bool
 
     init(
         api: APIClient,
@@ -58,12 +66,17 @@ actor RecipeSyncService {
         self.api = api
         self.repository = repository
         self.cursorStore = cursorStore
+        replaysLogForSourceIDs = !cursorStore.hasLearnedSourceIDs
     }
 
     @discardableResult
     func synchronize() async throws -> RecipeSyncResult {
         if let inFlight {
             return try await inFlight.task.value
+        }
+        if replaysLogForSourceIDs {
+            replaysLogForSourceIDs = false
+            try cursorStore.reset()
         }
         return try await startSync()
     }
@@ -78,6 +91,7 @@ actor RecipeSyncService {
             }
         }
         try cursorStore.reset()
+        replaysLogForSourceIDs = false
         return try await startSync()
     }
 
@@ -191,6 +205,7 @@ actor RecipeSyncService {
         }
 
         var cursor = try cursorStore.load()
+        var startedFromBeginning = cursor == 0
         var snapshotRestarted = false
         var activeRecipeIDs = Set<UUID>()
         while true {
@@ -204,6 +219,7 @@ actor RecipeSyncService {
             {
                 try cursorStore.reset()
                 cursor = 0
+                startedFromBeginning = true
                 snapshotRestarted = true
                 activeRecipeIDs.removeAll(keepingCapacity: true)
                 continue
@@ -220,6 +236,13 @@ actor RecipeSyncService {
             }
             try Task.checkCancellation()
             try await repository.applySyncPage(page)
+            // Only a walk from the beginning counts: a `sourceID` on an
+            // incremental page says the server sends them, not that the
+            // recipes already on this device have been served again.
+            if startedFromBeginning,
+               page.changes.contains(where: { $0.recipe?.sourceID != nil }) {
+                cursorStore.markSourceIDsLearned()
+            }
             try Task.checkCancellation()
             try cursorStore.save(page.nextCursor)
             cursor = page.nextCursor

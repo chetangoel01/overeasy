@@ -175,6 +175,10 @@ public struct DiscoverRecipe: Hashable, Identifiable, Sendable {
     /// videos imported before counts were captured, and for providers that
     /// withhold them.
     public let likeCount: Int?
+    /// Overeasy's own stars for the source. The server withholds the average
+    /// until enough cooks have rated it, so nil is "not yet", never zero.
+    public let ratingAverage: Double?
+    public let ratingCount: Int
     public let savedRecipeID: UUID?
 
     public init(
@@ -187,6 +191,8 @@ public struct DiscoverRecipe: Hashable, Identifiable, Sendable {
         imageURL: URL?,
         savedCount: Int,
         likeCount: Int? = nil,
+        ratingAverage: Double? = nil,
+        ratingCount: Int = 0,
         savedRecipeID: UUID? = nil
     ) {
         self.sourceID = sourceID
@@ -198,7 +204,57 @@ public struct DiscoverRecipe: Hashable, Identifiable, Sendable {
         self.imageURL = imageURL
         self.savedCount = savedCount
         self.likeCount = likeCount
+        self.ratingAverage = ratingAverage
+        self.ratingCount = ratingCount
         self.savedRecipeID = savedRecipeID
+    }
+}
+
+/// Everything countable about one shared source, plus the caller's own
+/// rating of it. `likeCount` is the source platform's; the rest are
+/// Overeasy's. A number nobody knows is nil, never zero.
+public struct SourceEngagement: Hashable, Sendable {
+    public let sourceID: UUID
+    public let savedCount: Int
+    public let likeCount: Int?
+    public let ratingAverage: Double?
+    public let ratingCount: Int
+    public let myRating: Int?
+
+    public init(
+        sourceID: UUID,
+        savedCount: Int,
+        likeCount: Int? = nil,
+        ratingAverage: Double? = nil,
+        ratingCount: Int = 0,
+        myRating: Int? = nil
+    ) {
+        self.sourceID = sourceID
+        self.savedCount = savedCount
+        self.likeCount = likeCount
+        self.ratingAverage = ratingAverage
+        self.ratingCount = ratingCount
+        self.myRating = myRating
+    }
+}
+
+public struct RemoteSourceEngagementDTO: Codable, Hashable, Sendable {
+    public let sourceID: UUID
+    public let savedCount: Int
+    public let likeCount: Int?
+    public let ratingAverage: Double?
+    public let ratingCount: Int
+    public let myRating: Int?
+
+    public func engagement() -> SourceEngagement {
+        SourceEngagement(
+            sourceID: sourceID,
+            savedCount: savedCount,
+            likeCount: likeCount,
+            ratingAverage: ratingAverage,
+            ratingCount: ratingCount,
+            myRating: myRating
+        )
     }
 }
 
@@ -212,6 +268,10 @@ public struct RemoteDiscoverRecipeDTO: Codable, Hashable, Sendable {
     public let imageURL: URL?
     public let savedCount: Int
     public let likeCount: Int?
+    public let ratingAverage: Double?
+    /// Optional so that a feed from a server that predates ratings still
+    /// decodes: a missing count is nobody having rated, not a broken page.
+    public let ratingCount: Int?
     public let savedRecipeID: UUID?
 
     public func recipe() -> DiscoverRecipe {
@@ -225,6 +285,8 @@ public struct RemoteDiscoverRecipeDTO: Codable, Hashable, Sendable {
             imageURL: imageURL,
             savedCount: savedCount,
             likeCount: likeCount,
+            ratingAverage: ratingAverage,
+            ratingCount: ratingCount ?? 0,
             savedRecipeID: savedRecipeID
         )
     }
@@ -583,6 +645,10 @@ public struct RemoteRecipeDTO: Codable, Hashable, Sendable {
     public let creatorName: String?
     public let source: RemoteRecipeSource
     public let originalURL: URL
+    /// The server's to say and never echoed: nil on every write, so the key
+    /// is left out. A server that predates it forbids keys it does not know,
+    /// and one that has it ignores it on the way in.
+    public let sourceID: UUID?
     public let images: [RemoteRecipeImageDTO]
     public let preparationMinutes: Int?
     public let cookingMinutes: Int?
@@ -617,6 +683,7 @@ public struct RemoteRecipeDTO: Codable, Hashable, Sendable {
         case .other: .other
         }
         originalURL = recipe.originalURL
+        sourceID = nil
         images = recipe.images.compactMap { image in
             image.remoteURL.map {
                 RemoteRecipeImageDTO(id: image.id, remoteURL: $0)
@@ -656,6 +723,7 @@ public struct RemoteRecipeDTO: Codable, Hashable, Sendable {
             creatorName: creatorName,
             source: source.recipeSource,
             originalURL: originalURL,
+            sourceID: sourceID,
             images: images.map { $0.image() },
             preparationMinutes: preparationMinutes,
             cookingMinutes: cookingMinutes,

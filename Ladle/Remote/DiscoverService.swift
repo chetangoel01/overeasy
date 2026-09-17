@@ -218,8 +218,20 @@ struct DiscoverPage: Equatable, Sendable {
     static let empty = DiscoverPage(recipes: [], nextCursor: 0, hasMore: false)
 }
 
+/// A shared source's counts and the cook's own stars for it. Its own
+/// protocol because a recipe page needs these three calls and nothing else
+/// of Discover's.
 @MainActor
-protocol DiscoverServing {
+protocol SourceEngagementServing {
+    func fetchEngagement(sourceID: UUID) async throws -> SourceEngagement
+    /// Both writes answer with the engagement as it stands afterwards, so
+    /// the page can show the cook's rating moving the average.
+    func rate(sourceID: UUID, stars: Int) async throws -> SourceEngagement
+    func clearRating(sourceID: UUID) async throws -> SourceEngagement
+}
+
+@MainActor
+protocol DiscoverServing: SourceEngagementServing {
     func fetchDiscoverPage(
         cursor: Int,
         query: String,
@@ -417,6 +429,30 @@ struct RemoteDiscoverService: DiscoverServing {
             revision: remote.revision
         )
     }
+
+    func fetchEngagement(sourceID: UUID) async throws -> SourceEngagement {
+        let remote: RemoteSourceEngagementDTO = try await api.request(
+            path: DiscoverAPI.detailPath(sourceID: sourceID) + "/engagement"
+        )
+        return remote.engagement()
+    }
+
+    func rate(sourceID: UUID, stars: Int) async throws -> SourceEngagement {
+        let remote: RemoteSourceEngagementDTO = try await api.request(
+            path: DiscoverAPI.detailPath(sourceID: sourceID) + "/rating",
+            method: .put,
+            body: ["stars": stars]
+        )
+        return remote.engagement()
+    }
+
+    func clearRating(sourceID: UUID) async throws -> SourceEngagement {
+        let remote: RemoteSourceEngagementDTO = try await api.request(
+            path: DiscoverAPI.detailPath(sourceID: sourceID) + "/rating",
+            method: .delete
+        )
+        return remote.engagement()
+    }
 }
 
 struct DemoDiscoverService: DiscoverServing {
@@ -429,6 +465,18 @@ struct DemoDiscoverService: DiscoverServing {
             ($0.element.id, $0.offset)
         }
     )
+
+    /// What the other demo cooks gave each fixture, as a count and a total
+    /// of stars, in fixture order. The second has two ratings — under the
+    /// server's floor of three, so a count and no average until the demo
+    /// cook adds a third.
+    private static let othersRatings: [(count: Int, total: Int)] = [
+        (12, 55), (2, 9), (9, 43), (7, 29), (5, 19), (3, 13),
+    ]
+    /// The demo cook's own stars. Static because the service is a value and
+    /// a rating has to outlive the page that gave it, the way the server's
+    /// does; a launch starts with none.
+    private static var myRatings: [UUID: Int] = [:]
 
     init(scenario: DemoLaunchScenario = .standard) {
         self.scenario = scenario
@@ -563,6 +611,11 @@ struct DemoDiscoverService: DiscoverServing {
     /// removed and whichever shelf it is drawn on.
     private static func card(_ recipe: Recipe) -> DiscoverRecipe {
         let index = arrivalOrder[recipe.id, default: 0]
+        var (ratingCount, stars) = othersRatings[index % othersRatings.count]
+        if let mine = myRatings[recipe.id] {
+            ratingCount += 1
+            stars += mine
+        }
         return DiscoverRecipe(
             sourceID: recipe.id,
             title: recipe.title,
@@ -578,6 +631,12 @@ struct DemoDiscoverService: DiscoverServing {
             likeCount: index == PreviewFixtures.recipes.count - 1
                 ? nil
                 : (index + 1) * 12_400,
+            // Same rule as the server: no average under three ratings, and
+            // one decimal place.
+            ratingAverage: ratingCount < 3
+                ? nil
+                : (Double(stars) / Double(ratingCount) * 10).rounded() / 10,
+            ratingCount: ratingCount,
             savedRecipeID: nil
         )
     }
@@ -600,5 +659,38 @@ struct DemoDiscoverService: DiscoverServing {
             throw APIError.invalidResponse
         }
         return SavedDiscoverRecipe(recipe: recipe, revision: 1)
+    }
+
+    /// The card's numbers plus the demo cook's own stars. The demo library
+    /// is the same six fixtures Discover lists, so a saved page and its row
+    /// agree, and a rating given on one shows on the other.
+    func fetchEngagement(sourceID: UUID) async throws -> SourceEngagement {
+        if scenario == .discoverRateLimited {
+            throw DemoRemoteError.rateLimited
+        }
+        guard let recipe = PreviewFixtures.recipes.first(
+            where: { $0.id == sourceID }
+        ) else {
+            throw APIError.invalidResponse
+        }
+        let card = Self.card(recipe)
+        return SourceEngagement(
+            sourceID: sourceID,
+            savedCount: card.savedCount,
+            likeCount: card.likeCount,
+            ratingAverage: card.ratingAverage,
+            ratingCount: card.ratingCount,
+            myRating: Self.myRatings[sourceID]
+        )
+    }
+
+    func rate(sourceID: UUID, stars: Int) async throws -> SourceEngagement {
+        Self.myRatings[sourceID] = stars
+        return try await fetchEngagement(sourceID: sourceID)
+    }
+
+    func clearRating(sourceID: UUID) async throws -> SourceEngagement {
+        Self.myRatings[sourceID] = nil
+        return try await fetchEngagement(sourceID: sourceID)
     }
 }
