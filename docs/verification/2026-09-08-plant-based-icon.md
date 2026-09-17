@@ -334,3 +334,26 @@ the two diet UI tests fail, because a cook already carrying an alternate is not
 offered it: `xcrun simctl uninstall <udid> com.ladle.ios` is the reset. The
 picker's own UI test therefore reads which icon it started on and puts that
 one back.
+
+## September 17 confirmation-layout investigation (#147)
+
+The September 11 feedback image shows the system confirmation with Tomato
+artwork, a large gap above OK, and the prior Avocado selection behind it.
+`AppIconStore.select` calls only `UIApplication.setAlternateIconName`, then
+reads `alternateIconName` after that asynchronous operation finishes. There is
+no app-created confirmation alert or custom alert sizing to adjust. Apple's
+[alternate-icon documentation](https://developer.apple.com/documentation/xcode/configuring-your-app-to-use-alternate-app-icons)
+confirms that the system displays the change notice automatically.
+
+The old picker selection while the notice is open is consistent with waiting
+for iOS to finish; it does not prove the picker stays stale after OK. The app
+suite's icon-store tests cover successful readback, a refused switch, and no-op
+selection. They do not validate the system notice's physical-device geometry.
+
+The reachable iPhone 17 Pro reports TestFlight build `20260910.2`. Mirroring did
+not permit a reliable reproduction and later reported the phone in use, so
+this issue remains open. On the
+reporter's iOS version and text size, record the full alert, dismiss it, then
+confirm the selected icon and Profile scroll position. Restore the original
+icon afterward. Any remaining gap inside the system notice belongs in an
+Apple feedback report; an app-owned replacement would not fix that notice.
