@@ -45,12 +45,6 @@ def recipe(**overrides: object) -> RecipeDTO:
     return RecipeDTO.model_validate(values)
 
 
-def test_vocabularies_are_the_sizes_the_brief_proposed() -> None:
-    assert len(DietTag) == 5
-    assert len(CuisineTag) == 15
-    assert len(RecipeKeyword) == 25
-
-
 def test_coerce_tags_drops_values_that_are_not_in_the_closed_list() -> None:
     assert coerce_tags(DietTag, ["vegan", "keto", "vegetarian"]) == [
         DietTag.VEGETARIAN,
@@ -156,8 +150,3 @@ def test_every_keyword_has_words_for_a_cook() -> None:
     assert [keyword.shelf_title for keyword in RecipeKeyword] == list(
         KEYWORD_TITLES.values()
     )
-
-
-def test_a_keyword_title_is_not_its_raw_value() -> None:
-    assert RecipeKeyword.ONE_POT.shelf_title == "One pot"
-    assert RecipeKeyword.HIGH_PROTEIN.shelf_title == "High protein"

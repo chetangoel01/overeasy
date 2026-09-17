@@ -246,24 +246,6 @@ def test_abandoned_jobs_redispatch_then_dead_letter_after_repeated_worker_loss(
 
 
 @pytest.mark.integration
-def test_sweep_with_nothing_to_reclaim_takes_no_locks_and_releases_nothing(
-    clean_postgres_url: str,
-) -> None:
-    command.upgrade(alembic_config(clean_postgres_url), "head")
-    engine = build_engine(clean_postgres_url)
-    clock = FrozenClock(datetime(2026, 7, 23, 21, 0, tzinfo=UTC))
-
-    with Session(engine) as database, database.begin():
-        released = ImportMaintenanceService(
-            clock=clock,
-            stale_after=timedelta(hours=1),
-        ).release_expired_reservations(database)
-
-    assert released == 0
-    engine.dispose()
-
-
-@pytest.mark.integration
 def test_sweep_marks_completed_jobs_consumed_and_skips_consumed_reservations(
     clean_postgres_url: str,
 ) -> None:

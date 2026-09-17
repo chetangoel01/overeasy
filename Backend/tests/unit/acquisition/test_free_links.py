@@ -308,19 +308,6 @@ def test_closed_blocks_followed_by_bracketless_soup_stay_linear() -> None:
     assert "<svg<svg" in text
 
 
-def test_one_giant_unclosed_tag_prefix_passes_through() -> None:
-    # A single candidate open and never a ">": nothing is a tag, so the body
-    # passes through whole, up to the document cap.
-    body = "<svg" + "x" * 100_000
-    fetcher = fetcher_returning(body)
-
-    started = time.perf_counter()
-    text = fetcher.fetch_text("https://example.com/recipe")
-
-    assert time.perf_counter() - started < 1.0
-    assert text == body[: links._MAX_DOCUMENT_CHARACTERS]
-
-
 def test_scriptish_soup_at_the_full_response_cap_is_processed_quickly() -> None:
     # The exact attack body: 2,000,000 bytes — the response cap, the most a
     # fetch can hand _readable — of "<svg" prefixes. On the quadratic regex

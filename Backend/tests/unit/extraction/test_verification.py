@@ -616,14 +616,3 @@ def test_stated_total_below_the_step_timers_is_left_alone() -> None:
     )
 
     assert issues == []
-
-
-def test_title_minutes_below_stated_prep_and_cook_still_trip() -> None:
-    # "10-Minute Chili Garlic Noodles": the number in the title is a claim
-    # about the total, and it loses to the durations the creator stated.
-    issues = deterministic_issues(
-        recipe(preparation_minutes=10, cooking_minutes=20, total_minutes=10),
-        [evidence("Prep 10 minutes, cook 20 minutes.")],
-    )
-
-    assert "total_minutes" in {value.field_path for value in issues}

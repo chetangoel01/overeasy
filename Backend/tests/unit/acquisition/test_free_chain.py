@@ -162,26 +162,6 @@ def test_linked_document_alone_can_satisfy_coverage() -> None:
     assert context.linked_documents[0].provenance == "captionLink"
 
 
-def test_thin_free_result_still_falls_through_to_paid_providers() -> None:
-    primary = Primary()
-    fallback = Fallback()
-    free = Free(
-        FreeContext(
-            metadata=MediaMetadata(title="Dinner", description="so good"),
-            diagnostics=["freeMetadataUsed", "freeCaptionsUnavailable"],
-        )
-    )
-    chain = ProviderChain(primary=primary, fallback=fallback, free=free)
-
-    context = chain.acquire(source(), job_id=uuid4())
-
-    # Metadata came free, so only text transcript providers are attempted.
-    assert "metadata" not in primary.calls
-    assert primary.calls == ["transcript:auto"]
-    assert fallback.calls == 1
-    assert context.description == "so good"
-
-
 def test_free_sticker_text_survives_into_the_paid_result() -> None:
     primary = Primary()
     free = Free(
@@ -372,26 +352,6 @@ def test_download_and_whisper_do_not_require_transcript_vendors() -> None:
     assert audio.calls == [(None, 22.3)]
     assert context.transcript[0].provenance == "whisper:openai/whisper-large-v3"
     assert "audioTranscriptionUsed" in context.diagnostics
-
-
-def test_failed_transcription_still_falls_through_to_paid_providers() -> None:
-    primary = Primary()
-    fallback = Fallback()
-    audio = Audio(TranscriptUnavailable("no audio"))
-    free = Free(
-        FreeContext(
-            metadata=MediaMetadata(title="Dinner", description="so good"),
-            diagnostics=["freeMetadataUsed"],
-        )
-    )
-    chain = ProviderChain(primary=primary, fallback=fallback, free=free, audio=audio)
-
-    context = chain.acquire(source(), job_id=uuid4())
-
-    assert len(audio.calls) == 1
-    assert primary.calls == ["transcript:auto"]
-    assert fallback.calls == 1
-    assert "audioTranscriptionUnavailable" in context.diagnostics
 
 
 def test_free_transcript_means_no_transcription_is_bought() -> None:

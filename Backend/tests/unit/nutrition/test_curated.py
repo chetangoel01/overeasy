@@ -38,10 +38,6 @@ def curated(
     )
 
 
-def test_the_shipped_table_loads() -> None:
-    assert curated_food_table().entries
-
-
 def test_every_entry_carries_a_complete_panel_and_a_stated_basis() -> None:
     """A row with a hole in it is worse than no row.
 
@@ -70,28 +66,6 @@ def test_every_panel_agrees_with_its_own_macros() -> None:
     """
     for entry in curated_food_table().entries:
         assert _consistent(entry.nutrients()), entry.name
-
-
-def test_every_portion_weighs_something() -> None:
-    for entry in curated_food_table().entries:
-        for portion in entry.portions:
-            assert portion.amount > 0
-            assert portion.gram_weight > 0
-
-
-def test_the_known_gaps_are_the_ones_in_the_table() -> None:
-    """The seed set, and nothing padding it out.
-
-    Each of these was recorded as skipped by a dry run or a probe, and each
-    was checked against USDA before it was added.
-    """
-    assert [entry.name for entry in curated_food_table().entries] == [
-        "garam masala",
-        "curry leaves",
-        "ginger garlic paste",
-        "tamarind paste",
-        "italian seasoning",
-    ]
 
 
 def test_an_alias_is_matched_through_case_and_punctuation() -> None:

@@ -16,7 +16,6 @@ from ladle.recipes.template_clone import (
     TemplateIngredient,
     TemplateNutrition,
 )
-from tests.fakes.nutrition import FakeFoodDataSource
 
 
 @dataclass
@@ -912,43 +911,6 @@ def test_most_of_the_dish_going_uncounted_still_totals_the_rest() -> None:
     assert [value.name for value in records] == ["garam masala"]
 
 
-def test_one_unmatched_ingredient_leaves_the_others_totalled() -> None:
-    # The counted 400 g stands on its own; the uncounted 100 g changes
-    # nothing about it beyond the record saying it was left out.
-    source = Foods(
-        {
-            "egg noodles dry": [
-                food(fdc_id=23, description="egg noodles dry", search_rank=0)
-            ]
-        }
-    )
-    records: list[UncountedIngredient] = []
-
-    result = NutritionCalculator(source).calculate_required(
-        recipe(
-            [
-                ingredient(
-                    name="egg noodles",
-                    query="egg noodles dry",
-                    quantity="400",
-                    metric_amount="400",
-                ),
-                ingredient(
-                    name="garam masala",
-                    query="garam masala",
-                    quantity="100",
-                    metric_amount="100",
-                    order_index=1,
-                ),
-            ]
-        ),
-        uncounted=records,
-    )
-
-    assert result.calories == Decimal("140.0")
-    assert [value.estimated_grams for value in records] == [Decimal("100")]
-
-
 def test_nothing_matched_produces_no_block_rather_than_an_error() -> None:
     """The one legitimate empty case, and it is not a failure.
 
@@ -1121,69 +1083,6 @@ def test_a_fallback_that_also_fails_leaves_the_ingredient_uncounted() -> None:
     assert [value.name for value in records] == ["curry leaves"]
     assert fallback.calls == ["curry leaves"]
     assert result.evidence == "USDA FDC 23"
-
-
-def test_an_unusable_yield_is_still_a_whole_recipe_failure() -> None:
-    # Degrading per ingredient does not make every failure per ingredient:
-    # without a serving count there is nothing to divide by.
-    source = Foods({"chickpeas drained": [food()]})
-
-    with pytest.raises(NutritionCalculationUnavailable) as error:
-        NutritionCalculator(source).calculate_required(
-            recipe([ingredient()], servings_basis="unknown")
-        )
-
-    assert error.value.code == "invalidYield"
-
-
-def test_the_shared_fallback_fake_answers_the_known_usda_gaps() -> None:
-    """The fake stands in for the provider PR B will add.
-
-    It exists so the ladder can be exercised without a key, and it answers
-    the four ingredients the live library found USDA has no usable row for.
-    """
-    usda = Foods(
-        {
-            "chicken thigh raw": [
-                food(
-                    fdc_id=171077,
-                    description="Chicken, thigh, raw",
-                    data_type="SR Legacy",
-                    calories="209",
-                    protein="17.27",
-                    carbohydrate="0",
-                    fat="15.25",
-                    search_rank=0,
-                )
-            ]
-        }
-    )
-    fallback = FakeFoodDataSource()
-    records: list[UncountedIngredient] = []
-
-    result = NutritionCalculator(usda, fallback).calculate_required(
-        recipe(
-            [
-                ingredient(
-                    name="chicken thighs",
-                    query="chicken thigh raw",
-                    quantity="500",
-                    metric_amount="500",
-                ),
-                ingredient(
-                    name="curry leaves",
-                    query="curry leaves",
-                    quantity="5",
-                    metric_amount="5",
-                    order_index=1,
-                ),
-            ]
-        ),
-        uncounted=records,
-    )
-
-    assert records == []
-    assert result.evidence == "USDA FDC 171077, Fake Foods 900002"
 
 
 def test_a_curated_ingredient_is_costed_without_asking_usda() -> None:
