@@ -1075,7 +1075,11 @@ private struct DiscoverTopBar<Content: View>: View {
             ignoresSafeAreaEdges: .horizontal
         )
         .overlay(alignment: .bottom) {
-            Divider().overlay(LadleTheme.Stroke.separator)
+            // The pill wraps this bar in a Button, and there a bare Divider
+            // stands upright; the stack keeps it flat.
+            VStack(spacing: 0) {
+                Divider().overlay(LadleTheme.Stroke.separator)
+            }
         }
         .contentShape(.rect)
         .accessibilityElement(children: .contain)

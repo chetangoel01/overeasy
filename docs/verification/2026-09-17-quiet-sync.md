@@ -102,6 +102,20 @@ is the same state with the fix, and
 [Recipes offline, after](captures/2026-09-17-quiet-sync/03-after-recipes-offline.jpg)
 is the counterpart of the September 8 capture above.
 
+Discover's bar cannot be reached in a demo run — the demo feed never has a
+new page to offer, and a refresh there never fails — so the pill was forced
+on with a temporary edit, not in the branch, and
+[captured](captures/2026-09-17-quiet-sync/06-after-new-recipes-pill.jpg)
+with the fix: "Discover" is back above it. That check turned up one more
+escape from the same bar, also in the September 1 capture: a hairline
+standing upright through the middle of the pill and on up to the top of the
+screen. It is the bar's bottom `Divider`. The pill wraps the bar in a
+`Button`, and there a bare `Divider` stands upright instead of lying along
+the bottom edge; the failed-sync strip has the same overlay outside a button
+and draws it flat, as the failed refresh should, though that state could not
+be staged either. The divider now sits in a `VStack`, which keeps it flat.
+This is outside what #140 reported and is its own commit.
+
 Captures 01, 02, 04 and 05 needed the placeholders to stay up, and the demo
 feed loads at once. They were taken with a temporary eight-second
 `Task.sleep` at the top of `DemoDiscoverService.fetchDiscoverPage`, which is
@@ -122,6 +136,7 @@ spans the screen edge to edge.
 - `SyncStatusBanner`, `LibraryReloadErrorBanner`, `DiscoverTopBar` and
   `Ladle/Sync/SyncConflictReviewView.swift`'s `SyncConflictBanner` — the fill
   no longer ignores the top safe area.
+- `DiscoverTopBar` — the bottom hairline stays flat inside the pill's button.
 - `LadleTests/DesignTokenTests.swift` —
   `testRoutineSyncAndRefreshTakeNoSpaceButFailuresDo`.
 - `DESIGN.md` — the rule, under Motion and feedback.
