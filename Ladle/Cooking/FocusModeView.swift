@@ -23,6 +23,10 @@ enum FocusModeSwipe {
 
 struct FocusModeView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// Room for "1.25 cups" beside a name at the default size.
+    @ScaledMetric(relativeTo: .title3) private var amountColumnWidth: CGFloat = 96
 
     @Bindable var viewModel: CookingViewModel
 
@@ -35,7 +39,7 @@ struct FocusModeView: View {
                     VStack(alignment: .leading, spacing: LadleTheme.Layout.sectionGap) {
                         currentStepSection
                         timerSection
-                        relevantIngredientsSection
+                        stepIngredientsSection
                     }
                     // Fill the width, or the stack shrinks to its widest child
                     // and the scroll view centres it — so a short instruction
@@ -168,18 +172,134 @@ struct FocusModeView: View {
     }
 
     @ViewBuilder
-    private var relevantIngredientsSection: some View {
-        if !viewModel.relevantIngredients.isEmpty {
-            Text(
-                "For this step · "
-                    + viewModel.relevantIngredients
-                    .map(\.name)
-                    .joined(separator: " · ")
-            )
-            .ladleFont(.body)
-            .foregroundStyle(LadleTheme.Label.onAccent.opacity(0.8))
-            .fixedSize(horizontal: false, vertical: true)
+    private var stepIngredientsSection: some View {
+        let ingredients = viewModel.stepIngredients
+        if !ingredients.isEmpty {
+            VStack(alignment: .leading, spacing: 0) {
+                stepIngredientsToggle
+
+                if viewModel.showsStepIngredientAmounts {
+                    ForEach(ingredients) { item in
+                        if item.id != ingredients.first?.id {
+                            Divider()
+                                .overlay(LadleTheme.Label.onAccent.opacity(0.12))
+                        }
+                        stepIngredientRow(item)
+                    }
+                } else {
+                    Text(
+                        ingredients
+                            .map(\.ingredient.name)
+                            .joined(separator: " · ")
+                    )
+                    .ladleFont(.body)
+                    .foregroundStyle(LadleTheme.Label.onAccent.opacity(0.8))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, LadleTheme.Spacing.compact)
+                }
+            }
         }
+    }
+
+    /// Small on purpose: the list is the content and this only folds it. The
+    /// target is still 44 points. At ordinary sizes most of that is air
+    /// around a footnote, so it is drawn back into the section gap above and
+    /// the first row below and the label sits where a plain caption would;
+    /// at accessibility sizes the label fills the target and keeps its room.
+    private var stepIngredientsToggle: some View {
+        Button {
+            withAnimation(
+                reduceMotion ? nil : .snappy(duration: 0.2, extraBounce: 0)
+            ) {
+                viewModel.showsStepIngredientAmounts.toggle()
+            }
+        } label: {
+            HStack(spacing: LadleTheme.Spacing.tight) {
+                Text("For this step")
+                // Swapped rather than rotated: a turned chevron overflows
+                // its own narrow frame and crowds the label.
+                Image(
+                    systemName: viewModel.showsStepIngredientAmounts
+                        ? "chevron.down"
+                        : "chevron.right"
+                )
+                .imageScale(.small)
+                .fontWeight(.semibold)
+                .contentTransition(.symbolEffect(.replace))
+            }
+            .ladleFont(.metadata)
+            .foregroundStyle(LadleTheme.Label.onAccent.opacity(0.7))
+            .frame(minHeight: LadleTheme.Control.hitTarget)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(LadlePressButtonStyle())
+        .padding(
+            .vertical,
+            dynamicTypeSize.isAccessibilitySize ? 0 : -LadleTheme.Spacing.medium
+        )
+        .accessibilityValue(
+            viewModel.showsStepIngredientAmounts ? "Expanded" : "Collapsed"
+        )
+        .accessibilityIdentifier("focus.ingredients.toggle")
+    }
+
+    /// The amount keeps one column so the names line up from step to step.
+    /// At accessibility sizes two columns would squeeze both, so the amount
+    /// sits above the name instead.
+    private func stepIngredientRow(_ item: StepIngredient) -> some View {
+        let stacks = dynamicTypeSize.isAccessibilitySize
+        let layout = stacks
+            ? AnyLayout(
+                VStackLayout(
+                    alignment: .leading,
+                    spacing: LadleTheme.Spacing.tight
+                )
+            )
+            : AnyLayout(
+                HStackLayout(
+                    alignment: .firstTextBaseline,
+                    spacing: LadleTheme.Spacing.medium
+                )
+            )
+
+        return layout {
+            if !stacks || item.amount != nil {
+                Text(item.amount ?? "")
+                    .fontWeight(.semibold)
+                    .frame(
+                        width: stacks ? nil : amountColumnWidth,
+                        alignment: .leading
+                    )
+            }
+
+            VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
+                Text(item.ingredient.nameText)
+
+                // The app never splits an amount between steps, so a shared
+                // ingredient says whose total this is. With no amount on
+                // show there is nothing to mistake for this step's share.
+                if item.amount != nil, !item.otherStepNumbers.isEmpty {
+                    Text(recipeTotalNote(item.otherStepNumbers))
+                        .ladleFont(.metadata)
+                        .foregroundStyle(
+                            LadleTheme.Label.onAccent.opacity(0.7)
+                        )
+                }
+            }
+        }
+        .ladleScaledFont(size: 20, relativeTo: .title3)
+        .foregroundStyle(LadleTheme.Label.onAccent)
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, LadleTheme.Spacing.medium)
+        .accessibilityElement(children: .combine)
+    }
+
+    /// "Recipe total. Also used in step 4.", or "steps 3 and 4".
+    private func recipeTotalNote(_ otherSteps: [Int]) -> String {
+        let steps = otherSteps.map(String.init).formatted(.list(type: .and))
+        return "Recipe total. Also used in "
+            + "\(otherSteps.count == 1 ? "step" : "steps") \(steps)."
     }
 
     @ViewBuilder
