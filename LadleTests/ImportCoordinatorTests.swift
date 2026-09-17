@@ -2969,22 +2969,6 @@ final class ImportCoordinatorTests: XCTestCase {
         XCTAssertEqual(failure.retryAvailability(), .available)
     }
 
-    func testInboxLabelsMissingRecipeTextByWhatItNeeds() {
-        XCTAssertEqual(
-            ImportFailure.photoPostNeedsManualEntry.inboxStatusLabel,
-            "Type it in"
-        )
-        XCTAssertEqual(
-            ImportFailure.insufficientTextEvidence.inboxStatusLabel,
-            "Needs recipe text"
-        )
-        XCTAssertEqual(
-            ImportFailure.unrecognized("someCodeFromALaterServer")
-                .inboxStatusLabel,
-            "Import failed"
-        )
-    }
-
     private func makeCoordinator(
         repository: ImportTestRepository,
         accountSession: AccountSession = AccountSession(

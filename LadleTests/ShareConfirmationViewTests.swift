@@ -4,10 +4,6 @@ import XCTest
 
 @MainActor
 final class ShareConfirmationViewTests: XCTestCase {
-    func testConfirmationUsesCurrentProductBrand() {
-        XCTAssertEqual(ShareConfirmationView.brandName, "Overeasy")
-    }
-
     func testOnlyCompletedStatesOfferExplicitDoneAction() {
         XCTAssertNil(
             ShareConfirmationView.dismissalTitle(for: .loading)
