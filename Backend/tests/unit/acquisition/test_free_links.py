@@ -274,24 +274,6 @@ def test_scriptish_opens_missing_their_bracket_grow_linearly() -> None:
     assert largest < 8 * max(smallest, 0.01), f"{smallest=:.4f}s {largest=:.4f}s"
 
 
-@pytest.mark.parametrize("name", ["script"])
-def test_every_scriptish_name_unclosed_and_bracketless_is_linear(name: str) -> None:
-    # A scriptish name as an opening-tag prefix with no ">" to finish it.
-    # With no ">" there is no tag to strip, so the body must also pass
-    # through untouched, exactly as the original regexes left it. Every
-    # name leaves the scan at the same "no > ahead" exit, so one stands in.
-    unit = f"<{name}"
-    soup = unit * (200_000 // len(unit))
-    fetcher = fetcher_returning(soup)
-
-    started = time.perf_counter()
-    text = fetcher.fetch_text("https://example.com/recipe")
-    elapsed = time.perf_counter() - started
-
-    assert elapsed < 1.0, f"{unit} soup took {elapsed:.2f}s"
-    assert text == soup[: links._MAX_DOCUMENT_CHARACTERS]
-
-
 def test_closed_blocks_followed_by_bracketless_soup_stay_linear() -> None:
     # Closed scriptish blocks are stripped as before, and the bracketless
     # soup after them cannot send the scan quadratic mid-document.

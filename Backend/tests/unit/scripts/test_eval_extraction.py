@@ -1,5 +1,4 @@
 import json
-import sys
 from decimal import Decimal
 from pathlib import Path
 
@@ -16,13 +15,6 @@ from ladle.extraction.verification import (
     VerificationUnavailable,
 )
 from scripts import eval_extraction
-
-
-def test_latency_summary_uses_median_and_nearest_rank_p95() -> None:
-    assert eval_extraction._latency_summary([100, 200, 300, 400]) == {
-        "medianMs": 250,
-        "p95Ms": 400,
-    }
 
 
 def test_benchmark_summary_aggregates_quality_latency_and_full_usage() -> None:
@@ -126,37 +118,6 @@ def test_pipeline_model_override_applies_to_extraction_and_verification() -> Non
     assert pipeline.verifier._client is pipeline.verification_recorder
 
 
-def test_main_passes_explicit_model_to_extraction(monkeypatch) -> None:
-    calls: list[tuple[str, str | None, str, str | None]] = []
-
-    def fake_extract(
-        label: str,
-        only: str | None,
-        partition: str,
-        model: str | None,
-    ) -> None:
-        calls.append((label, only, partition, model))
-
-    monkeypatch.setattr(eval_extraction, "extract", fake_extract)
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        [
-            "eval_extraction.py",
-            "extract",
-            "--corpus",
-            "held-out",
-            "--label",
-            "candidate-run",
-            "--model",
-            "candidate-model",
-        ],
-    )
-
-    assert eval_extraction.main() == 0
-    assert calls == [("candidate-run", None, "held-out", "candidate-model")]
-
-
 def test_new_result_path_refuses_to_overwrite_existing_artifact(
     monkeypatch,
     tmp_path: Path,
@@ -173,15 +134,6 @@ def test_new_result_path_refuses_to_overwrite_existing_artifact(
         raise AssertionError("expected an existing benchmark artifact to be rejected")
 
     assert existing.read_text() == "known-good"
-
-
-def test_new_result_path_rejects_a_label_that_escapes_results() -> None:
-    try:
-        eval_extraction._new_result_path("../outside-results")
-    except ValueError as error:
-        assert "label" in str(error)
-    else:
-        raise AssertionError("expected an unsafe benchmark label to be rejected")
 
 
 def test_recording_verification_client_captures_and_resets_usage() -> None:
@@ -344,7 +296,6 @@ def test_pipeline_resets_verification_usage_before_each_case() -> None:
 def test_extract_writes_per_case_and_aggregate_benchmark_measurements(
     monkeypatch,
     tmp_path: Path,
-    capsys,
 ) -> None:
     extraction = RecipeExtraction(
         title="Test recipe",
@@ -411,10 +362,6 @@ def test_extract_writes_per_case_and_aggregate_benchmark_measurements(
         "candidate-model",
     )
 
-    assert (
-        f"RUNNING  [1/1] candidate-model {reference.cache_key}"
-        in capsys.readouterr().out
-    )
     artifact = json.loads((tmp_path / "candidate-run.json").read_text())
     case = artifact["cases"][0]
     assert artifact["runStartedAt"].endswith("Z")

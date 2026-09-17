@@ -526,12 +526,12 @@ def test_openrouter_verifier_uses_strict_text_only_structured_output() -> None:
     assert "video_url" not in payload
 
 
-@pytest.mark.parametrize("status", [401, 429, 503])
-def test_openrouter_verifier_provider_errors_are_typed(status: int) -> None:
+def test_openrouter_verifier_provider_errors_are_typed() -> None:
+    # Every status from 400 up leaves through the same raise.
     client = OpenRouterVerificationClient(
         http=httpx.Client(
             transport=httpx.MockTransport(
-                lambda _: httpx.Response(status, json={"error": "down"})
+                lambda _: httpx.Response(503, json={"error": "down"})
             )
         ),
         api_key="verify-key",

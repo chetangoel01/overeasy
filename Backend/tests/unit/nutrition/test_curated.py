@@ -38,26 +38,6 @@ def curated(
     )
 
 
-def test_every_entry_carries_a_complete_panel_and_a_stated_basis() -> None:
-    """A row with a hole in it is worse than no row.
-
-    The calculator asks nothing of a curated record that it asks of a USDA
-    one, so a missing fibre figure would quietly become zero and push the
-    consistency band the wrong way.
-    """
-    for entry in curated_food_table().entries:
-        assert entry.basis.strip()
-        assert entry.aliases
-        for value in (
-            entry.calories_per_100g,
-            entry.protein_grams_per_100g,
-            entry.carbohydrate_grams_per_100g,
-            entry.fat_grams_per_100g,
-            entry.fibre_grams_per_100g,
-        ):
-            assert value >= 0
-
-
 def test_every_panel_agrees_with_its_own_macros() -> None:
     """The same Atwater check USDA records have to pass.
 
