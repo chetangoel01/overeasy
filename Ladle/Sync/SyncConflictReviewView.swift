@@ -59,7 +59,11 @@ struct SyncConflictBanner: View {
         .padding(.horizontal, LadleTheme.Layout.screenMargin)
         .padding(.vertical, LadleTheme.Spacing.compact)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(LadleTheme.Surface.steel)
+        // Sideways only, never upward: see `LibraryView.banners`.
+        .background(
+            LadleTheme.Surface.steel,
+            ignoresSafeAreaEdges: .horizontal
+        )
         .overlay(alignment: .bottom) {
             Divider().overlay(LadleTheme.Stroke.separator)
         }

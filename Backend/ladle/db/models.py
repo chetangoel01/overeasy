@@ -16,6 +16,7 @@ from sqlalchemy import (
     Integer,
     LargeBinary,
     Numeric,
+    SmallInteger,
     String,
     Text,
     UniqueConstraint,
@@ -1073,6 +1074,39 @@ class DiscoverImpression(Base):
         Uuid, ForeignKey("source_videos.id", ondelete="CASCADE"), primary_key=True
     )
     seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class RecipeRating(Base):
+    """One cook's star rating of one shared source.
+
+    Keyed on the source rather than on the cook's own copy: everyone who
+    saved the same video feeds one average, and a private edit stays private.
+    Read only in aggregate — nothing serves who rated what. It is something
+    the cook wrote, so no retention sweep ages it out; the cascade takes it
+    with the account.
+    """
+
+    __tablename__ = "recipe_ratings"
+    __table_args__ = (
+        # The average is read per source, and the primary key leads with the
+        # cook.
+        Index("ix_recipe_ratings_source_video_id", "source_video_id"),
+        CheckConstraint("stars BETWEEN 1 AND 5", name="ck_recipe_ratings_stars_range"),
+    )
+
+    user_id: Mapped[UUID] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    source_video_id: Mapped[UUID] = mapped_column(
+        Uuid, ForeignKey("source_videos.id", ondelete="CASCADE"), primary_key=True
+    )
+    stars: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
 
 
 class USDAFood(Base):

@@ -349,20 +349,11 @@ struct WatchView: View {
         return "\(report.failure.message)\(timing) Your saved recipe videos are still available."
     }
 
+    /// A failed refresh only. Coming back to Watch refreshes the feed every
+    /// time, and that routine fetch draws nothing over the video.
     @ViewBuilder
     private var discoverRefreshOverlay: some View {
-        switch discoverViewModel.refreshState {
-        case .current:
-            EmptyView()
-        case .refreshing:
-            Label {
-                Text("Refreshing Discover")
-                    .ladleFont(.metadata)
-            } icon: {
-                ProgressView().controlSize(.small)
-            }
-            .watchStatusStyle()
-        case let .failed(report):
+        if case let .failed(report) = discoverViewModel.refreshState {
             VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
                 Label(
                     "Showing earlier results",

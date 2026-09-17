@@ -39,6 +39,7 @@ EXPECTED_TABLES = {
     "recipe_changes",
     "recipe_images",
     "recipe_keyword_proposals",
+    "recipe_ratings",
     "recipe_slot_reservations",
     "recipe_steps",
     "recipe_tags",
@@ -665,4 +666,85 @@ def test_avatar_object_key_upgrades_and_downgrades(empty_postgres_url: str) -> N
     names = {value["name"] for value in inspect(engine).get_columns("users")}
     assert "avatar_object_key" not in names
     assert "avatar_url" in names
+    engine.dispose()
+
+
+@pytest.mark.integration
+def test_recipe_ratings_upgrade_constrains_cascades_and_downgrades(
+    empty_postgres_url: str,
+) -> None:
+    """0027 must hold one whole-star rating per (cook, source), index the
+    per-source average, and take a cook's ratings with their account.
+
+    The cascade is the only thing that removes them: a rating is something a
+    cook wrote, so no retention sweep ages it out, and account deletion
+    enumerates nothing. Reversibly."""
+    config = alembic_config(empty_postgres_url)
+    command.upgrade(config, "head")
+    engine = create_engine(empty_postgres_url)
+    user_id = uuid4()
+    source_id = uuid4()
+    now = datetime.now(UTC)
+    rate = text(
+        """
+        INSERT INTO recipe_ratings (
+            user_id, source_video_id, stars, created_at, updated_at
+        ) VALUES (:user_id, :source_video_id, :stars, :now, :now)
+        """
+    )
+    rating = {"user_id": user_id, "source_video_id": source_id, "now": now}
+
+    indexes = {value["name"] for value in inspect(engine).get_indexes("recipe_ratings")}
+    assert "ix_recipe_ratings_source_video_id" in indexes
+
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                INSERT INTO users (id, kind, created_at)
+                VALUES (:id, 'guest', :created_at)
+                """
+            ),
+            {"id": user_id, "created_at": now},
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO source_videos (
+                    id, platform, platform_video_id, canonical_url,
+                    source_revision, metadata_json, created_at
+                )
+                VALUES (
+                    :id, 'tiktok', 'rated-source',
+                    'https://www.tiktok.com/@cook/video/1', '1', '{}',
+                    :created_at
+                )
+                """
+            ),
+            {"id": source_id, "created_at": now},
+        )
+
+    for stars in (0, 6):
+        with pytest.raises(IntegrityError), engine.begin() as connection:
+            connection.execute(rate, {**rating, "stars": stars})
+
+    with engine.begin() as connection:
+        connection.execute(rate, {**rating, "stars": 4})
+
+    # Changing a rating is an update of this row, never a second one: two
+    # rows would let one cook count twice in the average.
+    with pytest.raises(IntegrityError), engine.begin() as connection:
+        connection.execute(rate, {**rating, "stars": 5})
+
+    with engine.begin() as connection:
+        connection.execute(text("DELETE FROM users WHERE id = :id"), {"id": user_id})
+        remaining = connection.execute(
+            text("SELECT count(*) FROM recipe_ratings")
+        ).scalar_one()
+    assert remaining == 0
+
+    engine.dispose()
+    command.downgrade(config, "0026")
+    engine = create_engine(empty_postgres_url)
+    assert "recipe_ratings" not in inspect(engine).get_table_names()
     engine.dispose()

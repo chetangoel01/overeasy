@@ -17,6 +17,7 @@ from ladle.db.models import (
     ImportQuotaEvent,
     Recipe,
     RecipeChange,
+    RecipeRating,
     RecipeSlotReservation,
     User,
 )
@@ -245,6 +246,7 @@ class AccountMergeService:
             .values(user_id=destination.id)
         )
         self._merge_discover_impressions(database, source.id, destination.id)
+        self._merge_ratings(database, source.id, destination.id)
         # A guest can choose a photo too, and the account they sign into keeps
         # its own. Without this the guest's object would outlive every row that
         # names it: the source user row is deleted with the destination account
@@ -320,6 +322,56 @@ class AccountMergeService:
         database.execute(
             delete(DiscoverImpression).where(DiscoverImpression.user_id == source_id)
         )
+
+    def _merge_ratings(
+        self,
+        database: Session,
+        source_id: UUID,
+        destination_id: UUID,
+    ) -> None:
+        """Carry what the guest said about their recipes onto the account.
+
+        The same shape as the impressions above, for the same reason: the
+        pair is the primary key and both accounts may have rated one source.
+        The later `updated_at` wins because it is the cook's most recent word
+        on it, which is not the same as the higher score. The guest's rows
+        go either way, so one cook never counts twice in an average.
+        """
+        carried = database.execute(
+            select(
+                RecipeRating.source_video_id,
+                RecipeRating.stars,
+                RecipeRating.created_at,
+                RecipeRating.updated_at,
+            )
+            .where(RecipeRating.user_id == source_id)
+            .order_by(RecipeRating.source_video_id)
+        ).all()
+        if not carried:
+            return
+        statement = insert(RecipeRating).values(
+            [
+                {
+                    "user_id": destination_id,
+                    "source_video_id": source_video_id,
+                    "stars": stars,
+                    "created_at": created_at,
+                    "updated_at": updated_at,
+                }
+                for source_video_id, stars, created_at, updated_at in carried
+            ]
+        )
+        database.execute(
+            statement.on_conflict_do_update(
+                index_elements=[RecipeRating.user_id, RecipeRating.source_video_id],
+                set_={
+                    "stars": statement.excluded.stars,
+                    "updated_at": statement.excluded.updated_at,
+                },
+                where=statement.excluded.updated_at > RecipeRating.updated_at,
+            )
+        )
+        database.execute(delete(RecipeRating).where(RecipeRating.user_id == source_id))
 
     def _lock_apple_subject(self, database: Session, apple_subject: str) -> None:
         digest = hashlib.sha256(apple_subject.encode("utf-8")).digest()

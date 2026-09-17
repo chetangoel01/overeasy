@@ -39,6 +39,12 @@ apps or websites.
   opened it, or anything you did next. Nothing is suppressed permanently, the
   record is not used for advertising or profiling, and it is deleted with your
   account.
+- A star rating you give a recipe you saved is stored with your account and
+  the public source the recipe came from. Overeasy shows ratings only in
+  aggregate — how many cooks rated a source and, once at least three have,
+  their average — and never shows who rated a recipe or what any one cook
+  gave. You can change or clear a rating at any time. It is not used for
+  advertising or profiling, and it is deleted with your account.
 - Pasted recipe text and correction notes are encrypted at rest and used only
   to complete or retry the requested import.
 - Request IDs, pseudonymous user identifiers, import job IDs, provider stage,
@@ -83,8 +89,8 @@ data to advertising or data-broker services.
 - Discover impression records: 30 days. They stop affecting what you are
   shown after 24 hours, well before they are erased.
 - Pseudonymous account-deletion audit records: 365 days.
-- Recipes and account data: while the account exists, unless removed earlier at
-  the user's request.
+- Recipes, star ratings, and account data: while the account exists, unless
+  removed earlier at the user's request.
 - Temporary object uploads: one day; noncurrent object versions: 30 days.
 
 Encrypted automated backups are retained for 35 days; continuous
@@ -98,9 +104,9 @@ Every guest, Apple, and Google account can be permanently deleted in
 revokes Sign in with Apple credentials when applicable, and removes or
 anonymizes recipes, imports, sessions, devices, identity links, the display
 name, the provider's profile picture link, any profile photo you uploaded,
-provider usage, private text, sync history, Discover impression records, and
-unreferenced objects. It is idempotent so a network retry cannot recreate or
-partially delete the account.
+provider usage, private text, sync history, Discover impression records, star
+ratings, and unreferenced objects. It is idempotent so a network retry cannot
+recreate or partially delete the account.
 
 Deletion cannot be undone. Backups are not used to restore an individual
 deleted account; any residual encrypted copy ages out within the 35-day backup

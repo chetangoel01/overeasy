@@ -25,6 +25,7 @@ from ladle.db.models import (
     ImportQuotaEvent,
     Recipe,
     RecipeChange,
+    RecipeRating,
     RecipeSlotReservation,
     SourceVideo,
     User,
@@ -688,5 +689,89 @@ def test_merge_carries_the_guest_discover_impressions_and_keeps_the_later_one(
             )
             == 0
         )
+
+    engine.dispose()
+
+
+@pytest.mark.integration
+def test_merge_carries_the_guest_ratings_and_keeps_the_more_recent_one(
+    clean_postgres_url: str,
+) -> None:
+    """A cook who signs in keeps what they said about what they cooked.
+
+    Where both accounts rated the same source the later rating stands, since
+    it is the cook's most recent word on it — not the higher one, which is
+    what makes this more than the impressions' `greatest`. The guest's rows
+    go, so one cook never counts twice in an average.
+    """
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    engine = build_engine(clean_postgres_url)
+    clock = FrozenClock(datetime(2026, 9, 17, 21, 0, tzinfo=UTC))
+    merger = AccountMergeService(clock=clock)
+    earlier = clock.now() - timedelta(days=3)
+    later = clock.now() - timedelta(days=1)
+    sources = [uuid4() for _ in range(3)]
+
+    with Session(engine) as database, database.begin():
+        guest_id = seed_user(database, kind="guest", now=clock.now())
+        destination_id = seed_user(database, kind="apple", now=clock.now())
+        database.add(
+            AppleIdentity(
+                apple_sub="rating-apple-subject",
+                user_id=destination_id,
+                created_at=clock.now(),
+            )
+        )
+        for index, source_id in enumerate(sources):
+            database.add(
+                SourceVideo(
+                    id=source_id,
+                    platform="tiktok",
+                    platform_video_id=f"merge-rating-{index}",
+                    canonical_url=f"https://www.tiktok.com/@cook/video/{3000 + index}",
+                    source_revision="1",
+                    source_metadata={},
+                    created_at=clock.now(),
+                )
+            )
+        database.flush()
+        database.add_all(
+            RecipeRating(
+                user_id=user_id,
+                source_video_id=source_id,
+                stars=stars,
+                created_at=rated_at,
+                updated_at=rated_at,
+            )
+            for user_id, source_id, stars, rated_at in [
+                # Rated on both, more recently — and lower — as a guest.
+                (guest_id, sources[0], 2, later),
+                (destination_id, sources[0], 5, earlier),
+                # Rated on both, more recently on the account.
+                (guest_id, sources[1], 5, earlier),
+                (destination_id, sources[1], 3, later),
+                # Rated only as a guest.
+                (guest_id, sources[2], 4, later),
+            ]
+        )
+
+    with Session(engine) as database, database.begin():
+        merger.merge(
+            database,
+            guest_user_id=guest_id,
+            apple_subject="rating-apple-subject",
+            idempotency_key="rating-merge",
+        )
+
+    with Session(engine) as database:
+        ratings = {
+            (row.user_id, row.source_video_id): (row.stars, row.updated_at)
+            for row in database.scalars(select(RecipeRating))
+        }
+    assert ratings == {
+        (destination_id, sources[0]): (2, later),
+        (destination_id, sources[1]): (3, later),
+        (destination_id, sources[2]): (4, later),
+    }
 
     engine.dispose()

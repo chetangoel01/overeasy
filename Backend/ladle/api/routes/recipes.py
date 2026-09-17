@@ -22,6 +22,7 @@ from ladle.contracts.recipes import (
     DiscoverShelvesDTO,
     DiscoverSort,
     RecipeDTO,
+    SourceEngagementDTO,
     SyncPageDTO,
 )
 from ladle.contracts.tags import CuisineTag, DietTag, RecipeKeyword
@@ -31,6 +32,7 @@ from ladle.recipes.repository import DiscoverFilter
 from ladle.recipes.service import (
     DiscoverRecipeUnavailable,
     InvalidManualRecipe,
+    RatingRequiresSavedRecipe,
     RecipeNotFound,
     RecipeService,
     SyncConflict,
@@ -43,6 +45,10 @@ router = APIRouter(prefix="/v1/recipes", tags=["recipes"])
 class RecipeMutationRequest(WireModel):
     base_revision: int = Field(ge=0)
     recipe: RecipeDTO
+
+
+class SourceRatingRequest(WireModel):
+    stars: int = Field(ge=1, le=5)
 
 
 def _recipes(request: Request) -> RecipeService:
@@ -329,6 +335,82 @@ def save_discovered_recipe(
             retryable=False,
             http_status=status.HTTP_409_CONFLICT,
         )
+    except DiscoverRecipeUnavailable as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND) from error
+
+
+@router.get(
+    "/discover/{source_video_id}/engagement",
+    response_model=SourceEngagementDTO,
+)
+def get_source_engagement(
+    source_video_id: UUID,
+    request: Request,
+    authorization: Annotated[str | None, Header()] = None,
+) -> SourceEngagementDTO:
+    claims = access_claims(request, authorization)
+    _rate_limits(request).enforce(
+        _rate_limit_policies(request).sync_poll(str(claims.user_id))
+    )
+    try:
+        with database(request) as current_database:
+            return _recipes(request).source_engagement(
+                current_database,
+                user_id=claims.user_id,
+                source_video_id=source_video_id,
+            )
+    except DiscoverRecipeUnavailable as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND) from error
+
+
+@router.put(
+    "/discover/{source_video_id}/rating",
+    response_model=SourceEngagementDTO,
+)
+def rate_source(
+    source_video_id: UUID,
+    body: SourceRatingRequest,
+    request: Request,
+    authorization: Annotated[str | None, Header()] = None,
+) -> SourceEngagementDTO:
+    claims = access_claims(request, authorization)
+    _rate_limits(request).enforce(
+        _rate_limit_policies(request).recipe_mutation(str(claims.user_id))
+    )
+    try:
+        with database(request) as current_database, current_database.begin():
+            return _recipes(request).rate_source(
+                current_database,
+                user_id=claims.user_id,
+                source_video_id=source_video_id,
+                stars=body.stars,
+            )
+    except RatingRequiresSavedRecipe as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT) from error
+    except DiscoverRecipeUnavailable as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND) from error
+
+
+@router.delete(
+    "/discover/{source_video_id}/rating",
+    response_model=SourceEngagementDTO,
+)
+def clear_source_rating(
+    source_video_id: UUID,
+    request: Request,
+    authorization: Annotated[str | None, Header()] = None,
+) -> SourceEngagementDTO:
+    claims = access_claims(request, authorization)
+    _rate_limits(request).enforce(
+        _rate_limit_policies(request).recipe_mutation(str(claims.user_id))
+    )
+    try:
+        with database(request) as current_database, current_database.begin():
+            return _recipes(request).clear_source_rating(
+                current_database,
+                user_id=claims.user_id,
+                source_video_id=source_video_id,
+            )
     except DiscoverRecipeUnavailable as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND) from error
 
