@@ -1447,7 +1447,7 @@ struct DiscoverRecipeRow: View {
                         .foregroundStyle(LadleTheme.Label.secondary)
                         .lineLimit(2)
                 }
-                Text(saveCountText)
+                engagementLine
                     .ladleFont(.metadata)
                     .foregroundStyle(LadleTheme.Label.secondary)
             }
@@ -1494,15 +1494,18 @@ struct DiscoverRecipeRow: View {
         )
     }
 
-    /// Under Most liked the row shows the number it is ranked by; showing
-    /// saves there would leave the order looking arbitrary.
-    private var saveCountText: String {
-        if sort == .mostLiked, let likeCount = recipe.likeCount {
-            return "\(likeCount.formatted(.number.notation(.compactName))) likes"
+    /// Overeasy's own numbers: stars once the server publishes an average,
+    /// then the saves. Under Most liked the row shows the number it is
+    /// ranked by instead; anything else there would leave the order looking
+    /// arbitrary.
+    @ViewBuilder
+    private var engagementLine: some View {
+        let text = EngagementText(recipe)
+        if sort == .mostLiked, let likes = text.likes {
+            Text(likes)
+        } else {
+            EngagementLine(text: text)
         }
-        return recipe.savedCount == 1
-            ? "Saved by 1 cook"
-            : "Saved by \(recipe.savedCount) cooks"
     }
 }
 

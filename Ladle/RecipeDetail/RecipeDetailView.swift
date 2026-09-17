@@ -21,6 +21,13 @@ struct ReviewCompletionPresentation: Equatable {
     }
 }
 
+/// What a page asks the engagement route about: whose source, and whether
+/// the page is the cook's own copy yet.
+private struct EngagementRequest: Equatable {
+    let sourceID: UUID?
+    let access: LibraryRecipeAccess
+}
+
 private enum RecipeDetailSection: String, CaseIterable, Identifiable {
     case ingredients = "Ingredients"
     case method = "Method"
@@ -64,6 +71,7 @@ struct RecipeDetailView: View {
     @State private var reviewIsPending: Bool
     @State private var reviewPresentation =
         ReviewCompletionPresentation()
+    @State private var engagement: RecipeEngagementModel
 
     /// The access the page has now, which is the access it was opened with
     /// until a save on it lands.
@@ -107,6 +115,7 @@ struct RecipeDetailView: View {
         deleteRecipe: @escaping (UUID) -> Bool = { _ in false },
         access: LibraryRecipeAccess = .saved,
         discoverSave: DiscoverSaveModel? = nil,
+        engagementService: any SourceEngagementServing = DemoDiscoverService(),
         openAccount: @escaping () -> Void
     ) {
         self.statusText = statusText
@@ -129,6 +138,13 @@ struct RecipeDetailView: View {
         _scaling = State(
             initialValue: RecipeScaling(baseServings: recipe.servings)
         )
+        // A preview already holds its row's numbers and asks for nothing.
+        _engagement = State(
+            initialValue: RecipeEngagementModel(
+                service: engagementService,
+                preview: discoverSave?.source
+            )
+        )
     }
 
     var body: some View {
@@ -146,6 +162,12 @@ struct RecipeDetailView: View {
 
                     if !displayedRecipe.notes.isEmpty {
                         creatorNotes
+                    }
+
+                    // Only the cook who saved it may rate a source, and only
+                    // once the server has answered for them.
+                    if allowsLibraryEdits, engagement.canRate {
+                        RecipeRatingCard(model: engagement)
                     }
 
                     cookingAction {
@@ -192,6 +214,17 @@ struct RecipeDetailView: View {
                 return
             }
             reviewDidComplete()
+        }
+        // Keyed on both, so a save on a preview asks as the saved copy it
+        // has just become. A preview itself never asks.
+        .task(
+            id: EngagementRequest(
+                sourceID: displayedRecipe.sourceID,
+                access: currentAccess
+            )
+        ) {
+            guard allowsLibraryEdits else { return }
+            await engagement.load(sourceID: displayedRecipe.sourceID)
         }
         .accessibilityIdentifier("recipe.detail")
         .navigationTitle("")
@@ -314,6 +347,7 @@ struct RecipeDetailView: View {
                     recipeTitle
                     recipeByline
                         .padding(.top, LadleTheme.Spacing.tight)
+                    overeasyLine
                     if isVideoPlayable {
                         watchOriginalLink
                     }
@@ -437,19 +471,52 @@ struct RecipeDetailView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    private var engagementText: EngagementText? {
+        engagement.engagement.map(EngagementText.init)
+    }
+
     /// One run of text rather than a row of three, so it wraps between
     /// words instead of squeezing the creator's handle into a column. At
-    /// accessibility sizes the platform takes its own line: wrapped, the
+    /// accessibility sizes each part takes its own line: wrapped, the
     /// second line would otherwise open on the separator.
+    ///
+    /// The platform's likes ride here because they are the platform's, not
+    /// Overeasy's: "@thecopperpan · TikTok · 24K likes".
     private var recipeByline: some View {
-        let source = displayedRecipe.source.libraryTitle
-        let creator = displayedRecipe.creatorName
+        let parts = [
+            displayedRecipe.creatorName,
+            displayedRecipe.source.libraryTitle,
+            engagementText?.likes,
+        ].compactMap(\.self)
         let separator = dynamicTypeSize.isAccessibilitySize ? "\n" : " · "
-        return Text(creator.map { $0 + separator + source } ?? source)
+        return Text(parts.joined(separator: separator))
             .ladleFont(.metadata)
             .foregroundStyle(LadleTheme.Label.secondary)
             .fixedSize(horizontal: false, vertical: true)
-            .accessibilityLabel(creator.map { "\($0), \(source)" } ?? source)
+            .accessibilityLabel(parts.joined(separator: ", "))
+    }
+
+    /// Overeasy's own numbers, on their own line under the platform's. A
+    /// saved recipe that names its source holds the line's place from the
+    /// first frame until the server answers, so the numbers arriving do not
+    /// move the page; an answer that never comes gives the place back and
+    /// leaves the header as it was before ratings.
+    @ViewBuilder
+    private var overeasyLine: some View {
+        let holdsPlace = allowsLibraryEdits
+            && displayedRecipe.sourceID != nil
+            && !engagement.isSettled
+        Group {
+            if let text = engagementText, text.hasLine {
+                EngagementLine(text: text)
+                    .accessibilityIdentifier("recipe.engagement")
+            } else if holdsPlace {
+                Text(" ").accessibilityHidden(true)
+            }
+        }
+        .ladleFont(.metadata)
+        .foregroundStyle(LadleTheme.Label.secondary)
+        .padding(.top, LadleTheme.Spacing.tight)
     }
 
     /// Save, in the top-right toolbar group beside the account button — the

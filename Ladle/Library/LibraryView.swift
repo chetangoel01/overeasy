@@ -574,6 +574,7 @@ struct LibraryView: View {
             deleteRecipe: viewModel.deleteRecipe,
             access: destination.access,
             discoverSave: destination.discoverSave,
+            engagementService: discoverService,
             openAccount: { isAccountPresented = true }
         )
     }

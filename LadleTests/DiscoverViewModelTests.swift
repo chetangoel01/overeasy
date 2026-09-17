@@ -1427,6 +1427,18 @@ private final class DiscoverTestService: DiscoverServing {
         return try detailResult.get()
     }
 
+    func fetchEngagement(sourceID: UUID) async throws -> SourceEngagement {
+        throw TestError.failed
+    }
+
+    func rate(sourceID: UUID, stars: Int) async throws -> SourceEngagement {
+        throw TestError.failed
+    }
+
+    func clearRating(sourceID: UUID) async throws -> SourceEngagement {
+        throw TestError.failed
+    }
+
     func resumeFetch() {
         fetchContinuation?.resume()
         fetchContinuation = nil
