@@ -456,6 +456,35 @@ navigation bar, it covers the large title.
 - Recipe cards and Discover results use the native long-press context menu as
   the modern replacement for 3D Touch. The menu previews the recipe and exposes
   Open plus a non-destructive Save or Favorite action.
+- **Engagement and ratings.** Three numbers, each in words that say what it
+  counts and whose count it is. *Likes* are the source platform's, read when
+  the video was imported, so they ride on the recipe header's source line —
+  "@thecopperpan · TikTok · 12K likes" — and lead a Discover row only under
+  Most liked, the one order ranked by them. *Stars* and *saves* are
+  Overeasy's and take their own metadata line beneath: "★ 4.6 (12) · Saved by
+  18 cooks", the star and the average in `Label.primary`, the rest in
+  `Label.secondary`. Stars appear only when the server publishes an average —
+  it withholds one until three cooks have rated — and the count in brackets
+  only ever follows stars. Where the line does not fit — a Discover row's
+  column beside Save, or a large text size — the stars sit over the saves
+  rather than the run breaking mid-phrase. A number nobody knows is absent:
+  never a zero, never a dash, never a placeholder, and a header without the
+  line closes up as if it had never been there. `EngagementText` holds the
+  words and `EngagementLine` draws them for the header, Discover's rows and
+  Watch alike; shelf cards stay count-free.
+- A cook rates a recipe they have **saved**, on its page: a card near the end,
+  above Start cooking, titled "Rate this recipe", with five `feature` stars on
+  44-point targets — `hero` stars at accessibility sizes, where the stars are
+  the control and 28 points reads as small print — over "Counts toward the
+  average other cooks see." Rated, the title reads "Your rating", the chosen
+  stars fill in the accent, and "Clear rating" takes the caption's line, so
+  the card keeps its height. Stars fill at once, with selection feedback; a
+  write that fails puts the previous stars back over one quiet line.
+  VoiceOver meets the stars as one adjustable element. The card is never on
+  a Discover preview (the cook has not saved it), never on a recipe typed in
+  by hand (it has no source), and never before the server has answered for
+  this cook: a server without ratings, or a failed request, leaves the page
+  exactly as it was, with no error to read. There are no written reviews.
 - Profile opens on the cook: a 96-point avatar — the provider's photo or a
   monogram, whichever they choose — the editable display name, the account
   kind, and one line of facts ("6 recipes · 2 favorites · cooking since
