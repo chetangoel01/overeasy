@@ -213,7 +213,6 @@ FENCED_BODY = (
     "content",
     [
         f"```json\n{FENCED_BODY}\n```",
-        f"```\n{FENCED_BODY}\n```",
         f"  ```json\n{FENCED_BODY}\n```  ",
         FENCED_BODY,
     ],

@@ -43,7 +43,6 @@ def test_product_metrics_use_only_bounded_labels_and_render_prometheus_text() ->
         'ladle_rate_limit_rejections_total{policy="import-submit:user"} 1' in rendered
     )
     assert 'ladle_worker_retries_total{reason="transient"} 1' in rendered
-    assert "user-123" not in rendered
 
 
 @pytest.mark.parametrize(

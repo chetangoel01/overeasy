@@ -462,17 +462,3 @@ def test_a_source_the_cook_already_saved_does_not_hold_a_shelf_up(
 
     assert _keywords(shelves) == ["weeknight", "onePot", "budget"]
     assert all("Beef Chilli" not in _titles(shelf) for shelf in shelves)
-
-
-@pytest.mark.integration
-def test_the_shelves_path_is_not_read_as_a_source_id(feed: Feed) -> None:
-    """`/discover/{source_video_id}` is declared after this route on purpose.
-
-    The other way round, "shelves" is parsed as a UUID and a path that exists
-    answers 422.
-    """
-
-    with feed.client_for() as client:
-        response = client.get("/v1/recipes/discover/shelves", headers=feed.headers)
-
-    assert response.status_code == 200

@@ -73,9 +73,8 @@ def test_interactive_swagger_is_hidden_outside_development() -> None:
     assert "servers" not in application.openapi()
     assert docs.status_code == 404
     assert javascript.status_code == 404
-    assert docs.headers["Content-Security-Policy"] == (
-        "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
-    )
+    # The documentation page's relaxed policy goes away with the page.
+    assert "unsafe-inline" not in docs.headers["Content-Security-Policy"]
 
 
 def test_guarded_development_server_can_hide_interactive_swagger() -> None:

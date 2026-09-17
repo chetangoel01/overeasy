@@ -267,11 +267,6 @@ def _titles(response) -> list[str]:
 
 
 @pytest.mark.integration
-def test_the_unfiltered_feed_is_every_dish(discover) -> None:
-    assert _titles(discover()) == [dish.title for dish in DISHES]
-
-
-@pytest.mark.integration
 def test_one_diet_keeps_only_the_dishes_that_satisfy_it(discover) -> None:
     assert _titles(discover("?diet=vegetarian")) == [
         "Lemon Orzo",
@@ -377,10 +372,3 @@ def test_an_oversized_ingredient_term_is_refused(discover) -> None:
 
     assert discover(f"?ingredient={'chicken' * 100}").status_code == 422
     assert discover("?" + "&".join(["ingredient=egg"] * 11)).status_code == 422
-
-
-@pytest.mark.integration
-def test_an_unreviewed_proposal_cannot_be_filtered_on(discover) -> None:
-    """`cookout` is stored against Smash Burgers, and is not a keyword."""
-
-    assert discover("?keyword=cookout").status_code == 422

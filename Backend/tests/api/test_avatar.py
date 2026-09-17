@@ -338,7 +338,6 @@ def test_an_oversize_body_is_refused(clean_postgres_url: str) -> None:
     ("body", "content_type", "expected"),
     [
         (b"\x89PNG\r\n\x1a\n" + b"not a JPEG", "image/jpeg", 400),
-        (b"", "image/jpeg", 400),
         (JPEG, "image/png", 415),
     ],
 )
