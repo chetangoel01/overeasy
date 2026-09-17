@@ -70,13 +70,25 @@ smash burger through: 38 g, 35 g and 42 g come to 152, 140 and 378 kcal.
 3. **The bar is drawn from the printed percentages**, not the raw kcal, so the
    picture and the numbers cannot disagree and the widths fill the bar
    exactly.
-4. **Colours are the dots' colours** and are declared once, in `MacroColor`,
-   so a dot and its segment cannot drift apart: protein `Intent.success`,
-   carbohydrates `Label.secondary`, fat `Label.primary`.
-5. **The kcal line is `metadata` in `Label.primary`**, against the general
+4. **A dot and its segment share one colour**, declared once in `MacroColor`
+   so the two cannot drift apart: protein `Mark.protein`, carbohydrates
+   `Label.secondary`, fat `Label.primary`.
+5. **Protein has its own mark colour.** The dot used `Intent.success`, whose
+   dark value `#294233` is a fill for light text to sit on: as a mark it was
+   1.32:1 against the steel hero and 1.50:1 against a raised tile, so in dark
+   mode the bar's first segment all but vanished, and it was only 2.10:1 and
+   2.30:1 in light. `Mark.protein` (palette `thyme`) stays in the same sage
+   family and clears WCAG's 3:1 for graphics on both surfaces: `#5A8767` in
+   light, 3.06:1 on steel and 3.35:1 on raised, and `#83A18A` in dark, 5.12:1
+   and 5.80:1. Carbohydrates and fat already passed — 5.16:1 at the least —
+   and are unchanged. `Intent.success` itself is untouched; a data mark is
+   not an intent, which is why this is a new `Mark` role and not a new value
+   for the old one. The protein dot therefore changes colour too, which the
+   before and after captures show.
+6. **The kcal line is `metadata` in `Label.primary`**, against the general
    pairing of `metadata` with `Label.secondary`, because it is a value rather
    than supporting text. DESIGN.md records the exception.
-6. **A negative gram count is treated as unavailable.** The editor will parse
+7. **A negative gram count is treated as unavailable.** The editor will parse
    one, and it is bad data rather than a share of anything.
 
 ## Affected components
@@ -89,9 +101,14 @@ smash burger through: 38 g, 35 g and 42 g come to 152, 140 and 378 kcal.
 - `Ladle/Nutrition/NutritionView.swift` — the bar, the tile line, the note and
   `MacroColor`. The view reads `displayedNutrition`, which is already empty
   when the serving basis is unusable, so that case needs no gate of its own.
-- `DESIGN.md` gains a Nutrition section.
+- `Ladle/Design/LadleTheme.swift` — the `thyme` palette name and the
+  `Mark.protein` role, backed by
+  `Ladle/Resources/Assets.xcassets/Thyme.colorset`.
+- `DESIGN.md` gains a Nutrition section, a `Mark.protein` row in the colour
+  table and a note on what a mark is.
 
-No file was added or removed, so there is no project change.
+No Swift file was added or removed, and a colorset lives inside the asset
+catalog the project already references, so there is no project change.
 
 ## Tests
 
@@ -102,6 +119,11 @@ No file was added or removed, so there is no project change.
 - `NutritionNoteTests.testTheMacroNoteCitesTheTotalOnlyWhenTheWholeNumbersDisagree`.
   Red first against a helper that always compared: it printed "510 of the 510
   calories" and "of the" for a sum above the total.
+- `AccessibleColorTests.testMacroMarksStandOutOnTheHeroAndTheTiles` holds the
+  three marks to 3:1 on steel and on raised in both appearances. Red first
+  against `Intent.success`, with exactly four failures, all protein: 2.10 and
+  2.30 in light, 1.32 and 1.50 in dark. `thyme` also joins the list of
+  palette names that `DesignTokenTests` keeps out of production screens.
 - No hosted-view test. The view's gate is one optional, and the cases that
   make it nil are covered where it is computed.
 
@@ -117,15 +139,23 @@ swift test --package-path Packages/LadleCore
 xcodebuild test -project Ladle.xcodeproj -scheme LadleAllTests \
   -only-testing:LadleTests
   Test Suite 'All tests' passed
-  Executed 591 tests, with 1 test skipped and 0 failures (590 before)
+  Executed 592 tests, with 1 test skipped and 0 failures (590 before)
 
   -only-testing:LadleUITests/HIGRegressionUITests/testHealthExportReturnsToNutritionWithinTheSheet
   Executed 1 test, with 0 failures
 ```
 
 The skip is the live App Attest test, as before. That UI test opens this sheet
-and scrolls to the export button, which now sits lower. `git diff --check` is
-clean.
+and scrolls to the export button, which now sits lower; it ran before the
+protein colour changed, which moves no layout. With the new colour,
+`AccessibleColorTests`, `NutritionNoteTests` and `DesignTokenTests` ran
+together (45 tests, 0 failures) ahead of the full suite above.
+`git diff --check` is clean.
+
+The after captures were retaken with the new protein colour, and sampled: the
+segment and the dot are `#5A8767` on a `#E3DDD6` hero and an `#ECE7E1` tile in
+light, and `#83A18A` on `#252A2F` and `#1C2024` in dark, so the ratios above
+describe what is drawn. The before captures still show the old dot.
 
 The captures below come from the seeded library through the same route:
 recipe, Recipe options, View nutrition. The states the seeded library cannot
@@ -147,12 +177,6 @@ Largest accessibility text size:
 
 ## Known rough edges
 
-- **Protein is faint in dark mode.** `Intent.success` resolves to `#294233`
-  there, about 1.3:1 against the steel hero and 1.5:1 against a raised tile.
-  The dot had the same weakness before this change; a segment a quarter of
-  the bar wide makes it easier to see. The colours were the owner's choice, so
-  they are unchanged. A fix is a lighter dark value for a mark, which is a
-  theme decision, and `MacroColor.protein` is the one line that would read it.
 - At the largest standard size "Carbohydrates" still shrinks to fit its tile,
   which leaves that tile a couple of points shorter than its neighbours. That
   predates this change.

@@ -419,8 +419,11 @@ struct NutritionView: View {
 
 /// A tile's dot and its segment of the bar read the same role, which is what
 /// lets the dots stand as the bar's legend.
-private enum MacroColor {
-    static let protein = LadleTheme.Intent.success
+///
+/// Not private, so the contrast test can hold all three to 3:1 on the hero
+/// and on a tile.
+enum MacroColor {
+    static let protein = LadleTheme.Mark.protein
     static let carbohydrate = LadleTheme.Label.secondary
     static let fat = LadleTheme.Label.primary
 }

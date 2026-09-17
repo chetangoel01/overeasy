@@ -25,14 +25,29 @@ final class AccessibleColorTests: XCTestCase {
         }
     }
 
+    /// A mark is a graphic, not text, so it answers to WCAG's 3:1 rather than
+    /// 4.5:1 — on the steel hero, where it is a bar segment, and on a raised
+    /// tile, where it is the dot that names that segment.
+    func testMacroMarksStandOutOnTheHeroAndTheTiles() {
+        for style in [UIUserInterfaceStyle.light, .dark] {
+            let traits = UITraitCollection(userInterfaceStyle: style)
+            for mark in [MacroColor.protein, MacroColor.carbohydrate, MacroColor.fat] {
+                for surface in [LadleTheme.Surface.steel, LadleTheme.Surface.raised] {
+                    assertContrast(mark, surface, atLeast: 3, traits: traits)
+                }
+            }
+        }
+    }
+
     private func assertContrast(
-        _ foreground: Color, _ background: Color, traits: UITraitCollection,
+        _ foreground: Color, _ background: Color, atLeast minimum: CGFloat = 4.5,
+        traits: UITraitCollection,
         file: StaticString = #filePath, line: UInt = #line
     ) {
         let first = luminance(UIColor(foreground).resolvedColor(with: traits))
         let second = luminance(UIColor(background).resolvedColor(with: traits))
         let ratio = (max(first, second) + 0.05) / (min(first, second) + 0.05)
-        XCTAssertGreaterThanOrEqual(ratio, 4.5, "Contrast \(ratio):1 in \(traits)", file: file, line: line)
+        XCTAssertGreaterThanOrEqual(ratio, minimum, "Contrast \(ratio):1 in \(traits)", file: file, line: line)
     }
 
     private func luminance(_ color: UIColor) -> CGFloat {
