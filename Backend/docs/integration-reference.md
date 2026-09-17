@@ -327,8 +327,10 @@ rating routes answer with the same DTO as it stands after the write:
 Each count says where it comes from, and a count nobody knows is null, never
 zero. `likeCount` is the source platform's figure as captured at import.
 `savedCount` is the number of distinct accounts holding an undeleted recipe
-from the source, the caller's included — unlike a Discover item's `savedCount`,
-which only ever describes sources the caller has not saved. A Discover item
+from the source, the caller's included and whatever state the copy is in. A
+Discover item's `savedCount` is narrower: it never includes the caller, and
+counts only the ready, cache-backed copies the feed ranks, so the two can
+differ for one source. A Discover item
 names its source as `sourceID`; a saved recipe names it as `RecipeDTO.sourceID`,
 which is null for a recipe typed in by hand. The server sets that field and
 ignores it on `PUT /v1/recipes/{recipeID}`, so a client cannot attach a recipe
@@ -344,8 +346,11 @@ Ratings follow these rules:
   `DELETE .../rating` clears it, idempotently. Stars outside the range are
   `422`.
 - **Only an account holding an undeleted saved recipe from the source may
-  rate it**, guests included. Otherwise `PUT` answers `409` with the `conflict`
-  error; an unknown source is `404` on all three routes. Clearing is never
+  rate it**, guests included, and a copy still awaiting review counts.
+  Otherwise `PUT` answers `409` with the `conflict` error. `404` on all three
+  routes means the source row does not exist — unlike the preview route, they
+  do not need a ready shared extraction, so a cook whose source has since gone
+  stale can still read its counts and rate it. Clearing is never
   gated, and a rating already given stays in the average if its author later
   deletes their copy — removing it would quietly drop the cooks most likely to
   have rated low.

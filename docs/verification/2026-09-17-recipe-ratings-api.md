@@ -32,7 +32,9 @@ must never read as zero.
 - Errors: stars outside 1–5 → `422`; rating without a live saved copy → `409`
   `conflict`, the convention `ImportRetryUnavailable` and `AccountMergeInvalid`
   already follow (a new error code would fail to decode in shipped builds, and
-  `403` is mapped to `authenticationRequired`); unknown source → `404`.
+  `403` is mapped to `authenticationRequired`); unknown source → `404`. Unlike
+  the preview route, these need only the source row, not a ready shared
+  extraction: a saved recipe whose source went stale can still be rated.
 - Rate limits: the read shares `sync:user` with the other Discover reads, the
   writes share `recipe-mutation:user` with saving.
 
@@ -82,7 +84,8 @@ Engineering calls, made on the owner's behalf and open to reversal:
 - `ladle/auth/merge.py` (`_merge_ratings`)
 - `Contracts/Fixtures/`: `source-engagement.json` (new), the two Discover
   fixtures, and `sourceID` on every fixture that embeds a recipe
-- `Backend/docs/integration-reference.md`, `docs/privacy-policy.md`
+- `Backend/docs/integration-reference.md`, `docs/backend-design.md`,
+  `docs/privacy-policy.md`
 
 The privacy policy now lists star ratings under what is collected, retention
 and account deletion. It states the default minimum of three, so lowering
@@ -92,7 +95,8 @@ call.
 
 ## Verification
 
-Each new test was seen to fail before its implementation existed.
+The three behaviour tests below were each seen to fail before their
+implementation existed; the fixture row is a pin added with the DTO.
 
 - `tests/api/test_recipe_ratings.py` — one lifecycle: rate, average hidden
   below three, average appears (4.3) on the engagement read and in the feed
