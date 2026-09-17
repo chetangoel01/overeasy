@@ -138,4 +138,56 @@ public struct Nutrition: Codable, Hashable, Sendable {
             approximate: approximate
         )
     }
+
+    /// Where the calories come from, by the usual 4, 4 and 9 kcal a gram.
+    ///
+    /// Nil unless all three macros are known and add up to something: a
+    /// missing gram count is not zero, and nothing has no shares. The sum
+    /// is its own figure and is never reconciled with `calories` — fibre,
+    /// alcohol and rounding on the source panel all keep the two apart.
+    public var macroCalories: MacroCalories? {
+        guard let proteinGrams, let carbohydrateGrams, let fatGrams,
+              min(proteinGrams, carbohydrateGrams, fatGrams) >= 0
+        else { return nil }
+        let calories = [proteinGrams * 4, carbohydrateGrams * 4, fatGrams * 9]
+        let total = calories.reduce(0, +)
+        guard total > 0 else { return nil }
+
+        // Largest remainder: rounding each share alone can print 101%.
+        let exact = calories.map { $0 * 100 / total }
+        let floors = exact.map { share in
+            var share = share, floor = Decimal()
+            NSDecimalRound(&floor, &share, 0, .down)
+            return floor
+        }
+        var percents = floors.map { NSDecimalNumber(decimal: $0).intValue }
+        let byRemainder = exact.indices.sorted {
+            let (left, right) = (exact[$0] - floors[$0], exact[$1] - floors[$1])
+            return left == right ? $0 < $1 : left > right
+        }
+        for index in byRemainder.prefix(100 - percents.reduce(0, +)) {
+            percents[index] += 1
+        }
+        return MacroCalories(
+            protein: .init(calories: calories[0], percent: percents[0]),
+            carbohydrate: .init(calories: calories[1], percent: percents[1]),
+            fat: .init(calories: calories[2], percent: percents[2])
+        )
+    }
+}
+
+public struct MacroCalories: Hashable, Sendable {
+    public struct Share: Hashable, Sendable {
+        public let calories: Decimal
+        /// Whole-percent share of `total`; the three add to exactly 100.
+        public let percent: Int
+    }
+
+    public let protein: Share
+    public let carbohydrate: Share
+    public let fat: Share
+
+    public var total: Decimal {
+        protein.calories + carbohydrate.calories + fat.calories
+    }
 }

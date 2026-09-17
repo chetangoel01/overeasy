@@ -17,7 +17,7 @@ Implementation proceeds in verified, task-sized commits. Design choices remain p
 | [#141](https://github.com/chetangoel01/overeasy/issues/141) | Polish app motion with consistent native, tactile feedback | Implemented and verified |
 | [#142](https://github.com/chetangoel01/overeasy/issues/142) | Define and enforce consistent button design rules | Implemented and verified |
 | [#143](https://github.com/chetangoel01/overeasy/issues/143) | Explore recipe reviews and more visible likes and save counts | Owner chose existing counts plus star ratings; [API implemented and verified](2026-09-17-recipe-ratings-api.md) on `codex/feedback-143-ratings-api`; iOS surfaces pending the layout review |
-| [#144](https://github.com/chetangoel01/overeasy/issues/144) | Add a calorie breakdown to nutrition per serving | Pending |
+| [#144](https://github.com/chetangoel01/overeasy/issues/144) | Add a calorie breakdown to nutrition per serving | Macro breakdown implemented and verified; by-ingredient deferred |
 | [#145](https://github.com/chetangoel01/overeasy/issues/145) | Make recipe estimate notes quieter and less repetitive | Pending |
 | [#146](https://github.com/chetangoel01/overeasy/issues/146) | Polish the app icon selector layout in Profile | Pending |
 | [#147](https://github.com/chetangoel01/overeasy/issues/147) | Investigate the layout of the icon-change confirmation dialog | System ownership confirmed; physical reproduction pending |
@@ -32,6 +32,7 @@ Implementation proceeds in verified, task-sized commits. Design choices remain p
 
 ## Verification
 
+- #144: the owner chose the macro breakdown on September 17; calories by ingredient is deferred because it needs per-ingredient figures from the pipeline. Shares that add to 100 and the rule that the macro sum is never reconciled with the stated calories were both verified red/green. Protein's dot and bar segment had used the success fill, which all but vanished in dark mode (1.3:1 on the hero); they now use a `Mark.protein` colour, and a contrast test, red first, holds all three macro marks to 3:1 on the hero and the tiles in both appearances. 95 shared-domain tests and 592 app tests pass (one intentional skip), as does the UI check that opens the sheet. Light, dark and largest-text captures are in the [macro calorie breakdown](2026-09-17-macro-calorie-breakdown.md).
 - #140: the owner chose to hide routine sync entirely. A hosted regression measured the "Syncing recipes…" and "Refreshing Discover…" strips at 36 points each inside the top safe-area inset, which is what pushed every screen down and back; it now measures zero for routine work and still measures the failed strips. The tall empty header reproduced as a second defect: every strip's fill painted up under the clear navigation bar and covered the large title, on the failure strips and the New recipes pill too; the fill now stops at the strip. The placeholders already kept the normal chrome and nothing moves when the feed arrives. All 591 app tests pass (one intentional skip), and both UI scenarios that expect the failed-sync strip pass. Decision, causes, captures, and what was left alone are in [quiet sync and refresh](2026-09-17-quiet-sync.md); the rule is in [DESIGN.md](../../DESIGN.md#motion-and-feedback).
 
 - #141: a hosted SwiftUI probe reproduced a forced 0.5-second save animation outside the presenting view. The save model now publishes state without dictating motion; RecipeDetail, Discover, and FullRecipe consult Reduce Motion for their explicit save and scroll transitions. The hosted regression passes, and all 590 app tests pass (one intentional skip). Existing press and haptic behavior was audited and is documented in [DESIGN.md](../../DESIGN.md#motion-and-feedback).
@@ -60,10 +61,12 @@ No issues are considered complete solely because an implementation exists; unres
 ## Decisions and device checks still pending
 
 The owner has approved backend short-link resolution and bounded missing-time
-repair including cached templates, and on September 17 chose to hide routine
-sync status entirely (#140) rather than move it into the navigation bar; all
-three are implemented above. These earlier questions remain unanswered, so
-their dependent product changes have not been selected on the owner's behalf:
+repair including cached templates. On September 17 the owner also chose to
+hide routine sync status entirely (#140) rather than move it into the
+navigation bar, and macros over ingredient contributions for the calorie
+breakdown (#144), which stay deferred; all four are implemented above. These
+earlier questions remain unanswered, so their dependent product changes have
+not been selected on the owner's behalf:
 
 - Layout group (#145, #146, #148, #150, #151, #153, #160): proposed compact
   thumbnail header with “Watch original”; inline serving minus/plus and Reset;
@@ -78,7 +81,6 @@ their dependent product changes have not been selected on the owner's behalf:
   the rating control sit on Discover cards and recipe details joins the layout
   group above. One engineering call awaits the owner: a rating currently
   outlives the deletion of the saved copy.
-- Calorie breakdown (#144): macros, ingredient contributions, or both.
 - Phone QA (#147, #161): reproduce the system icon confirmation, and listen
   for the timer in the foreground and with the phone locked, recording Silent
   mode and Focus. Mirroring ultimately reports “iPhone in Use”. No listening

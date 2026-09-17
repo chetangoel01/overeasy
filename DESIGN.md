@@ -51,6 +51,7 @@ name a call site may use.
 | Selected accent fill | `Intent.accent` | `brick` | `#C23B26` default | `#C23B26` default | Primary action and active state |
 | Destructive | `Intent.destructive` | — | system red | system red | Delete and discard |
 | Sage success | `Intent.success` | `celery` | `#83A18A` | `#294233` | Success state |
+| Protein mark | `Mark.protein` | `thyme` | `#5A8767` | `#83A18A` | Protein's dot and bar segment on the nutrition sheet |
 | Focus signal | `Intent.focus` | `focusAccent` | `#FF5A3D` fixed | same | Focus progress and icons |
 | Focus / destructive button fill | `Intent.focusFill` / `Intent.destructiveFill` | `#C23B26` fixed | same | White-label actions |
 | Disabled | `Intent.disabledFill` / `disabledLabel` | — | steel / secondary ink | same | Any disabled control |
@@ -58,6 +59,14 @@ name a call site may use.
 `Surface.badge` exists because `Surface.steel` sits about four percent off
 `Surface.raised`: a badge drawn in steel on a raised card disappears into it.
 Badges on the porcelain ground may keep using steel.
+
+`Mark` holds colours that stand for data — a chart segment and the legend dot
+that names it. A mark is a graphic, so it answers to 3:1 against the surfaces
+it sits on, steel and raised, in both appearances. `Mark.protein` exists
+because `Intent.success` is a fill: its dark value is there for light text to
+sit on, and drawn as a mark it is about 1.3:1 against steel. The mark stays in
+the same sage family, at 3.1:1 on steel and 3.3:1 on raised in light, and
+5.1:1 and 5.8:1 in dark.
 
 The four compatibility aliases — `field`, `review`, `success` and `paprika` —
 are gone; every call site is on the role. The duplicate, unused `butter` palette
@@ -300,6 +309,29 @@ navigation bar, it covers the large title.
   progress/action color.
 - One instruction owns the screen. Timers are large and stateful.
 - Food photography and library navigation do not appear in Focus Mode.
+
+## Nutrition
+
+- The nutrition sheet is per serving throughout. The calorie hero leads, and
+  calories are the only figure that carries the "≈" marker.
+- Under the total, a "Calories from" bar splits the calories the app can
+  attribute — protein and carbohydrate at 4 kcal a gram, fat at 9 — into three
+  segments. The macro tiles beneath are its legend: a segment wears its tile's
+  dot colour, in the tiles' order, and each tile prints its own kcal and
+  whole-percent share. That line is a value, so it is `metadata` in
+  `Label.primary`. The shares are of the macro sum and always add to 100. The
+  bar is hidden from VoiceOver because the tiles speak the same figures.
+- The marks are protein `Mark.protein`, carbohydrates `Label.secondary` and fat
+  `Label.primary`. Each has to read as a segment on the steel hero and as a
+  dot on a raised tile, so all three hold 3:1 on both surfaces in light and in
+  dark.
+- An unavailable value is never drawn as zero. With any macro missing, or no
+  usable serving basis, there is no bar, no kcal line and no note; without
+  calories the bar stays and only the comparison is dropped.
+- The macro sum is never reconciled with the stated calories. When the two
+  whole numbers differ, one quiet line under the tiles states both and gives
+  no reason, and neither number moves to meet the other. See the
+  [macro calorie breakdown](docs/verification/2026-09-17-macro-calorie-breakdown.md).
 
 ## First run and Share Extension
 
