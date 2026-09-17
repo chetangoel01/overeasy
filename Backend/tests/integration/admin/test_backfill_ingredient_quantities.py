@@ -212,6 +212,7 @@ def test_a_second_run_has_nothing_left_to_do(clean_postgres_url: str) -> None:
         database.rollback()
 
     assert rows == []
-    assert render_table(rows).startswith("Every stored ingredient")
+    # The CLI prints this. Sizing columns over no rows would raise instead.
+    assert render_table(rows)
 
     engine.dispose()

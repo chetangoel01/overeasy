@@ -32,9 +32,10 @@ provenances above. The extraction payload exposes those values as
 - inferred quantities or actions based on what an image might show.
 
 Thumbnail bytes may still be downloaded and stored for recipe-card display.
-They are never passed to the extractor. The compatibility environment flags
-`LADLE_FRAME_ANALYSIS_ENABLED` and `LADLE_THUMBNAIL_ANALYSIS_ENABLED` remain
-parseable for older deployments, default to false, and have no runtime wiring.
+They are never passed to the extractor. The old `LADLE_FRAME_ANALYSIS_ENABLED`
+and `LADLE_THUMBNAIL_ANALYSIS_ENABLED` flags never had runtime wiring and were
+removed on 2026-09-17; `Settings` ignores them if an older deployment still
+sets them.
 
 ## Runtime behavior
 

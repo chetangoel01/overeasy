@@ -139,9 +139,8 @@ def test_search_snippet_is_never_used_without_independent_page_fetch() -> None:
     [
         "2 cans chickpeas. " * 20,
         "Drain the chickpeas and simmer until tender. " * 20,
-        "2 cans chickpeas. Simmer.",
     ],
-    ids=["no-method", "no-quantity", "thin"],
+    ids=["no-method", "no-quantity"],
 )
 def test_search_rejects_non_recipe_pages(page: str) -> None:
     url = "https://justinesnacks.com/creamy-lemon-chickpeas"

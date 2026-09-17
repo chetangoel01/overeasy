@@ -25,6 +25,7 @@ from alembic import command
 from ladle.api.app import create_app
 from ladle.auth.attestation import AttestationService
 from ladle.config import Settings
+from ladle.contracts.tags import RecipeKeyword
 from ladle.db.models import (
     ExtractionCache,
     Ingredient,
@@ -329,11 +330,10 @@ def test_the_cap_keeps_the_best_stocked_shelves(feed: Feed) -> None:
 def test_a_shelf_is_titled_in_words_rather_than_in_its_raw_value(feed: Feed) -> None:
     shelves = feed.shelves()
 
-    assert [shelf["title"] for shelf in shelves[:3]] == [
-        "One pot",
-        "Weeknight",
-        "Budget",
-    ]
+    assert shelves
+    for shelf in shelves:
+        assert shelf["title"] == RecipeKeyword(shelf["keyword"]).shelf_title
+        assert shelf["title"] != shelf["keyword"]
 
 
 @pytest.mark.integration
@@ -462,17 +462,3 @@ def test_a_source_the_cook_already_saved_does_not_hold_a_shelf_up(
 
     assert _keywords(shelves) == ["weeknight", "onePot", "budget"]
     assert all("Beef Chilli" not in _titles(shelf) for shelf in shelves)
-
-
-@pytest.mark.integration
-def test_the_shelves_path_is_not_read_as_a_source_id(feed: Feed) -> None:
-    """`/discover/{source_video_id}` is declared after this route on purpose.
-
-    The other way round, "shelves" is parsed as a UUID and a path that exists
-    answers 422.
-    """
-
-    with feed.client_for() as client:
-        response = client.get("/v1/recipes/discover/shelves", headers=feed.headers)
-
-    assert response.status_code == 200

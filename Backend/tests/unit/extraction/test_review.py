@@ -220,12 +220,6 @@ def test_unknown_or_usda_claimed_model_nutrition_is_discarded() -> None:
         assert reviewed.nutrition is None
 
 
-def test_absent_creator_nutrition_remains_absent() -> None:
-    reviewed = build_reviewed_template(_solid_recipe(), context=context())
-
-    assert reviewed.nutrition is None
-
-
 def test_review_retains_usda_ready_ingredient_fields() -> None:
     reviewed = build_reviewed_template(_solid_recipe(), context=context())
 

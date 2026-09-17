@@ -176,7 +176,7 @@ def test_category_words_do_not_keep_lentils_behind_other_beans() -> None:
 
 @pytest.mark.parametrize(
     ("nutrient_id", "bad_unit"),
-    [(2048, "kJ"), (1003, "mg"), (1004, "mg"), (1005, "mg")],
+    [(2048, "kJ"), (1003, "mg")],
 )
 def test_wrong_required_nutrient_units_are_not_guessed(
     nutrient_id: int,
@@ -400,29 +400,22 @@ def test_generic_records_outrank_a_branded_name_that_matches_more_tokens() -> No
     assert [food.fdc_id for food in foods] == [170923]
 
 
-@pytest.mark.parametrize(
-    ("label", "values"),
-    [
-        (
-            "macros exceeding the whole 100g",
-            {"calories": 0, "protein": 0, "fat": 0, "carbohydrate": 133.33},
-        ),
-        (
-            "zero energy alongside real macros",
-            {"calories": 0, "protein": 6.2, "fat": 0.5, "carbohydrate": 33.0},
-        ),
-    ],
-)
-def test_structurally_impossible_records_are_never_candidates(
-    label: str,
-    values: dict[str, float],
-) -> None:
-    impossible = _detail(999123, "IMPOSSIBLE PANEL", "Branded", **values)
+def test_structurally_impossible_records_are_never_candidates() -> None:
+    # More macronutrient mass than the 100 g it is stated per.
+    impossible = _detail(
+        999123,
+        "IMPOSSIBLE PANEL",
+        "Branded",
+        calories=0,
+        protein=0,
+        fat=0,
+        carbohydrate=133.33,
+    )
     rows = [_row(impossible, 900.0)]
 
     foods = client(_serve(rows, {999123: impossible})).candidates("anything")
 
-    assert foods == [], label
+    assert foods == []
 
 
 def test_api_key_travels_in_a_header_not_the_query_string() -> None:

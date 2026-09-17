@@ -175,7 +175,6 @@ class Settings(BaseSettings):
         min_length=1,
         max_length=128,
     )
-    server_media_fallback_enabled: bool = False
     object_storage_enabled: bool = False
     object_storage_endpoint_url: AnyHttpUrl = AnyHttpUrl("http://127.0.0.1:9000")
     object_storage_public_endpoint_url: AnyHttpUrl | None = None
@@ -216,11 +215,6 @@ class Settings(BaseSettings):
     transcription_timeout_seconds: float = Field(default=300, gt=0)
     transcription_max_audio_bytes: int = Field(default=20 * 1024 * 1024, gt=0)
     transcription_max_duration_seconds: float = Field(default=1800, gt=0)
-
-    # Compatibility flags remain parseable for existing deployments, but the
-    # import runtime has no visual-provider wiring.
-    frame_analysis_enabled: bool = False
-    thumbnail_analysis_enabled: bool = False
 
     supadata_base_url: AnyHttpUrl = AnyHttpUrl("https://api.supadata.ai/v1")
     supadata_timeout_seconds: float = Field(default=30, gt=0)

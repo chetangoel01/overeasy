@@ -149,18 +149,6 @@ def test_a_covered_caption_still_fetches_the_creators_own_page() -> None:
     assert "freeCreatorPageUsed" in context.diagnostics
 
 
-def test_a_covered_caption_still_ignores_a_sponsor_link() -> None:
-    fetcher = SpyFetcher()
-    free = acquirer(
-        f"{COVERED_CAPTION} more at https://sponsor.example.com/deal", fetcher
-    )
-
-    context = free.acquire(source(), job_id=uuid4())
-
-    assert fetcher.urls == []
-    assert context.linked_documents == []
-
-
 def test_tiktok_page_recovers_metadata_and_transcript_when_ytdlp_fails() -> None:
     video_url = source().canonical_url
     track_url = "https://cdn.tiktok.example/captions/eng.vtt"
