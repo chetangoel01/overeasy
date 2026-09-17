@@ -183,6 +183,7 @@ final class LadleRuntime {
     let syncService: RecipeSyncService?
     let remoteImageCache: RemoteImageCache?
     let discoverService: any DiscoverServing
+    let shuffleShelfIDs: ([DiscoverShelf.ID]) -> [DiscoverShelf.ID]
     let installationIdentity: InstallationIdentity
 
     private let sharedQueueReconciler: SharedQueueReconciler?
@@ -375,6 +376,12 @@ final class LadleRuntime {
         self.syncService = syncService
         self.remoteImageCache = remoteImageCache
         self.discoverService = discoverService
+        // Which shelves lead Discover is drawn per launch. A demo or UI-test
+        // run draws nothing, as with Watch above, so its rails lead and a
+        // capture is the same every time.
+        shuffleShelfIDs = configuration.usesInMemoryStore
+            ? { $0 }
+            : { $0.shuffled() }
         self.installationIdentity = installationIdentity
         self.sharedQueueReconciler = sharedQueueReconciler
     }
