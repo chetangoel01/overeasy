@@ -1,4 +1,5 @@
 import LadleCore
+import SwiftUI
 import XCTest
 @testable import Ladle
 
@@ -1091,6 +1092,37 @@ final class DiscoverViewModelTests: XCTestCase {
         XCTAssertNil(model.failure)
     }
 
+    func testSaveLeavesAnimationChoiceToThePresentation() async throws {
+        let recipe = discoveredRecipe()
+        let viewModel = DiscoverViewModel(service: DiscoverTestService(
+            result: .success([recipe]),
+            savedResult: .success(SavedDiscoverRecipe(
+                recipe: PreviewFixtures.recipes[0], revision: 1
+            ))
+        ))
+        await viewModel.load()
+        let model = DiscoverSaveModel(source: recipe, viewModel: viewModel, didSave: { _ in })
+        let appeared = expectation(description: "Save control appeared")
+        let saved = expectation(description: "Saved control rendered")
+        saved.assertForOverFulfill = false
+        let probe = SaveMotionProbe(model: model) { animation in
+            XCTAssertNil(animation, "Saving must respect the presentation's motion preference")
+            saved.fulfill()
+        }
+        .onAppear { appeared.fulfill() }
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let window = UIWindow(windowScene: scene)
+        window.rootViewController = UIHostingController(rootView: probe)
+        window.isHidden = false
+        defer {
+            window.isHidden = true
+            window.rootViewController = nil
+        }
+        await fulfillment(of: [appeared], timeout: 3)
+        await model.save()
+        await fulfillment(of: [saved], timeout: 3)
+    }
+
     /// A failed save leaves the page where it was — still a preview, with
     /// the same report the card would have shown.
     func testRecipePageSaveFailureLeavesThePageOnDiscover() async throws {
@@ -1400,4 +1432,16 @@ private func remoteError(
     return try RemoteContractJSON.decoder()
         .decode(RemoteErrorEnvelope.self, from: Data(json.utf8))
         .error
+}
+
+private struct SaveMotionProbe: View {
+    let model: DiscoverSaveModel
+    let rendered: (Animation?) -> Void
+
+    var body: some View {
+        Text(model.access == .saved ? "Saved" : "Save")
+            .transaction { transaction in
+                if model.access == .saved { rendered(transaction.animation) }
+            }
+    }
 }

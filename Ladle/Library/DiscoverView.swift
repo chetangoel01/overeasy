@@ -577,14 +577,13 @@ final class DiscoverSaveModel {
         // Stored before the flip: the library has to be holding the recipe by
         // the time the favourite and options controls appear for it.
         didSave(saved)
-        withAnimation(.snappy) {
-            access = .saved
-        }
+        access = .saved
         return saved
     }
 }
 
 struct DiscoverView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var viewModel: DiscoverViewModel
     /// The state; the view model holds only a mirror of it, so the feed can
     /// be tested without a preference store behind it.
@@ -868,7 +867,7 @@ struct DiscoverView: View {
         ScrollViewReader { scroll in
             feed(recipes)
                 .onChange(of: scrollToTopRequests) {
-                    withAnimation {
+                    withAnimation(reduceMotion ? nil : .default) {
                         scroll.scrollTo(Self.topAnchor, anchor: .top)
                     }
                 }

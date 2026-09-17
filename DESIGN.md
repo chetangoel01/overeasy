@@ -187,6 +187,27 @@ retain their provider styling. Dark cooking controls retain their legible
 contrast and larger practical targets. These are contextual exceptions, not
 alternative styles for ordinary filled actions.
 
+## Motion and feedback
+
+Keep the native iOS motion language. Shared control presses use a 0.94 scale
+and a 150 ms zero-extra-bounce spring; cards and filled actions use 0.97 and
+180 ms. Disabled controls do not scale. Reduce Motion removes press scaling
+and explicit transition or scroll animation, while retaining immediate color,
+label and completion feedback. Native navigation and scroll physics remain
+system-owned.
+
+Animation belongs to the view that reads Reduce Motion, never the save model.
+Discover's return-to-top, cooking step navigation, recipe review guidance and
+saved-detail transition all honor that setting. The existing durations remain
+for ordinary motion; there is no new page entrance choreography.
+
+Favorites and tab selection use selection feedback. Completing an ingredient
+or step, reviewing an import, and finishing a timer use success feedback only
+on the meaningful forward transition; undo and repeated states do not replay
+success. Timer start/pause and navigation keep the existing feedback policy.
+Saving shows its progress and landed state. Routine background loading must
+not introduce animated movement of the page.
+
 ## Navigation and library
 
 - The root workspace is a native four-tab structure: Recipes, Discover, Watch,

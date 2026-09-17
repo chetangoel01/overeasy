@@ -14,7 +14,7 @@ Implementation proceeds in verified, task-sized commits. Design choices remain p
 | [#117](https://github.com/chetangoel01/overeasy/issues/117) | Short links are invisible to the inbox repair and to the duplicate check | Implemented and verified |
 | [#124](https://github.com/chetangoel01/overeasy/issues/124) | Saving an already-cached Discover recipe arrives untagged, and a persisted diet filter then hides it | Implemented and verified; production backfill pending |
 | [#140](https://github.com/chetangoel01/overeasy/issues/140) | Keep loading and sync indicators from shifting the screen | Pending |
-| [#141](https://github.com/chetangoel01/overeasy/issues/141) | Polish app motion with consistent native, tactile feedback | Pending |
+| [#141](https://github.com/chetangoel01/overeasy/issues/141) | Polish app motion with consistent native, tactile feedback | Implemented and verified |
 | [#142](https://github.com/chetangoel01/overeasy/issues/142) | Define and enforce consistent button design rules | Implemented and verified |
 | [#143](https://github.com/chetangoel01/overeasy/issues/143) | Explore recipe reviews and more visible likes and save counts | Pending |
 | [#144](https://github.com/chetangoel01/overeasy/issues/144) | Add a calorie breakdown to nutrition per serving | Pending |
@@ -31,6 +31,8 @@ Implementation proceeds in verified, task-sized commits. Design choices remain p
 | [#161](https://github.com/chetangoel01/overeasy/issues/161) | Verify cooking timer completion plays a sound and shows an alert | Permission-delay defects fixed; physical sound/alert checks pending |
 
 ## Verification
+
+- #141: a hosted SwiftUI probe reproduced a forced 0.5-second save animation outside the presenting view. The save model now publishes state without dictating motion; RecipeDetail, Discover, and FullRecipe consult Reduce Motion for their explicit save and scroll transitions. The hosted regression passes, and all 590 app tests pass (one intentional skip). Existing press and haptic behavior was audited and is documented in [DESIGN.md](../../DESIGN.md#motion-and-feedback).
 
 - #142: Discover Save measured 75→38 points wide while loading (137→55 at accessibility text), and used 44-point height. The actual rendered-control regression now passes at standard, AX3, and AX5 sizes with stable bounds and the shared 52-point minimum. 93 focused app tests pass. The Discover save, retry alignment, and largest-text save UI checks pass. Shared loading also covers retry and Health export; toolbar Save reserves its label. Favorites share the icon control, retaining material only over photos. Rules and exceptions are recorded in [DESIGN.md](../../DESIGN.md#buttons).
 
@@ -50,3 +52,42 @@ Implementation proceeds in verified, task-sized commits. Design choices remain p
 - #149 green: all 91 shared-domain tests and 28 backend Discover/filter/shelf tests passed. Full backend suite: 1,111 passed.
 
 No issues are considered complete solely because an implementation exists; unresolved device checks and product decisions remain explicit.
+
+## Decisions and device checks still pending
+
+The owner has approved backend short-link resolution and bounded missing-time
+repair including cached templates; both are implemented above. These earlier
+questions remain unanswered, so their dependent product changes have not been
+selected on the owner's behalf:
+
+- Layout group (#145, #146, #148, #150, #151, #153, #160): proposed compact
+  thumbnail header with “Watch original”; inline serving minus/plus and Reset;
+  neutral expandable estimate notes; horizontal icon choices with a list for
+  accessibility text; two randomly selected top shelves per launch with the
+  others between feed rows; Focus quantities under “For this step”, explicitly
+  labelled as recipe totals when an ingredient is reused across steps.
+- Engagement (#143): expose source-platform likes and Overeasy saves only,
+  or add ratings, or ratings with written reviews. Public feedback needs its
+  contribution/edit/report rules once that scope is selected.
+- Calorie breakdown (#144): macros, ingredient contributions, or both.
+- Routine sync status (#140): proposed navigation-bar indicator, retaining
+  actionable offline/conflict messages; hiding routine status is the other
+  offered option. Neither placement has been approved yet.
+- Phone QA (#147, #161): reproduce the system icon confirmation, and listen
+  for the timer in the foreground and with the phone locked, recording Silent
+  mode and Focus. Mirroring ultimately reports “iPhone in Use”. No listening
+  result has been supplied and the installed TestFlight build predates these
+  fixes. Repeat final timer checks on a build containing the changes.
+
+## Current review checkpoint
+
+- Dashboard polling has its own [draft PR #162](https://github.com/chetangoel01/overeasy/pull/162).
+- Backend: 1,143 passing tests; lint/type checks passed with the backend fixes.
+- App: 590 tests, one intentional skip, no failures. App and Share Extension
+  compile in that run. Shared domain: 91 passing tests after the filter change.
+- Three affected UI checks pass: Discover save, retry alignment, and AX5 Save.
+- Xcode changed from 26.6 to 27.0 during verification. A simulator component
+  update and a reboot of the dedicated test simulator resolved the transient
+  runner failures; the final full app run used Xcode 27.0 on iOS 26.5.
+- Production has been inspected read-only. Deployment and existing-data tag,
+  timing, and nutrition refreshes have not been performed.

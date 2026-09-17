@@ -151,7 +151,7 @@ struct RecipeDetailView: View {
                     }
 
                     cookingAction {
-                        withAnimation(.easeOut(duration: 0.2)) {
+                        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) {
                             proxy.scrollTo(
                                 "recipe-review",
                                 anchor: .center
@@ -398,7 +398,7 @@ struct RecipeDetailView: View {
     private func save(through model: DiscoverSaveModel) {
         Task {
             guard let saved = await model.save() else { return }
-            withAnimation(.snappy) {
+            withAnimation(reduceMotion ? nil : .snappy) {
                 displayedRecipe = saved.recipe
                 isFavorite = saved.recipe.isFavorite
             }
