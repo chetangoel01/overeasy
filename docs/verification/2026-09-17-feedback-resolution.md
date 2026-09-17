@@ -28,9 +28,11 @@ Implementation proceeds in verified, task-sized commits. Design choices remain p
 | [#152](https://github.com/chetangoel01/overeasy/issues/152) | Find why total time still fails to show on some recipes | Implemented and verified; production backfill pending |
 | [#153](https://github.com/chetangoel01/overeasy/issues/153) | Show two Discover shelves up front and move the rest into the scroll | Pending |
 | [#160](https://github.com/chetangoel01/overeasy/issues/160) | Show ingredient quantities in recipe Focus mode | Pending |
-| [#161](https://github.com/chetangoel01/overeasy/issues/161) | Verify cooking timer completion plays a sound and shows an alert | Pending |
+| [#161](https://github.com/chetangoel01/overeasy/issues/161) | Verify cooking timer completion plays a sound and shows an alert | Permission-delay defects fixed; physical sound/alert checks pending |
 
 ## Verification
+
+- #161: two permission-delay defects verified red/green. All 27 focused cooking/notification tests and the full 588-test app suite passed (one intentional skip). Physical listening remains pending; see [timer alerts](2026-09-17-timer-alerts.md).
 
 - #152: production gaps traced read-only to three stale shared templates and one legacy row. Thirty focused timing tests and all 1,143 backend tests pass. New imports repair missing totals once; admin backfill includes shared templates.
 

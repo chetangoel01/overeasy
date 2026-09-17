@@ -212,7 +212,9 @@ final class CookingViewModel: Identifiable {
             label: timer.label,
             durationSeconds: timer.remainingSeconds(at: clock.now)
         )
-        if timers[timerID]?.phase(at: clock.now) != .running {
+        // A naturally finished countdown still needs its completion alert.
+        // Only an explicit pause/reset makes this scheduling obsolete.
+        if timers[timerID]?.phase != .running {
             notificationScheduler.cancel(timerID: timerID)
         }
     }

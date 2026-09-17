@@ -27,16 +27,28 @@ protocol TimerNotificationScheduling: AnyObject {
 }
 
 @MainActor
+protocol CookingNotificationCenter {
+    func requestAuthorization(options: UNAuthorizationOptions) async throws -> Bool
+    func add(_ request: UNNotificationRequest) async throws
+    func removePendingNotificationRequests(withIdentifiers identifiers: [String])
+}
+
+extension UNUserNotificationCenter: CookingNotificationCenter {}
+
+@MainActor
 final class LocalTimerNotificationScheduler:
     TimerNotificationScheduling
 {
-    private let center: UNUserNotificationCenter
+    private let center: any CookingNotificationCenter
+    private let now: () -> Date
     private var requestIDs: [UUID: String] = [:]
 
     init(
-        center: UNUserNotificationCenter = .current()
+        center: any CookingNotificationCenter = UNUserNotificationCenter.current(),
+        now: @escaping () -> Date = Date.init
     ) {
         self.center = center
+        self.now = now
     }
 
     func schedule(
@@ -47,6 +59,7 @@ final class LocalTimerNotificationScheduler:
         guard durationSeconds > 0 else {
             return
         }
+        let deadline = now().addingTimeInterval(TimeInterval(durationSeconds))
         let requestID = Self.identifier(for: timerID)
         if let previousID = requestIDs.updateValue(
             requestID,
@@ -76,13 +89,16 @@ final class LocalTimerNotificationScheduler:
             content.body = "Your Overeasy timer has finished."
             content.sound = .default
 
+            // Permission may take longer than the timer itself. Keep the
+            // original deadline and deliver immediately if it has passed.
+            let remaining = deadline.timeIntervalSince(now())
             let request = UNNotificationRequest(
                 identifier: requestID,
                 content: content,
-                trigger: UNTimeIntervalNotificationTrigger(
-                    timeInterval: TimeInterval(durationSeconds),
+                trigger: remaining > 0 ? UNTimeIntervalNotificationTrigger(
+                    timeInterval: max(1, remaining),
                     repeats: false
-                )
+                ) : nil
             )
             try await center.add(request)
             if requestIDs[timerID] != requestID {
