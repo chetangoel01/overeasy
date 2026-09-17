@@ -110,10 +110,11 @@ The sheet this replaced, for the record:
 - **`servings <= 0` withholds the control** rather than showing one that
   cannot mean anything — the ratio would divide by zero. The band falls back
   to the read-only yield it renders today.
-- **The "Not scaled" marker is quieter than the uncertainty note beside it.**
-  Both are a `Label` with `exclamationmark.circle` on the row's origin, but
-  the marker uses `Label.secondary` where uncertainty uses the accent. An
-  unquantified line is an aside about one row, not a warning about the recipe.
+- **The "Not scaled" marker is an aside about one row**, not a warning about
+  the recipe: a `Label` with `exclamationmark.circle` on the row's origin, in
+  `Label.secondary`. It was written as the quieter of two notes, beside an
+  accent uncertainty note; since #145 a note that stays on a row is neutral
+  too.
 - **The scaled state is announced once, when the count settles.** The
   stepper is one adjustable element and reads its own value on every step, so
   announcing on each change made a cook stepping four to eight hear each count

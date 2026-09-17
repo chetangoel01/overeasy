@@ -317,17 +317,6 @@ struct LadleSectionHeader: View {
     }
 }
 
-struct EstimateLabel: View {
-    var body: some View {
-        Label("Estimated", systemImage: "info.circle")
-            .ladleFont(.metadata)
-            .foregroundStyle(LadleTheme.Label.secondary)
-            .accessibilityHint(
-                "Nutrition and uncertain imported values may be estimates."
-            )
-    }
-}
-
 struct LadleSheetHandle: View {
     var body: some View {
         Capsule()

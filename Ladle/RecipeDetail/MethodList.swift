@@ -49,7 +49,7 @@ struct MethodList: View {
                                 systemImage: "exclamationmark.circle"
                             )
                             .ladleFont(.metadata)
-                            .foregroundStyle(accent.label)
+                            .foregroundStyle(LadleTheme.Label.secondary)
                             .accessibilityLabel(
                                 "Uncertain step: \(uncertainty.reason)"
                             )

@@ -25,40 +25,29 @@ struct RecipeMetadataBand: View {
     private static let countMinWidth: CGFloat = 32
 
     var body: some View {
-        VStack(alignment: .leading, spacing: LadleTheme.Spacing.compact) {
-            Group {
-                if usesVerticalLayout {
-                    VStack(spacing: 0) {
-                        timeItem
-                        horizontalDivider
-                        yieldItem
-                    }
-                } else {
-                    HStack(spacing: 0) {
-                        timeItem
-                        verticalDivider
-                        yieldItem
-                    }
+        Group {
+            if usesVerticalLayout {
+                VStack(spacing: 0) {
+                    timeItem
+                    horizontalDivider
+                    yieldItem
+                }
+            } else {
+                HStack(spacing: 0) {
+                    timeItem
+                    verticalDivider
+                    yieldItem
                 }
             }
-            .padding(.vertical, 16)
-            .background(
-                LadleTheme.Surface.raised,
-                in: RoundedRectangle(
-                    cornerRadius: LadleTheme.Corner.card,
-                    style: .continuous
-                )
-            )
-
-            // Why the number says "About", in the voice ingredient and step
-            // notes already use.
-            if let note = recipe.ladleTimeNote {
-                Label(note, systemImage: "exclamationmark.circle")
-                    .ladleFont(.metadata)
-                    .foregroundStyle(accent.label)
-                    .accessibilityLabel("Estimated time: \(note)")
-            }
         }
+        .padding(.vertical, 16)
+        .background(
+            LadleTheme.Surface.raised,
+            in: RoundedRectangle(
+                cornerRadius: LadleTheme.Corner.card,
+                style: .continuous
+            )
+        )
     }
 
     private var timeItem: some View {
@@ -286,7 +275,6 @@ struct RecipeMetadataBand: View {
 
 struct RecipeNutritionSummary: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @Environment(\.ladleAccent) private var accent
 
     let nutrition: Nutrition
     let openDetails: () -> Void
@@ -298,20 +286,14 @@ struct RecipeNutritionSummary: View {
                     Text("Nutrition per serving")
                         .ladleFont(.bodyStrong)
                         .foregroundStyle(LadleTheme.Label.primary)
-                    if displayed.isEstimated {
-                        Text("Estimated")
-                            .ladleFont(.metadata)
-                            .foregroundStyle(accent.label)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(LadleTheme.Surface.steel, in: Capsule())
-                    }
                     if displayed.approximate {
-                        // The estimate is also short by an ingredient; the
+                        // Kept, and neutral: "≈" says the figure is an
+                        // estimate, and this says it is also short by an
+                        // ingredient, which changes how to read it. The
                         // sheet names which.
                         Text("Partial")
                             .ladleFont(.metadata)
-                            .foregroundStyle(accent.label)
+                            .foregroundStyle(LadleTheme.Label.secondary)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
                             .background(LadleTheme.Surface.steel, in: Capsule())
@@ -353,7 +335,10 @@ struct RecipeNutritionSummary: View {
 
     @ViewBuilder
     private var nutritionItems: some View {
-        nutritionItem(value: displayed.ladleCalorieText, label: "Calories")
+        nutritionItem(
+            value: displayed.ladleEstimatedCalorieText,
+            label: "Calories"
+        )
         nutritionItem(value: grams(displayed.proteinGrams), label: "Protein")
         nutritionItem(value: grams(displayed.carbohydrateGrams), label: "Carbs")
         nutritionItem(value: grams(displayed.fatGrams), label: "Fat")
@@ -403,10 +388,15 @@ extension Recipe {
         return uncertainties.first { $0.field == "total_minutes" }?.reason
     }
 
+    /// The reason an estimated yield is an estimate.
+    var ladleYieldNote: String? {
+        uncertainties.first { $0.field == "servings" }?.reason
+    }
+
     /// Whether the yield is the pipeline's estimate rather than a count the
     /// creator stated.
     var isYieldEstimated: Bool {
-        uncertainties.contains { $0.field == "servings" }
+        ladleYieldNote != nil
     }
 
     var ladleYieldText: String {

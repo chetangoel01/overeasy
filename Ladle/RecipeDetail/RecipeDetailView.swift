@@ -136,15 +136,7 @@ struct RecipeDetailView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: LadleTheme.Layout.sectionGap) {
                     recipeHeader
-                    RecipeMetadataBand(
-                        recipe: displayedRecipe,
-                        scaling: $scaling
-                    )
-                    if let nutrition = displayedRecipe.nutrition {
-                        RecipeNutritionSummary(nutrition: nutrition) {
-                            isNutritionPresented = true
-                        }
-                    }
+                    recipeFacts
                     if showsReviewNotice {
                         reviewNotice
                             .id("recipe-review")
@@ -341,6 +333,29 @@ struct RecipeDetailView: View {
     }
 
     private static let playBadgeSide: CGFloat = 28
+
+    /// The band, the nutrition card, and under whichever comes last the one
+    /// note that explains their estimates. Grouped so the note sits against
+    /// the card it qualifies rather than a section gap below it.
+    private var recipeFacts: some View {
+        let notes = displayedRecipe.ladleEstimateNotes
+        return VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
+            VStack(spacing: LadleTheme.Layout.sectionGap) {
+                RecipeMetadataBand(
+                    recipe: displayedRecipe,
+                    scaling: $scaling
+                )
+                if let nutrition = displayedRecipe.nutrition {
+                    RecipeNutritionSummary(nutrition: nutrition) {
+                        isNutritionPresented = true
+                    }
+                }
+            }
+            if !notes.isEmpty {
+                RecipeEstimatesDisclosure(notes: notes)
+            }
+        }
+    }
 
     /// A fixed square whatever it holds. `RecipeArtworkView` fills the frame
     /// it is given with a placeholder until the image arrives, so late or
@@ -547,36 +562,6 @@ struct RecipeDetailView: View {
             }
         }
         .accessibilityIdentifier("recipe.notes")
-    }
-
-    private var estimateNote: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "info.circle")
-                .foregroundStyle(accent.label)
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Estimated nutrition")
-                    .ladleFont(.bodyStrong)
-                    .foregroundStyle(LadleTheme.Label.primary)
-                Text(
-                    "Values are estimated from the imported recipe and may vary by ingredients or serving size."
-                )
-                .ladleFont(.metadata)
-                .foregroundStyle(LadleTheme.Label.secondary)
-            }
-        }
-        .padding(16)
-        .background(
-            LadleTheme.Surface.steel,
-            in: RoundedRectangle(
-                cornerRadius: LadleTheme.Corner.card,
-                style: .continuous
-            )
-        )
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(
-            "Estimated nutrition. Values may vary by ingredients or serving size."
-        )
     }
 
     private var reviewNotice: some View {

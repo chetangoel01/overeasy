@@ -291,6 +291,26 @@ not introduce animated movement of the page.
 - Inbox is a plain native list. Empty copy is one short sentence. Recovery and
   review actions remain explicit when an import needs attention.
 
+## Estimates
+
+- An estimated value carries one short hedge, on the value: "About 45 min",
+  "≈ 560" on calories and nothing else, "servings, estimated" under the count.
+  No accent, no badge, and no sentence beside it.
+- The reasons live once, in "About these estimates": a quiet metadata row
+  under the nutrition card — under the band when there is no nutrition —
+  collapsed by default and absent when there is nothing to list. It gives the
+  time and servings reasons, each ingredient whose nutrition amount had to be
+  assumed, by name, and says that nutrition is calculated from the ingredient
+  amounts. It is a button whose value reads "Expanded" or "Collapsed", and it
+  opens without animation under Reduce Motion.
+- A note stays on an ingredient or a step only when it changes how that line
+  should be read — the line itself is in doubt, or the totals left the
+  ingredient out ("Not counted") — and then in `Label.secondary`, like "Not
+  scaled". `FieldUncertainty.isRoutineEstimate` draws the line, by field.
+- "Partial" stays on the nutrition card, neutral: a total that is short reads
+  differently from one that is estimated. The review notice is unchanged — it
+  is a task, not an estimate.
+
 ## Cooking
 
 - Recipe detail's ingredient rows lead with a 40-point watercolour of the

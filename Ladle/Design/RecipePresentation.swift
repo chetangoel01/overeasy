@@ -6,8 +6,8 @@ extension Nutrition {
         servingBasis > 0 ? scaled(toServings: 1) : nil
     }
 
-    /// The calorie figure as a card or the metadata band prints it: whole,
-    /// and marked only when the totals left an ingredient out. Cards never
+    /// The calorie figure as a library card or row prints it: whole, and
+    /// marked only when the totals left an ingredient out. Cards never
     /// carried the estimate marker, and a marker on every card says nothing.
     var ladleCalorieText: String? {
         calories.map {
@@ -18,9 +18,9 @@ extension Nutrition {
         }
     }
 
-    /// The calorie figure as the nutrition sheet, the Health export and the
-    /// Watch feed print it: marked whenever the number is an estimate at
-    /// all, which is how those surfaces have always read.
+    /// The calorie figure as the recipe page's nutrition card, the nutrition
+    /// sheet, the Health export and the Watch feed print it: marked whenever
+    /// the number is an estimate at all.
     var ladleEstimatedCalorieText: String? {
         calories.map {
             ladleApproximate(
@@ -33,11 +33,13 @@ extension Nutrition {
 
 /// Marks a figure the cook should not take as exact.
 ///
-/// "≈" keeps its everyday meaning — an estimate. The sheet, the Health
-/// export and the Watch feed put it on every calculated panel, as they did
-/// before; cards and the metadata band only reach for it when the totals
-/// are also *incomplete*, so a clean card still means a complete count and
-/// the "Partial" pill on the band says which kind of doubt this is. Only
+/// "≈" keeps its everyday meaning — an estimate. The recipe page's nutrition
+/// card, the sheet, the Health export and the Watch feed put it on every
+/// calculated panel. On the recipe page it is the whole of the estimate
+/// marker — the "Estimated" pill it used to sit beside said the same thing
+/// twice — and the neutral "Partial" pill says when the figure is also
+/// *incomplete*. Library cards and rows only reach for it when the totals
+/// are incomplete, so a clean card still means a complete count. Only
 /// calories take the marker: it is the number people scan for, and one
 /// caveat on a line reads as a caveat where four read as noise.
 ///
