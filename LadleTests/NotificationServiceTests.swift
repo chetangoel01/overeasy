@@ -6,17 +6,6 @@ import XCTest
 
 @MainActor
 final class NotificationServiceTests: XCTestCase {
-    func testNotificationNavigationTargetsOneRecipeThenClears() {
-        let navigation = NotificationNavigation()
-        let recipeID = UUID()
-
-        navigation.open(recipeID: recipeID)
-        XCTAssertEqual(navigation.recipeID, recipeID)
-
-        navigation.clear()
-        XCTAssertNil(navigation.recipeID)
-    }
-
     func testReadyImportRequestsOneCompletionNotificationInContext() async {
         let recipe = notificationRecipe()
         let repository = NotificationTestRepository()

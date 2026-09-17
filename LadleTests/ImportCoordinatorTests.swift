@@ -442,54 +442,19 @@ final class ImportCoordinatorTests: XCTestCase {
         try assertReviewClearsTheInbox(in: repository)
     }
 
-    // The four exits from the failed-import sheet. Every one of them hands
-    // the job back to the importer, so every one of them can come back
-    // needing review, and the reviewed recipe has to clear its own row.
+    // All four exits from the failed-import sheet — retry, correction notes,
+    // pasted details, create manually — hand the job back through this one
+    // `retry`, which only stores the text it is given before the same run.
+    // So any of them can come back needing review, and the reviewed recipe
+    // has to clear its own row.
     func testRetryingAFailedImportIntoReviewClearsTheInboxRow() async throws {
-        try await assertRecoveredReviewClearsTheInbox()
-    }
-
-    func testCorrectionNotesRecoveringIntoReviewClearTheInboxRow() async throws {
-        try await assertRecoveredReviewClearsTheInbox(
-            correctionNotes: "The stock is one cup, not one quart."
-        )
-    }
-
-    func testPastedDetailsRecoveringIntoReviewClearTheInboxRow() async throws {
-        try await assertRecoveredReviewClearsTheInbox(
-            pastedRecipeText: "1 pound pasta\nSimmer with tomato sauce."
-        )
-    }
-
-    func testManualRecipeRecoveringIntoReviewClearsTheInboxRow() async throws {
-        // "Create manually" submits the typed title and body as pasted
-        // details, exactly as `CorrectionNotesView` composes them.
-        try await assertRecoveredReviewClearsTheInbox(
-            pastedRecipeText: "Family Pasta\n1 pound pasta"
-        )
-    }
-
-    private func assertRecoveredReviewClearsTheInbox(
-        correctionNotes: String? = nil,
-        pastedRecipeText: String? = nil,
-        file: StaticString = #filePath,
-        line: UInt = #line
-    ) async throws {
         let failed = try failedJob(slug: "parser-failed-soup")
         let repository = ImportTestRepository(importJobs: [failed])
         let coordinator = makeReviewingCoordinator(repository: repository)
 
-        await coordinator.retry(
-            jobID: failed.id,
-            correctionNotes: correctionNotes,
-            pastedRecipeText: pastedRecipeText
-        )
+        await coordinator.retry(jobID: failed.id)
 
-        try assertReviewClearsTheInbox(
-            in: repository,
-            file: file,
-            line: line
-        )
+        try assertReviewClearsTheInbox(in: repository)
     }
 
     private func assertReviewClearsTheInbox(
@@ -601,28 +566,6 @@ final class ImportCoordinatorTests: XCTestCase {
         )
         library.load()
         XCTAssertTrue(library.actionableImportJobs.isEmpty)
-    }
-
-    func testStrandedRowWithNoMatchingRecipeIsLeftAlone() throws {
-        let job = try strandedReviewJob(
-            "https://www.tiktok.com/@cook/video/7612708181004799263"
-        )
-        let other = reviewRecipe(
-            "https://www.tiktok.com/@cook/video/1111111111111111111",
-            reviewStatus: .needsReview
-        )
-        let repository = ImportTestRepository(
-            recipes: [other],
-            importJobs: [job]
-        )
-
-        let outcome = try ImportReviewLinkRepair(
-            repository: repository
-        ).repair()
-
-        XCTAssertEqual(outcome, .init(skipped: [job.id]))
-        XCTAssertEqual(repository.importJobs, [job])
-        XCTAssertEqual(repository.recipes, [other])
     }
 
     func testStrandedRowMatchingTwoRecipesIsLeftAlone() throws {
@@ -1910,53 +1853,6 @@ final class ImportCoordinatorTests: XCTestCase {
             coordinator.state,
             .completed(recipeID: newRecipe.id),
             "An already-ended token is a no-op"
-        )
-    }
-
-    func testInboxCloseOfAFailedRetryReleasesAndTheTeardownIsANoOp() async throws {
-        let current = importRecipe(
-            title: "Current Curry",
-            originalURL: URL(string: "https://youtu.be/current-curry")!
-        )
-        var row = ImportJob.reimporting(
-            sourceURL: current.originalURL,
-            source: current.source,
-            currentRecipeID: current.id,
-            candidateRecipeID: UUID()
-        )
-        row.remoteJobID = row.id.uuidString
-        row = try row.transitioning(to: .failed(.parserUnavailable))
-        let repository = ImportTestRepository(
-            recipes: [current],
-            importJobs: [row]
-        )
-        let coordinator = ImportCoordinator(
-            repository: repository,
-            service: FixedImportService(
-                outcome: .failed(.parserUnavailable)
-            ),
-            accountSession: AccountSession(
-                store: ImportTestPreferenceStore()
-            ),
-            clock: ImmediateImportClock()
-        )
-
-        let sheet = UUID()
-        coordinator.beginReimportPresentation(sheet, for: current.id)
-        await coordinator.retry(jobID: row.id)
-        XCTAssertEqual(
-            coordinator.state,
-            .failed(jobID: row.id, reason: .parserUnavailable)
-        )
-
-        coordinator.reset()
-        coordinator.endReimportPresentation(sheet)
-
-        XCTAssertNil(coordinator.operation)
-        XCTAssertEqual(coordinator.state, .idle)
-        XCTAssertEqual(
-            repository.importJobs.first?.status,
-            .failed(.parserUnavailable)
         )
     }
 

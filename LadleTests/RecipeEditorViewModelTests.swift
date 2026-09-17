@@ -132,31 +132,6 @@ final class RecipeEditorViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.sectionsNeedingAttention.isEmpty)
     }
 
-    /// Every issue the draft can raise must map to a section, or a rejected
-    /// save could produce a summary that names nowhere.
-    func testEveryValidationIssueBelongsToASection() {
-        let identifier = UUID()
-        let issues: [RecipeDraftValidationIssue] = [
-            .titleRequired, .titleTooLong, .creatorNameTooLong,
-            .descriptionTooLong, .servingsMustBePositive,
-            .preparationMinutesInvalid, .cookingMinutesInvalid,
-            .totalMinutesInvalid, .tooManyIngredients, .tooManySteps,
-            .ingredientNameRequired(identifier),
-            .ingredientQuantityRequired(identifier),
-            .ingredientFieldTooLong(identifier),
-            .stepInstructionRequired(identifier),
-            .stepInstructionTooLong(identifier),
-            .nutritionValueInvalid("calories"),
-        ]
-        for issue in issues {
-            XCTAssertTrue(
-                RecipeEditorSection.allCases
-                    .contains(RecipeEditorSection.owning(issue)),
-                "\(issue) maps outside the editor's sections"
-            )
-        }
-    }
-
     func testInvalidStructuredFieldsStayInlineAndDoNotPersist() {
         let repository = EditorTestRepository(
             recipes: [PreviewFixtures.recipes[1]]

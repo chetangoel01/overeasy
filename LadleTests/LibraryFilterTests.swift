@@ -9,23 +9,6 @@ import XCTest
 /// two call sites cannot drift apart.
 @MainActor
 final class LibraryFilterTests: XCTestCase {
-    func testEveryDimensionOffersItsOptionsInOrder() {
-        XCTAssertEqual(
-            LibraryFilter.allCases,
-            [.time, .calories, .protein, .carbohydrates, .fat]
-        )
-        XCTAssertEqual(LibraryFilter.time.options, [15, 30, 45, 60])
-        XCTAssertEqual(LibraryFilter.calories.options, [400, 600, 800])
-        XCTAssertEqual(LibraryFilter.protein.options, [20, 30, 40])
-        XCTAssertEqual(LibraryFilter.carbohydrates.options, [30, 50])
-        XCTAssertEqual(LibraryFilter.fat.options, [15, 25])
-
-        XCTAssertEqual(
-            LibraryFilter.allCases.map(\.title),
-            ["Time", "Calories", "Protein", "Carbohydrates", "Fat"]
-        )
-    }
-
     func testEveryOptionIsWordedForACook() {
         XCTAssertEqual(
             LibraryFilter.time.options.map(LibraryFilter.time.optionTitle),

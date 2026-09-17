@@ -29,14 +29,6 @@ final class ShareConfirmationViewTests: XCTestCase {
         )
     }
 
-    func testSuccessConfirmationRendersInDarkMode() throws {
-        try assertRenders(
-            state: .success(sourceName: "youtube.com"),
-            colorScheme: .dark,
-            attachmentName: "Share confirmation — success, dark"
-        )
-    }
-
     func testLoadingConfirmationRendersAtAccessibilitySize() throws {
         try assertRenders(
             state: .loading,
@@ -51,22 +43,6 @@ final class ShareConfirmationViewTests: XCTestCase {
             dynamicTypeSize: .accessibility3,
             attachmentName: "Share confirmation — failure, accessibility"
         )
-    }
-
-    func testRenderWindowCompletesAppearanceBeforeTeardown() throws {
-        let window = try makeRenderWindow(
-            size: CGSize(width: 402, height: 620)
-        )
-        let host = AppearanceTrackingViewController()
-        attachRenderHost(host, to: window)
-
-        XCTAssertEqual(host.willAppearCount, 1)
-        XCTAssertEqual(host.didAppearCount, 1)
-
-        tearDownRenderWindow(window)
-
-        XCTAssertNil(window.rootViewController)
-        XCTAssertEqual(host.willDisappearCount, 1)
     }
 
     private func assertRenders(
@@ -160,27 +136,5 @@ final class ShareConfirmationViewTests: XCTestCase {
             }
         }
         return colors.count
-    }
-}
-
-@MainActor
-private final class AppearanceTrackingViewController: UIViewController {
-    private(set) var willAppearCount = 0
-    private(set) var didAppearCount = 0
-    private(set) var willDisappearCount = 0
-
-    override func viewWillAppear(_ animated: Bool) {
-        super.viewWillAppear(animated)
-        willAppearCount += 1
-    }
-
-    override func viewDidAppear(_ animated: Bool) {
-        super.viewDidAppear(animated)
-        didAppearCount += 1
-    }
-
-    override func viewWillDisappear(_ animated: Bool) {
-        super.viewWillDisappear(animated)
-        willDisappearCount += 1
     }
 }

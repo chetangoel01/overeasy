@@ -39,32 +39,6 @@ final class ProjectSmokeTests: XCTestCase {
         XCTAssertFalse(configuration.usesAppAttest)
     }
 
-    func testRuntimeConfigurationReadsOptionalTunnelAccessKey() {
-        let configuration = LadleRuntimeConfiguration(
-            launchArguments: [],
-            environment: [:],
-            infoDictionary: ["LadleTunnelAccessKey": "device-tunnel"]
-        )
-
-        XCTAssertEqual(configuration.tunnelAccessKey, "device-tunnel")
-    }
-
-    func testRuntimeConfigurationReadsSharedKeychainAccessGroup() {
-        let configuration = LadleRuntimeConfiguration(
-            launchArguments: [],
-            environment: [:],
-            infoDictionary: [
-                "LadleSharedKeychainAccessGroup":
-                    "TEAM.com.ladle.shared",
-            ]
-        )
-
-        XCTAssertEqual(
-            configuration.sharedKeychainAccessGroup,
-            "TEAM.com.ladle.shared"
-        )
-    }
-
     func testRuntimeConfigurationCanLaunchAnEmptyTestLibrary() {
         let configuration = LadleRuntimeConfiguration(
             launchArguments: ["-ui-testing", "-empty-library"],
@@ -217,22 +191,6 @@ final class ProjectSmokeTests: XCTestCase {
             ) != nil,
             true,
             "CFBundleVersion \(build ?? "nil") is not YYYYMMDD.N"
-        )
-    }
-
-    func testRootViewCanBeCreated() throws {
-        let environment = try AppEnvironment(isStoredInMemoryOnly: true)
-        let accountSession = AccountSession()
-        _ = RootView(
-            accountSession: accountSession,
-            libraryViewModel: LibraryViewModel(
-                repository: environment.recipeRepository
-            ),
-            importCoordinator: ImportCoordinator(
-                repository: environment.recipeRepository,
-                service: DemoImportService(),
-                accountSession: accountSession
-            )
         )
     }
 

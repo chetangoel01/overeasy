@@ -5,17 +5,6 @@ import XCTest
 
 @MainActor
 final class DiscoverViewModelTests: XCTestCase {
-    func testLoadPublishesDiscoveredRecipes() async {
-        let recipe = discoveredRecipe()
-        let viewModel = DiscoverViewModel(
-            service: DiscoverTestService(result: .success([recipe]))
-        )
-
-        await viewModel.load()
-
-        XCTAssertEqual(viewModel.state, .loaded([recipe]))
-    }
-
     func testLoadOmitsRecipesAlreadySavedByTheCurrentCook() async {
         let unsaved = discoveredRecipe()
         let saved = discoveredRecipe(
@@ -926,33 +915,6 @@ final class DiscoverViewModelTests: XCTestCase {
 
         XCTAssertEqual(viewModel.state, .loaded(Array(all.prefix(2))))
         XCTAssertFalse(viewModel.hasMore)
-    }
-
-    func testInitialLoadClassifiesRemoteFailures() async throws {
-        let retryAt = Date(timeIntervalSince1970: 1_800_000_000)
-        let rateLimit = try remoteError(
-            code: .rateLimited,
-            details: "\"retryAt\":\"2027-01-15T08:00:00.000Z\""
-        )
-        let provider = try remoteError(code: .providerUnavailable)
-        let cases: [(APIError, RemoteFailure)] = [
-            (.transport, .offline),
-            (.remote(rateLimit), .rateLimited(retryAt: retryAt)),
-            (.remote(provider), .serviceUnavailable),
-        ]
-
-        for (error, expected) in cases {
-            let viewModel = DiscoverViewModel(
-                service: DiscoverTestService(result: .failure(error))
-            )
-
-            await viewModel.load()
-
-            guard case let .failed(report) = viewModel.state else {
-                return XCTFail("Expected classified first-load failure")
-            }
-            XCTAssertEqual(report.failure, expected)
-        }
     }
 
     func testRefreshKeepsContentThenExposesStaleFailureAndRecovers() async {

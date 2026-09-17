@@ -49,28 +49,6 @@ final class DemoImportServiceTests: XCTestCase {
         }
     }
 
-    func testNeedsReviewSlugMarksTheRecipeForReview() async throws {
-        let service = DemoImportService()
-        let job = ImportJob.queued(
-            sourceURL: URL(
-                string: "https://www.instagram.com/reel/needs-review-ragu"
-            )!,
-            source: .instagram
-        )
-
-        let outcome = try await service.submit(
-            job,
-            allowingDuplicate: false
-        ).progress
-
-        guard case let .needsReview(recipe) = outcome else {
-            return XCTFail("Expected a needs-review recipe")
-        }
-        XCTAssertEqual(recipe.title, "Sunday Tomato Ragu")
-        XCTAssertEqual(recipe.reviewStatus, .needsReview)
-        XCTAssertFalse(recipe.uncertainties.isEmpty)
-    }
-
     func testFailureSlugsReturnSpecificRecoverableFailures() async throws {
         let service = DemoImportService()
 

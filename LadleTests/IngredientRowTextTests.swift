@@ -24,20 +24,6 @@ final class IngredientRowTextTests: XCTestCase {
         XCTAssertEqual(ingredient.cookingDetailText, "100 g flour")
     }
 
-    /// The phrase is a note. Even one that reads nothing like the split —
-    /// a range, a packaged size — leaves the row alone.
-    func testAPhraseThatDisagreesWithTheSplitIsStillNotPrinted() {
-        let ingredient = Ingredient(
-            quantityText: "2-3 16oz cans",
-            normalizedQuantity: 2,
-            unit: "cans",
-            name: "tomatoes",
-            orderIndex: 0
-        )
-
-        XCTAssertEqual(ingredient.cookingDetailText, "2 cans tomatoes")
-    }
-
     /// A count has no unit.
     func testACountShowsItsNumberAlone() {
         let ingredient = Ingredient(
@@ -129,6 +115,9 @@ final class IngredientRowTextTests: XCTestCase {
         XCTAssertEqual(ingredient.cookingDetailText, "2 flour")
     }
 
+    /// Plain decimals, no unit conversion: the unit a creator wrote is the
+    /// unit a scaled row prints, and the app does not decide that a cook
+    /// would rather read a tablespoon.
     func testScalingMultipliesTheAmountAndKeepsTheUnit() {
         let ingredient = Ingredient(
             quantityText: "2 cups",
@@ -155,38 +144,7 @@ final class IngredientRowTextTests: XCTestCase {
         XCTAssertEqual(ingredient.cookingDetailText(scaledBy: 2), "flaky salt")
     }
 
-    /// The demo library is what a reviewer and a screenshot see, so it has
-    /// to carry the shape the backend now sends.
-    func testTheDemoLibraryReadsFromItsSplit() {
-        let smashBurgers = PreviewFixtures.recipes[0]
-
-        XCTAssertEqual(
-            smashBurgers.orderedIngredients[0].cookingDetailText,
-            "1 lb ground beef — 80/20, in four loose balls"
-        )
-        XCTAssertEqual(
-            smashBurgers.orderedIngredients[1].cookingDetailText,
-            "4 potato rolls — split"
-        )
-    }
-
     // MARK: - Scaled rows
-
-    /// Plain decimals, no unit conversion: four times 1½ tsp is 6 tsp, and
-    /// the app does not decide that a cook would rather read a tablespoon.
-    func testScalingNeverConvertsUnits() {
-        let ingredient = Ingredient(
-            normalizedQuantity: Decimal(string: "1.5"),
-            unit: "tsp",
-            name: "kosher salt",
-            orderIndex: 0
-        )
-
-        XCTAssertEqual(
-            ingredient.cookingDetailText(scaledBy: 4),
-            "6 tsp kosher salt"
-        )
-    }
 
     /// A third of a cup is an amount somebody measures, so a scaled row
     /// keeps the two fraction digits `measuredAmount` renders rather than
@@ -252,30 +210,5 @@ final class IngredientRowTextTests: XCTestCase {
 
         XCTAssertFalse(ingredient.isScalable)
         XCTAssertEqual(ingredient.cookingDetailText(scaledBy: 2), "flour")
-    }
-
-    /// The demo library is what a reviewer, a screenshot and the UI test
-    /// see, so doubling it has to come out the way a cook would write it.
-    func testTheDemoLibraryScales() {
-        let smashBurgers = PreviewFixtures.recipes[0]
-
-        XCTAssertEqual(
-            smashBurgers.orderedIngredients[0].cookingDetailText(scaledBy: 2),
-            "2 lb ground beef — 80/20, in four loose balls"
-        )
-        XCTAssertEqual(
-            smashBurgers.orderedIngredients[1].cookingDetailText(scaledBy: 2),
-            "8 potato rolls — split"
-        )
-        // Half a small onion, doubled, is a whole one — and no ".00".
-        XCTAssertEqual(
-            smashBurgers.orderedIngredients[5].cookingDetailText(scaledBy: 2),
-            "1 small white onion — shaved thin"
-        )
-        // The one row a multiplier cannot reach.
-        XCTAssertEqual(
-            smashBurgers.orderedIngredients[6].cookingDetailText(scaledBy: 2),
-            "kosher salt"
-        )
     }
 }

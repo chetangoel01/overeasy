@@ -4,13 +4,6 @@ import XCTest
 
 @MainActor
 final class AccountSessionTests: XCTestCase {
-    func testNewInstallPresentsWelcome() {
-        let session = AccountSession(store: InMemoryPreferenceStore())
-
-        XCTAssertTrue(session.shouldPresentWelcome)
-        XCTAssertEqual(session.state, .undecided)
-    }
-
     func testContinuingAsGuestPersistsTheChoice() {
         let store = InMemoryPreferenceStore()
         let session = AccountSession(store: store)

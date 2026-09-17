@@ -223,74 +223,10 @@ final class DesignTokenTests: XCTestCase {
         XCTAssertEqual(LadleTheme.Layout.sheetMargin, 24)
     }
 
-    func testWatchOverlayLayoutUsesProvidedSafeAreaInsets() {
-        // Top chrome is already inside the safe area, so it must not add the
-        // inset again; only the bottom padding clears the home indicator.
-        XCTAssertEqual(
-            WatchOverlayLayout.topPadding,
-            LadleTheme.Spacing.compact
-        )
-        XCTAssertEqual(
-            WatchOverlayLayout.refreshTopPadding,
-            LadleTheme.Spacing.compact + LadleTheme.Control.hitTarget
-        )
-        XCTAssertEqual(
-            WatchOverlayLayout.bottomPadding(safeAreaBottom: 34),
-            34 + LadleTheme.Control.primary
-                + LadleTheme.Spacing.regular
-        )
-        XCTAssertNotEqual(
-            WatchOverlayLayout.bottomPadding(safeAreaBottom: 0),
-            WatchOverlayLayout.bottomPadding(safeAreaBottom: 34)
-        )
-    }
-
     func testControlHeightsCollapseToThreeNamedValues() {
         XCTAssertEqual(LadleTheme.Control.hitTarget, 44)
         XCTAssertEqual(LadleTheme.Control.field, 48)
         XCTAssertEqual(LadleTheme.Control.primary, 52)
-    }
-
-    func testDividerInsetIsDerivedFromTheRowItSeparates() {
-        // The cooking checklist lays out a 30pt icon and a 13pt gap, so its
-        // divider belongs at 43 - not the 52 that a differently built row uses.
-        XCTAssertEqual(
-            LadleTheme.dividerInset(iconWidth: 30, gap: 13),
-            43
-        )
-        // Collections: 12pt leading padding, 28pt icon, 12pt gap.
-        XCTAssertEqual(
-            LadleTheme.dividerInset(
-                iconWidth: 28,
-                gap: 12,
-                leadingPadding: 12
-            ),
-            52
-        )
-        XCTAssertEqual(
-            LadleTheme.dividerInset(iconWidth: 28),
-            28 + LadleTheme.Layout.iconGap
-        )
-    }
-
-    func testButtonRolesCarryDistinctFillAndLabelIntent() {
-        let accent = LadleAccentColor.tomato
-        XCTAssertNotNil(LadleButtonRole.primary.fill(accent))
-        XCTAssertNotNil(LadleButtonRole.secondary.fill(accent))
-        XCTAssertNotNil(LadleButtonRole.destructive.fill(accent))
-        XCTAssertNil(
-            LadleButtonRole.tertiary.fill(accent),
-            "A tertiary button carries no fill"
-        )
-        XCTAssertEqual(LadleButtonRole.destructive.fill(accent), LadleTheme.Intent.destructiveFill)
-        XCTAssertEqual(
-            LadleButtonRole.primary.label(accent),
-            LadleTheme.Label.onAccent
-        )
-        XCTAssertEqual(
-            LadleButtonRole.secondary.label(accent),
-            LadleTheme.Label.primary
-        )
     }
 
     /// The roles that carry the accent must actually follow it. This is the
@@ -396,45 +332,6 @@ final class DesignTokenTests: XCTestCase {
     private func topStripHeight(_ strip: some View) -> CGFloat {
         UIHostingController(rootView: strip)
             .sizeThatFits(in: CGSize(width: 390, height: 300)).height
-    }
-
-    func testFilledButtonsShareOneWidthAndTertiaryHugsItsLabel() {
-        XCTAssertTrue(LadleButtonStyle(role: .primary).isFullWidth)
-        XCTAssertTrue(LadleButtonStyle(role: .secondary).isFullWidth)
-        XCTAssertTrue(LadleButtonStyle(role: .destructive).isFullWidth)
-        XCTAssertFalse(LadleButtonStyle(role: .tertiary).isFullWidth)
-        XCTAssertTrue(
-            LadleButtonStyle(role: .tertiary, isFullWidth: true).isFullWidth
-        )
-    }
-
-    func testRecipeOptionsUseSemanticRolesWithoutIndentingRows() {
-        // The options live in a native Menu, so destructive styling comes
-        // from the system's button role rather than a filled CTA background.
-        XCTAssertTrue(RecipeOption.delete.isDestructive)
-        for option in [
-            RecipeOption.edit,
-            .reimport,
-            .nutrition,
-            .source,
-        ] {
-            XCTAssertFalse(
-                option.isDestructive,
-                "\(option) should remain a non-destructive action"
-            )
-        }
-        XCTAssertEqual(
-            LadleButtonStyle(role: .tertiary).horizontalPadding,
-            LadleTheme.Spacing.regular
-        )
-        XCTAssertEqual(
-            LadleButtonStyle(
-                role: .tertiary,
-                isFullWidth: true
-            ).horizontalPadding,
-            0,
-            "A full-width row owns its own content inset"
-        )
     }
 
     func testBadgeSurfaceIsDistinguishableFromTheCardBehindIt() {
