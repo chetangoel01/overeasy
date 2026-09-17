@@ -73,7 +73,7 @@ struct RecipeDetailView: View {
 
     private var allowsLibraryEdits: Bool { currentAccess == .saved }
 
-    /// Which server object can re-sign the hero image's expired URL.
+    /// Which server object can re-sign the header artwork's expired URL.
     /// It follows the page's access, never the id alone: a Discover
     /// preview's recipe id IS the Discover sourceID, which /v1/recipes/{id}
     /// answers with a 404. A save on the page moves both together — the
@@ -128,7 +128,6 @@ struct RecipeDetailView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: LadleTheme.Layout.sectionGap) {
-                    heroImage
                     recipeHeader
                     RecipeMetadataBand(
                         recipe: displayedRecipe,
@@ -160,6 +159,9 @@ struct RecipeDetailView: View {
                     }
                 }
                 .padding(.horizontal, LadleTheme.Spacing.regular)
+                // The hero used to meet the navigation bar edge to edge. A
+                // thumbnail there reads as jammed under the back button.
+                .padding(.top, LadleTheme.Spacing.medium)
                 .padding(.bottom, LadleTheme.Layout.scrollTail)
             }
             .scrollIndicators(.hidden)
@@ -281,65 +283,87 @@ struct RecipeDetailView: View {
         }
     }
 
-    @ViewBuilder
-    private var heroImage: some View {
-        RecipeArtworkView(
-            owner: artworkOwner,
-            image: displayedRecipe.images.first
-        )
-        .frame(height: 322)
-        .frame(maxWidth: .infinity)
-        .clipShape(
-            RoundedRectangle(
-                cornerRadius: LadleTheme.Corner.card,
-                style: .continuous
-            )
-        )
-        .clipped()
-        .accessibilityLabel("Recipe photo")
-    }
+    /// The cook chose this recipe from its photo a moment ago, so the photo
+    /// is a thumbnail beside the title rather than a hero above it: the
+    /// time, the servings and the nutrition open on the first screen.
+    private static let thumbnailSide: CGFloat = 96
 
     private var recipeHeader: some View {
         VStack(alignment: .leading, spacing: LadleTheme.Spacing.medium) {
-            recipeTitle
-            recipeByline
+            // One layout, two arrangements, so the artwork keeps its identity
+            // — and its loaded image — when the text size changes. Beside a
+            // 96-point square an accessibility-size title gets four letters
+            // to a line, so there the photo sits above it instead.
+            let layout = dynamicTypeSize.isAccessibilitySize
+                ? AnyLayout(
+                    VStackLayout(
+                        alignment: .leading,
+                        spacing: LadleTheme.Spacing.medium
+                    )
+                )
+                : AnyLayout(
+                    HStackLayout(
+                        alignment: .top,
+                        spacing: LadleTheme.Spacing.regular
+                    )
+                )
+            layout {
+                recipeThumbnail
+                VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
+                    recipeTitle
+                    recipeByline
+                }
+            }
+
+            if !displayedRecipe.description.isEmpty {
+                Text(displayedRecipe.description)
+                    .ladleFont(.body)
+                    .foregroundStyle(LadleTheme.Label.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if let report = discoverSave?.failure {
                 saveFailureNotice(report)
             }
         }
     }
 
+    /// A fixed square whatever it holds. `RecipeArtworkView` fills the frame
+    /// it is given with a placeholder until the image arrives, so late or
+    /// missing artwork never moves the title.
+    private var recipeThumbnail: some View {
+        RecipeArtworkView(
+            owner: artworkOwner,
+            image: displayedRecipe.images.first
+        )
+        .frame(width: Self.thumbnailSide, height: Self.thumbnailSide)
+        .clipShape(
+            RoundedRectangle(
+                cornerRadius: LadleTheme.Corner.thumbnail,
+                style: .continuous
+            )
+        )
+        .accessibilityLabel("Recipe photo")
+    }
+
     private var recipeTitle: some View {
         Text(displayedRecipe.title)
-            .ladleFont(.title)
+            .ladleFont(.compactTitle)
             .foregroundStyle(LadleTheme.Label.primary)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    /// One run of text rather than a row of three, so that at large sizes
+    /// it wraps between words instead of squeezing the creator's handle into
+    /// a column and hyphenating it.
     private var recipeByline: some View {
-        VStack(alignment: .leading, spacing: LadleTheme.Spacing.medium) {
-            HStack(spacing: LadleTheme.Spacing.compact) {
-                if let creatorName = displayedRecipe.creatorName {
-                    Text(creatorName)
-                }
-                if displayedRecipe.creatorName != nil {
-                    Text("·")
-                        .accessibilityHidden(true)
-                }
-                Text(displayedRecipe.source.libraryTitle)
-            }
+        let source = displayedRecipe.source.libraryTitle
+        let creator = displayedRecipe.creatorName
+        return Text(creator.map { "\($0) · \(source)" } ?? source)
             .ladleFont(.metadata)
             .foregroundStyle(LadleTheme.Label.secondary)
-
-            if !displayedRecipe.description.isEmpty {
-                Text(displayedRecipe.description)
-                    .ladleFont(.body)
-                    .foregroundStyle(LadleTheme.Label.primary.opacity(0.7))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityLabel(creator.map { "\($0), \(source)" } ?? source)
     }
 
     /// Save, in the top-right toolbar group beside the account button — the

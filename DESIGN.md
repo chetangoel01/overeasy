@@ -85,6 +85,7 @@ than only approximating it at the default one.
 | --- | --- | --- | --- | --- |
 | `display` | `.largeTitle` | 34 | bold | Welcome or Focus headline that owns the screen |
 | `title` | `.title` | 28 | bold | Screen title, cooking instruction |
+| `compactTitle` | `.title2` | 22 | bold | Screen title sharing a row with artwork, as in the recipe header |
 | `recipeTitle` | `.title3` | 20 | semibold | A recipe's name as content |
 | `section` | `.headline` | 17 | system | Section heading above a group |
 | `body` | `.body` | 17 | system | Running text |
@@ -229,6 +230,11 @@ not introduce animated movement of the page.
   destination onto the recipe navigation path.
 - Recipe detail remains a pushed destination. Import and account flows remain
   native sheets.
+- Recipe detail opens on a compact header, not a hero: a 96-point thumbnail
+  beside the title and byline, the description beneath. The cook chose the
+  recipe from that photo a moment ago, so time, servings and nutrition are
+  whole on the first screen instead. At accessibility text sizes the thumbnail
+  sits above the title. Missing or late artwork keeps the same square.
 - Related steps stay in one sheet: Profile → Sign in, Nutrition → Apple Health,
   and failed import → correction notes, pasted details, or manual recovery.
   Back returns to the previous step.

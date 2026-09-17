@@ -35,11 +35,21 @@ final class RecipeScalingUITests: XCTestCase {
         ).firstMatch
         XCTAssertFalse(notScaled.exists)
 
+        // The header is a thumbnail, not a hero, so the facts a cook opens a
+        // recipe for are whole on the first screen. Frames, not `isHittable`:
+        // under the 322-point hero the nutrition card's hit point was already
+        // reachable while most of the card sat beneath the tab bar.
         let yield = app.buttons["recipe.yield"]
         XCTAssertTrue(yield.waitForExistence(timeout: 3))
-        for _ in 0..<4 where !yield.isHittable {
-            app.swipeUp()
-        }
+        let nutrition = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH 'Nutrition per serving'")
+        ).firstMatch
+        XCTAssertTrue(nutrition.exists)
+        XCTAssertLessThanOrEqual(
+            nutrition.frame.maxY,
+            app.tabBars.firstMatch.frame.minY,
+            "Time, servings and nutrition open without scrolling"
+        )
         yield.tap()
 
         // Four servings to eight, one arrow at a time.
