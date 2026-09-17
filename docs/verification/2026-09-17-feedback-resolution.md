@@ -10,7 +10,7 @@ Implementation proceeds in verified, task-sized commits. Design choices remain p
 | [#37](https://github.com/chetangoel01/overeasy/issues/37) | Fall back per ingredient when USDA has no usable record, instead of voiding the recipe | Pending |
 | [#110](https://github.com/chetangoel01/overeasy/issues/110) | The dashboard's recent-requests poll counts in its own traffic charts | Implemented and verified |
 | [#111](https://github.com/chetangoel01/overeasy/issues/111) | The USDA relevance gate refuses records it should accept: ghee, tomato, lentils, pancetta | Pending |
-| [#113](https://github.com/chetangoel01/overeasy/issues/113) | A private or deleted photo carousel reports parserUnavailable and retries forever | Pending |
+| [#113](https://github.com/chetangoel01/overeasy/issues/113) | A private or deleted photo carousel reports parserUnavailable and retries forever | Implemented and verified |
 | [#117](https://github.com/chetangoel01/overeasy/issues/117) | Short links are invisible to the inbox repair and to the duplicate check | Pending |
 | [#124](https://github.com/chetangoel01/overeasy/issues/124) | Saving an already-cached Discover recipe arrives untagged, and a persisted diet filter then hides it | Pending |
 | [#140](https://github.com/chetangoel01/overeasy/issues/140) | Keep loading and sync indicators from shifting the screen | Pending |
@@ -34,6 +34,7 @@ Implementation proceeds in verified, task-sized commits. Design choices remain p
 
 - #149 red: both new shared-domain tests failed; backend diet fixtures produced six expected failures for missing compatibility.
 - #110: regression failed before the fix; 21 focused tests and the full 1,112-test backend suite passed afterward. Running the dashboard's actual aggregation with 3 app requests and 12 polls changed the displayed total from 15 to 3.
+- #113: four regressions failed before the change; 15 focused tests and all 1,117 backend tests passed afterward.
 - #149 green: all 91 shared-domain tests and 28 backend Discover/filter/shelf tests passed. Full backend suite: 1,111 passed.
 
 No issues are considered complete solely because an implementation exists; unresolved device checks and product decisions remain explicit.
