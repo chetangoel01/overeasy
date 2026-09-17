@@ -1,6 +1,7 @@
 import XCTest
 
-/// Scaling a recipe from its yield, end to end, on the seeded demo library.
+/// Scaling a recipe from the band's inline stepper, end to end, on the seeded
+/// demo library.
 final class RecipeScalingUITests: XCTestCase {
     @MainActor
     func testChangingTheYieldRewritesTheIngredientAmounts() {
@@ -39,8 +40,8 @@ final class RecipeScalingUITests: XCTestCase {
         // recipe for are whole on the first screen. Frames, not `isHittable`:
         // under the 322-point hero the nutrition card's hit point was already
         // reachable while most of the card sat beneath the tab bar.
-        let yield = app.buttons["recipe.yield"]
-        XCTAssertTrue(yield.waitForExistence(timeout: 3))
+        let servings = app.descendants(matching: .any)["recipe.servings"]
+        XCTAssertTrue(servings.waitForExistence(timeout: 3))
         let nutrition = app.buttons.matching(
             NSPredicate(format: "label BEGINSWITH 'Nutrition per serving'")
         ).firstMatch
@@ -50,25 +51,31 @@ final class RecipeScalingUITests: XCTestCase {
             app.tabBars.firstMatch.frame.minY,
             "Time, servings and nutrition open without scrolling"
         )
-        yield.tap()
 
-        // Four servings to eight, one arrow at a time.
-        let increment = app.steppers.firstMatch.buttons["Increment"]
-        XCTAssertTrue(increment.waitForExistence(timeout: 3))
+        // Four servings to eight, on the band itself: no sheet, no Done. The
+        // stepper is one adjustable element to VoiceOver, so the test presses
+        // where a finger does — the plus is the trailing end of the control.
+        let reset = app.buttons["recipe.servings.reset"]
+        XCTAssertFalse(reset.exists)
+        let plus = servings.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)
+        )
         for _ in 0..<4 {
-            increment.tap()
+            plus.tap()
         }
-        attachScreenshot(of: app, named: "Servings stepper at 8")
-        app.buttons["recipe.servings.done"].tap()
 
-        // The amount is recomputed from the split, and the band says what it
-        // was scaled from rather than claiming the recipe yields eight.
+        // The amount is recomputed from the split, and the control says what
+        // it was scaled from rather than claiming the recipe yields eight.
         XCTAssertTrue(
             app.staticTexts["2 lb ground beef — 80/20, in four loose balls"]
                 .waitForExistence(timeout: 3)
         )
         XCTAssertFalse(asWritten.exists)
-        XCTAssertTrue(app.staticTexts["Scaled from 4 servings"].exists)
+        XCTAssertEqual(
+            servings.value as? String,
+            "8 servings, scaled from 4 servings"
+        )
+        XCTAssertTrue(reset.isHittable)
 
         attachScreenshot(of: app, named: "Recipe scaled to 8 servings")
 
@@ -80,6 +87,16 @@ final class RecipeScalingUITests: XCTestCase {
             app.swipeUp()
         }
         attachScreenshot(of: app, named: "Scaled list with a to-taste row")
+
+        // Reset is the way back to the recipe as written, and it leaves with
+        // the scaling it undoes.
+        for _ in 0..<6 where !reset.isHittable {
+            app.swipeDown()
+        }
+        reset.tap()
+        XCTAssertTrue(asWritten.waitForExistence(timeout: 3))
+        XCTAssertFalse(reset.exists)
+        XCTAssertEqual(servings.value as? String, "4 servings")
     }
 
     private func launchApp(startingOn tab: String) -> XCUIApplication {

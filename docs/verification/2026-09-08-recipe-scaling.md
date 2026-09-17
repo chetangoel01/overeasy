@@ -6,6 +6,12 @@ Supersedes: [#115](https://github.com/chetangoel01/recipe-app/pull/115), which
 was built on the closed #103 and is rebased here onto the strict ingredient
 model from [#131](https://github.com/chetangoel01/recipe-app/pull/131).
 Status: **built, unit- and UI-tested on a simulator created for the task.**
+Revised: September 17, 2026, for
+[#148](https://github.com/chetangoel01/overeasy/issues/148) — the servings
+sheet is gone and the control is inline on the band. What follows describes
+the control as it is now; the model, the scaled rows and Cook mode are
+unchanged. The layout record for that change is
+[recipe details layout](2026-09-17-recipe-details-layout.md).
 
 ## Purpose
 
@@ -20,15 +26,17 @@ multiplier, held in view state, that nothing writes and nothing syncs.
 
 ## What the cook sees
 
-- **The yield is the control.** The right-hand half of the metadata band — the
-  "4 servings" a cook is looking at when they think "I need six" — is a button,
-  marked with the same `chevron.up.chevron.down` iOS uses for an adjustable
-  value. It opens a sheet with a servings stepper, ranged 1 to
-  `RecipeContractLimits.maximumServings`, whose arrows disable themselves at
-  each end.
-- **A scaled band says so.** The value becomes the chosen count and the label
-  under it becomes "Scaled from 4 servings", so the band never claims the
-  recipe yields something it does not.
+- **The yield is the control, in place.** The right-hand half of the metadata
+  band — the "4" a cook is looking at when they think "I need six" — sits
+  between a round minus and plus, with the word "servings" beneath. One press
+  steps the count; there is no sheet to open and no Done. The range is 1 to
+  `RecipeContractLimits.maximumServings`, and each button disables itself at
+  its end.
+- **A scaled band says so.** The line under the count becomes
+  "servings · Reset", and Reset returns to the recipe as written. The line
+  keeps its height, so nothing moves when Reset arrives. VoiceOver reads the
+  control as "Servings, 6 servings, scaled from 4 servings", so the band never
+  claims the recipe yields something it does not.
 - **Every row with an amount is recomputed**, `normalizedQuantity × chosen ÷
   stored`, rendered through `Ingredient.cookingDetailText(scaledBy:)` — the
   seam #131 left for exactly this. "1 lb ground beef" at eight servings reads
@@ -39,26 +47,26 @@ multiplier, held in view state, that nothing writes and nothing syncs.
   salt a cook seasons by eye.
 - **Cook mode cooks the scaled amounts**, and says "Scaled to 8 servings"
   under the title, because the control is not on that screen.
-- **Closing the recipe is the undo.** There is no save, no confirmation, and
-  nothing in the sheet writes to the recipe.
+- **Closing the recipe is the undo**, and Reset is the quicker one. There is
+  no save, no confirmation, and nothing the control does writes to the recipe.
 - **Nutrition does not move.** It is already stated per serving, which is true
   at any count.
 
 ## Captures
 
-The yield opens a stepper, and the sheet says in words that nothing is saved.
+The band, scaled from four to six: the count between its buttons, and the way
+back beside the word.
 
-![Servings stepper](captures/2026-09-08-recipe-scaling/servings-stepper.png)
-
-The band after: the chosen count, and what it was scaled from, in the same
-shape as the total time beside it.
-
-![Scaled metadata band](captures/2026-09-08-recipe-scaling/scaled-band.png)
+![Scaled band](captures/2026-09-17-recipe-details/servings-scaled-dark.png)
 
 The list at eight servings. Every amount has doubled — and the kosher salt,
 which has no amount to double, reads as its name and says so.
 
 ![Scaled ingredients, with a to-taste row](captures/2026-09-08-recipe-scaling/scaled-ingredients-not-scaled-row.png)
+
+The sheet this replaced, for the record:
+[servings-stepper.png](captures/2026-09-08-recipe-scaling/servings-stepper.png),
+[scaled-band.png](captures/2026-09-08-recipe-scaling/scaled-band.png).
 
 ## Decisions
 
@@ -88,14 +96,17 @@ which has no amount to double, reads as its name and says so.
   feature with its own failure modes, and the issue explicitly started here.
   The precision is `measuredAmount`'s, so a scaled row and an unscaled one
   are rounded by the same rule.
-- **The band's "Scaled from" phrase is built from the number, not from
+- **The spoken "scaled from" phrase is built from the number, not from
   `ladleYieldText`.** That property hedges an uncertain yield with "About" and
-  replaces a lone serving with "Yield unknown", and "Scaled from Yield
+  replaces a lone serving with "Yield unknown", and "scaled from Yield
   unknown" is not a sentence. `RecipeScaling.baseYieldText` says "4 servings"
   plainly. The control is still offered on a recipe whose yield is flagged
   uncertain: the stored number is the basis the rest of the app already
   divides nutrition by, so scaling from it is no more of a guess than the
-  nutrition panel already is.
+  nutrition panel already is. At the recipe's own count the word under it
+  carries the hedge — "servings, estimated", or "Yield unknown" — and the
+  reason is in the estimates note; once scaled, the count is the cook's own
+  choice and the word is plain.
 - **`servings <= 0` withholds the control** rather than showing one that
   cannot mean anything — the ratio would divide by zero. The band falls back
   to the read-only yield it renders today.
@@ -103,12 +114,14 @@ which has no amount to double, reads as its name and says so.
   Both are a `Label` with `exclamationmark.circle` on the row's origin, but
   the marker uses `Label.secondary` where uncertainty uses the accent. An
   unquantified line is an aside about one row, not a warning about the recipe.
-- **The scaled state is announced once, when the sheet closes.** The stepper
-  reads its own value on every press, so announcing from the band on each
-  change made a cook stepping four to eight hear each count twice. The
-  announcement fires on dismissal, and only if the count actually moved. The
-  band also carries an accessibility label, value and hint, so a VoiceOver
-  user who missed the announcement can read the state off the control.
+- **The scaled state is announced once, when the count settles.** The
+  stepper is one adjustable element and reads its own value on every step, so
+  announcing on each change made a cook stepping four to eight hear each count
+  twice. The announcement waits a second after the last change — "Scaled to 8
+  servings. Ingredient amounts updated.", or "Back to the recipe as written."
+  — and a newer change replaces a pending one. The element also carries a
+  label, value and hint, so a VoiceOver user who missed it can read the state
+  off the control.
 - **An edit re-bases the scaling.** `applyChangedRecipe` rebuilds it from the
   recipe's new `servings`, because a ratio against a yield the recipe no
   longer claims is meaningless.
@@ -144,8 +157,11 @@ which has no amount to double, reads as its name and says so.
   availability, clamped range, multiplier, yield phrases.
 - `Ladle/Design/RecipePresentation.swift` — `Ingredient.isScalable`. The
   scaling seam, `cookingDetailText(scaledBy:)`, is already there from #131.
-- `Ladle/RecipeDetail/RecipeMetadataBand.swift` — the tappable yield, the
-  scaled labels, the VoiceOver announcement, and the private `ServingsSheet`.
+- `Ladle/RecipeDetail/RecipeMetadataBand.swift` — the inline stepper, the
+  label line with Reset, and the settled VoiceOver announcement.
+  (`ServingsSheet` lived here until #148.)
+- `Ladle/Design/LadleComponents.swift` — `LadleIconButton` gained `diameter`
+  and the `onCard` tone for the stepper's buttons.
 - `Ladle/RecipeDetail/IngredientList.swift` — `scaledBy` and the "Not scaled"
   marker.
 - `Ladle/RecipeDetail/RecipeDetailView.swift` — the `@State`, re-based on an
@@ -184,12 +200,17 @@ On a simulator created for this task and deleted after
   `StateScenarioUITests` is worth running rather than reasoning about: it
   drives card → detail → Start Cooking → Focus mode, which is the flow this
   change rebuilt.
-- **What the UI test asserts.** It taps the yield on the seeded demo library,
-  steps 4 → 8, and asserts the ground-beef row moves from "1 lb" to "2 lb",
-  that the unscaled row is gone, that the band reads "Scaled from 4 servings",
-  and that the salt row — which reads "kosher salt" at every count — carries
-  the "Not scaled" marker afterwards and not before. The three captures above
-  are its attachments.
+- **What the UI test asserts, since #148.** On the seeded demo library it
+  presses the band's plus four times, 4 → 8, with no sheet in between, and
+  asserts the ground-beef row moves from "1 lb" to "2 lb", that the unscaled
+  row is gone, that the control's value is "8 servings, scaled from 4
+  servings", and that the salt row — which reads "kosher salt" at every count
+  — carries the "Not scaled" marker afterwards and not before. It then presses
+  Reset and asserts the "1 lb" row and the plain "4 servings" are back and
+  Reset has left. The stepper is one adjustable element to VoiceOver, so the
+  test presses the control's trailing end, where a finger presses the plus.
+  The counts above are the original run's; #148's own runs are in the
+  [layout record](2026-09-17-recipe-details-layout.md).
 
 ### Notes from the rebase
 
@@ -208,14 +229,11 @@ On a simulator created for this task and deleted after
   `testOnlyARowWithAnAmountIsScalable` and `testARowWithNoNumberIsNotScalable`,
   which pin the marker to the render rule.
 
-### Still unseen
+### Large type
 
-**Large type was reasoned about, not captured.** What shipped is the
-conservative shape — the band's label keeps its no-line-limit behaviour, so
-"Scaled from 4 servings" wraps inside a half-width tile rather than
-truncating — but no screenshot proves it, here or in #115. The same is
-unchecked for `ServingsSheet`, a `VStack` at `.medium` with no `.large` detent
-and no scroll view: at accessibility sizes the reset button may sit below the
-detent. Adding `.large` as a second detent is the likely fix, and it needs one
-more `RecipeScalingUITests` run, because the Done path is what that test
-drives.
+Captured with #148 rather than reasoned about: at accessibility sizes the band
+stacks, the stepper keeps its 44-point targets, and "servings · Reset" fits
+the full-width cell. `HIGRegressionUITests
+.testServingsResetIsReachableAtLargestTextSize` steps once at AX5 and asserts
+Reset is hittable and inside the screen. The sheet's own large-type worry —
+Reset below the detent — went with the sheet.

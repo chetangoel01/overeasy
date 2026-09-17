@@ -164,7 +164,9 @@ label fell near two to one against its own fill. Pressed filled buttons darken
 the fill without fading their label.
 
 Icon-only controls are `LadleIconButton`, always on a 44-point target however
-small the glyph.
+small the glyph. The circle it draws may be smaller than the target
+(`diameter`), and on a raised card it takes the `onCard` tone, because steel
+disappears there.
 
 Buttons that carry both an icon and a label align their labels to a shared
 leading edge; centring icon and label together as one group gives a column of
@@ -248,8 +250,16 @@ not introduce animated movement of the page.
   with unsaved edits shows Keep Editing and Discard Changes. The same protection
   covers manual recipe entry and all recovery forms; unchanged forms close
   immediately. Recovery Back also protects changes.
-- Servings uses a scrollable sheet, opens large at accessibility text sizes, and
-  stacks its value above the stepper so Reset remains reachable.
+- Servings are adjusted in place on the metadata band, never in a sheet. The
+  band stays two even cells; the right one reads, top to bottom, the people
+  glyph, the count between a round minus and plus with nothing else on that
+  line, and the word "servings". The circles are 30 points of `Surface.badge`
+  on 44-point targets and disable at the ends of the range. After a change the
+  last line reads "servings · Reset"; it keeps its height, and Reset's target
+  grows down into the band's padding, never up into the plus. VoiceOver meets
+  the stepper as one adjustable element. A band with nothing to scale — the
+  reimport sheet, a recipe claiming no yield — keeps the read-only yield cell,
+  and at accessibility text sizes the two cells stack.
 - Account management stays in the top-right toolbar on Recipes, Discover,
   Watch, and Inbox. Add Recipe sits beside it on Recipes and Inbox, the two
   tabs where a link arrives; Discover and Watch are consumption surfaces and
