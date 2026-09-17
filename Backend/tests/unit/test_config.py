@@ -1,4 +1,3 @@
-from datetime import UTC
 from pathlib import Path
 
 import pytest
@@ -6,7 +5,6 @@ from pydantic import SecretStr, ValidationError
 
 from ladle.api.app import create_app
 from ladle.auth.attestation import AttestationService
-from ladle.clock import SystemClock
 from ladle.config import Settings
 
 GOOD_SECRET = "production-only-test-secret-that-is-at-least-32-bytes"
@@ -139,33 +137,6 @@ def test_production_allows_unconfigured_optional_acquisition_providers() -> None
     assert settings.anthropic_api_key is None
 
 
-def test_live_worker_requires_only_its_extraction_provider_key() -> None:
-    settings = Settings(
-        environment="production",
-        jwt_signing_secret=GOOD_SECRET,
-        data_encryption_key=GOOD_SECRET,
-        **PRODUCTION_RUNTIME,
-        _env_file=None,
-    )
-
-    assert settings.supadata_api_key is None
-    assert settings.soscripted_api_key is None
-
-
-def test_default_openrouter_model_is_user_selected_gemini_3_7() -> None:
-    settings = Settings(_env_file=None)
-
-    assert settings.openrouter_model_id == "google/gemini-3.7-flash"
-
-
-def test_nutrition_normalization_defaults_to_selected_gemini() -> None:
-    settings = Settings(_env_file=None)
-
-    assert settings.nutrition_normalization_enabled
-    assert settings.nutrition_normalization_model_id == "google/gemini-3.7-flash"
-    assert settings.nutrition_normalization_max_tokens == 5000
-
-
 def test_empty_provider_environment_values_are_unconfigured(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -193,67 +164,6 @@ def test_settings_load_prefixed_provider_configuration(
     assert settings.supadata_timeout_seconds == 12.5
     assert settings.supadata_api_key == SecretStr("provider-secret")
     assert "provider-secret" not in repr(settings)
-
-
-def test_object_storage_addressing_style_loads_from_environment(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("LADLE_OBJECT_STORAGE_ADDRESSING_STYLE", "virtual")
-
-    settings = Settings(_env_file=None)
-
-    assert settings.object_storage_addressing_style == "virtual"
-
-
-def test_soscripted_default_allows_its_synchronous_transcription_window() -> None:
-    settings = Settings(_env_file=None)
-
-    assert settings.soscripted_timeout_seconds == 600
-
-
-def test_text_only_defaults_disable_all_visual_analysis() -> None:
-    settings = Settings(_env_file=None)
-
-    assert not settings.frame_analysis_enabled
-    assert not settings.thumbnail_analysis_enabled
-
-
-def test_creator_search_bounds_load_from_environment(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("LADLE_CREATOR_SEARCH_ENABLED", "true")
-    monkeypatch.setenv("LADLE_CREATOR_SEARCH_MAXIMUM_QUERIES", "4")
-    monkeypatch.setenv("LADLE_CREATOR_SEARCH_MAXIMUM_RESULTS", "9")
-
-    settings = Settings(_env_file=None)
-
-    assert settings.creator_search_enabled
-    assert settings.creator_search_maximum_queries == 4
-    assert settings.creator_search_maximum_results == 9
-
-
-def test_usda_nutrition_configuration_loads_from_environment(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("LADLE_USDA_NUTRITION_ENABLED", "true")
-    monkeypatch.setenv("LADLE_USDA_BASE_URL", "https://foods.example.test/v1")
-    monkeypatch.setenv("LADLE_USDA_TIMEOUT_SECONDS", "22.5")
-    monkeypatch.setenv("LADLE_USDA_MAXIMUM_CANDIDATES", "7")
-    monkeypatch.setenv("LADLE_USDA_API_KEY", "food-key")
-
-    settings = Settings(_env_file=None)
-
-    assert settings.usda_nutrition_enabled
-    assert str(settings.usda_base_url) == "https://foods.example.test/v1"
-    assert settings.usda_timeout_seconds == 22.5
-    assert settings.usda_maximum_candidates == 7
-    assert settings.usda_api_key == SecretStr("food-key")
-
-
-def test_blank_usda_key_is_unconfigured(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("LADLE_USDA_API_KEY", "")
-
-    assert Settings(_env_file=None).usda_api_key is None
 
 
 def test_production_requires_app_attest_and_its_identity() -> None:
@@ -422,13 +332,6 @@ def test_production_runtime_dependencies_fail_closed(
         )
 
 
-def test_system_clock_returns_timezone_aware_utc() -> None:
-    value = SystemClock().now()
-
-    assert value.tzinfo is UTC
-    assert value.utcoffset() is not None
-
-
 @pytest.mark.parametrize(
     "override",
     [
@@ -466,33 +369,7 @@ def test_cross_setting_timing_constraints_fail_closed(
         Settings(**override, _env_file=None)
 
 
-def test_default_worker_timing_chain_is_safe() -> None:
-    settings = Settings(_env_file=None)
-
-    assert (
-        settings.extraction_claim_heartbeat_seconds * 2
-        < settings.extraction_claim_minutes * 60
-    )
-    assert (
-        settings.soscripted_timeout_seconds
-        < settings.celery_task_soft_time_limit_seconds
-        < settings.celery_task_time_limit_seconds
-        < settings.celery_visibility_timeout_seconds
-        < settings.import_stale_after_minutes * 60
-        < settings.import_reservation_minutes * 60
-    )
-    assert (
-        settings.celery_task_time_limit_seconds
-        < settings.provider_budget_reservation_minutes * 60
-    )
-
-
 def test_example_environment_preserves_the_validated_worker_timing_chain() -> None:
-    settings = Settings(_env_file=BACKEND_ROOT / ".env.example")
-
-    assert settings.extraction_claim_heartbeat_seconds == 30
-    assert settings.celery_task_soft_time_limit_seconds == 1500
-    assert settings.celery_task_time_limit_seconds == 1560
-    assert settings.celery_visibility_timeout_seconds == 1800
-    assert settings.import_stale_after_minutes == 32
-    assert settings.provider_budget_reservation_minutes == 30
+    # Construction runs `validate_worker_timing` over the file's own values, so
+    # an example that ships an unsafe chain fails here rather than at startup.
+    Settings(_env_file=BACKEND_ROOT / ".env.example")

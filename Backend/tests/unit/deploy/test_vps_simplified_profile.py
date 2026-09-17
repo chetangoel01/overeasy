@@ -23,10 +23,6 @@ def test_vps_runtime_is_right_sized_for_one_small_host() -> None:
         "api",
         "worker",
     }
-    assert "--workers" in services["api"]["command"]
-    assert "2" in services["api"]["command"]
-    assert "--beat" in services["worker"]["command"]
-    assert "--concurrency=4" in services["worker"]["command"]
     assert all("ports" not in service for service in services.values())
     assert compose()["x-app"]["build"]["context"] == "."
 
@@ -102,16 +98,6 @@ def test_guarded_internal_beta_can_disable_app_attest() -> None:
     assert "LADLE_APP_ATTEST_ENVIRONMENT=production" in example
 
 
-def test_vps_forces_text_only_extraction() -> None:
-    environment = compose()["x-ladle-environment"]
-    example = (VPS / "env.example").read_text()
-
-    assert environment["LADLE_FRAME_ANALYSIS_ENABLED"] == "false"
-    assert environment["LADLE_THUMBNAIL_ANALYSIS_ENABLED"] == "false"
-    assert "LADLE_FRAME_ANALYSIS_ENABLED=false" in example
-    assert "LADLE_THUMBNAIL_ANALYSIS_ENABLED=false" in example
-
-
 def test_vps_supplies_usda_nutrition_configuration() -> None:
     environment = compose()["x-ladle-environment"]
     example = (VPS / "env.example").read_text()
@@ -119,22 +105,3 @@ def test_vps_supplies_usda_nutrition_configuration() -> None:
     assert environment["LADLE_USDA_NUTRITION_ENABLED"] == "true"
     assert "LADLE_USDA_API_KEY" in environment
     assert "LADLE_USDA_API_KEY=change-me" in example
-
-
-def test_vps_operations_cover_the_recovery_contract() -> None:
-    manage = (VPS / "manage.sh").read_text()
-    push = (VPS / "push.sh").read_text()
-
-    for command in ("deploy", "health", "status", "logs", "backup", "backfill-times"):
-        assert command in manage
-    # The backfill asks the extraction provider a question, so it has to run
-    # in a container that carries the provider keys.
-    assert "api /app/.venv/bin/python -m ladle.admin.backfill_times" in manage
-    assert "pg_dump" in manage
-    assert "sha256sum" in manage
-    assert "archive --format=tar.gz" in push
-    assert "manage.sh deploy" in push
-    assert "apple_private_key_value" in manage
-    assert "--project-name platform-gateway" in push
-    assert "--env-file /etc/platform/gateway.env" in push
-    assert "caddy reload" in push

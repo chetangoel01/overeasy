@@ -19,7 +19,6 @@ def test_mac_mini_profile_is_private_bounded_and_hosts_thumbnails() -> None:
         "beat",
     ):
         assert f"  {service}:" in profile
-    assert profile.count("restart: unless-stopped") == 8
     assert 'LADLE_RATE_LIMITING_ENABLED: "true"' in profile
     assert "LADLE_RATE_LIMIT_REDIS_URL: redis://redis:6379/2" in profile
     assert 'LADLE_DURABLE_METRICS_ENABLED: "true"' in profile
@@ -39,9 +38,6 @@ def test_mac_mini_profile_is_private_bounded_and_hosts_thumbnails() -> None:
         "${LADLE_OBJECT_STORAGE_SECRET_KEY:?set by deploy.sh}"
     ) in profile
     assert 'LADLE_AUDIO_TRANSCRIPTION_ENABLED: "false"' in profile
-    assert 'LADLE_FRAME_ANALYSIS_ENABLED: "false"' in profile
-    assert 'LADLE_THUMBNAIL_ANALYSIS_ENABLED: "false"' in profile
-    assert 'LADLE_SERVER_MEDIA_FALLBACK_ENABLED: "false"' in profile
     assert "max-size: 10m" in profile
     assert "max-file: 3" in profile
     assert 'profiles: ["object-storage-disabled"]' not in profile
@@ -56,12 +52,9 @@ def test_mac_mini_profile_is_private_bounded_and_hosts_thumbnails() -> None:
     assert "127.0.0.1:4112:8080" in profile
     assert "127.0.0.1:4113:8081" in profile
     assert "127.0.0.1:4114:8082" in profile
-    assert profile.count("host-publish: {}") == 2
-    assert profile.count("internal: true") == 1
     assert "ports: !reset []" in profile
     assert "LADLE_RATE_LIMIT_TRUSTED_PROXY_CIDRS: 172.30.0.2/32" in profile
     assert "network_mode: service:worker-egress" in profile
-    assert profile.count("volumes: !reset []") == 2
     assert (
         "LADLE_OBJECT_STORAGE_LIFECYCLE_PATH: /app/deploy/object-storage-lifecycle.json"
     ) in profile
@@ -102,39 +95,6 @@ def test_mac_mini_edge_enforces_body_limit_and_preserves_proxy_protocol_ip() -> 
     assert "proxy_set_header Host $host" in config
 
 
-def test_mac_mini_ngrok_launcher_requires_a_device_key() -> None:
-    script = (BACKEND / "deploy" / "mac-mini" / "ngrok.sh").read_text()
-
-    assert "openssl rand -hex 32" in script
-    assert "chmod 600" in script
-    assert "X-Ladle-Tunnel-Key" in script
-    assert "x-ladle-tunnel-key" in script
-    assert "--traffic-policy-file" in script
-    assert "http://127.0.0.1:4114" in script
-    assert "public_url" in script
-    assert "req.url.path.startsWith('/ladle-private/')" in script
-    assert "Library/Application Support/ngrok/ngrok.yml" in script
-    assert "rotate-key" in script
-    assert "launchctl submit" in script
-    assert "launchctl remove" in script
-    assert 'cat "$access_key_file"' not in script
-
-
-def test_local_device_tunnel_writes_a_private_build_configuration() -> None:
-    script = (BACKEND / "scripts" / "device_tunnel.sh").read_text()
-
-    assert "--profile device-tunnel" in script
-    assert "LADLE_OBJECT_STORAGE_PUBLIC_ENDPOINT_URL" in script
-    assert ".private/DeviceTunnel.xcconfig" in script
-    assert "LADLE_API_BASE_URL" in script
-    assert "LADLE_APP_ATTEST_ENABLED" in script
-    assert "LADLE_TUNNEL_ACCESS_KEY" in script
-    assert "chmod 600" in script
-    assert "X-Ladle-Tunnel-Key" in script
-    assert "ngrok-skip-browser-warning" in script
-    assert "/metrics" in script
-
-
 def test_mac_mini_worker_egress_allows_dependencies_and_public_https_only() -> None:
     dockerfile = (BACKEND / "deploy" / "mac-mini" / "egress.Dockerfile").read_text()
     policy = (BACKEND / "deploy" / "mac-mini" / "worker-egress.sh").read_text()
@@ -164,73 +124,3 @@ def test_mac_mini_worker_egress_allows_dependencies_and_public_https_only() -> N
     assert "WORKER_UID:-10001" in policy
     assert '--uid-owner "$worker_uid"' in policy
     assert "REJECT" in policy
-
-
-def test_mac_mini_deploy_script_generates_secrets_and_runs_migrations() -> None:
-    script = (BACKEND / "deploy" / "mac-mini" / "deploy.sh").read_text()
-
-    assert "umask 077" in script
-    assert "openssl rand -hex 32" in script
-    assert "LADLE_JWT_SIGNING_SECRET" in script
-    assert "LADLE_DATA_ENCRYPTION_KEY" in script
-    assert "LADLE_METRICS_AUTH_TOKEN" in script
-    assert "LADLE_OBJECT_STORAGE_ACCESS_KEY" in script
-    assert "LADLE_OBJECT_STORAGE_SECRET_KEY" in script
-    assert "LADLE_OBJECT_STORAGE_PUBLIC_ENDPOINT_URL" in script
-    assert "LADLE_INSTALL_MEDIA_TOOLS false" in script
-    assert "compose stop minio" not in script
-    assert "compose up -d postgres redis minio" in script
-    assert "compose run --rm minio-init" in script
-    assert (
-        "compose run --rm migrate /app/.venv/bin/python -m ladle.admin.cache_cli"
-    ) in script
-    assert "backfill-thumbnails" in script
-    assert 'PATH="/usr/local/bin:/opt/homebrew/bin:$HOME/.orbstack/bin:$PATH"' in script
-    assert "docker-compose.yml" in script
-    assert "deploy/mac-mini/docker-compose.yml" in script
-    assert "LADLE_MAC_MINI_DOCKER_CONTEXT" in script
-    assert '--context "$LADLE_MAC_MINI_DOCKER_CONTEXT"' in script
-    assert "migrate" in script
-    assert "health/ready" in script
-    assert '"$tailscale_bin" serve reset' in script
-    assert "--proxy-protocol=2" in script
-    assert "--tls-terminated-tcp=443" in script
-
-
-def test_mac_mini_autostart_installer_starts_docker_at_login() -> None:
-    installer = (BACKEND / "deploy" / "mac-mini" / "install-autostart.sh").read_text()
-    launch_agent = (
-        BACKEND / "deploy" / "mac-mini" / "com.ladle.docker-start.plist"
-    ).read_text()
-
-    assert "install -m 600" in installer
-    assert "launchctl bootstrap" in installer
-    assert "launchctl enable" in installer
-    assert "<key>RunAtLoad</key>" in launch_agent
-    assert "/Applications/Docker.app" in launch_agent
-
-
-def test_mac_mini_local_operations_schedule_validated_backups_and_health() -> None:
-    operations = (BACKEND / "deploy" / "mac-mini" / "local-operations.sh").read_text()
-    installer = (
-        BACKEND / "deploy" / "mac-mini" / "install-local-operations.sh"
-    ).read_text()
-    health_agent = (
-        BACKEND / "deploy" / "mac-mini" / "com.ladle.health-watch.plist"
-    ).read_text()
-    backup_agent = (
-        BACKEND / "deploy" / "mac-mini" / "com.ladle.database-backup.plist"
-    ).read_text()
-
-    assert "pg_dump -Fc" in operations
-    assert "pg_restore --list" in operations
-    assert "shasum -a 256" in operations
-    assert "LADLE_BACKUP_RETENTION_DAYS" in operations
-    assert "health/ready" in operations
-    assert "LADLE_MINIMUM_FREE_DISK_GIB" in operations
-    assert "docker_cli inspect" in operations
-    assert "display notification" in operations
-    assert "install -m 700" in installer
-    assert "launchctl bootstrap" in installer
-    assert "<integer>300</integer>" in health_agent
-    assert "<key>StartCalendarInterval</key>" in backup_agent

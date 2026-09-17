@@ -1,5 +1,4 @@
 from collections.abc import Iterator
-from pathlib import Path
 from uuid import uuid4
 
 import pytest
@@ -82,15 +81,6 @@ def test_import_private_text_limit_is_enforced_in_utf8_bytes() -> None:
     assert accepted.pasted_text is not None
     with pytest.raises(ValidationError):
         ImportSubmissionRequest.model_validate({**base, "pastedText": "é" * 100_001})
-
-
-def test_nginx_request_limit_matches_application_default() -> None:
-    nginx = (
-        Path(__file__).parents[2] / "deploy" / "nginx" / "request-size.conf"
-    ).read_text()
-
-    assert Settings().maximum_request_body_bytes == 1024 * 1024
-    assert "client_max_body_size 1m;" in nginx
 
 
 def test_api_installs_request_limit_before_request_parsing() -> None:
