@@ -14,6 +14,7 @@ from ladle.contracts.recipes import (
     RecipeImageDTO,
     RecipeReviewStatus,
     RecipeSource,
+    SourceEngagementDTO,
 )
 from ladle.db.models import (
     ExtractionCache,
@@ -37,6 +38,10 @@ class InvalidManualRecipe(Exception):
 
 
 class DiscoverRecipeUnavailable(Exception):
+    pass
+
+
+class RatingRequiresSavedRecipe(Exception):
     pass
 
 
@@ -184,9 +189,7 @@ class RecipeService:
         *,
         source_video_id: UUID,
     ) -> RecipeDTO:
-        source = database.get(SourceVideo, source_video_id)
-        if source is None:
-            raise DiscoverRecipeUnavailable
+        source = self._source(database, source_video_id)
         cache_entry = self._current_discover_cache(database, source)
         if cache_entry is None:
             raise DiscoverRecipeUnavailable
@@ -194,7 +197,7 @@ class RecipeService:
         preview = template.instantiate(
             recipe_id=source_video_id,
             now=self._clock.now(),
-        )
+        ).model_copy(update={"source_id": source_video_id})
         image_url = self._repository.extraction_thumbnail_url(cache_entry)
         if image_url is None:
             return preview
@@ -276,6 +279,87 @@ class RecipeService:
         )
         database.flush()
         return self._repository.to_dto(database, stored)
+
+    def source_engagement(
+        self,
+        database: Session,
+        *,
+        user_id: UUID,
+        source_video_id: UUID,
+    ) -> SourceEngagementDTO:
+        return self._repository.source_engagement(
+            database,
+            user_id=user_id,
+            source=self._source(database, source_video_id),
+        )
+
+    def rate_source(
+        self,
+        database: Session,
+        *,
+        user_id: UUID,
+        source_video_id: UUID,
+        stars: int,
+    ) -> SourceEngagementDTO:
+        """Rate the shared source, which only somebody who kept it may do.
+
+        The rating hangs off the source rather than the cook's copy, so
+        everyone who saved the same video feeds one average and private
+        edits stay private. Holding a live copy is the bar: it is the nearest
+        thing the server knows to having cooked it, and it keeps a stranger
+        from scoring the whole feed. The source is checked first so that one
+        nobody has heard of is a 404 rather than a copy the cook lacks.
+        """
+        source = self._source(database, source_video_id)
+        holds_copy = database.scalar(
+            select(Recipe.id)
+            .where(
+                Recipe.user_id == user_id,
+                Recipe.source_video_id == source_video_id,
+                Recipe.deleted_at.is_(None),
+            )
+            .limit(1)
+        )
+        if holds_copy is None:
+            raise RatingRequiresSavedRecipe
+        self._repository.rate_source(
+            database,
+            user_id=user_id,
+            source_video_id=source_video_id,
+            stars=stars,
+            rated_at=self._clock.now(),
+        )
+        return self._repository.source_engagement(
+            database, user_id=user_id, source=source
+        )
+
+    def clear_source_rating(
+        self,
+        database: Session,
+        *,
+        user_id: UUID,
+        source_video_id: UUID,
+    ) -> SourceEngagementDTO:
+        """Take the cook's rating back.
+
+        Never gated on still holding a copy: deleting a recipe must not
+        strand an opinion its author can no longer withdraw.
+        """
+        source = self._source(database, source_video_id)
+        self._repository.clear_source_rating(
+            database,
+            user_id=user_id,
+            source_video_id=source_video_id,
+        )
+        return self._repository.source_engagement(
+            database, user_id=user_id, source=source
+        )
+
+    def _source(self, database: Session, source_video_id: UUID) -> SourceVideo:
+        source = database.get(SourceVideo, source_video_id)
+        if source is None:
+            raise DiscoverRecipeUnavailable
+        return source
 
     def _current_discover_cache(
         self,

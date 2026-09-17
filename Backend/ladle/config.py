@@ -86,6 +86,10 @@ class Settings(BaseSettings):
     # about the size of the corpus, so they move as it grows.
     discover_shelf_minimum_recipes: int = Field(default=3, ge=1, le=50)
     discover_shelf_maximum_count: int = Field(default=6, ge=0, le=25)
+    # How many cooks must rate a source before its average is published.
+    # One rating is an anecdote, and an average over one or two gives away
+    # what each cook said; below the floor only the count is served.
+    rating_minimum_count: int = Field(default=3, ge=1, le=50)
     retention_maintenance_interval_seconds: int = Field(
         default=3600,
         ge=300,
