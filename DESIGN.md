@@ -235,6 +235,12 @@ not introduce animated movement of the page.
   recipe from that photo a moment ago, so time, servings and nutrition are
   whole on the first screen instead. At accessibility text sizes the thumbnail
   sits above the title. Missing or late artwork keeps the same square.
+- A recipe whose link a platform player accepts offers the video from that
+  header twice: the thumbnail wears a play badge and opens the player, and a
+  tertiary "Watch original" link sits under the byline, because a badge on a
+  photo is not a label. Both are absent — never disabled — when there is no
+  playable video, and both work on a Discover preview, which has no options
+  menu. The menu keeps its own entry under the same condition.
 - Related steps stay in one sheet: Profile → Sign in, Nutrition → Apple Health,
   and failed import → correction notes, pasted details, or manual recovery.
   Back returns to the previous step.

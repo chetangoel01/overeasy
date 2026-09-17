@@ -61,6 +61,21 @@ final class DiscoverInteractionUITests: XCTestCase {
         XCTAssertTrue(account.waitForExistence(timeout: 3))
         XCTAssertFalse(app.buttons["Recipe options"].exists)
 
+        // #150: the only way to the video used to be the options menu, which
+        // a preview does not have. The link under the byline and the
+        // thumbnail both open the player, and closing it returns the cook to
+        // the place they left.
+        let watch = app.buttons["recipe.watch-original"]
+        XCTAssertTrue(watch.waitForExistence(timeout: 2))
+        XCTAssertTrue(app.buttons["Watch original video"].exists)
+        watch.tap()
+        XCTAssertTrue(
+            app.buttons["Share original video"].waitForExistence(timeout: 3)
+        )
+        app.buttons["Close"].tap()
+        XCTAssertTrue(watch.waitForExistence(timeout: 3))
+        XCTAssertTrue(watch.isHittable)
+
         // #88: the page carries the card's own Save, and saving on it stays
         // on it. The read-only preview becomes the saved copy in place —
         // the library's controls arrive without the cook going anywhere.

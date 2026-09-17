@@ -73,6 +73,13 @@ struct RecipeDetailView: View {
 
     private var allowsLibraryEdits: Bool { currentAccess == .saved }
 
+    /// Whether there is a player to open. A link whose shape no platform
+    /// player accepts has none, and the page then offers no way to watch
+    /// rather than a control that opens "Video unavailable".
+    private var isVideoPlayable: Bool {
+        VideoEmbed.url(for: displayedRecipe) != nil
+    }
+
     /// Which server object can re-sign the header artwork's expired URL.
     /// It follows the page's access, never the id alone: a Discover
     /// preview's recipe id IS the Discover sourceID, which /v1/recipes/{id}
@@ -289,7 +296,7 @@ struct RecipeDetailView: View {
     private static let thumbnailSide: CGFloat = 96
 
     private var recipeHeader: some View {
-        VStack(alignment: .leading, spacing: LadleTheme.Spacing.medium) {
+        VStack(alignment: .leading, spacing: LadleTheme.Spacing.compact) {
             // One layout, two arrangements, so the artwork keeps its identity
             // — and its loaded image — when the text size changes. Beside a
             // 96-point square an accessibility-size title gets four letters
@@ -309,9 +316,15 @@ struct RecipeDetailView: View {
                 )
             layout {
                 recipeThumbnail
-                VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
+                // No stack spacing: the link's target already carries the
+                // air between its label and the byline above it.
+                VStack(alignment: .leading, spacing: 0) {
                     recipeTitle
                     recipeByline
+                        .padding(.top, LadleTheme.Spacing.tight)
+                    if isVideoPlayable {
+                        watchOriginalLink
+                    }
                 }
             }
 
@@ -327,11 +340,17 @@ struct RecipeDetailView: View {
         }
     }
 
+    private static let playBadgeSide: CGFloat = 28
+
     /// A fixed square whatever it holds. `RecipeArtworkView` fills the frame
     /// it is given with a placeholder until the image arrives, so late or
     /// missing artwork never moves the title.
+    ///
+    /// On a playable recipe it is also a way in to the video, and says so
+    /// with a badge; on any other it is only the photo.
+    @ViewBuilder
     private var recipeThumbnail: some View {
-        RecipeArtworkView(
+        let artwork = RecipeArtworkView(
             owner: artworkOwner,
             image: displayedRecipe.images.first
         )
@@ -342,7 +361,57 @@ struct RecipeDetailView: View {
                 style: .continuous
             )
         )
-        .accessibilityLabel("Recipe photo")
+        // One element with one name: the artwork's own label describes its
+        // load state, which is not what this square is for here.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            isVideoPlayable ? "Watch original video" : "Recipe photo"
+        )
+
+        if isVideoPlayable {
+            Button {
+                isVideoPresented = true
+            } label: {
+                artwork.overlay(alignment: .bottomTrailing) { playBadge }
+            }
+            .buttonStyle(LadlePressButtonStyle(kind: .card))
+        } else {
+            artwork.accessibilityAddTraits(.isImage)
+        }
+    }
+
+    /// Material, like the favourite on a grid card, so the glyph keeps its
+    /// contrast over whatever the photo puts behind it.
+    private var playBadge: some View {
+        Image(systemName: "play.fill")
+            .font(.system(size: LadleTheme.IconSize.small, weight: .bold))
+            .foregroundStyle(LadleTheme.Label.primary)
+            .frame(width: Self.playBadgeSide, height: Self.playBadgeSide)
+            .background(.ultraThinMaterial, in: Circle())
+            .padding(LadleTheme.Spacing.compact)
+            .accessibilityHidden(true)
+    }
+
+    /// The words, because a badge on a photo is not a label. Tertiary with
+    /// no inset, so the glyph lands on the title's leading edge, and held to
+    /// its label so the blank row beside it is not a button — except at
+    /// accessibility sizes, where the label needs that row to wrap into.
+    private var watchOriginalLink: some View {
+        let wraps = dynamicTypeSize.isAccessibilitySize
+        return Button {
+            isVideoPresented = true
+        } label: {
+            Label {
+                Text("Watch original")
+            } icon: {
+                Image(systemName: "play.fill")
+                    .imageScale(.small)
+            }
+            .frame(maxWidth: wraps ? .infinity : nil, alignment: .leading)
+        }
+        .buttonStyle(LadleButtonStyle(role: .tertiary, isFullWidth: true))
+        .fixedSize(horizontal: !wraps, vertical: false)
+        .accessibilityIdentifier("recipe.watch-original")
     }
 
     private var recipeTitle: some View {
@@ -353,13 +422,15 @@ struct RecipeDetailView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// One run of text rather than a row of three, so that at large sizes
-    /// it wraps between words instead of squeezing the creator's handle into
-    /// a column and hyphenating it.
+    /// One run of text rather than a row of three, so it wraps between
+    /// words instead of squeezing the creator's handle into a column. At
+    /// accessibility sizes the platform takes its own line: wrapped, the
+    /// second line would otherwise open on the separator.
     private var recipeByline: some View {
         let source = displayedRecipe.source.libraryTitle
         let creator = displayedRecipe.creatorName
-        return Text(creator.map { "\($0) · \(source)" } ?? source)
+        let separator = dynamicTypeSize.isAccessibilitySize ? "\n" : " · "
+        return Text(creator.map { $0 + separator + source } ?? source)
             .ladleFont(.metadata)
             .foregroundStyle(LadleTheme.Label.secondary)
             .fixedSize(horizontal: false, vertical: true)
@@ -714,7 +785,9 @@ struct RecipeDetailView: View {
         if displayedRecipe.nutrition != nil {
             options.append(.nutrition)
         }
-        options.append(.source)
+        if isVideoPlayable {
+            options.append(.source)
+        }
         options.append(.delete)
         return options
     }
