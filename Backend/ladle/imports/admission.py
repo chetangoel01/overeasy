@@ -55,6 +55,10 @@ class AdmissionService:
         self._quota = quota
         self._outbox = outbox
 
+    def resolve_source_url(self, source_url: str) -> str:
+        """Resolve identity without creating a job or consuming import quota."""
+        return self._parser.parse(source_url).canonical_url
+
     def admit(
         self,
         database: Session,

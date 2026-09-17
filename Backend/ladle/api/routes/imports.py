@@ -44,6 +44,14 @@ from ladle.recipes.limits import GuestRecipeLimitReached
 router = APIRouter(prefix="/v1/imports", tags=["imports"])
 
 
+class SourceResolutionRequest(WireModel):
+    source_url: AnyHttpUrl
+
+
+class SourceResolutionResponse(WireModel):
+    canonical_url: str
+
+
 class ImportSubmissionRequest(WireModel):
     job_id: WireUUID
     source_url: AnyHttpUrl
@@ -127,7 +135,7 @@ def _installation_id(request: Request, claims: AccessClaims) -> str:
 def _enforce_import_rate_limit(
     request: Request,
     *,
-    operation: Literal["submit", "retry"],
+    operation: Literal["submit", "retry", "resolve"],
     claims: AccessClaims,
 ) -> None:
     limits = _rate_limits(request)
@@ -301,6 +309,31 @@ def submit_import(
             admitted.job_id,
         )
     return admitted.response
+
+
+@router.post("/resolve", response_model=SourceResolutionResponse)
+def resolve_source(
+    body: SourceResolutionRequest,
+    request: Request,
+    authorization: Annotated[str | None, Header()] = None,
+) -> SourceResolutionResponse | JSONResponse:
+    claims = access_claims(request, authorization)
+    _enforce_import_rate_limit(request, operation="resolve", claims=claims)
+    try:
+        return SourceResolutionResponse(
+            canonical_url=_admission(request).resolve_source_url(str(body.source_url))
+        )
+    except (InvalidSourceURL, UnsupportedSource) as error:
+        return _error(
+            request,
+            code=(
+                ErrorCode.INVALID_URL
+                if isinstance(error, InvalidSourceURL)
+                else ErrorCode.UNSUPPORTED_SOURCE
+            ),
+            message="That link could not be resolved to a supported recipe source.",
+            http_status=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        )
 
 
 @router.get("/{job_id}", response_model=ImportJobResponse)

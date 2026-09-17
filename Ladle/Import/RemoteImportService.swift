@@ -23,6 +23,17 @@ struct RemoteImportService: ImportService {
         self.api = api
     }
 
+    func resolveSourceURL(_ url: URL) async throws -> URL {
+        struct Request: Encodable, Sendable { let sourceURL: URL }
+        struct Response: Decodable, Sendable { let canonicalURL: URL }
+        let response: Response = try await api.request(
+            path: "/v1/imports/resolve",
+            method: .post,
+            body: Request(sourceURL: url)
+        )
+        return response.canonicalURL
+    }
+
     func submit(
         _ job: ImportJob,
         allowingDuplicate: Bool

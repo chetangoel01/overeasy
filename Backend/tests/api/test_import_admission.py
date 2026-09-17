@@ -4,6 +4,7 @@ from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from alembic import command
@@ -14,6 +15,7 @@ from ladle.auth.tokens import AccessTokenCodec, RefreshTokenCodec
 from ladle.config import Settings
 from ladle.db.models import ImportDispatchOutbox, ImportJob
 from ladle.db.session import build_engine
+from ladle.imports.source_identity import SourceIdentityParser
 from tests.integration.recipes.test_recipe_service import manual_recipe
 from tests.integration.test_migrations import alembic_config
 
@@ -345,4 +347,51 @@ def test_daily_import_quota_returns_typed_429_without_dispatch(
     assert second.json()["error"]["code"] == "quotaExceeded"
     assert second.json()["error"]["retryable"] is True
     assert len(dispatcher.calls) == 1
+    engine.dispose()
+
+
+@pytest.mark.integration
+def test_source_resolution_requires_auth_and_creates_no_import(
+    clean_postgres_url: str,
+) -> None:
+    command.upgrade(alembic_config(clean_postgres_url), "head")
+    engine = build_engine(clean_postgres_url)
+    calls: list[str] = []
+
+    class Redirect:
+        def resolve(self, url: str) -> str:
+            calls.append(url)
+            return "https://m.tiktok.com/@cook/photo/7612708181004799263?tracking=1"
+
+    app = create_app(
+        session_factory=sessionmaker(engine, expire_on_commit=False),
+        source_parser=SourceIdentityParser(redirect_resolver=Redirect()),
+        attestation=AttestationService(enforced=False),
+    )
+    with TestClient(app) as client:
+        body = {"sourceURL": "https://vm.tiktok.com/ZMabcdef/"}
+        assert client.post("/v1/imports/resolve", json=body).status_code == 401
+        guest = client.post(
+            "/v1/auth/guest",
+            json={"installationID": "resolve-link", "attestation": None},
+        ).json()
+        headers = {"Authorization": f"Bearer {guest['accessToken']}"}
+        resolved = client.post("/v1/imports/resolve", json=body, headers=headers)
+        assert resolved.status_code == 200
+        assert resolved.json() == {
+            "canonicalURL": "https://www.tiktok.com/@cook/photo/7612708181004799263"
+        }
+        assert calls == [body["sourceURL"]]
+        for url in (
+            "http://vm.tiktok.com/abc/",
+            "https://127.0.0.1/admin",
+            "https://example.com/recipe",
+        ):
+            rejected = client.post(
+                "/v1/imports/resolve", json={"sourceURL": url}, headers=headers
+            )
+            assert rejected.status_code == 422
+        assert calls == [body["sourceURL"]]
+    with Session(engine) as database:
+        assert database.scalar(select(func.count()).select_from(ImportJob)) == 0
     engine.dispose()

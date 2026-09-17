@@ -206,6 +206,7 @@ final class ImportCoordinator {
     private var pendingSubmission: Submission?
     private var pendingManualSubmission: ManualSubmission?
     private var isResolvingReplacement = false
+    private var sourceResolutionID: UUID?
     private var processingTasks: [UUID: Task<Void, Never>] = [:]
 
     /// Latched by `quiesceForSignOut()` and lifted only by
@@ -268,7 +269,7 @@ final class ImportCoordinator {
         if case .importing = state {
             true
         } else {
-            false
+            sourceResolutionID != nil
         }
     }
 
@@ -318,12 +319,28 @@ final class ImportCoordinator {
         pendingSubmission = submission
 
         do {
+            var sourceURL = submission.url
+            if !allowingDuplicate, SourceVideoKey(sourceURL) == nil,
+               try !repository.fetchRecipes().isEmpty {
+                let resolutionID = UUID()
+                sourceResolutionID = resolutionID
+                defer {
+                    if sourceResolutionID == resolutionID { sourceResolutionID = nil }
+                }
+                sourceURL = (try? await service.resolveSourceURL(sourceURL)) ?? sourceURL
+                guard sourceResolutionID == resolutionID, !isSignedOut,
+                      !Task.isCancelled else { return }
+            }
             let recipes = try repository.fetchRecipes()
+            let sourceKey = SourceVideoKey(sourceURL)
             if !allowingDuplicate,
                let duplicate = recipes.first(
                    where: {
-                       canonicalURL($0.originalURL)
-                           == canonicalURL(submission.url)
+                       if let sourceKey {
+                           SourceVideoKey($0.originalURL) == sourceKey
+                       } else {
+                           canonicalURL($0.originalURL) == canonicalURL(sourceURL)
+                       }
                    }
                ) {
                 existingDuplicate = duplicate
@@ -345,7 +362,7 @@ final class ImportCoordinator {
             }
 
             let job = ImportJob.queued(
-                sourceURL: submission.url,
+                sourceURL: sourceURL,
                 source: submission.source
             )
             try repository.save(job)
@@ -599,6 +616,7 @@ final class ImportCoordinator {
     }
 
     func reset() {
+        sourceResolutionID = nil
         state = .idle
         operation = nil
         existingDuplicate = nil

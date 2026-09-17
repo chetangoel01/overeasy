@@ -181,7 +181,7 @@ struct AddRecipeSheet: View {
                 .disabled(
                     linkText.trimmingCharacters(
                         in: .whitespacesAndNewlines
-                    ).isEmpty
+                    ).isEmpty || coordinator.isImporting
                 )
 
                 Button {

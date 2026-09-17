@@ -197,6 +197,7 @@ Canonical recipe payloads are available in:
 | `DELETE /v1/auth/session` | Bearer | `204` | Revoke the current session |
 | `DELETE /v1/auth/account` | Bearer | `204` | Delete the account and everything it owns |
 | `POST /v1/imports` | Bearer | `202` | Admit and enqueue an import |
+| `POST /v1/imports/resolve` | Bearer | `200` | Resolve `sourceURL` to `canonicalURL` using the import resolver; no job or quota charge |
 | `GET /v1/imports/{jobID}` | Bearer | `200` | Poll an import owned by the current user |
 | `DELETE /v1/imports/{jobID}` | Bearer | `204` | Cancel an actively parsing import and release its reserved slot |
 | `POST /v1/imports/{jobID}/retry` | Bearer | `202` | Retry with optional correction or pasted text |

@@ -11,7 +11,7 @@ Implementation proceeds in verified, task-sized commits. Design choices remain p
 | [#110](https://github.com/chetangoel01/overeasy/issues/110) | The dashboard's recent-requests poll counts in its own traffic charts | Implemented and verified |
 | [#111](https://github.com/chetangoel01/overeasy/issues/111) | The USDA relevance gate refuses records it should accept: ghee, tomato, lentils, pancetta | Implemented and verified |
 | [#113](https://github.com/chetangoel01/overeasy/issues/113) | A private or deleted photo carousel reports parserUnavailable and retries forever | Implemented and verified |
-| [#117](https://github.com/chetangoel01/overeasy/issues/117) | Short links are invisible to the inbox repair and to the duplicate check | Pending |
+| [#117](https://github.com/chetangoel01/overeasy/issues/117) | Short links are invisible to the inbox repair and to the duplicate check | Implemented and verified |
 | [#124](https://github.com/chetangoel01/overeasy/issues/124) | Saving an already-cached Discover recipe arrives untagged, and a persisted diet filter then hides it | Implemented and verified; production backfill pending |
 | [#140](https://github.com/chetangoel01/overeasy/issues/140) | Keep loading and sync indicators from shifting the screen | Pending |
 | [#141](https://github.com/chetangoel01/overeasy/issues/141) | Polish app motion with consistent native, tactile feedback | Pending |
@@ -31,6 +31,8 @@ Implementation proceeds in verified, task-sized commits. Design choices remain p
 | [#161](https://github.com/chetangoel01/overeasy/issues/161) | Verify cooking timer completion plays a sound and shows an alert | Pending |
 
 ## Verification
+
+- #117: server resolution and app duplicate/repair regressions verified red/green. 90 focused app tests, 67 focused backend tests, and all 1,133 backend tests passed.
 
 - #124: regression verified red/green; 11 backfill tests and all 1,132 backend tests passed. Only cache tags are refreshed; original verified content is preserved.
 

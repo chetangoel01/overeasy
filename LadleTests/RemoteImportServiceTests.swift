@@ -9,6 +9,24 @@ final class RemoteImportServiceTests: XCTestCase {
         super.tearDown()
     }
 
+    func testShortLinkResolutionUsesAuthenticatedBackendWithoutAnImport() async throws {
+        let short = URL(string: "https://vm.tiktok.com/ZMabcdefg/")!
+        let canonical = "https://www.tiktok.com/@cook/photo/7612708181004799263"
+        URLProtocolStub.install { request in
+            XCTAssertEqual(request.url?.path, "/v1/imports/resolve")
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertNotNil(request.value(forHTTPHeaderField: "Authorization"))
+            let body = try! JSONSerialization.jsonObject(
+                with: try! URLProtocolStub.bodyData(for: request)
+            ) as! [String: String]
+            XCTAssertEqual(body, ["sourceURL": short.absoluteString])
+            return (Self.response(request, status: 200),
+                    Data("{\"canonicalURL\":\"\(canonical)\"}".utf8))
+        }
+        let resolved = try await makeService().resolveSourceURL(short)
+        XCTAssertEqual(resolved.absoluteString, canonical)
+    }
+
     func testSubmitUsesClientJobIDAndPersistsParsingRemoteID() async throws {
         var job = ImportJob.reimporting(
             sourceURL: URL(

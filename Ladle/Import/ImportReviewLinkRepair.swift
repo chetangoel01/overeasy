@@ -41,10 +41,23 @@ final class ImportReviewLinkRepair {
         self.now = now
     }
 
+    func repair(using service: any ImportService) async throws -> Outcome {
+        var resolved: [UUID: URL] = [:]
+        for job in try repository.fetchImportJobs()
+        where job.status == .needsReview && job.reviewRecipeID == nil
+            && SourceVideoKey(job.sourceURL) == nil {
+            guard !Task.isCancelled else { throw CancellationError() }
+            resolved[job.id] = try? await service.resolveSourceURL(job.sourceURL)
+        }
+        // Re-read after the network await: a sync, review, or sign-out may
+        // have changed the library while resolution was in flight.
+        return try repair(resolvedURLs: resolved)
+    }
+
     /// Safe to run on every activation: it only touches a `.needsReview` job
     /// that names no recipe, and a repaired job no longer qualifies.
     @discardableResult
-    func repair() throws -> Outcome {
+    func repair(resolvedURLs: [UUID: URL] = [:]) throws -> Outcome {
         let jobs = try repository.fetchImportJobs()
         // `reviewRecipeID` is nil exactly when the job is awaiting review and
         // holds neither a current nor a candidate recipe, so a re-import's
@@ -66,7 +79,7 @@ final class ImportReviewLinkRepair {
         let date = now()
 
         for job in unlinked {
-            guard let key = SourceVideoKey(job.sourceURL) else {
+            guard let key = SourceVideoKey(resolvedURLs[job.id] ?? job.sourceURL) else {
                 outcome.skipped.append(job.id)
                 continue
             }
@@ -110,7 +123,7 @@ final class ImportReviewLinkRepair {
 /// raw URLs mostly fails — `m.` hosts, `/reels/` for `/reel/`, `/share/`
 /// prefixes and tracking queries all differ. The platform and its video id
 /// survive all of that. Short links (`vm.tiktok.com`, `/t/…`) resolve only
-/// server-side, so they yield no key and their rows are left alone.
+/// server-side before the repair compares identities.
 struct SourceVideoKey: Hashable {
     let platform: String
     let videoID: String
@@ -147,7 +160,7 @@ struct SourceVideoKey: Hashable {
             let parts = path.split(separator: "/")
             identifier = parts.count == 3
                 && parts[0].hasPrefix("@")
-                && parts[1] == "video"
+                && ["video", "photo"].contains(String(parts[1]))
                 ? String(parts[2])
                 : nil
         case "instagram.com", "www.instagram.com", "m.instagram.com":
