@@ -63,6 +63,14 @@ Verification performed on 2026-08-24:
 
 ## Browser verification
 
+September 17 test maintenance: the three source-text/artifact snapshot tests
+were removed. Matching labels, element IDs, fixed recipe URLs, and a historical
+cost total did not exercise rendering or polling. UI changes still require the
+browser checks below. Automated tests continue to exercise job admission,
+completion, input rejection, concurrent-spend prevention, secret redaction,
+and serving both HTML pages. See the
+[test maintenance policy](../ci-and-production-verification.md#test-maintenance).
+
 The local demo helper was inspected in the in-app browser at 1280 px and 390 px.
 The validator produced its visible nutrition-blocker state, the standalone
 report rendered five nutrition cards, and both pages had document widths equal

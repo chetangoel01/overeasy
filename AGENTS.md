@@ -38,7 +38,13 @@
 
 ## Verification before commits
 
-- Add a failing test before production behavior, then verify red-green-refactor.
+- Add or extend a test when it protects meaningful behavior, a likely regression,
+  an important edge case, or a public contract. For those changes, reproduce the
+  failure first and verify red-green-refactor. Reuse existing coverage when it
+  already protects the change; explain when a new test is unnecessary.
+- Do not add tests that only copy implementation details, dependency versions,
+  UI wording, or arbitrary file/line counts. Keep tests for distinct risks, and
+  remove redundant coverage rather than combining it just to lower the count.
 - Run the narrow tests for the changed behavior. Backend: `uv run pytest <path>`
   from `Backend/`; add `-n0` for a single file, where starting the xdist workers
   costs more than the tests do.

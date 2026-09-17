@@ -47,6 +47,35 @@ all-groups dependency audit reports no known vulnerabilities. All 1,107 backend
 tests, Ruff formatting/lint, and strict mypy pass with the updated lock. Existing
 API and provider tests cover this dependency-only update, so it adds no new test.
 
+## Test maintenance
+
+Keep a test when it protects a distinct behavior, regression, edge case, or
+contract. Prefer extending an existing test when it already covers the change.
+Do not copy dependency versions, UI wording, or arbitrary file/line counts into
+tests. Immutable dependency pins, isolation rules, and release gates remain
+useful contracts; the exact selected version belongs in its configuration.
+Do not combine unrelated assertions merely to reduce the reported test count.
+
+The September 17 audit counted 1,143 backend cases across 865 test functions;
+278 cases were parameter expansions. The feedback fixes added 36 cases to the
+1,107-case baseline. The initial pruning pass removed six low-value tests:
+Grafana panel titles, dashboard markup presence, a constructor type assertion,
+and three static validator/report snapshots. It also removed duplicated Action
+versions/counts, build-cache mount counts, and the VPS script file/line budget;
+uv and iptables checks now verify pinning without copying selected versions.
+No application behavior or CI gate changed. Authentication, unsafe-URL handling,
+import recovery, nutrition, and real infrastructure tests remain in place.
+
+The validator/report UI remains subject to browser review when changed, rather
+than treating source-string matches as proof of rendering or accessibility.
+This was a targeted pruning pass, not a claim that every remaining test has
+been audited. No new test was needed for deleting tests and updating guidance.
+
+Verification: 89 focused tests pass; the full default suite passes all 1,137
+cases in 25.59 seconds, with the same ten Testcontainers deprecation warnings.
+Ruff formatting/lint, strict mypy, and `git diff --check` pass. App code did not
+change, so this cleanup did not repeat the already-passing app suites.
+
 ## Scheduled capacity and chaos checks
 
 `load/k6-production.js` exercises four independent scenarios: guest creation,

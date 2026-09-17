@@ -121,14 +121,10 @@ def test_vps_supplies_usda_nutrition_configuration() -> None:
     assert "LADLE_USDA_API_KEY=change-me" in example
 
 
-def test_vps_operations_stay_small_and_cover_the_real_recovery_contract() -> None:
-    scripts = sorted(VPS.glob("*.sh"))
-    script_lines = sum(len(script.read_text().splitlines()) for script in scripts)
+def test_vps_operations_cover_the_recovery_contract() -> None:
     manage = (VPS / "manage.sh").read_text()
     push = (VPS / "push.sh").read_text()
 
-    assert {script.name for script in scripts} == {"manage.sh", "push.sh"}
-    assert script_lines < 500
     for command in ("deploy", "health", "status", "logs", "backup", "backfill-times"):
         assert command in manage
     # The backfill asks the extraction provider a question, so it has to run

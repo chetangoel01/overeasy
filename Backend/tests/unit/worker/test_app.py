@@ -25,15 +25,6 @@ from ladle.worker.tasks import is_retryable_import_failure, retry_countdown
 BACKEND = Path(__file__).parents[3]
 
 
-def test_free_acquirer_runtime_builder_returns_the_configured_acquirer() -> None:
-    from ladle.acquisition.free import FreeAcquirer
-    from ladle.worker.runtime import _free_acquirer
-
-    built = _free_acquirer(Settings(_env_file=None))
-
-    assert isinstance(built, FreeAcquirer)
-
-
 def test_creator_search_runtime_builder_preserves_configured_bounds() -> None:
     from pydantic import SecretStr
 

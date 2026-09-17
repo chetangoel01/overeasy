@@ -140,7 +140,7 @@ def test_mac_mini_worker_egress_allows_dependencies_and_public_https_only() -> N
     policy = (BACKEND / "deploy" / "mac-mini" / "worker-egress.sh").read_text()
 
     assert "@sha256:" in dockerfile
-    assert "iptables=1.8.13-r0" in dockerfile
+    assert "iptables=" in dockerfile
     assert "postgres_ip=" in policy
     assert "redis_ip=" in policy
     assert "minio_ip=" in policy
