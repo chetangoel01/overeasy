@@ -1,6 +1,6 @@
 # App icons, chosen in Profile
 
-Updated: September 10, 2026
+Updated: September 17, 2026
 
 Branch: `codex/liquid-glass-icons`
 
@@ -41,11 +41,13 @@ so iOS can apply its native Liquid Glass materials.
 
 ## What the cook sees
 
-- Profile has an **App icon** section below Appearance. A grid shows all
-  seven named options, with a ring and checkmark on the installed icon.
-- Columns adapt to the screen width and Dynamic Type. Icons stay 60 points
-  square, labels use the app's footnote style, and each choice has a named
-  VoiceOver button with a selected value.
+- Profile has an **App icon** section below Appearance. One row that scrolls
+  sideways shows all seven named options, with a ring around the installed
+  icon and a checkmark leading its caption. The grid this replaced, and why,
+  are in the [September 17 picker record](2026-09-17-app-icon-picker.md).
+- Icons stay 60 points square, labels use the app's footnote style, and each
+  choice has a named VoiceOver button with a selected value. At accessibility
+  text sizes the row becomes a standard list with a trailing checkmark.
 - Every icon is available to everyone, regardless of diet. Tapping switches
   the home-screen icon through the existing iOS API. iOS owns its confirmation
   notice and persists the selection across launches.
@@ -134,7 +136,8 @@ and [alternate icon configuration](https://developer.apple.com/documentation/xco
 
 - `Ladle/Design/AppIconStore.swift`: seven choices, stable installed avocado
   name, image names, and explicit avocado offer text.
-- `Ladle/Account/AccountSheet.swift`: adaptive named icon grid.
+- `Ladle/Account/AccountSheet.swift`: the named icon row, and its list at
+  accessibility sizes.
 - `Ladle/Resources/AppIcons`: seven native layered icon packages.
 - `Ladle/Resources/Assets.xcassets`: native Default and Dark picker previews.
 - `Tools/app-icon/build_icons.py`, `originals`, and `generation-prompts.json`: repeatable conversion and original artwork provenance.

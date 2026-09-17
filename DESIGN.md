@@ -364,6 +364,10 @@ not introduce animated movement of the page.
   August 2026"). A guest sees the word "Guest", what is on this device, and a
   sign-in button. Beneath that header sit accent color, saved-recipe count,
   and sync state, as rows under section headers with no explanatory footers.
+  The app icons are one row that scrolls sideways and ends on half a tile; the
+  installed icon wears the accent ring and a checkmark leads its caption, the
+  row becomes a standard list at accessibility sizes, and a choice moves
+  neither the form nor the row.
   Internal installation identifiers stay hidden.
 - A new Apple or Google account is asked its name once, on a full screen
   between the welcome and the walkthrough, with the keyboard already up. Skip
