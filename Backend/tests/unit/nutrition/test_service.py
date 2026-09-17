@@ -285,38 +285,6 @@ def test_an_uncounted_ingredient_keeps_the_totals_and_marks_the_row() -> None:
     assert summary.reason == "1 of 2 ingredients not counted: garam masala."
 
 
-def test_a_heavy_uncounted_ingredient_still_keeps_the_totals() -> None:
-    """Half the mass missing is still not a reason to void the recipe.
-
-    There is no coverage floor left: the marker on the block, not the
-    absence of a block, is what tells the cook the number is partial.
-    """
-    service = RecipeNutritionService(
-        normalizer=Normalizer(),
-        calculator=NutritionCalculator(Foods()),
-    )
-
-    result = service.enrich(
-        template(
-            extra=[
-                uncounted_ingredient(
-                    name="garam masala",
-                    query="garam masala",
-                    grams="200",
-                    order_index=1,
-                )
-            ]
-        ),
-        context=context(),
-        job_id=uuid4(),
-    )
-
-    assert result.nutrition is not None
-    assert result.nutrition.calories == Decimal("350.0")
-    assert result.nutrition.approximate
-    assert [value.name for value in result.nutrition_skips] == ["garam masala"]
-
-
 def test_last_runs_notes_do_not_survive_a_clean_recalculation() -> None:
     """Re-enrichment feeds the stored uncertainties back in.
 

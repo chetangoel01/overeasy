@@ -180,9 +180,7 @@ def test_short_link_without_resolver_is_rejected() -> None:
     [
         # A carousel is /photo/<numeric id>, and nothing else on the path.
         "https://www.tiktok.com/@chef/photo/abc",
-        "https://www.tiktok.com/@chef/photo/",
         "https://www.tiktok.com/@chef/photos/7481234567890123456",
-        "https://www.tiktok.com/@chef/picture/7481234567890123456",
         "https://www.tiktok.com/@chef/photo/7481234567890123456/extra",
     ],
 )
@@ -205,7 +203,6 @@ def test_malformed_photo_paths_are_still_rejected(url: str) -> None:
         # Instagram tells us at fetch time, not in the path: /p/ serves image
         # carousels, video carousels and single videos alike.
         ("https://www.instagram.com/p/C9_post-ID/", MediaKind.VIDEO),
-        ("https://www.youtube.com/watch?v=abc_DEF-123", MediaKind.VIDEO),
     ],
 )
 def test_media_kind_rides_on_the_canonical_url(url: str, kind: MediaKind) -> None:

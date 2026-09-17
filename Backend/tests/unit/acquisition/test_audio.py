@@ -399,8 +399,9 @@ def test_http_failures_map_to_provider_errors(
         del request
         return httpx.Response(status, text="nope")
 
+    # A 5xx is retried after a backoff; without a stand-in the test really sleeps.
     with pytest.raises(expected):
-        transcriber(handler).transcribe(
+        transcriber(handler, sleeper=lambda _seconds: None).transcribe(
             audio_file(tmp_path), job_id=uuid4(), source_revision="rev-1"
         )
 

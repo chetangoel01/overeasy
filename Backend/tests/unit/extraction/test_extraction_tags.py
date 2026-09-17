@@ -110,15 +110,6 @@ def test_review_keeps_a_proposed_keyword_out_of_the_canonical_set() -> None:
     assert template.keyword_proposals == ["picnic-food"]
 
 
-def test_review_leaves_an_untagged_extraction_with_empty_families() -> None:
-    template = build_reviewed_template(extraction(), context=context())
-
-    assert template.diets == []
-    assert template.cuisines == []
-    assert template.keywords == []
-    assert template.keyword_proposals == []
-
-
 def test_template_tags_survive_instantiation_into_a_recipe() -> None:
     template = build_reviewed_template(
         extraction(

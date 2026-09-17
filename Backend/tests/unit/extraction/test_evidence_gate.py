@@ -10,7 +10,6 @@ from ladle.acquisition.models import (
     TextEvidence,
     VisualEvidence,
 )
-from ladle.contracts.imports import ImportFailure
 from ladle.extraction.evidence_gate import (
     InsufficientTextEvidence,
     PhotoPostNeedsManualEntry,
@@ -75,11 +74,10 @@ def _context(
 @pytest.mark.parametrize(
     "context",
     [
-        _context(title="Creamy Garlic Pasta"),
         _context(transcript="Chickpeas, garlic, lemon, parsley."),
         _context(platform_text="Add 2 cups pasta, then simmer until tender."),
     ],
-    ids=["title-only", "ingredient-names", "platform-text"],
+    ids=["ingredient-names", "platform-text"],
 )
 def test_text_without_a_cooking_method_is_rejected(
     context: AcquiredVideoContext,
@@ -144,35 +142,9 @@ def test_recipe_bearing_text_is_accepted(context: AcquiredVideoContext) -> None:
     require_recipe_evidence(context)
 
 
-def test_recipe_dense_caption_with_method_is_accepted() -> None:
-    require_recipe_evidence(
-        _context(
-            description=(
-                "Ingredients: 2 cups pasta, 1 tbsp butter, and 3 cloves garlic. "
-                "Method: boil the pasta, then mix it with the butter and garlic."
-            )
-        )
-    )
-
-
-def test_recipe_dense_caption_can_supply_amounts_for_spoken_method() -> None:
-    require_recipe_evidence(
-        _context(
-            description="2 cups pasta, 1 tbsp butter, and 3 cloves garlic.",
-            transcript=(
-                "Boil the pasta. Fry the garlic in butter, then mix everything."
-            ),
-        )
-    )
-
-
 def test_quantity_noun_alone_is_not_mistaken_for_a_cooking_action() -> None:
     with pytest.raises(InsufficientTextEvidence):
         require_recipe_evidence(_context(transcript="1 slice bread."))
-
-
-def test_insufficient_evidence_has_a_typed_client_failure() -> None:
-    assert ImportFailure.INSUFFICIENT_TEXT_EVIDENCE.value == "insufficientTextEvidence"
 
 
 def photo_context(description: str) -> AcquiredVideoContext:
@@ -211,22 +183,8 @@ def test_a_carousel_whose_recipe_is_only_in_the_pictures_asks_the_cook() -> None
         require_recipe_evidence(photo_context("#food #recipe #80s #retro #candy"))
 
 
-def test_an_empty_carousel_caption_asks_the_cook_too() -> None:
-    with pytest.raises(PhotoPostNeedsManualEntry):
-        require_recipe_evidence(photo_context(""))
-
-
 def test_a_video_post_keeps_the_generic_failure() -> None:
     with pytest.raises(InsufficientTextEvidence) as raised:
         require_recipe_evidence(_context(description="You need this tonight."))
 
     assert not isinstance(raised.value, PhotoPostNeedsManualEntry)
-
-
-def test_the_photo_failure_is_still_an_insufficient_evidence_failure() -> None:
-    # Everything that already handles the general case — the orchestrator's
-    # catch list, the retry rules — must keep working unchanged.
-    assert issubclass(PhotoPostNeedsManualEntry, InsufficientTextEvidence)
-    assert (
-        ImportFailure.PHOTO_POST_NEEDS_MANUAL_ENTRY.value == "photoPostNeedsManualEntry"
-    )

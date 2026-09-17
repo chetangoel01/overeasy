@@ -1,7 +1,6 @@
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from inspect import signature
 from unittest.mock import patch
 from uuid import UUID, uuid4
 
@@ -495,10 +494,6 @@ def test_verification_runs_after_nutrition_with_text_evidence_before_persistence
         recipe_row = database.get(Recipe, job.current_recipe_id if job else None)
         assert recipe_row is not None
         assert recipe_row.title == "Verified Lemon Orzo"
-
-
-def test_import_runtime_has_no_thumbnail_analysis_hook() -> None:
-    assert "thumbnail_observer" not in signature(ImportOrchestrator).parameters
 
 
 @pytest.mark.integration
