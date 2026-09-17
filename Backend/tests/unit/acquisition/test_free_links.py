@@ -530,15 +530,17 @@ def test_substack_candidates_match_creator_subdomain_by_slug() -> None:
 
 
 def test_substack_candidates_return_only_the_best_match() -> None:
+    # Listed first and scoring lower, so the ranking decides rather than the
+    # order of the sitemap.
     near_miss = SITEMAP.replace(
-        "<url><loc>https://mishkamakesfood.substack.com/p/sheet-pan-salmon</loc></url>",
-        "<url><loc>https://mishkamakesfood.substack.com/p/creamy-calabrian-chickpeas"
-        "</loc></url>",
+        "<urlset>\n",
+        "<urlset>\n  <url><loc>https://mishkamakesfood.substack.com/p/"
+        "creamy-calabrian-chickpeas</loc></url>\n",
     )
     recorder = Recorder(near_miss)
 
     posts = substack_candidates(
-        "mishkamakesfood", "Creamy Garlic-Lemon Chickpeas", fetcher=recorder
+        "mishkamakesfood", "Creamy Lemon Chickpeas", fetcher=recorder
     )
 
     # The calabrian post also overlaps on "creamy" and "chickpeas"; attaching it
