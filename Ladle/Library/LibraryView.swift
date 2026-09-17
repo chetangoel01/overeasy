@@ -651,26 +651,23 @@ struct LibraryView: View {
     }
 }
 
-private struct SyncStatusBanner: View {
+/// Draws a failed sync and nothing else. The strip sits in a top inset, so
+/// one that came and went with every routine sync moved the whole screen;
+/// Profile's Sync row is where routine state is read. Conflicts have
+/// `SyncConflictBanner`.
+struct SyncStatusBanner: View {
     let status: SyncStatus
 
-    @ViewBuilder
     var body: some View {
-        switch status.state {
-        case .idle, .current:
-            EmptyView()
-        case .syncing:
-            banner(systemImage: nil) {
-                ProgressView()
-                    .controlSize(.small)
-                Text("Syncing recipes…")
-                    .ladleFont(.bodyStrong)
+        if case let .failed(report) = status.state {
+            HStack(alignment: .top, spacing: LadleTheme.Layout.iconGap) {
+                Image(systemName: report.failure.systemImage)
+                    .font(.system(
+                        size: LadleTheme.IconSize.medium,
+                        weight: .semibold
+                    ))
                     .foregroundStyle(LadleTheme.Label.primary)
-            }
-        case .conflict:
-            EmptyView()
-        case let .failed(report):
-            banner(systemImage: report.failure.systemImage) {
+                    .accessibilityHidden(true)
                 VStack(
                     alignment: .leading,
                     spacing: LadleTheme.Spacing.tight
@@ -687,38 +684,19 @@ private struct SyncStatusBanner: View {
                             .foregroundStyle(LadleTheme.Label.secondary)
                     }
                 }
+                Spacer(minLength: 0)
             }
+            .padding(.horizontal, LadleTheme.Layout.screenMargin)
+            .padding(.vertical, LadleTheme.Spacing.compact)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(LadleTheme.Surface.steel)
+            .overlay(alignment: .bottom) {
+                Divider().overlay(LadleTheme.Stroke.separator)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("sync.status")
         }
     }
-
-    private func banner<Content: View>(
-        systemImage: String?,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        HStack(alignment: .top, spacing: LadleTheme.Layout.iconGap) {
-            if let systemImage {
-                Image(systemName: systemImage)
-                    .font(.system(
-                        size: LadleTheme.IconSize.medium,
-                        weight: .semibold
-                    ))
-                    .foregroundStyle(LadleTheme.Label.primary)
-                    .accessibilityHidden(true)
-            }
-            content()
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, LadleTheme.Layout.screenMargin)
-        .padding(.vertical, LadleTheme.Spacing.compact)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(LadleTheme.Surface.steel)
-        .overlay(alignment: .bottom) {
-            Divider().overlay(LadleTheme.Stroke.separator)
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("sync.status")
-    }
-
 }
 
 private struct LibraryReloadErrorBanner: View {

@@ -208,6 +208,15 @@ success. Timer start/pause and navigation keep the existing feedback policy.
 Saving shows its progress and landed state. Routine background loading must
 not introduce animated movement of the page.
 
+Routine sync and refresh draw no indicator at all — not on Recipes, Discover
+or Inbox, and not over Watch. The strip under a navigation bar is reserved for
+what needs the cook: a failed sync, recipe changes to review, a failed library
+reload, a failed Discover refresh, and the "New recipes" pill, which is an
+offer rather than a status. Nothing appears there or leaves because work is
+merely in flight, so loading never moves the title, the controls, the feed or
+the scroll position. A pull shows the system refresh control and nothing else.
+Profile's Sync row is where routine sync state is read.
+
 ## Navigation and library
 
 - The root workspace is a native four-tab structure: Recipes, Discover, Watch,
@@ -338,7 +347,7 @@ not introduce animated movement of the page.
   results would read as results.
 - Scrolling back to the top of Discover fetches a fresh page 1 quietly and, if
   it differs from what is on screen, offers it as a "New recipes" pill in the
-  same bar the refresh banner uses — the list only moves when the cook taps it,
+  same bar a failed refresh uses — the list only moves when the cook taps it,
   because scrolling up is how someone returns to a row they meant to keep.
 - Discover excludes sources already saved by the current account and removes a
   row as soon as its direct save completes.

@@ -4,6 +4,11 @@ Date: September 1, 2026
 Issue: [#28](https://github.com/chetangoel01/recipe-app/issues/28)
 Status: **built and verified on the local stack.**
 
+> The "Refreshing Discover…" banner this record mentions was removed on
+> September 17, 2026: a pull now shows only the system refresh control, and
+> the bar holds a failed refresh or the pill. See
+> `2026-09-17-quiet-sync.md`.
+
 ## What was asked, and what was built
 
 From the UI feedback triage of August 31:

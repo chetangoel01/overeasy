@@ -13,7 +13,7 @@ Implementation proceeds in verified, task-sized commits. Design choices remain p
 | [#113](https://github.com/chetangoel01/overeasy/issues/113) | A private or deleted photo carousel reports parserUnavailable and retries forever | Implemented and verified |
 | [#117](https://github.com/chetangoel01/overeasy/issues/117) | Short links are invisible to the inbox repair and to the duplicate check | Implemented and verified |
 | [#124](https://github.com/chetangoel01/overeasy/issues/124) | Saving an already-cached Discover recipe arrives untagged, and a persisted diet filter then hides it | Implemented and verified; production backfill pending |
-| [#140](https://github.com/chetangoel01/overeasy/issues/140) | Keep loading and sync indicators from shifting the screen | Pending |
+| [#140](https://github.com/chetangoel01/overeasy/issues/140) | Keep loading and sync indicators from shifting the screen | Implemented and verified |
 | [#141](https://github.com/chetangoel01/overeasy/issues/141) | Polish app motion with consistent native, tactile feedback | Implemented and verified |
 | [#142](https://github.com/chetangoel01/overeasy/issues/142) | Define and enforce consistent button design rules | Implemented and verified |
 | [#143](https://github.com/chetangoel01/overeasy/issues/143) | Explore recipe reviews and more visible likes and save counts | Pending |
@@ -31,6 +31,8 @@ Implementation proceeds in verified, task-sized commits. Design choices remain p
 | [#161](https://github.com/chetangoel01/overeasy/issues/161) | Verify cooking timer completion plays a sound and shows an alert | Permission-delay defects fixed; physical sound/alert checks pending |
 
 ## Verification
+
+- #140: the owner chose to hide routine sync entirely. A hosted regression measured the "Syncing recipes…" and "Refreshing Discover…" strips at 36 points each inside the top safe-area inset, which is what pushed every screen down and back; it now measures zero for routine work and still measures the failed strips. 116 focused app tests pass, and both UI scenarios that expect the failed-sync strip pass. Decision, causes, and what was left alone are in [quiet sync and refresh](2026-09-17-quiet-sync.md); the rule is in [DESIGN.md](../../DESIGN.md#motion-and-feedback).
 
 - #141: a hosted SwiftUI probe reproduced a forced 0.5-second save animation outside the presenting view. The save model now publishes state without dictating motion; RecipeDetail, Discover, and FullRecipe consult Reduce Motion for their explicit save and scroll transitions. The hosted regression passes, and all 590 app tests pass (one intentional skip). Existing press and haptic behavior was audited and is documented in [DESIGN.md](../../DESIGN.md#motion-and-feedback).
 
@@ -56,9 +58,10 @@ No issues are considered complete solely because an implementation exists; unres
 ## Decisions and device checks still pending
 
 The owner has approved backend short-link resolution and bounded missing-time
-repair including cached templates; both are implemented above. These earlier
-questions remain unanswered, so their dependent product changes have not been
-selected on the owner's behalf:
+repair including cached templates, and on September 17 chose to hide routine
+sync status entirely (#140) rather than move it into the navigation bar; all
+three are implemented above. These earlier questions remain unanswered, so
+their dependent product changes have not been selected on the owner's behalf:
 
 - Layout group (#145, #146, #148, #150, #151, #153, #160): proposed compact
   thumbnail header with “Watch original”; inline serving minus/plus and Reset;
@@ -70,9 +73,6 @@ selected on the owner's behalf:
   or add ratings, or ratings with written reviews. Public feedback needs its
   contribution/edit/report rules once that scope is selected.
 - Calorie breakdown (#144): macros, ingredient contributions, or both.
-- Routine sync status (#140): proposed navigation-bar indicator, retaining
-  actionable offline/conflict messages; hiding routine status is the other
-  offered option. Neither placement has been approved yet.
 - Phone QA (#147, #161): reproduce the system icon confirmation, and listen
   for the timer in the foreground and with the phone locked, recording Silent
   mode and Focus. Mirroring ultimately reports “iPhone in Use”. No listening

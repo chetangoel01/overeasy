@@ -238,8 +238,8 @@ final class DiscoverViewModel {
     }
 
     /// Fetches page 1 behind the reader's back and holds it. Nothing on
-    /// screen moves: the refresh banner stays out of this, and a page that
-    /// turns out to match what is already there is dropped without a word.
+    /// screen moves: a failure here draws no banner, and a page that turns
+    /// out to match what is already there is dropped without a word.
     ///
     /// Scrolling back to the top is how someone returns to a row they meant
     /// to keep, so the feed cannot be replaced at that moment. It can only
@@ -991,8 +991,9 @@ private struct DiscoverScrollSignal: Equatable {
 }
 
 /// The other thing that can sit under the navigation bar. Deliberately the
-/// same strip of steel as the refresh banner: a second announcement language
-/// on one screen would make the feed look like it is talking to itself.
+/// same strip of steel as the failed-refresh banner: a second announcement
+/// language on one screen would make the feed look like it is talking to
+/// itself.
 private struct DiscoverNewRecipesPill: View {
     let take: () -> Void
 
@@ -1011,25 +1012,18 @@ private struct DiscoverNewRecipesPill: View {
     }
 }
 
-private struct DiscoverRefreshBanner: View {
+/// Draws a failed refresh and nothing else. A refresh in flight has no
+/// indicator of its own: a pull already shows the system's control, and a
+/// strip that came and went in this inset moved the feed under the reader.
+struct DiscoverRefreshBanner: View {
     let state: DiscoverViewModel.RefreshState
     let retry: () -> Void
 
-    @ViewBuilder
     var body: some View {
-        switch state {
-        case .current:
-            EmptyView()
-        case .refreshing:
-            DiscoverTopBar(systemImage: nil, identifier: Self.identifier) {
-                ProgressView().controlSize(.small)
-                Text("Refreshing Discover…")
-                    .ladleFont(.bodyStrong)
-            }
-        case let .failed(report):
+        if case let .failed(report) = state {
             DiscoverTopBar(
                 systemImage: report.failure.systemImage,
-                identifier: Self.identifier
+                identifier: "discover.refresh-status"
             ) {
                 VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
                     Text("Showing earlier Discover results")
@@ -1050,28 +1044,24 @@ private struct DiscoverRefreshBanner: View {
             }
         }
     }
-
-    private static let identifier = "discover.refresh-status"
 }
 
 /// The one bar Discover puts under the navigation bar, whatever it has to
-/// say. Shared so the refresh banner and the "New recipes" pill cannot drift
-/// into two different pieces of furniture.
+/// say. Shared so the failed-refresh banner and the "New recipes" pill cannot
+/// drift into two different pieces of furniture.
 private struct DiscoverTopBar<Content: View>: View {
-    let systemImage: String?
+    let systemImage: String
     let identifier: String
     @ViewBuilder let content: () -> Content
 
     var body: some View {
         HStack(alignment: .top, spacing: LadleTheme.Layout.iconGap) {
-            if let systemImage {
-                Image(systemName: systemImage)
-                    .font(.system(
-                        size: LadleTheme.IconSize.medium,
-                        weight: .semibold
-                    ))
-                    .accessibilityHidden(true)
-            }
+            Image(systemName: systemImage)
+                .font(.system(
+                    size: LadleTheme.IconSize.medium,
+                    weight: .semibold
+                ))
+                .accessibilityHidden(true)
             content()
         }
         .foregroundStyle(LadleTheme.Label.primary)
