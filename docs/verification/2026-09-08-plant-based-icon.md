@@ -145,8 +145,10 @@ and [alternate icon configuration](https://developer.apple.com/documentation/xco
 - `AppIconStoreTests`: complete selection/restoration mapping and offer gate.
 - `ProjectSmokeTests`: compiled declarations, drawable previews, separate
   backgrounds, visible 1024-pixel foreground layers, and transparent exteriors.
-- `ProfileSheetUITests`: actual switching through all seven choices, relaunch
-  persistence, reachable tap targets, and restoration of the original icon.
+- `ProfileSheetUITests`: one smoke test that reaches the last icon in the
+  row, switches to it through the real system API, and puts the egg back.
+  Until September 17 it switched through all seven and relaunched; the
+  store's side of that is `AppIconStoreTests`.
 
 ## September 10 Liquid Glass verification
 
@@ -335,8 +337,7 @@ cannot put it back — it is not a preference of ours — and neither does
 reinstalling from a test run. A simulator left on the plant-based icon makes
 the two diet UI tests fail, because a cook already carrying an alternate is not
 offered it: `xcrun simctl uninstall <udid> com.ladle.ios` is the reset. The
-picker's own UI test therefore reads which icon it started on and puts that
-one back.
+picker's own UI test therefore puts the egg back when it is done.
 
 ## September 17 confirmation-layout investigation (#147)
 

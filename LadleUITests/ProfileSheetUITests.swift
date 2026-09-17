@@ -158,50 +158,28 @@ final class ProfileSheetUITests: XCTestCase {
 
     // MARK: - The app icon
 
-    /// Exercise every bundled icon through the real system switch, then
-    /// relaunch to verify persistence and restore the original selection.
+    /// The row scrolls sideways, so its last icon starts off screen: reach it
+    /// and choose it through the real system switch.
     @MainActor
-    func testEveryIconCanBeChosenAndPersistsAfterRelaunch() {
+    func testTheLastIconInTheRowCanBeReachedAndChosen() {
         let app = launchSignedIn()
         app.buttons["Profile"].tap()
         XCTAssertTrue(app.navigationBars["Profile"].waitForExistence(timeout: 3))
 
-        let choices = ["egg", "avocado", "tomato", "strawberry", "cherries", "carrot", "mushroom"]
-        // Once the row is on screen every tile is in it, on view or not.
-        _ = revealIcon("egg", in: app)
-        let original = choices.first {
-            app.buttons["account.app-icon.\($0)"].value as? String == "Selected"
-        } ?? "egg"
-        let picker = XCTAttachment(screenshot: app.screenshot())
-        picker.name = "App icon row"
-        picker.lifetime = .keepAlways
-        add(picker)
-
-        for choice in choices {
-            let tile = revealIcon(choice, in: app)
-            XCTAssertGreaterThanOrEqual(tile.frame.width, 44)
-            XCTAssertGreaterThanOrEqual(tile.frame.height, 44)
-            XCTAssertGreaterThanOrEqual(tile.frame.minX, app.frame.minX)
-            XCTAssertLessThanOrEqual(tile.frame.maxX, app.frame.maxX)
-            let frame = tile.frame
-            tile.tap()
-            dismissIconChangeNotice()
-            waitForSelection(of: tile)
-            // Neither the form nor the row moves under a choice, or under
-            // the system's notice about it.
-            XCTAssertEqual(tile.frame.minX, frame.minX, accuracy: 1)
-            XCTAssertEqual(tile.frame.minY, frame.minY, accuracy: 1)
-        }
-
-        app.terminate()
-        app.launch()
-        app.buttons["Profile"].tap()
-        waitForSelection(of: revealIcon("mushroom", in: app))
-
-        let originalTile = revealIcon(original, in: app)
-        originalTile.tap()
+        let mushroom = revealIcon("mushroom", in: app)
+        XCTAssertGreaterThanOrEqual(mushroom.frame.width, 44)
+        XCTAssertGreaterThanOrEqual(mushroom.frame.height, 44)
+        XCTAssertTrue(app.frame.contains(mushroom.frame))
+        mushroom.tap()
         dismissIconChangeNotice()
-        waitForSelection(of: originalTile)
+        waitForSelection(of: mushroom)
+
+        // The installed icon outlives the run, and the diet tests are only
+        // offered the avocado from the egg.
+        let egg = revealIcon("egg", in: app)
+        egg.tap()
+        dismissIconChangeNotice()
+        waitForSelection(of: egg)
     }
 
     /// Scrolls the form to the picker, then the row to the tile: the row

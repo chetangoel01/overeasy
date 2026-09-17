@@ -61,25 +61,29 @@ Engineering calls, each open to a veto:
 
 - `Ladle/Account/AccountSheet.swift`: `appIconSection` and its helpers.
 - `LadleUITests/ProfileSheetUITests.swift`:
-  `testEveryIconCanBeChosenAndPersistsAfterRelaunch` brings a tile into view
-  by dragging the row, and now also asserts that a tile is where it was once
-  its selection has landed. Its size, on-screen and relaunch assertions are
-  unchanged.
+  `testTheLastIconInTheRowCanBeReachedAndChosen` replaces the seven-icon
+  switching test, on the owner's instruction of September 17 to cut UI tests
+  down to what a change actually risks. It drags the row until Mushroom, which
+  starts off its end, is on screen, asserts the tile at least 44 points each
+  way and inside the screen, chooses it through the real switch, and puts the
+  egg back, which the diet tests' one-time offer depends on.
 - `DESIGN.md` (Profile) and the [earlier picker record](2026-09-08-plant-based-icon.md).
 
 ## Verification
 
-- `ProfileSheetUITests` on iPhone 17 Pro, iOS 26.5: `Executed 9 tests, with 0
-  failures`. `testEveryIconCanBeChosenAndPersistsAfterRelaunch` took all seven
-  icons through the real system switch, asserted each tile at least 44 points
-  each way and fully on screen before its tap, found each tile where it was
-  once its selection landed, confirmed Mushroom after a relaunch, and put the
-  original icon back.
-- The grid held its scroll position on this simulator too, so the position
-  assertion is a guard for the new row rather than a fix seen going red; it
-  was not forced to fail against the old layout.
-- The diet test in the same class still meets the one-time avocado offer,
-  which needs the simulator back on the egg: the picker test restores it.
+- The smoke test on iPhone 17 Pro, iOS 26.5: `Executed 1 test, with 0
+  failures`, in 36 seconds against the 88 the seven-icon test took.
+- Before it was cut down, the seven-icon test ran against the new row with
+  the rest of its class: `Executed 9 tests, with 0 failures`. It took all
+  seven icons through the real system switch, asserted each tile at least 44
+  points each way and fully on screen before its tap, found each tile where
+  it was once its selection landed, confirmed Mushroom after a relaunch, and
+  put the original icon back.
+- Position is no longer asserted; the captures below show it. The grid held
+  its scroll position on this simulator too, so that assertion had been a
+  guard rather than a fix seen going red.
+- The diet test in the same class met the one-time avocado offer in that
+  run, which needs the simulator back on the egg: the smoke test restores it.
 - Full app suite: `Executed 591 tests, with 1 test skipped and 0 failures`,
   the skip being the live App Attest test. The primary-journey UI test
   (`StateScenarioUITests`) passes. Both ran on the final build of this branch,
