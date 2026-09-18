@@ -1,3 +1,4 @@
+import AudioToolbox
 import AVFoundation
 import Foundation
 import UIKit
@@ -10,10 +11,10 @@ protocol TimerChimePlaying: AnyObject {
 /// The foreground half of a finished timer's alert.
 ///
 /// A notification is silenced by the ringer switch; a kitchen timer is not.
-/// While the app is in front, a finished timer sounds the same chime through
-/// an `AVAudioSession` playback category instead, and keeps sounding it until
-/// the cook acknowledges the timer — capped, so a phone left on a counter
-/// cannot ring all afternoon.
+/// While the app is in front, a finished timer sounds the same tone
+/// (`TimerTone`) through an `AVAudioSession` playback category instead, and
+/// keeps sounding it until the cook acknowledges the timer — capped, so a
+/// phone left on a counter cannot ring all afternoon.
 @MainActor
 final class TimerAlarm {
     /// Long enough to be a reminder rather than an alarm clock.
@@ -92,6 +93,11 @@ final class SystemTimerChimePlayer: TimerChimePlaying {
 
     func playChime() {
         guard let player = loadedPlayer() else {
+            // An OS without the tone file still gets Calypso, through the
+            // system player — which the ringer switch can silence, so the
+            // haptic stays as the part that always lands.
+            AudioServicesPlaySystemSound(TimerTone.systemSoundID)
+            haptics.impactOccurred()
             return
         }
         let session = AVAudioSession.sharedInstance()
@@ -135,10 +141,7 @@ final class SystemTimerChimePlayer: TimerChimePlaying {
         if let player {
             return player
         }
-        guard let url = Bundle.main.url(
-            forResource: "TimerChime",
-            withExtension: "wav"
-        ) else {
+        guard let url = TimerTone.playbackURL() else {
             return nil
         }
         player = try? AVAudioPlayer(contentsOf: url)
