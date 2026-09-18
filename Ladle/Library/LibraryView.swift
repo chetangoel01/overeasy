@@ -132,6 +132,7 @@ enum LibraryWorkspacePresentation: Equatable {
 struct LibraryView: View {
     @Bindable var viewModel: LibraryViewModel
     @Bindable var importCoordinator: ImportCoordinator
+    let cookingSessions: CookingSessionStore
     let accountSession: AccountSession
     var authClient: AuthClient?
     var googleSignIn: (any GoogleSignInProviding)?
@@ -446,6 +447,7 @@ struct LibraryView: View {
         WatchView(
             viewModel: viewModel,
             discoverService: discoverService,
+            cookingSessions: cookingSessions,
             filters: viewModel.filters,
             refreshVersion: watchRefreshVersion,
             openSavedRecipe: openRecipe,
@@ -564,6 +566,7 @@ struct LibraryView: View {
             recipe: destination.recipe,
             statusText: destination.statusText,
             importCoordinator: importCoordinator,
+            cookingSessions: cookingSessions,
             makeEditorViewModel: viewModel.makeEditorViewModel,
             recipeDidChange: { _ in
                 viewModel.load()

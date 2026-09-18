@@ -32,6 +32,9 @@ private struct WatchViewport {
 
 struct WatchView: View {
     @Bindable var viewModel: LibraryViewModel
+    /// The app's cooking session, so the card offers to resume the recipe
+    /// already cooking rather than to start it again.
+    let cookingSessions: CookingSessionStore
     /// The same store the library and Discover read. Watch owns neither
     /// feed's filtering — "My Recipes" is answered locally by
     /// `viewModel.watchRecipes`, Discover by the server — but both answer
@@ -45,7 +48,6 @@ struct WatchView: View {
     let saveRecipe: (SavedDiscoverRecipe) -> Void
 
     @State private var discoverViewModel: DiscoverViewModel
-    @State private var cookingViewModel: CookingViewModel?
     @State private var isMuted = false
     @State private var isPlaybackPaused = false
     @Environment(\.colorScheme) private var systemColorScheme
@@ -55,6 +57,7 @@ struct WatchView: View {
     init(
         viewModel: LibraryViewModel,
         discoverService: any DiscoverServing,
+        cookingSessions: CookingSessionStore,
         filters: RecipeFilterStore,
         refreshVersion: Int,
         openSavedRecipe: @escaping (Recipe) -> Void,
@@ -62,6 +65,7 @@ struct WatchView: View {
         saveRecipe: @escaping (SavedDiscoverRecipe) -> Void,
     ) {
         self.viewModel = viewModel
+        self.cookingSessions = cookingSessions
         self.filters = filters
         self.refreshVersion = refreshVersion
         self.openSavedRecipe = openSavedRecipe
@@ -122,9 +126,6 @@ struct WatchView: View {
         // states, so it follows the app's ground rather than staying the
         // fixed graphite used behind video.
         .background(LadleTheme.Surface.porcelain)
-        .fullScreenCover(item: $cookingViewModel) {
-            FullRecipeView(viewModel: $0)
-        }
         .task(id: refreshVersion) {
             await discoverViewModel.load()
         }
@@ -200,8 +201,9 @@ struct WatchView: View {
                         ),
                         openRecipe: { open(recipe) },
                         save: { save(recipe) },
+                        isCooking: cookingSessions.isCooking(recipe.id),
                         startCooking: {
-                            cookingViewModel = CookingViewModel(recipe: recipe)
+                            cookingSessions.start(recipe: recipe)
                         },
                         toggleFavorite: {
                             viewModel.toggleFavorite(recipeID: recipe.id)
@@ -518,6 +520,8 @@ private struct WatchRecipePage: View {
     let saveFailure: RemoteFailureReport?
     let openRecipe: () -> Void
     let save: () -> Void
+    /// Whether this recipe is the one the app is already cooking.
+    let isCooking: Bool
     let startCooking: () -> Void
     let toggleFavorite: () -> Void
 
@@ -728,7 +732,10 @@ private struct WatchRecipePage: View {
                     .accessibilityIdentifier(
                         "watch.\(recipe.librarySlug)"
                     )
-                Button("Start cooking", action: startCooking)
+                Button(
+                    isCooking ? "Resume cooking" : "Start cooking",
+                    action: startCooking
+                )
                     .buttonStyle(LadleButtonStyle(role: .primary))
             } else {
                 Button("Review recipe", action: openRecipe)

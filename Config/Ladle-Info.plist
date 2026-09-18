@@ -22,6 +22,16 @@
 				<string>$(GOOGLE_REVERSED_CLIENT_ID)</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.ladle.ios.cooking</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>overeasy</string>
+			</array>
+		</dict>
 	</array>
 	<key>CFBundleName</key>
 	<string>$(PRODUCT_NAME)</string>

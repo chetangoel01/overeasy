@@ -185,6 +185,8 @@ final class LadleRuntime {
     let discoverService: any DiscoverServing
     let shuffleShelfIDs: ([DiscoverShelf.ID]) -> [DiscoverShelf.ID]
     let installationIdentity: InstallationIdentity
+    let cookingSessions: CookingSessionStore
+    let notificationNavigation: NotificationNavigation
 
     private let sharedQueueReconciler: SharedQueueReconciler?
     /// Runs again on every activation, not only at launch: on the first
@@ -200,7 +202,8 @@ final class LadleRuntime {
         services: LadleServiceConfiguration,
         installationIdentity: InstallationIdentity,
         resetsBackendSession: Bool,
-        accountStore: any PreferenceStoring = UserDefaults.standard
+        accountStore: any PreferenceStoring = UserDefaults.standard,
+        notificationNavigation: NotificationNavigation = .shared
     ) {
         let launchArguments = configuration.launchArguments
         let accountSession = AccountSession(
@@ -365,6 +368,19 @@ final class LadleRuntime {
             sessionWriters.append(syncService)
         }
 
+        let repository = appEnvironment.recipeRepository
+        let cookingSessions = CookingSessionStore(
+            findRecipe: { try? repository.fetchRecipe(id: $0) }
+        )
+        // A demo or test launch starts from a clean kitchen: its library is
+        // in memory and nothing in it would match a snapshot the real app
+        // left on the device.
+        if !configuration.usesInMemoryStore {
+            cookingSessions.restore()
+        }
+        self.cookingSessions = cookingSessions
+        self.notificationNavigation = notificationNavigation
+
         self.appEnvironment = appEnvironment
         self.accountSession = accountSession
         self.syncStatus = syncStatus
@@ -450,8 +466,28 @@ final class LadleRuntime {
         await clearLocalSession()
     }
 
+    /// Google Sign-In is asked first because it answers whether the URL was
+    /// its own; anything it disowns is read as an Overeasy link.
     func handleOpenURL(_ url: URL) {
-        _ = googleSignIn?.handle(url)
+        if googleSignIn?.handle(url) == true {
+            return
+        }
+        guard let destination = NotificationDestination(url: url) else {
+            return
+        }
+        cookingSessions.open(destination)
+    }
+
+    /// Takes the cooking destination a tapped timer alert left behind. The
+    /// library claims import-ready taps; this claims the other kind, so a
+    /// tap lands the same way from any tab.
+    func openCookingNotificationIfNeeded() {
+        guard let destination = notificationNavigation.destination,
+              case .cookingStep = destination else {
+            return
+        }
+        notificationNavigation.clear()
+        cookingSessions.open(destination)
     }
 
     func sceneBecameActive() {
@@ -487,6 +523,9 @@ final class LadleRuntime {
         for writer in sessionWriters {
             await writer.quiesceForSignOut()
         }
+        // The session holds a recipe this wipe is about to remove, so it
+        // goes with it rather than timing a recipe that no longer exists.
+        cookingSessions.end()
         libraryViewModel.clearLocalLibrary()
         try? SyncCursorStore().reset()
         syncStatus.reset()
