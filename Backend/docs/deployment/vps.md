@@ -166,6 +166,16 @@ signed media URLs use the canonical domain. The gateway's separate
 to serve the compatibility alias alongside the explicit canonical hostname.
 Keep that alias until installed clients and old media links no longer need it.
 
+`push.sh` installs `deploy/vps/gateway/routes/ladle.caddy` from the deployed
+revision over the gateway's copy, so the route file in the deployed tree is the
+whole list of hostnames the gateway answers. Deploying a revision whose route
+omits the canonical domain drops it silently: the certificate stays on disk,
+the API keeps signing media URLs for the name, and clients fail at the TLS
+handshake. That happened on 2026-09-18 when `main` was deployed without this
+change. `push.sh` now finishes by requesting `/health/ready` on both the
+canonical domain and the gateway alias and fails the deploy if either does not
+answer.
+
 Verified 2026-09-09: both hostnames passed readiness checks; a signed existing
 media object returned 200 through the new hostname and its unsigned URL returned
 403. All 1,107 selected backend tests passed, and the Release simulator build
