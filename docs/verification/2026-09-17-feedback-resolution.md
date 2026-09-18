@@ -96,4 +96,22 @@ remains:
 
 - Merged to `main` on September 17: the CI repairs ([#164](https://github.com/chetangoel01/overeasy/pull/164)), dashboard polling ([#162](https://github.com/chetangoel01/overeasy/pull/162)), the feedback fixes ([#163](https://github.com/chetangoel01/overeasy/pull/163)), the ratings API ([#165](https://github.com/chetangoel01/overeasy/pull/165)), quiet sync ([#166](https://github.com/chetangoel01/overeasy/pull/166)), the macro calorie breakdown ([#167](https://github.com/chetangoel01/overeasy/pull/167)), two Discover shelves ([#168](https://github.com/chetangoel01/overeasy/pull/168)), Focus amounts and the icon row ([#169](https://github.com/chetangoel01/overeasy/pull/169)), recipe details ([#170](https://github.com/chetangoel01/overeasy/pull/170)), and ratings on iOS ([#175](https://github.com/chetangoel01/overeasy/pull/175)), plus five dependency bumps. The test-suite cut the owner asked for landed as [#172](https://github.com/chetangoel01/overeasy/pull/172) (backend), [#173](https://github.com/chetangoel01/overeasy/pull/173) (app) and [#174](https://github.com/chetangoel01/overeasy/pull/174) (the rule in `AGENTS.md`). `main`'s backend gate is green for the first time since September 14. No security gate was relaxed.
 - Final combined check on the merged code: the app unit suite (one intentional skip, no failures), all eight smoke UI journeys, the shared-domain tests and the backend suite with lint and type checks pass. The suites were cut down the same day on the owner's instruction — UI tests from 49 to eight smoke journeys — and the [trim record](2026-09-17-test-suite-trim.md) says what is no longer covered automatically.
-- Production has been inspected read-only. Deployment, migration `0027`, and the existing-data tag, timing, and nutrition refreshes have not been performed. Phone checks (#147, #161) need a TestFlight build containing these changes.
+- Deployed on September 18 (UTC): `Backend/deploy/vps/push.sh` shipped
+  `7403068` (main after #181) to the VPS after a `manage.sh backup`
+  (`ladle-20260918T050922Z`, Postgres dump and MinIO archive both verified).
+  The `migrate` service applied `0027`; `/health/ready` reports every check
+  ready on the new code, and `/v1/recipes/discover/<id>/engagement` answers
+  401 where the old server answered 404. TestFlight build `20260918.1`
+  (marketing 1.0) validated, uploaded and processed the same night; internal
+  testing state `IN_BETA_TESTING`, external `READY_FOR_BETA_SUBMISSION`.
+- Backfills: `backfill-times --dry-run --limit 5` and `backfill_tags
+  --dry-run --limit 3` were run on the host and their tables read as expected
+  (times proposed 45/85/45 min with one "no estimate in reply" skip; tags
+  left already-tagged recipes unchanged and proposed diets, cuisines and
+  keywords for the untagged ones). The full runs, and the per-user
+  `scripts/refresh_recipe_nutrition.py --apply` pass, were handed to the owner
+  to run from the host; they were not run by the deploying session.
+- The phone checks for #147 and #161 were done on a development build of
+  `main` on September 17 (see #161); the timer-related changes since are in
+  `2026-09-17-cooking-session-timers.md` and
+  `2026-09-17-live-activity-timers.md`.
