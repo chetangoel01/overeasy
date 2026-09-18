@@ -214,3 +214,5 @@ naming, because the limiter fails open. If Redis goes away it logs "serving
 request unlimited" and keeps serving. That is the right call for uptime and the
 wrong assumption to make about a backstop, and it matters more now that the
 limiter is the outermost thing standing.
+
+Browser and Apple touch icons (2026-09-09) now reuse the installed Overeasy app artwork. `Tools/release/site-icons/` holds the web sizes; `build_site.py` copies them into the Pages output and all three public pages reference them with relative links. Verified by rebuilding and checking each linked file’s image format and dimensions.
