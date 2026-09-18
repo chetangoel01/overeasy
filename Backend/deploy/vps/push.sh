@@ -63,6 +63,28 @@ sudo -n install -m 0644 \
     "$app/Backend/deploy/vps/gateway/routes/ladle.caddy" \
     "$gateway/routes/ladle.caddy"
 sudo -n sh -c "cd '$gateway' && docker compose --project-name platform-gateway --env-file /etc/platform/gateway.env exec -T gateway caddy validate --config /etc/caddy/Caddyfile && docker compose --project-name platform-gateway --env-file /etc/platform/gateway.env exec -T gateway caddy reload --config /etc/caddy/Caddyfile"
+
+# The route file above is the only thing that tells the gateway which
+# hostnames to answer, and it replaces whatever was there. A revision whose
+# route lists fewer names than the one it replaced silently drops a hostname:
+# the certificate stays on disk, the API keeps minting signed media URLs for
+# it, and every client on that name fails at the TLS handshake (2026-09-18).
+# So the deploy is not finished until every hostname the app can be pointed
+# at answers over TLS: the canonical domain and the gateway's alias.
+alias_hostname=$(sudo -n sh -c ". '$gateway_env' && printf '%s' \"\${LADLE_PUBLIC_HOSTNAME:-}\"")
+for hostname in api.overeasy.chetangoel.me $alias_hostname; do
+    attempt=0
+    until curl -fsS --max-time 15 -o /dev/null "https://$hostname/health/ready"; do
+        attempt=$((attempt + 1))
+        if [ "$attempt" -ge 6 ]; then
+            printf 'Gateway does not answer https://%s/health/ready after deploy.\n' \
+                "$hostname" >&2
+            exit 1
+        fi
+        sleep 5
+    done
+    printf 'Ready: https://%s\n' "$hostname"
+done
 REMOTE
 
 printf 'Deployed %s to %s\n' "$revision" "$ssh_target"
