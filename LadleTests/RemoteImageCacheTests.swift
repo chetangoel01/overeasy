@@ -393,6 +393,7 @@ final class RemoteImageCacheTests: XCTestCase {
                     launchArguments: []
                 )
             ),
+            cookingSessions: CookingSessionStore(),
             makeEditorViewModel: { _ in
                 fatalError("The artwork tests never open the editor")
             },

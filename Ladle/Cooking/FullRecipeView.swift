@@ -8,6 +8,11 @@ struct FullRecipeView: View {
 
     @Bindable var viewModel: CookingViewModel
 
+    /// Called when the recipe is cooked. There is no "end cooking" control
+    /// to invent one for: ticking off the last step is the exit, and the
+    /// session ends with it.
+    var didFinish: () -> Void = {}
+
     var body: some View {
         Group {
             if viewModel.mode == .focus {
@@ -25,8 +30,15 @@ struct FullRecipeView: View {
         .onAppear {
             viewModel.beginCooking()
         }
+        // Leaving now gives up the screen-awake scope and nothing else. The
+        // session and its timers carry on without this screen — that is the
+        // whole of #177.
         .onDisappear {
             viewModel.endCooking()
+        }
+        .onChange(of: viewModel.isCompleted) { _, isCompleted in
+            guard isCompleted else { return }
+            didFinish()
         }
     }
 

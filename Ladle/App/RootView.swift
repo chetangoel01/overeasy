@@ -6,6 +6,7 @@ struct RootView: View {
     let accountSession: AccountSession
     let libraryViewModel: LibraryViewModel
     let importCoordinator: ImportCoordinator
+    let cookingSessions: CookingSessionStore
     let authClient: AuthClient?
     let googleSignIn: (any GoogleSignInProviding)?
     let discoverService: any DiscoverServing
@@ -20,6 +21,7 @@ struct RootView: View {
         accountSession: AccountSession,
         libraryViewModel: LibraryViewModel,
         importCoordinator: ImportCoordinator,
+        cookingSessions: CookingSessionStore,
         authClient: AuthClient? = nil,
         googleSignIn: (any GoogleSignInProviding)? = nil,
         discoverService: any DiscoverServing = DemoDiscoverService(),
@@ -35,6 +37,7 @@ struct RootView: View {
         self.accountSession = accountSession
         self.libraryViewModel = libraryViewModel
         self.importCoordinator = importCoordinator
+        self.cookingSessions = cookingSessions
         self.authClient = authClient
         self.googleSignIn = googleSignIn
         self.discoverService = discoverService
@@ -85,6 +88,7 @@ struct RootView: View {
                 LibraryView(
                     viewModel: libraryViewModel,
                     importCoordinator: importCoordinator,
+                    cookingSessions: cookingSessions,
                     accountSession: accountSession,
                     authClient: authClient,
                     googleSignIn: googleSignIn,

@@ -204,19 +204,37 @@ final class CookingViewModelTests: XCTestCase {
         XCTAssertTrue(notifications.cancelled.isEmpty)
     }
 
-    func testCompletionRequestHasSoundAndKeepsDeadlineAcrossPermissionDelay() async throws {
+    func testCompletionRequestLeadsBackToItsStepAndKeepsDeadlineAcrossPermissionDelay() async throws {
         for delay in [0.0, 4.0, 15.0] {
             let clock = TestCookingClock()
             let center = RecordingTimerNotificationCenter {
                 clock.advance(by: delay)
             }
             let scheduler = LocalTimerNotificationScheduler(center: center, now: { clock.now })
-            await scheduler.schedule(timerID: UUID(), label: "Simmer", durationSeconds: 10)
+            let notification = simmerNotification()
+            await scheduler.schedule(notification)
             let request = try XCTUnwrap(center.requests.first)
             XCTAssertEqual(center.options, [.alert, .sound])
             XCTAssertEqual(request.content.title, "Simmer is ready")
-            XCTAssertEqual(request.content.body, "Your Overeasy timer has finished.")
-            XCTAssertNotNil(request.content.sound)
+            XCTAssertEqual(request.content.body, "Beef stew, step 3.")
+            XCTAssertEqual(
+                request.content.sound,
+                UNNotificationSound(named: UNNotificationSoundName("TimerChime.wav"))
+            )
+            // A Focus must not swallow a timer the cook is waiting on.
+            XCTAssertEqual(request.content.interruptionLevel, .timeSensitive)
+            XCTAssertEqual(
+                request.content.userInfo["recipeID"] as? String,
+                notification.recipeID.uuidString
+            )
+            XCTAssertEqual(
+                request.content.userInfo["stepID"] as? String,
+                notification.stepID.uuidString
+            )
+            XCTAssertEqual(
+                request.content.userInfo["timerID"] as? String,
+                notification.timerID.uuidString
+            )
             if delay < 10 {
                 let trigger = try XCTUnwrap(request.trigger as? UNTimeIntervalNotificationTrigger)
                 XCTAssertEqual(trigger.timeInterval, 10 - delay, accuracy: 0.01)
@@ -236,7 +254,7 @@ final class CookingViewModelTests: XCTestCase {
             }
             center.authorized = !denied
             scheduler = LocalTimerNotificationScheduler(center: center)
-            await scheduler?.schedule(timerID: timerID, label: "Simmer", durationSeconds: 10)
+            await scheduler?.schedule(simmerNotification(timerID: timerID))
             XCTAssertTrue(center.requests.isEmpty)
         }
     }
@@ -275,7 +293,7 @@ final class CookingViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.finishedTimerForCurrentStep)
     }
 
-    func testEndCookingCancelsEveryPendingTimerNotification() async throws {
+    func testLeavingTheScreenKeepsTimersAndEndingTheSessionCancelsThem() async throws {
         let recipe = PreviewFixtures.recipes[3]
         let timerIDs = recipe.orderedSteps.flatMap(\.timers).map(\.id)
         XCTAssertEqual(timerIDs.count, 2)
@@ -293,7 +311,12 @@ final class CookingViewModelTests: XCTestCase {
         XCTAssertEqual(notifications.scheduled.count, 2)
         XCTAssertEqual(notifications.cancelled, [timerIDs[1]])
 
+        // Leaving the screen is not ending the session any more: the
+        // timers a cook walked away from keep running.
         viewModel.endCooking()
+        XCTAssertEqual(notifications.cancelled, [timerIDs[1]])
+
+        viewModel.endSession()
 
         XCTAssertTrue(
             Set(notifications.cancelled).isSuperset(of: Set(timerIDs)),
@@ -311,7 +334,7 @@ final class CookingViewModelTests: XCTestCase {
         )
 
         viewModel.beginCooking()
-        viewModel.endCooking()
+        viewModel.endSession()
 
         XCTAssertTrue(notifications.scheduled.isEmpty)
     }
@@ -452,6 +475,20 @@ final class CookingViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.scaledYieldText)
     }
 
+    private func simmerNotification(
+        timerID: UUID = UUID()
+    ) -> TimerNotification {
+        TimerNotification(
+            timerID: timerID,
+            label: "Simmer",
+            durationSeconds: 10,
+            recipeID: UUID(),
+            recipeTitle: "Beef stew",
+            stepID: UUID(),
+            stepNumber: 3
+        )
+    }
+
     private func makeViewModel(
         recipe: Recipe = PreviewFixtures.recipes[1],
         scaling: RecipeScaling? = nil,
@@ -474,7 +511,7 @@ final class CookingViewModelTests: XCTestCase {
 }
 
 @MainActor
-private final class TestCookingClock: CookingClock {
+final class TestCookingClock: CookingClock {
     var now: Date
 
     init(now: Date = Date(timeIntervalSince1970: 1_000)) {
@@ -487,30 +524,14 @@ private final class TestCookingClock: CookingClock {
 }
 
 @MainActor
-private final class TestTimerNotificationScheduler:
+final class TestTimerNotificationScheduler:
     TimerNotificationScheduling
 {
-    struct Scheduled: Equatable {
-        let timerID: UUID
-        let label: String
-        let durationSeconds: Int
-    }
-
-    private(set) var scheduled: [Scheduled] = []
+    private(set) var scheduled: [TimerNotification] = []
     private(set) var cancelled: [UUID] = []
 
-    func schedule(
-        timerID: UUID,
-        label: String,
-        durationSeconds: Int
-    ) async {
-        scheduled.append(
-            Scheduled(
-                timerID: timerID,
-                label: label,
-                durationSeconds: durationSeconds
-            )
-        )
+    func schedule(_ notification: TimerNotification) async {
+        scheduled.append(notification)
     }
 
     func cancel(timerID: UUID) {
@@ -527,11 +548,7 @@ private final class GateTimerNotificationScheduler:
     private var releaseContinuation: CheckedContinuation<Void, Never>?
     private(set) var cancelled: [UUID] = []
 
-    func schedule(
-        timerID: UUID,
-        label: String,
-        durationSeconds: Int
-    ) async {
+    func schedule(_ notification: TimerNotification) async {
         isScheduling = true
         schedulingContinuation?.resume()
         schedulingContinuation = nil
@@ -560,13 +577,13 @@ private final class GateTimerNotificationScheduler:
 }
 
 @MainActor
-private final class TestIdleTimerController: IdleTimerControlling {
+final class TestIdleTimerController: IdleTimerControlling {
     var isIdleTimerDisabled = false
 }
 
 
 @MainActor
-private final class RecordingTimerNotificationCenter: CookingNotificationCenter {
+final class RecordingTimerNotificationCenter: CookingNotificationCenter {
     let authorize: () -> Void
     var options: UNAuthorizationOptions = []
     var authorized = true

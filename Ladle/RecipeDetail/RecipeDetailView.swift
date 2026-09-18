@@ -43,6 +43,7 @@ struct RecipeDetailView: View {
 
     let statusText: String
     @Bindable var importCoordinator: ImportCoordinator
+    let cookingSessions: CookingSessionStore
     let makeEditorViewModel: (Recipe) -> RecipeEditorViewModel
     let recipeDidChange: (Recipe) -> Void
     let reviewDidComplete: () -> Void
@@ -65,7 +66,6 @@ struct RecipeDetailView: View {
     @State private var isReimportPresented = false
     @State private var isVideoPresented = false
     @State private var editorViewModel: RecipeEditorViewModel?
-    @State private var cookingViewModel: CookingViewModel?
     @State private var section: RecipeDetailSection = .ingredients
     @State private var isDeleteConfirmationPresented = false
     @State private var reviewIsPending: Bool
@@ -107,6 +107,7 @@ struct RecipeDetailView: View {
         recipe: Recipe,
         statusText: String = "Saved recipe",
         importCoordinator: ImportCoordinator,
+        cookingSessions: CookingSessionStore,
         makeEditorViewModel: @escaping (Recipe) -> RecipeEditorViewModel,
         recipeDidChange: @escaping (Recipe) -> Void,
         reviewDidComplete: @escaping () -> Void = {},
@@ -120,6 +121,7 @@ struct RecipeDetailView: View {
     ) {
         self.statusText = statusText
         self.importCoordinator = importCoordinator
+        self.cookingSessions = cookingSessions
         self.makeEditorViewModel = makeEditorViewModel
         self.recipeDidChange = recipeDidChange
         self.reviewDidComplete = reviewDidComplete
@@ -290,14 +292,6 @@ struct RecipeDetailView: View {
         }
         .sheet(isPresented: $isVideoPresented) {
             VideoEmbedSheet(recipe: displayedRecipe)
-        }
-        .fullScreenCover(
-            item: $cookingViewModel,
-            onDismiss: {
-                cookingViewModel = nil
-            }
-        ) { viewModel in
-            FullRecipeView(viewModel: viewModel)
         }
         .confirmationDialog(
             "Delete this recipe?",
@@ -744,8 +738,11 @@ struct RecipeDetailView: View {
     ) -> some View {
         switch cookingReadiness {
         case .ready:
-            Button("Start Cooking") {
-                cookingViewModel = CookingViewModel(
+            // The session belongs to the app, not to this page, so a recipe
+            // already cooking is resumed rather than started again — and
+            // starting a different one while its timers run asks first.
+            Button(isCooking ? "Resume cooking" : "Start Cooking") {
+                cookingSessions.start(
                     recipe: displayedRecipe,
                     scaling: scaling
                 )
@@ -790,6 +787,10 @@ struct RecipeDetailView: View {
 
     private var cookingReadiness: RecipeCookingReadiness {
         needsReview ? .needsReview : displayedRecipe.cookingReadiness
+    }
+
+    private var isCooking: Bool {
+        cookingSessions.isCooking(displayedRecipe.id)
     }
 
     private var optionsMenu: some View {

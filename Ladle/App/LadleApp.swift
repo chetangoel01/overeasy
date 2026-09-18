@@ -161,25 +161,62 @@ private struct LadleRuntimeView: View {
     let runtime: LadleRuntime
 
     var body: some View {
-        RootView(
+        // The cooking cover lives here rather than on the recipe page or
+        // Watch. The session outlives whichever screen started it, so a
+        // tapped timer alert can put it back on screen from any tab — and
+        // dismissing it leaves the session running.
+        @Bindable var sessions = runtime.cookingSessions
+
+        return RootView(
             accountSession: runtime.accountSession,
             libraryViewModel: runtime.libraryViewModel,
             importCoordinator: runtime.importCoordinator,
+            cookingSessions: sessions,
             authClient: runtime.authClient,
             googleSignIn: runtime.googleSignIn,
             discoverService: runtime.discoverService,
             shuffleShelfIDs: runtime.shuffleShelfIDs,
             syncStatus: runtime.syncStatus,
-            notificationNavigation: .shared,
+            notificationNavigation: runtime.notificationNavigation,
             onAuthenticated: runtime.didAuthenticate,
             onSignOut: runtime.signOut,
             onDeleteAccount: runtime.deleteAccount
         )
         .modelContainer(runtime.appEnvironment.modelContainer)
         .environment(\.remoteImageCache, runtime.remoteImageCache)
+        .fullScreenCover(item: $sessions.presented) { viewModel in
+            FullRecipeView(viewModel: viewModel, didFinish: sessions.end)
+        }
+        .confirmationDialog(
+            sessions.pendingReplacement.map {
+                "End the timers for \($0.activeRecipeTitle)?"
+            } ?? "",
+            isPresented: Binding(
+                get: { sessions.pendingReplacement != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        sessions.cancelReplacement()
+                    }
+                }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("End timers and start", role: .destructive) {
+                sessions.confirmReplacement()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Overeasy cooks one recipe at a time.")
+        }
         .onOpenURL(perform: runtime.handleOpenURL)
         .task {
             await runtime.restoreAndLoad()
+        }
+        .task(id: runtime.notificationNavigation.destination) {
+            runtime.openCookingNotificationIfNeeded()
+        }
+        .onChange(of: scenePhase, initial: true) { _, phase in
+            sessions.setForeground(phase == .active)
         }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }

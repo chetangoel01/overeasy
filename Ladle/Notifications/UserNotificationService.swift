@@ -3,19 +3,83 @@ import Observation
 import UIKit
 import UserNotifications
 
+/// Where a tap has asked the app to go. Sendable because the notification
+/// delegate builds one off the main actor and hands it over.
+enum NotificationDestination: Hashable, Sendable {
+    /// A finished import, which opens the recipe page.
+    case recipe(UUID)
+    /// A finished timer or an `overeasy://` link, which opens the cooking
+    /// screen at the step that set the timer.
+    case cookingStep(recipeID: UUID, stepID: UUID, timerID: UUID?)
+
+    /// `overeasy://cooking/<recipeID>/steps/<stepID>`. The shape is a
+    /// contract with the Live Activity (#178), so it is parsed in one place
+    /// and nowhere else.
+    init?(url: URL) {
+        guard url.scheme?.lowercased() == "overeasy",
+              url.host()?.lowercased() == "cooking" else {
+            return nil
+        }
+        let components = url.pathComponents.filter { $0 != "/" }
+        guard components.count == 3,
+              components[1].lowercased() == "steps",
+              let recipeID = UUID(uuidString: components[0]),
+              let stepID = UUID(uuidString: components[2]) else {
+            return nil
+        }
+        self = .cookingStep(
+            recipeID: recipeID,
+            stepID: stepID,
+            timerID: nil
+        )
+    }
+
+    /// The identifiers a timer alert carries back in its `userInfo`.
+    init?(userInfo: [AnyHashable: Any]) {
+        guard let value = userInfo["recipeID"] as? String,
+              let recipeID = UUID(uuidString: value) else {
+            return nil
+        }
+        guard let stepValue = userInfo["stepID"] as? String,
+              let stepID = UUID(uuidString: stepValue) else {
+            self = .recipe(recipeID)
+            return
+        }
+        self = .cookingStep(
+            recipeID: recipeID,
+            stepID: stepID,
+            timerID: (userInfo["timerID"] as? String)
+                .flatMap(UUID.init(uuidString:))
+        )
+    }
+}
+
 @MainActor
 @Observable
 final class NotificationNavigation {
     static let shared = NotificationNavigation()
 
-    private(set) var recipeID: UUID?
+    private(set) var destination: NotificationDestination?
+
+    /// The pending import-ready tap, and nothing else: a cooking
+    /// destination is claimed by the runtime, not by the library.
+    var recipeID: UUID? {
+        guard case let .recipe(recipeID) = destination else {
+            return nil
+        }
+        return recipeID
+    }
+
+    func open(_ destination: NotificationDestination) {
+        self.destination = destination
+    }
 
     func open(recipeID: UUID) {
-        self.recipeID = recipeID
+        open(.recipe(recipeID))
     }
 
     func clear() {
-        recipeID = nil
+        destination = nil
     }
 }
 
@@ -39,24 +103,37 @@ final class LadleAppDelegate: NSObject, UIApplicationDelegate,
     nonisolated static let foregroundPresentationOptions:
         UNNotificationPresentationOptions = [.banner, .list, .sound]
 
+    /// A timer alert delivered while the app is in front drops its sound:
+    /// `TimerAlarm` is already sounding the same chime, through a playback
+    /// session that the ringer switch cannot silence, and the two together
+    /// double the same event.
+    nonisolated static func presentationOptions(
+        for userInfo: [AnyHashable: Any]
+    ) -> UNNotificationPresentationOptions {
+        userInfo["timerID"] == nil
+            ? foregroundPresentationOptions
+            : [.banner, .list]
+    }
+
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
-        Self.foregroundPresentationOptions
+        Self.presentationOptions(
+            for: notification.request.content.userInfo
+        )
     }
 
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse
     ) async {
-        guard let value = response.notification.request.content.userInfo[
-            "recipeID"
-        ] as? String,
-        let recipeID = UUID(uuidString: value) else {
+        guard let destination = NotificationDestination(
+            userInfo: response.notification.request.content.userInfo
+        ) else {
             return
         }
-        await NotificationNavigation.shared.open(recipeID: recipeID)
+        await NotificationNavigation.shared.open(destination)
     }
 }
 

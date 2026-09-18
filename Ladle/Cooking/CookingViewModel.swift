@@ -40,6 +40,12 @@ final class CookingViewModel: Identifiable {
     /// stored beyond it.
     var showsStepIngredientAmounts = true
 
+    /// Called after anything a relaunch would have to restore. The store
+    /// hangs snapshotting here rather than polling, so the written snapshot
+    /// is never a step or a timer behind what the cook is looking at.
+    @ObservationIgnored
+    var sessionDidChange: () -> Void = {}
+
     @ObservationIgnored
     private let clock: CookingClock
 
@@ -70,6 +76,41 @@ final class CookingViewModel: Identifiable {
             uniqueKeysWithValues: recipe.orderedSteps
                 .flatMap(\.timers)
                 .map { ($0.id, RecipeTimer($0)) }
+        )
+    }
+
+    /// Rebuilds the session a previous launch left behind. Steps and timers
+    /// the recipe no longer has are dropped, so an edit between launches
+    /// narrows the restored session rather than failing it.
+    func restore(_ snapshot: CookingSessionSnapshot) {
+        session = CookingSession(
+            stepIDs: recipe.orderedSteps.map(\.id),
+            currentStepIndex: snapshot.session.currentStepIndex,
+            mode: snapshot.session.mode,
+            completedStepIDs: snapshot.session.completedStepIDs,
+            completedIngredientIDs: snapshot.session.completedIngredientIDs
+        )
+        let now = clock.now
+        for timerSnapshot in snapshot.timers {
+            guard let detectedTimer = timers[timerSnapshot.timerID]?
+                .detectedTimer else { continue }
+            timers[timerSnapshot.timerID] = RecipeTimer(
+                detectedTimer,
+                snapshot: timerSnapshot,
+                at: now
+            )
+        }
+    }
+
+    var snapshot: CookingSessionSnapshot {
+        CookingSessionSnapshot(
+            recipeID: recipe.id,
+            baseServings: scaling?.baseServings,
+            servings: scaling?.servings,
+            session: session,
+            timers: recipe.orderedSteps
+                .flatMap(\.timers)
+                .compactMap { timers[$0.id]?.snapshot }
         )
     }
 
@@ -152,17 +193,55 @@ final class CookingViewModel: Identifiable {
         currentStepIndex < recipe.orderedSteps.count - 1
     }
 
+    /// Whether a timer is still counting down, which is what makes replacing
+    /// this session something to ask about. Read from the derived phase: a
+    /// stored `.running` whose deadline has passed is finished, and a
+    /// finished timer is not worth a dialog.
+    var hasRunningTimer: Bool {
+        let now = clock.now
+        return timers.values.contains { $0.phase(at: now) == .running }
+    }
+
+    /// The cook is done with this recipe: every step ticked off and nothing
+    /// still counting down. A last step that sets a timer — "rest for ten
+    /// minutes" — is ticked before that timer finishes, and ending the
+    /// session there would cancel the very alert this change exists to keep.
+    var isCompleted: Bool {
+        !recipe.orderedSteps.isEmpty
+            && recipe.orderedSteps.allSatisfy {
+                session.completedStepIDs.contains($0.id)
+            }
+            && !hasRunningTimer
+    }
+
+    /// The timers this session has finished and the cook has not yet
+    /// acknowledged, which is what `TimerAlarm` sounds for.
+    var finishedTimerIDs: Set<UUID> {
+        let now = clock.now
+        return Set(
+            timers.values
+                .filter { $0.phase(at: now) == .finished }
+                .map(\.id)
+        )
+    }
+
     func beginCooking() {
         screenAwakeController.beginScope()
     }
 
+    /// Leaving the cooking screen now gives up only the screen-awake scope.
+    /// The session itself outlives the screen, so its pending timer alerts
+    /// stay pending — see `endSession()`.
     func endCooking() {
         screenAwakeController.endScope()
         keepsScreenAwake = false
-        // The session's pending timer notifications must die with it: the
-        // scheduler holding their request identifiers is deallocated with
-        // this view model, so anything left pending could never be
-        // cancelled again and would fire for an abandoned session.
+    }
+
+    /// Ends the session for good. The one place a session's pending alerts
+    /// are cancelled, so whatever else a session comes to own — a Live
+    /// Activity next — is released here beside them.
+    func endSession() {
+        endCooking()
         for timerID in timers.keys {
             notificationScheduler.cancel(timerID: timerID)
         }
@@ -175,21 +254,37 @@ final class CookingViewModel: Identifiable {
 
     func enterFocusMode() {
         session.setMode(.focus)
+        sessionDidChange()
     }
 
     func exitFocusMode() {
         session.setMode(.fullRecipe)
+        sessionDidChange()
     }
 
     func moveNext() {
         session.moveNext()
+        sessionDidChange()
     }
 
     func movePrevious() {
         session.movePrevious()
+        sessionDidChange()
+    }
+
+    /// Moves to a step by identity, which is how a tapped timer alert and
+    /// an `overeasy://` link name the step they lead back to.
+    func selectStep(id stepID: UUID) {
+        guard let index = recipe.orderedSteps.firstIndex(
+            where: { $0.id == stepID }
+        ) else {
+            return
+        }
+        selectStep(at: index)
     }
 
     func selectStep(at index: Int) {
+        defer { sessionDidChange() }
         while session.currentStepIndex < index {
             let previousIndex = session.currentStepIndex
             session.moveNext()
@@ -208,10 +303,12 @@ final class CookingViewModel: Identifiable {
 
     func toggleCompletedStep(_ stepID: UUID) {
         session.toggleCompletedStep(stepID)
+        sessionDidChange()
     }
 
     func toggleCompletedIngredient(_ ingredientID: UUID) {
         session.toggleCompletedIngredient(ingredientID)
+        sessionDidChange()
     }
 
     func isStepCompleted(_ stepID: UUID) -> Bool {
@@ -236,14 +333,22 @@ final class CookingViewModel: Identifiable {
 
     func startTimer(id timerID: UUID) async {
         guard var timer = timers[timerID],
+              let step = step(owning: timerID),
               timer.start(at: clock.now) else {
             return
         }
         timers[timerID] = timer
+        sessionDidChange()
         await notificationScheduler.schedule(
-            timerID: timerID,
-            label: timer.label,
-            durationSeconds: timer.remainingSeconds(at: clock.now)
+            TimerNotification(
+                timerID: timerID,
+                label: timer.label,
+                durationSeconds: timer.remainingSeconds(at: clock.now),
+                recipeID: recipe.id,
+                recipeTitle: recipe.title,
+                stepID: step.id,
+                stepNumber: step.number
+            )
         )
         // A naturally finished countdown still needs its completion alert.
         // Only an explicit pause/reset makes this scheduling obsolete.
@@ -259,6 +364,7 @@ final class CookingViewModel: Identifiable {
         timer.pause(at: clock.now)
         timers[timerID] = timer
         notificationScheduler.cancel(timerID: timerID)
+        sessionDidChange()
     }
 
     func resetTimer(id timerID: UUID) {
@@ -268,5 +374,17 @@ final class CookingViewModel: Identifiable {
         timer.reset()
         timers[timerID] = timer
         notificationScheduler.cancel(timerID: timerID)
+        sessionDidChange()
+    }
+
+    private func step(
+        owning timerID: UUID
+    ) -> (id: UUID, number: Int)? {
+        guard let index = recipe.orderedSteps.firstIndex(
+            where: { $0.timers.contains { $0.id == timerID } }
+        ) else {
+            return nil
+        }
+        return (recipe.orderedSteps[index].id, index + 1)
     }
 }

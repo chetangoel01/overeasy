@@ -15,13 +15,23 @@ struct SystemCookingClock: CookingClock {
     }
 }
 
+/// Everything a finished timer's alert has to say, and everything a tap on
+/// it has to carry back: the alert leads to the step that set the timer, so
+/// the step travels with it rather than being looked up when the tap lands.
+struct TimerNotification: Equatable, Sendable {
+    let timerID: UUID
+    let label: String
+    let durationSeconds: Int
+    let recipeID: UUID
+    let recipeTitle: String
+    let stepID: UUID
+    /// The step's place in the method, numbered from 1 as the cook reads it.
+    let stepNumber: Int
+}
+
 @MainActor
 protocol TimerNotificationScheduling: AnyObject {
-    func schedule(
-        timerID: UUID,
-        label: String,
-        durationSeconds: Int
-    ) async
+    func schedule(_ notification: TimerNotification) async
 
     func cancel(timerID: UUID)
 }
@@ -39,9 +49,17 @@ extension UNUserNotificationCenter: CookingNotificationCenter {}
 final class LocalTimerNotificationScheduler:
     TimerNotificationScheduling
 {
+    /// The bundled chime, which is also what `TimerAlarm` plays in the
+    /// foreground, so the alert sounds the same wherever the cook is.
+    static let soundName = "TimerChime.wav"
+
     private let center: any CookingNotificationCenter
     private let now: () -> Date
-    private var requestIDs: [UUID: String] = [:]
+    /// The newest scheduling attempt per timer. A request identifier cannot
+    /// serve as this token any more — it is derived from the timer id so a
+    /// relaunched app can still cancel what a previous launch scheduled —
+    /// so supersession is tracked separately.
+    private var tokens: [UUID: UUID] = [:]
 
     init(
         center: any CookingNotificationCenter = UNUserNotificationCenter.current(),
@@ -51,43 +69,45 @@ final class LocalTimerNotificationScheduler:
         self.now = now
     }
 
-    func schedule(
-        timerID: UUID,
-        label: String,
-        durationSeconds: Int
-    ) async {
-        guard durationSeconds > 0 else {
+    func schedule(_ notification: TimerNotification) async {
+        guard notification.durationSeconds > 0 else {
             return
         }
-        let deadline = now().addingTimeInterval(TimeInterval(durationSeconds))
+        let timerID = notification.timerID
+        let deadline = now().addingTimeInterval(
+            TimeInterval(notification.durationSeconds)
+        )
         let requestID = Self.identifier(for: timerID)
-        if let previousID = requestIDs.updateValue(
-            requestID,
-            forKey: timerID
-        ) {
-            center.removePendingNotificationRequests(
-                withIdentifiers: [previousID]
-            )
-        }
+        let token = UUID()
+        tokens[timerID] = token
 
         do {
             let isAuthorized = try await center.requestAuthorization(
                 options: [.alert, .sound]
             )
             guard isAuthorized else {
-                if requestIDs[timerID] == requestID {
-                    requestIDs[timerID] = nil
-                }
+                clearToken(token, for: timerID)
                 return
             }
-            guard requestIDs[timerID] == requestID else {
+            guard tokens[timerID] == token else {
                 return
             }
 
             let content = UNMutableNotificationContent()
-            content.title = "\(label) is ready"
-            content.body = "Your Overeasy timer has finished."
-            content.sound = .default
+            content.title = "\(notification.label) is ready"
+            content.body =
+                "\(notification.recipeTitle), step \(notification.stepNumber)."
+            content.sound = UNNotificationSound(
+                named: UNNotificationSoundName(Self.soundName)
+            )
+            // A timer the cook is waiting on outranks a Focus, which is
+            // what the time-sensitive entitlement buys.
+            content.interruptionLevel = .timeSensitive
+            content.userInfo = [
+                "recipeID": notification.recipeID.uuidString,
+                "stepID": notification.stepID.uuidString,
+                "timerID": timerID.uuidString,
+            ]
 
             // Permission may take longer than the timer itself. Keep the
             // original deadline and deliver immediately if it has passed.
@@ -101,40 +121,55 @@ final class LocalTimerNotificationScheduler:
                 ) : nil
             )
             try await center.add(request)
-            if requestIDs[timerID] != requestID {
+            if tokens[timerID] != token {
                 center.removePendingNotificationRequests(
                     withIdentifiers: [requestID]
                 )
             }
         } catch {
-            if requestIDs[timerID] == requestID {
-                requestIDs[timerID] = nil
-            }
+            clearToken(token, for: timerID)
             // The in-app timer remains usable when notifications are denied.
         }
     }
 
     func cancel(timerID: UUID) {
-        guard let requestID = requestIDs.removeValue(
-            forKey: timerID
-        ) else {
-            return
-        }
+        tokens[timerID] = nil
         center.removePendingNotificationRequests(
-            withIdentifiers: [requestID]
+            withIdentifiers: [Self.identifier(for: timerID)]
         )
     }
 
+    private func clearToken(_ token: UUID, for timerID: UUID) {
+        if tokens[timerID] == token {
+            tokens[timerID] = nil
+        }
+    }
+
+    /// Derived from the timer alone, so the request a previous launch left
+    /// pending is the one this launch cancels when the cook resets a
+    /// restored timer. Re-adding the same identifier replaces the pending
+    /// request, which is what rescheduling wants.
     private static func identifier(for timerID: UUID) -> String {
-        "ladle.cooking-timer.\(timerID.uuidString).\(UUID().uuidString)"
+        "ladle.cooking-timer.\(timerID.uuidString)"
     }
 }
 
-enum RecipeTimerPhase: Equatable {
+enum RecipeTimerPhase: String, Codable, Equatable {
     case idle
     case running
     case paused
     case finished
+}
+
+/// A timer as a relaunch has to find it again: its phase and the countdown
+/// as an amount plus the moment it was measured from, never a remaining
+/// number alone — that would restore a timer that had been paused for an
+/// hour and one that is still running identically.
+struct CookingTimerSnapshot: Codable, Equatable {
+    let timerID: UUID
+    let phase: RecipeTimerPhase
+    let remainingAtReference: TimeInterval
+    let referenceDate: Date?
 }
 
 struct RecipeTimer: Equatable, Identifiable {
@@ -148,6 +183,34 @@ struct RecipeTimer: Equatable, Identifiable {
         self.detectedTimer = detectedTimer
         remainingAtReference = TimeInterval(
             max(detectedTimer.durationSeconds, 0)
+        )
+    }
+
+    /// Restores a snapshotted timer. A countdown whose deadline passed while
+    /// the app was gone comes back finished: its alert has already fired, and
+    /// the cook is owed the finished card, not a timer at 0:00 still running.
+    init(
+        _ detectedTimer: DetectedTimer,
+        snapshot: CookingTimerSnapshot,
+        at date: Date
+    ) {
+        self.detectedTimer = detectedTimer
+        phase = snapshot.phase
+        remainingAtReference = snapshot.remainingAtReference
+        referenceDate = snapshot.referenceDate
+        if phase == .running, remainingSeconds(at: date) == 0 {
+            remainingAtReference = 0
+            referenceDate = nil
+            phase = .finished
+        }
+    }
+
+    var snapshot: CookingTimerSnapshot {
+        CookingTimerSnapshot(
+            timerID: id,
+            phase: phase,
+            remainingAtReference: remainingAtReference,
+            referenceDate: referenceDate
         )
     }
 
