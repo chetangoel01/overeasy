@@ -100,7 +100,11 @@ class TemplateNutrition(WireModel):
     serving_basis: WireDecimal
     is_estimated: bool
     approximate: bool = False
-    basis: Literal["creatorStated", "usdaCalculated", "unknown"]
+    #: Where the numbers came from. Defaulted because cache rows written
+    #: before this field existed are still served — a required field made
+    #: every read of such a row (an import cache hit, a Discover save, the
+    #: time backfill) fail validation instead of loading the template.
+    basis: Literal["creatorStated", "usdaCalculated", "unknown"] = "unknown"
     evidence: str | None = None
 
 

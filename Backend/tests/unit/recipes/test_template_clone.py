@@ -184,3 +184,27 @@ def test_re_templating_a_stored_recipe_keeps_its_missing_quantity() -> None:
     )
 
     assert RecipeTemplate.from_recipe(recipe).ingredients[0].is_to_taste is True
+
+
+def test_a_cache_row_written_before_nutrition_had_a_basis_still_loads() -> None:
+    """A live production row from before `basis` existed crashed the time
+    backfill (and would break a cache hit or a Discover save of that source)
+    because the stored template was validated with today's required field.
+    """
+    payload = template(notes=[]).model_dump(mode="json", by_alias=True)
+    payload["nutrition"] = {
+        "calories": "625",
+        "servingBasis": "1",
+        "isEstimated": True,
+    }
+
+    loaded = RecipeTemplate.model_validate(payload)
+
+    assert loaded.nutrition is not None
+    assert loaded.nutrition.basis == "unknown"
+    recipe = loaded.instantiate(
+        recipe_id=uuid4(),
+        now=datetime(2026, 9, 18, 5, 0, tzinfo=UTC),
+    )
+    assert recipe.nutrition is not None
+    assert recipe.nutrition.calories == Decimal("625")
