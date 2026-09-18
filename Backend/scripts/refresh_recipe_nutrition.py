@@ -157,6 +157,10 @@ def _replace_nutrition(
         if _owned(row.field):
             database.delete(row)
 
+    # The rows are gone before anything is added, as the repository's own
+    # graph replacement does it, so the new nutrition never meets the old.
+    database.flush()
+
     value = template.nutrition
     if value is not None:
         database.add(
@@ -173,6 +177,20 @@ def _replace_nutrition(
                 serving_basis=value.serving_basis,
                 is_estimated=value.is_estimated,
             )
+        )
+        # The named nutrients ride on the nutrition row, which has to exist
+        # first. Dropped by the first version of this script: every recipe it
+        # refreshed lost its other nutrients while keeping its calories.
+        database.flush()
+        database.add_all(
+            OtherNutrient(
+                id=uuid4(),
+                nutrition_recipe_id=recipe_id,
+                name=nutrient.name,
+                amount=nutrient.amount,
+                unit=nutrient.unit,
+            )
+            for nutrient in value.other_nutrients
         )
     record_nutrition_skips(
         database,
