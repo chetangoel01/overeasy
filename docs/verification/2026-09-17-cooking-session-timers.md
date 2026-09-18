@@ -69,6 +69,12 @@ alarm and nothing extra happens.
 - **A foregrounded timer notification drops its sound.** `willPresent` returns
   `[.banner, .list]` when `userInfo` carries a `timerID`, because the alarm is
   already playing the same chime and the two together double the event.
+- **The alarm borrows the audio category and gives it back.** Nothing else in
+  the app sets one — Watch and the video sheet play through `WKWebView` — so a
+  category left on `.playback` would have made every Watch video after the
+  first chime sound through the Silent switch as well. The previous category
+  and options are captured before the first chime of a run and restored once
+  the sound finishes, whether or not `setActive(false)` succeeds.
 - **Notification request identifiers are now derived from the timer id alone.**
   They used to carry a random suffix held only in memory, so a relaunched app
   could not cancel what a previous launch scheduled and a reset restored timer

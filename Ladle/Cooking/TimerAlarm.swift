@@ -87,12 +87,21 @@ final class SystemTimerChimePlayer: TimerChimePlaying {
     private let haptics = UIImpactFeedbackGenerator(style: .heavy)
     private var player: AVAudioPlayer?
     private var deactivation: Task<Void, Never>?
+    private var borrowedCategory:
+        (AVAudioSession.Category, AVAudioSession.CategoryOptions)?
 
     func playChime() {
         guard let player = loadedPlayer() else {
             return
         }
         let session = AVAudioSession.sharedInstance()
+        // The category is process-wide and nothing else in the app sets one,
+        // so it is borrowed rather than taken: left on `.playback`, every
+        // Watch video after the first chime would sound through the Silent
+        // switch too.
+        if borrowedCategory == nil {
+            borrowedCategory = (session.category, session.categoryOptions)
+        }
         // `.playback` is what sounds with the ringer switch off;
         // `.duckOthers` lowers whatever is playing instead of stopping it.
         try? session.setCategory(.playback, options: [.duckOthers])
@@ -105,14 +114,20 @@ final class SystemTimerChimePlayer: TimerChimePlaying {
         deactivation?.cancel()
         deactivation = Task { [weak self] in
             try? await Task.sleep(for: .seconds(player.duration + 0.1))
-            guard !Task.isCancelled else {
+            guard !Task.isCancelled, let self else {
                 return
             }
-            try? AVAudioSession.sharedInstance().setActive(
+            // A Watch video playing underneath makes this throw; the
+            // category still has to go back either way.
+            try? session.setActive(
                 false,
                 options: .notifyOthersOnDeactivation
             )
-            self?.deactivation = nil
+            if let (category, options) = borrowedCategory {
+                try? session.setCategory(category, options: options)
+                borrowedCategory = nil
+            }
+            deactivation = nil
         }
     }
 
