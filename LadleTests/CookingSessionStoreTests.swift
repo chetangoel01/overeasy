@@ -180,6 +180,65 @@ final class CookingSessionStoreTests: XCTestCase {
             .finished
         )
         XCTAssertEqual(relaunch.store.active?.remainingSeconds(for: timerID), 0)
+        XCTAssertEqual(
+            relaunch.activities.calls,
+            [.adopt(runningTimerIDs: [])],
+            "Nothing is counting down, so the activity the last launch left"
+                + " is ended rather than adopted"
+        )
+    }
+
+    /// The activity a previous launch left is adopted rather than requested
+    /// again — this process can still move and end the one already on the
+    /// Lock Screen, and a second request would leave a stale twin beside it.
+    func testARestoredRunningTimerTakesItsLockScreenActivityBack() async throws {
+        let context = Context()
+        context.store.start(recipe: Self.orzo)
+        let timerID = Self.timerID(in: Self.orzo)
+        await context.store.active?.startTimer(id: timerID)
+
+        let relaunch = Context(
+            preferences: context.preferences,
+            now: context.clock.now.addingTimeInterval(120)
+        )
+        relaunch.store.restore()
+
+        let step = try XCTUnwrap(
+            Self.orzo.orderedSteps.first { step in
+                step.timers.contains { $0.id == timerID }
+            }
+        )
+        XCTAssertEqual(
+            relaunch.activities.calls,
+            [
+                .adopt(runningTimerIDs: [timerID]),
+                .start(
+                    timerID: timerID,
+                    stepID: step.id,
+                    // The deadline it came back with, not a fresh duration.
+                    endDate: relaunch.clock.now.addingTimeInterval(600)
+                ),
+            ]
+        )
+    }
+
+    /// A timer that ran out while the app was away drew its own finish from
+    /// the activity's stale date. The cook is holding the phone now.
+    func testComingBackToTheForegroundTakesAFinishedTimerOffTheLockScreen()
+        async
+    {
+        let context = Context()
+        context.store.start(recipe: Self.orzo)
+        await context.store.active?.startTimer(id: Self.timerID(in: Self.orzo))
+        context.store.setForeground(false)
+        context.clock.advance(by: 5_000)
+
+        context.store.setForeground(true)
+
+        XCTAssertEqual(
+            context.activities.calls.last,
+            .endFinished(now: context.clock.now)
+        )
     }
 
     func testTheScalingAndTheTickedStepsSurviveTheRelaunch() throws {
@@ -212,6 +271,12 @@ final class CookingSessionStoreTests: XCTestCase {
                 preferences.string(forKey: CookingSessionStore.snapshotKey),
                 "A snapshot that cannot be honoured is not left to be"
                     + " retried at every launch"
+            )
+            XCTAssertEqual(
+                context.activities.calls,
+                [.adopt(runningTimerIDs: [])],
+                "With no session to reconcile against, a Live Activity the"
+                    + " last launch left belongs to nothing"
             )
         }
     }
@@ -358,6 +423,9 @@ final class CookingSessionStoreTests: XCTestCase {
         let clock: TestCookingClock
         let preferences: MemoryPreferenceStore
         let notifications: TestTimerNotificationScheduler
+        /// One fake for the store and for every session it makes, so the
+        /// Lock Screen's whole side of a relaunch reads as a single list.
+        let activities: TestTimerActivityPresenter
         let store: CookingSessionStore
 
         init(
@@ -366,8 +434,10 @@ final class CookingSessionStoreTests: XCTestCase {
         ) {
             let clock = TestCookingClock(now: now)
             let notifications = TestTimerNotificationScheduler()
+            let activities = TestTimerActivityPresenter()
             self.clock = clock
             self.notifications = notifications
+            self.activities = activities
             self.preferences = preferences
             store = CookingSessionStore(
                 snapshots: preferences,
@@ -382,9 +452,11 @@ final class CookingSessionStoreTests: XCTestCase {
                         notificationScheduler: notifications,
                         screenAwakeController: ScreenAwakeController(
                             idleTimer: TestIdleTimerController()
-                        )
+                        ),
+                        activityPresenter: activities
                     )
                 },
+                timerActivities: activities,
                 clock: clock
             )
         }

@@ -4,10 +4,10 @@ Issue [#178](https://github.com/chetangoel01/overeasy/issues/178). A cook with
 the phone face-up on the counter should see a running timer's countdown and its
 finish without unlocking anything, and see it with the ringer off — which is how
 the phone check in [#161](https://github.com/chetangoel01/overeasy/issues/161)
-found it. This is phase 1: the activity and everything the app does to it. The
-tap destination and the app-owned session come from
-[#177](https://github.com/chetangoel01/overeasy/issues/177), and phase 2 is
-listed at the end.
+found it. It sits on the app-owned cooking session from
+[#177](https://github.com/chetangoel01/overeasy/issues/177), which is where the
+session that outlives the screen, the relaunch snapshot and the tap destination
+come from.
 
 ## Behaviour
 
@@ -28,6 +28,17 @@ Dynamic Island, the way Clock does — one per running timer, not one per sessio
   the cooking session takes all of them off, in the same method that cancels the
   pending notifications. A finish the app is in front for lingers five minutes
   rather than vanishing as the digits reach zero.
+- **A relaunch takes its timers back.** `CookingSessionStore.restore()` adopts
+  the activities the previous launch left — a timer the restored session still
+  has counting down keeps the one already on the Lock Screen, moved to the
+  deadline it came back with — and ends every other. A launch that restores no
+  session ends them all, because nothing is left that could ever reach them.
+- **Coming back to the foreground** takes a finished timer off the Lock Screen:
+  it drew its own finish from the stale date while the cook was away, and the
+  cook is holding the phone now.
+- **A tap** opens the cooking screen at the timer's step, through the same
+  `overeasy://` parsing and `CookingSessionStore.open(_:)` that a tapped timer
+  alert uses.
 - The timer notification still fires exactly as before. Nothing in the session
   waits on, or branches on, the activity: a phone that refuses Live Activities
   gets the timer, the alert and the screen it has always had.
@@ -75,10 +86,18 @@ while implementing it:
   `Sendable`, although `update` and `end` are meant to be called from anywhere.
   Without it every hand-off into the task performing the update is a strict
   concurrency error rather than the no-op it is.
-- **Activities ended at launch are ended from the presenter's static method**,
-  called first thing in `LadleRuntime.restoreAndLoad()` and not awaited, because
-  that method returns early on a failed restore and an activity from a dead
-  process must not outlive it.
+- **Leftovers are adopted, not re-requested.** A relaunched app can still move
+  and end the activities it left, so `restore()` adopts the ones whose timers
+  are still running and lets the `start` that follows move them to their
+  restored deadline. Requesting fresh ones instead would leave a stale twin on
+  the Lock Screen beside each new one. Both calls are one line each in the
+  store, into the presenter the session already holds; the store keeps its own
+  presenter only for the launch that restores no session at all, where there is
+  no view model to ask.
+- **The `stepIndex` in the attributes is zero-based**, like
+  `CookingViewModel.currentStepIndex`, and is derived from #177's
+  `step(owning:)`, whose `number` is the one the cook reads. Anything shown
+  adds one; there is one helper, not two.
 
 ## Target, plist and colour mechanics
 
@@ -110,8 +129,10 @@ while implementing it:
   because the digits beside it already say the same thing in words. The header
   reads as "Loosen udon, step 1 of 15-Minute Garlic Butter Udon".
 - The tap destination is `overeasy://cooking/<recipeID>/steps/<stepID>` with
-  lowercase UUIDs, the shape #177 will handle. Until that lands a tap simply
-  foregrounds the app.
+  lowercase UUIDs. #177 registered the scheme and parses exactly that shape in
+  `NotificationDestination(url:)`, so the app side needed nothing added: the
+  URL travels through `LadleRuntime.handleOpenURL` into
+  `CookingSessionStore.open(_:)`, the same path a tapped timer alert takes.
 
 ## Verification
 
@@ -125,10 +146,13 @@ xcodebuild build -scheme Ladle \
   -destination 'id=<OE-178>' -derivedDataPath /private/tmp/oe-178/dd -jobs 6
 ```
 
-- Unit suite: 532 tests, 1 pre-existing intentional skip, 0 failures. Six of
-  them are new and cover the presenter calls a session makes, the order under a
-  stalled permission prompt, the attributes and tap URL built from a timer, and
-  the appearance a stale or elapsed deadline produces.
+- Unit suite: 556 tests, 1 pre-existing intentional skip, 0 failures. Eight are
+  new: the presenter calls a session makes through start, pause, resume and
+  reset; their order under a stalled permission prompt; ending the session; the
+  attributes and tap URL built from a timer; the appearance a stale or elapsed
+  deadline produces; a relaunch adopting a still-running timer's activity at its
+  restored deadline; and the foreground pass. Two existing relaunch tests gained
+  an assertion that a launch with nothing running ends what it inherited.
 - `testTimerButtonFeedbackSitsInsideTheTimelineRefresh` still passes with the
   finish reporting added beside the haptics.
 - The app builds with both extensions embedded:
@@ -153,29 +177,28 @@ can perform — so the compact state stands in for it, as #178 allows.
 
 Two things in the Lock Screen captures are the simulator, not the app. iOS's
 own first-run "Allow Live Activities from Overeasy?" consent is attached under
-the card, because a scripted run meets it once per install; answering it there
-removed the card for the rest of that run, so the captures keep it. The timer
-notification beneath is the alert that has always fired, unchanged by this work.
+the card, because a scripted run meets it once per install and these were taken
+before it was answered. The timer notification beneath is the alert that has
+always fired, unchanged by this work.
 
-### Not verified
+### Not verified, and owed to a phone
 
-- That ending a *lingering* finished activity — `end(.immediate)` after the
-  five-minute `.after` — dismisses it at once. The path is exercised only when
-  a cook resets an acknowledged timer inside those five minutes, which the
-  scripted run does not reach. Worth a look on the phone.
-- Anything on a real device, including the watch Smart Stack the `.small`
-  supplemental family is opted into.
+The relaunch and foreground paths are proved by unit tests against the store's
+own seams, not on a running app: `CookingSessionStore.restore()` is skipped for
+the in-memory launch a UI test uses, so the scripted run cannot reach it. What
+a device check should cover:
 
-## What phase 2 still owes
+- **The launch reconcile against real ActivityKit.** `Activity.activities` is
+  read from `LadleRuntime.init`, and if it comes back empty that early the
+  adoption finds nothing, a fresh activity is requested, and the inherited one
+  stays on the Lock Screen beside it. Kill the app with a timer running,
+  relaunch, and look. If it happens, hop the reconcile a turn — it is
+  fire-and-forget either way.
+- **A tap on the activity** landing on the timer's step. The URL and its parser
+  are unit-tested on both sides, but nothing has pressed the card.
+- **Ending a lingering finished activity** — `end(.immediate)` after the
+  five-minute `.after` — dismissing it at once. That path needs a cook to reset
+  an acknowledged timer inside those five minutes.
+- **The watch Smart Stack** the `.small` supplemental family is opted into.
 
-- Reconcile leftover activities against the restored cooking session at launch
-  instead of ending them all:
-  `LiveActivityTimerPresenter.endActivitiesFromPreviousRun(keeping:)` already
-  takes the timer IDs to spare.
-- Call `endFinished(now:)` from `LadleRuntime.sceneBecameActive()`, so a finish
-  a cook has already come back to leaves the Lock Screen. The method exists and
-  is unused until then.
-- Confirm a tap on the activity lands on the timer's step once #177 registers
-  the `overeasy://` scheme.
-- Pause and Reset buttons on the activity depend on the app-owned session and
-  are a separate follow-up, not phase 2.
+Pause and Reset buttons on the activity are a separate follow-up, as #178 says.
