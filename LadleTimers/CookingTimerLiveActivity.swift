@@ -61,6 +61,10 @@ struct CookingTimerLiveActivity: Widget {
                     .foregroundStyle(TimerActivityPalette.label)
             } minimal: {
                 CookingTimerCountdown(appearance: appearance)
+                    // The minimal slot is barely wider than the glyph it
+                    // usually holds, and the countdown truncated to "0:..."
+                    // at the compact size.
+                    .font(.caption2.weight(.semibold).monospacedDigit())
                     .foregroundStyle(TimerActivityPalette.label)
             }
             .widgetURL(context.attributes.stepURL)
@@ -150,6 +154,9 @@ struct CookingTimerProgressBar: View {
 struct CookingTimerLockScreenView: View {
     @Environment(\.activityFamily) private var activityFamily
 
+    /// Room for an hour-long timer's "1:00:00", and it grows with the text.
+    @ScaledMetric(relativeTo: .title2) private var countdownWidth: CGFloat = 104
+
     let attributes: CookingTimerActivityAttributes
     let appearance: CookingTimerAppearance
 
@@ -171,14 +178,20 @@ struct CookingTimerLockScreenView: View {
                             .lineLimit(1)
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel(headerAccessibilityLabel)
-
-                Spacer(minLength: 0)
 
                 CookingTimerCountdown(appearance: appearance)
                     .ladleTimerFont(isCompact ? .headline : .title2)
                     .foregroundStyle(TimerActivityPalette.label)
+                    // A column of its own, so the digits do not shuffle the
+                    // title sideways as they change, and the title gets the
+                    // rest of the card instead of half of it. `fixedSize`
+                    // would do the first of those, but a Lock Screen view
+                    // that sizes itself that way is refused outright and the
+                    // card never draws.
+                    .frame(width: countdownWidth, alignment: .trailing)
             }
 
             CookingTimerProgressBar(
