@@ -104,13 +104,19 @@ remains:
   401 where the old server answered 404. TestFlight build `20260918.1`
   (marketing 1.0) validated, uploaded and processed the same night; internal
   testing state `IN_BETA_TESTING`, external `READY_FOR_BETA_SUBMISSION`.
-- Backfills: `backfill-times --dry-run --limit 5` and `backfill_tags
-  --dry-run --limit 3` were run on the host and their tables read as expected
-  (times proposed 45/85/45 min with one "no estimate in reply" skip; tags
-  left already-tagged recipes unchanged and proposed diets, cuisines and
-  keywords for the untagged ones). The full runs, and the per-user
-  `scripts/refresh_recipe_nutrition.py --apply` pass, were handed to the owner
-  to run from the host; they were not run by the deploying session.
+- Backfills, all run on the host on September 18 after the owner allowed the
+  session to reach the VPS: `backfill-times` considered 20 recipes and shared
+  templates and wrote 19 (one "Unknown Recipe" got no estimate);
+  `backfill_tags` considered 51 recipes and tagged 33, leaving the already
+  tagged ones unchanged; `refresh_recipe_nutrition.py --apply` ran once per
+  account, 19 accounts, 51 recipes applied, none failed. Two lessons are
+  recorded here so they are not repeated: the tag backfill and the nutrition
+  refresh must not run at the same time (each rewrites the same recipe graph
+  in its own transaction, and running them together produced a duplicate
+  `pk_nutrition` on two accounts, which the rerun alone did not), and the
+  refresh script dropped a recipe's other-nutrient rows until #184 made it
+  write them back — the final rerun used the fixed script, so every refreshed
+  recipe carries them.
 - The owner's first full `backfill-times` run crashed before writing anything:
   a live extraction-cache row written before `nutrition.basis` existed failed
   validation against today's `RecipeTemplate`, whose `basis` was required.
