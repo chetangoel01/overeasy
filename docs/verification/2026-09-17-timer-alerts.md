@@ -12,6 +12,13 @@ entry, and sound. A denied request leaves the in-app countdown usable. Pause,
 reset, and ending cooking cancel pending requests. Navigation between steps
 has no effect on an active timer's scheduled notification.
 
+> Superseded in part by
+> [#177](https://github.com/chetangoel01/overeasy/issues/177) — see
+> `2026-09-17-cooking-session-timers.md`. Leaving the cooking screen no longer
+> cancels anything; only ending the session does. The alert now carries its
+> step, is Time Sensitive, and plays a bundled chime rather than the default
+> sound.
+
 Review found two permission-delay defects: the scheduler started the full delay
 after the permission prompt, and the cooking model canceled a completion if the
 timer had naturally expired while permission was pending. The scheduler now
