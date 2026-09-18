@@ -111,6 +111,14 @@ remains:
   keywords for the untagged ones). The full runs, and the per-user
   `scripts/refresh_recipe_nutrition.py --apply` pass, were handed to the owner
   to run from the host; they were not run by the deploying session.
+- The owner's first full `backfill-times` run crashed before writing anything:
+  a live extraction-cache row written before `nutrition.basis` existed failed
+  validation against today's `RecipeTemplate`, whose `basis` was required.
+  The same strict read sits on the import cache-hit path and on Discover
+  saves of that source. `basis` now defaults to `"unknown"` on the stored
+  template model (nothing reads it on the way out), with a unit test that an
+  old-shape row loads and instantiates; the fix was deployed before the
+  backfills were retried.
 - The phone checks for #147 and #161 were done on a development build of
   `main` on September 17 (see #161); the timer-related changes since are in
   `2026-09-17-cooking-session-timers.md` and
