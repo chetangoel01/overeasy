@@ -38,8 +38,10 @@
 		26182EF98681F457DBD347CA /* AccessibleColorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 735A4380EC6B8EEB6518B14C /* AccessibleColorTests.swift */; };
 		28C924DD91897EEC099C4C17 /* ImportReviewLinkRepair.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54CA28BA63A6BE2EBEAA8EB9 /* ImportReviewLinkRepair.swift */; };
 		292CA6391C0A45751E5542C2 /* StoredRecipe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27E622AAB3FB89F99BAD6CAE /* StoredRecipe.swift */; };
+		29C71F4B41808A75B7AF682B /* LadleTimers.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 795FDD2022078F0D3DAE9A68 /* LadleTimers.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		2AA5078390DE33D02030335E /* RemoteImportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4507355A7CFAE19690B7D70 /* RemoteImportService.swift */; };
 		2AED269B9C6BFDDBB4DFE5B9 /* NotificationServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2027095EF76748A9CC4DE10F /* NotificationServiceTests.swift */; };
+		2E2AFECD7B5419EB56E7E19D /* TimerActivityPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C25EFEBA7F718D2835DF9AE /* TimerActivityPalette.swift */; };
 		2EE7E5919A4DB4EC5D5205CA /* RemoteFailureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED6E479FC67096188CF3D983 /* RemoteFailureTests.swift */; };
 		2F2F551BF9359EE57E064544 /* IngredientRowTextTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52D1C35CF4E5084260F15281 /* IngredientRowTextTests.swift */; };
 		30267813D7EFF356A6505425 /* IngredientIconCatalogue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D2BC62DCD9B6DCA4534D1F4 /* IngredientIconCatalogue.swift */; };
@@ -47,6 +49,7 @@
 		340B320117B3068AF76171CE /* NameStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A652BA975C67995F34462E7 /* NameStepView.swift */; };
 		346E5B9B187529DFB606B5A2 /* AppIconStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCBDE4AA5F9E637690D3FE48 /* AppIconStoreTests.swift */; };
 		35D646836FE06EE90CC9D55C /* AppIcon-Tomato.icon in Resources */ = {isa = PBXBuildFile; fileRef = F9F8B7BDFA6E651174907475 /* AppIcon-Tomato.icon */; };
+		366A6613BC367323EFFF2E77 /* CookingTimerLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD5CDB155FF028D47005A812 /* CookingTimerLiveActivity.swift */; };
 		36D53ADE622A17B3BFA72894 /* ProfilePhotoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F13FC152287DC3F5F533D2C /* ProfilePhotoTests.swift */; };
 		38670B3279A15C8147795E43 /* LadleShare.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D975A502CE6CABFF17DE770D /* LadleShare.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		38677AB549840DF26397BE92 /* RemoteFailure.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EF08F8F0D0C043AE9DB28AB /* RemoteFailure.swift */; };
@@ -88,6 +91,7 @@
 		69F3BF71002411F36B049F9F /* SyncCursorStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72BCED0B970235948B037494 /* SyncCursorStore.swift */; };
 		6AC5A7969B288BCE2FCC3F07 /* SmokeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9727BDCFE5EC23EC05E8E499 /* SmokeUITests.swift */; };
 		6C424ECF472055F02A8F6748 /* DiscardChangesConfirmation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 479D68B72A1365B19E3C5D98 /* DiscardChangesConfirmation.swift */; };
+		6CDA54A4D8FEA1C63B198228 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D85076B2E9A5D040ADB6F29A /* Assets.xcassets */; };
 		6FBBAE9357F2B186E26ADD35 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 00B54009DDBCAF77FABA1A87 /* GoogleSignIn */; };
 		714A88DB30214D7AD579E338 /* VideoEmbedSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2FCA9C00709407DA52C805AE /* VideoEmbedSheet.swift */; };
 		7281E6FC1389C0713ACF393D /* LibraryFilterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA416CDA508810231C30D8D5 /* LibraryFilterTests.swift */; };
@@ -97,6 +101,7 @@
 		7735E4254A1CC43579B1C7AD /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CAD674446D07BDCDBFD2F66 /* RootView.swift */; };
 		77C130A4633743EDDF9F8CBD /* ProfileFactsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BD89C4AE80A625C8E70B3AD /* ProfileFactsTests.swift */; };
 		7903D591A395E0DD678CC58F /* RecipeTimer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AE99C267EF3E47EF936C777 /* RecipeTimer.swift */; };
+		7A7619EB901F33455225D083 /* CookingTimerActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECB39219F9FE3AF1D25D3E87 /* CookingTimerActivityAttributes.swift */; };
 		7B03E111FA24728DE96CDE04 /* RecipePresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B2EA3F560B531E7D745E2BC /* RecipePresentation.swift */; };
 		7BCDDEF8E41F9FDD391546E4 /* RecipeFilterStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2107DC3D1C95F639B7B7A883 /* RecipeFilterStoreTests.swift */; };
 		7E5995BF6D80F212D89A3B16 /* IngredientIcons.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2B65D84D7321ED2C89BEEBD9 /* IngredientIcons.xcassets */; };
@@ -130,6 +135,7 @@
 		9F0E6A0EF3C5EC9CC8A7A6E0 /* RecipeRating.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA45FB5788EDB3D1880FD6B6 /* RecipeRating.swift */; };
 		A4AB27B7287BE0F0CFD3B690 /* HealthExportViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09B260DA499835E89F84D468 /* HealthExportViewModelTests.swift */; };
 		A52F5EA121F20FC690F20742 /* SyncStatusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65C5AAF5AD8FED1D8EAD6FE9 /* SyncStatusTests.swift */; };
+		A53AE1D9691787B212AE742C /* TimerActivityPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C672F464215EA1AB965D5E0 /* TimerActivityPresenter.swift */; };
 		A8723B3DB23725605D7D4B61 /* FocusModeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B9102B1B2F7CE3AAB88544A /* FocusModeView.swift */; };
 		A918D837FEA4DE90F683360B /* LibraryFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F74859807A5792F30D7B35C3 /* LibraryFilter.swift */; };
 		ADFA32D4AFDD16210863F59F /* NutritionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA9412596DCD6FFCA28EC55D /* NutritionView.swift */; };
@@ -151,6 +157,7 @@
 		C778F0E894F241CB780B47F5 /* DemoLaunchScenario.swift in Sources */ = {isa = PBXBuildFile; fileRef = 060BEF2EA921CEE51CAA24B6 /* DemoLaunchScenario.swift */; };
 		C82C0B6359C8D10E2983CC1B /* SwiftDataRecipeRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C39A167F8EA2C188D03B1BE6 /* SwiftDataRecipeRepositoryTests.swift */; };
 		CCDAC2330A4A8A54849C8D02 /* RecipeDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41B1A4DD4FEB2DE4274795C2 /* RecipeDetailView.swift */; };
+		CD417A67C325A2A0E8E4D78E /* CookingTimerActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECB39219F9FE3AF1D25D3E87 /* CookingTimerActivityAttributes.swift */; };
 		CDEDA9C0CB7E9BBDDBCF08F9 /* WatchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C657544261EA36028D1ADD38 /* WatchView.swift */; };
 		CF14CC78AEFC36998DF0AFE4 /* AccountSignInFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED3A0E550E090DA7C5FCA73D /* AccountSignInFlowTests.swift */; };
 		D06DB754A8B3119973B909FF /* RemoteImportServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95EAF34BC77BC1BC1B427BAC /* RemoteImportServiceTests.swift */; };
@@ -195,6 +202,13 @@
 			remoteGlobalIDString = 513B30DBEF18968525BDCBA9;
 			remoteInfo = Ladle;
 		};
+		57CE969C95D755C254D12485 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 7EEAF269B9CE72409582E1B0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BAE0DE7FC791E015D518EA84;
+			remoteInfo = LadleTimers;
+		};
 		FCEAE2CEE7991915A9439CAB /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 7EEAF269B9CE72409582E1B0 /* Project object */;
@@ -212,6 +226,7 @@
 			dstSubfolderSpec = 13;
 			files = (
 				38670B3279A15C8147795E43 /* LadleShare.appex in Embed Foundation Extensions */,
+				29C71F4B41808A75B7AF682B /* LadleTimers.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -295,6 +310,7 @@
 		739B606520A158CF7F843006 /* HealthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthService.swift; sourceTree = "<group>"; };
 		73F97C3F8A386730B6CB7BC2 /* UserNotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserNotificationService.swift; sourceTree = "<group>"; };
 		7694B5210CDCCC9EB788C7A6 /* AppIcon-Strawberry.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = "AppIcon-Strawberry.icon"; sourceTree = "<group>"; };
+		795FDD2022078F0D3DAE9A68 /* LadleTimers.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = LadleTimers.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		79C69755A0FE0CB8CFD2F500 /* RecipeListRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeListRow.swift; sourceTree = "<group>"; };
 		7B2EA3F560B531E7D745E2BC /* RecipePresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipePresentation.swift; sourceTree = "<group>"; };
 		7CAD674446D07BDCDBFD2F66 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
@@ -308,6 +324,7 @@
 		87133D11372550F81AE790E2 /* EngagementText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngagementText.swift; sourceTree = "<group>"; };
 		89DD2D1BF2804CED5D137279 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
 		8A93A16FCFB7610C2A4F09D4 /* ShareURLExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareURLExtractor.swift; sourceTree = "<group>"; };
+		8C672F464215EA1AB965D5E0 /* TimerActivityPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerActivityPresenter.swift; sourceTree = "<group>"; };
 		8ECA1AA3280738489BF150D2 /* ImportInboxView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportInboxView.swift; sourceTree = "<group>"; };
 		8FD8C1479556171086A421DD /* RecipeContextMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeContextMenu.swift; sourceTree = "<group>"; };
 		8FDBBFED7A33D3AADE9EFE95 /* RecipeFilterMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeFilterMenu.swift; sourceTree = "<group>"; };
@@ -322,6 +339,7 @@
 		99E1C2581DC55DA301481A34 /* RecipeSyncServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeSyncServiceTests.swift; sourceTree = "<group>"; };
 		9B5D35390C608C2FB9D0C0C9 /* RecipeMetadataBand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeMetadataBand.swift; sourceTree = "<group>"; };
 		9B9102B1B2F7CE3AAB88544A /* FocusModeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusModeView.swift; sourceTree = "<group>"; };
+		9C25EFEBA7F718D2835DF9AE /* TimerActivityPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerActivityPalette.swift; sourceTree = "<group>"; };
 		9D9C04B171A73400411DE730 /* ingredient-names.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "ingredient-names.json"; sourceTree = "<group>"; };
 		9EA2657D0BA391951AC9AB8A /* RecipeEditorViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeEditorViewModel.swift; sourceTree = "<group>"; };
 		9F3C25E4F342D1FEEB15A965 /* DesignTokenTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignTokenTests.swift; sourceTree = "<group>"; };
@@ -357,6 +375,7 @@
 		D4507355A7CFAE19690B7D70 /* RemoteImportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteImportService.swift; sourceTree = "<group>"; };
 		D5811E544D3F145804508A12 /* DemoImportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoImportService.swift; sourceTree = "<group>"; };
 		D7B73A4D628A16E2ED7ADBB5 /* CorrectionNotesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CorrectionNotesView.swift; sourceTree = "<group>"; };
+		D85076B2E9A5D040ADB6F29A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		D8C2F97E2CD337BCACB6970A /* TimerTone.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerTone.swift; sourceTree = "<group>"; };
 		D8FDC237D44BFEDE5C8155E0 /* AppIcon-PlantBased.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = "AppIcon-PlantBased.icon"; sourceTree = "<group>"; };
 		D922F88BCA6A73E4B5D40121 /* RecipeEngagementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeEngagementTests.swift; sourceTree = "<group>"; };
@@ -365,6 +384,7 @@
 		DAE1A079A91563D4B4A47FA0 /* NutritionNoteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionNoteTests.swift; sourceTree = "<group>"; };
 		DB9237724B9663AD4AFC1232 /* AccountSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSession.swift; sourceTree = "<group>"; };
 		DC8EEB0F6CE2D7F25FAF7308 /* RecipeGridCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeGridCard.swift; sourceTree = "<group>"; };
+		DD5CDB155FF028D47005A812 /* CookingTimerLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CookingTimerLiveActivity.swift; sourceTree = "<group>"; };
 		DD8157BECA8D206CD8B984BB /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		E2461B3FDEC6CF3119C4548A /* ReimportSafetyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReimportSafetyTests.swift; sourceTree = "<group>"; };
 		E3E83CF891E137AB8EEEC5D5 /* RecipeSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeSyncService.swift; sourceTree = "<group>"; };
@@ -375,6 +395,7 @@
 		E9C01DA218666D762AB16E8A /* AuthClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthClient.swift; sourceTree = "<group>"; };
 		EA45FB5788EDB3D1880FD6B6 /* RecipeRating.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeRating.swift; sourceTree = "<group>"; };
 		EA9515BF66202782608AA43A /* CookingSessionStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CookingSessionStoreTests.swift; sourceTree = "<group>"; };
+		ECB39219F9FE3AF1D25D3E87 /* CookingTimerActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CookingTimerActivityAttributes.swift; sourceTree = "<group>"; };
 		ED3A0E550E090DA7C5FCA73D /* AccountSignInFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSignInFlowTests.swift; sourceTree = "<group>"; };
 		ED5A2404583300FE955A8774 /* NutritionNote.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionNote.swift; sourceTree = "<group>"; };
 		ED6E479FC67096188CF3D983 /* RemoteFailureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteFailureTests.swift; sourceTree = "<group>"; };
@@ -441,9 +462,11 @@
 			isa = PBXGroup;
 			children = (
 				917FB32CC85A12AC9FABC085 /* Config */,
+				422091361CD9755FE9235CB3 /* CookingTimerActivity */,
 				C785830BA90FF06D98550174 /* Ladle */,
 				C4FA77D8C431C224299760C5 /* LadleShare */,
 				AC62D73EFA5767328A97BEBB /* LadleTests */,
+				E154423C217C6D6A2A5C026D /* LadleTimers */,
 				B83462334B3609B1DD29A356 /* LadleUITests */,
 				814C8622786A5D7B00F966DE /* Packages */,
 				42BCDF39316A0AD46ACABDE8 /* Products */,
@@ -472,12 +495,22 @@
 			path = Health;
 			sourceTree = "<group>";
 		};
+		422091361CD9755FE9235CB3 /* CookingTimerActivity */ = {
+			isa = PBXGroup;
+			children = (
+				ECB39219F9FE3AF1D25D3E87 /* CookingTimerActivityAttributes.swift */,
+			);
+			name = CookingTimerActivity;
+			path = Shared/CookingTimerActivity;
+			sourceTree = "<group>";
+		};
 		42BCDF39316A0AD46ACABDE8 /* Products */ = {
 			isa = PBXGroup;
 			children = (
 				8685543E83A66097689438A5 /* Ladle.app */,
 				D975A502CE6CABFF17DE770D /* LadleShare.appex */,
 				AB7758A009F552E1ADAB5A3B /* LadleTests.xctest */,
+				795FDD2022078F0D3DAE9A68 /* LadleTimers.appex */,
 				92186EA22A7478D595EF7866 /* LadleUITests.xctest */,
 			);
 			name = Products;
@@ -572,6 +605,7 @@
 				2460B2541E823AB098F4BAFA /* FullRecipeView.swift */,
 				1AE99C267EF3E47EF936C777 /* RecipeTimer.swift */,
 				614CB64D3827AB1339095FC2 /* ScreenAwakeController.swift */,
+				8C672F464215EA1AB965D5E0 /* TimerActivityPresenter.swift */,
 				B334AC43A34FF8769E638E1A /* TimerAlarm.swift */,
 				D8C2F97E2CD337BCACB6970A /* TimerTone.swift */,
 			);
@@ -776,6 +810,16 @@
 			path = Support;
 			sourceTree = "<group>";
 		};
+		E154423C217C6D6A2A5C026D /* LadleTimers */ = {
+			isa = PBXGroup;
+			children = (
+				D85076B2E9A5D040ADB6F29A /* Assets.xcassets */,
+				DD5CDB155FF028D47005A812 /* CookingTimerLiveActivity.swift */,
+				9C25EFEBA7F718D2835DF9AE /* TimerActivityPalette.swift */,
+			);
+			path = LadleTimers;
+			sourceTree = "<group>";
+		};
 		EB2FE3CD69344F022F0C8E92 /* Design */ = {
 			isa = PBXGroup;
 			children = (
@@ -864,6 +908,7 @@
 			);
 			dependencies = (
 				555E56A0BE71927B82AF0AB5 /* PBXTargetDependency */,
+				28C9698F284D8B1489B208F7 /* PBXTargetDependency */,
 			);
 			name = Ladle;
 			packageProductDependencies = (
@@ -873,6 +918,24 @@
 			productName = Ladle;
 			productReference = 8685543E83A66097689438A5 /* Ladle.app */;
 			productType = "com.apple.product-type.application";
+		};
+		BAE0DE7FC791E015D518EA84 /* LadleTimers */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F59B0EEAE4D651A4A27E06C0 /* Build configuration list for PBXNativeTarget "LadleTimers" */;
+			buildPhases = (
+				B3B81CC01C5E31515C256ACB /* Sources */,
+				E4A9E5E908ECFB5FE838BD08 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = LadleTimers;
+			packageProductDependencies = (
+			);
+			productName = LadleTimers;
+			productReference = 795FDD2022078F0D3DAE9A68 /* LadleTimers.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -900,6 +963,10 @@
 						DevelopmentTeam = P48VDW72LU;
 						ProvisioningStyle = Automatic;
 					};
+					BAE0DE7FC791E015D518EA84 = {
+						DevelopmentTeam = P48VDW72LU;
+						ProvisioningStyle = Automatic;
+					};
 				};
 			};
 			buildConfigurationList = CF6488C83A91CB09240F2084 /* Build configuration list for PBXProject "Ladle" */;
@@ -922,6 +989,7 @@
 			targets = (
 				513B30DBEF18968525BDCBA9 /* Ladle */,
 				0E7C3C938012F05938CD3962 /* LadleShare */,
+				BAE0DE7FC791E015D518EA84 /* LadleTimers */,
 				0695185D5604E61881FD6C0E /* LadleTests */,
 				475AAE76462CFCD6F9D7D183 /* LadleUITests */,
 			);
@@ -951,6 +1019,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				567F307E2D093F8B84903C0A /* ingredient-names.json in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E4A9E5E908ECFB5FE838BD08 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6CDA54A4D8FEA1C63B198228 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -985,6 +1061,7 @@
 				9E6908D535A27DA7429230D5 /* AuthClient.swift in Sources */,
 				ED436F436F190D3C0191AE87 /* CameraPhotoPicker.swift in Sources */,
 				32DBBC6A5C3AF0C7218276C0 /* CookingSessionStore.swift in Sources */,
+				CD417A67C325A2A0E8E4D78E /* CookingTimerActivityAttributes.swift in Sources */,
 				04F10BBF44F7962FD24A6ADD /* CookingViewModel.swift in Sources */,
 				8779DD58D535D2F86D02A7CB /* CorrectionNotesView.swift in Sources */,
 				51C94E20F9D10C5C3A6EC671 /* DemoImportService.swift in Sources */,
@@ -1065,6 +1142,7 @@
 				D6281B6C04FDA0C60A91165C /* SyncConflictReviewView.swift in Sources */,
 				69F3BF71002411F36B049F9F /* SyncCursorStore.swift in Sources */,
 				1FA4683FAEA2F3B99EECAE54 /* SyncStatus.swift in Sources */,
+				A53AE1D9691787B212AE742C /* TimerActivityPresenter.swift in Sources */,
 				816C8E9EC5917A94521290CA /* TimerAlarm.swift in Sources */,
 				85289BC901E177958E50AC5E /* TimerTone.swift in Sources */,
 				D2AE2661212614060C337885 /* UserNotificationService.swift in Sources */,
@@ -1081,6 +1159,16 @@
 				248BCFB9AB72089B7292B552 /* ShareConfirmationView.swift in Sources */,
 				202BABB63D7F671836CD4F1A /* ShareURLExtractor.swift in Sources */,
 				AE4B668CBE0E318875AF01EA /* ShareViewController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B3B81CC01C5E31515C256ACB /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7A7619EB901F33455225D083 /* CookingTimerActivityAttributes.swift in Sources */,
+				366A6613BC367323EFFF2E77 /* CookingTimerLiveActivity.swift in Sources */,
+				2E2AFECD7B5419EB56E7E19D /* TimerActivityPalette.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1144,6 +1232,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		28C9698F284D8B1489B208F7 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BAE0DE7FC791E015D518EA84 /* LadleTimers */;
+			targetProxy = 57CE969C95D755C254D12485 /* PBXContainerItemProxy */;
+		};
 		555E56A0BE71927B82AF0AB5 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 0E7C3C938012F05938CD3962 /* LadleShare */;
@@ -1249,6 +1342,22 @@
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		7030F7FDBE97B60A99BB9F2A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				INFOPLIST_FILE = "Config/LadleTimers-Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.ladle.ios.timers;
+				PRODUCT_NAME = LadleTimers;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
@@ -1362,6 +1471,22 @@
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		9C47F1A9657F630032573D7A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				INFOPLIST_FILE = "Config/LadleTimers-Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.ladle.ios.timers;
+				PRODUCT_NAME = LadleTimers;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};
@@ -1481,6 +1606,15 @@
 			buildConfigurations = (
 				7EE341668699E1635F94FB49 /* Debug */,
 				CABE07F77F403C4E18ED2A52 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		F59B0EEAE4D651A4A27E06C0 /* Build configuration list for PBXNativeTarget "LadleTimers" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7030F7FDBE97B60A99BB9F2A /* Debug */,
+				9C47F1A9657F630032573D7A /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

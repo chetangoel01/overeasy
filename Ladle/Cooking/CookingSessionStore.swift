@@ -73,6 +73,11 @@ final class CookingSessionStore {
     @ObservationIgnored
     private let alarm: TimerAlarm
 
+    /// Only for the leftovers a launch with no session inherits. A session's
+    /// own activities belong to its view model's presenter.
+    @ObservationIgnored
+    private let timerActivities: any TimerActivityPresenting
+
     @ObservationIgnored
     private let clock: CookingClock
 
@@ -92,12 +97,15 @@ final class CookingSessionStore {
             CookingViewModel(recipe: $0, scaling: $1)
         },
         alarm: TimerAlarm = TimerAlarm(),
+        timerActivities: any TimerActivityPresenting =
+            LiveActivityTimerPresenter(),
         clock: CookingClock = SystemCookingClock()
     ) {
         self.snapshots = snapshots
         self.findRecipe = findRecipe
         self.makeViewModel = makeViewModel
         self.alarm = alarm
+        self.timerActivities = timerActivities
         self.clock = clock
     }
 
@@ -174,6 +182,10 @@ final class CookingSessionStore {
         guard let snapshot = storedSnapshot(),
               let recipe = findRecipe(snapshot.recipeID) else {
             snapshots.removeObject(forKey: Self.snapshotKey)
+            // There is no session to reconcile against, so a Live Activity a
+            // previous launch left behind belongs to nothing and no session's
+            // presenter will ever reach it.
+            timerActivities.adoptActivities(forRunningTimers: [])
             return
         }
         let viewModel = adopt(
@@ -184,6 +196,7 @@ final class CookingSessionStore {
         // A timer that ran out while the app was gone already delivered its
         // notification. That was its alarm; coming back is not a second one.
         alarm.suppress(viewModel.finishedTimerIDs)
+        viewModel.restoreTimerActivities()
         startAlarm()
     }
 
@@ -216,6 +229,9 @@ final class CookingSessionStore {
         self.isForeground = isForeground
         if isForeground {
             alarm.suppress(active?.finishedTimerIDs ?? [])
+            // A finish the cook has come back to does not need the Lock
+            // Screen any more (#178).
+            active?.endFinishedTimerActivities()
             startAlarm()
         } else {
             stopAlarm()

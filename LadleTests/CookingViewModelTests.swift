@@ -327,6 +327,202 @@ final class CookingViewModelTests: XCTestCase {
         )
     }
 
+    /// The Lock Screen copy of a timer moves with the timer itself: one
+    /// activity per start, the frozen remainder on a pause, the new deadline
+    /// on a resume, and nothing left behind by a reset.
+    func testTheLockScreenTimerFollowsStartPauseResumeAndReset() async throws {
+        let recipe = PreviewFixtures.recipes[1]
+        let step = recipe.orderedSteps[1]
+        let detectedTimer = try XCTUnwrap(step.timers.first)
+        let start = Date(timeIntervalSince1970: 1_000)
+        let clock = TestCookingClock(now: start)
+        let activities = TestTimerActivityPresenter()
+        let viewModel = makeViewModel(
+            recipe: recipe,
+            clock: clock,
+            activities: activities
+        )
+
+        await viewModel.startTimer(id: detectedTimer.id)
+        clock.advance(by: 30)
+        viewModel.pauseTimer(id: detectedTimer.id)
+        clock.advance(by: 40)
+        await viewModel.startTimer(id: detectedTimer.id)
+        viewModel.resetTimer(id: detectedTimer.id)
+
+        XCTAssertEqual(
+            activities.calls,
+            [
+                .start(
+                    timerID: detectedTimer.id,
+                    stepID: step.id,
+                    endDate: start.addingTimeInterval(720)
+                ),
+                .pause(timerID: detectedTimer.id, remainingSeconds: 690),
+                // Resumed 70 seconds after the start, with 690 left to run.
+                .start(
+                    timerID: detectedTimer.id,
+                    stepID: step.id,
+                    endDate: start.addingTimeInterval(760)
+                ),
+                .end(timerID: detectedTimer.id),
+            ]
+        )
+    }
+
+    /// Asking for notification permission can outlast the cook's patience.
+    /// The activity has to be requested before that await, or a timer paused
+    /// while the prompt is up comes back to the Lock Screen still running.
+    func testPausingWhileTheNotificationSchedulesLeavesThePauseOnTheLockScreen()
+        async throws
+    {
+        let recipe = PreviewFixtures.recipes[1]
+        let detectedTimer = try XCTUnwrap(
+            recipe.orderedSteps[1].timers.first
+        )
+        let notifications = GateTimerNotificationScheduler()
+        let activities = TestTimerActivityPresenter()
+        let viewModel = makeViewModel(
+            recipe: recipe,
+            notifications: notifications,
+            activities: activities
+        )
+
+        let start = Task {
+            await viewModel.startTimer(id: detectedTimer.id)
+        }
+        await notifications.waitUntilScheduling()
+        viewModel.pauseTimer(id: detectedTimer.id)
+        notifications.release()
+        await start.value
+
+        XCTAssertEqual(
+            activities.calls.last,
+            .pause(timerID: detectedTimer.id, remainingSeconds: 720)
+        )
+        XCTAssertEqual(activities.calls.count, 2)
+    }
+
+    func testEndingTheSessionTakesEveryTimerOffTheLockScreen() async throws {
+        let recipe = PreviewFixtures.recipes[3]
+        let timerIDs = recipe.orderedSteps.flatMap(\.timers).map(\.id)
+        let activities = TestTimerActivityPresenter()
+        let viewModel = makeViewModel(
+            recipe: recipe,
+            activities: activities
+        )
+
+        viewModel.beginCooking()
+        for timerID in timerIDs {
+            await viewModel.startTimer(id: timerID)
+        }
+
+        // Leaving the screen is not ending the session: those timers keep
+        // running, and so do their Lock Screen copies.
+        viewModel.endCooking()
+        XCTAssertFalse(activities.calls.contains(.endAll))
+
+        viewModel.endSession()
+
+        XCTAssertEqual(
+            activities.calls.filter { $0 == .endAll },
+            [.endAll]
+        )
+        XCTAssertEqual(activities.calls.last, .endAll)
+    }
+
+    func testAFinishedTimerIsReportedToTheLockScreenOnce() async throws {
+        let recipe = PreviewFixtures.recipes[1]
+        let detectedTimer = try XCTUnwrap(
+            recipe.orderedSteps[1].timers.first
+        )
+        let clock = TestCookingClock()
+        let activities = TestTimerActivityPresenter()
+        let viewModel = makeViewModel(
+            recipe: recipe,
+            clock: clock,
+            activities: activities
+        )
+
+        await viewModel.startTimer(id: detectedTimer.id)
+        clock.advance(by: TimeInterval(detectedTimer.durationSeconds))
+        viewModel.timerDidFinish(id: detectedTimer.id)
+
+        XCTAssertEqual(
+            activities.calls.filter { $0 == .finish(timerID: detectedTimer.id) },
+            [.finish(timerID: detectedTimer.id)]
+        )
+    }
+
+    /// The tap destination is a contract with the deep link in #177, and the
+    /// step a timer belongs to is what makes it resolvable.
+    func testAnActivityCarriesItsStepAndTheCookingTapDestination() throws {
+        let recipe = PreviewFixtures.recipes[1]
+        let step = recipe.orderedSteps[1]
+        let detectedTimer = try XCTUnwrap(step.timers.first)
+
+        let attributes = CookingTimerActivityAttributes(
+            timer: RecipeTimer(detectedTimer),
+            recipe: recipe,
+            stepID: step.id,
+            stepIndex: 1
+        )
+
+        XCTAssertEqual(attributes.recipeID, recipe.id)
+        XCTAssertEqual(attributes.recipeTitle, recipe.title)
+        XCTAssertEqual(attributes.stepID, step.id)
+        XCTAssertEqual(attributes.stepIndex, 1)
+        XCTAssertEqual(attributes.timerID, detectedTimer.id)
+        XCTAssertEqual(attributes.label, detectedTimer.label)
+        XCTAssertEqual(attributes.durationSeconds, 720)
+        XCTAssertEqual(
+            attributes.stepURL?.absoluteString,
+            "overeasy://cooking/\(recipe.id.uuidString.lowercased())"
+                + "/steps/\(step.id.uuidString.lowercased())"
+        )
+    }
+
+    /// Nothing of the app's runs when a backgrounded timer reaches zero, so
+    /// the finished appearance has to be readable from the content alone.
+    func testALockScreenTimerReadsItsOwnFinishFromTheDeadline() {
+        let now = Date(timeIntervalSince1970: 1_000)
+        let deadline = now.addingTimeInterval(60)
+        let running = CookingTimerActivityAttributes.ContentState.running(
+            endDate: deadline,
+            remainingSeconds: 60
+        )
+
+        XCTAssertEqual(
+            CookingTimerAppearance(state: running, isStale: false, now: now),
+            .running(deadline: deadline)
+        )
+        // The system marks the activity stale at the deadline the app set,
+        // which is the only finish a suspended app can deliver.
+        XCTAssertEqual(
+            CookingTimerAppearance(state: running, isStale: true, now: now),
+            .finished
+        )
+        XCTAssertEqual(
+            CookingTimerAppearance(
+                state: .running(
+                    endDate: now.addingTimeInterval(-1),
+                    remainingSeconds: 0
+                ),
+                isStale: false,
+                now: now
+            ),
+            .finished
+        )
+        XCTAssertEqual(
+            CookingTimerAppearance(
+                state: .paused(remainingSeconds: 90),
+                isStale: false,
+                now: now
+            ),
+            .paused(remainingSeconds: 90)
+        )
+    }
+
     func testEndCookingWithNothingStartedSchedulesNothing() {
         let recipe = PreviewFixtures.recipes[1]
         let notifications = TestTimerNotificationScheduler()
@@ -500,14 +696,17 @@ final class CookingViewModelTests: XCTestCase {
         screenAwakeController: ScreenAwakeController =
             ScreenAwakeController(
                 idleTimer: TestIdleTimerController()
-            )
+            ),
+        activities: any TimerActivityPresenting =
+            TestTimerActivityPresenter()
     ) -> CookingViewModel {
         CookingViewModel(
             recipe: recipe,
             scaling: scaling,
             clock: clock,
             notificationScheduler: notifications,
-            screenAwakeController: screenAwakeController
+            screenAwakeController: screenAwakeController,
+            activityPresenter: activities
         )
     }
 }
@@ -538,6 +737,59 @@ final class TestTimerNotificationScheduler:
 
     func cancel(timerID: UUID) {
         cancelled.append(timerID)
+    }
+}
+
+@MainActor
+final class TestTimerActivityPresenter: TimerActivityPresenting {
+    enum Call: Equatable {
+        case start(timerID: UUID, stepID: UUID, endDate: Date)
+        case adopt(runningTimerIDs: Set<UUID>)
+        case pause(timerID: UUID, remainingSeconds: Int)
+        case finish(timerID: UUID)
+        case end(timerID: UUID)
+        case endAll
+        case endFinished(now: Date)
+    }
+
+    private(set) var calls: [Call] = []
+
+    func start(
+        _ timer: RecipeTimer,
+        in recipe: Recipe,
+        stepID: UUID,
+        stepIndex: Int,
+        endDate: Date
+    ) {
+        calls.append(
+            .start(timerID: timer.id, stepID: stepID, endDate: endDate)
+        )
+    }
+
+    func adoptActivities(forRunningTimers timerIDs: Set<UUID>) {
+        calls.append(.adopt(runningTimerIDs: timerIDs))
+    }
+
+    func pause(timerID: UUID, remainingSeconds: Int) {
+        calls.append(
+            .pause(timerID: timerID, remainingSeconds: remainingSeconds)
+        )
+    }
+
+    func finish(timerID: UUID) {
+        calls.append(.finish(timerID: timerID))
+    }
+
+    func end(timerID: UUID) {
+        calls.append(.end(timerID: timerID))
+    }
+
+    func endAll() {
+        calls.append(.endAll)
+    }
+
+    func endFinished(now: Date) {
+        calls.append(.endFinished(now: now))
     }
 }
 
