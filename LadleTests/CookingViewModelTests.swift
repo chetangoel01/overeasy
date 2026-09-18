@@ -210,17 +210,19 @@ final class CookingViewModelTests: XCTestCase {
             let center = RecordingTimerNotificationCenter {
                 clock.advance(by: delay)
             }
-            let scheduler = LocalTimerNotificationScheduler(center: center, now: { clock.now })
+            let tone = UNNotificationSound(named: UNNotificationSoundName("tone.caf"))
+            let scheduler = LocalTimerNotificationScheduler(
+                center: center,
+                now: { clock.now },
+                sound: { tone }
+            )
             let notification = simmerNotification()
             await scheduler.schedule(notification)
             let request = try XCTUnwrap(center.requests.first)
             XCTAssertEqual(center.options, [.alert, .sound])
             XCTAssertEqual(request.content.title, "Simmer is ready")
             XCTAssertEqual(request.content.body, "Beef stew, step 3.")
-            XCTAssertEqual(
-                request.content.sound,
-                UNNotificationSound(named: UNNotificationSoundName("TimerChime.wav"))
-            )
+            XCTAssertEqual(request.content.sound, tone)
             // A Focus must not swallow a timer the cook is waiting on.
             XCTAssertEqual(request.content.interruptionLevel, .timeSensitive)
             XCTAssertEqual(

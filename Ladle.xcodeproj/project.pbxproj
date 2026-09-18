@@ -105,12 +105,14 @@
 		805E761C513CF54F4E0BC30F /* AppIcon-Strawberry.icon in Resources */ = {isa = PBXBuildFile; fileRef = 7694B5210CDCCC9EB788C7A6 /* AppIcon-Strawberry.icon */; };
 		816C8E9EC5917A94521290CA /* TimerAlarm.swift in Sources */ = {isa = PBXBuildFile; fileRef = B334AC43A34FF8769E638E1A /* TimerAlarm.swift */; };
 		84D797D5B8CB86A7C4C53756 /* LadleTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07E8E61AD25B02CFF497294C /* LadleTheme.swift */; };
+		85289BC901E177958E50AC5E /* TimerTone.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8C2F97E2CD337BCACB6970A /* TimerTone.swift */; };
 		863986895F65B91FD27ABEEC /* RecipeEstimates.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19E5B3D1D05A6BA060B1FAF4 /* RecipeEstimates.swift */; };
 		87248E2F1716A999204DEB21 /* StoredImportJob.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30865D07CBC2C21DCB5B7BDA /* StoredImportJob.swift */; };
 		8779DD58D535D2F86D02A7CB /* CorrectionNotesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7B73A4D628A16E2ED7ADBB5 /* CorrectionNotesView.swift */; };
 		8871C3CF95232C04204A0451 /* DiscoverFilterRequestTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8610DB709FD7E278125B38CD /* DiscoverFilterRequestTests.swift */; };
 		8969E7AE92F6AAC232E3E2A8 /* URLProtocolStub.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65FAD8FFBD627A1E6F1824E0 /* URLProtocolStub.swift */; };
 		8AC160A441C4ED585178A621 /* AccountSignInFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F46203690760437829A0317 /* AccountSignInFlow.swift */; };
+		8CB0D36FC42D1D90326C73CA /* TimerToneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 233335BE91B168ADFD54DA36 /* TimerToneTests.swift */; };
 		8CE56A2E89D1E151C1AA6B84 /* ReimportSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7CCBA4794A638FF56EBDD1A /* ReimportSheet.swift */; };
 		8D177239F1A086FA834C85C6 /* RecipeGridCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC8EEB0F6CE2D7F25FAF7308 /* RecipeGridCard.swift */; };
 		8D8E4FF5E0B642F22239CFB4 /* LibraryNavigationStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D170AF6E8F4C1086A15B0546 /* LibraryNavigationStateTests.swift */; };
@@ -139,7 +141,6 @@
 		B7DF0B5B2E120DA67F5F747D /* NutritionNote.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED5A2404583300FE955A8774 /* NutritionNote.swift */; };
 		B8666103939A1C937D3007CF /* AppAttestClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 015AA36229E912578D0E22A5 /* AppAttestClient.swift */; };
 		B8C07A83B04420D104948A91 /* ImportCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCE40C1144201ECA9A36E8BC /* ImportCoordinator.swift */; };
-		B90BC88FC4F855AA96F88682 /* TimerChime.wav in Resources */ = {isa = PBXBuildFile; fileRef = 3F2408F5B10C0B9AE1FFD1D5 /* TimerChime.wav */; };
 		BB630D86B13F806C9970D122 /* RecipeFilterMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FDBBFED7A33D3AADE9EFE95 /* RecipeFilterMenu.swift */; };
 		BCE8D4284DDADFE5A4E61200 /* RemoteImageCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2364871665B549A371E8011 /* RemoteImageCache.swift */; };
 		BD4975AF606D7BFA55B03340 /* RemoteImageCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E70BCF12B0F114BF77D3F95E /* RemoteImageCacheTests.swift */; };
@@ -238,6 +239,7 @@
 		2027095EF76748A9CC4DE10F /* NotificationServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationServiceTests.swift; sourceTree = "<group>"; };
 		2107DC3D1C95F639B7B7A883 /* RecipeFilterStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeFilterStoreTests.swift; sourceTree = "<group>"; };
 		2256E64AD0B3ACFDB22A837E /* AuthClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthClientTests.swift; sourceTree = "<group>"; };
+		233335BE91B168ADFD54DA36 /* TimerToneTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerToneTests.swift; sourceTree = "<group>"; };
 		23538C17B8C5A0B1666D3494 /* RecipeOption.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeOption.swift; sourceTree = "<group>"; };
 		2460B2541E823AB098F4BAFA /* FullRecipeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullRecipeView.swift; sourceTree = "<group>"; };
 		26DA01226602E2710296ACAB /* CookingSessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CookingSessionStore.swift; sourceTree = "<group>"; };
@@ -258,7 +260,6 @@
 		398FE0A6194867671568AF86 /* LadleApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LadleApp.swift; sourceTree = "<group>"; };
 		3C7D10564A9B394589E73D94 /* IngredientIconResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IngredientIconResolverTests.swift; sourceTree = "<group>"; };
 		3CE481E48507B7D180709CC1 /* FocusModeSwipeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusModeSwipeTests.swift; sourceTree = "<group>"; };
-		3F2408F5B10C0B9AE1FFD1D5 /* TimerChime.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = TimerChime.wav; sourceTree = "<group>"; };
 		41B1A4DD4FEB2DE4274795C2 /* RecipeDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeDetailView.swift; sourceTree = "<group>"; };
 		46580B3879F912E78BF1629C /* SharedQueueReconciler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedQueueReconciler.swift; sourceTree = "<group>"; };
 		479D68B72A1365B19E3C5D98 /* DiscardChangesConfirmation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscardChangesConfirmation.swift; sourceTree = "<group>"; };
@@ -356,6 +357,7 @@
 		D4507355A7CFAE19690B7D70 /* RemoteImportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteImportService.swift; sourceTree = "<group>"; };
 		D5811E544D3F145804508A12 /* DemoImportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoImportService.swift; sourceTree = "<group>"; };
 		D7B73A4D628A16E2ED7ADBB5 /* CorrectionNotesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CorrectionNotesView.swift; sourceTree = "<group>"; };
+		D8C2F97E2CD337BCACB6970A /* TimerTone.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerTone.swift; sourceTree = "<group>"; };
 		D8FDC237D44BFEDE5C8155E0 /* AppIcon-PlantBased.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = "AppIcon-PlantBased.icon"; sourceTree = "<group>"; };
 		D922F88BCA6A73E4B5D40121 /* RecipeEngagementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecipeEngagementTests.swift; sourceTree = "<group>"; };
 		D975A502CE6CABFF17DE770D /* LadleShare.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = LadleShare.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -419,7 +421,6 @@
 				5BDEAB572C83A392AED5C622 /* Assets.xcassets */,
 				2B65D84D7321ED2C89BEEBD9 /* IngredientIcons.xcassets */,
 				DD8157BECA8D206CD8B984BB /* PrivacyInfo.xcprivacy */,
-				3F2408F5B10C0B9AE1FFD1D5 /* TimerChime.wav */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -572,6 +573,7 @@
 				1AE99C267EF3E47EF936C777 /* RecipeTimer.swift */,
 				614CB64D3827AB1339095FC2 /* ScreenAwakeController.swift */,
 				B334AC43A34FF8769E638E1A /* TimerAlarm.swift */,
+				D8C2F97E2CD337BCACB6970A /* TimerTone.swift */,
 			);
 			path = Cooking;
 			sourceTree = "<group>";
@@ -644,6 +646,7 @@
 				C39A167F8EA2C188D03B1BE6 /* SwiftDataRecipeRepositoryTests.swift */,
 				65C5AAF5AD8FED1D8EAD6FE9 /* SyncStatusTests.swift */,
 				927A64D4DAA214799DCC1084 /* TimerAlarmTests.swift */,
+				233335BE91B168ADFD54DA36 /* TimerToneTests.swift */,
 			);
 			path = LadleTests;
 			sourceTree = "<group>";
@@ -940,7 +943,6 @@
 				FBE657A54D9B4A76364BC5C3 /* Assets.xcassets in Resources */,
 				7E5995BF6D80F212D89A3B16 /* IngredientIcons.xcassets in Resources */,
 				72DB888843AD8B0F3C06AA55 /* PrivacyInfo.xcprivacy in Resources */,
-				B90BC88FC4F855AA96F88682 /* TimerChime.wav in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1064,6 +1066,7 @@
 				69F3BF71002411F36B049F9F /* SyncCursorStore.swift in Sources */,
 				1FA4683FAEA2F3B99EECAE54 /* SyncStatus.swift in Sources */,
 				816C8E9EC5917A94521290CA /* TimerAlarm.swift in Sources */,
+				85289BC901E177958E50AC5E /* TimerTone.swift in Sources */,
 				D2AE2661212614060C337885 /* UserNotificationService.swift in Sources */,
 				714A88DB30214D7AD579E338 /* VideoEmbedSheet.swift in Sources */,
 				CDEDA9C0CB7E9BBDDBCF08F9 /* WatchView.swift in Sources */,
@@ -1133,6 +1136,7 @@
 				C82C0B6359C8D10E2983CC1B /* SwiftDataRecipeRepositoryTests.swift in Sources */,
 				A52F5EA121F20FC690F20742 /* SyncStatusTests.swift in Sources */,
 				0F330A0DA86EF01F0421F0D8 /* TimerAlarmTests.swift in Sources */,
+				8CB0D36FC42D1D90326C73CA /* TimerToneTests.swift in Sources */,
 				8969E7AE92F6AAC232E3E2A8 /* URLProtocolStub.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

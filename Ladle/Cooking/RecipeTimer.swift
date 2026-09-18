@@ -49,10 +49,6 @@ extension UNUserNotificationCenter: CookingNotificationCenter {}
 final class LocalTimerNotificationScheduler:
     TimerNotificationScheduling
 {
-    /// The bundled chime, which is also what `TimerAlarm` plays in the
-    /// foreground, so the alert sounds the same wherever the cook is.
-    static let soundName = "TimerChime.wav"
-
     private let center: any CookingNotificationCenter
     private let now: () -> Date
     /// The newest scheduling attempt per timer. A request identifier cannot
@@ -61,12 +57,21 @@ final class LocalTimerNotificationScheduler:
     /// so supersession is tracked separately.
     private var tokens: [UUID: UUID] = [:]
 
+    /// The sound each request carries. Resolved per request rather than
+    /// once, because `TimerTone` may only manage its copy for notifications
+    /// on a later call than the first.
+    private let sound: () -> UNNotificationSound
+
     init(
         center: any CookingNotificationCenter = UNUserNotificationCenter.current(),
-        now: @escaping () -> Date = Date.init
+        now: @escaping () -> Date = Date.init,
+        sound: @escaping () -> UNNotificationSound = {
+            TimerTone.notificationSound()
+        }
     ) {
         self.center = center
         self.now = now
+        self.sound = sound
     }
 
     func schedule(_ notification: TimerNotification) async {
@@ -97,9 +102,7 @@ final class LocalTimerNotificationScheduler:
             content.title = "\(notification.label) is ready"
             content.body =
                 "\(notification.recipeTitle), step \(notification.stepNumber)."
-            content.sound = UNNotificationSound(
-                named: UNNotificationSoundName(Self.soundName)
-            )
+            content.sound = sound()
             // A timer the cook is waiting on outranks a Focus, which is
             // what the time-sensitive entitlement buys.
             content.interruptionLevel = .timeSensitive
