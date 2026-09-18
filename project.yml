@@ -32,6 +32,10 @@ targets:
       Release: Config/Release.xcconfig
     sources:
       - path: Ladle
+      # Compiled into the app and into LadleTimers both: ActivityKit pairs an
+      # activity with its widget by the attributes type, so the two targets
+      # share this source rather than each declaring their own.
+      - path: Shared/CookingTimerActivity
     resources:
       - path: Ladle/Resources
     settings:
@@ -48,6 +52,8 @@ targets:
         TARGETED_DEVICE_FAMILY: "1"
     dependencies:
       - target: LadleShare
+        embed: true
+      - target: LadleTimers
         embed: true
       - package: GoogleSignIn
         product: GoogleSignIn
@@ -67,6 +73,23 @@ targets:
         TARGETED_DEVICE_FAMILY: "1"
     dependencies:
       - package: LadleCore
+
+  # The Live Activity a running cooking timer becomes. It draws from dates the
+  # system advances on its own, so it needs neither the app group nor LadleCore;
+  # the few colours it uses are copied into its own catalogue, since LadleTheme
+  # belongs to the app.
+  LadleTimers:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: LadleTimers
+      - path: Shared/CookingTimerActivity
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ladle.ios.timers
+        INFOPLIST_FILE: Config/LadleTimers-Info.plist
+        PRODUCT_NAME: LadleTimers
+        TARGETED_DEVICE_FAMILY: "1"
 
   LadleTests:
     type: bundle.unit-test
@@ -101,6 +124,7 @@ schemes:
       targets:
         Ladle: all
         LadleShare: all
+        LadleTimers: all
         LadleTests: [test]
     run:
       config: Debug
@@ -116,6 +140,7 @@ schemes:
       targets:
         Ladle: all
         LadleShare: all
+        LadleTimers: all
         LadleTests: [test]
         LadleUITests: [test]
     run:
@@ -131,3 +156,8 @@ schemes:
     build:
       targets:
         LadleShare: all
+
+  LadleTimers:
+    build:
+      targets:
+        LadleTimers: all

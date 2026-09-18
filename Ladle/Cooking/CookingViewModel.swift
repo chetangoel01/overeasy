@@ -55,6 +55,9 @@ final class CookingViewModel: Identifiable {
     @ObservationIgnored
     private let screenAwakeController: ScreenAwakeController
 
+    @ObservationIgnored
+    private let activityPresenter: any TimerActivityPresenting
+
     init(
         recipe: Recipe,
         scaling: RecipeScaling? = nil,
@@ -62,13 +65,16 @@ final class CookingViewModel: Identifiable {
         notificationScheduler: TimerNotificationScheduling =
             LocalTimerNotificationScheduler(),
         screenAwakeController: ScreenAwakeController =
-            ScreenAwakeController()
+            ScreenAwakeController(),
+        activityPresenter: any TimerActivityPresenting =
+            LiveActivityTimerPresenter()
     ) {
         self.recipe = recipe
         self.scaling = scaling
         self.clock = clock
         self.notificationScheduler = notificationScheduler
         self.screenAwakeController = screenAwakeController
+        self.activityPresenter = activityPresenter
         session = CookingSession(
             stepIDs: recipe.orderedSteps.map(\.id)
         )
@@ -245,6 +251,7 @@ final class CookingViewModel: Identifiable {
         for timerID in timers.keys {
             notificationScheduler.cancel(timerID: timerID)
         }
+        activityPresenter.endAll()
     }
 
     func setKeepsScreenAwake(_ keepsScreenAwake: Bool) {
@@ -339,6 +346,19 @@ final class CookingViewModel: Identifiable {
         }
         timers[timerID] = timer
         sessionDidChange()
+        // Before the await, not after it: permission for the notification can
+        // take longer than a cook takes to pause the timer again, and an
+        // activity requested after that pause would show a paused timer
+        // running.
+        activityPresenter.start(
+            timer,
+            in: recipe,
+            stepID: step.id,
+            stepIndex: step.number - 1,
+            endDate: clock.now.addingTimeInterval(
+                TimeInterval(timer.remainingSeconds(at: clock.now))
+            )
+        )
         await notificationScheduler.schedule(
             TimerNotification(
                 timerID: timerID,
@@ -365,6 +385,10 @@ final class CookingViewModel: Identifiable {
         timers[timerID] = timer
         notificationScheduler.cancel(timerID: timerID)
         sessionDidChange()
+        activityPresenter.pause(
+            timerID: timerID,
+            remainingSeconds: timer.remainingSeconds(at: clock.now)
+        )
     }
 
     func resetTimer(id timerID: UUID) {
@@ -375,6 +399,50 @@ final class CookingViewModel: Identifiable {
         timers[timerID] = timer
         notificationScheduler.cancel(timerID: timerID)
         sessionDidChange()
+        activityPresenter.end(timerID: timerID)
+    }
+
+    /// A countdown reaching zero with the app in front.
+    ///
+    /// A timer's finish is derived from the clock rather than stored, so
+    /// nothing here mutates at zero: the screen's own per-second refresh is
+    /// where the transition is observed, and it reports it here.
+    func timerDidFinish(id timerID: UUID) {
+        activityPresenter.finish(timerID: timerID)
+    }
+
+    /// Puts a restored session's timers back on the Lock Screen.
+    ///
+    /// The activities a previous launch left are adopted first, so a timer
+    /// still counting down keeps the one it had — moved to the deadline it
+    /// came back with — and anything the session no longer owns is ended.
+    func restoreTimerActivities() {
+        let now = clock.now
+        let running = timers.values.filter { $0.phase(at: now) == .running }
+        activityPresenter.adoptActivities(
+            forRunningTimers: Set(running.map(\.id))
+        )
+        for timer in running {
+            guard let step = step(owning: timer.id) else {
+                continue
+            }
+            activityPresenter.start(
+                timer,
+                in: recipe,
+                stepID: step.id,
+                stepIndex: step.number - 1,
+                endDate: now.addingTimeInterval(
+                    TimeInterval(timer.remainingSeconds(at: now))
+                )
+            )
+        }
+    }
+
+    /// The foreground pass: a timer that ran out while the app was away drew
+    /// its own finish from the activity's stale date, and the cook is holding
+    /// the phone now, so the Lock Screen is done with it.
+    func endFinishedTimerActivities() {
+        activityPresenter.endFinished(now: clock.now)
     }
 
     private func step(

@@ -379,6 +379,16 @@ struct RecipeTimerButton: View {
                     to: newPhase
                 ) == .finished
             }
+            // Same reason as the haptics above: this refresh is the only
+            // place the app ever observes a countdown reaching zero, so the
+            // Lock Screen's finish is reported from inside it. A timer that
+            // finishes on a step the cook has left is not seen here at all —
+            // the activity's stale date draws that one.
+            .onChange(of: phase) { _, newPhase in
+                if newPhase == .finished {
+                    viewModel.timerDidFinish(id: detectedTimer.id)
+                }
+            }
         }
     }
 
@@ -494,19 +504,9 @@ struct RecipeTimerButton: View {
         }
     }
 
+    /// The Live Activity shows a paused timer these same digits, so the
+    /// format lives in the source both targets compile.
     private static func clockText(for totalSeconds: Int) -> String {
-        let clamped = max(totalSeconds, 0)
-        let hours = clamped / 3_600
-        let minutes = (clamped % 3_600) / 60
-        let seconds = clamped % 60
-        if hours > 0 {
-            return String(
-                format: "%d:%02d:%02d",
-                hours,
-                minutes,
-                seconds
-            )
-        }
-        return String(format: "%d:%02d", minutes, seconds)
+        CookingTimerClock.text(for: totalSeconds)
     }
 }
