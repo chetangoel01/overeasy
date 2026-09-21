@@ -1,0 +1,21 @@
+# Findings gitleaks reports on the weekly full-history scan that are not
+# secrets. Fingerprints are commit:path:rule:line, so they stay valid as long
+# as those commits exist in history. Add a new line here only after reading
+# the flagged value.
+#
+# Contracts/Fixtures/auth-tokens.json and the evaluation tuning fixture hold
+# made-up tokens used by contract and evaluation tests.
+38eecc7ebf225696022ac75610c3ef7310eafd90:Contracts/Fixtures/auth-tokens.json:generic-api-key:2
+38eecc7ebf225696022ac75610c3ef7310eafd90:Contracts/Fixtures/auth-tokens.json:generic-api-key:8
+3a0210d55642b516cfed2ac14331d07360bff18c:Backend/tests/fixtures/evaluation/text-only-tuning.json:generic-api-key:373
+3a0210d55642b516cfed2ac14331d07360bff18c:Backend/tests/fixtures/evaluation/text-only-tuning.json:generic-api-key:406
+3a0210d55642b516cfed2ac14331d07360bff18c:Backend/tests/fixtures/evaluation/text-only-tuning.json:generic-api-key:439
+3a0210d55642b516cfed2ac14331d07360bff18c:Backend/tests/fixtures/evaluation/text-only-tuning.json:generic-api-key:472
+3a0210d55642b516cfed2ac14331d07360bff18c:Backend/tests/fixtures/evaluation/text-only-tuning.json:generic-api-key:505
+3a0210d55642b516cfed2ac14331d07360bff18c:Backend/tests/fixtures/evaluation/text-only-tuning.json:generic-api-key:538
+3a0210d55642b516cfed2ac14331d07360bff18c:Backend/tests/fixtures/evaluation/text-only-tuning.json:generic-api-key:571
+3a0210d55642b516cfed2ac14331d07360bff18c:Backend/tests/fixtures/evaluation/text-only-tuning.json:generic-api-key:604
+#
+# attestation.py compares `key.curve` to `ec.SECP256R1`; the generic-api-key
+# rule matched the word "key" in a type check, not a credential.
+6cf554be1178ed7fa20eb4f61283cfd33aed1508:Backend/ladle/auth/attestation.py:generic-api-key:253

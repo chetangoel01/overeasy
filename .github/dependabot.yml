@@ -4,7 +4,16 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # One pull request, and so one CI run, for the week's action bumps.
+    groups:
+      actions:
+        patterns: ["*"]
   - package-ecosystem: uv
     directory: /Backend
     schedule:
       interval: weekly
+    # One pull request for the week's Python bumps instead of one per package.
+    # A bump that breaks the suite is bisected by hand from the grouped PR.
+    groups:
+      python:
+        patterns: ["*"]
