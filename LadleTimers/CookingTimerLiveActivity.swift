@@ -72,6 +72,9 @@ struct CookingTimerLiveActivity: Widget {
                         ),
                         alignment: .trailing
                     )
+                    // The column is fixed, so a cook with the largest text
+                    // sizes gets slightly smaller digits rather than "11:1…".
+                    .minimumScaleFactor(0.75)
             } minimal: {
                 CookingTimerCountdown(appearance: appearance)
                     // The minimal slot is barely wider than the glyph it
