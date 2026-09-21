@@ -59,6 +59,19 @@ struct CookingTimerLiveActivity: Widget {
             } compactTrailing: {
                 CookingTimerCountdown(appearance: appearance)
                     .foregroundStyle(TimerActivityPalette.label)
+                    // A `Text(timerInterval:)` asks for all the width it is
+                    // offered, and the compact island grants it: the digits
+                    // sat at the far right of a pill stretched across the
+                    // notch with nothing between them and the glyph. A fixed
+                    // column just wide enough for the longest string this
+                    // timer can show keeps the pill as tight as the system's
+                    // own timers.
+                    .frame(
+                        width: CookingTimerCountdown.compactWidth(
+                            durationSeconds: context.attributes.durationSeconds
+                        ),
+                        alignment: .trailing
+                    )
             } minimal: {
                 CookingTimerCountdown(appearance: appearance)
                     // The minimal slot is barely wider than the glyph it
@@ -100,6 +113,14 @@ struct CookingTimerCountdown: View {
             }
         }
         .monospacedDigit()
+    }
+
+    /// The compact island's column for the countdown: `m:ss` needs one width,
+    /// and a timer that starts past an hour shows `h:mm:ss` until it drops
+    /// under, so it is sized for the longest string it will ever hold and the
+    /// pill never resizes as the digits change.
+    static func compactWidth(durationSeconds: Int) -> CGFloat {
+        durationSeconds >= 3_600 ? 64 : 46
     }
 }
 
