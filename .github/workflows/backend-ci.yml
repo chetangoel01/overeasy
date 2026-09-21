@@ -5,14 +5,22 @@ on:
     paths:
       - "Backend/**"
       - ".github/workflows/backend-ci.yml"
+  # Only main runs on push. Feature branches already run through their pull
+  # request; listing them here too ran every codex/** commit twice.
   push:
-    branches: [main, "codex/**"]
+    branches: [main]
     paths:
       - "Backend/**"
       - ".github/workflows/backend-ci.yml"
   schedule:
     - cron: "17 5 * * 1"
   workflow_dispatch:
+
+# A newer commit on the same pull request supersedes the run in flight. Pushes
+# to main queue instead, because a main run publishes and signs an image.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
