@@ -16,10 +16,14 @@ on:
     - cron: "17 5 * * 1"
   workflow_dispatch:
 
-# A newer commit on the same pull request supersedes the run in flight. Pushes
-# to main queue instead, because a main run publishes and signs an image.
+# A newer commit on the same pull request supersedes the run in flight. Every
+# other run (main pushes, the cron, dispatches) gets a group of its own, so a
+# burst of merges never cancels a pending main run: each main commit must end
+# with a published, signed image. A group holds one pending run at most, and a
+# newer arrival drops it whatever cancel-in-progress says, so sharing a group
+# across main runs is not safe.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
