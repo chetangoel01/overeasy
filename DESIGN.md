@@ -220,6 +220,17 @@ Discover's return-to-top, cooking step navigation, recipe review guidance and
 saved-detail transition all honor that setting. The existing durations remain
 for ordinary motion; there is no new page entrance choreography.
 
+A state change bridges rather than swaps, using the platform's own vocabulary
+and nothing that holds the cook up: a glyph that changes morphs with SF
+Symbols' Replace (`ladleSymbolReplace`), numbers that change roll with a
+numeric content transition, a tick or a landed save draws its checkmark on,
+and a recipe page zooms out of the card that opened it. Each rides the house
+curve or a press duration, lives in the view that reads Reduce Motion — the
+shared `ladleAnimation`, `ladleSymbolReplace` and `ladleSymbolBounce` helpers
+carry that rule — and goes instant under it. A bounce is reserved for
+switching a favorite on, and the walkthrough's share step is the one
+illustration that acts itself out, once.
+
 Favorites and tab selection use selection feedback. Completing an ingredient
 or step, reviewing an import, and finishing a timer use success feedback only
 on the meaningful forward transition; undo and repeated states do not replay
