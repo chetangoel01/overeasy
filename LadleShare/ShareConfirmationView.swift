@@ -5,10 +5,21 @@ enum ShareConfirmationState: Equatable {
     case loading
     case success(sourceName: String)
     case failure(message: String)
+
+    /// Success feedback belongs to the save landing and nothing else: a
+    /// failure, or the same confirmation rendered again, does not replay it.
+    static func didSave(from old: Self, to new: Self) -> Bool {
+        switch (old, new) {
+        case (.loading, .success): true
+        default: false
+        }
+    }
 }
 
 struct ShareConfirmationView: View {
     static let brandName = "Overeasy"
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     let state: ShareConfirmationState
     let close: () -> Void
@@ -32,6 +43,17 @@ struct ShareConfirmationView: View {
                 .padding(.vertical, ShareTheme.Spacing.generous)
             }
             .scrollIndicators(.hidden)
+            // ShareViewController replaces the root view for each state, so
+            // the change animates here, by value, in the view that reads
+            // Reduce Motion. The copy crossfades and the source and Done fade
+            // in below it; the brand and the circle hold their places.
+            .animation(
+                reduceMotion ? nil : .snappy(duration: 0.2, extraBounce: 0),
+                value: state
+            )
+        }
+        .sensoryFeedback(.success, trigger: state) { old, new in
+            ShareConfirmationState.didSave(from: old, to: new)
         }
         .accessibilityIdentifier("share.confirmation")
     }
@@ -80,31 +102,40 @@ struct ShareConfirmationView: View {
         }
     }
 
-    @ViewBuilder
+    /// One circle serves every state, so a landed save fills it with accent
+    /// and draws the checkmark on rather than swapping in a new view. The
+    /// spinner and the failure mark keep the default fade.
     private var statusIcon: some View {
-        switch state {
-        case .loading:
-            ProgressView()
-                .controlSize(.large)
-                .tint(ShareTheme.Label.accent)
-                .frame(width: 86, height: 86)
-                .background(ShareTheme.Surface.steel, in: Circle())
-                .accessibilityLabel("Saving shared recipe")
-        case .success:
-            Image(systemName: "checkmark")
-                .font(.system(size: ShareTheme.IconSize.hero, weight: .bold))
-                .foregroundStyle(ShareTheme.Label.onAccent)
-                .frame(width: 86, height: 86)
-                .background(ShareTheme.Intent.accent, in: Circle())
-                .accessibilityLabel("Recipe link saved")
-        case .failure:
-            Image(systemName: "exclamationmark")
-                .font(.system(size: ShareTheme.IconSize.hero, weight: .bold))
-                .foregroundStyle(ShareTheme.Label.accent)
-                .frame(width: 86, height: 86)
-                .background(ShareTheme.Surface.steel, in: Circle())
-                .accessibilityLabel("Recipe link was not saved")
+        ZStack {
+            Circle().fill(
+                isSaved ? ShareTheme.Intent.accent : ShareTheme.Surface.steel
+            )
+
+            switch state {
+            case .loading:
+                ProgressView()
+                    .controlSize(.large)
+                    .tint(ShareTheme.Label.accent)
+                    .accessibilityLabel("Saving shared recipe")
+            case .success:
+                Image(systemName: "checkmark")
+                    .foregroundStyle(ShareTheme.Label.onAccent)
+                    .transition(.symbolEffect(.drawOn))
+                    .accessibilityLabel("Recipe link saved")
+            case .failure:
+                Image(systemName: "exclamationmark")
+                    .foregroundStyle(ShareTheme.Label.accent)
+                    .accessibilityLabel("Recipe link was not saved")
+            }
         }
+        .font(.system(size: ShareTheme.IconSize.hero, weight: .bold))
+        .frame(width: 86, height: 86)
+        // One 86-point element, as each of the three separate views was.
+        .accessibilityElement(children: .combine)
+    }
+
+    private var isSaved: Bool {
+        if case .success = state { true } else { false }
     }
 
     private var title: String {

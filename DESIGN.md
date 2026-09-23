@@ -402,6 +402,9 @@ navigation bar, it covers the large title.
   a passive feature tour.
 - The Share Extension mirrors the porcelain/graphite palette and says only what
   is needed to confirm saving or explain recovery.
+- When the save lands, the one status circle turns from steel to accent, its
+  checkmark draws on and a single success haptic plays. A failure only fades
+  its mark in; Reduce Motion shows either state at once.
 - Recipe processing remains owned by the app when its sheet is dismissed. Close
   and Keep browsing return to the library without cancelling the durable job.
 

@@ -22,6 +22,23 @@ final class ShareConfirmationViewTests: XCTestCase {
         )
     }
 
+    func testOnlyTheSaveLandingPlaysSuccessFeedback() {
+        let saved = ShareConfirmationState.success(sourceName: "instagram.com")
+        let failed = ShareConfirmationState.failure(message: "Try again.")
+
+        XCTAssertTrue(ShareConfirmationState.didSave(from: .loading, to: saved))
+        XCTAssertFalse(
+            ShareConfirmationState.didSave(from: .loading, to: failed)
+        )
+        XCTAssertFalse(
+            ShareConfirmationState.didSave(
+                from: saved,
+                to: .success(sourceName: "tiktok.com")
+            )
+        )
+        XCTAssertFalse(ShareConfirmationState.didSave(from: failed, to: saved))
+    }
+
     func testSuccessConfirmationRendersAtShareSheetSize() throws {
         try assertRenders(
             state: .success(sourceName: "instagram.com"),
