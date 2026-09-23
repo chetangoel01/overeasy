@@ -130,6 +130,7 @@ enum LibraryWorkspacePresentation: Equatable {
 }
 
 struct LibraryView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Bindable var viewModel: LibraryViewModel
     @Bindable var importCoordinator: ImportCoordinator
     let cookingSessions: CookingSessionStore
@@ -155,6 +156,10 @@ struct LibraryView: View {
     @State private var watchRefreshVersion = 0
     @State private var appIcon = AppIconStore()
     @State private var discoverFallback = DiscoverLaunchFallback()
+    /// One per stack that zooms, so a card and a page in different tabs can
+    /// never pair up however their ids happen to coincide.
+    @Namespace private var recipesZoom
+    @Namespace private var discoverZoom
 
     var body: some View {
         workspace
@@ -422,6 +427,15 @@ struct LibraryView: View {
                     }
                 }
         }
+        .environment(\.recipeZoomNamespace, zoomNamespace(for: tab))
+    }
+
+    private func zoomNamespace(for tab: LibraryTab) -> Namespace.ID? {
+        switch tab {
+        case .recipes: recipesZoom
+        case .discover: discoverZoom
+        case .watch, .inbox: nil
+        }
     }
 
     private var watchTab: some View {
@@ -504,8 +518,14 @@ struct LibraryView: View {
             saveRecipe: { saved in
                 viewModel.storeDiscoveredRecipe(saved)
             },
-            openRecipe: { recipe, save in
-                showDiscoverRecipe(recipe, save: save)
+            // A slow detail can land after the cook has left Discover, and
+            // its card is not in the stack the page then goes onto.
+            openRecipe: { recipe, save, card in
+                showDiscoverRecipe(
+                    recipe,
+                    save: save,
+                    card: navigation.tab == .discover ? card : nil
+                )
             },
             onInitialLoadFailed: fallBackToRecipesIfNeeded,
             shuffleShelfIDs: shuffleShelfIDs
@@ -580,6 +600,7 @@ struct LibraryView: View {
             engagementService: discoverService,
             openAccount: { isAccountPresented = true }
         )
+        .recipeZoomTransition(from: destination.zoomSource)
     }
 
     private func openCollection(_ collection: LibraryRecipeCollection) {
@@ -587,19 +608,27 @@ struct LibraryView: View {
         navigation.select(.recipes)
     }
 
+    /// Recipes' cards and Watch's saved videos both open through here; the
+    /// tab decides whether the page zooms out of a card.
     private func openRecipe(_ recipe: Recipe) {
-        showRecipe(recipe, statusText: "Saved recipe")
+        showRecipe(
+            recipe,
+            statusText: "Saved recipe",
+            card: RecipeZoomID(recipe.id)
+        )
     }
 
     private func showDiscoverRecipe(
         _ recipe: Recipe,
-        save: DiscoverSaveModel
+        save: DiscoverSaveModel,
+        card: RecipeZoomID? = nil
     ) {
         showRecipe(
             recipe,
             statusText: "Discover recipe",
             access: .discover,
-            discoverSave: save
+            discoverSave: save,
+            card: card
         )
     }
 
@@ -607,7 +636,8 @@ struct LibraryView: View {
         _ recipe: Recipe,
         statusText: String,
         access: LibraryRecipeAccess = .saved,
-        discoverSave: DiscoverSaveModel? = nil
+        discoverSave: DiscoverSaveModel? = nil,
+        card: RecipeZoomID? = nil
     ) {
         navigation.open(
             .recipe(
@@ -615,7 +645,11 @@ struct LibraryView: View {
                     recipe: recipe,
                     statusText: statusText,
                     access: access,
-                    discoverSave: discoverSave
+                    discoverSave: discoverSave,
+                    zoomSource: navigation.tab.zoomSource(
+                        for: card,
+                        reduceMotion: reduceMotion
+                    )
                 )
             )
         )
@@ -804,17 +838,25 @@ struct LibraryRecipeDestination: Hashable {
     /// and the same page reached twice is the same destination however it
     /// was reached.
     let discoverSave: DiscoverSaveModel?
+    /// The card the page zooms out of and back into, nil for the ordinary
+    /// push. It is settled as the page opens, so the page goes back the way
+    /// it came, and Reduce Motion changing while it is open cannot swap the
+    /// transition and rebuild the page. Like the save path, it is how the
+    /// page was reached, so it takes no part in equality either.
+    let zoomSource: RecipeZoomID?
 
     init(
         recipe: Recipe,
         statusText: String,
         access: LibraryRecipeAccess = .saved,
-        discoverSave: DiscoverSaveModel? = nil
+        discoverSave: DiscoverSaveModel? = nil,
+        zoomSource: RecipeZoomID? = nil
     ) {
         self.recipe = recipe
         self.statusText = statusText
         self.access = access
         self.discoverSave = discoverSave
+        self.zoomSource = zoomSource
     }
 
     static func == (
@@ -906,5 +948,93 @@ extension LibraryTab {
         [.recipes, .inbox].contains(self)
             ? [.account, .addRecipe]
             : [.account]
+    }
+
+    /// The card a page opened on this tab zooms out of, or nil for the
+    /// ordinary push. Recipes and Discover draw cards; Watch's source is the
+    /// whole screen and Inbox opens review rows, so both push, and so does
+    /// everything under Reduce Motion.
+    func zoomSource(
+        for card: RecipeZoomID?,
+        reduceMotion: Bool
+    ) -> RecipeZoomID? {
+        guard !reduceMotion, [.recipes, .discover].contains(self) else {
+            return nil
+        }
+        return card
+    }
+}
+
+/// The card a recipe page zooms out of and back into. Discover can draw one
+/// recipe in a shelf and in the list beneath it at once, so the id names the
+/// shelf as well: two cards under one id would leave the zoom to pick either.
+struct RecipeZoomID: Hashable {
+    let recipeID: UUID
+    let shelf: DiscoverShelf.ID?
+
+    init(_ recipeID: UUID, shelf: DiscoverShelf.ID? = nil) {
+        self.recipeID = recipeID
+        self.shelf = shelf
+    }
+}
+
+extension EnvironmentValues {
+    /// Set per tab stack by `LibraryView`, so a card in one stack can never
+    /// pair with a page in another. Where it is absent — Watch, previews, a
+    /// context-menu preview — both zoom modifiers below do nothing.
+    @Entry var recipeZoomNamespace: Namespace.ID? = nil
+}
+
+extension View {
+    /// Marks a card's artwork as the place its recipe page zooms out of. The
+    /// radius is the artwork's own, so the page lands back on that shape
+    /// rather than on a square corner.
+    func recipeZoomSource(
+        _ id: RecipeZoomID,
+        cornerRadius: CGFloat
+    ) -> some View {
+        modifier(RecipeZoomSource(id: id, cornerRadius: cornerRadius))
+    }
+
+    /// The page's half of the zoom: out of the card that opened it, or the
+    /// ordinary push when nothing did.
+    func recipeZoomTransition(from card: RecipeZoomID?) -> some View {
+        modifier(RecipeZoomTransition(card: card))
+    }
+}
+
+private struct RecipeZoomSource: ViewModifier {
+    @Environment(\.recipeZoomNamespace) private var namespace
+
+    let id: RecipeZoomID
+    let cornerRadius: CGFloat
+
+    func body(content: Content) -> some View {
+        if let namespace {
+            content.matchedTransitionSource(id: id, in: namespace) {
+                $0.clipShape(
+                    RoundedRectangle(
+                        cornerRadius: cornerRadius,
+                        style: .continuous
+                    )
+                )
+            }
+        } else {
+            content
+        }
+    }
+}
+
+private struct RecipeZoomTransition: ViewModifier {
+    @Environment(\.recipeZoomNamespace) private var namespace
+
+    let card: RecipeZoomID?
+
+    func body(content: Content) -> some View {
+        if let card, let namespace {
+            content.navigationTransition(.zoom(sourceID: card, in: namespace))
+        } else {
+            content
+        }
     }
 }

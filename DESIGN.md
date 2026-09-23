@@ -251,8 +251,14 @@ navigation bar, it covers the large title.
   columns with square artwork, then becomes one column for large Dynamic Type.
 - Selecting a tab returns to that workspace root instead of pushing a faux
   destination onto the recipe navigation path.
-- Recipe detail remains a pushed destination. Import and account flows remain
-  native sheets.
+- Recipe detail remains a pushed destination. Opened from a card — Recipes'
+  grid, gallery or list artwork, a Discover row or shelf card — it zooms out of
+  that artwork and back into it on Back or a drag down. A Discover recipe
+  saved on its page has left the feed by the time the cook goes back, so that
+  page zooms back to the centre of the screen rather than into a card. Watch,
+  whose source is the whole screen, Reduce Motion, and a page no card opened
+  (a notification, an import, a review) keep the ordinary push. Import and
+  account flows remain native sheets.
 - Recipe detail opens on a compact header, not a hero: a 96-point thumbnail
   beside the title and byline, the description beneath. The cook chose the
   recipe from that photo a moment ago, so time, servings and nutrition are

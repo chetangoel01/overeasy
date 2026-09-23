@@ -75,6 +75,10 @@ struct RecipeGridCard: View {
                     style: .continuous
                 )
             )
+            .recipeZoomSource(
+                RecipeZoomID(recipe.id),
+                cornerRadius: LadleTheme.Corner.card
+            )
             .accessibilityHidden(true)
     }
 
@@ -114,6 +118,10 @@ struct RecipeGalleryCard: View {
                     cornerRadius: LadleTheme.Corner.control,
                     style: .continuous
                 )
+            )
+            .recipeZoomSource(
+                RecipeZoomID(recipe.id),
+                cornerRadius: LadleTheme.Corner.control
             )
         .contentShape(Rectangle())
         .onTapGesture(perform: openRecipe)

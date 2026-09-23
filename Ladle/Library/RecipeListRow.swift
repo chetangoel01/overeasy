@@ -78,6 +78,7 @@ struct RecipeListRow: View {
             )
         )
         .clipped()
+        .recipeZoomSource(RecipeZoomID(recipe.id), cornerRadius: 12)
         .accessibilityHidden(true)
     }
 }

@@ -633,8 +633,9 @@ struct DiscoverView: View {
     @Bindable var filters: RecipeFilterStore
     let saveRecipe: (SavedDiscoverRecipe) -> Void
     /// The detail page goes up with the save path behind it, because the page
-    /// is pushed by the library and Save there has to be this feed's Save.
-    let openRecipe: (Recipe, DiscoverSaveModel) -> Void
+    /// is pushed by the library and Save there has to be this feed's Save —
+    /// and with the card it was opened from, which it zooms out of.
+    let openRecipe: (Recipe, DiscoverSaveModel, RecipeZoomID) -> Void
     /// Discover owns its view model, so the library above it cannot watch
     /// the feed. This reports the one thing it needs: the first page never
     /// arrived, and there is nothing cached to show instead.
@@ -654,7 +655,7 @@ struct DiscoverView: View {
         service: any DiscoverServing,
         filters: RecipeFilterStore,
         saveRecipe: @escaping (SavedDiscoverRecipe) -> Void,
-        openRecipe: @escaping (Recipe, DiscoverSaveModel) -> Void,
+        openRecipe: @escaping (Recipe, DiscoverSaveModel, RecipeZoomID) -> Void,
         onInitialLoadFailed: @escaping () -> Void = {},
         shuffleShelfIDs: @escaping ([DiscoverShelf.ID]) -> [DiscoverShelf.ID]
     ) {
@@ -884,8 +885,13 @@ struct DiscoverView: View {
 
     /// Opening and saving are the same two actions from a rail card as from
     /// a list row, so both surfaces call these rather than each closing over
-    /// their own copy of the work.
-    private func open(_ recipe: DiscoverRecipe) {
+    /// their own copy of the work. A rail card names its shelf, so the page
+    /// zooms out of that card and not the same recipe's row in the list; a
+    /// list row names none.
+    private func open(
+        _ recipe: DiscoverRecipe,
+        shelf: DiscoverShelf.ID? = nil
+    ) {
         Task {
             if let detail = await viewModel.detail(for: recipe) {
                 openRecipe(
@@ -894,7 +900,8 @@ struct DiscoverView: View {
                         source: recipe,
                         viewModel: viewModel,
                         didSave: saveRecipe
-                    )
+                    ),
+                    RecipeZoomID(recipe.sourceID, shelf: shelf)
                 )
             }
         }
@@ -914,7 +921,7 @@ struct DiscoverView: View {
             shelf: shelf,
             isLoadingDetail: { viewModel.isLoadingDetail($0) },
             isSaved: { viewModel.isSaved($0) },
-            open: open,
+            open: { open($0, shelf: shelf.id) },
             save: save,
             showAll: { filters.showAll(keyword: $0) }
         )
@@ -1343,6 +1350,12 @@ private struct DiscoverShelfCard: View {
                     style: .continuous
                 )
             )
+            // Beneath the loading veil, which is gone by the time the page
+            // opens and has no place in the zoom.
+            .recipeZoomSource(
+                RecipeZoomID(recipe.sourceID, shelf: shelf),
+                cornerRadius: LadleTheme.Corner.thumbnail
+            )
             .overlay {
                 if isLoadingDetail {
                     ZStack {
@@ -1463,6 +1476,10 @@ struct DiscoverRecipeRow: View {
                 cornerRadius: LadleTheme.Corner.control,
                 style: .continuous
             )
+        )
+        .recipeZoomSource(
+            RecipeZoomID(recipe.sourceID),
+            cornerRadius: LadleTheme.Corner.control
         )
         .overlay {
             if isLoadingDetail {

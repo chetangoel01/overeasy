@@ -126,6 +126,28 @@ final class LibraryNavigationStateTests: XCTestCase {
         )
     }
 
+    // MARK: - Opening a recipe from its card
+
+    func testOnlyRecipesAndDiscoverOpenAPageByZoomingOutOfItsCard() {
+        let card = RecipeZoomID(PreviewFixtures.recipes[0].id)
+
+        for tab in LibraryTab.allCases {
+            XCTAssertEqual(
+                tab.zoomSource(for: card, reduceMotion: false),
+                [.recipes, .discover].contains(tab) ? card : nil,
+                "\(tab)"
+            )
+        }
+    }
+
+    func testReduceMotionKeepsThePush() {
+        let card = RecipeZoomID(PreviewFixtures.recipes[0].id)
+
+        XCTAssertNil(
+            LibraryTab.discover.zoomSource(for: card, reduceMotion: true)
+        )
+    }
+
     func testEveryWorkspaceTabKeepsAccountInItsToolbar() {
         for tab in LibraryTab.allCases {
             XCTAssertTrue(
