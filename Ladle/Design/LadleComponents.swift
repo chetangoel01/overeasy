@@ -364,6 +364,80 @@ enum LadleIconButtonTone {
     }
 }
 
+extension View {
+    /// A change to `value` moves on the house curve, and at once under Reduce
+    /// Motion. The modifier reads Reduce Motion where it is installed, so a
+    /// control built outside a body, as a test builds Discover's Save, never
+    /// reads the environment unhosted.
+    func ladleAnimation(value: some Equatable) -> some View {
+        modifier(LadleAnimation(value: value))
+    }
+
+    /// A glyph that changes with state morphs rather than blinking: SF
+    /// Symbols' Replace on the house curve whenever `value` changes. Under
+    /// Reduce Motion it changes in one frame.
+    func ladleSymbolReplace(value: some Equatable) -> some View {
+        modifier(LadleSymbolReplace(value: value))
+    }
+
+    /// One bounce as a control switches on, never as it switches off — the
+    /// completion haptic's forward-only rule. Nothing bounces under Reduce
+    /// Motion.
+    func ladleSymbolBounce(on isOn: Bool) -> some View {
+        modifier(LadleSymbolBounce(isOn: isOn))
+    }
+}
+
+private struct LadleAnimation<Value: Equatable>: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    let value: Value
+
+    func body(content: Content) -> some View {
+        content.animation(
+            reduceMotion ? nil : .snappy(duration: 0.2, extraBounce: 0),
+            value: value
+        )
+    }
+}
+
+private struct LadleSymbolReplace<Value: Equatable>: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    let value: Value
+
+    func body(content: Content) -> some View {
+        content
+            // The transition goes as well as the animation, so the Replace
+            // cannot play under Reduce Motion whatever transaction the change
+            // arrives in.
+            .contentTransition(
+                reduceMotion ? .identity : .symbolEffect(.replace)
+            )
+            .ladleAnimation(value: value)
+    }
+}
+
+private struct LadleSymbolBounce: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Counts only the switches on, so switching off leaves the effect's
+    /// trigger where it was.
+    @State private var bounces = 0
+
+    let isOn: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .symbolEffect(.bounce, value: bounces)
+            .onChange(of: isOn) { wasOn, isOn in
+                if !reduceMotion,
+                   LadleFeedbackPolicy.didComplete(from: wasOn, to: isOn) {
+                    bounces += 1
+                }
+            }
+    }
+}
+
 struct LadleIconButton: View {
     @Environment(\.ladleAccent) private var accent
 
@@ -382,6 +456,8 @@ struct LadleIconButton: View {
             Image(systemName: systemImage)
                 .font(.system(size: LadleTheme.IconSize.medium, weight: .bold))
                 .foregroundStyle(isSelected ? accent.label : tone.foreground)
+                .ladleSymbolReplace(value: systemImage)
+                .ladleSymbolBounce(on: isSelected)
                 .frame(width: LadleTheme.Control.hitTarget, height: LadleTheme.Control.hitTarget)
                 .background {
                     Group {

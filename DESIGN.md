@@ -194,6 +194,12 @@ accent, and press feedback. List favorites have no fill. Grid favorites use a
 material circle to maintain contrast over photographs; that is an intentional
 surface difference, not a different control size.
 
+A glyph that changes with state — a favorite, play and pause, the timer ring,
+a completed step — morphs with SF Symbols' Replace rather than swapping in one
+frame, and a favorite bounces once as it is switched on, never off. Save's
+fill and spinner move on the same curve when it is tapped; under Reduce Motion
+all of it changes at once.
+
 Native toolbar and menu actions retain the platform's sizing and background.
 Toolbar Save still reserves its label while loading. Apple and Google sign-in
 retain their provider styling. Dark cooking controls retain their legible

@@ -1506,6 +1506,9 @@ struct DiscoverRecipeRow: View {
             isLoading: isSaving
         ))
         .disabled(isSaving || isSaved)
+        // Keyed on saving: the fill drops and the spinner comes in on the
+        // curve at the tap. A save that lands takes the row away with it.
+        .ladleAnimation(value: isSaving)
         .accessibilityLabel(
             isSaved ? "\(recipe.title) saved" : "Save \(recipe.title)"
         )

@@ -713,6 +713,9 @@ private struct WatchRecipePage: View {
                 }
                 .buttonStyle(LadleButtonStyle(role: .primary))
                 .disabled(isSaving || isSaved)
+                // Saving flips at the tap and again as the save lands, so
+                // the spinner, and then Saved, crossfade in on one curve.
+                .ladleAnimation(value: isSaving)
 
                 Button(action: openRecipe) {
                     if isLoadingDetail {

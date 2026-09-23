@@ -139,15 +139,27 @@ struct FocusModeView: View {
                 Button {
                     viewModel.toggleCompletedStep(step.id)
                 } label: {
-                    Label(
-                        viewModel.isStepCompleted(step.id)
-                            ? "Step complete"
-                            : "Mark step complete",
-                        systemImage:
+                    Label {
+                        Text(
                             viewModel.isStepCompleted(step.id)
+                                ? "Step complete"
+                                : "Mark step complete"
+                        )
+                    } icon: {
+                        Image(
+                            systemName: viewModel.isStepCompleted(step.id)
                                 ? "checkmark.circle.fill"
                                 : "circle"
-                    )
+                        )
+                        .ladleSymbolReplace(
+                            value: viewModel.isStepCompleted(step.id)
+                        )
+                        // Keyed to the step, so moving to another step shows
+                        // its state rather than morphing from the last one's.
+                        // On the glyph, not the button, whose haptic trigger
+                        // has to stay put.
+                        .id(step.id)
+                    }
                 }
                 .ladleFont(.metadata)
                 .foregroundStyle(LadleTheme.Label.onAccent)

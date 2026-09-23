@@ -435,8 +435,11 @@ struct RecipeTimerButton: View {
                 )
                 .rotationEffect(.degrees(-90))
 
+            // Only the glyph morphs: the card's colour and title change in
+            // the same frame they always have.
             Image(systemName: timerIcon)
                 .font(.system(size: LadleTheme.IconSize.small, weight: .bold))
+                .ladleSymbolReplace(value: timerIcon)
         }
         .frame(width: 32, height: 32)
         .accessibilityHidden(true)

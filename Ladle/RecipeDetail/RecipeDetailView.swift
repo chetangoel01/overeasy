@@ -542,6 +542,9 @@ struct RecipeDetailView: View {
         }
         .buttonStyle(LadlePressButtonStyle())
         .disabled(model.isSaving || model.isSaved)
+        // Keyed on saving: the label fades and the spinner comes in on the
+        // curve at the tap. A save that lands hands this slot to the heart.
+        .ladleAnimation(value: model.isSaving)
         .accessibilityLabel(
             model.isSaved
                 ? "\(displayedRecipe.title) saved"
@@ -704,6 +707,8 @@ struct RecipeDetailView: View {
                 .foregroundStyle(
                     isFavorite ? accent.label : LadleTheme.Label.primary
                 )
+                .ladleSymbolReplace(value: isFavorite)
+                .ladleSymbolBounce(on: isFavorite)
                 .frame(width: LadleTheme.Control.hitTarget, height: LadleTheme.Control.hitTarget)
         }
         .buttonStyle(LadlePressButtonStyle())
