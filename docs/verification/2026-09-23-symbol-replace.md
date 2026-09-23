@@ -1,10 +1,9 @@
 # Icons that change state morph instead of blinking
 
 Date: September 23, 2026
-Branch: `codex/motion-symbol-replace`
-Status: **implemented, built and unit-tested; not yet captured.** One of six
-motion changes made in parallel from `codex/motion-bridges`. The Reduce Motion
-pass and the device captures happen at integration.
+Branch: `codex/motion-bridges`
+Status: **implemented on `codex/motion-bridges`; built, unit-tested (563
+tests), UI smoke set run, and captured on the simulator.**
 
 ## Purpose
 
@@ -137,4 +136,14 @@ To check at integration, with Reduce Motion both off and on:
 
 ### Captures
 
-Added at integration.
+Recorded on the iPhone 17 simulator (iOS 27.0), light appearance, Tomato accent, seeded demo data (`-ui-testing -onboarding-complete`), with `xcrun simctl io recordVideo`; each strip is frames of that recording, left to right.
+
+- ![Recipe page heart](captures/2026-09-23-symbol-replace/detail-heart.png)
+  The recipe page's heart. Top: favoriting morphs the outline into the fill and
+  bounces once. Bottom: unfavoriting morphs back with no bounce.
+- ![Grid heart](captures/2026-09-23-symbol-replace/grid-heart.png)
+  A Recipes grid card's heart, through `LadleIconButton`: the same Replace and
+  single bounce on the photo's material circle.
+
+The timer ring and Focus Mode's step circle use the same modifier and were not
+captured separately. Reduce Motion was not captured.

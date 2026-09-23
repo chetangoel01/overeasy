@@ -1,9 +1,9 @@
 # Share Extension: "Saved to Overeasy" lands
 
 Date: September 23, 2026
-Branch: `codex/motion-share-saved`
-Status: **unit rule red/green and typechecked; app build, test run and
-device captures pending at integration.**
+Branch: `codex/motion-bridges`
+Status: **implemented on `codex/motion-bridges`; built, unit-tested (563
+tests), UI smoke set run, and captured on the simulator.**
 
 ## Purpose
 
@@ -90,4 +90,12 @@ the change can happen while the sheet is still presenting.
 
 ### Captures
 
-Captures are added at integration.
+Recorded on the iPhone 17 simulator (iOS 27.0), light appearance, Tomato accent, seeded demo data (`-ui-testing -onboarding-complete`), with `xcrun simctl io recordVideo`; each strip is frames of that recording, left to right.
+
+- ![Saving to saved](captures/2026-09-23-share-saved-confirmation/saved-landing.png)
+  Sharing a TikTok link from Safari. The sheet rises on "Saving link…" with the
+  spinner, then the circle turns from steel to accent, the copy crossfades,
+  source and Done fade in, and the checkmark draws on.
+
+The success haptic cannot be observed in the simulator; its loading-to-success
+rule is unit-tested. Reduce Motion was not captured.

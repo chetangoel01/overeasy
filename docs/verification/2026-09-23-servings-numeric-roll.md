@@ -1,8 +1,9 @@
 # Servings: the count and the amounts roll
 
 Date: September 23, 2026
-Branch: `codex/motion-servings-roll`, one of six motion changes integrated on
-`codex/motion-bridges`.
+Branch: `codex/motion-bridges`
+Status: **implemented on `codex/motion-bridges`; built, unit-tested (563
+tests), UI smoke set run, and captured on the simulator.**
 
 ## Purpose
 
@@ -90,7 +91,14 @@ before cooking and do not change on screen.
 
 ### Captures
 
-Captures are added at integration. They should cover: stepping up and down on
-the Smash Burgers fixture (the one with a "Not scaled" row), Reset from a
-scaled count, 9 to 10 servings, where the count widens, and the same steps
-under Reduce Motion.
+Recorded on the iPhone 17 simulator (iOS 27.0), light appearance, Tomato accent, seeded demo data (`-ui-testing -onboarding-complete`), with `xcrun simctl io recordVideo`; each strip is frames of that recording, left to right.
+
+- ![Four to five](captures/2026-09-23-servings-numeric-roll/servings-up.png)
+  Four to five servings on Brown Butter Miso Cookies: the count rolls up and
+  "1 cup" rolls to "1.25 cup", while "· Reset" arrives beside "servings".
+- ![Six to five](captures/2026-09-23-servings-numeric-roll/servings-down.png)
+  Six to five: the count rolls down, and "1.5" rolls down to "1.25".
+
+For about one frame, as Reset first appears, "servings" is still sliding left
+while "· Reset" fades in, so the two words touch. It reads as a slide at speed;
+worth a look on device. Reduce Motion was not captured.

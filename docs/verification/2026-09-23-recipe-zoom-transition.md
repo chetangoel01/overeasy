@@ -115,4 +115,14 @@ so the photo the cook chose is visibly the page they are reading.
 
 ### Captures
 
-Added at integration.
+Recorded on the iPhone 17 simulator (iOS 27.0), light appearance, Tomato accent, seeded demo data (`-ui-testing -onboarding-complete`), with `xcrun simctl io recordVideo`; each strip is frames of that recording, left to right.
+
+- ![Opening](captures/2026-09-23-recipe-zoom-transition/zoom-open.png)
+  Opening Brown Butter Miso Cookies from the "New to Overeasy" shelf: the page
+  grows out of the card's photo and settles in about half a second.
+- ![Back](captures/2026-09-23-recipe-zoom-transition/zoom-close.png)
+  Back: the page shrinks into the same card, which reappears as it lands.
+
+The same zoom was seen from the Recipes grid. Not captured: the Reduce Motion
+push (the rule is unit-tested), the drag-down dismissal, and the fallback for a
+Discover recipe saved on its page, which zooms back to the centre of the screen.

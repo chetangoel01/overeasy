@@ -1,9 +1,9 @@
 # First run: the share step demonstrates itself
 
 Date: September 23, 2026
-Branch: `codex/motion-onboarding-share`
-Status: **implemented and verified by build and unit tests; captures happen at
-integration.**
+Branch: `codex/motion-bridges`
+Status: **implemented on `codex/motion-bridges`; built, unit-tested (563
+tests), UI smoke set run, and captured on the simulator.**
 
 ## Purpose
 
@@ -92,6 +92,11 @@ rather than read, and then goes still again.
 
 ### Captures
 
-Captures are added at integration: the share step playing on first
-appearance, the landed frame in light and dark with a non-default accent, and
-the step under Reduce Motion.
+Recorded on the iPhone 17 simulator (iOS 27.0), light appearance, Tomato accent, seeded demo data (`-ui-testing -onboarding-complete`), with `xcrun simctl io recordVideo`; each strip is frames of that recording, left to right. This one starts from `-ui-testing -reset-onboarding`, through Try as a guest and the diet step.
+
+- ![Share step](captures/2026-09-23-onboarding-share-demonstration/share-step.png)
+  The share step fading in over the diet step, then Share and the arrow moving,
+  "Add to Overeasy" filling with the accent, holding, and settling back to the
+  still illustration.
+
+Reduce Motion and dark appearance were not captured.

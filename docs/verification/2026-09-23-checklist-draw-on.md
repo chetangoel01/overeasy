@@ -1,9 +1,9 @@
 # Full Recipe: the tick draws itself
 
 Date: September 23, 2026
-Branch: `codex/motion-checklist-tick`, one of six motion changes built in
-parallel from `codex/motion-bridges`.
-Status: **implemented, built and unit-tested; captures follow at integration.**
+Branch: `codex/motion-bridges`
+Status: **implemented on `codex/motion-bridges`; built, unit-tested (563
+tests), UI smoke set run, and captured on the simulator.**
 
 ## Purpose
 
@@ -85,4 +85,14 @@ what it shows.
 
 ### Captures
 
-Captures are added at integration.
+Recorded on the iPhone 17 simulator (iOS 27.0), light appearance, Tomato accent, seeded demo data (`-ui-testing -onboarding-complete`), with `xcrun simctl io recordVideo`; each strip is frames of that recording, left to right.
+
+- ![Tick](captures/2026-09-23-checklist-draw-on/tick.png)
+  Ticking "1 cup unsalted butter" in Full Recipe: the circle fills and the text
+  dims first, then the checkmark draws itself on.
+- ![Untick](captures/2026-09-23-checklist-draw-on/untick.png)
+  Unticking: the check goes at once and the fill and dimming ease back.
+
+The first build drew the check back out on untick; the recording showed it
+blink off for two frames first, and a fade did the same, which is why removal
+is now immediate. Reduce Motion was not captured.
