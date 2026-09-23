@@ -451,6 +451,26 @@ final class DesignTokenTests: XCTestCase {
         )
     }
 
+    /// The first-run share step acts out its gesture only once the step has
+    /// finished fading in, so the two never compete. Under Reduce Motion it
+    /// stays the still illustration it has always been.
+    func testShareStepDemonstratesOnceFadedInAndNeverUnderReduceMotion() throws {
+        XCTAssertNil(
+            OnboardingWalkthroughView.shareDemonstrationDelay(
+                reduceMotion: true
+            )
+        )
+        let delay = try XCTUnwrap(
+            OnboardingWalkthroughView.shareDemonstrationDelay(
+                reduceMotion: false
+            )
+        )
+        XCTAssertGreaterThanOrEqual(
+            delay,
+            .seconds(OnboardingWalkthroughView.stepFade)
+        )
+    }
+
     /// Every row in either picker carries its own symbol, so the icon column
     /// is never half empty. `RecipeSort` lives in LadleCore and holds no
     /// presentation, so its icons sit in the app-side extension beside

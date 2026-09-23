@@ -31,10 +31,30 @@ struct OnboardingWalkthroughView: View {
         }
     }
 
+    /// The share step acts out its own instruction: tap Share, follow the
+    /// arrow, land on Add to Overeasy, then settle back to the still picture.
+    private enum ShareBeat: CaseIterable {
+        case rest
+        case tapShare
+        case travel
+        case land
+    }
+
+    /// How long a step change takes to crossfade.
+    static let stepFade: TimeInterval = 0.2
+
+    /// The share step demonstrates itself once it has faded in, so the two
+    /// motions never overlap. Under Reduce Motion it never does, and stays
+    /// the still illustration.
+    static func shareDemonstrationDelay(reduceMotion: Bool) -> Duration? {
+        reduceMotion ? nil : .seconds(stepFade)
+    }
+
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @State private var step = Step.share
+    @State private var shareAppearances = 0
 
     let onComplete: () -> Void
 
@@ -84,6 +104,23 @@ struct OnboardingWalkthroughView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("onboarding.root")
+        // Leaving the step cancels the wait, so the demonstration only ever
+        // plays on a share step that is still showing.
+        .task(id: step) {
+            guard step == .share,
+                  let delay = Self.shareDemonstrationDelay(
+                      reduceMotion: reduceMotion
+                  )
+            else {
+                return
+            }
+            do {
+                try await Task.sleep(for: delay)
+            } catch {
+                return
+            }
+            shareAppearances += 1
+        }
     }
 
     private var header: some View {
@@ -128,86 +165,106 @@ struct OnboardingWalkthroughView: View {
                 .fill(LadleTheme.Intent.success.opacity(0.58))
                 .frame(width: 230, height: 230)
 
-            VStack(spacing: LadleTheme.Spacing.medium) {
-                HStack(spacing: LadleTheme.Spacing.medium) {
-                    ZStack {
-                        RoundedRectangle(
-                            cornerRadius: LadleTheme.Corner.control,
-                            style: .continuous
-                        )
-                        .fill(LadleTheme.Surface.graphite)
-
-                        Image(systemName: "play.fill")
-                            .font(.system(size: LadleTheme.IconSize.large, weight: .bold))
-                            .foregroundStyle(LadleTheme.Label.onAccent)
-                    }
-                    .frame(width: 52, height: 64)
-
-                    VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
-                        Text("Lemon orzo tonight")
-                            .ladleFont(.bodyStrong)
-                            .foregroundStyle(LadleTheme.Label.primary)
-                            .fixedSize(horizontal: false, vertical: true)
-
-                        Text("Instagram · @miacooks")
-                            .ladleFont(.metadata)
-                            .foregroundStyle(LadleTheme.Label.secondary)
-                    }
-
-                    Spacer(minLength: LadleTheme.Spacing.compact)
-
-                    Image(systemName: "square.and.arrow.up")
-                        .font(.system(size: LadleTheme.IconSize.large, weight: .semibold))
-                        .foregroundStyle(accent.label)
-                        .frame(width: LadleTheme.Control.hitTarget, height: LadleTheme.Control.hitTarget)
-                }
-                .padding(LadleTheme.Spacing.regular)
-                .background(
-                    LadleTheme.Surface.porcelain,
-                    in: RoundedRectangle(
-                        cornerRadius: LadleTheme.Corner.card,
-                        style: .continuous
-                    )
-                )
-
-                Image(systemName: "arrow.down")
-                    .font(.system(size: LadleTheme.IconSize.medium, weight: .bold))
-                    .foregroundStyle(accent.label)
-                    .accessibilityHidden(true)
-
-                HStack(spacing: LadleTheme.Spacing.medium) {
-                    Image("OvereasyMark")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: LadleTheme.Control.hitTarget, height: LadleTheme.Control.hitTarget)
-                        .clipShape(
+            // Each beat only scales, nudges or recolours, so nothing around
+            // the illustration moves while it plays.
+            PhaseAnimator(
+                ShareBeat.allCases,
+                trigger: shareAppearances
+            ) { beat in
+                VStack(spacing: LadleTheme.Spacing.medium) {
+                    HStack(spacing: LadleTheme.Spacing.medium) {
+                        ZStack {
                             RoundedRectangle(
-                                cornerRadius: 12,
+                                cornerRadius: LadleTheme.Corner.control,
                                 style: .continuous
                             )
+                            .fill(LadleTheme.Surface.graphite)
+
+                            Image(systemName: "play.fill")
+                                .font(.system(size: LadleTheme.IconSize.large, weight: .bold))
+                                .foregroundStyle(LadleTheme.Label.onAccent)
+                        }
+                        .frame(width: 52, height: 64)
+
+                        VStack(alignment: .leading, spacing: LadleTheme.Spacing.tight) {
+                            Text("Lemon orzo tonight")
+                                .ladleFont(.bodyStrong)
+                                .foregroundStyle(LadleTheme.Label.primary)
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            Text("Instagram · @miacooks")
+                                .ladleFont(.metadata)
+                                .foregroundStyle(LadleTheme.Label.secondary)
+                        }
+
+                        Spacer(minLength: LadleTheme.Spacing.compact)
+
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: LadleTheme.IconSize.large, weight: .semibold))
+                            .foregroundStyle(accent.label)
+                            .scaleEffect(beat == .tapShare ? 1.25 : 1)
+                            .frame(width: LadleTheme.Control.hitTarget, height: LadleTheme.Control.hitTarget)
+                    }
+                    .padding(LadleTheme.Spacing.regular)
+                    .background(
+                        LadleTheme.Surface.porcelain,
+                        in: RoundedRectangle(
+                            cornerRadius: LadleTheme.Corner.card,
+                            style: .continuous
                         )
-
-                    Text("Add to Overeasy")
-                        .ladleFont(.bodyStrong)
-                        .foregroundStyle(LadleTheme.Label.primary)
-
-                    Spacer()
-
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: LadleTheme.IconSize.small, weight: .bold))
-                        .foregroundStyle(LadleTheme.Label.secondary)
-                }
-                .padding(LadleTheme.Spacing.regular)
-                .background(
-                    LadleTheme.Surface.porcelain,
-                    in: RoundedRectangle(
-                        cornerRadius: LadleTheme.Corner.card,
-                        style: .continuous
                     )
-                )
+
+                    Image(systemName: "arrow.down")
+                        .font(.system(size: LadleTheme.IconSize.medium, weight: .bold))
+                        .foregroundStyle(accent.label)
+                        .offset(y: beat == .travel ? 8 : 0)
+                        .accessibilityHidden(true)
+
+                    HStack(spacing: LadleTheme.Spacing.medium) {
+                        Image("OvereasyMark")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: LadleTheme.Control.hitTarget, height: LadleTheme.Control.hitTarget)
+                            .clipShape(
+                                RoundedRectangle(
+                                    cornerRadius: 12,
+                                    style: .continuous
+                                )
+                            )
+
+                        Text("Add to Overeasy")
+                            .ladleFont(.bodyStrong)
+                            .foregroundStyle(
+                                beat == .land
+                                    ? LadleTheme.Label.onAccent
+                                    : LadleTheme.Label.primary
+                            )
+
+                        Spacer()
+
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: LadleTheme.IconSize.small, weight: .bold))
+                            .foregroundStyle(
+                                beat == .land
+                                    ? LadleTheme.Label.onAccent
+                                    : LadleTheme.Label.secondary
+                            )
+                    }
+                    .padding(LadleTheme.Spacing.regular)
+                    .background(
+                        beat == .land ? accent.intent : LadleTheme.Surface.porcelain,
+                        in: RoundedRectangle(
+                            cornerRadius: LadleTheme.Corner.card,
+                            style: .continuous
+                        )
+                    )
+                }
+                .frame(maxWidth: 340)
+                .shadow(color: LadleTheme.Label.primary.opacity(0.08), radius: 18, y: 8)
+            } animation: { beat in
+                // The landed row holds a moment before everything settles.
+                .snappy(duration: 0.25, extraBounce: 0).delay(beat == .rest ? 0.6 : 0)
             }
-            .frame(maxWidth: 340)
-            .shadow(color: LadleTheme.Label.primary.opacity(0.08), radius: 18, y: 8)
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(
@@ -385,7 +442,7 @@ struct OnboardingWalkthroughView: View {
                 }
             }
             .animation(
-                reduceMotion ? nil : .easeOut(duration: 0.2),
+                reduceMotion ? nil : .easeOut(duration: Self.stepFade),
                 value: step
             )
             .accessibilityHidden(true)
@@ -412,7 +469,7 @@ struct OnboardingWalkthroughView: View {
         if reduceMotion {
             step = nextStep
         } else {
-            withAnimation(.easeOut(duration: 0.2)) {
+            withAnimation(.easeOut(duration: Self.stepFade)) {
                 step = nextStep
             }
         }

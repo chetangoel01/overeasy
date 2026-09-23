@@ -410,6 +410,9 @@ navigation bar, it covers the large title.
 
 - Welcome is a dedicated graphite surface with the installed app mark, one
   product sentence, and Apple, Google, and guest choices.
+- The walkthrough's share step acts out its instruction once each time it
+  appears — Share bounces, the arrow nudges down, Add to Overeasy fills with
+  the accent and settles back — and stays still under Reduce Motion.
 - State the ten-recipe guest limit because it changes the user's decision; avoid
   a passive feature tour.
 - The Share Extension mirrors the porcelain/graphite palette and says only what
