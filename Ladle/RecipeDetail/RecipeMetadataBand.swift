@@ -5,6 +5,7 @@ import SwiftUI
 struct RecipeMetadataBand: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.ladleAccent) private var accent
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     let recipe: Recipe
 
@@ -101,6 +102,13 @@ struct RecipeMetadataBand: View {
                 Text(ladleNumber(value.servings))
                     .ladleFont(.recipeTitle)
                     .monospacedDigit()
+                    // Up for more, down for fewer: the value gives the roll
+                    // its direction, which a bare `.numericText()` lacks.
+                    .contentTransition(
+                        .numericText(
+                            value: Double(truncating: value.servings as NSNumber)
+                        )
+                    )
                     .foregroundStyle(LadleTheme.Label.primary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
@@ -156,7 +164,7 @@ struct RecipeMetadataBand: View {
                 Text("·")
                     .accessibilityHidden(true)
                 Button {
-                    scaling.wrappedValue.reset()
+                    withAnimation(countChange) { scaling.wrappedValue.reset() }
                     announceOnceSettled(scaling.wrappedValue)
                 } label: {
                     Text("Reset")
@@ -189,9 +197,17 @@ struct RecipeMetadataBand: View {
         return recipe.servings == 1 ? "Yield unknown" : "\(noun), estimated"
     }
 
+    /// The arrows, VoiceOver's swipe and Reset all change the count inside
+    /// this one animation, so the count and every amount roll together and a
+    /// row's "Not scaled" aside fades with them. It lives here, in the view
+    /// that reads Reduce Motion, which makes the same change at once.
+    private var countChange: Animation? {
+        reduceMotion ? nil : .snappy(duration: 0.2, extraBounce: 0)
+    }
+
     private func step(_ scaling: Binding<RecipeScaling>, by count: Int) {
         let before = scaling.wrappedValue
-        scaling.wrappedValue.step(by: count)
+        withAnimation(countChange) { scaling.wrappedValue.step(by: count) }
         guard scaling.wrappedValue != before else { return }
         announceOnceSettled(scaling.wrappedValue)
     }

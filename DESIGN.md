@@ -283,10 +283,13 @@ navigation bar, it covers the large title.
   line, and the word "servings". The circles are 30 points of `Surface.badge`
   on 44-point targets and disable at the ends of the range. After a change the
   last line reads "servings · Reset"; it keeps its height, and Reset's target
-  grows down into the band's padding, never up into the plus. VoiceOver meets
-  the stepper as one adjustable element. A band with nothing to scale — the
-  reimport sheet, a recipe claiming no yield — keeps the read-only yield cell,
-  and at accessibility text sizes the two cells stack.
+  grows down into the band's padding, never up into the plus. A change of
+  count, Reset included, rolls the count and every ingredient amount up for
+  more and down for fewer, and a row's "Not scaled" fades with them; under
+  Reduce Motion they change at once. VoiceOver meets the stepper as one
+  adjustable element. A band with nothing to scale — the reimport sheet, a
+  recipe claiming no yield — keeps the read-only yield cell, and at
+  accessibility text sizes the two cells stack.
 - Account management stays in the top-right toolbar on Recipes, Discover,
   Watch, and Inbox. Add Recipe sits beside it on Recipes and Inbox, the two
   tabs where a link arrives; Discover and Watch are consumption surfaces and

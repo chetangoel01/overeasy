@@ -17,6 +17,13 @@ struct IngredientList: View {
     /// withholds is the marker on a row that could not follow.
     var scaledBy: Decimal?
 
+    /// The factor the rows are written at. The recipe at the count it claims
+    /// is one, not nothing, so the amounts roll the way the count moved even
+    /// when it lands back there: three servings to four rolls 0.75 up to 1.
+    private var factor: Decimal {
+        scaledBy ?? 1
+    }
+
     /// The leading art is a fixed square whatever it holds — a painting, a
     /// pantry container, or the badge that stands in where the set has no
     /// art. Fixed, and shared by all three, so a row cannot change height
@@ -59,13 +66,14 @@ struct IngredientList: View {
                         leading(for: ingredient)
                             .accessibilityHidden(true)
 
-                        Text(
-                            ingredient.cookingDetailText(
-                                scaledBy: scaledBy ?? 1
-                            )
-                        )
+                        Text(ingredient.cookingDetailText(scaledBy: factor))
                             .ladleFont(.body)
                             .foregroundStyle(LadleTheme.Label.primary)
+                            .contentTransition(
+                                .numericText(
+                                    value: Double(truncating: factor as NSNumber)
+                                )
+                            )
 
                         Spacer(minLength: 0)
                     }
