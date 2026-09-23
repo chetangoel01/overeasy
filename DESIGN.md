@@ -364,8 +364,8 @@ navigation bar, it covers the large title.
   the icons, because there the reader is comparing two versions of the text.
 - Full Recipe stays a light checklist and overview. Ticking a row off draws
   its check in, fading out a step's number, while the circle fills and the row
-  dims in one 150 ms settle; unticking plays it back, and Reduce Motion changes
-  the row at once.
+  dims in one 150 ms settle; unticking takes the check away at once while the
+  circle and row settle back, and Reduce Motion changes the row at once.
 - Focus Mode uses the graphite ground with porcelain text and a fixed signal-red
   progress/action color.
 - One instruction owns the screen. Timers are large and stateful.

@@ -20,8 +20,8 @@ what it shows.
 - The circle's fill and stroke turn to the success colour, and the row's text
   dims to 48% and takes its strikethrough, over the same 150 ms zero-bounce
   snappy curve.
-- Unticking plays it back: the check draws out, the number fades in, the
-  circle and text return.
+- Unticking takes the check away at once while the circle empties, the number
+  fades in and the text returns over the same curve.
 - The success haptic is unchanged: it plays only when a row goes from open to
   done, never on unticking.
 - Reduce Motion changes the row at once, with the same colours, strikethrough
@@ -37,10 +37,19 @@ what it shows.
 2. **150 ms, press-feedback speed.** The tick answers a tap, so it uses the
    control-press duration rather than the 0.2 s house curve for ordinary
    motion.
-3. **One transition for both directions.** `.transition(.symbolEffect(.drawOn))`
-   draws the check in on insertion and back out on removal. The step number
-   keeps SwiftUI's default fade.
-4. **No new test.** There is no new rule or state: the forward-only haptic is
+3. **Draw On in, nothing out.** The checkmark's transition is asymmetric: Draw
+   On for insertion and identity for removal. On the simulator, any removal
+   transition on the symbol — drawn back out, or a plain fade — blinked it off
+   for two frames before the removal began, then brought it back part-drawn on
+   an emptying circle. Taking it away at once while the fill fades reads as
+   the plain reverse without the flicker. The step number keeps SwiftUI's
+   default fade.
+4. **Draw On keeps the system's speed.** Recorded at 60 fps, the fill and
+   dimming settle in about 0.15 s and the check finishes drawing about 0.3 s
+   after the tap, so the fill lands first and the tick follows. That reads as
+   one gesture; if it ever needs to land together, the lever is
+   `.symbolEffect(.drawOn, options: .speed(_:))`, judged on a device.
+5. **No new test.** There is no new rule or state: the forward-only haptic is
    `LadleFeedbackPolicy.didComplete`, already covered by
    `DesignTokenTests.testFeedbackPolicyOnlyAcknowledgesMeaningfulStateChanges`,
    and the Reduce Motion choice is the house `reduceMotion ? nil : .snappy(…)`
@@ -65,8 +74,8 @@ what it shows.
 - LadleCore is untouched, so `swift test --package-path Packages/LadleCore`
   was not run.
 - To check at integration, in Full Recipe:
-  - The checkmark draws in on tick and out on untick, and the step number
-    fades rather than snapping.
+  - The checkmark draws in on tick and leaves at once on untick, and the step
+    number fades rather than snapping.
   - Circle, strikethrough and 48% dimming move together; the strikethrough
     may cross-fade rather than slide, which is the system's own text change.
   - Ticking the last step still ends cooking at once; the cover may close

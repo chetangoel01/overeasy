@@ -396,9 +396,16 @@ struct FullRecipeView: View {
                 Image(systemName: "checkmark")
                     .font(.system(size: LadleTheme.IconSize.small, weight: .bold))
                     .foregroundStyle(LadleTheme.Label.primary)
-                    // Drawn in when ticked and back out when unticked; the
-                    // step number it replaces keeps the default fade.
-                    .transition(.symbolEffect(.drawOn))
+                    // Drawn in when ticked, gone at once when unticked while
+                    // the fill fades: any removal transition on the symbol,
+                    // drawn off or faded, blinked it out for a frame before
+                    // it began. The step number keeps the default fade.
+                    .transition(
+                        AsymmetricTransition(
+                            insertion: SymbolEffectTransition.symbolEffect(.drawOn),
+                            removal: IdentityTransition.identity
+                        )
+                    )
             } else if let number {
                 Text("\(number)")
                     .ladleFont(.metadata)
