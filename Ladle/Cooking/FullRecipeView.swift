@@ -278,6 +278,7 @@ struct FullRecipeView: View {
                 }
                 Spacer(minLength: 0)
             }
+            .animation(completionAnimation, value: isCompleted)
             .padding(.vertical, LadleTheme.Spacing.medium)
             .contentShape(Rectangle())
         }
@@ -324,6 +325,7 @@ struct FullRecipeView: View {
                         .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 0)
                 }
+                .animation(completionAnimation, value: isCompleted)
                 .contentShape(Rectangle())
             }
             .buttonStyle(LadlePressButtonStyle())
@@ -363,6 +365,14 @@ struct FullRecipeView: View {
     /// away from the labels they separate.
     private static let completionIconWidth: CGFloat = 30
 
+    /// Ticking a row off settles it instead of snapping: the tick draws
+    /// itself while the circle fills and the text dims with it. It lives on
+    /// the row, keyed on its state, so the model's toggle stays plain; Reduce
+    /// Motion changes the row at once and keeps the success haptic.
+    private var completionAnimation: Animation? {
+        reduceMotion ? nil : .snappy(duration: 0.15, extraBounce: 0)
+    }
+
     private func completionIcon(
         isCompleted: Bool,
         number: Int? = nil
@@ -386,6 +396,9 @@ struct FullRecipeView: View {
                 Image(systemName: "checkmark")
                     .font(.system(size: LadleTheme.IconSize.small, weight: .bold))
                     .foregroundStyle(LadleTheme.Label.primary)
+                    // Drawn in when ticked and back out when unticked; the
+                    // step number it replaces keeps the default fade.
+                    .transition(.symbolEffect(.drawOn))
             } else if let number {
                 Text("\(number)")
                     .ladleFont(.metadata)
