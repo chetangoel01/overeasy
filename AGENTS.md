@@ -2,7 +2,9 @@
 
 ## Preserve known-good versions
 
-- Work on a `codex/` feature branch; keep `main` as the stable integration branch.
+- Work on a feature branch; keep `main` as the stable integration branch. Codex
+  uses the `codex/` prefix; other work uses `feat/`, `fix/`, `ui/`, `chore/` or
+  `docs/`.
 - Make task-sized commits after a coherent change-set is verified.
 - Do not combine unrelated changes in one commit.
 - Do not rewrite or discard known-good history unless the user explicitly requests it.
@@ -38,6 +40,9 @@
 
 ## Verification before commits
 
+- This section is the testing policy for this repository. It replaces any general
+  testing preference an agent was given elsewhere, such as preferring end-to-end
+  tests to unit tests.
 - Add or extend a test when it protects meaningful behavior, a likely regression,
   an important edge case, or a public contract. For those changes, reproduce the
   failure first and verify red-green-refactor. Reuse existing coverage when it
